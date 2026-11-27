@@ -255,17 +255,29 @@ the audit found no correctness difference either way.
 - **A writer**, a run that changes code or documents,
   runs on Pi's virtual writer,
   `--provider=rate-limit-fallback --model=writer`,
-  whose router asks these members in the owner's order
-  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order";
-  the owner, 2026-11-26, answered in what order writers take the pools:
+  whose router asks the reviewer's members, in the reviewer's order
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+  "The writer's members become the reviewer's":
+  the owner, 2026-11-27, typed "Change writer's list to match the reviewer's list.",
+  which supersedes for the writer the order of 2026-11-26,
   "Qwen, opencode-go, flex (Recommended)"):
   `qwen-token-plan-individual/deepseek-v4.1-flash-1017`,
+  then `synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
   then `opencode-go/deepseek-v4.1-flash`,
   then `neuralwatt/deepseek-v4.1-flash-flex`.
   The same record has the owner answer "Use the virtual writer (Recommended)" to whether rounds start on it,
   so a launcher names the virtual writer rather than one pool.
   A `429` before any output moves the request on to the next member with the same transcript
   (`package/pi-plugin/rate-limit-fallback/README.md`, "Order and refusal policy").
+  A member whose own window cannot hold the request is passed over for that request alone,
+  and the next member that can hold it answers,
+  so Synthetic's member takes the requests its 524,288-token window holds and no others.
+  The selection advertises its head member's window,
+  1,000,000 tokens over those four members,
+  so a writer round may fill a million tokens before Pi compacts
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+  section "Skip a member too small for the request,
+  and advertise the head's window").
   The driver counts such a run in no pool,
   `VIRTUAL_POOLS` in `package/pi-shared/subagent-driver/src/pool-limits.ts`:
   the owner,
@@ -325,8 +337,11 @@ with `--session=<session file>`,
 and how many runs Synthetic takes at once is still to be measured.
 The driver's pool table (`package/pi-shared/subagent-driver/src/pool-limits.ts`) lists the qwen plan's DeepSeek pool,
 `opencode-go` and Neuralwatt's DeepSeek flex pool,
-plus the virtual writer and reviewer, whose members are those pools.
-A reviewer that names Synthetic, which belongs to no pool, is counted nowhere:
+plus the virtual writer and reviewer,
+whose routers ask those pools' members and Synthetic's DeepSeek model beside them,
+and which both advertise their head member's 1,000,000-token window
+while passing over a member whose own window cannot hold the request.
+A run that names Synthetic itself, which belongs to no pool, is counted nowhere:
 count such runs before starting more.
 The DeepSeek pool order in the paragraphs on the 20-run limit is for runs that name no model;
 a writer names the virtual writer,

@@ -304,12 +304,16 @@ export type VirtualPool = {
 };
 
 /**
- The plugin's virtual writer, whose members are the owner's order of 2026-11-26: the qwen plan's DeepSeek pool, then
- `opencode-go`, then Neuralwatt's DeepSeek flex pool
- (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order").
+ The plugin's virtual writer, whose members are the reviewer's since 2026-11-27: the qwen plan's DeepSeek pool, Synthetic's
+ DeepSeek model, `opencode-go`, then Neuralwatt's DeepSeek flex pool. The owner typed "Change writer's list to match the
+ reviewer's list." (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writer's members
+ become the reviewer's").
 
- Standard Neuralwatt DeepSeek is no member: the owner closed it to writers on 2026-11-11, and the record keeps it closed. Neither
- is the provider named `deepseek`.
+ Synthetic's member belongs to no pool of this table, so its `memberPools` names the same three pools as
+ {@link VIRTUAL_REVIEWER}, and the list says where a refusal moves the request on rather than where a run is counted.
+
+ Standard Neuralwatt DeepSeek is no member: the owner closed it to writers on 2026-11-11, and the record keeps it
+ closed. Neither is the provider named `deepseek`.
  */
 export const VIRTUAL_WRITER: VirtualPool = {
   provider: 'rate-limit-fallback',

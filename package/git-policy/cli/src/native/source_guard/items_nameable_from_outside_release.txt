@@ -1,9 +1,10 @@
 # The names the library target publishes, one line per name: `<module path> <kind> <name>`, or
-# `<module path> pub use <module>::<name>` for a name a re-export carries out of a private module.
+# `<module path> pub use <module>::<name>` for a name a re-export publishes that the `pub mod` chain does not
+# already reach.
 # What: every name another crate can reach through `src/native/lib.rs`, each with the reason it is published: an
-#       item a `pub mod` chain from the root reaches, a `pub` field of a published struct, a `pub` method of a
-#       published type, a `#[macro_export] macro_rules!`, and each name a `pub use` carries out of a module that
-#       chain does not reach.
+#       item a `pub mod` chain from the root reaches, a `pub` field of a published struct, a `pub` function or
+#       constant of a published type, a `#[macro_export] macro_rules!`, and each name a `pub use` publishes that
+#       the chain does not already reach.
 # Why:  publishing is a decision, and a split that moves a private helper into a file of its own must not take that
 #       decision by writing bare `pub` where `pub(crate)` or `pub(super)` says the same thing to the caller.
 #       Release 0.6.1-alpha.48 did exactly that to 31 names, 7 of them private before the split.
@@ -12,15 +13,20 @@
 #       A name a release adds on purpose takes a line under a reason of its own, naming the commit that added it.
 #       A name a split needs only inside the crate takes `pub(crate)`, `pub(super)` or `pub(in path)` and no line.
 # How the reading is bounded: an entry starts with the module path that publishes the name, so two items of one kind
-#       and name in two modules are two entries; a field or a method is keyed by the type that makes it nameable; a
-#       function reads whatever qualifies its `fn` (`async`, `const`, `unsafe`, `extern`); a `pub use` is read whole
-#       however many lines it spans, one entry per name it carries, with an `as` rename read as the published name
-#       and a glob written `pub use <module>::*`; `#[cfg(test)]` above a declaration or beside a member keeps it out.
-#       The five shapes this reading still cannot see are named, with why, in that reader's own doc.
-# What changed on 2026-11-27: this list keys every entry by its module path and member, and covers the three shapes
-#       the first version could not read (a qualified function, a field or method of a published type, and a
-#       re-export over several lines). The surface it names is the same one 0.6.1-alpha.49 published; the entries
-#       grew from 6,695 to 12,395 because a member is a name too.
+#       and name in two modules are two entries; a field, a method or a constant is keyed by the type that makes it
+#       nameable; a function reads whatever count of qualifiers stands before its `fn` (`async`, `const`, `unsafe`,
+#       `extern`); a published type's or `impl`'s body is read when it opens its `{` on a later line than its
+#       header; a `pub use` is read whole however many lines it spans, one entry per name it publishes, with an `as`
+#       rename read as the published name and a glob written `pub use <module>::*`; a re-export written without a
+#       leading path is read from the module that writes it; and a gate keeps an item out only where it holds only
+#       when testing, so `all(not(test), unix)` leaves the item in. The shapes and the changes this reading still
+#       cannot see are named, with why, in that reader's own doc.
+# What changed on 2026-11-27: this list keys every entry by its module path and member, and covers the shapes the
+#       first version of the reading could not see: a qualified function, a field, a method or an associated
+#       constant of a published type, a member whose declaration opens its body on a later line, and a re-export
+#       written over several lines or under a name of its own. Every name the widened reading found was already
+#       published by 0.6.1-alpha.50, so this round published nothing: it narrowed the names nothing outside their
+#       module reads, and wrote the one line another crate's own path needed.
 #
 # Named by another crate of this package, which is what needs the reach: the fuzz sidecar
 # (`package/git-policy/cli.fuzz`), the executable target (`src/native/main.rs`) and the two integration test
@@ -59,6 +65,10 @@ policy::policy_trigger enum Trigger
 process::process_identity fn linux_identity_from_stat
 process::process_start fn parse_linux_stat
 repo_read::repository_location struct RepositoryLocation
+# The service module re-exports the warm-request window under a name of its own, and the binary
+# integration target names that alias (`git_policy_cli::service_warm_request_control_window::PARK_VARIABLE`),
+# so the alias itself is what another crate reaches.
+service pub use service_warm_request::service_warm_request_control_window
 service::service_main const EXIT_REFUSED
 service::service_main fn is_service_start
 service::service_main fn run

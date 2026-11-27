@@ -479,6 +479,7 @@ pub(crate) use source_scan_banned_lines_tests::{
     entries_that_match_nothing,
     lines_calling_one_of,
     lines_holding_one_of,
+    lines_naming_one_of,
     lines_no_entry_excuses,
     release_sources_holding,
     release_sources_under,

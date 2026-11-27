@@ -48,8 +48,6 @@ use std::path::{
     PathBuf,
 };
 
-pub use crate::worktree_clone_removal_finish_pass::the_pass_seams::FinishPass as TheFinishPass;
-
 /// What:
 ///  Every line this pass prints for one repository,
 ///  after it has taken every plan as far as its state allows.

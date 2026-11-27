@@ -29,7 +29,18 @@
 //! and `SCOPE_ANCHORS` is what proves the scope still reaches the commit path;
 //! a file that moves a hook entry out of it is found by a reader and by no rule here.
 //! Two files of those folders make a link for a reason that is not a hook,
-//! and `MAY_HOLD` records each with the one use it holds and the reason it may.
+//! and `MAY_HOLD` records each use by the line it is written on and the reason it may.
+//! A link is banned by its name where a line spells it as a call,
+//! as a path's last segment,
+//! with its types written out,
+//! or as the name a rename takes,
+//! so a rename's import (`use std::os::unix::fs::symlink as make_link;`,
+//! and the braced `use std::os::unix::fs::{symlink as make_link};`) and a function taken as a value
+//! are findings too.
+//! What this ban does not see is a call a macro of another file expands to,
+//! a name a glob import (`use super::*;`) or a type alias brings into scope,
+//! and a call whose name and `(` a line break separates;
+//! a reader checks each of those in a file that adds one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -177,12 +188,17 @@ const SCOPE_ANCHORS: &[(&str, &str)] = &[(
 /// Git's hook
 ///  runner,
 /// a hooks path built from a transaction directory,
-/// or the former entry vocabulary.
-/// Why the two link calls are read as calls rather than as these texts:
-///  `symlink(` read as text is the tail of `is_symlink()`,
-///  which reads a name's type and makes nothing,
-///  so a link is banned by its name in `LINKS_A_FILE_MAY_NOT_MAKE`,
-///  and every text here is one that means the same wherever it occurs.
+/// the former entry vocabulary,
+/// or a rename of the type that starts a program.
+/// Why the link names are read as calls rather than as `NAME(`:
+///  a link is made by a call,
+///  and its name also stands in the import that brings it in and in the value it is taken as,
+///  which are the spellings a rename leaves visible;
+///  `link` read as text is the tail of `read_link` and the middle of a word in a sentence a person reads,
+///  so the name is read at its boundary and only where the line spells the call.
+/// Why `Command as ` is here:
+///  `Spawn::new("sh")` after `use std::process::Command as Spawn;` is the same start as `Command::new("sh")`,
+///  and the line that says the name is the import.
 const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
     "current_exe",
     "write_hook_dispatch",
@@ -194,6 +210,7 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
     "PreparationHooks",
     "Command::new(\"",
     "Command::new(r",
+    "Command as ",
 ];
 
 /// What:
@@ -204,48 +221,49 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
 ///  and an entry is a link written under one of these names:
 ///  the call behind its path,
 ///  the bare call of an imported name,
-///  and the `at` form a directory descriptor goes through.
-///  A name is read here where a name begins,
-///  so `link(` is a finding and `hard_link(`,
-///  `read_link(` and `is_symlink(` are not,
+///  the `at` form a directory descriptor goes through,
+///  and the name any other crate gives the same system call (`rustix::fs::linkat`).
+///  A name is read here where no longer name touches it,
+///  so `link` is a finding and `hard_link`,
+///  `read_link`,
+///  `unlink` and `is_symlink` are not,
 ///  and the control beside this list plants every spelling and every one of those readings.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const LINKS_A_FILE_MAY_NOT_MAKE = ['symlink(', 'symlinkat(', 'hard_link(', 'link(', 'linkat('];
+/// const LINKS_A_FILE_MAY_NOT_MAKE = ['symlink', 'symlinkat', 'hard_link', 'link', 'linkat'];
 /// ```
-const LINKS_A_FILE_MAY_NOT_MAKE: &[&str] =
-    &["symlink(", "symlinkat(", "hard_link(", "link(", "linkat("];
+const LINKS_A_FILE_MAY_NOT_MAKE: &[&str] = &["symlink", "symlinkat", "hard_link", "link", "linkat"];
 
 /// What:
 ///  `MAY_HOLD` is the two commit-path files that make a link for a reason that is not a hook,
-///  each with the one use of its text that file holds.
+///  each with the one use of its name that file holds.
 /// Why:
 ///  The ban holds over the two folders rather than over ten named files,
 ///  so the links those folders make for their own work are recorded where a reader of the ban meets
 ///  them,
 ///  and an entry whose line went fails here instead of excusing a file for ever.
-///  The count is what an entry names rather than the excused line:
-///  a second link added to one of these files fails,
-///  and a file whose link is reflowed or moved keeps its one use and passes.
+///  The line is what an entry names rather than a count:
+///  a second link added to one of these files is a finding of its own,
+///  and a link removed and another added leaves this entry naming a line that is gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAY_HOLD = [{ file: 'commit/conclusion_copy.rs', text: 'symlink(', uses: 1, why: '...' }];
+/// const MAY_HOLD = [{ file: 'commit/conclusion_copy.rs', text: 'symlink', line: '...', why: '...' }];
 /// ```
 const MAY_HOLD: &[MayHold] = &[
     MayHold {
         file: "commit/conclusion_copy.rs",
-        text: "symlink(",
-        uses: 1,
+        text: "symlink",
+        line: "std::os::unix::fs::symlink(std::fs::read_link(entry.path())?, &target)?;",
         why: "it copies the source's own links into the private index so a commit sees the tree it was made \
               in, which writes a link beside the copy and is no hook entry; the entry goes when the copy stops \
               following the source's links",
     },
     MayHold {
         file: "landing/service_index_placement.rs",
-        text: "hard_link(",
-        uses: 1,
+        text: "hard_link",
+        line: "return std::fs::hard_link(from, to);",
         why: "it places an index file into the private index by linking it, which names no hook and starts \
               nothing; the entry goes when that placement stops linking",
     },
@@ -372,7 +390,7 @@ fn every_entry_of_the_list_still_excuses_a_line() {
     let stale: Vec<String> = entries_that_match_nothing(holding.as_slice(), MAY_HOLD);
     assert!(
         stale.is_empty(),
-        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        "an entry names a line that no longer holds its text, so the list can only shrink:\n{}",
         stale.join("\n")
     );
 }
@@ -433,7 +451,7 @@ fn the_scan_flags_every_forbidden_token_in_code_and_none_in_comments() {
 ///  which make none.
 /// Why:
 ///  A ban that failed on one spelling and passed another would be a ban a rename walks around,
-///  and a ban that read `link(` as text would fail every file that asks `is_symlink()`.
+///  and a ban that read `symlink` as text would fail every file that asks `is_symlink()`.
 const SPELLINGS_OF_A_LINK: &[&str] = &[
     "let _ = std::os::unix::fs::symlink(from, to);",
     "let _ = libc::symlink(from, to);",
@@ -442,20 +460,31 @@ const SPELLINGS_OF_A_LINK: &[&str] = &[
     "let _ = std::fs::hard_link(from, to);",
     "let _ = std::fs::link(from, to);",
     "let _ = libc::linkat(from, to, at);",
+    "let _ = std::os::unix::fs::symlink::<_, _>(from, to);",
+    "let _ = symlink::<_, _>(from, to);",
+    "let _ = std::os::unix::fs::symlink (from, to);",
+    "use std::os::unix::fs::symlink as make_link;",
+    "use std::os::unix::fs::{symlink as make_link};",
+    "let f = std::os::unix::fs::symlink;",
 ];
 
 /// What:
-///  `READINGS_OF_A_NAME` is the names that end in a banned call's name and make no link.
+///  `READINGS_OF_A_NAME` is the names that end in a banned call's name and make no link,
+///  and the paths that end in one without calling it.
 /// Why:
 ///  `is_symlink`,
 ///  `symlink_metadata` and `read_link` are how this crate asks what a name is and where it leads,
-///  and a ban that failed on them would fail every file that asks.
+///  a ban that failed on them would fail every file that asks,
+///  and `landing/service_index_placement.rs` holds a field named `link` that makes nothing.
 const READINGS_OF_A_NAME: &[&str] = &[
     "let _ = kind.is_symlink();",
     "let _ = std::fs::symlink_metadata(path);",
     "let _ = std::fs::read_link(path);",
     "let _ = path.symlink_metadata();",
     "let _ = metadata.file_type().is_symlink();",
+    "let _ = libc::unlink(path);",
+    "pub link: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,",
+    "let _ = (platform.link)(staged, lock);",
 ];
 
 /// Every spelling of a call that makes a link is a finding,
@@ -514,9 +543,9 @@ fn the_ban_fails_on_every_spelling_of_a_link_and_on_no_reading_of_one() {
 
 /// A link a split carried into a receiver is a finding,
 /// and a second link in a file `MAY_HOLD` excuses fails,
-/// because the entry names the one use that file holds.
+/// because the entry names the one line the file's link stands on.
 #[test]
-fn the_ban_reads_a_receiver_of_the_split_and_counts_the_uses_one_entry_names() {
+fn the_ban_reads_a_receiver_of_the_split_and_the_entry_names_the_line_it_excuses() {
     let split: Vec<(String, String)> = vec![(
         String::from("landing/a_receiver_the_split_made.rs"),
         String::from(
@@ -541,12 +570,11 @@ fn the_ban_reads_a_receiver_of_the_split_and_counts_the_uses_one_entry_names() {
         lines_the_commit_path_may_not_hold(second_use.as_slice()).as_slice(),
         MAY_HOLD,
     );
-    assert!(
-        two.iter()
-            .all(|sentence| return sentence.contains("use(s) of this text")),
-        "a second link in an excused file fails, and the finding says what the file holds: {two:?}"
+    assert_eq!(
+        two.len(),
+        2,
+        "both links are findings, because the entry names the one line the file's link stands on: {two:?}"
     );
-    assert_eq!(two.len(), 2, "both uses are findings: {two:?}");
     let one_line: Vec<(String, String)> = vec![(
         String::from("commit/conclusion_copy.rs"),
         String::from(
@@ -563,7 +591,62 @@ fn the_ban_reads_a_receiver_of_the_split_and_counts_the_uses_one_entry_names() {
         "the line that holds both links is the one finding: {twice_on_one_line:?}"
     );
     assert!(
-        twice_on_one_line[0].contains("holds 2 use(s)"),
-        "a second link on the line that already holds one is a second use: {twice_on_one_line:?}"
+        twice_on_one_line[0].contains("commit/conclusion_copy.rs"),
+        "the finding names the file a reader opens: {twice_on_one_line:?}"
     );
+}
+
+/// What:
+///  The spellings of a start the commit path may not make:
+///  a literal name,
+///  a raw literal name,
+///  and a rename of the type
+///  that spells a start.
+/// Why:
+///  A rename makes the call `Spawn::new("sh")`,
+///  which holds neither literal text,
+///  so the import that brings the name in is the line the ban reads.
+const SPELLINGS_OF_A_START: &[&str] = &[
+    "let _ = Command::new(\"sh\");",
+    "let _ = Command::new(r\"sh\");",
+    "use std::process::Command as Spawn;",
+];
+
+/// What:
+///  The spellings of a start the commit path may still make:
+///  the type imported under its own name,
+///  and a start named by
+///  the path its caller resolved.
+/// Why:
+///  `invocation/hooks_off.rs` imports `std::process::Command` and starts Git by a value,
+///  which names no program the ban is about,
+///  so a ban that read the name anywhere would fail the file the commit path starts Git in.
+const STARTS_THE_PATH_MAY_MAKE: &[&str] =
+    &["use std::process::Command;", "let _ = Command::new(git);"];
+
+/// Every spelling of a program start is a finding,
+/// and the two the commit path makes are none.
+#[test]
+fn the_ban_reads_a_start_however_the_type_is_written() {
+    for spelling in SPELLINGS_OF_A_START {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("commit/planted.rs"),
+            format!("fn planted() {{\n    {spelling}\n}}\n"),
+        )];
+        let holding = lines_holding_one_of(planted.as_slice(), FORBIDDEN_IN_COMMIT_PATH);
+        assert!(
+            !lines_no_entry_excuses(holding.as_slice(), MAY_HOLD).is_empty(),
+            "{spelling} is a start no entry excuses"
+        );
+    }
+    for fine in STARTS_THE_PATH_MAY_MAKE {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("invocation/hooks_off.rs"),
+            format!("fn planted() {{\n    {fine}\n}}\n"),
+        )];
+        assert!(
+            lines_holding_one_of(planted.as_slice(), FORBIDDEN_IN_COMMIT_PATH).is_empty(),
+            "{fine} names no program the ban is about"
+        );
+    }
 }

@@ -52,6 +52,9 @@ use super::fakes::{
 };
 /// Imports the tool directory of a tool id.
 use super::layout::tool_directory;
+/// Imports the request a lock's row makes,
+/// which the test of a tool no program name finishes rewrites.
+use super::model::Request;
 /// Imports the question that tells a finished install from an unfinished one.
 use super::published_archive::is_finished;
 /// Imports the constants and the helpers the archive tests share:
@@ -71,7 +74,9 @@ use super::published_archive_tests::{
     finish_archive,
     lock_at,
     release_digest,
+    release_url,
     serve_releases,
+    unmarked_archive,
 };
 /// Imports the install itself,
 /// which is the run whose report these tests read,
@@ -404,7 +409,7 @@ fn the_removal_says_the_copy_went_because_no_finished_copy_is_at_the_version_nam
 }
 
 #[test]
-fn the_removal_says_nothing_was_lost_when_the_version_is_finished_at_its_name() {
+fn the_removal_says_a_second_copy_went_when_the_version_is_finished_at_its_name() {
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
@@ -436,9 +441,9 @@ fn the_removal_says_nothing_was_lost_when_the_version_is_finished_at_its_name() 
         vec![format!(
             "removed 1 hidden directory left behind by an install of {ID} that has ended, \
              1 of which held a second finished copy of 0.2.1; \
-             0.2.1 is finished at its name, so nothing was lost with that copy"
+             0.2.1 holds its completion marker and its program at its name, so that copy was a second one"
         )],
-        "the sentence says what went and that a finished copy is still at the version's name: {report:?}"
+        "the sentence says what went and what it read at the version's name: {report:?}"
     );
     assert!(
         is_finished(&version_dir, BIN),
@@ -590,9 +595,383 @@ fn an_install_whose_download_failed_says_where_a_finished_copy_it_cannot_judge_s
     );
     assert!(
         message.contains(&format!(
-            "by moving that copy to {} by hand",
+            "or by copying that copy's contents into {} by hand",
             version_dir.display()
         )),
         "the failure names the way an offline machine gets the version back: {message}"
+    );
+}
+
+/// What:
+/// The one failure a run printed for the tool these tests install.
+/// Why:
+/// A failed download's sentence is part of that message,
+/// so a test reads it from the report the run answered with.
+fn the_tools_failure(report: &SyncReport) -> &str {
+    let found = report.failed.iter().find(|(id, _message)| return id == ID);
+    return found
+        .map(|(_id, message)| return message.as_str())
+        .expect("the run reports the tool's failure");
+}
+
+/// What:
+/// The finished copy an earlier build's install left under a name of its own:
+/// the process id and its start time,
+/// no boot and no namespace,
+/// and a marker that records no archive digest.
+/// Why:
+/// No run of this build judges such a name or publishes its copy,
+/// which is the state a failed download's sentence and the `prune` line are printed in.
+fn write_the_earlier_builds_copy(
+    tool_dir: &std::path::Path,
+    version: &str,
+) -> std::path::PathBuf {
+    let earlier: std::path::PathBuf = tool_dir.join(format!(".{version}.{STAGING_PURPOSE}.42.100"));
+    write_the_program(&earlier);
+    fs::write(earlier.join(COMPLETE_MARKER), format!("{ID} {version}\n"))
+        .expect("write the marker an earlier build wrote");
+    return earlier;
+}
+
+/// What:
+/// Runs the step a failed download's sentence names for a person,
+/// as the sentence prints it:
+/// `cp --archive <copy>/. <version dir>/`.
+/// Why:
+/// The sentence is advice,
+/// so a test follows it instead of rewriting it,
+/// and the step has to work whether the version's name holds nothing or an unfinished copy.
+fn copy_the_contents_where_the_sentence_says(
+    copy: &std::path::Path,
+    version_dir: &std::path::Path,
+) {
+    let copied = Command::new("cp")
+        .arg("--archive")
+        .arg(copy.join("."))
+        .arg(version_dir)
+        .status()
+        .expect("run cp");
+    assert!(
+        copied.success(),
+        "the step the sentence names copies the copy's contents"
+    );
+}
+
+#[test]
+fn a_failed_listing_names_the_hidden_names_an_earlier_install_left() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    fs::create_dir_all(&root).expect("make the toolchain root");
+    // A listing that fails, stood in here by a path that is a regular file: `read_dir` answers `Not a directory`,
+    // and every failed listing reaches the one sentence this test reads.
+    fs::write(&tool_dir, "not a directory").expect("make the tool's path a file");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    let message: &str = the_tools_failure(&report);
+    assert!(
+        message.contains(&format!(
+            "cannot list {} for the hidden names an earlier install left",
+            tool_dir.display()
+        )),
+        "the sentence says what the run read: {message}"
+    );
+    assert!(
+        !message.contains("killed"),
+        "the sentence names no kill the run did not read: {message}"
+    );
+    assert!(
+        message.contains("the install that followed it also failed"),
+        "the failure still says what stopped the install: {message}"
+    );
+}
+
+#[test]
+fn the_removal_says_only_what_it_read_at_the_version_name() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // The version installed the way an install makes it, so a finished copy stands at its name.
+    serve_releases(&rig, &["0.2.1"]);
+    let installing: SyncReport =
+        sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(
+        installing.failed.is_empty() && is_finished(&version_dir, BIN),
+        "the version is installed before the run this test reads: {installing:?}"
+    );
+    // The program at that name cut to twelve bytes under its marker: `is_finished` reads the marker and a program
+    // found under the directory, and no size and no digest, so this run reads the version as finished.
+    write_the_program(&version_dir);
+    let program: std::path::PathBuf = version_dir.join("release-folder").join(BIN);
+    fs::write(&program, "#!/bin/sh\nec").expect("cut the program short");
+    // And a second finished copy of that same version, under an installer the system reports ended.
+    let second: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        RECOVERED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_the_program(&second);
+    write_complete_marker(&second, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a second finished copy of 0.2.1; \
+             0.2.1 holds its completion marker and its program at its name, so that copy was a second one"
+        )],
+        "the sentence says what went and only what the run read at the version's name: {report:?}"
+    );
+    assert!(
+        is_finished(&version_dir, BIN),
+        "what the run read at the version's name is what it read: {report:?}"
+    );
+    assert!(!second.exists(), "the second finished copy is gone");
+}
+
+#[test]
+fn the_removal_says_a_second_copy_went_when_no_program_name_is_known() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // A tool this repository does not publish names no program, so a copy finishes on its marker alone.
+    let mut lock = lock_at(&rig, "0.2.1");
+    lock.tools[0].declaration.request =
+        Request::parse("github:example/other@latest").expect("parses");
+    lock.tools[0].declaration.options.tag_prefix = None;
+    finish_archive(&root, "0.2.1");
+    let second: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        RECOVERED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_the_program(&second);
+    write_complete_marker(&second, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a second finished copy of 0.2.1; \
+             0.2.1 holds its completion marker at its name, so that copy was a second one"
+        )],
+        "the sentence names the marker alone when no program name is known: {report:?}"
+    );
+    assert!(!second.exists(), "the second finished copy is gone");
+}
+
+#[test]
+fn the_removal_says_the_copy_went_when_an_unfinished_copy_stands_at_the_version_name() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // A directory at the version's name that is not finished: the program and no marker, which is what a kill
+    // during the unpacking leaves.
+    unmarked_archive(&root, "0.2.1");
+    // A dead install's finished copy whose marker records a digest this lock does not, so nothing publishes it.
+    let unvouched: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_the_program(&unvouched);
+    write_complete_marker(&unvouched, ID, "0.2.1", A_TEST_SHA256)
+        .expect("write the completion marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a finished copy of 0.2.1 that this run did not publish, \
+             because that copy's completion marker does not record the archive this lock names; \
+             no finished copy of 0.2.1 is at its name, so that copy is gone"
+        )],
+        "the sentence says the copy went and that no finished copy is at the version's name: {report:?}"
+    );
+    assert!(
+        version_dir.is_dir() && !is_finished(&version_dir, BIN),
+        "the copy at the version's name is the unfinished one: {report:?}"
+    );
+}
+
+#[test]
+fn the_move_a_failed_download_names_puts_the_copy_at_a_version_name_that_holds_nothing() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    let earlier: std::path::PathBuf = write_the_earlier_builds_copy(&tool_dir, "0.2.1");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    let message: &str = the_tools_failure(&report);
+    assert!(
+        message.contains(&format!(
+            "or by copying that copy's contents into {} by hand",
+            version_dir.display()
+        )),
+        "the failure says what step brings the version back: {message}"
+    );
+    // The step the sentence prints, run as a person runs it.
+    copy_the_contents_where_the_sentence_says(&earlier, &version_dir);
+    assert!(
+        is_finished(&version_dir, BIN),
+        "the step the sentence names leaves a finished copy at the version's name"
+    );
+
+    let after: SyncReport =
+        sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(after.failed.is_empty(), "{after:?}");
+    assert_eq!(
+        after.unchanged,
+        vec![ID.to_string()],
+        "the version the step put there is the one the lock asks for: {after:?}"
+    );
+}
+
+#[test]
+fn the_move_a_failed_download_names_reaches_a_version_name_that_holds_an_unfinished_copy() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // The version's name already holds a directory: a kill after the unpacking and before the marker.
+    unmarked_archive(&root, "0.2.1");
+    let earlier: std::path::PathBuf = write_the_earlier_builds_copy(&tool_dir, "0.2.1");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    let message: &str = the_tools_failure(&report);
+    assert!(
+        message.contains(&format!(
+            "or by copying that copy's contents into {} by hand",
+            version_dir.display()
+        )),
+        "the failure says what step brings the version back: {message}"
+    );
+    copy_the_contents_where_the_sentence_says(&earlier, &version_dir);
+
+    let after: SyncReport =
+        sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(after.failed.is_empty(), "{after:?}");
+    assert_eq!(
+        after.unchanged,
+        vec![ID.to_string()],
+        "the version the step put there is the one the lock asks for: {after:?}"
+    );
+}
+
+#[test]
+fn a_download_that_does_not_match_the_lock_says_what_brings_the_version_back() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let earlier: std::path::PathBuf = write_the_earlier_builds_copy(&tool_dir, "0.2.1");
+    // The network is there and serves bytes the lock does not name, so the download cannot bring the version back
+    // until the bytes and the lock agree.
+    rig.http
+        .serve(&release_url("0.2.1"), b"the bytes the lock does not name");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    let message: &str = the_tools_failure(&report);
+    assert!(
+        message.contains("SHA-256 mismatch"),
+        "the failure is the digest's: {message}"
+    );
+    assert!(
+        message.contains(
+            "the version comes back from a download that matches this lock's SHA-256 and that the install can keep"
+        ),
+        "the sentence says what a download must meet: {message}"
+    );
+    assert!(
+        !message.contains("with the network there"),
+        "the network was there and did not bring the version back: {message}"
+    );
+    assert!(
+        message.contains(&format!("sits under the hidden name {}", earlier.display())),
+        "the sentence still names the copy a person can move: {message}"
+    );
+}
+
+#[test]
+fn a_finished_copy_of_another_version_is_not_named_for_a_person_to_move() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    // The only copy this build cannot judge is another version's, which that version's own install publishes.
+    write_the_earlier_builds_copy(&tool_dir, "0.2.2");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    let message: &str = the_tools_failure(&report);
+    assert!(
+        message.contains("download failed"),
+        "the failure is the download's: {message}"
+    );
+    assert!(
+        !message.contains("sits under the hidden name"),
+        "another version's copy is not named for this version: {message}"
+    );
+}
+
+#[test]
+fn a_running_installs_finished_copy_is_not_named_for_a_person_to_move() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // A finished copy whose installer the system reports running: its own publish is still to come.
+    let running = RunningProgram::start();
+    let held: std::path::PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, running.owner());
+    write_the_program(&held);
+    write_complete_marker(&held, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    let message: &str = the_tools_failure(&report);
+    assert!(
+        message.contains("download failed"),
+        "the failure is the download's: {message}"
+    );
+    assert!(
+        !message.contains("sits under the hidden name"),
+        "a running install's copy is not named for a person to move: {message}"
+    );
+}
+
+#[test]
+fn a_name_that_holds_no_marker_is_not_named_for_a_person_to_move() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    // A name nothing can judge, holding an unpacking that never finished: no copy to move.
+    let unfinished: std::path::PathBuf = tool_dir.join(format!(".0.2.1.{STAGING_PURPOSE}.42.100"));
+    write_the_program(&unfinished);
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    let message: &str = the_tools_failure(&report);
+    assert!(
+        message.contains("download failed"),
+        "the failure is the download's: {message}"
+    );
+    assert!(
+        !message.contains("sits under the hidden name"),
+        "a name that holds no marker is not named as a finished copy: {message}"
     );
 }

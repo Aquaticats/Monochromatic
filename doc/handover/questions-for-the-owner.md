@@ -1204,7 +1204,10 @@ by the read's count.
 (The round has since merged as `b929e8c39b`:
 the list holds 12,395 entries,
 12,295 of them names that were already nameable at `0.6.1-alpha.47` and that nobody has reviewed,
-fields and methods among them.)
+fields and methods among them.
+Those counts are the list's on the day that round merged:
+a later round widened the control again and narrowed ten names,
+so the file's own length is the count now.)
 The round `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`
 makes the control see them and gives each a line,
 and narrows only an item a split widened.
@@ -3318,3 +3321,350 @@ Ranking,
 the round's and the coordinating session's:
 leave it > reset it now,
 because a reset no run reaches is held by no control.
+
+## Veto open: how long `cargo-shadow` asks its route question again, and the release that waits on it (recorded 2026-11-27T17:05:55-05:00)
+
+The round of issue 6623 merged as `e595486ec8`.
+The coordinating session read its report whole and wrote this entry.
+
+### The asking again is sized to a measured reexec
+
+- Five asks,
+  200 ms apart,
+  spanning 0.800 s (taken):
+  it covers the longest reexec of a user manager across which asks were measured to fail,
+  0.588 s,
+  and a control that reexecutes a container's own manager passes with it.
+  The cost is paid where no user manager can be reached at all:
+  every call makes five asks and takes 883.1 ms at the median,
+  against 43.2 ms and one ask for `0.1.5-alpha.15`.
+- Three asks,
+  50 ms apart,
+  as before that round:
+  the cost where no manager answers is about a tenth of a second.
+  The same control failed with it in a container,
+  142 ms into a real reexec.
+
+Ranking,
+the round's and the coordinating session's:
+five asks 200 ms apart > three asks 50 ms apart,
+because only the first rides through what was measured.
+Its cost has a round of its own,
+issue 6629:
+a call with no manager to reach asks once.
+
+### `0.1.5-alpha.16` waits for issue 6629's round
+
+- Wait (taken by the coordinating session):
+  the release and its lock would put the five asks into every call where no manager answers,
+  and the repository's workflows install the locked binary.
+  The cost is that this machine keeps `0.1.5-alpha.15` for as long as the round takes,
+  in which one failed ask still reads as a host with no delegated control group.
+- Release now and again after the round:
+  this machine gets the asking again at once.
+  The cost is that wait on every such call until the next release.
+
+Ranking,
+the coordinating session's:
+wait > release now,
+because the wait is one round long and the cost of releasing lands on every call of a kind.
+
+### What stays unexplained
+
+The ten failures of 2026-11-27 came after the reexec had ended,
+and no measurement reproduced them.
+Issue 6623 was closed by its commit's `Closes` line at the merge;
+a comment on that commit says `Refs` is the accurate word,
+and issue 6628 holds the event.
+
+## Veto open: four picks of the linter round on `file-uses` lines and characters a reader cannot see (recorded 2026-11-27T17:05:55-05:00)
+
+The round for the read of `0.5.2-alpha.21` merged as `83d10dd296`.
+The coordinating session read its report whole and wrote this entry.
+None holds `0.5.2-alpha.22`.
+
+### A line whose words name a folder is refused by naming that folder, for every spelling of its gaps
+
+- For every spelling (taken):
+  one folder gets one sentence,
+  which is what the read asked.
+  The cost is that a doubled gap,
+  which re-spacing would mend,
+  is answered with a sentence about the folder's name.
+- The word-count sentence for the gaps a person can re-space,
+  and the folder's name only where no re-spacing gives a readable line:
+  the smaller edit is named.
+  The cost is two sentences for one folder in a list aligned by hand.
+
+Ranking,
+the coordinating session's,
+since the round gave costs and no order:
+for every spelling > split by gap,
+because the read's finding was that one folder drew different sentences.
+
+### A doubled gap beside a name is read as the name without the gap's whitespace
+
+A name that begins with whitespace would be read as the name without it.
+The round's reason for leaving it:
+no tree the layout rules accept can hold such a name,
+so the choice changes a message and no verdict.
+No other way was built.
+
+### `AllowEntry` gains a public field, `column`
+
+Code outside this repository that builds an `AllowEntry` must pass it.
+Nothing in the repository does,
+and the crate is a pre-release,
+so this is a design change.
+
+### The set of characters is tied to Unicode 17.0.0
+
+The ranges beyond the general categories are written beside the data file they come from,
+and a control fails when the linked tables move to another release.
+The other way was a crate that answers the property directly:
+one call in place of the ranges,
+at the cost of that crate's own Unicode release beside the one the categories come from.
+
+## Veto open: the picks of two more wrapper rounds for the `0.6.1-alpha.50` reads (recorded 2026-11-27T17:05:55-05:00)
+
+The coordinating session read both reports whole and wrote this entry.
+None holds a release.
+
+### No resolved merge answer holds a copy of a line a side deleted
+
+The round merged as `85be73acf1`.
+
+- The copies bound for every shape of region (taken):
+  no answer the word pass resolves holds more copies of a line the base held than the two sides leave.
+  The cost,
+  on the read's 2,300 seed cases:
+  21 answers that resolved are conflicts now,
+  each of which broke the bound,
+  and a refused file keeps both sides of every region the sides disagree about.
+- Leave the code and state the exception in `README.md`:
+  21 more answers resolve.
+  The cost is text a side removed landing with no marker.
+- The bound read for each region alone,
+  not taken:
+  it refuses right answers,
+  where one region holds more copies than its own two sides leave and another holds fewer.
+
+Ranking,
+the round's and the coordinating session's:
+every shape > the stated exception > each region alone,
+because the exception is the loss issue 6529 exists to prevent,
+and the per-region reading refuses answers that are right.
+The seeds are synthetic and repetitive,
+so neither figure is a rate for real files.
+Where both sides wrote more copies of one line than the base held,
+nothing judges the answer;
+the round left that as its brief said.
+
+### Ten names and one alias leave the crate's published surface
+
+The round merged as `35fdc1797c`.
+The widened control saw ten names `0.6.1-alpha.50` published that nothing outside their module reads:
+seven associated constants,
+and three fields of one struct.
+
+- Narrow them (taken):
+  each takes the reach its readers need,
+  and an alias with no reader at all is deleted.
+  The cost is that a consumer outside this repository that names one stops compiling;
+  the round found none in the binary,
+  the fuzz sidecar,
+  the end-to-end folder,
+  the integration targets
+  or any branch on origin.
+- Give each a line in the list:
+  the surface stays as `0.6.1-alpha.50` published it.
+  The cost is ten published names nobody chose to publish.
+
+Ranking,
+the round's and the coordinating session's:
+narrow > list,
+because the crate is not on crates.io,
+so a narrower surface is a design change and breaks no published contract.
+
+## Veto open: two things `mpm-shadow` `0.2.7-alpha.16` does that no record chose (recorded 2026-11-27T17:12:22-05:00)
+
+The second pass over `0.2.7-alpha.16` found both,
+with both released binaries on fixtures.
+The coordinating session read it whole and wrote this entry.
+A round holds each with a control and writes it into the README;
+neither behaviour changes before the owner says so.
+
+### A recovery that puts an unfinished copy back also points `current` at the newest finished version
+
+The state:
+an older version finished,
+`current` absent,
+and a newer version whose copy a kill left unfinished and no lock vouches for.
+
+- As `0.2.7-alpha.16` does (kept for now):
+  `current` names the older version and the launcher starts it,
+  while `list` says drift and `install` ended 1.
+  A person's tool works.
+  The cost is that it is silently the older one.
+- As `0.2.7-alpha.15` did:
+  `current` stays absent,
+  and the launcher fails and says to run the install.
+  The cost is a tool that does not start although a finished version is on disk.
+
+Ranking,
+the coordinating session's:
+as alpha.16 does > as alpha.15 did,
+because `list` and the install's own exit status already say the newer version is missing,
+and a start that fails helps nobody who has a working older copy.
+
+### A move of `current` that fails once ends the run 1, and the older version stays
+
+One failed rename of the link:
+nothing is removed,
+the run reports the failure and ends 1,
+a later step of the same run moves the link,
+and the older version stays until `prune --toolchain`.
+The README says a run ends 1 only when the locked version is not at its name afterwards,
+which is not so here.
+
+- The run makes up for it when its later step moves the link:
+  the removal runs then and the first failure is a warning.
+  The cost is a second place that removes older versions.
+- The behaviour stays and the README says what happens:
+  no code changes.
+  The cost is a status 1 for a run that left everything in place,
+  and a retired version on disk until a `prune`.
+
+The round builds the one it can argue from the package's own rules and returns the other;
+the coordinating session ranks neither before its report.
+
+## Veto open: two picks of the wrapper round on the list guards (recorded 2026-11-27T17:12:22-05:00)
+
+The coordinating session read the report whole and wrote this entry.
+None holds a release.
+
+### An excuse names the line of the one use it covers
+
+- The line (taken):
+  a use removed and another of the same text added to the same file fails,
+  which a count let through.
+  The cost is that a line `rustfmt` reflows makes its entry stale,
+  and the entry and the reflow become one commit's work.
+- A count of uses per file,
+  as before:
+  a reflow costs nothing.
+  The cost is the swap the read found.
+
+Ranking,
+the round's and the coordinating session's:
+the line > a count,
+because the swap is the finding,
+and one guard of the crate already named its lines.
+
+### `Command::new(r` stays a banned text
+
+It also matches a start through a variable whose name begins with that letter.
+No file of the commit path holds one today,
+so the round left the ban;
+a rule that reads a literal argument would be narrower and is not built.
+
+## Veto open: three picks inside the router the owner chose for the writer's list (recorded 2026-11-27T17:30:22-05:00)
+
+The owner chose that the router pass over a member too small for a request,
+and that a pool advertise its head member's window.
+The round that built it merged as `45b9aaeb94`,
+and the built copy Pi loads was rebuilt at 2026-11-27T17:28:33-05:00,
+so it is live.
+The coordinating session read its report whole and wrote this entry.
+
+### A member is too small when the request's input alone exceeds its window
+
+- The input alone (taken):
+  Pi cuts the answer's limit to what the window leaves,
+  so a request whose input fits is served.
+  The cost is a short answer near the edge:
+  the round's case leaves 10,875 tokens of answer for an input of 509,317 in a window of 524,288.
+- The input plus the member's output limit:
+  no answer is cut short.
+  The cost is that a request Pi can serve is passed over.
+
+Ranking,
+the round's and the coordinating session's:
+the input alone > the input plus the output limit,
+because passing a member over refuses a request it can answer.
+
+### No margin beside the estimate
+
+- None (taken):
+  the estimate is Pi's own,
+  and over 48,805 requests in 200 sessions it stood within 0.1% to 0.2% of the count the member reported,
+  at the 5th and the 95th percentile.
+  A request the estimate misjudges ends in the member's own rejection,
+  after which Pi compacts and retries the turn once,
+  as the owner's chosen option said.
+- A margin of a few percent:
+  fewer such rejections.
+  The cost is a member passed over for a request it can hold;
+  0.6% of the requests in untouched sessions stood 5% or more from their member's count.
+
+Ranking,
+the round's and the coordinating session's:
+none > a margin,
+because the tail is rare and already has a recovery,
+and a margin costs every request near the edge.
+
+### The head is the first member the session's registry resolves
+
+Where the first member of the list is not registered,
+the pool advertises the next member's limits,
+which is 524,288 and 65,536 where Qwen's member is missing.
+The other way would keep the list's first member's limits whether or not it is registered,
+and advertise a window no member of the session has.
+No ranking is needed:
+the second is wrong for such a session.
+
+## Veto open: the Rust toolchain row no longer declares `rustup`, and what its two format programs need (recorded 2026-11-27T17:30:22-05:00)
+
+The round of issue 6626 merged as `7aa3e5e61f`.
+The coordinating session read its report whole and wrote this entry.
+
+### The row stops declaring `rustup`
+
+- Stop declaring it (taken):
+  `rustup` is the manager,
+  no toolchain holds it,
+  and nothing in the repository's tasks,
+  scripts or workflows reaches it through the exposure folder.
+  An install now names no unresolved bin on this machine.
+- Teach the route to link the manager's own program:
+  the folder would hold a `rustup`.
+  The cost is a link into a program this tool neither installs nor updates,
+  whose place differs by machine,
+  and which would shadow the manager for every task.
+
+Ranking,
+the round's and the coordinating session's:
+stop declaring it > link the manager,
+because nothing needs the link.
+
+### The row declares `cargo-fmt` and `rustfmt`, and no component it declares installs them
+
+Both resolve on this machine only because the `rustfmt` component was added by hand on 2026-11-25.
+A machine that follows the plan has neither,
+and a task that runs `rustfmt` finds none.
+This is issue 6630.
+
+- Declare the `rustfmt` component in the row,
+  which is the coordinating session's pick and what a round builds:
+  the row's bins resolve on any machine.
+  The cost is one more component download where it is missing,
+  and nothing here.
+- Stop declaring the two bins:
+  no download.
+  The cost is that the tasks that run `rustfmt` or `cargo fmt` depend on some other copy on `PATH`,
+  which this machine does not have.
+
+Ranking,
+the round's and the coordinating session's:
+declare the component > drop the bins,
+because the repository's own tasks run both programs.
