@@ -1198,7 +1198,8 @@ fn a_lock_a_non_dumpable_writer_of_this_account_holds_open_is_kept() {
     super::commit::remove_settled(&fixture);
 }
 
-/// This test binary running the child body on `lock`, owned by this test thread.
+/// This test binary running the child body on `lock`,
+/// owned by this test thread.
 fn start_non_dumpable_holder(lock: &Path) -> Child {
     let environment: [(&str, &std::ffi::OsStr); 1] = [(HOLD_NON_DUMPABLY, lock.as_os_str())];
     // The holder answers nothing the parent reads: it records itself through the lock file and its ready marker.

@@ -92,7 +92,7 @@ systemd-run --user --scope --slice=agent-work.slice --property=MemoryMax=4G --pr
   unshare --user --map-root-user --mount --propagation private -- \
   bash -c 'mkdir --parents <build folder>/debug/build/monochromatic-cargo-shadow/test-scratch &&
     mount --types tmpfs tmpfs <build folder>/debug/build/monochromatic-cargo-shadow/test-scratch &&
-    <the test binary> --exact journal_tests::a_compare_and_replace_that_finds_the_expected_text_replaces_it_and_leaves_no_temporary_file;
+    <the test binary> --exact journal::journal_tests::a_compare_and_replace_that_finds_the_expected_text_replaces_it_and_leaves_no_temporary_file;
     umount <build folder>/debug/build/monochromatic-cargo-shadow/test-scratch'
 ```
 

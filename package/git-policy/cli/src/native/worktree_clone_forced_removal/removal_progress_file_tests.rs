@@ -35,7 +35,8 @@ use std::time::{
 };
 
 /// The heartbeat a control gives its file,
-/// which is short enough to watch move and is not the release's, which is none.
+/// which is short enough to watch move and is not the release's,
+/// which is none.
 const A_CONTROLS_HEARTBEAT: Duration = Duration::from_millis(20);
 
 /// How long a control waits for the counter to move,
@@ -47,7 +48,8 @@ fn a_dataset() -> DatasetGuid {
     return DatasetGuid::parse("18446744073709551615").expect("a canonical GUID");
 }
 
-/// The request's nonce, as the intent writes it.
+/// The request's nonce,
+/// as the intent writes it.
 fn a_nonce() -> RequestNonce {
     return RequestNonce::parse("00112233445566778899aabbccddeeff").expect("a canonical nonce");
 }
@@ -56,7 +58,8 @@ fn a_nonce() -> RequestNonce {
 ///  Wait for one period without holding a thread's clock or spinning.
 /// Why:
 ///  A control that busy-waited would be synthetic load,
-///  and this is the same wait the heartbeat makes: a channel with a timeout.
+///  and this is the same wait the heartbeat makes:
+/// a channel with a timeout.
 fn pause(period: Duration) {
     let (_sender, receiver) = std::sync::mpsc::channel::<()>();
     let _timed_out: Result<(), std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(period);

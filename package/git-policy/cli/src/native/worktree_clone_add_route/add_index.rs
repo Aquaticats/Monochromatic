@@ -1,19 +1,29 @@
 //! What:
-//!  The fill's index: the captured index written under a private name in the
-//!  new worktree's administrative directory, and published under the worktree's
+//!  The fill's index:
+//! the captured index written under a private name in the
+//!  new worktree's administrative directory,
+//! and published under the worktree's
 //!  own name only once the tree is proven.
 //! Why:
 //!  A published index whose entry's clean form equals a blob makes Git's first
-//!  status trust the file instead of reading it, so a path still holding the
+//!  status trust the file instead of reading it,
+//! so a path still holding the
 //!  source's bytes must never be vouched for
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-//!  "The restore", steps 5 and 8; issue 6323).
-//!  Step 10's clean source has no path the fence writes, so the private index is
+//!  "The restore",
+//! steps 5 and 8;
+//! issue 6323).
+//!  Step 10's clean source has no path the fence writes,
+//! so the private index is
 //!  the captured index with the extensions Git derives dropped and its checksum
-//!  remade, and nothing in it is written through Git. Step 11 writes the fence's
+//!  remade,
+//! and nothing in it is written through Git.
+//! Step 11 writes the fence's
 //!  paths and the dirty half's reset through this same file.
-//!  The name is `index.pending`, which no Git run reaches unless it is pointed
-//!  there, so a kill leaves no index at all and the resume knows which write it
+//!  The name is `index.pending`,
+//! which no Git run reaches unless it is pointed
+//!  there,
+//! so a kill leaves no index at all and the resume knows which write it
 //!  reached.
 //!
 //! In TS you'd write (pseudocode):
@@ -74,10 +84,12 @@ impl StatTrust for NoTrust {
 
 /// What:
 ///  The captured index as the fill's own bytes:
-///  the same entries and stat fields, the derived extensions dropped and the
+///  the same entries and stat fields,
+/// the derived extensions dropped and the
 ///  checksum remade.
 /// Why:
-///  The seed is the index D1 compared, never a second read of the copied file,
+///  The seed is the index D1 compared,
+/// never a second read of the copied file,
 ///  and the design drops the untracked-cache and fsmonitor extensions before the
 ///  private write.
 ///
@@ -106,8 +118,10 @@ pub fn index_for_the_fill(
 /// What:
 ///  Write the fill's index under its private name in the registration.
 /// Why:
-///  The file is made exclusively and flushed, so a kill leaves either no file or
-///  the whole of it, and nothing at the worktree's own name.
+///  The file is made exclusively and flushed,
+/// so a kill leaves either no file or
+///  the whole of it,
+/// and nothing at the worktree's own name.
 ///
 /// # Errors
 /// The private name already stands,
@@ -130,9 +144,11 @@ pub fn write_the_private_index(
 }
 
 /// What:
-///  Give the private index the worktree's own name, replacing nothing.
+///  Give the private index the worktree's own name,
+/// replacing nothing.
 /// Why:
-///  One rename makes the worktree's index whole in one instant, and a name that
+///  One rename makes the worktree's index whole in one instant,
+/// and a name that
 ///  already stands is another command's file and never replaced.
 ///
 /// # Errors
@@ -173,7 +189,8 @@ pub fn published_stands(admin_path: &Path) -> bool {
 /// What:
 ///  Whether a resume reads the index's state as "the rename happened".
 /// Why:
-///  Nothing else removes the private name, so its absence with the real name
+///  Nothing else removes the private name,
+/// so its absence with the real name
 ///  present is the one state in which the publication ran.
 pub fn the_publication_ran(admin_path: &Path) -> bool {
     return !pending_stands(admin_path) && published_stands(admin_path);

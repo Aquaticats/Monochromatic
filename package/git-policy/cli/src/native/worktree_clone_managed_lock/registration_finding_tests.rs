@@ -64,7 +64,8 @@ fn a_complete_entry_is_adopted() {
 }
 
 /// A bare directory at the slot's name,
-/// with an empty slot, is the row the add's resume clears.
+/// with an empty slot,
+/// is the row the add's resume clears.
 #[test]
 fn a_bare_entry_is_cleared() {
     let fixture: Fixture = Fixture::new("finding-bare");

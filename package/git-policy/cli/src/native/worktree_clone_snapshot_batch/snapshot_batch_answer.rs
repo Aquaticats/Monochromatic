@@ -13,7 +13,8 @@
 //!  complete one leaves the names it does not mention unknown rather than
 //!  intact,
 //! because the kernel shortens a list too large for the caller's buffer
-//!  (`module/zfs/zfs_ioctl.c`, `nvlist_smush`) and the binding's reader keeps
+//!  (`module/zfs/zfs_ioctl.c`,
+//! `nvlist_smush`) and the binding's reader keeps
 //!  at most [`MAXIMUM_ELEMENTS_KEPT`] entries
 //!  (`requests/element_error.rs`).
 //!  A reply that contradicts the request,
@@ -52,16 +53,19 @@ use super::snapshot_name_outcome::{
 /// The kernel's own marker that its per-name list was shortened.
 ///
 /// `ZPROP_N_MORE_ERRORS` is `"N_MORE_ERRORS"`
-/// (`include/sys/fs/zfs.h`, OpenZFS `zfs-2.4.4`):
+/// (`include/sys/fs/zfs.h`,
+/// OpenZFS `zfs-2.4.4`):
 /// a list too large for the
 ///  caller's buffer is smushed,
 /// the entries it lost are removed and one pair
 ///  named this carries their count
-///  (`module/zfs/zfs_ioctl.c`, `nvlist_smush` and
+///  (`module/zfs/zfs_ioctl.c`,
+/// `nvlist_smush` and
 ///  `zfs_ioc_destroy_snaps`'s registration with `smush_outnvlist` set).
 ///  A full reply is what this route's write buffer holds,
 /// so the marker should never appear;
-/// if it does, the list is short and the names it does not
+/// if it does,
+/// the list is short and the names it does not
 ///  name are unknown rather than intact.
 pub const MORE_ERRORS_KEY: &str = "N_MORE_ERRORS";
 

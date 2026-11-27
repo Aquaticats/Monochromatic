@@ -29,11 +29,13 @@ use std::path::{
     PathBuf,
 };
 
-/// The link the controls copy: a package's entry in one workspace package's `node_modules`.
+/// The link the controls copy:
+/// a package's entry in one workspace package's `node_modules`.
 const THE_LINK: &[u8] = b"package/x/node_modules/zod";
 
 /// A clone callback for a link,
-/// which never runs: only files are cloned.
+/// which never runs:
+/// only files are cloned.
 fn never_cloned(
     _source: &std::fs::File,
     _stage: &std::fs::File,

@@ -387,6 +387,9 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   `lean_sweep_tests::a_unit_a_process_runs_a_program_from_is_kept_even_through_a_link`,
   `lean_idle_trees_tests::a_tree_a_process_runs_a_program_from_is_kept_even_through_a_link`,
   and `lean_proc_scan_tests::a_process_in_another_mount_namespace_holding_a_build_lock_blocks_every_entry_of_the_root`.
+  (Since `60ecd08eef` of 2026-11-27 the second and third of these are reached as
+  `lean_idle_trees::lean_idle_trees_tests::...` and `lean_proc_scan::lean_proc_scan_tests::...`:
+  each test file is declared by the module it tests.)
 - No lean pass can explain the run that lost its test binaries on 2026-11-11:
   the day's pass started 04:30:00,
   finished the trees at 06:21:28 and the units at 07:31:34,

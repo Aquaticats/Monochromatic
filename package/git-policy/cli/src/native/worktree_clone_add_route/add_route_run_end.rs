@@ -1,13 +1,20 @@
 //! What:
-//!  The end of one add: the repair of the new worktree, the hand-over of its
-//!  trash to the service, and the record's last phase.
+//!  The end of one add:
+//! the repair of the new worktree,
+//! the hand-over of its
+//!  trash to the service,
+//! and the record's last phase.
 //! Why:
-//!  A filled worktree is whole before either runs, so neither fails the add:
-//!  a trash the service cannot take stays named by its record, and a repair
+//!  A filled worktree is whole before either runs,
+//! so neither fails the add:
+//!  a trash the service cannot take stays named by its record,
+//! and a repair
 //!  that finds nothing reports nothing
-//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`, A12).
+//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+//! A12).
 //!  `add_route_run.rs` would go over the file-size limit carrying the end beside
-//!  the runner, and the end is the one step that must not change the add's
+//!  the runner,
+//! and the end is the one step that must not change the add's
 //!  answer.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,7 +31,8 @@ use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use std::io::Write as _;
 
-/// Repair the new worktree and hand its trash over; neither fails the add.
+/// Repair the new worktree and hand its trash over;
+/// neither fails the add.
 pub(super) fn finish_the_add(
     steps: &Steps<'_>,
     trash: Option<crate::worktree_trash::PendingTrash>,

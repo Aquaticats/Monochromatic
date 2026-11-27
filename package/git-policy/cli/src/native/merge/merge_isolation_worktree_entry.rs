@@ -57,7 +57,8 @@ pub(crate) enum WorktreeEntry {
         /// The Git mode of the entry the bytes came from.
         mode: &'static str,
         /// The permission bits the entry carries,
-        /// or nothing for a link, whose own bits are not a person's,
+        /// or nothing for a link,
+        /// whose own bits are not a person's,
         /// and on a platform whose permissions are not these bits.
         permissions: Option<u32>,
     },

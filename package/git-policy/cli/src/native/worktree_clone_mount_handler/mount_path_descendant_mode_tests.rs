@@ -563,7 +563,8 @@ fn a_dataset_in_another_pool_refuses() {
     );
 }
 
-/// A dataset whose mountpoint is none, `-` or `legacy` refuses,
+/// A dataset whose mountpoint is none,
+/// `-` or `legacy` refuses,
 /// because such a dataset is mounted by someone else's rule.
 #[test]
 fn a_dataset_without_a_mountpoint_refuses() {
@@ -584,7 +585,8 @@ fn a_dataset_without_a_mountpoint_refuses() {
     }
 }
 
-/// A mountpoint outside the checkout refuses, naming the dataset.
+/// A mountpoint outside the checkout refuses,
+/// naming the dataset.
 #[test]
 fn a_mountpoint_outside_the_checkout_refuses() {
     let fixture: Fixture = Fixture::new("outside");

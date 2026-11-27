@@ -2,16 +2,22 @@
 
 Investigated on 2026-11-19T17:00:41-05:00 in
 `.claude/worktrees/pi-git-policy-cli-container-gate-on-the-zfs-host` (branch
-`docs/git-policy-cli-container-gate-on-the-zfs-host`, from `main` `cff64adfa0`), against the release
-`0.6.1-alpha.44` snapshot in the gate's own image, under podman 6.2.0 on CachyOS, kernel 7.3.5.
+`docs/git-policy-cli-container-gate-on-the-zfs-host`,
+from `main` `cff64adfa0`),
+against the release
+`0.6.1-alpha.44` snapshot in the gate's own image,
+under podman 6.2.0 on CachyOS,
+kernel 7.3.5.
 
 The gate is `mise run //package/git-policy/cli:native:test:container`
-(`bin/test-native-container.ts`), whose substantive step is the whole suite and Clippy in two
+(`bin/test-native-container.ts`),
+whose substantive step is the whole suite and Clippy in two
 containers built from one source image.
 
 ## Symptom
 
-The gate's suite fails on this host, and its Clippy step does not compile:
+The gate's suite fails on this host,
+and its Clippy step does not compile:
 
 ```text
 Summary [1053.402s] 9173 tests run: 8988 passed (8 slow), 185 failed, 28 skipped
@@ -24,14 +30,24 @@ error[E0514]: found crate `monochromatic_jsonc_edit` compiled by an incompatible
    = help: please recompile that crate using this compiler (rustc 1.100.0 (0ef1bc386 2026-11-09) (Arch Linux rust 1:1.100.0-1)) (consider running `cargo clean` first)
 ```
 
-On the previous host, a Btrfs machine, the same gate failed six of 9,173 tests
-(`doc/handover/cli-git-rust-implementation.md`, the gate on `0f07c4f0ee`). This host fails 185.
+On the previous host,
+a Btrfs machine,
+the same gate failed six of 9,173 tests
+(`doc/handover/cli-git-rust-implementation.md`,
+the gate on `0f07c4f0ee`).
+This host fails 185.
 
-The mise task cannot be run as written in the main checkout either: its first step
-`cargo-shadow lean records target/verification` fails with status 127, because `cargo-shadow` is not on the
-checkout's `PATH` (`mise ls` prints nothing). Every run below is the task's second step,
-`node bin/test-native-container.ts`, or the image it builds, run the way the gate runs it.
-As read on 2026-11-19 at about 23:20 (-05:00), the locked tools are present in the toolchain root
+The mise task cannot be run as written in the main checkout either:
+its first step
+`cargo-shadow lean records target/verification` fails with status 127,
+because `cargo-shadow` is not on the
+checkout's `PATH` (`mise ls` prints nothing).
+Every run below is the task's second step,
+`node bin/test-native-container.ts`,
+or the image it builds,
+run the way the gate runs it.
+As read on 2026-11-19 at about 23:20 (-05:00),
+the locked tools are present in the toolchain root
 `~/.local/share/monochromatic-dev/toolchain` (`cargo-monochromatic-cargo-shadow` among them):
 what the main checkout lacks is its `.cache/toolchain-bin` link folder.
 `mise run toolchain:install` in a worktree reported `0 installed, 66 unchanged, 0 failed` and made that folder there.
@@ -41,25 +57,48 @@ because the plan's step 1 records that nothing is installed on this host until t
 ## The host, as measured
 
 - `/home` is `zpcachyos/ROOT/cos/home`:
-  `utf8only=on`, `normalization=formD`, `casesensitivity=sensitive`, `acltype=posix`, `longname=off`
-  (`zfs get -H -o property,value ...`). ZFS 2.4.4.
+  `utf8only=on`,
+  `normalization=formD`,
+  `casesensitivity=sensitive`,
+  `acltype=posix`,
+  `longname=off`
+  (`zfs get -H -o property,value ...`).
+  ZFS 2.4.4.
 - `podman info --format '{{.Store.GraphDriverName}} {{.Store.GraphRoot}}'` answers
-  `overlay /home/user/.local/share/containers/storage`, both on that dataset. That store's own
+  `overlay /home/user/.local/share/containers/storage`,
+  both on that dataset.
+  That store's own
   configuration also sets `overlay.mountopt=nodev`.
-- Inside a container the repository tree is a **user-space** overlay: `stat -f --format=%T` prints
-  `fuse`, `/proc/self/mountinfo` names the type `fuse.fuse-overlayfs`, and `statfs` gives
-  `f_type = 0x65735546` (`FUSE_SUPER_MAGIC`). On the Btrfs host the same tree was a kernel `overlay`.
-- The gate image (`localhost/git-policy-native-test:development`, built 2026-11-19T19:30Z from
+- Inside a container the repository tree is a **user-space** overlay:
+  `stat -f --format=%T` prints
+  `fuse`,
+  `/proc/self/mountinfo` names the type `fuse.fuse-overlayfs`,
+  and `statfs` gives
+  `f_type = 0x65735546` (`FUSE_SUPER_MAGIC`).
+  On the Btrfs host the same tree was a kernel `overlay`.
+- The gate image (`localhost/git-policy-native-test:development`,
+  built 2026-11-19T19:30Z from
   `localhost/git-policy-native-test-base:cfc6cb4ce2c8-97221c29742b`) carries rustc 1.100.0
-  (Arch 1:1.100.0-1), cargo 1.100.0, git 2.56.1, cargo-nextest 0.9.151.
+  (Arch 1:1.100.0-1),
+  cargo 1.100.0,
+  git 2.56.1,
+  cargo-nextest 0.9.151.
 - The host's `rustc --print sysroot` answers
-  `/home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu` (rustc 1.102.0-nightly, 5df8c02af),
-  whose `bin/` holds `cargo`, `rustc`, `rustdoc` and the gdb wrappers and **no `cargo-clippy` and no
-  `clippy-driver`**. `/usr/bin/rustc` is a symlink to `/usr/bin/rustup`.
-- The repository's locked toolchain is `nightly-2026-11-16` (`toolchain.lock.json`, "rust"), installed
-  here with `cargo-clippy` and `clippy-driver` (rustc 1.102.0-nightly, 5f4effd57).
+  `/home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu` (rustc 1.102.0-nightly,
+  5df8c02af),
+  whose `bin/` holds `cargo`,
+  `rustc`,
+  `rustdoc` and the gdb wrappers and **no `cargo-clippy` and no
+  `clippy-driver`**.
+  `/usr/bin/rustc` is a symlink to `/usr/bin/rustup`.
+- The repository's locked toolchain is `nightly-2026-11-16` (`toolchain.lock.json`,
+  "rust"),
+  installed
+  here with `cargo-clippy` and `clippy-driver` (rustc 1.102.0-nightly,
+  5f4effd57).
 
-Four mount facts follow from those two settings, and every cause below is one of them or a
+Four mount facts follow from those two settings,
+and every cause below is one of them or a
 consequence:
 
 - a name that is not UTF-8 is refused by the dataset (`utf8only=on` with `normalization=formD`);
@@ -69,66 +108,115 @@ consequence:
 
 ## Cause A: a name that is not UTF-8 is refused (108 tests)
 
-Reproduction, on the host with no container: `mkdir` of a name whose last byte is `0xFF` under the
+Reproduction,
+on the host with no container:
+`mkdir` of a name whose last byte is `0xFF` under the
 investigation scratch folder (on `zpcachyos/ROOT/cos/home`) fails
-`errno=84 Invalid or incomplete multibyte or wide character`; the same call under `/dev/shm`
-succeeds. Inside the gate's image the same pair repeats against `/work/package/git-policy/cli/target/tmp`
-(fails, `errno` 84) and `/dev/shm` or a `--tmpfs` mount (both succeed), so the refusing layer is the
-dataset, reached through podman's storage, and not FUSE.
+`errno=84 Invalid or incomplete multibyte or wide character`;
+the same call under `/dev/shm`
+succeeds.
+Inside the gate's image the same pair repeats against `/work/package/git-policy/cli/target/tmp`
+(fails,
+`errno` 84) and `/dev/shm` or a `--tmpfs` mount (both succeed),
+so the refusing layer is the
+dataset,
+reached through podman's storage,
+and not FUSE.
 
-The product and its fixtures create names Git itself accepts, such as `not-utf8-\xFF` and
-`caf\xe9.md`, and those creations fail. Two shapes of failure appear: the test's own create fails
-(`worktree file: Os { code: 84, ... }`), or the fixture's Git command fails
+The product and its fixtures create names Git itself accepts,
+such as `not-utf8-\xFF` and
+`caf\xe9.md`,
+and those creations fail.
+Two shapes of failure appear:
+the test's own create fails
+(`worktree file: Os { code: 84, ... }`),
+or the fixture's Git command fails
 (`git ["branch", "lost-\xFF"] failed: fatal: cannot lock ref ... Unable to create ... Invalid or
 incomplete multibyte or wide character`).
 
-The 108 tests this cause covers include every one whose name says so, for example
+The 108 tests this cause covers include every one whose name says so,
+for example
 `candidate::candidate_store::tree_tests::a_pushed_tree_lists_a_name_that_is_not_utf8_exactly`,
 `commit::capture_invocation::tests::a_repository_whose_name_is_not_utf8_is_captured`,
 `policy::policy_catalog_specifiers::tests::path_cases::a_manifest_below_a_name_that_is_not_utf8_is_still_checked`,
 `shadow::shadow_create::tests::a_ref_name_that_is_not_text_does_not_stop_the_shadow`,
 `worktree::worktree_trash::safety::a_non_utf8_worktree_is_named_by_a_record_and_emptied_by_its_path_bytes`
-and the eleven `event_path_commit` tests. The full list is `cause-A-non-utf8-name.txt`, in the
+and the eleven `event_path_commit` tests.
+The full list is `cause-A-non-utf8-name.txt`,
+in the
 investigation folder named at the end of this doc.
 
-Positive control: all 108 pass once the fixture root is a tmpfs (the workaround below).
+Positive control:
+all 108 pass once the fixture root is a tmpfs (the workaround below).
 
 ### Cause A is answered by the controls themselves
 
 Since 2026-11-24 a control that writes such a name no longer depends on the root the run happened to
-give it. It asks its own fixture root whether the name can be made there
-(`src/native/testing/fixture_root_taking_any_name.rs`), and where the answer is no it starts the same
-test inside a user and mount namespace of its own, mounts a tmpfs at that fixture root, and runs there.
-The root stays the run's own, nothing is written under `/tmp` or `/dev/shm`, and no mount of this run
-reaches the host's namespace, because the mount lives in the namespace the control made for itself.
-Where the root already takes the name, which is the gate's answer, the control runs as it always did
-and starts no namespace at all. A host that lets no unprivileged user namespace fails such a control
-unless the run acknowledges it with `CLI_GIT_TEST_NO_USER_NAMESPACES=1`, and then prints one line
-naming the control that did not run, so a run in which it never ran is visible.
+give it.
+It asks its own fixture root whether the name can be made there
+(`src/native/testing/fixture_root_taking_any_name.rs`),
+and where the answer is no it starts the same
+test inside a user and mount namespace of its own,
+mounts a tmpfs at that fixture root,
+and runs there.
+The root stays the run's own,
+nothing is written under `/tmp` or `/dev/shm`,
+and no mount of this run
+reaches the host's namespace,
+because the mount lives in the namespace the control made for itself.
+Where the root already takes the name,
+which is the gate's answer,
+the control runs as it always did
+and starts no namespace at all.
+A host that lets no unprivileged user namespace fails such a control
+unless the run acknowledges it with `CLI_GIT_TEST_NO_USER_NAMESPACES=1`,
+and then prints one line
+naming the control that did not run,
+so a run in which it never ran is visible.
 
-Measured on 2026-11-24 on this host, one process per test: the 69 unit controls and the 17 binary
+Measured on 2026-11-24 on this host,
+one process per test:
+the 69 unit controls and the 17 binary
 controls of this cause that failed before the change passed after it (`keep/per-test-before`,
-`keep/per-test-after`, `keep/binary-per-test-before` and `keep/binary-per-test-after` in
+`keep/per-test-after`,
+`keep/binary-per-test-before` and `keep/binary-per-test-after` in
 `~/temp/agent/non-utf8-name-controls-on-a-utf8only-home-2026-11-24/`;
 scratch,
 deleted on 2026-11-27;
 what this record uses from it is stated here).
 One control of the cascade,
 `worktree_clone_mount::slot_identity_store::tests::a_name_that_is_not_utf8_refuses_the_listing_as_a_foreign_entry`,
-had printed `SKIPPED` and passed without running; it now runs and proves the refusal.
+had printed `SKIPPED` and passed without running;
+it now runs and proves the refusal.
 
-Twenty-two controls were missed by those rounds and still failed here on 2026-11-25: two in
-`commit::capture_invocation`, four in `candidate::candidate_store` (three of them beside the
-`staged_changes` helper and one through it from `lifecycle_tests`), three in
-`landing::service_land_follow`, five in `worktree_copying`'s stage-claim and journal controls, two in
-`repo_read::repo_read_query`, one in `shadow::replay_merge`, three in `shadow::shadow_ref_write`, one
-in `lock::stale_ref_lock_message`, and the binary control
-`service_commit::a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway`. Each now asks
-`in_a_fixture_root_taking_any_name` first, and each was red before and green after on this host, one
-process per test: `keep/red-before-the-two-controls.log`,
-`keep/search-before-fix.log`, `keep/search-before-fix-helpers.log`,
-`keep/module-tests-threaded-failures-alone.log`, `keep/every-test-one-process-each.log`,
-`keep/green-after-the-fix.log`, `keep/green-after-the-late-two.log`,
+Twenty-two controls were missed by those rounds and still failed here on 2026-11-25:
+two in
+`commit::capture_invocation`,
+four in `candidate::candidate_store` (three of them beside the
+`staged_changes` helper and one through it from `lifecycle_tests`),
+three in
+`landing::service_land_follow`,
+five in `worktree_copying`'s stage-claim and journal controls,
+two in
+`repo_read::repo_read_query`,
+one in `shadow::replay_merge`,
+three in `shadow::shadow_ref_write`,
+one
+in `lock::stale_ref_lock_message`,
+and the binary control
+`service_commit::a_commit_whose_changed_paths_would_not_fit_one_line_lands_anyway`.
+Each now asks
+`in_a_fixture_root_taking_any_name` first,
+and each was red before and green after on this host,
+one
+process per test:
+`keep/red-before-the-two-controls.log`,
+`keep/search-before-fix.log`,
+`keep/search-before-fix-helpers.log`,
+`keep/module-tests-threaded-failures-alone.log`,
+`keep/every-test-one-process-each.log`,
+`keep/green-after-the-fix.log`,
+`keep/green-after-the-late-two.log`,
 `keep/green-after-the-nineteenth.log` and `keep/green-after-the-shadow-three.log` in
 `~/temp/agent/non-utf8-capture-invocation-controls-on-a-utf8only-home-2026-11-25/`
 (scratch,
@@ -138,7 +226,9 @@ what this record uses from it is stated here).
 ### The scanner's package met the same cause (issue 6491)
 
 `package/forbidden-strings/cli`'s embedding control makes a rule file whose name is not valid UTF-8 under
-`CARGO_TARGET_TMPDIR`, which is on the dataset above, and met this cause on 2026-11-27.
+`CARGO_TARGET_TMPDIR`,
+which is on the dataset above,
+and met this cause on 2026-11-27.
 Its own answer and its red and green runs are recorded in
 `package/forbidden-strings/cli/doc/embedding-control-on-a-file-system-that-refuses-a-name-that-is-not-utf8.md`;
 this section keeps only the fact that the refusing layer is the same one described above.
@@ -155,7 +245,9 @@ at every `exec` (`handle_privileged_root` in `security/commoncap.c`).
 A `git commit` that control runs in a fixture repository hardlinks a `0444` loose object,
 and with `fs.protected_hardlinks = 1` the hardlink check asks for `CAP_DAC_OVERRIDE`
 once the mode bits refuse the write (`may_linkat` and `safe_hardlink_source` in `fs/namei.c`).
-That Git held the capability, so AppArmor's `git` profile was asked, refused it and logged it,
+That Git held the capability,
+so AppArmor's `git` profile was asked,
+refused it and logged it,
 while the link itself succeeded on the owner check.
 That is why the audit log holds `git` `dac_override` denials in these controls' windows and none
 in the gate's;
@@ -166,59 +258,97 @@ subsection
 
 Since 2026-11-25 the inner half sets `SECURE_NOROOT` once it has mounted the tmpfs
 (`src/native/testing/fixture_root_taking_any_name.rs`),
-so each program it starts holds no capability of the namespace, as an ordinary account's does,
+so each program it starts holds no capability of the namespace,
+as an ordinary account's does,
 and the inner half keeps its own for the fixtures it makes root's.
 The control that holds this is
 `testing::fixture_root_taking_any_name_of_unit_tests::tests::a_program_started_from_the_any_name_root_holds_no_capability`,
 which reads a child's own `/proc/self/status`:
 it is red before the bit and green after it.
-No control changes what it tests, and no mount leaves the namespace the control made.
+No control changes what it tests,
+and no mount leaves the namespace the control made.
 
 ### How the controls of this cause are found
 
-A grep for the name of a guard finds the controls that already have one, not the ones that need it.
-Three searches find the rest of them, and each one caught controls the others did not:
+A grep for the name of a guard finds the controls that already have one,
+not the ones that need it.
+Three searches find the rest of them,
+and each one caught controls the others did not:
 
-- Read every byte-string literal in the crate's sources and decode it as UTF-8: a literal that does
-  not decode is a byte string the home dataset refuses. This found 145 controls that hold one and do
+- Read every byte-string literal in the crate's sources and decode it as UTF-8:
+  a literal that does
+  not decode is a byte string the home dataset refuses.
+  This found 145 controls that hold one and do
   not ask the guard.
-- Read every test body for any byte over 127 at all, whether an escape in a text literal, a byte-string
-  literal or a bare `0x` number pushed into a name. This found 193, and it is what catches a name built
+- Read every test body for any byte over 127 at all,
+  whether an escape in a text literal,
+  a byte-string
+  literal or a bare `0x` number pushed into a name.
+  This found 193,
+  and it is what catches a name built
   by `name.push(0xff)`.
-- Find each helper whose own body holds such a byte and makes a path component, then each control that
-  calls one without a byte of its own. This found eleven controls, and only this search caught three of
+- Find each helper whose own body holds such a byte and makes a path component,
+  then each control that
+  calls one without a byte of its own.
+  This found eleven controls,
+  and only this search caught three of
   them (`repo_read::repo_read_query::tests::an_offset_table_version_git_words_is_left_to_git`,
   `repo_read::repo_read_query::tests::the_index_extensions_git_reads_silently_are_answered` and
-  `candidate::candidate_store::tests::reader_starts_only_for_blob_content`), because their name comes
+  `candidate::candidate_store::tests::reader_starts_only_for_blob_content`),
+  because their name comes
   from a helper that stages it.
 
-A control on the union of those three lists is then run on the host, one process per control, with
-nothing set: a control that makes such a name fails there with `errno` 84 and one that does not passes.
-That run is the answer, and the searches are only how its candidates are found. A control that needs a
+A control on the union of those three lists is then run on the host,
+one process per control,
+with
+nothing set:
+a control that makes such a name fails there with `errno` 84 and one that does not passes.
+That run is the answer,
+and the searches are only how its candidates are found.
+A control that needs a
 `btrfs` fixture root refuses for that reason first and is no part of this cause.
 
-Two shapes escape all three searches, and only a run over every control finds them:
+Two shapes escape all three searches,
+and only a run over every control finds them:
 
-- A helper that holds the byte but makes no path itself, so nothing marks it and its caller holds no
-  byte of its own: `awkward_components()` served one control, `awkward_names()` served one, and the
+- A helper that holds the byte but makes no path itself,
+  so nothing marks it and its caller holds no
+  byte of its own:
+  `awkward_components()` served one control,
+  `awkward_names()` served one,
+  and the
   name `staged_changes` stages reached a control in another file of the module.
-- A `const` at module scope holding the bytes, which no search over a control's own body sees:
+- A `const` at module scope holding the bytes,
+  which no search over a control's own body sees:
   `NON_TEXT_TAG` and `NON_TEXT_BRANCH` in `shadow_ref_write_tests.rs` served three controls.
 
-So the last step is every test of the crate's three binaries run once, one process per test, with no
-standard input, on this host: 11201 tests, of which four failed because they made a name this data set
-refuses (the one `errno` 84 failure and three Git refusals of `refs/tags/nonutf-\xFF`). A `cargo test`
-of the whole suite in one process is not that run: it hangs on
-`commit::commit_index::tests::interactive_selection_succeeds_without_changes`, which Git answers through
+So the last step is every test of the crate's three binaries run once,
+one process per test,
+with no
+standard input,
+on this host:
+11201 tests,
+of which four failed because they made a name this data set
+refuses (the one `errno` 84 failure and three Git refusals of `refs/tags/nonutf-\xFF`).
+A `cargo test`
+of the whole suite in one process is not that run:
+it hangs on
+`commit::commit_index::tests::interactive_selection_succeeds_without_changes`,
+which Git answers through
 standard input that `nextest` gives no test.
 
 ## Cause A2: one test writes through a scratch helper the fixture root does not move (1 test)
 
-This was a defect of ours, and it is fixed: the helper now builds its directory under the run's own
-fixture root, so `CLI_GIT_TEST_ROOT` moves it with every other test's fixtures. As it stood:
+This was a defect of ours,
+and it is fixed:
+the helper now builds its directory under the run's own
+fixture root,
+so `CLI_GIT_TEST_ROOT` moves it with every other test's fixtures.
+As it stood:
 
 `landing::service_claim_watch::tests::a_path_is_kept_byte_for_byte` failed with `errno` 84 under
-the tmpfs workaround too, because its own helper bypassed the knob:
+the tmpfs workaround too,
+because its own helper bypassed the knob:
 
 ```rust
 // package/git-policy/cli/src/native/landing/service_claim_watch_tests.rs:77
@@ -227,35 +357,55 @@ fn scratch(name: &str) -> PathBuf {
 ```
 
 Every other test file builds its root from `fixture_root()`
-(`src/native/testing/test_support.rs`, `FIXTURE_ROOT_VARIABLE`), or from the binary face's
-`fixture_root()` (`src/native/binary/binary_support_fixture_directories.rs`), and both read
-`CLI_GIT_TEST_ROOT`. This one wrote under the crate's `target/`, which stays on the dataset. The
-tmpfs workaround landed as `ddec538f27` and carried the helper with it, and the control now runs on
-either root, inside a namespace of its own where the root refuses the name.
+(`src/native/testing/test_support.rs`,
+`FIXTURE_ROOT_VARIABLE`),
+or from the binary face's
+`fixture_root()` (`src/native/binary/binary_support_fixture_directories.rs`),
+and both read
+`CLI_GIT_TEST_ROOT`.
+This one wrote under the crate's `target/`,
+which stays on the dataset.
+The
+tmpfs workaround landed as `ddec538f27` and carried the helper with it,
+and the control now runs on
+either root,
+inside a namespace of its own where the root refuses the name.
 
 ## Cause B: the mount records no birth time (29 tests)
 
-Inside the image, `stat --format=%w` of a file under `/work/package/git-policy/cli/target/tmp`
-prints `-`, and the same call on `/dev/shm` or a `--tmpfs` mount prints a time.
+Inside the image,
+`stat --format=%w` of a file under `/work/package/git-policy/cli/target/tmp`
+prints `-`,
+and the same call on `/dev/shm` or a `--tmpfs` mount prints a time.
 
 The product proves a left-behind lock is gone by comparing birth times
-(`src/native/lock/lock_birth_times.rs`), and the worktree-copy stage decides whether a stage was left
-by an interrupted command by the same proof. With no birth time the answer is "unproven", and the
-tests assert the proven answer. Two wordings appear:
+(`src/native/lock/lock_birth_times.rs`),
+and the worktree-copy stage decides whether a stage was left
+by an interrupted command by the same proof.
+With no birth time the answer is "unproven",
+and the
+tests assert the proven answer.
+Two wordings appear:
 
 ```text
 this file system cannot show that <lock>~pid.lock was born after <lock>.lock: the lock is None and the PID file None
 nothing shows what payload is (creation time is not available for the filesystem), so nothing below it was examined
 ```
 
-The 29 tests are the eleven `lock::abandoned_lock_proving_tests`, the five
-`worktree_copying::worktree_copy_stage_claim` reap controls, the eleven `killed_holder_lock` binary
-controls, `lock::lock_birth_times::tests::the_hidden_and_coarse_arms_report_what_other_file_systems_do`
+The 29 tests are the eleven `lock::abandoned_lock_proving_tests`,
+the five
+`worktree_copying::worktree_copy_stage_claim` reap controls,
+the eleven `killed_holder_lock` binary
+controls,
+`lock::lock_birth_times::tests::the_hidden_and_coarse_arms_report_what_other_file_systems_do`
 and `worktree_copy_concurrent::an_add_says_nothing_about_a_lock_a_live_program_holds_in_another_worktree`
-(`cause-B-birth-time.txt`). Three of the five stage controls assert an outcome without printing the
-reason; they belong to this group because their module's other two print it.
+(`cause-B-birth-time.txt`).
+Three of the five stage controls assert an outcome without printing the
+reason;
+they belong to this group because their module's other two print it.
 
-Positive control: all 29 pass on a tmpfs fixture root.
+Positive control:
+all 29 pass on a tmpfs fixture root.
 
 ## Cause C: the mount's type is in neither local file system table (28 tests)
 
@@ -274,8 +424,12 @@ and it judges a left-behind reference lock only on a local file system:
 pub(crate) const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"];
 ```
 
-The mount's `/proc/<pid>/mountinfo` type is `fuse.fuse-overlayfs`, which is on neither list, so a lock
-whose holder is a live process reads as unproven and is cleared, a live holder is not seen, and a copy
+The mount's `/proc/<pid>/mountinfo` type is `fuse.fuse-overlayfs`,
+which is on neither list,
+so a lock
+whose holder is a live process reads as unproven and is cleared,
+a live holder is not seen,
+and a copy
 a program holds open is removed:
 
 ```text
@@ -284,32 +438,51 @@ Unproven("it sits on a `fuse.fuse-overlayfs` file system, which a Git on another
 the scan never saw the holder 50772
 ```
 
-The 28 tests are the ten `lock::stale_ref_locks`, `lock::index_lock_holders`,
-`lock::index_holder_wait`, the three `process` controls (`process::open_file_of_a_descriptor` and
-two `process::process_use`), `merge::merge_isolation::repository_tests`
+The 28 tests are the ten `lock::stale_ref_locks`,
+`lock::index_lock_holders`,
+`lock::index_holder_wait`,
+the three `process` controls (`process::open_file_of_a_descriptor` and
+two `process::process_use`),
+`merge::merge_isolation::repository_tests`
 (now `merge::merge_isolation_round::repository_tests`,
 since the split of 2026-11-27 moved the test file),
 the three
-`merge::merge_isolation_recovery`, `merge_never_fails::a_merge_that_meets_a_holder_proven_alive_saves_itself_at_once`,
-two `landing::service_index_lock`, `landing::service_index_unheld_removal`, two
+`merge::merge_isolation_recovery`,
+`merge_never_fails::a_merge_that_meets_a_holder_proven_alive_saves_itself_at_once`,
+two `landing::service_index_lock`,
+`landing::service_index_unheld_removal`,
+two
 `landing::service_land_reference_lock` and the three `wait_notice` binary controls
 (`cause-C-mount-type.txt`).
 
-Reading `/proc/<pid>/fd` of a descriptor of a file on this mount works (measured: the link resolves on
-the fuse mount, on `/dev/shm` and on a `--tmpfs`), so the refusal is the product's list, not the
+Reading `/proc/<pid>/fd` of a descriptor of a file on this mount works (measured:
+the link resolves on
+the fuse mount,
+on `/dev/shm` and on a `--tmpfs`),
+so the refusal is the product's list,
+not the
 kernel's ability.
 
-Positive control: all 28 pass on a tmpfs fixture root, whose mount type is `tmpfs`.
+Positive control:
+all 28 pass on a tmpfs fixture root,
+whose mount type is `tmpfs`.
 
 ## Cause D: Git refuses `core.fsmonitor` on a FUSE mount (10 tests)
 
-Reproduction inside the image, with a repository whose `core.fsmonitor` names a program that appends
-to a marker file, on the fuse mount: `git status` prints
-`warning: remote repository '<repo>' is incompatible with fsmonitor` and the program does not run. On
-a `--tmpfs` mount the same repository runs the program and prints no warning. On the fuse mount with
-`-c fsmonitor.allowRemote=true` the program runs, so the mount and not the program is the cause.
+Reproduction inside the image,
+with a repository whose `core.fsmonitor` names a program that appends
+to a marker file,
+on the fuse mount:
+`git status` prints
+`warning: remote repository '<repo>' is incompatible with fsmonitor` and the program does not run.
+On
+a `--tmpfs` mount the same repository runs the program and prints no warning.
+On the fuse mount with
+`-c fsmonitor.allowRemote=true` the program runs,
+so the mount and not the program is the cause.
 
-Git's source explains the wording: `check_remote()` refuses a working directory that
+Git's source explains the wording:
+`check_remote()` refuses a working directory that
 `fsmonitor__is_fs_remote()` calls remote unless `fsmonitor.allowRemote` is true
 ([`fsmonitor-settings.c` lines 45-58](https://github.com/git/git/blob/f7de81456940dd6f3274e461149bba12965de609/fsmonitor-settings.c#L45-L58)),
 and on Linux "remote" includes `FUSE_SUPER_MAGIC`
@@ -326,7 +499,9 @@ static int is_remote_fs(unsigned long f_type)
 ```
 
 Both files were read at commit `f7de81456940dd6f3274e461149bba12965de609` through the GitHub REST API,
-which returns the bytes of that commit; the numbers above are that read. A rendered-page check was
+which returns the bytes of that commit;
+the numbers above are that read.
+A rendered-page check was
 attempted and the browser could not start in this session (see "What does not work").
 
 The ten tests (`cause-D-fsmonitor.txt`) are `invocation::hooks_off::tests::{a_forwarded_start_runs_the_core_fsmonitor_program,
@@ -340,11 +515,14 @@ a_wrapped_commit_never_runs_the_core_fsmonitor_program}`,
 a_native_git_read_ended_at_its_bound_does_not_wait_for_a_hook_s_descendant}` and
 `service_landing_state::a_native_git_read_that_never_answers_ends_at_the_harness_bound_and_names_it`.
 The four `hooks_off`/`hooks_off_escape` controls exist to prove that the wrapper *does* run the
-person's monitor and the wrapper's own Git does not, so a monitor that never runs in either arm makes
-both halves fail; the two bound controls use a monitor program that never answers to prove a bound,
+person's monitor and the wrapper's own Git does not,
+so a monitor that never runs in either arm makes
+both halves fail;
+the two bound controls use a monitor program that never answers to prove a bound,
 and Git answers at once because it never starts that program.
 
-Positive control: all ten pass on a tmpfs fixture root.
+Positive control:
+all ten pass on a tmpfs fixture root.
 
 ## Cause E: the copy flow makes no `ioctl` where the file system is neither Btrfs nor overlayfs (2 tests)
 
@@ -353,51 +531,91 @@ copy lists calls its flow never makes, so faulting them would test nothing: ["io
 ```
 
 `COPY_KILL_CALLS` (`src/native/binary/binary_fault_trace_tests.rs:1041`) lists `ioctl` because on
-Btrfs and on a kernel overlay it carries the `FICLONE` that fills each staged file. The efficient
-worktree-copy method is chosen by file system: Btrfs and overlayfs clone, every other file system
-lets Git check the worktree out (`src/native/health/doctor_filesystem.rs:255`, and the ladder the
-message names). A `fuse.fuse-overlayfs` mount is neither, so the flow never calls `ioctl`, and the
-control that faults every call in that list fails. The second test,
-`fault_trace::a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository`, is the same
+Btrfs and on a kernel overlay it carries the `FICLONE` that fills each staged file.
+The efficient
+worktree-copy method is chosen by file system:
+Btrfs and overlayfs clone,
+every other file system
+lets Git check the worktree out (`src/native/health/doctor_filesystem.rs:255`,
+and the ladder the
+message names).
+A `fuse.fuse-overlayfs` mount is neither,
+so the flow never calls `ioctl`,
+and the
+control that faults every call in that list fails.
+The second test,
+`fault_trace::a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository`,
+is the same
 failure for the `ioctl` entry alone.
 
-A tmpfs fixture root does not fix these two: tmpfs is not on the cloning list either (measured, both
-arms still fail). The two ways out are a fixture root on a Btrfs or overlay mount, or a change to what
-the kill list demands on such a file system. The two tests are `cause-E-reflink.txt`.
+A tmpfs fixture root does not fix these two:
+tmpfs is not on the cloning list either (measured,
+both
+arms still fail).
+The two ways out are a fixture root on a Btrfs or overlay mount,
+or a change to what
+the kill list demands on such a file system.
+The two tests are `cause-E-reflink.txt`.
 
 ## Cause F: three single behaviours of the mount
 
-Each of these fails alone, for its own reason, and each passes on a tmpfs fixture root.
+Each of these fails alone,
+for its own reason,
+and each passes on a tmpfs fixture root.
 
-- `index::index_reset_file::tests::the_file_mode_under_a_default_acl_equals_git`: a directory with a
+- `index::index_reset_file::tests::the_file_mode_under_a_default_acl_equals_git`:
+  a directory with a
   default ACL of `u::rwx,g::---,o::---` gives a file mode `0644` on this mount and `0600` on tmpfs
-  (measured with `setfacl --default --modify ...` and one create on each). The dataset has
-  `acltype=posix`, so the ACL is accepted and then not applied to the new file, and the test sees
+  (measured with `setfacl --default --modify ...` and one create on each).
+  The dataset has
+  `acltype=posix`,
+  so the ACL is accepted and then not applied to the new file,
+  and the test sees
   Git's index at `0664` where it expects `0660`.
-- `worktree::worktree_completion::tests::an_error_that_is_not_a_conflict_fails_the_inspection`: the
-  test builds a 300-byte name and expects an error that is not a conflict. `lstat` of that name
+- `worktree::worktree_completion::tests::an_error_that_is_not_a_conflict_fails_the_inspection`:
+  the
+  test builds a 300-byte name and expects an error that is not a conflict.
+  `lstat` of that name
   answers `ENOENT` on this mount and `ENAMETOOLONG` on tmpfs (measured from a Rust probe running the
-  two calls the product makes), and `is_conflict_error`
+  two calls the product makes),
+  and `is_conflict_error`
   (`src/native/worktree/worktree_completion_file_inspection.rs:99`) reads `NotFound` as a conflict.
-- `transaction::transaction_git::tests::input_files_leave_nothing_behind`: the input file is created,
-  opened and unlinked, and the product then lists the scratch directory and finds one entry
-  (`left: 1`). `strace` shows the `unlink` returns 0 before that listing, and the same directory is
-  empty when listed afterwards (measured with `CLI_GIT_KEEP_FIXTURES=1`). A file created, opened,
-  unlinked and listed in one process leaves nothing on this mount in a Python probe, and its link
-  count reads 1 where tmpfs reads 0; which layer keeps the entry in the product's listing (the
+- `transaction::transaction_git::tests::input_files_leave_nothing_behind`:
+  the input file is created,
+  opened and unlinked,
+  and the product then lists the scratch directory and finds one entry
+  (`left: 1`).
+  `strace` shows the `unlink` returns 0 before that listing,
+  and the same directory is
+  empty when listed afterwards (measured with `CLI_GIT_KEEP_FIXTURES=1`).
+  A file created,
+  opened,
+  unlinked and listed in one process leaves nothing on this mount in a Python probe,
+  and its link
+  count reads 1 where tmpfs reads 0;
+  which layer keeps the entry in the product's listing (the
   kernel's FUSE directory cache or fuse-overlayfs's own) was not isolated.
 
 ## Cause G: tests that fail only in a busy full run
 
 Four tests failed in one full run and passed in another run of the same build:
-`package_repair::pnpm_runs_in_the_new_worktree_only` (failed in the full suite, passed in both
-filtered runs of the same list), `package_repair::quiet_runs_the_repair_and_says_nothing_about_success`
+`package_repair::pnpm_runs_in_the_new_worktree_only` (failed in the full suite,
+passed in both
+filtered runs of the same list),
+`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`
 and `fault_trace::a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository` (failed on the
-LFS branch's build, passed on `main`'s) and
+LFS branch's build,
+passed on `main`'s) and
 `push::bounded_push::tests::a_push_that_floods_and_ends_keeps_its_status_and_says_its_output_was_cut`
-(failed on `main`'s full suite, passed in three filtered runs). Two of these run `pnpm`, and the
-flood control decides a process's ending from a short look; both are the shape that a loaded host
-moves. They are not causes of the gate's failure on this host, and none of them names a mount fact.
+(failed on `main`'s full suite,
+passed in three filtered runs).
+Two of these run `pnpm`,
+and the
+flood control decides a process's ending from a short look;
+both are the shape that a loaded host
+moves.
+They are not causes of the gate's failure on this host,
+and none of them names a mount fact.
 
 One more control has this shape and an issue of its own:
 `fault_trace::a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout` failed in the gate of 2026-11-23T04:12-05:00 (run `native-uN7Nqs`) after 78.850 s with
@@ -433,7 +651,9 @@ the fix and the controls for the second.
 
 `worktree::worktree_remove_hand_over::tests::the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_it`
 failed in the gate on `main` at `132843d9d1` with the holder scan's sentence where it expects Git's own:
-"process 155499 belongs to this account, works elsewhere, and the files it holds open could not be read".
+"process 155499 belongs to this account,
+works elsewhere,
+and the files it holds open could not be read".
 The service's own removal reads every process of the account to see whether one works in the worktree
 (`worktree_process_inside.rs`),
 so a process another test of the same container started after this fixture's worktree was made keeps that worktree,
@@ -450,7 +670,8 @@ The failure was reproduced on this host on 2026-11-25 by starting one process th
 which the scan refuses in the same way;
 the sentence then names the working folder,
 because the kernel refuses `/proc/<pid>/cwd` and `/proc/<pid>/fd` with the same check
-(`fs/proc/base.c`, `call_proc_get_link`).
+(`fs/proc/base.c`,
+`call_proc_get_link`).
 The control now hands the service's call a process table of its own fixture
 (`delete_subvolume_of_with`,
 `test_support::an_empty_process_table`),
@@ -461,37 +682,68 @@ while `delete_subvolume_of` keeps reading this machine's `/proc`.
 
 `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
 and `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing` fail here
-and failed on the Btrfs host (`doc/handover/cli-git-rust-implementation.md`, the standing three, of
-which `owed_push` passed on this host). Both complain that a scratch directory named
-`cli-git-lock-holders` is left behind. They fail with the fixture root on tmpfs as well, so no mount
-change touches them, and they are not this host's doing.
+and failed on the Btrfs host (`doc/handover/cli-git-rust-implementation.md`,
+the standing three,
+of
+which `owed_push` passed on this host).
+Both complain that a scratch directory named
+`cli-git-lock-holders` is left behind.
+They fail with the fixture root on tmpfs as well,
+so no mount
+change touches them,
+and they are not this host's doing.
 
 ### Cause H diagnosed, and fixed, on 2026-11-25
 
-The gate on `main` at `64a71a4c9b` failed both again (issues 6466 and 6468). Two causes, both in the
-controls, and neither needs a mount fact:
+The gate on `main` at `64a71a4c9b` failed both again (issues 6466 and 6468).
+Two causes,
+both in the
+controls,
+and neither needs a mount fact:
 
 - Every wrapper command writes `<common-git-dir>/cli-git-lock-holders/<pid>.<digest>` before it starts
-  any Git since `74b1a8c0a0`, and a later command's pass removes the record once every process it names
-  is gone (`lock/lock_holder_records.rs`, `lock_holder_record_reads.rs`'s `sweep`). Both controls read
-  the whole `.git` directory after one command, so both read that record; the crate had already decided
-  it says nothing about what a command did to a repository, in
-  `binary_commit_form_refusal_tests.rs`'s `everything_under`, which skips the same folder. Reproduced on
-  this host: one `log` in a fixture repository leaves the folder with one `self` line, a second `log`
-  leaves its own, and the refused commit of the `service_no_manager` control leaves one with the `self`
+  any Git since `74b1a8c0a0`,
+  and a later command's pass removes the record once every process it names
+  is gone (`lock/lock_holder_records.rs`,
+  `lock_holder_record_reads.rs`'s `sweep`).
+  Both controls read
+  the whole `.git` directory after one command,
+  so both read that record;
+  the crate had already decided
+  it says nothing about what a command did to a repository,
+  in
+  `binary_commit_form_refusal_tests.rs`'s `everything_under`,
+  which skips the same folder.
+  Reproduced on
+  this host:
+  one `log` in a fixture repository leaves the folder with one `self` line,
+  a second `log`
+  leaves its own,
+  and the refused commit of the `service_no_manager` control leaves one with the `self`
   line alone.
-- The naming control also compared `git count-objects -v`'s whole text, and its `size` field sums the
-  `st_blocks` of the loose objects. On this host's ZFS dataset a file reports one 512-byte block until
-  the pool's transaction group commits and its real blocks afterwards: seven unchanged 40-to-50-byte
-  files measured `1` block each and `9` blocks each a moment later, which moved the `size` of seven
-  loose objects between `3` and `31` with no process touching them. `sync` did not settle it reliably
-  (three rounds unchanged), so the control now compares the facts a commit elsewhere can change and
+- The naming control also compared `git count-objects -v`'s whole text,
+  and its `size` field sums the
+  `st_blocks` of the loose objects.
+  On this host's ZFS dataset a file reports one 512-byte block until
+  the pool's transaction group commits and its real blocks afterwards:
+  seven unchanged 40-to-50-byte
+  files measured `1` block each and `9` blocks each a moment later,
+  which moved the `size` of seven
+  loose objects between `3` and `31` with no process touching them.
+  `sync` did not settle it reliably
+  (three rounds unchanged),
+  so the control now compares the facts a commit elsewhere can change and
   leaves those fields out.
 
-Both controls now pass on this host, and the modules around them were run threaded afterwards
-(`repository_naming_commit::` seven tests and `service_no_manager::` two, both `test result: ok`). The
-record itself still stays in a repository until a later command sweeps it, which is what `SPEC.md`'s
-"The record" describes; that is not a change either control was measuring.
+Both controls now pass on this host,
+and the modules around them were run threaded afterwards
+(`repository_naming_commit::` seven tests and `service_no_manager::` two,
+both `test result: ok`).
+The
+record itself still stays in a repository until a later command sweeps it,
+which is what `SPEC.md`'s
+"The record" describes;
+that is not a change either control was measuring.
 
 ## The gates run on `main`, in order, with what each failed
 
@@ -655,24 +907,42 @@ and the failures with the commit that fixed them.
 - `196b8d0c87`,
   unit `whole-gate-on-main-196b8d0c87`,
   started 2026-11-26T08:01:00-05:00,
-  holding issues 6489, 6494, 6495, 6502 and 6504,
-  the Ubuntu `setgroups` skip, Pi's virtual writer,
+  holding issues 6489,
+  6494,
+  6495,
+  6502 and 6504,
+  the Ubuntu `setgroups` skip,
+  Pi's virtual writer,
   and the linter's `alpha.15` fixes with its lock still at `alpha.14`:
-  `11991 tests run: 11991 passed (8 slow, 1 leaky), 49 skipped`, in 931 s.
+  `11991 tests run: 11991 passed (8 slow, 1 leaky), 49 skipped`,
+  in 931 s.
   It failed nothing.
   The leaky test is issue 6501's relay control again.
 - `a6c155bea4`,
   unit `whole-gate-on-main-a6c155bea4`,
   started about 2026-11-26T09:47-05:00,
-  holding issues 6493, 6505, 6507 and 6508, the crate split's round 1 and the linter locked to `alpha.15`:
-  `11996 tests run: 11996 passed (5 slow, 1 leaky), 49 skipped`, in 843 s.
-  It failed nothing; the leaky test is issue 6501's relay control.
+  holding issues 6493,
+  6505,
+  6507 and 6508,
+  the crate split's round 1 and the linter locked to `alpha.15`:
+  `11996 tests run: 11996 passed (5 slow, 1 leaky), 49 skipped`,
+  in 843 s.
+  It failed nothing;
+  the leaky test is issue 6501's relay control.
 - `42a59e812e`,
   unit `whole-gate-on-main-42a59e812e`,
   started 2026-11-26T12:29:03-05:00,
-  holding issues 6500, 6501, 6503, 6509, 6511, 6512 and 6514 and the alpha.47 ZFS pass's three rounds:
-  `12028 tests run: 12028 passed (6 slow), 49 skipped`, in 896 s.
-  It failed nothing, and no test was leaky: issue 6501's relay control no longer outlives its run.
+  holding issues 6500,
+  6501,
+  6503,
+  6509,
+  6511,
+  6512 and 6514 and the alpha.47 ZFS pass's three rounds:
+  `12028 tests run: 12028 passed (6 slow), 49 skipped`,
+  in 896 s.
+  It failed nothing,
+  and no test was leaky:
+  issue 6501's relay control no longer outlives its run.
 
 A gate's window denies what the work meets,
 never a failure by itself:
@@ -682,11 +952,20 @@ and only a denial the read maps to a failing test is a finding.
 
 ## Verification
 
-Versions: the image above (rustc 1.100.0, git 2.56.1, cargo-nextest 0.9.151), podman 6.2.0,
-ZFS 2.4.4, kernel 7.3.5-1-cachyos, `main` at `cff64adfa0` (this branch changes docs only, so its tree
+Versions:
+the image above (rustc 1.100.0,
+git 2.56.1,
+cargo-nextest 0.9.151),
+podman 6.2.0,
+ZFS 2.4.4,
+kernel 7.3.5-1-cachyos,
+`main` at `cff64adfa0` (this branch changes docs only,
+so its tree
 is `main`'s build).
 
-The harness is the gate's own image, run exactly as the gate runs it, with a nextest filter
+The harness is the gate's own image,
+run exactly as the gate runs it,
+with a nextest filter
 expression that names the failing tests:
 
 ```sh
@@ -697,49 +976,109 @@ podman run --init --network=none --memory=2g --cpus=4 --pids-limit=1024 --blkio-
 ```
 
 The tests the gate's whole suite failed on `main`'s build are the 185 in
-`main-failing-names.txt`. Running that list as its own arm, twice, and with the workaround, twice,
+`main-failing-names.txt`.
+Running that list as its own arm,
+twice,
+and with the workaround,
+twice,
 gave:
 
-- as-is: 184 then 183 of 185 failed; 103.9 s and 103.8 s; the container's `memory.peak` 430 MB and
+- as-is:
+  184 then 183 of 185 failed;
+  103.9 s and 103.8 s;
+  the container's `memory.peak` 430 MB and
   409 MB;
-- `--tmpfs /gate-fixtures` with `CLI_GIT_TEST_ROOT=/gate-fixtures`: 5 of 185 failed, twice; 40.9 s
-  and 42.0 s; `memory.peak` 681 MB and 680 MB;
-- a host `/dev/shm` directory mounted there with the same variable: 5 of 185 failed, twice; 43.9 s
-  and 42.8 s; `memory.peak` 687 MB and 601 MB.
+- `--tmpfs /gate-fixtures` with `CLI_GIT_TEST_ROOT=/gate-fixtures`:
+  5 of 185 failed,
+  twice;
+  40.9 s
+  and 42.0 s;
+  `memory.peak` 681 MB and 680 MB;
+- a host `/dev/shm` directory mounted there with the same variable:
+  5 of 185 failed,
+  twice;
+  43.9 s
+  and 42.8 s;
+  `memory.peak` 687 MB and 601 MB.
 
-The residual five are cause E (two), cause A2 (one) and cause H (two).
+The residual five are cause E (two),
+cause A2 (one) and cause H (two).
 
-The per-cause name lists in the investigation's `scratch/` hold 184 of the 185 between them, with no
-duplicate: cause A 108, A2 1, B 29, C 28, D 10, E 2, F 3, G 1 and H 2. The one name no list holds is
-`package_repair::pnpm_runs_in_the_new_worktree_only`, which the cause G passage above names: it failed
-in the full suite and passed in both filtered arms. It is also the only name of the 185 absent from
-the as-is arm's first run's 184 failures, and one of the two absent from its second run's 183 (the
-flood control is the other), so it moves with the host's load as cause G says.
+The per-cause name lists in the investigation's `scratch/` hold 184 of the 185 between them,
+with no
+duplicate:
+cause A 108,
+A2 1,
+B 29,
+C 28,
+D 10,
+E 2,
+F 3,
+G 1 and H 2.
+The one name no list holds is
+`package_repair::pnpm_runs_in_the_new_worktree_only`,
+which the cause G passage above names:
+it failed
+in the full suite and passed in both filtered arms.
+It is also the only name of the 185 absent from
+the as-is arm's first run's 184 failures,
+and one of the two absent from its second run's 183 (the
+flood control is the other),
+so it moves with the host's load as cause G says.
 
-The full suite ran once on `main`'s build, as the control: 185 of 9,173 failed, listed above. The
-earlier session's LFS branch failed 187 of 9,189; comparing the two lists leaves four differences and
+The full suite ran once on `main`'s build,
+as the control:
+185 of 9,173 failed,
+listed above.
+The
+earlier session's LFS branch failed 187 of 9,189;
+comparing the two lists leaves four differences and
 every one of them is a test that failed in one run and passed in another of the same tree
 (`package_repair::quiet_runs_the_repair_and_says_nothing_about_success`,
 `fault_trace::a_disk_that_fills_during_a_commit_leaves_a_recoverable_repository` and
 `merge::merge_isolation_carry_apply::tests::a_save_whose_bytes_accept_the_whole_merge_is_not_replaced_by_the_captured_layer`
-on the LFS build; the flood control on `main`'s). So this host's failures are the same list
+on the LFS build;
+the flood control on `main`'s).
+So this host's failures are the same list
 whichever build of the wrapper runs them.
 
-What does not run here, and is not a failure of the gate: `cargo-shadow` and `cargo-nextest` are
-absent, so the mise task's first step fails and only its second step runs.
+What does not run here,
+and is not a failure of the gate:
+`cargo-shadow` and `cargo-nextest` are
+absent,
+so the mise task's first step fails and only its second step runs.
 
 ## Verified workarounds that change no host setting
 
-Both move the tests' fixture root off the fuse mount, which removes causes A, B, C, D, F and the
-flaky arm of G: 108 + 29 + 28 + 10 + 3 = 178 tests, plus one flaky one. Neither touches the two
-standing failures, cause E or cause A2, so the gate would still be red at 5.
+Both move the tests' fixture root off the fuse mount,
+which removes causes A,
+B,
+C,
+D,
+F and the
+flaky arm of G:
+108 + 29 + 28 + 10 + 3 = 178 tests,
+plus one flaky one.
+Neither touches the two
+standing failures,
+cause E or cause A2,
+so the gate would still be red at 5.
 
 The knob already exists for this and is documented as such (`FIXTURE_ROOT_VARIABLE` in
-`src/native/testing/test_support.rs`: "Environment variable that moves the fixture root, for example
-onto a tmpfs for speed"). Neither way could be passed through `bin/test-native-container.ts` as the
-investigation found it: the gate accepted only `--memory`, `--cpus` and `--pids-limit` and passed no
-`--env` and no `--tmpfs` to `podman run` (`bin/native-gate-container.ts`, the two `runGateContainer`
-calls in `bin/test-native-container.ts`). So each is a change to the gate, not to the host, which is
+`src/native/testing/test_support.rs`:
+"Environment variable that moves the fixture root,
+for example
+onto a tmpfs for speed").
+Neither way could be passed through `bin/test-native-container.ts` as the
+investigation found it:
+the gate accepted only `--memory`,
+`--cpus` and `--pids-limit` and passed no
+`--env` and no `--tmpfs` to `podman run` (`bin/native-gate-container.ts`,
+the two `runGateContainer`
+calls in `bin/test-native-container.ts`).
+So each is a change to the gate,
+not to the host,
+which is
 what the fix below does.
 
 ### A tmpfs the container makes for itself
@@ -747,64 +1086,118 @@ what the fix below does.
 The gate's `podman run` adds `--tmpfs /gate-fixtures:rw,size=1500m,mode=1777 --env
 CLI_GIT_TEST_ROOT=/gate-fixtures`.
 
-- Measured: 5 of the 185 fail (180 fixed); 2.5 times faster than the as-is arm (103.9 s against
-  41 s, both arms run twice, interleaved); about 250 MB more peak memory in the container's cgroup
-  (430 MB against 680 MB of a 2 GiB cap), which is the fixtures' own bytes.
-- What it changes about what the tests test: the fixture root becomes a tmpfs, so the mount-dependent
-  controls exercise the "birth time present, mount on the local list, Git may run a monitor" arms and
-  no longer exercise the absent-birth-time and FUSE arms; `lock::lock_birth_times::tests::
+- Measured:
+  5 of the 185 fail (180 fixed);
+  2.5 times faster than the as-is arm (103.9 s against
+  41 s,
+  both arms run twice,
+  interleaved);
+  about 250 MB more peak memory in the container's cgroup
+  (430 MB against 680 MB of a 2 GiB cap),
+  which is the fixtures' own bytes.
+- What it changes about what the tests test:
+  the fixture root becomes a tmpfs,
+  so the mount-dependent
+  controls exercise the "birth time present,
+  mount on the local list,
+  Git may run a monitor" arms and
+  no longer exercise the absent-birth-time and FUSE arms;
+  `lock::lock_birth_times::tests::
   the_hidden_and_coarse_arms_report_what_other_file_systems_do` remains the synthetic control for
-  those arms. In the measured arm two location controls examined nothing about the moved root, because
+  those arms.
+  In the measured arm two location controls examined nothing about the moved root,
+  because
   each returned early when the variable was set (`src/native/binary/binary_fixture_tests.rs` and
-  `src/native/testing/test_support_tests.rs`); the branch makes both examine it, and the section "Two
-  location controls checked nothing in the gate" says what each now asserts. The worktree-copy ladder
-  then reads `tmpfs` instead of `fuse.fuse-overlayfs`, which is a different "other file system" branch,
+  `src/native/testing/test_support_tests.rs`);
+  the branch makes both examine it,
+  and the section "Two
+  location controls checked nothing in the gate" says what each now asserts.
+  The worktree-copy ladder
+  then reads `tmpfs` instead of `fuse.fuse-overlayfs`,
+  which is a different "other file system" branch,
   and the `fault_trace` kill list still names a call the flow does not make (cause E).
-- The `size=1500m` is a ceiling under the container's 2 GiB memory cap; a run that outgrows it fails
-  with `ENOSPC` rather than with a mount cause. No run here came near it (peak growth 250 MB). That
-  arm's container peaked at 680 MB with about 250 MB of fixtures in it, which leaves roughly 1618 MB of
-  the cap for fixtures. The earlier whole-suite run, whose sampler record this branch does not keep,
-  sampled 994 MiB of process pages (the history below), which left only about 1054 MiB of that cap for
-  fixtures, so the `1500m` those figures suggested was not reachable in the gate; the branch ships
+- The `size=1500m` is a ceiling under the container's 2 GiB memory cap;
+  a run that outgrows it fails
+  with `ENOSPC` rather than with a mount cause.
+  No run here came near it (peak growth 250 MB).
+  That
+  arm's container peaked at 680 MB with about 250 MB of fixtures in it,
+  which leaves roughly 1618 MB of
+  the cap for fixtures.
+  The earlier whole-suite run,
+  whose sampler record this branch does not keep,
+  sampled 994 MiB of process pages (the history below),
+  which left only about 1054 MiB of that cap for
+  fixtures,
+  so the `1500m` those figures suggested was not reachable in the gate;
+  the branch ships
   `768m` instead (the section "The gate's fixture root is a tmpfs the container makes").
 
 ### A host tmpfs directory, bind-mounted
 
-The same variable and mount, with `--mount type=bind,source=<a directory on a host tmpfs>,
-destination=/gate-fixtures`, the host directory made `0777` first.
+The same variable and mount,
+with `--mount type=bind,source=<a directory on a host tmpfs>,
+destination=/gate-fixtures`,
+the host directory made `0777` first.
 
-- Measured: the same 5 failures, 43.9 s and 42.8 s, `memory.peak` 687 MB and 601 MB.
-- It costs the same and needs a host directory to exist and be world-writable, which is a change to
-  the host's state (though not to any configuration), so the container-made tmpfs is the better of
+- Measured:
+  the same 5 failures,
+  43.9 s and 42.8 s,
+  `memory.peak` 687 MB and 601 MB.
+- It costs the same and needs a host directory to exist and be world-writable,
+  which is a change to
+  the host's state (though not to any configuration),
+  so the container-made tmpfs is the better of
   the two.
 
 ## Ways that change the host (not run here)
 
-Each needs the owner's authorization; none was run.
+Each needs the owner's authorization;
+none was run.
 
 - A ZFS dataset with `utf8only=off` and `normalization=none` for podman's storage would remove cause
-  A and A2 (109 tests) and nothing else: the fuse mount stays FUSE, so B, C, D, F and E stay.
+  A and A2 (109 tests) and nothing else:
+  the fuse mount stays FUSE,
+  so B,
+  C,
+  D,
+  F and E stay.
   ```sh
   sudo zfs create -o utf8only=off -o normalization=none -o mountpoint=/var/lib/containers-zfs zpcachyos/ROOT/cos/containers
   sudo systemctl stop podman.socket 2>/dev/null; podman system reset --force
   ```
   and a `~/.config/containers/storage.conf` naming `driver = "overlay"` with
-  `graphroot = "/var/lib/containers-zfs/storage"`, then `podman system reset` again so the store is
-  rebuilt. `podman system reset` deletes every image and container of this account, the gate's own
+  `graphroot = "/var/lib/containers-zfs/storage"`,
+  then `podman system reset` again so the store is
+  rebuilt.
+  `podman system reset` deletes every image and container of this account,
+  the gate's own
   images included.
-- A kernel `overlay` or Btrfs mount under the fixture root would remove causes A to F at once, and Btrfs
-  or an overlay would also make the copy flow clone, removing cause E. Reaching either from a ZFS host
-  means a loop device or a dataset of another type mounted by root, for example
+- A kernel `overlay` or Btrfs mount under the fixture root would remove causes A to F at once,
+  and Btrfs
+  or an overlay would also make the copy flow clone,
+  removing cause E.
+  Reaching either from a ZFS host
+  means a loop device or a dataset of another type mounted by root,
+  for example
   ```sh
   sudo truncate --size=40G /var/lib/gate-btrfs.img && sudo mkfs.btrfs /var/lib/gate-btrfs.img
   sudo mount --options loop /var/lib/gate-btrfs.img /var/lib/gate-btrfs
   ```
   and then `--mount type=bind,source=/var/lib/gate-btrfs,destination=/gate-fixtures` with
-  `CLI_GIT_TEST_ROOT=/gate-fixtures`. If the device stays Btrfs, the mount type the product and Git
-  see is `btrfs`, which is on both of the product's lists, has birth times, takes any byte in a name,
-  and clones. Whether a bind mount of Btrfs inside a `fuse-overlayfs` container reports `btrfs` as
-  the mount type was not measured, since mounting it needs root.
-- Changing podman's storage driver to `vfs` would put every layer on the same dataset, so it changes
+  `CLI_GIT_TEST_ROOT=/gate-fixtures`.
+  If the device stays Btrfs,
+  the mount type the product and Git
+  see is `btrfs`,
+  which is on both of the product's lists,
+  has birth times,
+  takes any byte in a name,
+  and clones.
+  Whether a bind mount of Btrfs inside a `fuse-overlayfs` container reports `btrfs` as
+  the mount type was not measured,
+  since mounting it needs root.
+- Changing podman's storage driver to `vfs` would put every layer on the same dataset,
+  so it changes
   nothing here.
 
 ## Clippy's E0514
@@ -820,10 +1213,16 @@ from it:
 /toolchain/bin/cargo clippy --offline --locked --all-targets -- -D warnings
 ```
 
-`cargo clippy` is not part of cargo: it looks for `cargo-clippy` on `PATH`, which sets
-`clippy-driver` as the wrapper for the workspace's own crates. On this host the mounted sysroot is
-`nightly-x86_64-unknown-linux-gnu`, whose `bin/` has no `cargo-clippy` and no `clippy-driver`, so both
-are found later in `PATH`, in the image:
+`cargo clippy` is not part of cargo:
+it looks for `cargo-clippy` on `PATH`,
+which sets
+`clippy-driver` as the wrapper for the workspace's own crates.
+On this host the mounted sysroot is
+`nightly-x86_64-unknown-linux-gnu`,
+whose `bin/` has no `cargo-clippy` and no `clippy-driver`,
+so both
+are found later in `PATH`,
+in the image:
 
 ```text
 toolchain bin: cargo rust-gdb rust-gdbgui rust-lldb rustc rustdoc
@@ -832,75 +1231,130 @@ clippy-driver -> /usr/sbin/clippy-driver, version clippy 0.1.100
 rustc -> /toolchain/bin/rustc, rustc 1.102.0-nightly (5df8c02af 2026-11-16)
 ```
 
-The dependencies are then compiled by rustc 1.102.0-nightly, and the wrapper itself by the image's
-clippy 0.1.100, which cannot read their metadata: E0514, whose help line names the 1.100 compiler
-that is failing. Thirteen errors for the library and fifteen for its test target, none of them about
-the sources. The same command succeeds where both compilers come from one toolchain:
+The dependencies are then compiled by rustc 1.102.0-nightly,
+and the wrapper itself by the image's
+clippy 0.1.100,
+which cannot read their metadata:
+E0514,
+whose help line names the 1.100 compiler
+that is failing.
+Thirteen errors for the library and fifteen for its test target,
+none of them about
+the sources.
+The same command succeeds where both compilers come from one toolchain:
 
-- with the image's own toolchain (no mount, no `RUSTC`): `cargo clippy --offline --locked
+- with the image's own toolchain (no mount,
+  no `RUSTC`):
+  `cargo clippy --offline --locked
   --all-targets -- -D warnings` exits 0 in 83 s;
 - with the repository's locked toolchain mounted (the same command with
   `--volume /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu:/toolchain:ro`
-  and the same three variables): exits 0 in 130 s, after recompiling the graph with 1.102.0-nightly.
+  and the same three variables):
+  exits 0 in 130 s,
+  after recompiling the graph with 1.102.0-nightly.
 
-Either is a fix. The second keeps the Clippy the repository pins; it needs the host to name a sysroot
-whose toolchain has the clippy component, which this host already has. Running the gate as
+Either is a fix.
+The second keeps the Clippy the repository pins;
+it needs the host to name a sysroot
+whose toolchain has the clippy component,
+which this host already has.
+Running the gate as
 `RUSTUP_TOOLCHAIN=nightly-2026-11-16 systemd-run ... node bin/test-native-container.ts` gives
-`rustc --print sysroot` that toolchain and changes no host file; `mise run toolchain:install` would
-make the same toolchain the default instead. The first needs the gate to stop mounting the host's
-sysroot, and then Clippy is the image's pacman clippy (0.1.100) rather than the pinned one.
+`rustc --print sysroot` that toolchain and changes no host file;
+`mise run toolchain:install` would
+make the same toolchain the default instead.
+The first needs the gate to stop mounting the host's
+sysroot,
+and then Clippy is the image's pacman clippy (0.1.100) rather than the pinned one.
 
-Every list of test names above is a file beside this investigation's logs, in
+Every list of test names above is a file beside this investigation's logs,
+in
 `/home/user/temp/agent/git-policy-cli-container-gate-on-the-zfs-host-investigation-2026-11-19/scratch/`:
-`cause-<cause>.txt` holds the names, `main-failing-names.txt` the 185 the full suite failed, and
-`main185-a1.log`, `main185-b1.log` and their siblings the arms' own nextest output.
+`cause-<cause>.txt` holds the names,
+`main-failing-names.txt` the 185 the full suite failed,
+and
+`main185-a1.log`,
+`main185-b1.log` and their siblings the arms' own nextest output.
 (scratch,
 deleted on 2026-11-27;
 what this record uses from it is stated here).
 
 ## What does not work
 
-- Supplying the variable through `mise`, a shell or the image: the gate's `podman run` passes no
-  `--env`, and the image sets no `ENV CLI_GIT_TEST_ROOT`; nothing inside the container sees a host
+- Supplying the variable through `mise`,
+  a shell or the image:
+  the gate's `podman run` passes no
+  `--env`,
+  and the image sets no `ENV CLI_GIT_TEST_ROOT`;
+  nothing inside the container sees a host
   variable.
-- Moving only `target/tmp` (`CARGO_TARGET_TMPDIR`) or only `target/test-fixtures`: the unit face and
-  the binary face use different roots, and both read the same variable, so one `--tmpfs` with the
+- Moving only `target/tmp` (`CARGO_TARGET_TMPDIR`) or only `target/test-fixtures`:
+  the unit face and
+  the binary face use different roots,
+  and both read the same variable,
+  so one `--tmpfs` with the
   variable covers both where the helper honours it (cause A2 does not).
-- `podman run`'s `--uidmap` or a different user: the refusal is the dataset's, not the account's; the
+- `podman run`'s `--uidmap` or a different user:
+  the refusal is the dataset's,
+  not the account's;
+  the
   host's own `mkdir` fails with the same errno.
-- `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`, which the image sets: it silences the btrfs-only controls, and
+- `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`,
+  which the image sets:
+  it silences the btrfs-only controls,
+  and
   none of the 185 is a btrfs control.
-- Checking the Git citation in a browser: `agent-browser` could not launch Chrome in this session
-  (`Socket path too long: <run folder>/org.chromium.Chromium.XXXX/SingletonSocket`), and passing
-  `--profile`, `TMPDIR` and `XDG_RUNTIME_DIR` did not move that socket. The two Git files were read
+- Checking the Git citation in a browser:
+  `agent-browser` could not launch Chrome in this session
+  (`Socket path too long: <run folder>/org.chromium.Chromium.XXXX/SingletonSocket`),
+  and passing
+  `--profile`,
+  `TMPDIR` and `XDG_RUNTIME_DIR` did not move that socket.
+  The two Git files were read
   through the GitHub REST API at the pinned commit instead.
 
 ## Upstream filing decision
 
-Nothing to file, by the six constraints:
+Nothing to file,
+by the six constraints:
 
-1. Not upstream's fault: the five mount behaviours are each documented or deliberate. ZFS refuses a
-   name with `utf8only=on` by design; Git refuses `core.fsmonitor` on a FUSE working tree by design,
-   with a setting to allow it; the product's two file-system lists are ours.
-2. Upstream could not fix what is left: a FUSE mount has no kernel-held birth time to report and no
-   kernel clone, and fuse-overlayfs cannot make its mount type `overlay`.
-3. `fsmonitor.allowRemote` is upstream's supported answer for the Git part, and we do not set it.
-4. Not reached: constraints 1 to 3 already decide it.
+1. Not upstream's fault:
+   the five mount behaviours are each documented or deliberate.
+   ZFS refuses a
+   name with `utf8only=on` by design;
+   Git refuses `core.fsmonitor` on a FUSE working tree by design,
+   with a setting to allow it;
+   the product's two file-system lists are ours.
+2. Upstream could not fix what is left:
+   a FUSE mount has no kernel-held birth time to report and no
+   kernel clone,
+   and fuse-overlayfs cannot make its mount type `overlay`.
+3. `fsmonitor.allowRemote` is upstream's supported answer for the Git part,
+   and we do not set it.
+4. Not reached:
+   constraints 1 to 3 already decide it.
 5. Not reached.
 6. Not reached.
 
-The gate is ours, so what needs a change is here: the gate's `podman run` (the fixture root or the
-Clippy toolchain), one test helper (cause A2) and possibly the kill list's `ioctl` entry on a file
+The gate is ours,
+so what needs a change is here:
+the gate's `podman run` (the fixture root or the
+Clippy toolchain),
+one test helper (cause A2) and possibly the kill list's `ioctl` entry on a file
 system that does not clone (cause E).
 
 ## What was fixed, and what was measured after
 
-Fixed on the branch `fix/git-policy-cli-container-gate-on-a-zfs-host`, with no change to the host:
-nothing on the ZFS dataset, nothing in podman's storage, and nothing in the installed toolchains.
+Fixed on the branch `fix/git-policy-cli-container-gate-on-a-zfs-host`,
+with no change to the host:
+nothing on the ZFS dataset,
+nothing in podman's storage,
+and nothing in the installed toolchains.
 
 ### The gate's fixture root is a tmpfs the container makes
 
-`bin/native-gate-fixture-root.ts` holds the mount and the knob, and `bin/test-native-container.ts`
+`bin/native-gate-fixture-root.ts` holds the mount and the knob,
+and `bin/test-native-container.ts`
 spreads them into the suite's `podman run` on every host:
 
 ```text
@@ -909,260 +1363,507 @@ spreads them into the suite's `podman run` on every host:
 ```
 
 The root is a child of the image's `/work` tree rather than the `/gate-fixtures` this investigation
-measured with, because a fixture crate that runs Cargo takes the configuration of the directories above
-it, and the image's vendored-source mapping is `/work/.cargo/config.toml`. The root it replaces
-(`target/tmp` and `target/test-fixtures`) was below `/work` too. The first full run with
+measured with,
+because a fixture crate that runs Cargo takes the configuration of the directories above
+it,
+and the image's vendored-source mapping is `/work/.cargo/config.toml`.
+The root it replaces
+(`target/tmp` and `target/test-fixtures`) was below `/work` too.
+The first full run with
 `/gate-fixtures` failed two `package_repair_prewarm_job` controls whose fixture workspaces build
-offline with `serde = "1"`, for want of that mapping; the root below `/work` keeps their ancestry.
+offline with `serde = "1"`,
+for want of that mapping;
+the root below `/work` keeps their ancestry.
 
 `CLI_GIT_TEST_ROOT` is the variable both faces of the suite already read
 (`FIXTURE_ROOT_VARIABLE` in `src/native/testing/test_support.rs` and in
-`src/native/binary/binary_support_fixture_directories.rs`), so no test code changed for this.
+`src/native/binary/binary_support_fixture_directories.rs`),
+so no test code changed for this.
 
-The tmpfs answers the four mount facts the way the kernel overlay of the btrfs host did: it takes a
-name that is not UTF-8, records birth times, is `tmpfs` on both of the product's lists, and Git reads it
-as a local working tree. It also gives the copy flow no clone, which is cause E below.
+The tmpfs answers the four mount facts the way the kernel overlay of the btrfs host did:
+it takes a
+name that is not UTF-8,
+records birth times,
+is `tmpfs` on both of the product's lists,
+and Git reads it
+as a local working tree.
+It also gives the copy flow no clone,
+which is cause E below.
 
-Those four are the facts the btrfs host's kernel overlay gave, so the birth-time, mount-type and monitor
-controls passed in the gate's run on that host: a tmpfs root gives that coverage back rather than
-trading it away, which is why this workaround needed no decision from the project.
+Those four are the facts the btrfs host's kernel overlay gave,
+so the birth-time,
+mount-type and monitor
+controls passed in the gate's run on that host:
+a tmpfs root gives that coverage back rather than
+trading it away,
+which is why this workaround needed no decision from the project.
 
-The size is a ceiling under the container's 2 GiB memory bound, because tmpfs pages count against that
-bound: a fixture tree that outgrows the ceiling fails with `ENOSPC` on the path being written below the
-fixture root, where a tree that instead exhausted the memory bound would end the run with an
-out-of-memory kill. The integration pass of 2026-11-19 ran a whole suite on this root in the image
-`localhost/git-policy-native-test:integrate-git-policy-cli-container-gate-on-a-zfs-host`, 211 samples
-taken with a 3-second delay between iterations across 780 s, and that record is kept in this package
-beside the other raw measurements (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`, with the
-figures its reader printed, `perf/gate-resource-peaks-2026-11-19-integration-pass-summary.json`, beside
-it): the kernel's `memory.peak` was 1123.8 MiB of the 2048 MiB bound, while the highest charge any sample
-read was 953.1 MiB, 170.7 MiB below that peak, so a sampler that slow missed the true high point and the
-figures taken from it are the samples' and not the run's. The samples' highest fixture bytes were
-195.1 MiB, and their highest process pages, a sample's charge minus the fixture bytes in the same sample,
-868.3 MiB; those are the maxima of two components and need not have been read in one sample. The
-conservative bound is the one beside the kernel's peak: the 2048 MiB bound leaves 924.2 MiB for fixtures,
-and the 768 MiB ceiling sits 156.2 MiB below that, so a run whose fixtures pass the ceiling while its
-other pages hold to the peak that bound came from meets `ENOSPC` before the memory bound; the ceiling is
-also 3.94 times the sampled fixture peak. The summary's own `headroomForFixturesMiB` and
-`ceilingBelowHeadroomByMiB` are the sampled process pages' arithmetic (1179.7 and 411.7 MiB), which the
-bound beside the kernel's peak replaces. A gate review's run on the same code apart from the repaired location
-controls, whose sampler record is not kept here, read a 916.4 MiB `memory.peak` and a 221.4 MiB sampled fixture
-peak, of which the ceiling is
-3.47 times. No sample of that run counted an out-of-memory kill, and its only failures are the standing
-pair of cause H, so every control that builds a fixture workspace built it.
-The earlier whole-suite run, whose sampler record this branch does not keep, peaked at 1192 MiB of the
-bound and 222 MiB of fixture bytes, with 994 MiB of process pages over 235 samples across 740 s; its
+The size is a ceiling under the container's 2 GiB memory bound,
+because tmpfs pages count against that
+bound:
+a fixture tree that outgrows the ceiling fails with `ENOSPC` on the path being written below the
+fixture root,
+where a tree that instead exhausted the memory bound would end the run with an
+out-of-memory kill.
+The integration pass of 2026-11-19 ran a whole suite on this root in the image
+`localhost/git-policy-native-test:integrate-git-policy-cli-container-gate-on-a-zfs-host`,
+211 samples
+taken with a 3-second delay between iterations across 780 s,
+and that record is kept in this package
+beside the other raw measurements (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
+with the
+figures its reader printed,
+`perf/gate-resource-peaks-2026-11-19-integration-pass-summary.json`,
+beside
+it):
+the kernel's `memory.peak` was 1123.8 MiB of the 2048 MiB bound,
+while the highest charge any sample
+read was 953.1 MiB,
+170.7 MiB below that peak,
+so a sampler that slow missed the true high point and the
+figures taken from it are the samples' and not the run's.
+The samples' highest fixture bytes were
+195.1 MiB,
+and their highest process pages,
+a sample's charge minus the fixture bytes in the same sample,
+868.3 MiB;
+those are the maxima of two components and need not have been read in one sample.
+The
+conservative bound is the one beside the kernel's peak:
+the 2048 MiB bound leaves 924.2 MiB for fixtures,
+and the 768 MiB ceiling sits 156.2 MiB below that,
+so a run whose fixtures pass the ceiling while its
+other pages hold to the peak that bound came from meets `ENOSPC` before the memory bound;
+the ceiling is
+also 3.94 times the sampled fixture peak.
+The summary's own `headroomForFixturesMiB` and
+`ceilingBelowHeadroomByMiB` are the sampled process pages' arithmetic (1179.7 and 411.7 MiB),
+which the
+bound beside the kernel's peak replaces.
+A gate review's run on the same code apart from the repaired location
+controls,
+whose sampler record is not kept here,
+read a 916.4 MiB `memory.peak` and a 221.4 MiB sampled fixture
+peak,
+of which the ceiling is
+3.47 times.
+No sample of that run counted an out-of-memory kill,
+and its only failures are the standing
+pair of cause H,
+so every control that builds a fixture workspace built it.
+The earlier whole-suite run,
+whose sampler record this branch does not keep,
+peaked at 1192 MiB of the
+bound and 222 MiB of fixture bytes,
+with 994 MiB of process pages over 235 samples across 740 s;
+its
 fixture peak came from a run whose two `package_repair_prewarm_job` controls failed before their
-fixture workspaces built, so their bytes were not in it, and those controls hold under 64 MiB of
-fixtures, since all 23 of that module's controls pass in the gate image on a 64 MiB tmpfs. The 768 MiB
+fixture workspaces built,
+so their bytes were not in it,
+and those controls hold under 64 MiB of
+fixtures,
+since all 23 of that module's controls pass in the gate image on a 64 MiB tmpfs.
+The 768 MiB
 ceiling is 3.5 times that peak and 286 MiB below that headroom too.
-The earlier 1500 MiB ceiling, cited from the fixture peak alone, sat above that headroom: the memory
-bound would have ended a run there before the tmpfs answered `ENOSPC`. The mechanism was checked in
-the gate image: a 64 MiB tmpfs under a 512 MiB bound took the first 64 MiB of a 96 MiB write and
-answered `No space left on device`, its cgroup reporting `oom_kill 0`, while a 128 MiB tmpfs beside it
-took all 96 MiB. A caller's smaller `--memory` bound moves the memory bound back below the ceiling,
-which is the caller's own choice of bound. The two probes' logs are in
+The earlier 1500 MiB ceiling,
+cited from the fixture peak alone,
+sat above that headroom:
+the memory
+bound would have ended a run there before the tmpfs answered `ENOSPC`.
+The mechanism was checked in
+the gate image:
+a 64 MiB tmpfs under a 512 MiB bound took the first 64 MiB of a 96 MiB write and
+answered `No space left on device`,
+its cgroup reporting `oom_kill 0`,
+while a 128 MiB tmpfs beside it
+took all 96 MiB.
+A caller's smaller `--memory` bound moves the memory bound back below the ceiling,
+which is the caller's own choice of bound.
+The two probes' logs are in
 `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-review-findings-fixed-2026-11-19/scratch/`:
 `prewarm-module-on-a-64m-tmpfs.log` and `tmpfs-size-returns-enospc-probe.log`
 (scratch,
 deleted on 2026-11-27;
 what this record uses from it is stated here).
-The gate's manifest now records the root and the mount options beside the image and the limits, so a
+The gate's manifest now records the root and the mount options beside the image and the limits,
+so a
 future failure can read where the tests ran.
 
 ### Clippy mounts the repository's locked toolchain
 
 `bin/native-gate-clippy-toolchain.ts` reads `toolchain.lock.json` through the repository's owner of
-that lock (`readLockedRustToolchain` in `package/test-harness/core-matrix`), asks
-`rustup which --toolchain <locked> rustc` for that toolchain's own sysroot, and mounts it where
-`rustc --print sysroot` used to answer. `rustup which` answers about the named toolchain whatever the
-caller's `RUSTUP_TOOLCHAIN` or rustup default says, so the gate no longer depends on the environment
+that lock (`readLockedRustToolchain` in `package/test-harness/core-matrix`),
+asks
+`rustup which --toolchain <locked> rustc` for that toolchain's own sysroot,
+and mounts it where
+`rustc --print sysroot` used to answer.
+`rustup which` answers about the named toolchain whatever the
+caller's `RUSTUP_TOOLCHAIN` or rustup default says,
+so the gate no longer depends on the environment
 that started it.
 
-Before it runs Clippy it checks the mounted sysroot's `bin` directory for `cargo`, `cargo-clippy`,
-`clippy-driver`, `rustc` and `rustdoc`, and refuses when one is missing, naming the program, the
-toolchain, the Clippy component, and both ways to install it (`rustup component add clippy
---toolchain <locked>` and `mise run toolchain:install`). A sysroot without Clippy can therefore no
-longer fall through to the image's older `clippy-driver`, which is what produced the E0514 errors.
+Before it runs Clippy it checks the mounted sysroot's `bin` directory for `cargo`,
+`cargo-clippy`,
+`clippy-driver`,
+`rustc` and `rustdoc`,
+and refuses when one is missing,
+naming the program,
+the
+toolchain,
+the Clippy component,
+and both ways to install it (`rustup component add clippy
+--toolchain <locked>` and `mise run toolchain:install`).
+A sysroot without Clippy can therefore no
+longer fall through to the image's older `clippy-driver`,
+which is what produced the E0514 errors.
 
 `package/git-policy/cli/package.json` gains a `workspace:*` dependency on
-`@monochromatic-dev/test-harness-core-matrix` for that reader, and `pnpm-lock.yaml` gains its importer
-entry; nothing else in the lock changed.
+`@monochromatic-dev/test-harness-core-matrix` for that reader,
+and `pnpm-lock.yaml` gains its importer
+entry;
+nothing else in the lock changed.
 
 ### Cause A2: the one helper that wrote under `target/`
 
 `scratch()` in `src/native/landing/service_claim_watch_tests.rs` now builds its directory under
-`crate::test_support::fixture_root()`, which is the root the suite's knob moves, instead of under the
-crate's `target/`. Every other control in that file already used the fixture root through the same
+`crate::test_support::fixture_root()`,
+which is the root the suite's knob moves,
+instead of under the
+crate's `target/`.
+Every other control in that file already used the fixture root through the same
 function.
 
 ### Two location controls checked nothing in the gate
 
 `the_fixture_root_is_not_the_system_temporary_directory` (`src/native/testing/test_support_tests.rs`)
 and `fixtures_are_created_outside_the_system_temporary_directory`
-(`src/native/binary/binary_fixture_tests.rs`) each returned early when `CLI_GIT_TEST_ROOT` was set. The
-gate always sets it, so the two controls that keep a fixture tree out of the system temporary directory
-(issue 1809) passed there, and they passed with the root under `/tmp` as well: a control that returns
-early cannot tell the two roots apart, and the times they took say nothing either way.
+(`src/native/binary/binary_fixture_tests.rs`) each returned early when `CLI_GIT_TEST_ROOT` was set.
+The
+gate always sets it,
+so the two controls that keep a fixture tree out of the system temporary directory
+(issue 1809) passed there,
+and they passed with the root under `/tmp` as well:
+a control that returns
+early cannot tell the two roots apart,
+and the times they took say nothing either way.
 
-Both now always compare the root they use with `/tmp`, `/var/tmp` and the run's `TMPDIR`
-(`system_temporary_directories`, in `src/native/testing/test_support.rs` and in
-`src/native/binary/binary_support_fixture_directories.rs`): an empty `TMPDIR` names no directory and is
-left out, so `TMPDIR=` no longer matches every path; each entry is the path it resolves to where it
-resolves, an entry that does not resolve keeping its own path; and the unit face's root is resolved
-before the comparison, so a root linked into `/tmp` and a `TMPDIR` linked to the root are both reported
-(the binary face's fixture root is canonical already, because `fixture_in` canonicalizes it, and a root
-it cannot resolve cannot exist). The two shape assertions stay on the path `fixture_root` returned, so a
-build output that is itself a link keeps its own answer. Each still checks the shape of the root it uses:
-the unit face's root always ends in `process-<pid>`, and with nothing moved it is also
-`test-fixtures/process-<pid>` beside the build output, while the binary face's fixtures are under Cargo's
-per-target scratch directory (`CARGO_TARGET_TMPDIR`). In the gate the unit face's root is
+Both now always compare the root they use with `/tmp`,
+`/var/tmp` and the run's `TMPDIR`
+(`system_temporary_directories`,
+in `src/native/testing/test_support.rs` and in
+`src/native/binary/binary_support_fixture_directories.rs`):
+an empty `TMPDIR` names no directory and is
+left out,
+so `TMPDIR=` no longer matches every path;
+each entry is the path it resolves to where it
+resolves,
+an entry that does not resolve keeping its own path;
+and the unit face's root is resolved
+before the comparison,
+so a root linked into `/tmp` and a `TMPDIR` linked to the root are both reported
+(the binary face's fixture root is canonical already,
+because `fixture_in` canonicalizes it,
+and a root
+it cannot resolve cannot exist).
+The two shape assertions stay on the path `fixture_root` returned,
+so a
+build output that is itself a link keeps its own answer.
+Each still checks the shape of the root it uses:
+the unit face's root always ends in `process-<pid>`,
+and with nothing moved it is also
+`test-fixtures/process-<pid>` beside the build output,
+while the binary face's fixtures are under Cargo's
+per-target scratch directory (`CARGO_TARGET_TMPDIR`).
+In the gate the unit face's root is
 `/work/package/git-policy/cli/target/gate-fixtures/process-<pid>` and the binary face's is
-`/work/package/git-policy/cli/target/gate-fixtures`, so both controls now assert that the fixture tmpfs
+`/work/package/git-policy/cli/target/gate-fixtures`,
+so both controls now assert that the fixture tmpfs
 is not a system temporary directory.
 
-Each was shown red on a moved root under `/tmp` and green on the gate's root. In the integration pass's
-image, its source tree replaced by the branch's and nextest filtered to the two names, with
-`CLI_GIT_TEST_ROOT=/tmp/moved-root` both failed, naming the root below `/tmp/moved-root` and `/tmp` as
-its system temporary directory, and both passed with the gate's own tmpfs root and with no variable
-set. That `/tmp` arm passed before the change, which is exactly the gap the two early returns left.
+Each was shown red on a moved root under `/tmp` and green on the gate's root.
+In the integration pass's
+image,
+its source tree replaced by the branch's and nextest filtered to the two names,
+with
+`CLI_GIT_TEST_ROOT=/tmp/moved-root` both failed,
+naming the root below `/tmp/moved-root` and `/tmp` as
+its system temporary directory,
+and both passed with the gate's own tmpfs root and with no variable
+set.
+That `/tmp` arm passed before the change,
+which is exactly the gap the two early returns left.
 
 The repair round ran further arms of the same two controls in the same image with the same kind of
-mount. With `TMPDIR=` both now pass on the gate's root, where both had failed and named the root as
-being under an empty temporary-directory path. A root that is a link to `/tmp/real-root` now fails on
-both faces (`/tmp/real-root/process-<pid> is under the system temporary directory /tmp`, and the binary
-face's own root the same way), where the unit face had passed; and a `TMPDIR` that is a link to the gate
-root now fails on both faces, where both had passed. The arms that must keep their answer did: the gate
-root with `TMPDIR=/tmp/` still passed on both faces, and a moved root under `/tmp` and a `TMPDIR` set to
+mount.
+With `TMPDIR=` both now pass on the gate's root,
+where both had failed and named the root as
+being under an empty temporary-directory path.
+A root that is a link to `/tmp/real-root` now fails on
+both faces (`/tmp/real-root/process-<pid> is under the system temporary directory /tmp`,
+and the binary
+face's own root the same way),
+where the unit face had passed;
+and a `TMPDIR` that is a link to the gate
+root now fails on both faces,
+where both had passed.
+The arms that must keep their answer did:
+the gate
+root with `TMPDIR=/tmp/` still passed on both faces,
+and a moved root under `/tmp` and a `TMPDIR` set to
 the gate root still failed on both.
 
 ### Cause E: the `ioctl` entry follows the fixture root's file system
 
 The copy flow clones each staged file only where the file system may share data blocks between files;
-every other file system has Git check the worktree out, and then the flow makes no `ioctl`. The
+every other file system has Git check the worktree out,
+and then the flow makes no `ioctl`.
+The
 product's answer to that question is now `may_clone` in `src/native/subvolume/fs_kind.rs` (moved there
-from `worktree_snapshot_source`, where it stays the same function with one more reader).
+from `worktree_snapshot_source`,
+where it stays the same function with one more reader).
 
-The binary control's `Flow` records which kill-list calls the file system decides, the copy flow
-records `ioctl` with `may_clone`, and `require_the_kill_list_is_made` counts only the calls that hold
-for the fixture root the run measures. The `ioctl` sweep says it did not run, and why, on a fixture
-root that does not clone, as the `strace`-less arms already do; on one that does it sweeps up to twelve
-positions of the `ioctl` calls, as every other kill control of that file does. It skips only when the
-run states that the absence of a cloning root is known, by the same
-`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` the btrfs controls read (the gate image sets it), and fails with
-the fixture root it found otherwise, so no run passes the sweep as coverage it does not have.
+The binary control's `Flow` records which kill-list calls the file system decides,
+the copy flow
+records `ioctl` with `may_clone`,
+and `require_the_kill_list_is_made` counts only the calls that hold
+for the fixture root the run measures.
+The `ioctl` sweep says it did not run,
+and why,
+on a fixture
+root that does not clone,
+as the `strace`-less arms already do;
+on one that does it sweeps up to twelve
+positions of the `ioctl` calls,
+as every other kill control of that file does.
+It skips only when the
+run states that the absence of a cloning root is known,
+by the same
+`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` the btrfs controls read (the gate image sets it),
+and fails with
+the fixture root it found otherwise,
+so no run passes the sweep as coverage it does not have.
 
 ### Five controls that assumed the old fixture root
 
 The first full run on the tmpfs root (with `/gate-fixtures`) failed five controls that the overlay had
-let pass. Each failed for its own reason, and each was a dependency on the root rather than a product
+let pass.
+Each failed for its own reason,
+and each was a dependency on the root rather than a product
 defect:
 
 - `conflict::discarded_prune::guard_tests::a_removal_that_fails_part_way_is_reported_and_audited_as_partial`
   read the audit line's file names in the order the removal walk made them and compared them with a
-  sorted list. tmpfs lists a directory in another order, so the control now sorts both sides: what it
+  sorted list.
+  tmpfs lists a directory in another order,
+  so the control now sorts both sides:
+  what it
   holds is that the line names the files that went and no other.
 - `repair::package_repair_prewarm_job::tests::the_filling_puts_the_lock_back_as_checked_out` and
   `the_filling_publishes_a_clean_copy_and_leaves_the_source_alone` build a fixture workspace offline
-  with `serde = "1"` and resolved it from the image's `/work/.cargo/config.toml`, which a root outside
-  `/work` does not reach. The root below `/work` keeps that ancestry, and the controls are unchanged.
+  with `serde = "1"` and resolved it from the image's `/work/.cargo/config.toml`,
+  which a root outside
+  `/work` does not reach.
+  The root below `/work` keeps that ancestry,
+  and the controls are unchanged.
 - `worktree::worktree_add_binding::tests::a_relative_pointer_without_links_is_bound` climbed a fixed
-  seven levels with `..` and expected to land on the file system root. `/gate-fixtures` is shallower
-  than the old root, so the climb left the root and the pointer was refused. The climb is now derived
-  from the destination's own depth, and the refused one climbs past it by one.
+  seven levels with `..` and expected to land on the file system root.
+  `/gate-fixtures` is shallower
+  than the old root,
+  so the climb left the root and the pointer was refused.
+  The climb is now derived
+  from the destination's own depth,
+  and the refused one climbs past it by one.
 - `worktree::worktree_convert::safety_tests::a_difference_keeps_the_old_tree_and_nothing_is_copied`
-  expected the contents difference to be the one reported, but the comparison reports the first
-  difference its walk meets, and tmpfs meets the file only the old tree holds first. The control now
-  checks the promise (old tree kept, installed edit untouched, nothing copied), settles that file, and
-  asks again, so the contents difference itself is the one named.
+  expected the contents difference to be the one reported,
+  but the comparison reports the first
+  difference its walk meets,
+  and tmpfs meets the file only the old tree holds first.
+  The control now
+  checks the promise (old tree kept,
+  installed edit untouched,
+  nothing copied),
+  settles that file,
+  and
+  asks again,
+  so the contents difference itself is the one named.
 
 ### Measured after the changes
 
-Two whole suites ran on this host against the branch's tree, each in the gate's own containers
+Two whole suites ran on this host against the branch's tree,
+each in the gate's own containers
 (`--memory=2g --cpus=4 --pids-limit=1024`).
 
-- The first run, on a tmpfs at `/gate-fixtures`, before the five controls above were fixed:
-  `9173 tests run: 9166 passed (5 slow), 7 failed, 28 skipped` in 743 s. Its two failures besides
-  those five are the standing pair below, and its Clippy step compiled clean from the mounted locked
-  toolchain (the gate's refusal named only the test run). Its output is kept beside the second run's
+- The first run,
+  on a tmpfs at `/gate-fixtures`,
+  before the five controls above were fixed:
+  `9173 tests run: 9166 passed (5 slow), 7 failed, 28 skipped` in 743 s.
+  Its two failures besides
+  those five are the standing pair below,
+  and its Clippy step compiled clean from the mounted locked
+  toolchain (the gate's refusal named only the test run).
+  Its output is kept beside the second run's
   under `scratch/keep/` of `~/temp/agent/git-policy-cli-container-gate-on-a-zfs-host-fix-2026-11-19/`
   (scratch,
   deleted on 2026-11-27;
   what this record uses from it is stated here),
-  read back from the system journal of the two containers it ran (`tender_blackburn`, cgroup
-  `libpod-c731bc55...`, and `great_maxwell`, cgroup `libpod-1418d739...`):
+  read back from the system journal of the two containers it ran (`tender_blackburn`,
+  cgroup
+  `libpod-c731bc55...`,
+  and `great_maxwell`,
+  cgroup `libpod-1418d739...`):
   `gate-run-1-whole-output-from-the-journal.log` holds the seven failures with their process output,
-  the two `package_repair_prewarm_job` panics among them, and the summary line, and
-  `clippy-run-1-from-the-journal.log` holds the Clippy step's whole stream, which ends with the
-  toolchain's own `Finished` line, 2m 06s after it started, and no warning or error line, the ending a
+  the two `package_repair_prewarm_job` panics among them,
+  and the summary line,
+  and
+  `clippy-run-1-from-the-journal.log` holds the Clippy step's whole stream,
+  which ends with the
+  toolchain's own `Finished` line,
+  2m 06s after it started,
+  and no warning or error line,
+  the ending a
   refused Clippy does not have (`clippy-run-2-final-tree.log` ends `error: could not compile` instead).
   The journal dropped that run's final success-output block after test 1087 of 9173 and every
-  `BTRFS CONTROL NOT RUN` line, the same drops as the second run's log. The gate's own refusal text
-  went to the driver's stdout and survives only in that driver's session record, `run-1/feed.jsonl` of
-  the same folder, which is not kept as evidence here; the two logs above are what the claim rests on.
-- The second run, on the root below `/work`, after the fixture-root, toolchain and five-control changes:
-  `9173 tests run: 9171 passed (5 slow), 2 failed, 28 skipped` in 775 s. The two failures are cause H,
-  the standing pair: `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
-  lists `cli-git-lock-holders` in the `.git` directory it finds and expects it absent, and
+  `BTRFS CONTROL NOT RUN` line,
+  the same drops as the second run's log.
+  The gate's own refusal text
+  went to the driver's stdout and survives only in that driver's session record,
+  `run-1/feed.jsonl` of
+  the same folder,
+  which is not kept as evidence here;
+  the two logs above are what the claim rests on.
+- The second run,
+  on the root below `/work`,
+  after the fixture-root,
+  toolchain and five-control changes:
+  `9173 tests run: 9171 passed (5 slow), 2 failed, 28 skipped` in 775 s.
+  The two failures are cause H,
+  the standing pair:
+  `repository_naming_commit::a_commit_that_names_another_repository_lands_there_and_leaves_this_one_alone`
+  lists `cli-git-lock-holders` in the `.git` directory it finds and expects it absent,
+  and
   `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing` fails with
-  `no scratch directory or record is left: ["cli-git-lock-holders"]`. Both fail on a btrfs host too
-  (cause H above), so no mount change touches them. The 28 skipped are nextest's ignored tests, the
-  same count this investigation's own full run reported; the btrfs controls are not skipped,
-  each prints its line and passes. The harness that ran this suite was stopped by a fault of its own
-  while the gate's container ran on, so this run's evidence directory holds no `passed.json`, and its
-  output was read back from the journal, which drops some of a burst this size (the btrfs lines and the
+  `no scratch directory or record is left: ["cli-git-lock-holders"]`.
+  Both fail on a btrfs host too
+  (cause H above),
+  so no mount change touches them.
+  The 28 skipped are nextest's ignored tests,
+  the
+  same count this investigation's own full run reported;
+  the btrfs controls are not skipped,
+  each prints its line and passes.
+  The harness that ran this suite was stopped by a fault of its own
+  while the gate's container ran on,
+  so this run's evidence directory holds no `passed.json`,
+  and its
+  output was read back from the journal,
+  which drops some of a burst this size (the btrfs lines and the
   passing controls' lines among them).
 - The suite container's cgroup peaked at 1192 MiB of its 2 GiB bound and the fixture tmpfs at 222 MiB,
-  with no OOM kill, over 235 samples across the first run's 740 s; its process pages, the container's
-  charge minus the fixture bytes in the same sample, peaked at 994 MiB. That sampler's record is no
-  longer kept, so those three figures stay here as history; the tmpfs size now cites the integration
-  pass's record (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`), whose kernel
+  with no OOM kill,
+  over 235 samples across the first run's 740 s;
+  its process pages,
+  the container's
+  charge minus the fixture bytes in the same sample,
+  peaked at 994 MiB.
+  That sampler's record is no
+  longer kept,
+  so those three figures stay here as history;
+  the tmpfs size now cites the integration
+  pass's record (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`),
+  whose kernel
   `memory.peak` is 1123.8 MiB of the bound while its 211 samples read 195.1 MiB of fixture bytes and
-  868.3 MiB of process pages. The 1192 MiB measurement is what showed the 1500 MiB ceiling then shipped
-  to sit above the 1054 MiB that measurement left for fixtures. The second run's sampler ended with its
-  harness and still read the first root's path, so its recorded peak of 992 MiB covers only its first
+  868.3 MiB of process pages.
+  The 1192 MiB measurement is what showed the 1500 MiB ceiling then shipped
+  to sit above the 1054 MiB that measurement left for fixtures.
+  The second run's sampler ended with its
+  harness and still read the first root's path,
+  so its recorded peak of 992 MiB covers only its first
   570 s.
 - The first run's gate took 1136 s including a fresh base image (a `pacman` transaction with network)
-  and the layered test image; the second reused that base. The investigation's arm of the 185 tests
-  took 41 s against 104 s on the container's own tree; this whole-suite run's 743 s and 775 s are not
-  comparable with the 1053 s the same suite took on the dataset, because that run's tree was also the
+  and the layered test image;
+  the second reused that base.
+  The investigation's arm of the 185 tests
+  took 41 s against 104 s on the container's own tree;
+  this whole-suite run's 743 s and 775 s are not
+  comparable with the 1053 s the same suite took on the dataset,
+  because that run's tree was also the
   failing one.
-- Clippy: the first run's gate step exited zero from the mounted locked toolchain (the gate's refusal
-  named only the test run). The Clippy step over the second run's tree failed on
-  `clippy::shadow_unrelated`, which this gate denies: the two-step assertion the conversion control
-  gained above bound `message` twice in one function. That step was run on its own, with the gate's
-  image, mounted toolchain and flags, because the gate's own Clippy container was still running when
+- Clippy:
+  the first run's gate step exited zero from the mounted locked toolchain (the gate's refusal
+  named only the test run).
+  The Clippy step over the second run's tree failed on
+  `clippy::shadow_unrelated`,
+  which this gate denies:
+  the two-step assertion the conversion control
+  gained above bound `message` twice in one function.
+  That step was run on its own,
+  with the gate's
+  image,
+  mounted toolchain and flags,
+  because the gate's own Clippy container was still running when
   the harness that started it was stopped and its captured output went with the client
-  (`scratch/clippy-run-2-final-tree.log`). Commit `8d1122a6ae` names the second binding apart, and the
+  (`scratch/clippy-run-2-final-tree.log`).
+  Commit `8d1122a6ae` names the second binding apart,
+  and the
   same step over the fixed tree then finished with `Finished dev profile [unoptimized] [debuginfo]
-  target(s) in 2m 13s` and no warning or error line (`scratch/clippy-run-2-fixed.log`); the two logs'
+  target(s) in 2m 13s` and no warning or error line (`scratch/clippy-run-2-fixed.log`);
+  the two logs'
   differing outcomes are what shows that step reads this tree rather than a stale image.
-- No third gate run was started, as the task set for this fix allows two. The second run's image and
-  the final tree differ in exactly one source file, `src/native/worktree/worktree_convert_safety_tests.rs`
-  (commit `8d1122a6ae`): the SHA-256 of every file under `src` in the image and in the worktree agree
-  otherwise, and that file's only change is one local binding's name.
+- No third gate run was started,
+  as the task set for this fix allows two.
+  The second run's image and
+  the final tree differ in exactly one source file,
+  `src/native/worktree/worktree_convert_safety_tests.rs`
+  (commit `8d1122a6ae`):
+  the SHA-256 of every file under `src` in the image and in the worktree agree
+  otherwise,
+  and that file's only change is one local binding's name.
 
 ### What these changes do not cover
 
-- The two standing failures (cause H) still failed when this section was written, and no mount change
-  touched them; the section "Cause H diagnosed, and fixed, on 2026-11-25" holds their two causes and the
+- The two standing failures (cause H) still failed when this section was written,
+  and no mount change
+  touched them;
+  the section "Cause H diagnosed,
+  and fixed,
+  on 2026-11-25" holds their two causes and the
   controls that changed.
-- The memory bound the gate gives each check also bounds its image build: `buildLimitArguments` with the
-  gate's own limits (`bin/container-limits.ts`, whose implementation lives in the mutation-test package,
-  called at `bin/test-native-container.ts:234`) turns that bound into the build's `--memory`. The image
-  build met that 2 GiB bound during these runs; it predates this fix, which changes neither the bound nor
-  the build, and the run that met it reported it.
-- The cloning arm of cause E was not exercised here: this host has no btrfs and no overlay mount, so
-  the runs above printed that the `ioctl` sweep did not run. The list control still requires every
-  listed call on a cloning root, and `may_clone` is the product's own answer to which file systems
-  those are; a btrfs host is where the sweep itself runs again, and
-  `mise run //package/git-policy/cli:native:test:host:btrfs` is that run: it unsets the acknowledgement
-  and runs every target on a btrfs root, so the sweep runs there, and a wrapper release waits on it
+- The memory bound the gate gives each check also bounds its image build:
+  `buildLimitArguments` with the
+  gate's own limits (`bin/container-limits.ts`,
+  whose implementation lives in the mutation-test package,
+  called at `bin/test-native-container.ts:234`) turns that bound into the build's `--memory`.
+  The image
+  build met that 2 GiB bound during these runs;
+  it predates this fix,
+  which changes neither the bound nor
+  the build,
+  and the run that met it reported it.
+- The cloning arm of cause E was not exercised here:
+  this host has no btrfs and no overlay mount,
+  so
+  the runs above printed that the `ioctl` sweep did not run.
+  The list control still requires every
+  listed call on a cloning root,
+  and `may_clone` is the product's own answer to which file systems
+  those are;
+  a btrfs host is where the sweep itself runs again,
+  and
+  `mise run //package/git-policy/cli:native:test:host:btrfs` is that run:
+  it unsets the acknowledgement
+  and runs every target on a btrfs root,
+  so the sweep runs there,
+  and a wrapper release waits on it
   unless the version is an alpha (`bin/native-release-host-controls.ts`).
 - The mutation runner copies its work tree onto a tmpfs of its own
-  (`package/mutation-test/cli/src/host/podman.ts`), so its tests already met a tmpfs fixture root. That
-  root shares no data blocks between files either, which is the arm the `ioctl` control now skips; the
-  gate and a campaign therefore agree about the fixture file system, which a gate pass reused as a
+  (`package/mutation-test/cli/src/host/podman.ts`),
+  so its tests already met a tmpfs fixture root.
+  That
+  root shares no data blocks between files either,
+  which is the arm the `ioctl` control now skips;
+  the
+  gate and a campaign therefore agree about the fixture file system,
+  which a gate pass reused as a
   campaign baseline now relies on.
 
 ## A gate that ends with status 137 and no memory kill

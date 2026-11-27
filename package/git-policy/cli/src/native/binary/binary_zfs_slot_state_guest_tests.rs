@@ -79,7 +79,8 @@ use std::process::Output;
 /// The variable the guest driver sets for these arms.
 const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_SLOT_STATE_GUEST";
 
-/// The slot this arm registers, clones and moves.
+/// The slot this arm registers,
+/// clones and moves.
 const SLOT: &str = "one";
 
 /// The second slot a pending add's record is filed for.

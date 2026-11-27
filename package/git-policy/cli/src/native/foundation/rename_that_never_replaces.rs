@@ -108,7 +108,8 @@ pub fn exchange(
 ///   | { kind: 'no-thread'; refused: BlockingJobError };
 /// ```
 pub enum TheAnswerOfARename {
-    /// The name was free, and the entry is at it now.
+    /// The name was free,
+    /// and the entry is at it now.
     Renamed,
     /// An entry stood at the name,
     /// so nothing moved and both names stay,
@@ -117,7 +118,9 @@ pub enum TheAnswerOfARename {
     /// The rename failed for another reason.
     Failed(std::io::Error),
     /// The system refused the pool a thread,
-    /// so the rename did not run, or the pool ran it after all: the refusal says which.
+    /// so the rename did not run,
+    /// or the pool ran it after all:
+    /// the refusal says which.
     NoThreadToRunIt(BlockingJobError),
 }
 
@@ -163,7 +166,8 @@ pub async fn rename_noreplace_on_the_blocking_pool(
 /// Whether a failed rename without replacing means the filesystem cannot do one (renameat2(2):
 /// `EINVAL`),
 /// not that the lock exists or storage failed.
-/// It is the answer for a refused exchange too (`ENOSYS`, `EOPNOTSUPP`).
+/// It is the answer for a refused exchange too (`ENOSYS`,
+/// `EOPNOTSUPP`).
 pub fn rename_unsupported(error: &std::io::Error) -> bool {
     if error.kind() == std::io::ErrorKind::Unsupported {
         return true;

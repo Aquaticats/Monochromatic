@@ -37,7 +37,8 @@ pub(super) static FINISH_BUDGET: AtomicUsize = AtomicUsize::new(0);
 /// The commands of a todo file:
 /// its lines that are neither blank nor comments.
 ///  The file is read as a plain one and to a bound
-///  (`crate::plain_file::SMALL_FILE_LIMIT`, one line per commit,
+///  (`crate::plain_file::SMALL_FILE_LIMIT`,
+/// one line per commit,
 /// so a list past it is more than 13,000 commits),
 /// because a named pipe at a todo file holds the finish for ever otherwise.
 fn todo_commands(path: &Path) -> usize {

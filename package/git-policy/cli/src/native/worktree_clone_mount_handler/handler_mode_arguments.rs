@@ -20,7 +20,8 @@
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Where the design is silent:
 //! this plan's suggestions").
-//!  This grammar is reached through the wrapper's own executable now, so every
+//!  This grammar is reached through the wrapper's own executable now,
+//! so every
 //!  mode is named after the words `monochromatic-git-policy-cli zfs-root`
 //!  (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`,
 //!  choice 2),

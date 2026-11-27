@@ -444,7 +444,8 @@ fn drained_once(
 ///   so without the reason kept beside the record the person reads a count of tries where the reason is owed.
 ///   The notice is written where a command run in that worktree reads it:
 ///   a notice left in the Git directory of the worktree whose command added it is shown by a command about something
-///   else, which is what the person complained about.
+///   else,
+/// which is what the person complained about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -636,7 +637,8 @@ fn a_push_the_recovery_gives_up_on_gives_up_the_programs_it_held() {
 /// const scene = givenUpRelinkScene('name'); // { root, common, worktree, admin, item, work }
 /// ```
 struct RelinkScene {
-    /// The fixture's root, which a control removes.
+    /// The fixture's root,
+    /// which a control removes.
     root: PathBuf,
     /// The common directory the record is queued under.
     common: PathBuf,
@@ -737,7 +739,8 @@ impl RelinkScene {
         );
     }
 
-    /// The record's own attempts, up to the claim the give-up pass takes.
+    /// The record's own attempts,
+    /// up to the claim the give-up pass takes.
     fn drive_to_the_last_claim(
         &self,
         handlers: &RelinkRetries,
@@ -751,7 +754,8 @@ impl RelinkScene {
         }
     }
 
-    /// Where the record stands, as the directory it is in.
+    /// Where the record stands,
+    /// as the directory it is in.
     fn state(&self) -> &'static str {
         for state in [PENDING, DONE, FAILED] {
             if state_directory(self.work.as_path(), state)
@@ -774,7 +778,8 @@ impl RelinkScene {
         return "no state";
     }
 
-    /// The reason kept beside the record, as a command asks for it.
+    /// The reason kept beside the record,
+    /// as a command asks for it.
     fn kept_reason(&self) -> Option<String> {
         return crate::package_repair_relink_failure::recall(
             self.item.git_dir.as_path(),
@@ -782,7 +787,8 @@ impl RelinkScene {
         );
     }
 
-    /// The notices a command in the worktree would read now, taken as it takes them.
+    /// The notices a command in the worktree would read now,
+    /// taken as it takes them.
     fn notices(&self) -> Vec<String> {
         return crate::package_repair_relink_notice::take_notices(self.admin.as_path());
     }
@@ -792,7 +798,8 @@ impl RelinkScene {
 ///  A pass killed between the words and the move to `failed` leaves the reason where the next pass finds it,
 ///  and that pass settles the record with the words the first wrote.
 /// Why:
-///   The recovery promises that a kill after the notice is recovered once more, which replaces the notice instead of
+///   The recovery promises that a kill after the notice is recovered once more,
+/// which replaces the notice instead of
 ///   losing it.
 ///   A reason taken back at the first telling makes that promise false:
 ///   the second pass words a notice that no tool ever answered,
@@ -875,9 +882,11 @@ fn a_give_up_killed_between_the_words_and_the_move_settles_on_the_next_pass_with
 ///  A give-up whose move to `failed` fails keeps the reason,
 ///  and the next pass settles the record with the same words.
 /// Why:
-///   A rename into `failed` can fail (a full disk, a directory that is not there),
+///   A rename into `failed` can fail (a full disk,
+/// a directory that is not there),
 ///   and the recovery's words promise the pass after it says the same thing again.
-///   Nothing scans `failed`, so a reason taken back before the record got there is an answer nothing can repeat.
+///   Nothing scans `failed`,
+/// so a reason taken back before the record got there is an answer nothing can repeat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -30,7 +30,9 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
-//! - `watch_rebinding.rs`: the comparison, the sentence and the one call the
+//! - `watch_rebinding.rs`:
+//!   the comparison,
+//!   the sentence and the one call the
 //!   wiring step makes.
 //!
 //! In TS you'd write (pseudocode):

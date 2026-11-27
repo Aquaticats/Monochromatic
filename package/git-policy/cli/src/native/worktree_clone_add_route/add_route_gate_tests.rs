@@ -195,7 +195,8 @@ fn the_host_reads_reach_the_same_decision() {
     );
 }
 
-/// A mount table no control may read: asking it for one fails the test.
+/// A mount table no control may read:
+/// asking it for one fails the test.
 /// Why:
 ///  A destination outside the route's own slot is no add this route serves,
 ///  and a table that fails when read proves the gate decided that before it

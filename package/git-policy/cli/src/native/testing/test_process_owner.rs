@@ -8,15 +8,21 @@
 //!  a shell loop) kept running after its test:
 //!  a forced-removal fixture's child outlived its run by 45 minutes (issue 6463),
 //!  and a test binary ended by `SIGKILL` or by the watchdog's `abort` runs no guard at all.
-//!  The group kill is the guard, and the kernel's parent-death signal is what still runs when a
+//!  The group kill is the guard,
+//! and the kernel's parent-death signal is what still runs when a
 //!  process is killed outright.
-//!  Written once here, every target that starts such a child answers the same way:
-//!  the library's tests, the binary controls' crate and the candidate consumer's crate include this file by path.
+//!  Written once here,
+//! every target that starts such a child answers the same way:
+//!  the library's tests,
+//! the binary controls' crate and the candidate consumer's crate include this file by path.
 //!  The fixture folders a helper works in are `fixture_support_shared_by_both_test_targets.rs`'s,
 //!  so the ownership stays here,
-//!  where the candidate consumer's crate, which keeps no fixtures, can take it without the folder code it never runs.
+//!  where the candidate consumer's crate,
+//! which keeps no fixtures,
+//! can take it without the folder code it never runs.
 //! Gotcha:
-//!  A child that must lead a session of its own cannot be started here, because a group leader cannot start a session;
+//!  A child that must lead a session of its own cannot be started here,
+//! because a group leader cannot start a session;
 //!  `child_test_process` starts that one with `own_group` alone.
 //!
 //! In TS you'd write (pseudocode):
@@ -26,7 +32,8 @@
 
 /// What:
 ///  `Command` is the standard library's description of a program to start (the equivalent of TS's
-///  `{ program, args, options }` object), and `Child` is the running program that starting it hands back.
+///  `{ program, args, options }` object),
+/// and `Child` is the running program that starting it hands back.
 /// Why:
 ///  The start below fills in one description and answers the running child it created,
 ///  so the caller can watch or end it.
@@ -48,7 +55,8 @@ use std::process::{
 ///   `Child` does not kill on drop,
 ///  so a helper a failing assertion never reached the end of (a service whose idle exit is hours away,
 ///  a shell loop) kept running after its test.
-///  A panic unwinds the test thread, which runs this type's destructor.
+///  A panic unwinds the test thread,
+/// which runs this type's destructor.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,11 +64,13 @@ use std::process::{
 /// ```
 pub(crate) struct OwnedGroups {
     /// What:
-    ///  The group numbers, which are the numbers of the group leaders;
+    ///  The group numbers,
+    /// which are the numbers of the group leaders;
     ///  `RefCell` allows the list to be changed through a shared reference (TS has no such distinction).
     /// Why:
     ///  Removing a helper's group from the list needs a mutable view of it while the thread-local holding it is
-    ///  shared, and a `RefCell` checks at run time that only one such view is alive.
+    ///  shared,
+    /// and a `RefCell` checks at run time that only one such view is alive.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -79,7 +89,8 @@ impl OwnedGroups {
     ///  and one it started wrong is in its parent's;
     ///  the number has to be read before the child is ended and reaped,
     ///  or the question cannot be answered at all.
-    ///  A child that does not lead one is a defect of its control, not a helper:
+    ///  A child that does not lead one is a defect of its control,
+    /// not a helper:
     ///  the number registered here would name no group,
     ///  the kill would send its signal nowhere,
     ///  and what the helper started would outlive the test.
@@ -136,8 +147,10 @@ impl OwnedGroups {
     /// What:
     ///  Kill every process group in the list.
     /// Why:
-    ///  The thread's end and the type's own destructor both end the helpers here, and what the helpers started is in
-    ///  these groups, so one signal per group reaches all of it.
+    ///  The thread's end and the type's own destructor both end the helpers here,
+    /// and what the helpers started is in
+    ///  these groups,
+    /// so one signal per group reaches all of it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -167,7 +180,8 @@ impl Drop for OwnedGroups {
 thread_local! {
     /// The helper groups of the running test thread.
     /// Why:
-    ///  Each test thread owns the children it started, so the list lives with the thread and is killed when it ends.
+    ///  Each test thread owns the children it started,
+    /// so the list lives with the thread and is killed when it ends.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -177,10 +191,14 @@ thread_local! {
 }
 
 /// What:
-///  `killpg` every group in `groups`, with `SIGKILL`, and read no memory of theirs.
+///  `killpg` every group in `groups`,
+/// with `SIGKILL`,
+/// and read no memory of theirs.
 /// Why:
-///  A helper leads a group of its own, so this reaches it and everything it started;
-///  a group with no member left answers `ESRCH`, which is the state this wants.
+///  A helper leads a group of its own,
+/// so this reaches it and everything it started;
+///  a group with no member left answers `ESRCH`,
+/// which is the state this wants.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,12 +221,15 @@ fn end_groups(groups: &[libc::pid_t]) {
 }
 
 /// What:
-///  End every helper group this thread started, now,
+///  End every helper group this thread started,
+/// now,
 ///  which is what the thread's fixtures do before they remove the directories those helpers work in.
 /// Why:
-///  A helper still running holds its fixture directory open, and a directory removed under a live process is a
+///  A helper still running holds its fixture directory open,
+/// and a directory removed under a live process is a
 ///  failure the next control reads as its own;
-///  the fixtures call this first, so the helpers die before their directories go.
+///  the fixtures call this first,
+/// so the helpers die before their directories go.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -238,7 +259,8 @@ pub(crate) fn end_owned_groups() {
 }
 
 /// What:
-///  The process group `child` is in, asked while the child is still there.
+///  The process group `child` is in,
+/// asked while the child is still there.
 /// Why:
 ///   A helper a control started right leads its own group,
 ///  and one it started wrong is in its parent's;

@@ -83,3 +83,10 @@ pub use self::trash_sweep::{
     TrashSweep,
     empty_trash,
 };
+
+/// The tests of the removal primitive.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_removal_tests.rs"]
+mod lean_removal_tests;

@@ -1976,7 +1976,8 @@ fn askpass_names(program: &Path) -> [(&str, &str); 2] {
 ///  `GIT_ASKPASS` to the empty string.
 /// The failure is the login failure the person is told about,
 /// reached without a wait.
-/// The arm before it shows the same recorder answering this server, so the empty log below means the rule held.
+/// The arm before it shows the same recorder answering this server,
+/// so the empty log below means the rule held.
 #[test]
 fn a_background_push_that_needs_a_login_never_starts_the_hosts_askpass_program() {
     let stage: Stage = stage("push-never-prompts");

@@ -23,10 +23,13 @@ use std::process::Output;
 /// What one bounded query of real Git answered.
 #[derive(Debug)]
 pub(crate) struct QueryAnswer {
-    /// The status the wait returned, and the bytes the two pipes had given by the end of the grace after the ending.
-    ///  A descendant that holds a pipe can add bytes in that window, and `held_open` says when one did.
+    /// The status the wait returned,
+    /// and the bytes the two pipes had given by the end of the grace after the ending.
+    ///  A descendant that holds a pipe can add bytes in that window,
+    /// and `held_open` says when one did.
     pub output: Output,
-    /// What ended the query, as the last status the wait returned showed it.
+    /// What ended the query,
+    /// as the last status the wait returned showed it.
     pub ending: QueryEnding,
     /// Whether a pipe of the query was still held when the window for its end passed,
     /// as the kernel answered it,

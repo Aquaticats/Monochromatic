@@ -61,7 +61,8 @@ fn reader(table: BTreeMap<i32, ReadOutcome>) -> impl Fn(i32) -> ReadOutcome {
     return move |pid: i32| return table.get(&pid).cloned().unwrap_or(ReadOutcome::Gone);
 }
 
-/// The walk reads the chain and its protected set spares the caller, the session's tasks and the ancestors,
+/// The walk reads the chain and its protected set spares the caller,
+/// the session's tasks and the ancestors,
 /// and spares nothing else.
 #[test]
 fn the_walk_reads_the_chain_and_its_protected_set() {

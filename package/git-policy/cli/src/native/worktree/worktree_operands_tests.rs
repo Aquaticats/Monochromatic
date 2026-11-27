@@ -7,7 +7,8 @@
 use super::*;
 use crate::command_test_support::os_arguments;
 
-/// The operands of one argument list, as the words a person typed.
+/// The operands of one argument list,
+/// as the words a person typed.
 fn read(values: &[&str]) -> Vec<String> {
     let arguments: Vec<OsString> = os_arguments(values);
     let operands: Vec<&OsString> = operands_after_options(arguments.as_slice());

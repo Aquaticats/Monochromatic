@@ -13,7 +13,8 @@
 //!  (`doc/decision/cli-git-zfs-start-probe.md`,
 //!  Q4),
 //!  and the SPEC's own rule is that a record whose fingerprint differs from the
-//!  running kernel, module or boot is stale
+//!  running kernel,
+//! module or boot is stale
 //!  (`package/git-policy/cli/SPEC.md`,
 //!  "The start probe").
 //!  The readiness record is a cache and not authority,

@@ -268,3 +268,21 @@ pub fn publish_time_cutoff(
     let text: String = format_iso_millis(cutoff);
     return format!("{}Z", &text[..19]);
 }
+
+/// What:
+/// `#[cfg(test)] mod time_text_tests;` declares the tests in `src/time_text_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the timestamp reading and writing."
+/// so the behavior of `time_text` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // time_text_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "time_text_tests.rs"]
+mod time_text_tests;

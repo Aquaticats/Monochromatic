@@ -6,14 +6,16 @@
 //! Why:
 //!  A drain that waits on a pipe is a service that runs no record at all,
 //!  and the files it waits on are ones any process that may write the Git directory can put a pipe at
-//!  (`crate::plain_file`; issue 6415 for the same shape at the wrapper's own records).
+//!  (`crate::plain_file`;
+//! issue 6415 for the same shape at the wrapper's own records).
 
 /// The rules under test.
 use super::{
     common_directory_of,
     is_bare_common_directory,
 };
-/// Fixture folders, their removal and a bound on the wait.
+/// Fixture folders,
+/// their removal and a bound on the wait.
 use crate::test_support::{
     finished_within,
     fixture,

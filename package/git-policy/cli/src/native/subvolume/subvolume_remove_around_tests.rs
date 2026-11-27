@@ -261,7 +261,8 @@ fn a_link_is_unlinked_and_its_target_kept_by_the_pass_that_goes_around() {
 /// a subvolume renamed over a plain directory between them was opened,
 /// emptied and removed,
 ///  which is exactly what a removal that "goes around" a volume promises never to do.
-///  The control states the exchange at that moment, so it is the same window every time rather than a race.
+///  The control states the exchange at that moment,
+/// so it is the same window every time rather than a race.
 #[test]
 fn btrfs_a_volume_put_at_the_name_after_the_check_is_kept() {
     let Some(root) = btrfs_fixture("walk-around-swap") else {

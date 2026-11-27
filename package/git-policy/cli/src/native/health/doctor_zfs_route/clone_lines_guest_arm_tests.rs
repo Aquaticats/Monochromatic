@@ -2,7 +2,8 @@
 //!  Plan step 18's removal-side `doctor` lines against a real file-backed pool,
 //!  in a throwaway guest:
 //!  the healthy clone passes every line,
-//!  the managed Git lock's line in its verified, lost and person-written states,
+//!  the managed Git lock's line in its verified,
+//! lost and person-written states,
 //!  and each broken fact moves the line that judges it.
 //! Why:
 //!  The lines read `/dev/zfs`,
@@ -222,7 +223,8 @@ fn staging_folder(
 ///  A mount of the record's clone over the slot proves the registration through
 ///  that clone's GUID,
 ///  and the read is the add route's own through the device;
-///  this arm's slot is unmounted, so the proof compares the slot folder's
+///  this arm's slot is unmounted,
+/// so the proof compares the slot folder's
 ///  identity and never asks.
 ///
 /// In TS you'd write (pseudocode):
@@ -825,7 +827,8 @@ fn assert_passes(facts: &super::route_checks::CloneFacts) {
     );
 }
 
-/// The lock the add wrote, put at the registration the fixture's record names.
+/// The lock the add wrote,
+/// put at the registration the fixture's record names.
 fn writes_the_adds_lock(built: &LivePoolFixture) {
     let answer: InstallAnswer = write_the_lost_lock(
         built.registration().as_path(),

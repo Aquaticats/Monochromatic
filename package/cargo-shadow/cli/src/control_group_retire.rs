@@ -720,3 +720,11 @@ fn first_line(text: &[u8]) -> String {
 #[cfg(test)]
 #[path = "control_group_retire_tests.rs"]
 mod tests;
+
+/// The control of what a run's last look at its scope answers when the scope's directory was never made,
+/// which is the state a launcher that exits before the manager makes the group leaves.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "control_group_retire_scope_not_made_yet_tests.rs"]
+mod control_group_retire_scope_not_made_yet_tests;

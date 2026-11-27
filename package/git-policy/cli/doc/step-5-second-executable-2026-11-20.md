@@ -10,9 +10,11 @@ step 5.
 the owner has not reviewed it,
 and nothing here was merged.
 
-**Note, 2026-11-25:**
+**Note,
+2026-11-25:**
 the second executable this record built was removed by the owner's answer
-"One program only, ever"
+"One program only,
+ever"
 (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`),
 and the root modes are modes of `monochromatic-git-policy-cli` now,
 reached through the words `monochromatic-git-policy-cli zfs-root <mode>` or

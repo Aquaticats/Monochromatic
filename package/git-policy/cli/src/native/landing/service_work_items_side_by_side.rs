@@ -422,11 +422,13 @@ where
 /// Why:
 ///   A step runs its items as one batch of waves,
 /// and a bound decided once for the batch started every item of any size:
-/// a relink, a review or a snapshot that arrived during a long batch of trashes was claimed only when the whole batch was over
+/// a relink,
+/// a review or a snapshot that arrived during a long batch of trashes was claimed only when the whole batch was over
 /// (`housekeeping_of_one_round.rs`).
 /// The bound is asked here as each item is put into a wave,
 /// so the items of one wave still start together and the rest keep their turn for a later round.
-/// An item the bound refused has not started, so it is not claimed by this round's work:
+/// An item the bound refused has not started,
+/// so it is not claimed by this round's work:
 /// it goes back to `pending` with the others the caller names.
 ///
 /// In TS you'd write (pseudocode):
@@ -468,7 +470,8 @@ where
 /// What:
 ///  `run_and_settle_side_by_side` and `run_and_settle_what_the_round_may_start` with everything the two differ in given.
 /// Why:
-///   The waves, the starting of each item and the settling of each answer are one account,
+///   The waves,
+/// the starting of each item and the settling of each answer are one account,
 ///  so a kind that is bounded like housekeeping and a kind that is not cannot drain differently.
 ///
 /// In TS you'd write (pseudocode):

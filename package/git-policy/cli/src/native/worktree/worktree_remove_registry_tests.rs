@@ -336,7 +336,8 @@ fn a_pointer_that_is_a_named_pipe_is_refused_without_waiting() {
 ///  the removal never reaches a verdict and never falls back to Git
 ///  (`SPEC.md`,
 ///  "Every wait has a bound").
-///  A record that cannot be read is skipped, as one Git would skip,
+///  A record that cannot be read is skipped,
+/// as one Git would skip,
 ///  so the target's registration is still the answer.
 #[test]
 fn another_registrations_named_pipe_does_not_block_the_removal() {

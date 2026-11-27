@@ -11,7 +11,8 @@
 //! Every check also has a control that proves it lets a working arrangement through,
 //! because a refusal that is wrong fails a commit that would have landed.
 //! A runtime directory too long for a path is served at an abstract name instead,
-//! so the controls here hold the two forms against each other: what the unit names,
+//! so the controls here hold the two forms against each other:
+//! what the unit names,
 //! what the manager answers,
 //! and what two spellings of one directory make.
 
@@ -330,7 +331,9 @@ fn a_link_beside(
 
 /// What:
 ///  A link beside `runtime`,
-/// whose whole path, the folder and the separator and the name, is one byte past the longest runtime directory a path
+/// whose whole path,
+/// the folder and the separator and the name,
+/// is one byte past the longest runtime directory a path
 /// carries.
 /// Why:
 ///   The control's sentence is that the manager's abstract socket answers every spelling of one place,
@@ -339,10 +342,13 @@ fn a_link_beside(
 /// with a home directory of two hundred bytes and a process number of two digits the folder was `/r/pr10`,
 /// the link `link-to-a-long-runtime-directory` took exactly 107 bytes with the socket's suffix,
 /// and this control failed where the same control passed with a seven-digit process number.
-/// The name is counted from the whole path, so it is one byte past the limit and not two:
-/// the separator between the folder and the name was left out of that count once, and the link landed a byte further
+/// The name is counted from the whole path,
+/// so it is one byte past the limit and not two:
+/// the separator between the folder and the name was left out of that count once,
+/// and the link landed a byte further
 /// past than the control said.
-/// Its folder is the one the runtime directory stands in, which the helper that made it held inside the limit.
+/// Its folder is the one the runtime directory stands in,
+/// which the helper that made it held inside the limit.
 fn a_link_past_the_path_limit(
     runtime: &Path,
     instance: &str,
@@ -368,7 +374,9 @@ fn a_link_past_the_path_limit(
 ///  The room `parent` leaves for the name of a path that ends in `/run` and must be `length` bytes long.
 /// Why:
 ///   The helper that pads a name and the control that holds the length of the path it makes must count the same bytes,
-/// so the count is written once: a name does not take the separator after its folder, and it does not take `/run`.
+/// so the count is written once:
+/// a name does not take the separator after its folder,
+/// and it does not take `/run`.
 fn the_room_a_folder_leaves_for_a_name(
     parent: &Path,
     length: usize,
@@ -378,7 +386,8 @@ fn the_room_a_folder_leaves_for_a_name(
 
 /// What:
 ///  The name `tag` cut or padded so that `parent/<name>/run` is one byte past the longest runtime directory a path
-///  carries, and left at one byte where the folder is already that long.
+///  carries,
+/// and left at one byte where the folder is already that long.
 /// Why:
 ///   The control that uses it is about a spelling no file system can make,
 /// and its sentence is that a commit stops at once instead of binding where an address cannot be;
@@ -433,7 +442,8 @@ fn a_spelling_through_relative_parts(
 /// Why:
 ///  The kernel refuses a socket path of 108 bytes,
 /// so before this form existed the manager bound nothing and the commit failed,
-///  where real Git made the commit (owner's rule, "Commits should never fail").
+///  where real Git made the commit (owner's rule,
+/// "Commits should never fail").
 /// The unit is what the manager binds,
 /// and the answer is what this command compares with the address it connects to,
 /// so both are read here.
@@ -1004,16 +1014,23 @@ fn spellings_no_file_system_can_make(parent: &Path) -> [(&'static str, PathBuf);
 }
 
 /// What:
-///  A runtime directory no spelling can make — a path through a file, a path through a link that points nowhere — stops
-///  provisioning at once and names the setting, rather than waiting for a start that cannot come.
+///  A runtime directory no spelling can make — a path through a file,
+/// a path through a link that points nowhere — stops
+///  provisioning at once and names the setting,
+/// rather than waiting for a start that cannot come.
 /// Why:
 ///   Such a spelling stands in no place a service could listen at,
 /// so there is no address to bind and no service to be had;
 /// the address function still gives it one name before and after
 /// (`a_spelling_that_cannot_be_resolved_still_gives_one_name` in `service_address_of_a_worktree_tests.rs`),
 /// and what is left is that the commit says what to change and does not wait.
-/// `SPEC.md`, "Machines with no way to reach the service", is the rule: the service is the only writer, so a command
-/// that cannot reach it changes nothing and stops, with the input and every way to change it named.
+/// `SPEC.md`,
+/// "Machines with no way to reach the service",
+/// is the rule:
+/// the service is the only writer,
+/// so a command
+/// that cannot reach it changes nothing and stops,
+/// with the input and every way to change it named.
 #[test]
 #[cfg(target_os = "linux")]
 fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {

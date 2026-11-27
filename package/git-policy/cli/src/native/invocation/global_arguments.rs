@@ -521,6 +521,36 @@ pub fn command_tokens(arguments: &[OsString]) -> Option<(&OsString, &[OsString])
 }
 
 /// What:
+///  Whether Git reads this token as a global option that names the place its command acts on:
+///  the directory `-C` changes into,
+///  and the Git directory or worktree of `--git-dir` and `--work-tree`.
+///  `&[u8]` is the token as Git receives it.
+/// Why:
+///   Two readings need this answer:
+///  a slot command behind a global option the wrapper does not read names a repository
+///  the wrapper never read,
+///  and a `!` alias whose own words carry one of these acts on a repository or a worktree the
+///  caller's own options do not reach.
+///  The list is Git's own table (`git.c::handle_options`),
+///  so an option that moves the reading is read here as one that moves it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesThePlace = (token: Uint8Array) => ['-C', '--git-dir', '--work-tree'].includes(text(token))
+///   || text(token).startsWith('--git-dir=') || text(token).startsWith('--work-tree=');
+/// ```
+pub(crate) fn names_the_place_the_command_acts(token: &[u8]) -> bool {
+    /// The globals Git reads with their value in the next token.
+    const SEPARATED: &[&[u8]] = &[b"-C", b"--git-dir", b"--work-tree"];
+    /// The same globals spelled with their value in the same token.
+    const ATTACHED: &[&[u8]] = &[b"--git-dir=", b"--work-tree="];
+    return SEPARATED.contains(&token)
+        || ATTACHED
+            .iter()
+            .any(|prefix| return token.starts_with(prefix));
+}
+
+/// What:
 ///  The words a refusal prints for one token the global reading stopped at.
 /// Why:
 ///  `--` is the separator a command's own options use before their operands,

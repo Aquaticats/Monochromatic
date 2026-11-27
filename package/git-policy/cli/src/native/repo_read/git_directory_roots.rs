@@ -22,7 +22,8 @@
 /// The one reader of a Git directory's `commondir` file,
 /// which opens it as a plain file so a named pipe there cannot hold the sweep.
 use crate::common_directory_of_a_git_directory::common_directory_of;
-/// The reader that cannot wait, and the bound a `.git` pointer file is read to.
+/// The reader that cannot wait,
+/// and the bound a `.git` pointer file is read to.
 use crate::plain_file::read_plain_file;
 use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 /// Owned OS strings of a command's environment.

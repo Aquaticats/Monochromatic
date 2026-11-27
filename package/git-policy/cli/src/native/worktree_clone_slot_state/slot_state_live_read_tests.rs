@@ -190,7 +190,8 @@ fn a_mount_request_on_a_filled_clone_is_read() {
     );
 }
 
-/// A refused property read is the unreadable arm, never an absence.
+/// A refused property read is the unreadable arm,
+/// never an absence.
 #[test]
 fn a_refused_intent_read_is_reported_as_unreadable() {
     let root: PathBuf = fixture("slot-state-live-intent-refused");

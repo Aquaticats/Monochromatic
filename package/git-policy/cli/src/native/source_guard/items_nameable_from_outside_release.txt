@@ -12531,6 +12531,11 @@ worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::TheReco
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::WORKTREES_FOLDER
 worktree_clone_removal_cancel::the_proof pub use self::the_proof_inputs::WhatTheRecordsProve
 
+#   356fd67456 fix(git-policy/cli): judge a bare `!git` for the worktree its own options name
+#   publishes the global options that reach the place the command Git runs acts on, which the
+#   policy stage asks its repository facts with
+invocation::guarded_forwarded_command field GuardedForwarded::globals_that_place_the_command
+
 # New code of commit fa29175b9e, published because the commit's own code is, one reason per name:
 #   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes what a commit that takes the bytes a finding names does with them, which its hint says

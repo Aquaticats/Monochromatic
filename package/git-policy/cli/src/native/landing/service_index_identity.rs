@@ -404,7 +404,8 @@ fn split_birth(birth: &str) -> (&str, Option<&str>, Option<&str>, Option<&str>) 
 ///   A boot that has ended ends every process in it,
 /// whatever the reader's numbering.
 /// Beyond that the reader compares like with like or says unknown:
-/// a part of the text that is not the kind of text it stands for, or that is that text in another spelling,
+/// a part of the text that is not the kind of text it stands for,
+/// or that is that text in another spelling,
 /// is no part it can compare,
 /// its `/proc` must agree with its own PID,
 /// it must know its boot when the marker names one,

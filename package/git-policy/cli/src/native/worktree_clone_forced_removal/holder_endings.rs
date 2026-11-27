@@ -7,14 +7,16 @@
 //!  so a kind whose ending the probe rounds and this round's guest arm do not
 //!  show is identified and refused rather than ended
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//!  "Step 17", and
+//!  "Step 17",
+//! and
 //!  `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
 //!  "Who ends each kind of holder").
 //!  Every answer here names its evidence in one constant beside it,
 //!  so a reader can see which sentence of which log the ending rests on,
 //!  and the two answers that are not endings say which arm is still owed.
 //!  The table is data rather than prose so that the wrap-level code has one
-//!  place to ask, and a round that measures a new kind changes one row.
+//!  place to ask,
+//! and a round that measures a new kind changes one row.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,7 +39,9 @@ use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HolderKind {
-    /// The same account, in another session: a leftover agent shell or a build job.
+    /// The same account,
+    /// in another session:
+    /// a leftover agent shell or a build job.
     SessionTask,
     /// Another account's process.
     OtherAccountTask,
@@ -84,7 +88,9 @@ impl HolderKind {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Ending {
-    /// `SIGTERM`, a wait, then `SIGKILL` to every blocker,
+    /// `SIGTERM`,
+    /// a wait,
+    /// then `SIGKILL` to every blocker,
     /// and the host's own unmount afterwards.
     EndBlockersThenUnmount,
     /// Way 8:
@@ -108,7 +114,8 @@ pub enum Ending {
 ///  the round that showed it,
 ///  and the arm still owed for it.
 /// Why:
-///  A reader of a report asks "measured where", and a later round that runs the
+///  A reader of a report asks "measured where",
+/// and a later round that runs the
 ///  owed arm replaces one row rather than rewriting the prose around it.
 ///
 /// In TS you'd write (pseudocode):
@@ -175,7 +182,8 @@ pub const LOCKED_NOT_BUILT: &str = "the locked holder is refused: T0-14 answered
 pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace is refused: this build lists no namespace whose tasks are gone, the guest's 6.8 kernel answers ENOSYS to listns, and no arm unmounted a copy inside one";
 
 /// What:
-///  The one table, in the design's order of kinds.
+///  The one table,
+/// in the design's order of kinds.
 /// Why:
 ///  One list is what a report prints and what the act reads,
 ///  so no kind can be handled by code without a row that says what it may do.
@@ -276,7 +284,8 @@ impl std::fmt::Display for MissingKind {
 }
 
 /// What:
-///  Whether a kind's ending needs the block of `SIGTERM`, wait and `SIGKILL`.
+///  Whether a kind's ending needs the block of `SIGTERM`,
+/// wait and `SIGKILL`.
 /// Why:
 ///  A refusal ends nothing,
 ///  and an act that asked a blocker for its end would be ending a job in a

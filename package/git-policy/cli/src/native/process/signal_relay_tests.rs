@@ -535,7 +535,8 @@ fn handler_marks_a_signal_with_the_code_macos_gives_a_kill() {
 #[cfg(unix)]
 static RELAY_STATICS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// The relay statics of this process, held for the length of one in-process control.
+/// The relay statics of this process,
+/// held for the length of one in-process control.
 ///  A control that panicked while it held the lock poisoned it,
 ///  and every later control would then fail for that panic rather than for what it measures,
 ///  so the lock is taken through the poison.

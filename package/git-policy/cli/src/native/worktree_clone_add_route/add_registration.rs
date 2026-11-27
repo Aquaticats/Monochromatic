@@ -1,14 +1,20 @@
 //! What:
-//!  The add's scan of `<common>/worktrees` after Git's own add: what each entry
-//!  is, which of them is this add's, and what the resume does with it.
+//!  The add's scan of `<common>/worktrees` after Git's own add:
+//! what each entry
+//!  is,
+//! which of them is this add's,
+//! and what the resume does with it.
 //! Why:
-//!  A kill inside Git's own `worktree add` can leave ten shapes, and only a scan
+//!  A kill inside Git's own `worktree add` can leave ten shapes,
+//! and only a scan
 //!  that reads each entry's lock,
 //!  its `gitdir` back-link and the slot's pointer can tell them apart
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "A resume after a kill between Git's add and the registered write").
-//!  The finder and the rows are the registration half's; this file is the
-//!  decision that applies their answers, so the reads are
+//!  The finder and the rows are the registration half's;
+//! this file is the
+//!  decision that applies their answers,
+//! so the reads are
 //!  `add_registration_reads.rs`'s,
 //!  the adopted entry's lock is `add_registration_lock.rs`'s,
 //!  and the incomplete entry's removal is `add_registration_clearing.rs`'s.
@@ -47,14 +53,16 @@ use std::path::{
 /// What:
 ///  Everything the scan reads.
 /// Why:
-///  The slot and its path are the finder's key, and the home answers which
+///  The slot and its path are the finder's key,
+/// and the home answers which
 ///  other slots own a candidate name,
 ///  so the value is named here where the scan's decision is made and read
 ///  nowhere else.
 pub use super::add_registration_reads::ScanInput;
 
 /// What:
-///  The registration this add owns, proved from the five facts.
+///  The registration this add owns,
+/// proved from the five facts.
 /// Why:
 ///  The binding records the registration's path,
 ///  its identity and the pointer's bytes,
@@ -97,7 +105,8 @@ pub enum ScanOutcome {
         /// present only when this command wrote a lost lock again.
         wrote_the_lock: Option<String>,
     },
-    /// Nothing stands for this slot, or the incomplete entry was cleared.
+    /// Nothing stands for this slot,
+    /// or the incomplete entry was cleared.
     RunGit {
         /// What the recipe removed,
         /// in the order it removed it,
@@ -109,7 +118,8 @@ pub enum ScanOutcome {
 /// What:
 ///  Scan the registrations and settle what stands for this add.
 /// Why:
-///  The finder decides from the scan's facts, and this function performs the one
+///  The finder decides from the scan's facts,
+/// and this function performs the one
 ///  decision it gives:
 ///  adopt the complete entry,
 ///  clear the incomplete one through the recipe,
@@ -240,7 +250,8 @@ fn prove_the_registration(
     });
 }
 
-/// A record refusal's sentence, which the scan reports with its path.
+/// A record refusal's sentence,
+/// which the scan reports with its path.
 pub fn refusal_sentence(refusal: &RecordRefusalAtTheFile) -> String {
     return refusal.message(Path::new("the record"));
 }

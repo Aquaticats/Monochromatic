@@ -1,14 +1,23 @@
 //! What:
-//!  The route's pool requests: the device opened behind the start-time gate, the
-//!  identity read, the snapshot, the clone, the origin and the delegations, and
+//!  The route's pool requests:
+//! the device opened behind the start-time gate,
+//! the
+//!  identity read,
+//! the snapshot,
+//! the clone,
+//! the origin and the delegations,
+//! and
 //!  the mount request.
 //! Why:
-//!  Every call is the binding's own typed request, and no `zfs` program starts
+//!  Every call is the binding's own typed request,
+//! and no `zfs` program starts
 //!  (`package/zfs/request-to-openzfs-kernel-device`;
 //!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Binding crate and compatibility").
-//!  A refused gate disables every raw request, and the device is opened once
-//!  behind it, so a control hands in the gate's answer instead of this machine's
+//!  A refused gate disables every raw request,
+//! and the device is opened once
+//!  behind it,
+//! so a control hands in the gate's answer instead of this machine's
 //!  `/dev/zfs`.
 //!  `add_zfs_pool_answers.rs` reads what the pool answered and
 //!  `add_zfs_inventories.rs` lists what an origin and a clone hold,
@@ -63,7 +72,8 @@ use super::add_zfs_pool_answers::guid_of;
 ///  One dataset or snapshot's identity,
 ///  the two numbers the record writes.
 /// Why:
-///  Every read-back answers the same two numbers, so the record and its readers
+///  Every read-back answers the same two numbers,
+/// so the record and its readers
 ///  name them once.
 pub use super::add_zfs_pool_answers::ObjectIdentity;
 
@@ -72,7 +82,8 @@ pub use super::add_zfs_pool_answers::ObjectIdentity;
 ///  the identity the record keeps,
 ///  and the properties the add reads to report a clone it cannot use.
 /// Why:
-///  The kernel's own reply for the clone carries both, so one request answers
+///  The kernel's own reply for the clone carries both,
+/// so one request answers
 ///  what the record and the add's report need.
 pub use super::add_zfs_pool_answers::CloneMade;
 
@@ -80,7 +91,8 @@ pub use super::add_zfs_pool_answers::CloneMade;
 pub use super::add_zfs_pool_answers::the_clones_mountpoint_failure;
 
 /// What:
-///  The device the route makes its requests through, opened after the gate.
+///  The device the route makes its requests through,
+/// opened after the gate.
 /// Why:
 ///  A refused gate disables every raw request,
 ///  and the refusal names the file or the difference rather than the add.
@@ -138,7 +150,8 @@ impl TheDeviceOpened for TheLiveDevice {
 }
 
 impl OpenedDevice {
-    /// Run the start-time gate, then open the kernel's device.
+    /// Run the start-time gate,
+    /// then open the kernel's device.
     ///
     /// # Errors
     /// The gate refused,
@@ -157,7 +170,8 @@ impl OpenedDevice {
         });
     }
 
-    /// One dataset's or snapshot's identity, read back from the pool.
+    /// One dataset's or snapshot's identity,
+    /// read back from the pool.
     ///
     /// # Errors
     /// The object does not answer,
@@ -199,7 +213,8 @@ impl OpenedDevice {
         return Ok(facts_from_the_reply(name, &identity));
     }
 
-    /// Clone the origin snapshot, read the clone's identity back,
+    /// Clone the origin snapshot,
+    /// read the clone's identity back,
     /// and keep the properties that reply carries.
     ///
     /// # Errors

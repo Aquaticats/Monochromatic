@@ -199,7 +199,8 @@ fn an_older_target_commit_is_cloned_and_updated() {
 /// A source whose only change is a tracked edit and whose tree is below the whole-tree limit is cloned from by
 /// nothing:
 /// Git's checkout runs and the log names no clone.
-/// The control needs a root the rung could serve on, so its answer is the limit's and not a filesystem's refusal.
+/// The control needs a root the rung could serve on,
+/// so its answer is the limit's and not a filesystem's refusal.
 #[test]
 fn a_dirty_ordinary_source_below_the_whole_tree_limit_is_not_cloned() {
     let fixture: Fixture = fixture("clone-dirty");
@@ -251,7 +252,8 @@ fn a_dirty_ordinary_source_below_the_whole_tree_limit_is_not_cloned() {
 }
 
 /// A source whose only difference is an untracked file is cloned:
-/// the untracked file is no tracked change, so the rule for a source with no tracked change judges it,
+/// the untracked file is no tracked change,
+/// so the rule for a source with no tracked change judges it,
 /// the log names the clone,
 /// and the new worktree holds Git's own bytes.
 #[test]

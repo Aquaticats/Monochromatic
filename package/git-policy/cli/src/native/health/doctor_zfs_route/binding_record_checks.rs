@@ -9,8 +9,10 @@
 //!  and the settle reason of an add that stopped.
 //! Why:
 //!  The removal's own refusals send a person to the binding record when the
-//!  clone, the origin or the registration a removal is about cannot be proved
-//!  (`RemovalStop::NoBinding`, `RemovalStop::BindingIncomplete`),
+//!  clone,
+//! the origin or the registration a removal is about cannot be proved
+//!  (`RemovalStop::NoBinding`,
+//! `RemovalStop::BindingIncomplete`),
 //!  and plan step 18 is where that record is printed
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 18,

@@ -27,7 +27,8 @@ pub(crate) mod run_progress;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-/// The one place a child of this test binary is started, waited for with a deadline and checked for its one passing
+/// The one place a child of this test binary is started,
+/// waited for with a deadline and checked for its one passing
 /// test;
 ///  never part of the release executable,
 ///  and included by path in the binary controls' crate and the candidate consumer's crate,
@@ -204,7 +205,8 @@ pub(crate) mod child_ended_with_its_whole_group;
 #[path = "no_switch_is_read_without_its_feature_tests.rs"]
 pub(crate) mod no_switch_is_read_without_its_feature_tests;
 
-/// One binding record whose slot, registration and pointer are a fixture's own paths,
+/// One binding record whose slot,
+/// registration and pointer are a fixture's own paths,
 /// and the publication that puts it under a fixture's Git common directory;
 /// never part of the release executable.
 #[cfg(test)]

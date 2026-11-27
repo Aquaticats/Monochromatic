@@ -8,14 +8,16 @@
 //!  every name stays,
 //! and a set split across requests by the caller's budget.
 //! Why:
-//!  The request, its per-name answer and the split are the kernel's own
+//!  The request,
+//! its per-name answer and the split are the kernel's own
 //!  behaviour,
 //! so a host run proves only the code around them;
 //! these arms destroy real
 //!  snapshots of a real clone on a file-backed pool inside a guest,
 //! and the guest is
 //!  destroyed by the recipe that made it
-//! (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`, step 16,
+//! (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+//! step 16,
 //!  "VM measurements" items 14,
 //! 17 and 18 repeated through the binding).
 //!  The hold arm shows the kernel's own
@@ -23,7 +25,8 @@
 //! the per-name list names the held snapshot and
 //!  every other name is intact,
 //! because a refused request destroys none of its set
-//!  (`module/zfs/dsl_destroy.c:618` to `:706`, OpenZFS `zfs-2.4.4`).
+//!  (`module/zfs/dsl_destroy.c:618` to `:706`,
+//! OpenZFS `zfs-2.4.4`).
 //!  A run outside the
 //!  guest prints `SKIP` and returns,
 //! which the recipe refuses to count as a pass.

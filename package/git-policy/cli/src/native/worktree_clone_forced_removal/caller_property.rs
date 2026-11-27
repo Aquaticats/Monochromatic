@@ -41,7 +41,8 @@ use crate::worktree_clone_mount_protocol::request_nonce::{
 
 /// The longest caller value the grammar admits,
 /// in bytes:
-/// `v1:`, the nonce,
+/// `v1:`,
+/// the nonce,
 /// a ten-digit number each for the four numbers,
 /// and the boot id's 36 bytes.
 pub const MAXIMUM_CALLER_PROPERTY_BYTES: usize = VALUE_VERSION.len()
@@ -70,7 +71,8 @@ pub const BOOT_ID_BYTES: usize = 36;
 ///  Why a caller property is not one this arm can prove.
 /// Why:
 ///  Each cause is separate because the report names what it could not read,
-///  and a malformed value "sets nothing": the handler declines the force word
+///  and a malformed value "sets nothing":
+/// the handler declines the force word
 ///  rather than reading a field it could not parse.
 ///
 /// In TS you'd write (pseudocode):
