@@ -874,6 +874,11 @@ assertion `left == right` failed: this process's bound on blocking jobs has 7 pl
 - the same filter with that module skipped:
   `test result: ok. 1007 passed; 0 failed; 1 ignored`,
   in 25.12 s.
+- after merging `origin/main` at `c0c4eeeb88`,
+  with that module's own fix merged in between,
+  the whole `worktree::` filter answered
+  `test result: ok. 1015 passed; 0 failed; 1 ignored`,
+  in 18.23 s.
 - `source_guard`:
   `test result: ok. 176 passed; 0 failed`.
 - `cargo fmt --check` printed nothing.
