@@ -120,13 +120,15 @@ export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, Mutati
   ],
   // The parent lookup's own contract control, which never walks ancestors. Before ancestor walks were bounded by
   // the node count, a constant parent made them spin and the Markdown scope could only time out on these mutants;
-  // the Markdown scope now catches them too, and this scope stays as their fastest direct check.
+  // the Markdown scope now catches them too, and this scope stays as their fastest direct check. The lookup itself
+  // is in `src/markdown_source_walk.rs`, with the other walks, so this scope names that file too.
   [
     '--markdown-parent',
     {
       description: 'the Markdown parent lookup against its contract control',
       select: [
         ...fileArguments('src/markdown_source.rs'),
+        ...fileArguments('src/markdown_source_walk.rs'),
         '--re',
         'MarkdownSource::parent'
       ],

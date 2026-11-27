@@ -47,11 +47,9 @@ use crate::command_test_support::{
     fixture,
     remove,
 };
-use crate::conflict_sides::{
-    SAVED_DIRECTORY,
-    save_copies,
-};
+use crate::conflict_sides::save_copies;
 use crate::iso_time::format_iso_milliseconds;
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 use std::path::{
     Path,
     PathBuf,
