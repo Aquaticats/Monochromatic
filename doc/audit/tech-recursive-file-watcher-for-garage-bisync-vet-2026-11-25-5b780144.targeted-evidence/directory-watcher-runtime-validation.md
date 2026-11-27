@@ -65,6 +65,9 @@ or on any Windows machine.
 - Scratch folder:
   `/home/user/temp/agent/watcher-finalist-validation-directory-watcher-scratch-2026-11-25`
   (rule `ATH`), created with `mkdir --parents` and `chmod 700`.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 ## Isolation defaults for every command tree
 
@@ -1018,6 +1021,9 @@ Logs and measurements are kept in
 - `tree2-serial.log` and `tree2-serial-load.txt`, the stopped serial diagnostic;
 - `tree3-measure.log` (the 212-line marker log), `tree3-watcher.log` (1065 lines),
   `tree3-config.yml`, `tree3-fixture-listing.txt` and `tree3-snapshot.txt`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
 Retained test diagnostics from the diagnostic reruns are in the scratch folder's
 `e2e-diag-scenarios/`, `e2e-diag-init/` and `e2e-diag-initfull/` while they exist;
