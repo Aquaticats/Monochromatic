@@ -139,6 +139,9 @@ pub mod control_group_route_discovery;
 /// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
 pub mod control_group_process_identity;
 
+/// Opening and reading the mounted procfs (split out of the control group process identity module).
+pub mod control_group_procfs_reading;
+
 /// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
 pub mod control_group_machine_identity;
 
