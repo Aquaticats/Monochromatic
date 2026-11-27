@@ -146,6 +146,11 @@
 //!   `git monochromatic-git-policy-cli migrate-to-subvolume`:
 //!   root discovery,
 //!   modes and exit statuses.
+//! - `subvolume_sync_copy_link_record.rs`:
+//!   the bookkeeping of a file with several names in a tree pass:
+//!   whether a destination file is one of the recorded copies,
+//!   recording a copy,
+//!   and linking the next name to an earlier copy.
 //! - `subvolume_sync_copy_one_entry.rs`:
 //!   the copying of one source entry (file,
 //!   symbolic link,
@@ -298,6 +303,13 @@ pub mod subvolume_pass_report;
 /// the pass state and the entry checks.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_pass_state_and_checks;
+
+/// The bookkeeping of a file with several names in a tree pass:
+/// whether a destination file is one of the recorded copies,
+/// recording a copy,
+/// and linking the next name to an earlier copy.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_copy_link_record;
 
 /// The copying of one source entry (file,
 /// symbolic link,
