@@ -98,18 +98,23 @@ use std::path::Path;
 /// ```
 use crate::file_owner::observe;
 
+/// The name a file is published under, made durable and exclusive.
+mod creates;
+/// What one replacement answered and where the file it displaced is kept.
+mod outcome_and_keep_rule;
+
 /// The temporary file the replacement publishes (split out of this module).
-use crate::journal_replace_creates::create_temporary;
+use self::creates::create_temporary;
 /// The error for a directory whose temporary names are used up (split out of this module).
 #[cfg(test)]
-pub(crate) use crate::journal_replace_creates::names_exhausted_message;
+pub(crate) use self::creates::names_exhausted_message;
 /// The name cap and the borrowed parent of a path (split out of this module).
-pub(crate) use crate::journal_replace_creates::{
+pub(crate) use self::creates::{
     MAX_NAME_ATTEMPTS,
     parent_of,
 };
 /// The directory chain and the exclusive file that the replacement is published from (split out of this module).
-pub use crate::journal_replace_creates::{
+pub use self::creates::{
     create_directories_synced,
     create_directories_with,
     create_exclusive,
@@ -118,7 +123,7 @@ pub use crate::journal_replace_creates::{
     unique_suffix,
 };
 /// What a compare-and-replace answered and where the displaced file is kept (split out of this module).
-pub use crate::journal_replace_outcome_and_keep_rule::{
+pub use self::outcome_and_keep_rule::{
     KeepAs,
     ReplaceOutcome,
 };

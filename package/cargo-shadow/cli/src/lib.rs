@@ -68,12 +68,6 @@ pub mod journal;
 /// conditional replace).
 pub mod journal_replace;
 
-/// What one replacement answered and where the file it displaced is kept (split out of the journal replacement module).
-pub mod journal_replace_outcome_and_keep_rule;
-
-/// Making the names a file is published under durable and exclusive (split out of the journal replacement module).
-pub mod journal_replace_creates;
-
 /// The directories a creation left unsynchronized (split out of the journal replacement module).
 pub mod journal_replace_unsynced;
 
