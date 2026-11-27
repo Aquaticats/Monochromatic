@@ -2,7 +2,8 @@
 //! including every way the plan must fail closed.
 
 use super::*;
-/// The same plan, worked out with every wait on the runtime.
+/// The same plan,
+/// worked out with every wait on the runtime.
 use crate::lfs_upload_plan_awaiting::plan_upload_awaiting;
 use crate::test_support::{
     REAL_GIT,

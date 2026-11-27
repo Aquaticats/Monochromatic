@@ -65,7 +65,8 @@ use crate::lfs_upload_plan::{
     read_settings,
     read_settings_awaiting,
 };
-/// The same plan, worked out with every wait on the runtime.
+/// The same plan,
+/// worked out with every wait on the runtime.
 use crate::lfs_upload_plan_awaiting::plan_upload_awaiting;
 use crate::repo_read_layout::read_layout_after_success;
 /// Owned OS strings for Git arguments.

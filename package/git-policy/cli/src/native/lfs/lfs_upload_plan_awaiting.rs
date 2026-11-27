@@ -44,7 +44,8 @@ use crate::lfs_upload_plan_arguments::{
 use crate::lfs_upload_plan_destination::lfs_server_of;
 /// What an upload sends.
 use crate::lfs_upload_plan_itself::UploadPlan;
-/// One refspec's source, and the refs and places a spec names.
+/// One refspec's source,
+/// and the refs and places a spec names.
 use crate::lfs_upload_refspecs::{
     Source,
     directory_of,

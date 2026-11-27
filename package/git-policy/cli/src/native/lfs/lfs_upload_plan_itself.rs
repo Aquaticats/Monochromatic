@@ -15,8 +15,10 @@
 //! type UploadPlan = { remotes: string[]; refs: string[]; everything: boolean; submodules: boolean; fullScan: boolean; confirmedTrackingRefs: string[]; objects?: string[]; lfsServer?: string };
 //! ```
 
-/// `OsStr` is a borrowed piece of operating-system text and `OsString` the owned one
-///  (the siblings `&str` and `String` must be UTF-8, which a refspec or a path need not be).
+/// `OsStr` is a borrowed piece of operating-system text,
+///  and `OsString` the owned one
+///  (the siblings `&str` and `String` must be UTF-8,
+///  which a refspec or a path need not be).
 use std::ffi::{
     OsStr,
     OsString,
