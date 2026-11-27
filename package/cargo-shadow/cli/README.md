@@ -602,7 +602,8 @@ byte-identical copies in each crate,
 and `tests/shadow_identity_copies.rs` is one of the copies;
 every crate's copy of that test compares its own files with `cargo-shadow`'s,
 `mpm-shadow`'s and `pnpm-shadow`'s,
-so a change to the copy in `cargo-shadow`, `mpm-shadow` or `pnpm-shadow` fails all four suites,
+so a change to the copy in `cargo-shadow`,
+`mpm-shadow` or `pnpm-shadow` fails all four suites,
 and a change to `search-shadow`'s copies alone fails `search-shadow`'s suite and no other).
 The lookup skips a candidate that carries it,
 or a launcher whose record leads to one,
@@ -947,7 +948,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   0.916 to 1.271)
   in the table of the troubleshooting file overlap,
   with the control's whole range inside the arm's,
-  so the gap between those two medians (0.119) is smaller than the control's own range, 0.355 wide.
+  so the gap between those two medians (0.119) is smaller than the control's own range,
+  0.355 wide.
   That is the resolution of those four arms and six rounds,
   and what leaves alpha.14 indistinguishable from alpha.11 there;
   a null result at that resolution is no promise that the two cost the same.
@@ -1230,8 +1232,12 @@ and an HTTP 429 is retried after its `Retry-After`.
   removes the journal,
   and goes on to its own work.
   Measured 2026-11-27 at a refusal staged on a test build:
-  `cargo check`, `cargo metadata`, `cargo update`, `cargo-shadow install`,
-  `cargo-shadow update`, `install --dry-run` and `update --dry-run` settle it
+  `cargo check`,
+  `cargo metadata`,
+  `cargo update`,
+  `cargo-shadow install`,
+  `cargo-shadow update`,
+  `install --dry-run` and `update --dry-run` settle it
   (`refusal_journal_next_runs_tests`).
   The journal belongs to the catalog repository's root and not to the crate the refused run was made in,
   so any of those runs anywhere in the repository settles it.
@@ -1239,7 +1245,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   `cargo --version`),
   a run that is frozen (`--locked`,
   `--frozen`,
-  `CI`, or `install --frozen-lockfile`),
+  `CI`,
+  or `install --frozen-lockfile`),
   a run whose lockfile and remembered policy pass are already fresh (the fast path),
   and a run outside the catalog repository
   never read that journal,
