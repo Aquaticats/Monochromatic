@@ -23,7 +23,9 @@ use std::path::{
 };
 use std::process::Command;
 
-/// Imports the retry record and the start check the shim runs on the program it found.
+/// Imports the retry record,
+/// the start check the shim runs on the program it found,
+/// and the two reasons a start does not happen.
 use mpm_shadow::{
     shim::{
         ProgramRun,
@@ -31,6 +33,7 @@ use mpm_shadow::{
     },
     start_failure::{
         StartFailure,
+        StartRefusal,
         describe_start_failure,
     },
 };
@@ -304,17 +307,21 @@ fn a_start_refused_because_the_program_is_a_shadow_says_what_was_found_and_what_
     copy_of_another_version(&other);
     let arguments: Vec<OsString> = vec![OsString::from("installed")];
 
-    let (error, retry) = match start_and_wait(&other, &arguments, 1) {
+    let (refusal, retry) = match start_and_wait(&other, &arguments, 1) {
         ProgramRun::NotStarted {
-            error,
+            refusal,
             retry,
-        } => (error, retry),
+        } => (refusal, retry),
         other_run => panic!("a start of a shadow must be refused: {other_run:?}"),
     };
+    assert!(
+        matches!(refusal, StartRefusal::Shadow { .. }),
+        "the refusal must keep its own reason, not travel as an error nothing classified: {refusal:?}"
+    );
     let text: String = describe_start_failure(&StartFailure {
         outer: &arguments,
         program: &other,
-        error: &error,
+        refusal: &refusal,
         retry,
         depth: 0,
     });

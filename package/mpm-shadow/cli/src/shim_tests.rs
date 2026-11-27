@@ -23,9 +23,12 @@ use crate::shim::{
     run_program,
     start_and_wait,
 };
-/// Imports the message for a start that did not happen and the record of the retries.
+/// Imports the message for a start that did not happen,
+/// the two reasons one does not happen,
+/// and the record of the retries.
 use crate::start_failure::{
     StartFailure,
+    StartRefusal,
     describe_start_failure,
 };
 use crate::start_retry::RetryReport;
@@ -106,7 +109,9 @@ fn a_program_that_is_gone_before_its_start_keeps_the_systems_kind_and_gets_the_m
     let (error, retry): (std::io::Error, RetryReport) =
         match start_and_wait(&missing, &arguments, 1) {
             ProgramRun::NotStarted {
-                error,
+                refusal: StartRefusal::System {
+                    error,
+                },
                 retry,
             } => (error, retry),
             other => panic!("a program that is not there starts nothing: {other:?}"),
@@ -120,7 +125,9 @@ fn a_program_that_is_gone_before_its_start_keeps_the_systems_kind_and_gets_the_m
     let text: String = describe_start_failure(&StartFailure {
         outer: &arguments,
         program: &missing,
-        error: &error,
+        refusal: &StartRefusal::System {
+            error,
+        },
         retry,
         depth: 0,
     });
@@ -133,7 +140,8 @@ fn a_program_that_is_gone_before_its_start_keeps_the_systems_kind_and_gets_the_m
 }
 
 /// A process started with an empty argument list has no argv[0];
-/// the name is then empty, the way the absent-name case already reads it,
+/// the name is then empty,
+/// the way the absent-name case already reads it,
 /// instead of an index panic at startup.
 #[test]
 fn an_empty_argument_list_yields_an_empty_invoked_name_instead_of_panicking() {
