@@ -526,8 +526,14 @@
 //!   and the line one answer that is done writes.
 //! - `service_work_run_round.rs`:
 //!   runs one round of the service's work over several directories.
+//! - `service_work_storage_step_awaited.rs`:
+//!   how one storage step of a drain runs as a job of the blocking pool,
+//!   and the words a step that got no place is refused with.
+//! - `service_work_storage_claims_awaited.rs`:
+//!   the storage steps that touch the queue's own records,
+//!   from the claim of a directory to the claims another instance let run out.
 //! - `service_work_storage_awaited.rs`:
-//!   the storage steps of one drain of work,
+//!   the storage steps of one drain that leave a push's record for the person,
 //!   each a job of the blocking pool awaited by a task.
 //! - `service_work_drains_a_snapshot_ahead.rs`:
 //!   the drain of the snapshots the commit service makes ahead of the next add,
@@ -1117,7 +1123,15 @@ pub mod service_work_settling_with_words;
 /// as one step of a round.
 pub mod service_work_drains_a_snapshot_ahead;
 
-/// The storage steps of one drain of work,
+/// How one storage step of a drain runs as a job of the blocking pool,
+/// and the words a step that got no place is refused with.
+pub mod service_work_storage_step_awaited;
+
+/// The storage steps that touch the queue's own records,
+/// from the claim of a directory to the claims another instance let run out.
+pub mod service_work_storage_claims_awaited;
+
+/// The storage steps of one drain that leave a push's record for the person,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
 
