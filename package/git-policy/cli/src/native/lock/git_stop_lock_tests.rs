@@ -22,25 +22,23 @@ use crate::bounded_push::{
     STOPPED_EXIT_CODE,
     run_bounded_push,
 };
-use crate::child_watch::{
-    WatchTerms,
-    output_watched,
-};
+use crate::child_watch::WatchTerms;
+use crate::child_watch_one_shot_run::output_watched;
 use crate::process_tree::TreeMember;
 use crate::push_limit_held_for_an_ordering::{
     LimitHeldForAnOrdering,
     LimitHoldGuard,
     hold_limit_for_an_ordering,
 };
+use crate::stale_ref_lock_names::{
+    LOCK_SUFFIX,
+    PID_LOCK_SUFFIX,
+};
 use crate::stop_waits_while_a_member_cannot_be_interrupted::{
     ControlRules,
     RulesGuard,
     STOP_CEILING,
     rules_for_this_thread,
-};
-use crate::stopped_git_locks::{
-    LOCK_SUFFIX,
-    PID_LOCK_SUFFIX,
 };
 use crate::test_support::{
     fixture,

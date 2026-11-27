@@ -20,53 +20,8 @@
 use crate::push_held_back_by_a_blocked_commit::{
     Held,
     Stopped,
+    named_reason,
 };
-
-/// What:
-///  The reason a verdict with no words of its own is named with.
-/// Why:
-///   A record an older release wrote holds the word `blocked` alone,
-/// and the line must still say why the commit is
-///  not published.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const UNRECORDED = 'its post-commit check blocked the automatic backup';
-/// ```
-pub const UNRECORDED_REASON: &str = "its post-commit check blocked the automatic backup";
-
-/// What:
-///  The sentence a commit whose own post-commit check has not decided is named with.
-/// Why:
-///   The commit is not refused and nothing found it wanting:
-/// the answer that may keep it local has simply not
-///  been written yet,
-/// and a line that borrowed the refusal's sentence would claim a check had blocked it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const UNDECIDED = 'its post-commit check has not decided whether it may be published';
-/// ```
-pub const UNDECIDED_REASON: &str =
-    "its post-commit check has not decided whether it may be published";
-
-/// What:
-///  The words a person is given for one verdict.
-/// Why:
-///   A record with no words of its own is still a refusal,
-/// and an empty clause would read as no reason at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namedReason = (reason) => reason.trim() === '' ? UNRECORDED_REASON : reason.trim();
-/// ```
-pub fn named_reason(reason: &str) -> String {
-    let named: &str = reason.trim();
-    return match named.is_empty() {
-        true => String::from(UNRECORDED_REASON),
-        false => named.to_owned(),
-    };
-}
 
 /// What:
 ///  The words of one held verdict,

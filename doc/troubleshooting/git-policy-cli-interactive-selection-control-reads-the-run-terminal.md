@@ -148,7 +148,7 @@ Every other Git start a control makes gives its Git an input that is not the run
   measured with a terminal on the run's standard input it answered `ok. 1 passed; 0 failed` in 1.63 s,
   against `ok. 1 passed; 0 failed` in 1.72 s with the null device;
 - the fixture helpers run real Git through `.output()`, which gives it the null device
-  (`testing/fixture_git_commands.rs`, `command/command_test_support.rs`),
+  (`testing/fixture_git_commands_with_no_account_setting.rs`, `command/command_test_support.rs`),
   or through `real_git_within`, which gives it the null device when the caller passes no input;
 - the binary controls pipe the case's own bytes into the wrapper and close the pipe
   (`binary/binary_support_observation.rs`),

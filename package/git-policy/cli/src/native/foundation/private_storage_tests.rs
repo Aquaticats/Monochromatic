@@ -2,6 +2,7 @@
 //!  each in its own disposable directory.
 
 use super::*;
+use crate::a_record_made_durable_with_a_sync::flush_file_when_faithful;
 use crate::file_size_limit_child_test_support::{
     LIMITED_DIRECTORY_VARIABLE,
     run_child_under_file_size_limit,

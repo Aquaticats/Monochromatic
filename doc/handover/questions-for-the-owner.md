@@ -90,7 +90,7 @@ and whether a client-side upload check is wanted at all,
 since no refused push of this boot referenced an LFS object.
 
 
-## Open: five choices the rounds of 2026-11-27 left, recorded 2026-11-27T05:47:00-05:00
+## Open: five choices the rounds of 2026-11-27 left, recorded 2026-11-27T05:47:00-05:00 and revised 2026-11-27T06:24:00-05:00
 
 Each comes from one round's report,
 restated here because the reports are scratch and expire.
@@ -166,7 +166,7 @@ Ranking:
 1 beats 2 because a returned answer is more local than a flag another file has to take.
 `foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
-### Whether a landing may skip reading a path the index already proves (issue 6566)
+### What a landing writes for a path it has not read (issue 6566)
 
 A landing records a path's stat data only when the file provably holds the bytes the commit stores,
 and the proof reads and hashes the file.
@@ -174,17 +174,61 @@ For a change list of 4,097 paths that was 33.5 s and 34.9 s through the service,
 against native Git's 0.595 s and 0.607 s for the same change,
 measured once on 2026-11-27 on a loaded host
 (`doc/troubleshooting/git-policy-cli-landing-index-reset-reads-every-changed-path.md`).
-The cheaper form:
-where the live index's blob for a path equals the commit's and the file's `lstat` still matches the index's stat data,
-keep that stat data and do not read the file,
-which is the comparison native Git makes.
-It changes the stat data the installed index carries,
-which the differential controls compare with Git's own `reset` byte for byte,
-and an entry whose stat data the file no longer matches hides a person's edit from the next commit.
-No options are ranked yet:
-a proposal round would write them,
-as for issues 6555,
-6557 and 6559.
+A proposal round wrote the options (`5bf07aef72`,
+`doc/planning/cli-git-landing-index-reset-reads-every-changed-path.md`),
+with Git's own behaviour cited from its source at `v2.56.1`.
+It found the form the issue named changes nothing:
+the entries it would spare are the ones the reset already leaves alone,
+and a staged change list already costs no read.
+The shapes that do read are `git commit -a`,
+an amend,
+a merge,
+a rebase,
+an import,
+and every commit past `MAX_CHANGES` that real Git builds.
+
+- A:
+  today's proof,
+  one read and one hash for every path the reset writes.
+- B:
+  keep the live index's stat data where the blob already matches,
+  the form the issue named.
+- C:
+  carry the stat data of the index the commit was staged through.
+  A landing costs one `lstat` a path and the next command finds the entries clean;
+  it needs a field on the wire and in the journal.
+- D:
+  write the zero value,
+  as `git reset --no-refresh` does,
+  and let the person's next command pay the hash.
+- E:
+  write the zero value,
+  then refresh through Git after the lock is released,
+  which adds a second writer of the live index.
+- F:
+  a flag that picks between the proof and the zero value for one commit.
+
+Ranking,
+the round's:
+C > D > E > A > F > B.
+C beats D because both hold a landing to one `lstat` a path and only C leaves entries the next command finds clean.
+D beats E because E buys the same speed with a writer that races what the person stages next.
+E beats A because E hashes outside the index lock,
+so another client's commit is not held behind a vendor drop.
+A beats F because F is A plus a switch only a person who knows it gains from.
+F beats B because B changes nothing for anyone.
+
+The proposal's own questions,
+which the choice rests on:
+which measurement is the cost to beat (the record's 30 s,
+or the round's 3.06 s and 7.00 s);
+whether the landing may take stat data from the staging index (without that,
+C cannot be built);
+whether the zero value is acceptable for a path the landing cannot prove;
+whether any of it is a flag;
+which entries' stat data the differential controls must pin;
+and whether `SPEC.md` gains the fifth condition the source has and it lacks
+(the file's change time carries nanoseconds).
 
 ### Two bounds no round may size (issue 6556)
 
@@ -220,6 +264,104 @@ and a false reading if the probe catches the release code's own non-blocking ope
 The coordinator's ranking:
 leave it > probe,
 because the gate's verdict is unchanged and a false failure costs more than a slow one.
+
+
+## Open: does the crate split's step 4 run now? (recorded 2026-11-27T06:40:00-05:00)
+
+The plan's rounds 1 to 3 are done or nearly done
+(`doc/planning/cli-git-source-layout-target-tree.md`,
+"Next"):
+the single-item moves merged on 2026-11-26,
+the splits and the loop breaks on 2026-11-27,
+and the allow list `layout-allow-list/file-rule.txt` went from 544 lines to 52.
+What is left of round 3 is one loop of twelve files in `worktree/`,
+with a round running,
+and three lines in `foundation/`,
+which wait for the choice recorded under "five choices the rounds of 2026-11-27 left".
+
+Round 4 is the plan's five call changes,
+each a changed signature in release code:
+finished results (`subvolume_command` and `doctor` stop building `Action` themselves),
+system settings path (`repo_read_config_scan` stops calling `git_system_config::system_config_for`),
+after-stop action (the watcher's callers stop passing a `LockLedger`),
+current step record (`transaction_git` stops entering its step through `service_busy_step_record_on_this_thread`),
+and run this next (`stacked_merge_push` stops planning a whole invocation in process).
+On `main` today each call site the plan names is still there:
+`plan_invocation` in `push/stacked_merge_push.rs`,
+`LockLedger` in six files of `push/`,
+`service_busy_step_record_on_this_thread` in `transaction/`,
+`service/` and `push/`,
+and `system_config_for` in two files of `repo_read/`.
+
+The coordinator did not start it.
+The plan calls itself a draft for the owner's review,
+the only recorded answer about the split is when to cut the crate
+("Window after live rounds (Recommended)",
+`doc/planning/cli-git-source-layout.md`),
+and the loop-break rounds were told to leave any loop that needed a changed signature,
+which is what round 4 is made of.
+An earlier entry of this file says rounds 1 to 6 need none of the owner's open points;
+that is the coordinator's reading of which points hold which round,
+not an acceptance of the changes.
+
+- Run round 4 now,
+  one round per call change.
+  Three of the five meet work in flight
+  (the push split cuts `child_watch_one_shot_run.rs`,
+  issue 6573 changes the control that reads `repo_read/git_system_config.rs`,
+  and the choice of issue 6529 edits `merge_second_pass_finish.rs`),
+  so those three start after that work merges.
+- Read the five signatures first
+  (the plan's "The call changes,
+  as signatures")
+  and accept or change each.
+- Leave round 4 and go to what needs no changed signature.
+
+Ranking,
+the coordinator's:
+read first > run now > leave.
+Read first beats run now because five signatures are five design choices nobody but a draft has stated.
+Run now beats leave because rounds 5 to 7 build on these changes,
+and the files over the budget in `invocation/` and `health/` wait for round 7's move.
+
+## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
+
+Each is merged.
+None needed an answer to proceed,
+and each can be undone by one round.
+
+- `process/`'s file list puts `open_file_of_a_descriptor_in_a_child` before `open_file_of_a_descriptor`
+  (`356c39c4d7`),
+  because `opened_file_of` calls into the child for an overlay mount.
+  The target table lists them the other way;
+  taking the overlay branch out of `opened_file_of` would put them back,
+  and that is a call change.
+- `lock/`'s loop of `index_lock_evidence` and `index_lock_evidence_words` closed by deleting a re-export and re-pointing callers,
+  not by moving the evidence types into the file of sentences as the plan said
+  (`356c39c4d7`).
+  The other form renames that file for the types and the sentences together and touches many callers.
+- In `push/` (`d356c58a03`):
+  `push_once`,
+  the plain-thread face nothing in the release calls,
+  moved into `auto_push_awaiting.rs`,
+  where the alternative moves that file's seventeen borrowed items into a file of their own;
+  `STOP_GRACE` moved into `push_deadline_and_patience_settings.rs`;
+  and the batch query for a push's range sits in `manual_push_update_and_query_limits.rs`.
+- The control for issue 6564 (`a1119838ca`) both asserts either order of the two printed lines
+  and holds the answer away so that the place line is said at all.
+  With the assertion alone the control could pass with no place line.
+- The `source_guard` ban on a control that writes a fixture Git inside the run
+  still reads one test file (`invocation/git_version_cache_tests.rs`).
+  Issue 6540's round found two more files that do it and held neither to the ban,
+  as a change for the owner to approve.
+- The window of the control for issue 6546 is still a wall clock,
+  sized over the whole run (`eeeee1f44e`).
+  A bound the load does not move needs a reader of one child's own process tree,
+  which the binary test target does not include.
+- The linter's alpha.18 refuses a `uses` line with spacing before its arrow and stops the whole folder rule,
+  where spacing after the arrow is only a dead entry.
+  The fix round for the alpha.18 pass was told to make the two sides one rule,
+  and to prefer a finding on the line over a refusal of the list unless the reader cannot recover.
 
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 

@@ -8001,6 +8001,80 @@ in order:
     one commit per loop of the list above,
     folder by folder from the bottom,
     with the allow-list lines deleted as each use goes.
+    Note of 2026-11-27T06:20-05:00,
+    from the `lock` and `process` round of that branch
+    (`refactor/git-policy-cli-break-wrapper-file-loops-in-lock-and-process`):
+    the five loops of those two folders are closed,
+    one commit each,
+    and the 22 `file-uses` lines they held are deleted,
+    so `src/native/lock` and `src/native/process` have none left.
+    Two of the moves above no longer fitted today's tree and were replaced:
+    the loop of 6 in `lock` also had to take `Proof` (which `Verdict` names)
+    and `pid_named_by`'s two reads
+    (`pid_named_in`,
+    `pid_file_contents`),
+    and the loop of 2 of `index_lock_evidence` and `index_lock_evidence_words` closed
+    by deleting the evidence's re-export of the ten sentences
+    and re-pointing its callers,
+    not by moving the evidence types into a file of sentences.
+    The `process` list now puts `open_file_of_a_descriptor_in_a_child` before
+    `open_file_of_a_descriptor`,
+    because `opened_file_of` calls into the child for an overlay mount;
+    the file rows of `cli-git-source-layout-target-tree-files.md` list them the other way,
+    and the call change of item 4 below is what could put them back.
+    Note of 2026-11-27T06:42:00-05:00,
+    by the coordinating session,
+    from the reports of the rounds that ran this item folder by folder:
+    every folder's loops are closed and merged except one loop of twelve files in `worktree/`
+    (the removal and remove files,
+    27 `file-uses` lines,
+    a round running)
+    and one of three files in `foundation/`
+    (`diagnostic_lines_off_the_calling_thread.rs`,
+    `diagnostic_log.rs` and `lines_written_by_a_thread.rs`,
+    three lines),
+    which no move of items closes and which waits for the owner
+    (`doc/handover/questions-for-the-owner.md`).
+    `layout-allow-list/file-rule.txt` went from 544 lines to 52.
+    The merges,
+    each holding one commit per loop whose message says the move it took:
+    `c8d6bf6caa` (`lfs`,
+    `policy`),
+    `7eabfd87ac` (two clone folders,
+    `zfs_mounted_dataset`),
+    `e6ac770707` (the relay,
+    `kept_references`),
+    `817cc3bb4c` (`command`,
+    `conflict`,
+    `dependent_version`),
+    `a1cbc2bab8` (`service`,
+    `shadow`,
+    `start_probe`,
+    `transaction`),
+    `bf4e28daef` (`repair`,
+    `repo_read`),
+    `f29067e047` (`foundation`,
+    one of its two loops),
+    `f8bea718b2` (`worktree`,
+    two of its three),
+    `e4fc64adff` (`merge`),
+    `356c39c4d7` (`lock`,
+    `process`),
+    `8bdc3f66d4` (`commit`),
+    `d356c58a03` (`push`),
+    `1c1d4dc611` (`worktree_copying`)
+    and `9e46b96ef0` (`landing`).
+    The section "Loops between files,
+    and how each is broken (2026-11-26)" is therefore history for those folders:
+    most of the breaks it names no longer fitted,
+    because the splits of round 2 had moved the items each side names into sibling files
+    and left re-exports that kept the loops,
+    so the rounds re-pointed readers at the file that holds an item,
+    or gave what both sides name a new file at the bottom of the folder.
+    "Where each step stands today (2026-11-26)" is stale for step 3 in the same way.
+    Round 4 has not started:
+    its five changes are changed signatures,
+    and the question whether it runs is the owner's (the same questions file).
 4.  `refactor/git-policy-cli-split-call-changes`:
     step 4's five call changes,
     one commit each:

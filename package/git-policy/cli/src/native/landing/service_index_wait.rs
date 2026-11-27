@@ -25,15 +25,15 @@
 //! const outcome = await waitForServiceHold({ realIndex, command: 'add', cadence, stderr });
 //! ```
 
+use crate::service_index_identity::{
+    holder_is_running,
+    mark_names_a_gone_holder,
+    marker_of,
+};
 use crate::service_index_lock::{
     LOCK_MARKER,
     Watch,
     lock_path_of,
-};
-use crate::service_index_marker::{
-    holder_is_running,
-    mark_names_a_gone_holder,
-    marker_of,
 };
 use crate::service_index_watch::POLL_PAUSE;
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;

@@ -257,6 +257,22 @@ The binary test target's own helper names its folders the same way
 `binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
 
+A fixture is removed through `test_support::remove`,
+which waits `REMOVAL_TRIES` pauses of `REMOVAL_PAUSE` while the tree still gains entries
+and,
+when the tries run out,
+fails with every name the fixture still holds,
+each with what it is.
+A landing does not write on its own thread alone:
+`land_group` starts the shadow pool's fill,
+the scratch sweep and a shadow drawn ahead on threads of their own,
+and the blocking pool makes the markers the next batches' locks are made from,
+each of them after the landing has answered.
+Measured 2026-11-27 (issue 6568):
+the draw made `monochromatic-git-policy-cli-shadow-drawn/main/drawn-<uuid>` inside a control's fixture `.git`
+5 ms after the landing returned,
+and a teardown that met it mid-write failed with `DirectoryNotEmpty` beside no entry at all,
+so the round that met it could not name the writer.
 A folder that has to be short,
 because a socket's path must fit one socket address,
 comes from `runtime_directory_folders.rs`'s `runtime_directory_parent`:
@@ -286,6 +302,21 @@ A child must not keep the test's standard output or error open after the test:
 close or redirect the streams it does not need.
 `lfs::lfs_upload`'s `git-lfs` stand-in, which writes its process number and `exec`s `/usr/bin/sleep {HOLD_SECONDS}`,
 is the shape that leaked.
+A helper whose state a control reads is one the control ends,
+never one that ends by itself:
+`identity_of_process` and `process_birth_identity` answer nothing for a process that has exited,
+so a control that reads one passes or fails by how fast this host woke its thread.
+Such a helper waits for its own end:
+`sleep` with a hold the control states,
+or `cat` on a pipe the control holds,
+and the control kills it before it asserts on what a gone number means.
+On 2026-11-27 the record sweep control read the identity of `talk`,
+which printed its usage and exited at once,
+so the read lost that race whenever the host was slow (issue 6574).
+Every other helper a control of this crate expects to be alive
+is a `sleep` with its own argument,
+a `cat` or `tee` on a pipe the control holds,
+or a shell running a script that waits.
 A child a shipped call starts itself is still the test's to end:
 a control of the relay's end rule starts the child with `process_group(0)`,
 has that child write down the number of the group it leads,
@@ -365,7 +396,7 @@ Measured on 2026-11-27 at this host's load average of 86.0 to 142.5:
 over 15398 hand-overs of one query's standard output in one threaded module run,
 the median came 0.003 ms after the pipe's end and the worst 110.4 ms,
 which the window cleared by 2.3 times.
-The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_commands.rs`:
+The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_pipes_read_beside_the_query.rs`:
 the kernel reports a pipe's end the instant its last writing end closes and keeps that news until it is read),
 and the reader's hand-over of the bytes is bounded by `REPORTING_THE_END`,
 sixty seconds,
@@ -546,3 +577,18 @@ its guest arms where its brief asks for them,
 and the controls its brief asks for,
 red and green,
 and says in its report which checks ran and which did not.
+
+A round that writes or moves a line behind the controls' test-only switches runs
+`mise run //package/git-policy/cli:native:clippy:test-only-switches`
+(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`)
+as well as the plain `mise run //package/git-policy/cli:native:clippy`
+(`cargo clippy --locked --offline --all-targets -- -D warnings`),
+because the gate's Clippy step and every plain run compile without a feature
+(`bin/test-native-container.ts`),
+so nothing else lints a line only that build has.
+A line behind the fence's measurement routes takes
+`mise run //package/git-policy/cli:native:clippy:measurement` the same way.
+On 2026-11-27 the switch task failed alone on an unused re-export in `foundation/lazy_runtime.rs`,
+whose only namer,
+`testing/no_switch_is_read_without_its_feature_tests`,
+is compiled out where the feature is on (issue 6570).

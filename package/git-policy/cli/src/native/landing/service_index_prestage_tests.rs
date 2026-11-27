@@ -35,11 +35,11 @@
 
 use super::*;
 use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
+use crate::service_index_identity::own_identity;
 use crate::service_index_lock::{
     acquire_noting_wait,
     marker_text,
 };
-use crate::service_index_marker::own_identity;
 use crate::service_index_placement::sync_file;
 use crate::test_support::{
     fixture,
@@ -681,7 +681,7 @@ fn the_marker_made_ahead_names_this_process_and_the_batch() {
             until_staged(&index);
             let name: String = leftovers(&index).remove(0);
             let scope: &str =
-                crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+                crate::service_index_identity::current_pid_scope().expect("a PID namespace");
             assert!(
                 name.contains(
                     format!(

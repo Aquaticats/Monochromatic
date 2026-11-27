@@ -1465,13 +1465,13 @@ fn trace_after(
 
 /// The notice that names a holder proven alive.
 fn proven_notice() -> ServiceMessage {
-    let end: git_policy_cli::index_lock_evidence::WaitEnd<'_> =
-        git_policy_cli::index_lock_evidence::WaitEnd {
+    let end: git_policy_cli::index_lock_evidence_words::WaitEnd<'_> =
+        git_policy_cli::index_lock_evidence_words::WaitEnd {
             within: git_policy_cli::wait_ceilings::LANDING_LOCK_CEILING,
             ending: git_policy_cli::service_index_attempts::COMMIT_WITHDRAWN,
         };
     return ServiceMessage::Waiting {
-        text: git_policy_cli::index_lock_evidence::proven_holder_line(
+        text: git_policy_cli::index_lock_evidence_words::proven_holder_line(
             4242,
             true,
             Some("git commit"),
@@ -1783,13 +1783,13 @@ fn a_holder_proven_alive_stays_proven_when_a_later_notice_names_no_proof() {
 /// the proof counts when it comes.
 #[test]
 fn an_unproven_wait_that_a_later_notice_proves_is_recorded_as_proven() {
-    let end: git_policy_cli::index_lock_evidence::WaitEnd<'_> =
-        git_policy_cli::index_lock_evidence::WaitEnd {
+    let end: git_policy_cli::index_lock_evidence_words::WaitEnd<'_> =
+        git_policy_cli::index_lock_evidence_words::WaitEnd {
             within: git_policy_cli::wait_ceilings::LANDING_LOCK_CEILING,
             ending: git_policy_cli::service_index_attempts::COMMIT_WITHDRAWN,
         };
     let unproven: ServiceMessage = ServiceMessage::Waiting {
-        text: git_policy_cli::index_lock_evidence::unproven_wait_line(
+        text: git_policy_cli::index_lock_evidence_words::unproven_wait_line(
             Path::new("/r/.git/index.lock"),
             None,
             end,

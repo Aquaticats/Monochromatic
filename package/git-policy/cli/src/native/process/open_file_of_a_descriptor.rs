@@ -46,14 +46,9 @@ use std::path::{
     PathBuf,
 };
 
-/// The device number and the inode number of a file a descriptor holds open.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct OpenedFile {
-    /// The device number of the file system that holds the file (`st_dev`).
-    pub device: u64,
-    /// The inode number of the file on that device.
-    pub inode: u64,
-}
+/// The device number and the inode number of a file a descriptor holds open,
+/// re-exported so a caller of this module names the answer here.
+pub use crate::the_file_a_descriptor_holds_open::OpenedFile;
 
 /// The file systems whose attributes a `statx` answers from the memory of the kernel:
 /// disks and memory of this machine,

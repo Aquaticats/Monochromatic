@@ -23,6 +23,11 @@ use crate::process_use::UseScan;
 /// What the pid file beside the lock says,
 /// which a staging file never has.
 use crate::stale_ref_lock_found::PidFile;
+/// What a judgement concluded and why a lock may be removed.
+use crate::stale_ref_lock_found::{
+    Proof,
+    Verdict,
+};
 /// The file's identity,
 /// and the reader that takes it.
 use crate::stale_ref_lock_identity::{
@@ -31,12 +36,10 @@ use crate::stale_ref_lock_identity::{
 };
 /// The judge,
 /// what one judgement found,
-/// its verdicts and the results it is built from.
+/// and the results it is built from.
 use crate::stale_ref_lock_judge::{
     Examined,
     Judge,
-    Proof,
-    Verdict,
     verdict_with,
 };
 /// The later of the two times a file carries.
