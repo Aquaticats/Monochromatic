@@ -794,6 +794,16 @@ fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
         !said.contains("can still write") && !said.contains("can write nothing"),
         "the refusal says what the members it never read can do: {said}"
     );
+    // The listing checks that the directory is absent and not that this process still sees the parent the scope was
+    // planned in, so the clause may not claim that no member is left to stop.
+    assert!(
+        said.contains("so the absence is not shown to be the manager's"),
+        "the refusal does not say that the absence it read was not verified: {said}"
+    );
+    assert!(
+        !said.contains("so no member of it is left to stop"),
+        "the refusal claims no member is left on an absence it did not verify: {said}"
+    );
     assert!(
         said.contains("the journal of this run was kept"),
         "the refusal does not say what became of the journal of this run: {said}"

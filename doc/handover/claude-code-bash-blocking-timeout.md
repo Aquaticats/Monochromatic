@@ -85,6 +85,14 @@ and successfully returned `startupWired` from its Bash command.
   re-probe the sleep rule after each Claude Code upgrade as
   `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md` describes,
   and the owner's veto or acceptance of the disabled-background exception.
+  Proposed and unanswered (asked 2026-11-27T13:20 -05:00 in the question tool, which returned nothing in an hour):
+  an `AGENTS.md` rule `WNB` under "Command execution conventions",
+  "Main-session Bash and REPL commands move to the background after about 2 s;
+  read a moved command's output only after its task notification arrives,
+  never earlier from its output file",
+  then `file-enforcer write` for `CLAUDE.md`.
+  The code is unused in `AGENTS.md`,
+  skills and both forbidden-strings lists.
   `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the evidence.
 
 ## Next step

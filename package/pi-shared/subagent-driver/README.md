@@ -671,6 +671,93 @@ A worktree something of the run still works in is kept too:
 a removal would take the folder of a build or a reproduction the run left working,
 and a wake would have nothing to return to.
 
+### The scratch folder of a finished run
+
+Every brief names its run one scratch folder,
+`${HOME}/temp/agent/<the run's name>-scratch`,
+and everything the run writes outside its worktree goes there
+(`doc/rules-every-pi-brief-carries.md`).
+The owner's word for the end of a run is
+"At run end,
+all but keep/ ."
+(`doc/decision/owner-instructions-of-2026-11-13-after-the-restart-the-cap-of-four-and-the-scratch-rules.md`),
+and the launcher does it in `clearScratchFolderOfARun` (`src/scratch-folder-of-a-run.ts`).
+
+The launcher clears it,
+and not `remove-finished-worktrees`:
+the launcher is the process that started the run,
+and it is still there when the run's unit ends,
+so the folder goes at the run's end rather than at the next sweep a coordinator runs by hand.
+A run no sweep ever reached is what left 346 folders under `~/temp/agent` (issue 6618),
+and the daily expiry of `~/temp` took each folder's `keep/` with the rest.
+The readings that command makes about a run's own work are made here too,
+so a folder some process still works in is left whole by this step,
+exactly as the worktree of such a run is left by that command.
+
+What is removed,
+and what stays:
+
+- Everything the run left beside `keep/` goes once these hold:
+  the unit has ended,
+  the run was not resumed,
+  none of the run's own work still runs,
+  no process works in the folder,
+  and no newer run of the same name has taken a run folder since this one ended.
+  A resumed run and a fix run each take a folder number of their own,
+  so the newest folder of the name says whether the scratch folder is still this run's.
+- `keep/` stays exactly as it is,
+  with everything in it,
+  nested folders included.
+  That is where a run puts its report,
+  its logs,
+  and the measurements a reader needs,
+  so a resumed run finds them,
+  and so does a reader while the folder is still there.
+- An entry whose name merely starts with `keep` goes:
+  only the entry named exactly `keep` is kept.
+- The folder itself goes when it holds no `keep/`,
+  so a run that left nothing worth keeping leaves no folder behind at all.
+- A scratch folder that is a symbolic link is kept and never followed,
+  and a symbolic link inside the folder is removed as the link it is:
+  what it named is not touched.
+  That holds while nothing swaps the entry in the moment between the reading and the removal,
+  which is the same limit the folder a run's Pi writes into states:
+  Node has no call that removes an entry relative to an open folder.
+- A path under the folder's name that is not a folder is kept,
+  because what it names is not this run's to remove.
+- A home directory that is not an absolute path,
+  a run name holding a path separator,
+  or the empty run name refuses the step before anything is read or deleted,
+  and the line it prints says which of them it was.
+
+Every other answer leaves the folder whole,
+or says exactly which entries stayed,
+and prints why:
+the launcher's wait for the unit gave up while the unit may still run,
+the run's own work still runs,
+a process still works in the folder,
+a newer run of the same name has started since this one ended,
+the path is a link or is not a folder,
+or the folder could not be read at all,
+naming what the operating system answered.
+An entry the operating system refuses to remove is reported as it is:
+the line says the folder is cleared only in part,
+how many entries went,
+and what was answered for those that stayed.
+None of them fails the launch:
+the run ended the way its unit ended.
+A run that is resumed is the one case where the folder is not cleared,
+and only because the launcher of the resumed run clears it when that launch ends.
+
+A launcher killed before its unit ends clears nothing,
+so that run's scratch folder stays whole until `~/temp` expires it,
+a day after its last write.
+A run started without this launcher,
+such as one started by hand with `drive-pi-subagent`,
+clears nothing either:
+the removal is the launcher's step,
+and no coordinator sweep reaches a folder the launcher never saw.
+
 ### `retry-pi-run-start-until-a-pool-has-room`
 
 `--deadline-seconds` and `--period-seconds`,
@@ -1011,6 +1098,10 @@ the worktree of a run that had ended idle while a build or a reproduction that r
 so the wake had nothing to return to.
 Nothing is ever removed by force,
 and every branch is kept.
+
+A run's scratch folder is not this command's to remove:
+the launcher clears it when the run ends,
+as the section "The scratch folder of a finished run" says.
 
 ## Reading what is going on
 

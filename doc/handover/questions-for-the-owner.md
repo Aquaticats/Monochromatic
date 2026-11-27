@@ -1183,6 +1183,10 @@ The control that stops a split from widening an item's reach
 did not see a function written `pub async fn`:
 154 of them are nameable from outside the crate with no line in its list,
 by the read's count.
+(The round has since merged as `b929e8c39b`:
+the list holds 12,395 entries,
+12,295 of them names that were already nameable at `0.6.1-alpha.47` and that nobody has reviewed,
+fields and methods among them.)
 The round `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`
 makes the control see them and gives each a line,
 and narrows only an item a split widened.
@@ -1204,6 +1208,86 @@ Ranking:
 A > B,
 because a narrower reach lets the compiler find dead code that a `pub` hides,
 and the control already keeps the surface from growing either way.
+
+## Picks and open points of the rounds that ended between 14:08 and 14:15 on 2026-11-27 (recorded 2026-11-27T14:24:29-05:00)
+
+None holds a round or a release.
+
+### `cargo-shadow`: an unreadable `populated` line no longer counts as a collected scope (pick, veto open)
+
+The read of `0.1.5-alpha.14` asked for a comment or a check where the retire gate reads a group's `populated` line.
+The round found a real input:
+the kernel makes a group's directory before its control files,
+so a read in that window answers "No such file" for a group that is there
+(`kernel/cgroup/cgroup.c` at `v6.1`,
+quoted in the round's commit;
+read,
+not observed).
+Alpha.14 read that as the manager having collected the scope and said nothing while the unit stayed loaded.
+The round's pick,
+merged as `3bf99cd706`:
+the run says what it could not read and keeps the unit.
+No exit status changes.
+The other way is one guard to revert,
+which puts alpha.14's silence back.
+
+### The driver: who makes a run's scratch folder, and who clears one a launcher never reached
+
+Issue 6618 is merged (`a40a99467c`):
+the launcher clears a finished run's scratch folder beside `keep/`.
+Two points of the record's sentence it left,
+each a choice:
+
+- The launcher does not make the folder;
+  the brief tells the round to.
+  A,
+  leave it:
+  nothing more to build,
+  and a round that never makes one costs nothing.
+  B,
+  the launcher makes it and names it to the round in its prompt:
+  the record's sentence becomes true as written,
+  and a round cannot choose another place.
+  Ranking:
+  B > A,
+  because a folder the launcher made is one it can always find and clear,
+  where a round that writes somewhere else leaves a folder nothing clears.
+- A launcher killed before its unit ends,
+  and a run started by hand,
+  clear nothing;
+  those folders stay until `~/temp` expires them.
+  A,
+  `remove-finished-worktrees` also clears such folders,
+  by the same conditions:
+  nothing is left,
+  at the price of a second owner of the same folder.
+  B,
+  leave them to the daily expiry.
+  Ranking:
+  A > B,
+  because the conditions are already one function both can call,
+  and a killed launcher is an ordinary event on this machine.
+
+### The wrapper: a slot removal behind a shell alias, typed below the top of a repository
+
+The round on shell aliases (merged `a137924570`) found that this spelling never reaches the slot rule:
+the wrapper's own rule that a command runs at the top of its repository refuses it first.
+So a slot is protected there by that rule and not by the slot refusal.
+Whether a repository can switch that rule off,
+which would leave the slot unprotected for this spelling,
+is not yet checked;
+this entry is to be finished from the wrapper's configuration before it is asked.
+
+### The linter: a byte order mark is named, not taken off (pick, veto open)
+
+The round for the `0.5.2-alpha.20` read (merged `2261d05b14`) chose that the list reader does not strip a byte order mark:
+the message names the character,
+its place and the edit that removes it.
+Its reason:
+a line no other tool reads as a `uses` line would start reading as one here,
+and a key a macro prints may hold that character as content.
+The other way is to strip one at the start of a list,
+which makes a file saved by a Windows editor read with no message.
 
 ## Picks the round that joined two `mpm-shadow` rounds made, veto open (recorded 2026-11-27T13:23:53-05:00)
 
@@ -2701,3 +2785,50 @@ Ranking:
 leave them out > widen,
 because the folders exist to hold work that is not being done,
 and the rule already reaches a package the moment it comes back.
+
+## Open: which side should a failed memory reading fall on? (recorded 2026-11-27T13:16:54-05:00)
+
+A batch of the commit service's work is sized from a host reading
+(`TheHostOfABatch::now`, `package/git-policy/cli/src/native/foundation/parallel_budget.rs`),
+and the two halves of that reading fail on opposite sides today.
+`std::thread::available_parallelism()` answering nothing is read as one thread,
+while `memory_available_now()` answering nothing is read as no memory bound at all
+(`worker_budget` takes `by_memory = usize::MAX` for it).
+It is alpha.48's answer as much as alpha.49's:
+the alpha.49 merge only moved when the reading is taken, from once a round to once a batch
+(`14e54207de`).
+Measured 2026-11-27 by the alpha.49 behaviour read (Low 1),
+and stated as it stands by a control that hands the budget the value a failed reading leaves
+(`a_host_whose_memory_could_not_be_read_bounds_no_batch` in `parallel_budget_tests.rs`).
+
+What each caller comes to with no memory figure,
+the arithmetic of `worker_budget` with `SLOW_ITEM_MEMORY` of 128 MiB and this host's 10 CPUs
+(`nproc`, measured 2026-11-28;
+a 800-percent scope answers 8 threads to `available_parallelism`,
+so the margin is one and the CPUs bound at seven):
+
+- a work directory's round of lanes sized by `service_round.rs`:
+  the items, the CPUs less the margin, and nothing else, so up to seven repositories side by side;
+- the pushes of different branches (`pushes_side_by_side`):
+  the branches, the CPUs less the margin, and no ceiling, so up to seven branches at once;
+- the slow kinds of one work directory (relink, prewarm, review, trash,
+  `slow_items_side_by_side`):
+  the items, the CPUs less the margin, and `SLOW_ITEMS_CEILING` of four, so the four bound it.
+
+- Leave it as it stands (recommended by the round, not decided):
+  a reading that failed lifts the memory bound and the batch runs as wide as the CPUs allow,
+  which is what every release so far does;
+  the cost is that a host whose memory cannot be read is asked for room nothing promised,
+  and a batch of four slow items of 128 MiB each starts on a machine that may have none,
+  which asks the kernel to kill one.
+- Treat a failed reading as no room:
+  every batch runs one item at a time until a reading answers,
+  so a machine whose reader cannot start slows the service down and kills nothing;
+  the cost is that this is a new limit on how wide a batch runs,
+  which is the owner's to choose, and that a transient failure serialises the round.
+
+Ranking:
+leave it as it stands > treat it as no room,
+because the reading is the published `sysinfo` crate's `System::new()`,
+whose failure this round found no record of,
+so the tight side would hold every batch to one item at a time for an event no record shows happening.

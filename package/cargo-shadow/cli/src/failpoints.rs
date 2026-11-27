@@ -593,3 +593,19 @@ pub(crate) fn arm_listing_clock_after_checks(checks: usize) {
 pub(crate) fn take_listing_clock() -> Option<usize> {
     return LISTING_CLOCK_CHECKS.with(Cell::take);
 }
+
+/// What:
+/// `#[path = "failpoints_retire_reads.rs"] pub(crate) mod retire_reads;` declares the switches of the last look at a run's
+/// scope from the file beside this one,
+/// which the `#[path]` names because a module declared here would otherwise be looked for in `src/failpoints/`.
+/// Why:
+/// This file has no code line left (`rust/max-lines`,
+/// 300),
+/// and those three switches are the look's own reads rather than another step's one-shot failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // retire-reads.failpoints.ts, imported by the module that declares this one
+/// ```
+#[path = "failpoints_retire_reads.rs"]
+pub(crate) mod retire_reads;

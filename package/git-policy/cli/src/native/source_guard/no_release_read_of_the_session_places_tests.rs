@@ -40,23 +40,15 @@ const THE_PLACES: &[&str] = &["XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"];
 /// and a build made for tests reads from what a control handed in.
 const THE_ONE_PLACE: &str = "foundation/session_runtime_directory_and_bus_address.rs";
 
-/// The files that name one of the places without reading the process's environment for it,
+/// The files that name one of the places in the words a person reads alone,
 /// with why.
 /// An entry here that matches nothing is reported,
 /// so a file that moves or stops naming a place shrinks this list.
-const NAMES_A_PLACE_WITHOUT_READING_IT: &[(&str, &str)] = &[
-    (
-        "invocation/management.rs",
-        "reads the environment the caller handed in, which is the invocation's own list and not the process's",
-    ),
-    (
-        "invocation/management_service_stop_units_of_removed_worktrees.rs",
-        "reads the environment the caller handed in, and prints the setting's name in the refusal a person reads",
-    ),
-    (
-        "invocation/real_git.rs",
-        "reads the environment the caller handed in to find the unit file a session wrote, and names it in a comment",
-    ),
+///  A file lands here only when every naming line of it is a message;
+/// a file that reads a place,
+/// even from the environment its caller handed in,
+/// is in `LINES_ALLOWED_TO_NAME_A_PLACE` with the line that makes the read.
+const NAMES_A_PLACE_IN_WORDS_ONLY: &[(&str, &str)] = &[
     (
         "account_companion/companion_scratch.rs",
         "prints the setting's name in the refusals a person reads, and reads the directory through the one place",
@@ -76,6 +68,71 @@ const NAMES_A_PLACE_WITHOUT_READING_IT: &[(&str, &str)] = &[
     (
         "service/service_provision_the_links_the_units_run.rs",
         "prints the setting's name in the words a person reads when the program link cannot be written",
+    ),
+];
+
+/// What:
+///  What one line of a file does with one of the places,
+///  which is why the line may name it.
+/// Why:
+///  A read and a message are not the same act,
+///  and a file that reads a place also says its name in the refusals a person reads:
+///  an exemption that named the file would let a second read in it pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhatALineDoesWithAPlace = 'reads the environment the caller handed in' | 'only says the name';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WhatALineDoesWithAPlace {
+    /// Reads the place from the environment the entry handed in.
+    ReadsTheEnvironmentTheCallerHandedIn,
+    /// Says its name in the words a person reads,
+    /// and reads nothing.
+    OnlySaysTheName,
+}
+
+/// The lines of a file that may name one of the places outside the one place,
+/// each named by its own text without its indentation,
+/// with what it does and why that reaches no manager.
+///  A line is allowed once,
+///  so a second read of the same place is a finding even where one is allowed,
+///  and a line `rustfmt` reflows is a stale entry this scan reports rather than an exemption that widens.
+///  An entry that matches no line of its file is reported,
+///  so a file that stops naming a place shrinks this list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LINES_ALLOWED_TO_NAME_A_PLACE = [['invocation/management.rs', 'let runtime: ...', 'reads the environment the caller handed in', '...']];
+/// ```
+const LINES_ALLOWED_TO_NAME_A_PLACE: &[(&str, &str, WhatALineDoesWithAPlace, &str)] = &[
+    (
+        "invocation/management.rs",
+        "let runtime: Option<PathBuf> = match environment_value(environment, \"XDG_RUNTIME_DIR\") {",
+        WhatALineDoesWithAPlace::ReadsTheEnvironmentTheCallerHandedIn,
+        "counts the socket files and notes of the runtime directory the invocation handed in, which is the \
+         invocation's own list and not this process's, and asks no manager",
+    ),
+    (
+        "invocation/management_service_stop_units_of_removed_worktrees.rs",
+        "let value: OsString = environment_value(environment, \"XDG_RUNTIME_DIR\")?;",
+        WhatALineDoesWithAPlace::ReadsTheEnvironmentTheCallerHandedIn,
+        "counts the files of the runtime directory `doctor`'s caller handed in and asks no manager: the command \
+         that stops units takes both of its places through the one file",
+    ),
+    (
+        "invocation/management_service_stop_units_of_removed_worktrees.rs",
+        "\"XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose units could be looked at; run it \
+         from a login session\",",
+        WhatALineDoesWithAPlace::OnlySaysTheName,
+        "is the refusal a person reads when this session names no runtime directory, and reads nothing",
+    ),
+    (
+        "invocation/real_git.rs",
+        "environment_value(environment, \"XDG_RUNTIME_DIR\").and_then(service_unit_below);",
+        WhatALineDoesWithAPlace::ReadsTheEnvironmentTheCallerHandedIn,
+        "finds the unit file a session wrote below the runtime directory the invocation handed in, reads its \
+         program path and starts nothing from it",
     ),
 ];
 
@@ -125,8 +182,26 @@ fn declared_place_names(text: &str) -> Vec<String> {
 }
 
 /// What:
-///  The lines of `text` that name one of the places in code,
-///  as line numbers counted from one.
+///  One line of a source that names a place in code:
+///  the number it stands on,
+///  counted from one,
+///  and its own text without the indentation in front of it.
+/// Why:
+///  The number sends a reader to the line that decided,
+///  and the text is what an entry of `LINES_ALLOWED_TO_NAME_A_PLACE` names,
+///  so an exempted read is the line this scan found and no other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NamingLine = { number: number; text: string };
+/// ```
+struct NamingLine {
+    number: usize,
+    text: String,
+}
+
+/// What:
+///  The lines of `text` that name one of the places in code.
 /// Why:
 ///  A message a person reads names the setting and reads nothing,
 ///  so only a line that is not a comment is a finding,
@@ -134,13 +209,13 @@ fn declared_place_names(text: &str) -> Vec<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function namingLines(text: string, declared: string[]): number[] { return lines(text).flatMap((l, i) => !comment(l) && (THE_PLACES.some(p => l.includes(p)) || declared.some(n => l.includes(n))) ? [i + 1] : []); }
+/// function namingLines(text: string, declared: string[]): NamingLine[] { return lines(text).flatMap((l, i) => !comment(l) && (THE_PLACES.some(p => l.includes(p)) || declared.some(n => l.includes(n))) ? [{ number: i + 1, text: l.trim() }] : []); }
 /// ```
 fn naming_lines(
     text: &str,
     declared: &[String],
-) -> Vec<usize> {
-    let mut found: Vec<usize> = Vec::new();
+) -> Vec<NamingLine> {
+    let mut found: Vec<NamingLine> = Vec::new();
     for (index, line) in text.lines().enumerate() {
         let trimmed: &str = line.trim_start();
         // What:     a comment line says what a place is and reads nothing, so it is no finding.
@@ -159,10 +234,35 @@ fn naming_lines(
             .iter()
             .any(|name| return line.contains(name.as_str()));
         if names_a_place || names_a_declared {
-            found.push(index + 1);
+            found.push(NamingLine {
+                number: index + 1,
+                text: trimmed.trim_end().to_owned(),
+            });
         }
     }
     return found;
+}
+
+/// What:
+///  The lines of one file that an entry of `LINES_ALLOWED_TO_NAME_A_PLACE` allows,
+///  each once,
+///  in the order the entries name them.
+/// Why:
+///  Each entry allows the one line it names and nothing else of that file:
+///  a second read of the same place,
+///  even the same call,
+///  is a finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function allowedLinesOf(path: string): string[] { return LINES_ALLOWED.filter(([named]) => named === path).map(([, line]) => line); }
+/// ```
+fn allowed_lines_of(path: &str) -> Vec<String> {
+    return LINES_ALLOWED_TO_NAME_A_PLACE
+        .iter()
+        .filter(|(named, _line, _what, _why)| return *named == path)
+        .map(|(_named, line, _what, _why)| return String::from(*line))
+        .collect();
 }
 
 /// What:
@@ -219,7 +319,7 @@ fn findings_in(
     for file in &sources {
         if file.test_only
             || file.path == THE_ONE_PLACE
-            || NAMES_A_PLACE_WITHOUT_READING_IT
+            || NAMES_A_PLACE_IN_WORDS_ONLY
                 .iter()
                 .any(|(named, _why)| return *named == file.path)
         {
@@ -227,8 +327,23 @@ fn findings_in(
         }
         let text: String = std::fs::read_to_string(root.join(file.path.as_str()))
             .map_err(|error| return format!("cannot read {}: {error}", file.path))?;
-        for number in naming_lines(text.as_str(), declared.as_slice()) {
-            found.push(format!("{}:{number}", file.path));
+        // What:     the reads of this file an entry allows, each spent on the one line it names.
+        // Why:      an exemption that named the file would let a second read of a place in it pass.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const allowed = allowedLinesOf(file.path);
+        // ```
+        let mut allowed: Vec<String> = allowed_lines_of(file.path.as_str());
+        for line in naming_lines(text.as_str(), declared.as_slice()) {
+            let Some(at) = allowed
+                .iter()
+                .position(|allowed_line| return *allowed_line == line.text)
+            else {
+                found.push(format!("{}:{}", file.path, line.number));
+                continue;
+            };
+            allowed.remove(at);
         }
     }
     return Ok(found);
@@ -264,7 +379,7 @@ fn no_release_source_places_a_session_outside_the_one_place() {
 }
 
 /// What:
-///  Every file the scan excuses is still a source of this crate.
+///  Every file both lists excuse is still a source of this crate.
 /// Why:
 ///  An entry that named a path nothing holds would hide a real finding if that path came back.
 ///
@@ -276,14 +391,59 @@ fn no_release_source_places_a_session_outside_the_one_place() {
 fn every_excused_file_is_a_source_of_this_crate() {
     let sources: Vec<SourceFile> =
         sources_in(&source_root(), &real_roots()).expect("the crate's sources");
-    let stale: Vec<String> = NAMES_A_PLACE_WITHOUT_READING_IT
+    let mut stale: Vec<String> = NAMES_A_PLACE_IN_WORDS_ONLY
         .iter()
         .filter(|(named, _why)| return !sources.iter().any(|file| return file.path == *named))
         .map(|(named, why)| return format!("{named}: {why}"))
         .collect();
+    for (named, line, _what, why) in LINES_ALLOWED_TO_NAME_A_PLACE {
+        if sources.iter().any(|file| return file.path == *named) {
+            continue;
+        }
+        stale.push(format!("{named}: `{line}`: {why}"));
+    }
     assert!(
         stale.is_empty(),
         "these entries name no source of this crate, so remove them:\n{}",
+        stale.join("\n")
+    );
+}
+
+/// What:
+///  Every line an entry of `LINES_ALLOWED_TO_NAME_A_PLACE` allows is still in the file it names,
+///  as the one line the entry holds.
+/// Why:
+///  An entry whose line moved or was reflowed allows nothing while it still reads as an exemption,
+///  and `rustfmt` reflows a long call over several lines,
+///  which makes that the shape a stale entry takes.
+///  Each entry names a line that spells the place itself,
+///  so the lines are counted without the names a file declares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [named, line] of LINES_ALLOWED) expect(count(namingLines(read(named)).map((l) => l.text), line)).toBe(1);
+/// ```
+#[test]
+fn every_allowed_line_is_still_in_its_file() {
+    let mut stale: Vec<String> = Vec::new();
+    for (named, line, _what, why) in LINES_ALLOWED_TO_NAME_A_PLACE {
+        let text: String =
+            std::fs::read_to_string(source_root().join(*named)).expect("a source of this crate");
+        let held: usize = naming_lines(text.as_str(), &[])
+            .iter()
+            .filter(|found| return found.text == *line)
+            .count();
+        if held == 1 {
+            continue;
+        }
+        stale.push(format!(
+            "{named}: the line `{line}` occurs {held} times, and the entry allows it because it {why}"
+        ));
+    }
+    assert!(
+        stale.is_empty(),
+        "these entries allow a read their file no longer makes as one line, so the exemption hides what it was \
+         made for; name the line the file holds now:\n{}",
         stale.join("\n")
     );
 }
@@ -313,7 +473,7 @@ fn every_excused_file_still_names_a_place() {
         declared.extend(declared_place_names(text.as_str()));
         texts.push((file.path.clone(), text));
     }
-    let quiet: Vec<String> = NAMES_A_PLACE_WITHOUT_READING_IT
+    let quiet: Vec<String> = NAMES_A_PLACE_IN_WORDS_ONLY
         .iter()
         .filter(|(named, _why)| {
             return !texts.iter().any(|(path, text)| {

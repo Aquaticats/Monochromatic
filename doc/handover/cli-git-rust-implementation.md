@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T14:04:49-05:00
+## The state at 2026-11-27T14:24:29-05:00
 
-`main` was `2f5cc0aeb7`.
+`main` was `117514dfd7`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 246 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 251 more by this time.
 
 ### Rounds running
 
@@ -141,23 +141,46 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   has no round:
   it changes a driver this round moves,
   so it starts when this round has merged;
-- for the linter's `0.5.2-alpha.20` read,
-  `monochromatic-lint-alpha-20-release-pass-a-whitespace-folder-in-a-file-uses-line-and-messages-that-point-wrong`,
-  started 2026-11-27T13:30:34-05:00;
-  `0.5.2-alpha.21` follows its merge;
-- `issue-6618-the-driver-deletes-a-finished-runs-scratch-folder-all-but-keep`,
-  started 2026-11-27T13:30:34-05:00:
-  the owner's answer of 2026-11-13 has the launcher delete a run's scratch folder at run end,
-  all but `keep/`,
-  and nothing in the driver package does it,
-  so the folders stay whole until the daily expiry of `~/temp`
-  (346 folders named `*-scratch` under `~/temp/agent`,
-  counted 2026-11-27T13:26);
+- nothing in the linter:
+  the round for its `0.5.2-alpha.20` read is merged (`2261d05b14`),
+  and `0.5.2-alpha.21` is being released
+  (started 2026-11-27T14:22:20-05:00,
+  release commit `117514dfd7`),
+  to be locked,
+  installed and read by a Claude Sonnet pass once published.
+  A `file-uses` line for a folder named with a tab,
+  a no-break space or two spaces names the folder again;
+  each of the five behaviours the read named has a test shown red by the edit it guards;
+  a byte order mark or a zero-width space is spelled,
+  with its place and the edit that takes it out;
+  the dead-line help names the one edit;
+  each shape of arrow name gets a fix that fits it;
+  a mistyped `file-uses` line says what is wrong with it;
+  and three README sentences say what the releases did.
+  The reader does not take a byte order mark off by itself,
+  which the README's known limits record;
+  `test:layout` passed 326 of 326;
 - for the wrapper's `0.6.1-alpha.49` behaviour pass,
-  two rounds started 2026-11-27T13:02:42-05:00 from one list still run,
-  each named `wrapper-alpha-49-release-pass-` and then:
-  `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`
-  and `four-small-points-of-the-behaviour-read`.
+  `wrapper-alpha-49-release-pass-four-small-points-of-the-behaviour-read`,
+  started 2026-11-27T13:02:42-05:00,
+  still runs.
+  The round on shell aliases is merged (`a137924570`):
+  a slot removal or move behind a shell alias reads its operand from the top of the working tree,
+  where Git runs the alias,
+  and the same one line fixed the move;
+  the five unread spellings are read
+  (a shell alias naming another to four deep,
+  `! git`,
+  a tab after `!git`,
+  a bare `!git` before the caller's own global option,
+  and a chain of plain aliases to 64 where it was 16);
+  a chain past either bound is passed to Git as an alias the wrapper cannot follow was before,
+  with no new refusal;
+  and `SPEC.md` says which spellings are read.
+  The read's subdirectory case never reaches the slot rule:
+  the wrapper's own rule that a command runs at the top of its repository refuses it first,
+  and a control pins that.
+  The guest arm gained one alias case that no guest has run.
   The round on process names is merged (`946cbeb0a2`):
   it found eighteen places that printed a name another program chose with no escape,
   where the read named five,
@@ -191,10 +214,21 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and it counted inside the region Git left.
   No timing was taken;
   `native:check` passed on the pinned tree after the merge;
-- for the wrapper's `0.6.1-alpha.49` structure pass,
-  `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`,
-  started 2026-11-27T13:05:58-05:00.
-  The other round of that pass is merged (`e8d3ba3736`):
+- nothing for the wrapper's `0.6.1-alpha.49` structure pass:
+  both rounds are merged.
+  The round on the surface control (`b929e8c39b`) first planted the read's five shapes against the Rust control on `main`,
+  and each passed unseen while a plain `struct` failed.
+  The control now reads a function whatever qualifies it,
+  fields and methods of a published type,
+  and a `pub use` over any count of lines,
+  each keyed by the module path that publishes it;
+  its list went from 6,695 entries to 12,395;
+  four names a split had widened are narrowed,
+  and none of the rest;
+  and its top doc states the five shapes it still cannot see.
+  The merge restored seven platform gates,
+  counted in its diff.
+  The round on the list guards is merged (`e8d3ba3736`):
   the hook ban fails on every spelling of a call that makes a link,
   and on no call that only reads one;
   an excuse names how many uses of its text its file holds,
@@ -211,8 +245,11 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and the commit path's notes guard is chosen by the words a file names.
   `native:check`,
   which compiles every target,
-  passed on the pinned tree at `e8d3ba3736`.
-  One whole gate on `main` and then `0.6.1-alpha.50` follow the merges of the five rounds still out;
+  and the whole `source_guard` module,
+  210 of 210,
+  passed on the pinned tree at `a137924570`,
+  the five merged rounds together.
+  One whole gate on `main` and then `0.6.1-alpha.50` follow the merge of the one round still out;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -225,19 +262,34 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
   the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
   the items a split had made bare `pub` are narrowed,
+  seven platform gates are back over the 35 items they reached before the splits,
   the seven platform gates the splits dropped are back,
   and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
   a merge record that cannot be read says which file to remove,
-  each batch of the service's work reads the room it has when it starts,
+  each batch of the service's work reads the room it has when it starts
+  (its width is decided once, so every wave of that batch runs on the room of its start),
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   both reads of it have returned.
 - for `cargo-shadow`'s `0.1.5-alpha.14` read,
-  two rounds started 2026-11-27T13:36:24-05:00 from one list,
-  each named `cargo-shadow-alpha-14-release-pass-` and then:
-  `the-retire-gates-new-decision-is-held-through-retire-and-its-words-say-what-was-read`
-  and `the-refusal-says-which-next-run-settles-the-journal-and-the-records-are-exact`;
-  `0.1.5-alpha.15` follows their merges.
+  `cargo-shadow-alpha-14-release-pass-the-refusal-says-which-next-run-settles-the-journal-and-the-records-are-exact`,
+  started 2026-11-27T13:36:24-05:00,
+  still runs;
+  `0.1.5-alpha.15` follows its merge.
+  The round on the retire gate is merged (`3bf99cd706`).
+  The read's finding held:
+  with either edit it named,
+  all 15 tests of the gate passed.
+  A control now reaches the new decision through `retire` and fails under each edit;
+  three warnings say only what the look had read;
+  and a `populated` read that answers "No such file" while the group's directory is there is no longer read as the manager's collection,
+  which is a changed decision with the owner's veto open
+  (`doc/handover/questions-for-the-owner.md`).
+  One whole run of the package's suite in that round failed ten tests that need a delegated scope,
+  each in about ten milliseconds,
+  and the next two runs passed 941 of 941;
+  the round's own command had cut the messages off,
+  so the cause is not known and an issue holds it.
   `0.1.5-alpha.14` is released
   (release commit `8673ec1309`),
   locked (`c652b74260`) and installed,
@@ -1392,6 +1444,25 @@ and the two `truepeak` files wait on their branch.
   `being_written_cause_and_remedy` takes a program where it took an option,
   and `being_written_cause_and_remedy_for` is gone;
   the note of `0.2.7-alpha.15` is to say so.
+- The driver's launcher clears a finished run's scratch folder beside `keep/` (`a40a99467c`,
+  issue 6618),
+  as the owner's answer of 2026-11-13 has it.
+  It clears once the run's unit has ended,
+  the run's own work has stopped,
+  no process works in the folder and no newer run of the name has started;
+  it never follows a link,
+  and an empty run name or a home that is not absolute is refused before anything is read.
+  A round started before the merge was started by the earlier launcher,
+  so its folder stays whole until `~/temp` expires it.
+  A launcher killed before its unit ends,
+  and a run started by hand,
+  clear nothing.
+- Claude Code restarted this session unasked at 2026-11-27T14:02:39-05:00
+  (`doc/troubleshooting/claude-code-restarts-a-session-unasked-and-stops-its-tracked-background-commands.md`;
+  rules `RZN` to `RZG` of `CLAUDE.md`).
+  Rounds in their own units ran on;
+  the session's background wait was killed and was started again;
+  an earlier subagent was still reachable by a message to its id.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

@@ -5490,6 +5490,48 @@ records,
 which Git still names although the command stands in no worktree.
 Only the ladder's own steps keep the shorter list of globals they serve
 ("Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS").
+A command reached through a shell alias is read by the same reader the guard
+uses,
+so the two rules cannot disagree about what an alias is,
+and the operand of that command is read from the top of the working tree,
+because Git changes to it before it starts the shell
+(`git.c:388` to `git.c:407`):
+`git -C checkouts/repo -c 'alias.rmwt=!git worktree remove --force' rmwt ./../slot-one`
+names the worktree Git would remove,
+for `git worktree move`'s source as for the removal's operand,
+where a reading that took the operand from the directory the wrapper was started
+in would name none.
+That reading is of the operand,
+not of where the wrapper allows a command to begin:
+`require-root` still refuses a command whose directory is below the top of its
+repository,
+before any slot refusal runs.
+The spellings that reach that reading are the guard's own,
+stated in the passage "git by the word Git will run":
+a value whose bytes hold no quote,
+backslash,
+`$`,
+backtick,
+glob,
+brace or separator,
+whose own words name no global option,
+and whose first word after the `!` and after any blanks is `git`,
+so `!git <words>`,
+`! git <words>` and `!git<TAB><words>` are read,
+while a value that names `git` and nothing else leaves the command to the
+caller's own words,
+which follow the value into the shell and may begin with a global option;
+a value whose own words name another `!` alias is followed through the shells it
+starts,
+four of them;
+and an ordinary alias chain is expanded to 64 links.
+`git worktree prune` needs no operand,
+so no directory changes what its pass reads.
+Everything else,
+`!sh -c 'git worktree remove -f -f <slot>'` included,
+is left to Git as the guard leaves it,
+and so is a chain longer than those counts,
+whose words are not the command Git runs.
 Git's own removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
@@ -24144,7 +24186,8 @@ is the refusal and passes.
 The word this reading reads is the word Git will run.
 An ordinary alias (`alias.<name>`,
 either spelling) is expanded the way Git expands it,
-up to 16 expansions,
+up to 64 expansions (`MAX_ALIAS_EXPANSIONS`),
+a bound on this reading's own work rather than a limit Git has,
 and the guard decides on the expansion,
 which is also the argument list the wrapper forwards and the audit record names.
 One `git config --null --list` answers which value Git keeps:
@@ -24248,18 +24291,31 @@ which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
 not the wrapper first on `PATH`).
 One plain form of it is read,
 only so the guard can decide:
-a value written `!git <words>` whose bytes hold no quote,
+a value whose bytes hold no quote,
 backslash,
 `$`,
 backtick,
 glob,
 brace or separator,
-and whose words name no global option of their own.
+whose own words name no global option,
+and whose first word after the `!` and after any blanks is `git`.
+A blank there is a space or a TAB,
+because both separate the words of the shell command Git builds:
+`! git <words>`,
+`!git<TAB><words>` and `!git <words>` run the same command,
+and a value of exactly `!git` runs whatever the caller's own words name.
 Git appends the caller's own words to the value before the shell reads it
 (`git.c:401` to `git.c:402`),
 so the command followed is the value's words and then the caller's:
 a value of exactly `!git` starts that command with the caller's first word,
 and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
+Those caller's words may begin with a global option,
+because that same Git reads them there and the reading keeps them;
+a global option among the value's own words is left unread,
+as the boundary below says.
+A value whose own words name a `!` alias starts a second shell,
+and the command Git finally runs is the one the last of those shells runs,
+so that chain is followed through four shells.
 The Git inside the shell also reads the configuration and the exec path the caller passed,
 which Git exports to what it starts
 (`config.c:469` to `config.c:504`,
@@ -24270,11 +24326,14 @@ and the alias itself is still forwarded unchanged,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
 which a substituted argument list would lose.
 Everything else,
-`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included,
+`!sh -c 'git reset --hard'`,
+`!git -C <directory> reset --hard` and a chain past either count included,
 runs as Git runs it:
 through real Git,
 with no guard and no index-writer coordination,
-because the wrapper never sees that command start.
+because the wrapper never sees that command start,
+and a chain the reading gave up on names no command at all,
+so the guard leaves it to Git as it leaves any alias it cannot read.
 `git by the word Git will run` is the boundary of this guard.
 
 A form is rejected in the main worktree and outside any worktree always,

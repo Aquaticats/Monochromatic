@@ -410,3 +410,11 @@ pub(crate) fn write_stream(
     // ```
     let _ = stream.write_all(text.as_bytes());
 }
+
+/// The answers of a forwarded Git that cannot start:
+///  the plain forward's status and the coordinated one's,
+///  the words each says,
+///  and both where standard error is a pipe nobody reads.
+#[cfg(test)]
+#[path = "forwarded_git_failed_start_tests.rs"]
+mod forwarded_git_failed_start_tests;

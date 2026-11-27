@@ -178,15 +178,22 @@ fn check_package(
                 ),
                 "its name holds no backslash",
             ),
-            // What: the one arrow shape this name has, and what a line naming it would read as.
-            // Why: four alternatives in one sentence leave the reader to work out which one is theirs.
-            UnlistableName::HoldsArrowWords => (
-                format!(
-                    "its name {}, so a `uses` line naming it would read as another pair of folders",
-                    found.shape.unwrap_or("holds an arrow word")
-                ),
-                "its name holds no `->` set off by whitespace on both sides",
-            ),
+            // What: the one arrow shape this name has, what a line naming it would read as, and the rename its shape needs.
+            // Why: four alternatives in one sentence leave the reader to work out which one is theirs, and a fix written for the middle shape fits no other.
+            UnlistableName::HoldsArrowWords => {
+                // What: the cause and the fix for this name's one shape, or a sentence for a shape not named.
+                // Why: the two halves must describe the same shape, or the fix reads as if the name already complied.
+                let (shape, fix): (&'static str, &'static str) = found.shape.unwrap_or((
+                    "holds an arrow word",
+                    "its name holds no `->` set off by a whitespace character",
+                ));
+                (
+                    format!(
+                        "its name {shape}, so a `uses` line naming it would read as another pair of folders"
+                    ),
+                    fix,
+                )
+            }
         };
         // What: the name to rename, which is a folder inside the path, the file the path ends in, or an entry of a `uses` folder.
         // Why: the file the finding points at is not always the name to change, and a sentence that named it would send its reader to the wrong place.
