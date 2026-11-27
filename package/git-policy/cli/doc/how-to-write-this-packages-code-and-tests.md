@@ -559,6 +559,24 @@ so the write left the stamp exactly as it was and the final check rightly passed
 `stamped_pair` gives its source a modification time `RECENT_CHANGE_NANOS` before now for that reason,
 and the measurement is in `doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`.
 
+A control whose subject is the time the record credits to the programs below the step
+waits for the looks that credit it
+and derives its bound from the record's own counts,
+never from a clock:
+the credit is the span between the looks that found the program,
+one interval for each look after the first,
+and a window of wall clock holds fewer of them on a host whose threads wake late.
+`until_looks_find_the_step` (`commit/native_commit_waiting_notice_control_window.rs`)
+waits for a count of looks that found the step,
+and `a_look_of_this_step_waits` in the same file plants the stretch a loaded host put between two of them.
+Measured on 2026-11-27:
+the control asserted 750 ms of credit inside a 1,200 ms sleep,
+which is three intervals of `LOOK_INTERVAL` and is what only a punctual host proves,
+and the gate run whose each proved interval was 319.73 ms held four looks in that window instead of five,
+three of them finding the step,
+so the record proved 639.47 ms and the control failed (issue 6592;
+`doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`).
+
 ## Write less code
 
 Reuse what `testing/test_support.rs` and the package's modules already have before writing a helper
