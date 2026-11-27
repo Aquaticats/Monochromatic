@@ -23,10 +23,16 @@
 //! test('the sentence names the removed version for what it was', () => { ... });
 //! test('the sentence names the recovered version when that version is the older one', () => { ... });
 //! test('a run that publishes after a failed recovery says what it then did', () => { ... });
+//! test('nothing is removed when the link cannot be moved', () => { ... });
+//! test('a link move that fails once ends one and keeps the older version', () => { ... });
+//! test('a put back also points current at the newest finished version', () => { ... });
+//! test('a failed listing says no copy was read when the install put the version there', () => { ... });
 //! ```
 
 /// Imports `fs` from `std`.
 use std::fs;
+/// Imports the trait that changes a directory's mode for the failed-listing control.
+use std::os::unix::fs::PermissionsExt;
 /// Imports the trait that reads the signal a killed process ended with.
 use std::os::unix::process::ExitStatusExt;
 /// Imports what these tests use from `std::path`.
@@ -53,6 +59,7 @@ use super::archive_staging::{
     Owner,
     Plant,
     RECOVERED_PURPOSE,
+    REPLACED_PURPOSE,
     RenameRefused,
     STAGING_PURPOSE,
     clear_the_plant,
@@ -78,10 +85,18 @@ use super::fakes::{
 /// Imports the writer of a program's bytes,
 /// which hands them to a child so no other test's `fork` inherits the write.
 use super::fixture_programs::write_program;
+/// Imports the digest of an archive a control serves.
+use super::hash::sha256_hex;
 /// Imports the step that gives a release archive's programs their version-independent names.
 use super::install_archive::link_stable_programs;
-/// Imports the one link write the install and these fixtures share.
-use super::install_support::atomic_symlink;
+/// Imports the one link write the install and these fixtures share,
+/// the refusal a control plants at its rename,
+/// and how many moves that refusal answers.
+use super::install_support::{
+    HowOften,
+    atomic_symlink,
+    refusing_the_next_link_move,
+};
 /// Imports the launcher a tree runs a repository-published tool through,
 /// the record it reads,
 /// and the read of the record beside this process's own file.
@@ -102,6 +117,11 @@ use super::lock::{
 };
 /// Imports the operating-system family an install is judged against.
 use super::model::OsFamily;
+/// Imports the locked tool a failed-listing control rewrites.
+use super::model::{
+    Artifact,
+    LockedTool,
+};
 /// Imports the link `current`,
 /// the version it names,
 /// and the question that tells a finished install from an unfinished one.
@@ -115,8 +135,10 @@ use super::published_archive::{
 /// the folder a release archive unpacks into,
 /// the lock that pins one version,
 /// the finished copy and the release a fake network serves,
+/// a digest no lock has to vouch for,
 /// and the context built over a rig.
 use super::published_archive_tests::{
+    A_TEST_SHA256,
     BIN,
     ID,
     context_of,
@@ -126,6 +148,8 @@ use super::published_archive_tests::{
     release_folder,
     serve_releases,
 };
+/// Imports the request a fake `tar` answers.
+use super::runner::RunRequest;
 /// Imports the scope of a tree,
 /// its environment,
 /// and the scope one tree's root gives.
@@ -910,5 +934,357 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         rig.http.requests().len() == 1,
         "only the first run downloaded, so the later one published nothing: {:?}",
         rig.http.requests()
+    );
+}
+
+/// What:
+/// Every link move of one run refused,
+/// and the state the run then leaves.
+/// Why:
+/// A version removed under a link that still names it is the state the order of the two steps exists to prevent,
+/// and no test made this move fail before,
+/// so deleting the return after a failed move kept every test green;
+/// this control fails when the removal runs after a failed move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('nothing is removed when the link cannot be moved', () => {
+///   const [toolDir, lock] = aKilledUpgradeOf(rig, OLD, NEW);
+///   using refusal = refusingTheNextLinkMove(AN_INPUT_OUTPUT_ERROR, 'every-time');
+///   const report = syncTools(contextOf(rig, rig.scope, lock));
+///   expect(report.failed.some(([id, message]) => id === ID && message.includes('cannot place the link'))).toBe(true);
+///   expect(existsSync(join(toolDir, OLD))).toBe(true);
+///   expect(runningVersionArchive(rig.scope.toolchainRoot, ID)).toBe(OLD);
+/// });
+/// ```
+#[test]
+fn nothing_is_removed_when_the_link_cannot_be_moved() {
+    let rig = Rig::new();
+    let (tool_dir, lock) = a_killed_upgrade_of(
+        &rig,
+        THE_VERSION_INSTALLED_BEFORE,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+    );
+    let _refusal = refusing_the_next_link_move(AN_INPUT_OUTPUT_ERROR, HowOften::EveryTime);
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    assert!(
+        report.failed.iter().any(|(id, message)| {
+            return id.as_str() == ID && message.contains("cannot place the link");
+        }),
+        "the run reports that the link could not be placed: {report:?}"
+    );
+    assert!(
+        tool_dir.join(THE_VERSION_INSTALLED_BEFORE).exists(),
+        "nothing is removed under a link that does not name the newest version yet: {report:?}"
+    );
+    assert_eq!(
+        running_version_archive(&rig.scope.toolchain_root, ID).as_deref(),
+        Some(THE_VERSION_INSTALLED_BEFORE),
+        "the failed move left the link naming the older version, so nothing may have been removed under it"
+    );
+    assert!(
+        is_finished(&tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED), BIN),
+        "the recovery published the newer version before the move failed: {report:?}"
+    );
+}
+
+/// What:
+/// One link move of one run refused,
+/// so the run's later step moves the link,
+/// and the older version stays beside the newer one.
+/// Why:
+/// A transient failure of one rename costs a status 1 and leaves a retired version on disk,
+/// because the later step moves the link but nothing removes the older version after it;
+/// the README says what happens and this control holds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a link move that fails once ends one and keeps the older version', () => {
+///   using refusal = refusingTheNextLinkMove(AN_INPUT_OUTPUT_ERROR, 'once');
+///   const report = syncTools(...);
+///   expect(report.failed).not.toEqual([]);
+///   expect(runningVersionArchive(root, ID)).toBe(NEW);
+///   expect(existsSync(join(toolDir, OLD))).toBe(true);
+///   expect(startTheTool(exposed).stdout).toContain(whatTheProgramPrints(NEW));
+/// });
+/// ```
+#[test]
+fn a_link_move_that_fails_once_ends_one_and_keeps_the_older_version() {
+    let rig = Rig::new();
+    let (tool_dir, lock) = a_killed_upgrade_of(
+        &rig,
+        THE_VERSION_INSTALLED_BEFORE,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+    );
+    let _refusal = refusing_the_next_link_move(AN_INPUT_OUTPUT_ERROR, HowOften::Once);
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    assert!(
+        !report.failed.is_empty(),
+        "the run ends 1 although the version is at its name: {report:?}"
+    );
+    assert!(
+        report.failed.iter().any(|(id, message)| {
+            return id.as_str() == ID && message.contains("cannot place the link");
+        }),
+        "the failure names the link it could not place: {report:?}"
+    );
+    assert_eq!(
+        running_version_archive(&rig.scope.toolchain_root, ID).as_deref(),
+        Some(THE_VERSION_A_KILL_LEFT_FINISHED),
+        "a later step of the same run moved the link: {report:?}"
+    );
+    assert!(
+        is_finished(&tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED), BIN),
+        "the version is at its name after the failed move: {report:?}"
+    );
+    assert!(
+        tool_dir.join(THE_VERSION_INSTALLED_BEFORE).exists(),
+        "nothing was removed under the failed move, so the older version stays: {report:?}"
+    );
+    let started: Output = start_the_tool(&rig.scope.exposure_dir.join(BIN));
+    assert!(
+        started.status.success(),
+        "the tool starts after the failed move: {started:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&started.stdout)
+            .contains(&what_the_program_prints(THE_VERSION_A_KILL_LEFT_FINISHED)),
+        "a start runs the version the link now names: {}",
+        String::from_utf8_lossy(&started.stdout)
+    );
+}
+
+/// What:
+/// A recovery that puts back the unfinished copy a killed install had moved aside,
+/// and the link it also moves.
+/// Why:
+/// A put-back gives the version's name a copy,
+/// so the rule that points `current` at the newest finished version runs for it too,
+/// and the newest finished version may be an older one than the lock names;
+/// nothing said so before, and whether it stays is the owner's to decide,
+/// so this control holds what the code does today.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a put back also points current at the newest finished version', () => {
+///   writeAFinishedCopy(rig, OLD, join(toolDir, OLD));
+///   const replaced = hiddenSibling(join(toolDir, NEW), REPLACED_PURPOSE, endedInstaller());
+///   writeAnUnfinishedCopy(rig, NEW, replaced);
+///   const staging = hiddenSibling(join(toolDir, NEW), STAGING_PURPOSE, endedInstaller());
+///   writeAFinishedCopy(rig, NEW, staging);
+///   writeCompleteMarker(staging, ID, NEW, A_TEST_SHA256);
+///   const report = syncTools(contextOf(rig, rig.scope, lockAt(rig, NEW)));
+///   expect(report.recovered).toContain('put back the copy ...');
+///   expect(runningVersionArchive(root, ID)).toBe(OLD);
+///   expect(report.failed.some(([, message]) => message.includes('download failed'))).toBe(true);
+///   expect(startTheTool(exposed).stdout).toContain(whatTheProgramPrints(OLD));
+/// });
+/// ```
+#[test]
+fn a_put_back_also_points_current_at_the_newest_finished_version() {
+    let rig = Rig::new();
+    let root: PathBuf = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = the_tool_directory(&root);
+    // The older finished version, and no `current`: what a kill between the marker and the link leaves.
+    write_a_finished_copy(
+        &rig,
+        THE_VERSION_INSTALLED_BEFORE,
+        &tool_dir.join(THE_VERSION_INSTALLED_BEFORE),
+    );
+    // The version's name empty, the copy that was there at its aside name: a kill between the two renames.
+    let replaced: PathBuf = hidden_sibling(
+        &tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED),
+        REPLACED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    fs::create_dir_all(replaced.join(release_folder(THE_VERSION_A_KILL_LEFT_FINISHED)))
+        .expect("make the folder the copy that was there unpacked into");
+    write_program(
+        &replaced
+            .join(release_folder(THE_VERSION_A_KILL_LEFT_FINISHED))
+            .join(BIN),
+        format!(
+            "#!/bin/sh\necho '{}'\n",
+            what_the_program_prints(THE_VERSION_A_KILL_LEFT_FINISHED)
+        )
+        .as_bytes(),
+    );
+    // The finished copy whose marker records no digest this lock names, so the recovery cannot publish it.
+    let staging: PathBuf = hidden_sibling(
+        &tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED),
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, &staging);
+    write_complete_marker(
+        &staging,
+        ID,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+        A_TEST_SHA256,
+    )
+    .expect("write a marker the lock does not vouch for");
+    the_trees_launcher(&rig);
+    let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    assert!(
+        report.recovered.iter().any(|sentence| {
+            return sentence.starts_with(&format!(
+                "put back the copy of {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} that an earlier install had moved aside"
+            ));
+        }),
+        "the recovery puts back the copy the killed install had moved aside: {report:?}"
+    );
+    assert!(
+        tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED).is_dir(),
+        "the copy is back at the version's name: {report:?}"
+    );
+    assert!(
+        !is_finished(&tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED), BIN),
+        "the copy put back is unfinished, which is why `current` moves to an older version"
+    );
+    assert_eq!(
+        running_version_archive(&root, ID).as_deref(),
+        Some(THE_VERSION_INSTALLED_BEFORE),
+        "a put-back also points `current` at the newest finished version: {report:?}"
+    );
+    assert!(
+        report.failed.iter().any(|(id, message)| {
+            return id.as_str() == ID && message.contains("download failed");
+        }),
+        "the lock's version is not at its name and the install that follows fails: {report:?}"
+    );
+    let started: Output = start_the_tool(&rig.scope.exposure_dir.join(BIN));
+    assert!(
+        started.status.success(),
+        "a start through the launcher runs the older version `current` names: {started:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&started.stdout)
+            .contains(&what_the_program_prints(THE_VERSION_INSTALLED_BEFORE)),
+        "the start runs {} and not the version the lock names: {}",
+        THE_VERSION_INSTALLED_BEFORE,
+        String::from_utf8_lossy(&started.stdout)
+    );
+}
+
+/// What:
+/// The mode a control found on a directory,
+/// put back when the control's body leaves,
+/// however it leaves.
+/// Why:
+/// A directory a control makes unreadable must not keep the fixture from being removed after a failed assertion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TheModePutBack { [Symbol.dispose]() { chmodSync(this.path, this.mode); } }
+/// ```
+struct TheModePutBack {
+    /// The directory whose mode the control changed.
+    path: PathBuf,
+    /// The mode it had before the control changed it.
+    mode: u32,
+}
+
+impl TheModePutBack {
+    /// Makes `path` possible to write and enter but not to list,
+    /// and answers the guard that restores its mode.
+    fn making_unreadable(path: &Path) -> TheModePutBack {
+        let mode: u32 = fs::metadata(path)
+            .expect("the directory whose mode this control changes")
+            .permissions()
+            .mode();
+        fs::set_permissions(path, fs::Permissions::from_mode(0o311))
+            .expect("leave the directory writable and enterable but not listable");
+        return TheModePutBack {
+            path: path.to_path_buf(),
+            mode,
+        };
+    }
+}
+
+impl Drop for TheModePutBack {
+    /// Puts the mode back.
+    fn drop(&mut self) {
+        // Best effort: the fixture is removed afterwards either way, and the error below is what matters.
+        let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(self.mode));
+    }
+}
+
+/// What:
+/// A run that cannot list the tool's directory,
+/// whose install then puts the version at its name,
+/// and the warning it prints for the recovery that failed.
+/// Why:
+/// The suffix used to say a later run publishes nothing from the copy and removes it,
+/// and a failed listing read no copy at all;
+/// the warning must claim nothing about a copy it did not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a failed listing says no copy was read when the install put the version there', () => {
+///   const tool = rig.tool('bin');
+///   serve(rig.http, tool.artifacts[0].url, body);
+///   tool.artifacts = [{ platform: 'linux-x64', url, sha256: sha256Hex(body) }];
+///   mkdirSync(toolDir);
+///   using mode = TheModePutBack.makingUnreadable(toolDir);
+///   const report = syncTools(contextOf(rig, rig.scope, { tools: [tool] }));
+///   expect(report.installed).toEqual(['bin']);
+///   expect(report.failed).toEqual([]);
+///   const warning = report.warnings.find((line) => line.includes('cannot list'));
+///   expect(warning).toContain('so the run does not fail for it');
+///   expect(warning).not.toContain('from that copy');
+/// });
+/// ```
+#[test]
+fn a_failed_listing_says_no_copy_was_read_when_the_install_put_the_version_there() {
+    let rig = Rig::new();
+    let mut tool: LockedTool = rig.tool("bin");
+    let url: String = tool.artifacts[0].1.url.clone();
+    let body: &[u8] = b"the bytes a release of bin holds";
+    rig.http.serve(&url, body);
+    tool.artifacts = vec![(
+        rig.host.platform.clone(),
+        Artifact {
+            url: url.clone(),
+            sha256: sha256_hex(body),
+        },
+    )];
+    let version: String = tool.version.clone();
+    let lock: Lock = Lock {
+        tools: vec![tool],
+    };
+    // What: the release unpacks into nothing this test reads; the marker and the rename are what the run needs.
+    // Why: the tool is not one this repository publishes, so no program is required for it to finish.
+    rig.runner
+        .on("tar --extract", Box::new(|_request: &RunRequest| {}));
+    let tool_dir: PathBuf = tool_directory(&rig.scope.toolchain_root, "bin").expect("a plain name");
+    fs::create_dir_all(&tool_dir).expect("make the tool's directory");
+    let _mode = TheModePutBack::making_unreadable(&tool_dir);
+
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    assert_eq!(
+        report.installed,
+        vec!["bin".to_string()],
+        "the install put the version at its name: {report:?}"
+    );
+    assert!(
+        report.failed.is_empty(),
+        "the recovery's failure does not fail the run: {report:?}"
+    );
+    let warning: &String = report
+        .warnings
+        .iter()
+        .find(|warning| return warning.contains("cannot list"))
+        .unwrap_or_else(|| panic!("the recovery's own words are reported: {report:?}"));
+    assert!(
+        warning.ends_with(&format!(
+            "; the install this run went on to make put bin {version} at its name, so the run does not fail for it"
+        )),
+        "the suffix says what this run then did: {warning}"
+    );
+    assert!(
+        !warning.contains("from that copy"),
+        "no copy was read, so the warning claims nothing about one: {warning}"
     );
 }
