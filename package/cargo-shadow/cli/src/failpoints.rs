@@ -91,6 +91,13 @@ thread_local! {
     static CONTAINMENT_INSPECTION: Cell<bool> = const { Cell::new(false) };
     /// Whether the next listing a stop's report makes on this thread finds the scope's own directory gone.
     static CONTAINMENT_SCOPE_GONE_AT_LISTING: Cell<bool> = const { Cell::new(false) };
+    /// How many deadline checks the next listing's own clock lets pass before it reads as past its deadline,
+    /// when a control
+    /// armed one (`arm_listing_clock_after_checks`),
+    /// or `None` on an ordinary run.
+    static LISTING_CLOCK_CHECKS: Cell<Option<usize>> = const { Cell::new(None) };
+    /// Whether the next member a listing reads has ended by the time its threads are read.
+    static CONTAINMENT_MEMBER_ENDED_AT_READ: Cell<bool> = const { Cell::new(false) };
     /// Whether the next publication of a journal's durable completion marker on this thread fails.
     static FINISH_COMPLETION: Cell<bool> = const { Cell::new(false) };
     /// The one output file whose next data barrier on this thread fails,
@@ -178,6 +185,12 @@ pub enum Point {
     ContainmentUnkillableMember,
     /// The listing of the members of a scope after the program started fails.
     ContainmentInspection,
+    /// The member a listing reads has ended by the time its threads are read:
+    /// the kernel takes a process out of `cgroup.procs` and out of `populated` at its last thread's end,
+    /// so a member can only be read as one that has ended in the window between the read of the list and the read of its
+    /// threads,
+    /// which nothing outside a test build can hold a process in.
+    ContainmentMemberEndedAtRead,
     /// The listing a stop's report makes finds the scope's own directory gone,
     /// as it is when the scope is removed between the last `populated` read and the listing:
     /// a window too short to produce from outside,
@@ -446,6 +459,9 @@ pub fn arm(point: Point) {
         Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(|slot| {
             slot.set(true);
         }),
+        Point::ContainmentMemberEndedAtRead => CONTAINMENT_MEMBER_ENDED_AT_READ.with(|slot| {
+            slot.set(true);
+        }),
         Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(|slot| {
             slot.set(true);
         }),
@@ -497,7 +513,44 @@ pub fn fires(point: Point) -> bool {
         Point::ContainmentStopStuck => CONTAINMENT_STOP_STUCK.with(Cell::take),
         Point::ContainmentStopError => CONTAINMENT_STOP_ERROR.with(Cell::take),
         Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(Cell::take),
+        Point::ContainmentMemberEndedAtRead => CONTAINMENT_MEMBER_ENDED_AT_READ.with(Cell::take),
         Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(Cell::take),
         Point::FinishCompletion => FINISH_COMPLETION.with(Cell::take),
     };
+}
+
+/// What:
+/// `pub(crate) fn arm_listing_clock_after_checks(checks: usize)` makes the next listing's own clock let this many deadline
+/// checks pass,
+/// and read as past its deadline from then on.
+/// Why:
+/// The listing's bound cannot be reached from outside without a scope of thousands of threads or a read that stalls in the
+/// kernel (`AGENTS.md` rule `NLG` bans the first and no test can produce the second),
+/// so a control owns the clock instead:
+/// two checks cut the listing before it reads one member,
+/// and three cut it after the first member of a group.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function armListingClockAfterChecks(checks: number): void
+/// ```
+pub(crate) fn arm_listing_clock_after_checks(checks: usize) {
+    LISTING_CLOCK_CHECKS.with(|slot| {
+        slot.set(Some(checks));
+    });
+}
+
+/// What:
+/// `pub(crate) fn take_listing_clock() -> Option<usize>` takes the count a control armed,
+/// and `None` when none was armed.
+/// Why:
+/// The listing takes the count once when it starts,
+/// so one arm reaches one listing and a listing that never used it cannot arm the next one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function takeListingClock(): number | undefined
+/// ```
+pub(crate) fn take_listing_clock() -> Option<usize> {
+    return LISTING_CLOCK_CHECKS.with(Cell::take);
 }
