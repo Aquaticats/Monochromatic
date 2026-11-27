@@ -66,6 +66,8 @@ pub(crate) use crate::journal_unready_assessment::after_query_for_test;
 /// Why:
 /// Deleting a durable copy while its live equal is still in the page cache could lose both in a power cut (round 6,
 /// 5b2 4).
+/// Each live file goes to the barrier as the path it is,
+/// so a manifest whose name is not UTF-8 is synced itself and never through text that stands for that name (issue 6550).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +79,7 @@ pub(crate) fn recover_unready(
     messages: &mut Vec<String>,
     mandatory: &mut bool,
 ) {
-    let live_files: Vec<String> = match unready_verdict(root, directory) {
+    let live_files: Vec<PathBuf> = match unready_verdict(root, directory) {
         Ok(found) => found,
         Err(reason) => {
             messages.push(format!(
@@ -88,17 +90,22 @@ pub(crate) fn recover_unready(
         }
     };
     for live in &live_files {
+        // What: `live.as_path()` lends the path as one slice-free `Path`, which the barrier takes.
+        // Why: the barrier opens this very file, so its bytes are the ones the journal is redundant against.
+        let barrier: &Path = live.as_path();
         #[cfg(test)]
         let outcome: io::Result<()> =
             if crate::failpoints::fires(crate::failpoints::Point::RecoverDurability) {
                 Err(io::Error::other("injected recovery durability failure"))
             } else {
-                make_durable(Path::new(live))
+                make_durable(barrier)
             };
         #[cfg(not(test))]
-        let outcome: io::Result<()> = make_durable(Path::new(live));
+        let outcome: io::Result<()> = make_durable(barrier);
         if let Err(error) = outcome {
-            messages.push(format!("{}: a journal without a ready record was kept because {live} could not be made durable ({error})", directory.display()));
+            // What: `live.display()` writes the path so a person can read it, replacing any byte that is not text.
+            // Why: the message names the file whose barrier failed, and the journal it kept.
+            messages.push(format!("{}: a journal without a ready record was kept because {} could not be made durable ({error})", directory.display(), barrier.display()));
             *mandatory = true;
             return;
         }

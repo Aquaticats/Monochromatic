@@ -228,6 +228,11 @@ pub fn output_watched_within_for_a_stop(
         release_write_ends(command);
     }
     let child: Child = spawned?;
+    // The repository's record names this Git before the cell below can hand its id to a client that ends it: an abandon
+    //  signals the id it finds there, and a note written after that signal names a process that has already exited, for
+    //  which the platform reports no birth identity, so the note is dropped and the record holds nothing that explains a
+    //  lock this child took (issue 6535).
+    crate::lock_holder_records::note_child_started(child.id());
     let published_child: Option<i32> = match started_child {
         Some(cell) => {
             let published: i32 = child.id().try_into().unwrap_or(i32::MAX);
@@ -256,8 +261,6 @@ pub fn output_watched_within_for_a_stop(
         }
         None => None,
     };
-    // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
-    crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish {
         None
