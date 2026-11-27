@@ -23,6 +23,10 @@
 //! returns `None`,
 //! so the caller
 //!  asks `git-lfs`.
+//! What one scan reads and remembers,
+//! and the committer time it keeps,
+//! are in `lfs_pointer_scan_object_reads.rs`,
+//! beside this file so that each file passes the package's length limit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,28 +39,17 @@ use crate::lfs_pointer::{
     Verdict,
     decode_pointer,
 };
+use crate::lfs_pointer_scan_object_reads::Scan;
 use crate::repo_read_layout::ObjectFormat;
-use crate::repo_read_object::{
-    ObjectKind,
-    name_length,
-};
+use crate::repo_read_object::ObjectKind;
 use crate::repo_read_odb::ObjectDatabase;
-use crate::repo_read_tree::{
-    CommitFields,
-    MODE_GITLINK,
-    is_tree_mode,
-    parse_commit,
-    parse_tree,
-};
+use crate::repo_read_tree::CommitFields;
 use std::collections::{
     BTreeSet,
     HashMap,
     HashSet,
 };
-use std::time::{
-    Duration,
-    Instant,
-};
+use std::time::Duration;
 
 /// The most commits one scan visits before it gives the question to `git-lfs`.
 pub const MAX_COMMITS: usize = 100_000;
@@ -64,181 +57,9 @@ pub const MAX_COMMITS: usize = 100_000;
 /// The longest one scan runs before it gives the question to `git-lfs`.
 pub const SCAN_BUDGET: Duration = Duration::from_secs(3);
 
-/// What one scan reads and remembers.
-struct Scan<'a> {
-    /// The objects.
-    database: &'a ObjectDatabase,
-    /// The object format.
-    format: ObjectFormat,
-    /// Parsed commits by name.
-    commits: HashMap<Vec<u8>, CommitFields>,
-    /// Committer times of the parsed commits,
-    /// in seconds.
-    times: HashMap<Vec<u8>, i64>,
-    /// Comparisons already made:
-    /// a tree followed by the parent trees it was compared with.
-    /// The same tree compared with
-    ///  other parents (a root commit holding what a later commit also holds) is a different comparison.
-    seen_trees: HashSet<Vec<Vec<u8>>>,
-    /// Blobs that are new relative to some parent,
-    /// by name.
-    candidates: BTreeSet<Vec<u8>>,
-    /// When the scan gives up.
-    deadline: Instant,
-}
-
-impl Scan<'_> {
-    /// The parsed commit `name`;
-    /// `None` when it is missing,
-    /// not a commit,
-    /// or in a spelling the reader declines.
-    fn commit(
-        &mut self,
-        name: &[u8],
-    ) -> Option<CommitFields> {
-        if let Some(known) = self.commits.get(name) {
-            return Some(known.clone());
-        }
-        let object = self.database.read(name)?;
-        if object.kind != ObjectKind::Commit {
-            return None;
-        }
-        let parsed: CommitFields = parse_commit(object.bytes.as_slice(), self.format)?;
-        self.times
-            .insert(name.to_vec(), committer_time(object.bytes.as_slice())?);
-        self.commits.insert(name.to_vec(), parsed.clone());
-        return Some(parsed);
-    }
-
-    /// The committer time of a commit already read.
-    fn time(
-        &self,
-        name: &[u8],
-    ) -> i64 {
-        return self.times.get(name).copied().unwrap_or_default();
-    }
-
-    /// The entries of the tree `name`.
-    fn tree(
-        &self,
-        name: &[u8],
-    ) -> Option<Vec<crate::repo_read_tree::TreeEntry>> {
-        let object = self.database.read(name)?;
-        if object.kind != ObjectKind::Tree {
-            return None;
-        }
-        return parse_tree(object.bytes.as_slice(), name_length(self.format));
-    }
-
-    /// Record the blobs of `tree` that none of the `parents` (trees at the same place) holds under the same name.
-    fn compare(
-        &mut self,
-        tree: &[u8],
-        parents: &[Vec<u8>],
-    ) -> Option<()> {
-        if Instant::now() >= self.deadline {
-            return None;
-        }
-        let mut parent_is_tree: bool = false;
-        for parent in parents {
-            if parent.as_slice() == tree {
-                parent_is_tree = true;
-                break;
-            }
-        }
-        // The pair is recorded as seen only when no parent is the tree itself, as `||` stopped at the first true side.
-        if parent_is_tree
-            || !self
-                .seen_trees
-                .insert([vec![tree.to_vec()], parents.to_vec()].concat())
-        {
-            return Some(());
-        }
-        let entries = self.tree(tree)?;
-        let mut parent_entries = Vec::with_capacity(parents.len());
-        for parent in parents {
-            parent_entries.push(self.tree(parent)?);
-        }
-        for entry in &entries {
-            if entry.mode == MODE_GITLINK {
-                continue;
-            }
-            // The entry of the same name in each parent that has one, in parent order.
-            let mut counterparts: Vec<&crate::repo_read_tree::TreeEntry> = Vec::new();
-            for list in &parent_entries {
-                for candidate in list {
-                    if candidate.name == entry.name {
-                        counterparts.push(candidate);
-                        break;
-                    }
-                }
-            }
-            if is_tree_mode(entry.mode) {
-                let mut below: Vec<Vec<u8>> = Vec::new();
-                for other in &counterparts {
-                    if is_tree_mode(other.mode) {
-                        below.push(other.id.clone());
-                    }
-                }
-                self.compare(entry.id.as_slice(), below.as_slice())?;
-            } else {
-                let mut held_by_a_parent: bool = false;
-                for other in &counterparts {
-                    if other.id == entry.id && !is_tree_mode(other.mode) {
-                        held_by_a_parent = true;
-                        break;
-                    }
-                }
-                if !held_by_a_parent {
-                    self.candidates.insert(entry.id.clone());
-                }
-            }
-        }
-        return Some(());
-    }
-}
-
-/// Whether one byte is the line feed that ends a line of a commit.
-/// `&u8` borrows the byte,
-/// as `split` hands it over.
-fn is_line_feed_byte(byte: &u8) -> bool {
-    return *byte == b'\n';
-}
-
-/// Whether one byte is the `>` that closes the email address of a committer line.
-/// `&u8` borrows the byte,
-/// as
-///  `rposition` hands it over.
-fn is_closing_angle_byte(byte: &u8) -> bool {
-    return *byte == b'>';
-}
-
 /// How many commits are still popped after only known commits remain queued,
 /// because committer times can run backwards.
 const CLOCK_SKEW_SLOP: usize = 5;
-
-/// The committer time in seconds of a commit object's content.
-fn committer_time(bytes: &[u8]) -> Option<i64> {
-    let mut header_end_found: Option<usize> = None;
-    for (position, pair) in bytes.windows(2).enumerate() {
-        if pair == b"\n\n" {
-            header_end_found = Some(position);
-            break;
-        }
-    }
-    let header_end: usize = header_end_found?;
-    let mut committer_line: Option<&[u8]> = None;
-    for line in bytes[..header_end].split(is_line_feed_byte) {
-        if line.starts_with(b"committer ") {
-            committer_line = Some(line);
-            break;
-        }
-    }
-    let line: &[u8] = committer_line?;
-    let after_email: &[u8] = &line[line.iter().rposition(is_closing_angle_byte)? + 1..];
-    let text: &str = std::str::from_utf8(after_email).ok()?;
-    return text.split_whitespace().next()?.parse::<i64>().ok();
-}
 
 /// The queue of a date-ordered walk,
 /// with each commit marked as known to the destination or not.
@@ -346,7 +167,7 @@ fn new_commits(
             listed.push(name.clone());
         }
         popped += 1;
-        if popped > MAX_COMMITS || Instant::now() >= scan.deadline {
+        if popped > MAX_COMMITS || scan.past_its_deadline() {
             return None;
         }
         let parents: Vec<Vec<u8>> = scan.commit(name.as_slice())?.parents;
@@ -403,15 +224,7 @@ pub fn new_pointer_objects(
     stop: &[Vec<u8>],
     budget: Duration,
 ) -> Option<Vec<String>> {
-    let mut scan: Scan<'_> = Scan {
-        database,
-        format,
-        commits: HashMap::new(),
-        times: HashMap::new(),
-        seen_trees: HashSet::new(),
-        candidates: BTreeSet::new(),
-        deadline: Instant::now() + budget,
-    };
+    let mut scan: Scan<'_> = Scan::of(database, format, budget);
     for name in new_commits(&mut scan, include, stop)? {
         let commit: CommitFields = scan.commit(name.as_slice())?;
         let mut parent_trees: Vec<Vec<u8>> = Vec::with_capacity(commit.parents.len());
@@ -421,8 +234,8 @@ pub fn new_pointer_objects(
         scan.compare(commit.tree.as_slice(), parent_trees.as_slice())?;
     }
     let mut objects: BTreeSet<String> = BTreeSet::new();
-    for candidate in &scan.candidates {
-        if Instant::now() >= scan.deadline {
+    for candidate in scan.candidates() {
+        if scan.past_its_deadline() {
             return None;
         }
         let blob = database.read(candidate.as_slice())?;
