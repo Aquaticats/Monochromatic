@@ -8075,6 +8075,46 @@ in order:
     Round 4 has not started:
     its five changes are changed signatures,
     and the question whether it runs is the owner's (the same questions file).
+    Note of 2026-11-27T06:59:06-05:00,
+    from the `worktree/` round of that branch
+    (`refactor/git-policy-cli-break-wrapper-file-loop-of-the-worktree-removal-and-remove-files`):
+    the loop of twelve files is closed,
+    seven commits and one correction,
+    and all 27 `file-uses` lines of that folder are deleted,
+    so `src/native/worktree` has none left and no folder of the crate holds a file loop.
+    Four of the moves above no longer fitted today's tree:
+    `RemoveOutcome` already has its own file,
+    so the new file took `RemoveRequest`,
+    `TAG` and `LastLook`,
+    and `LastLook` had to go with the request,
+    because a request's last-look field is `&dyn LastLook`;
+    `finish` could not join them before the hand-over left the removal,
+    because it reads the ahead pool,
+    so the around pass's use is a commit of its own and `finish` got a file;
+    the destroy record already had the file the plan wanted for it,
+    so that loop closed by deleting the record's re-export of its finish and re-pointing its callers,
+    as the `foundation/` round of this step did;
+    and `DELETE_REFERENCE` was already beside its definition while `POOL_FOLDER` was already
+    beside its reader,
+    so the sixth move was only a re-pointing,
+    and `POOL_FOLDER` was left where it stands.
+    The plan also left a loop open that it did not name:
+    the hand-over and the around pass both named `finish`,
+    so the twelve-file set needed both of those uses taken,
+    and the service's around removal needed a file of its own,
+    because the file that receives it had to stay under the line budget.
+    The top doc's file list was restated in the fourth commit:
+    the loop had hidden uses the list's order did not hold,
+    and the list now puts the snapshot-ahead files first,
+    then the pool clear,
+    the finish of an interrupted destroy and the reports,
+    then the around pass,
+    the around file and the removal,
+    and after them the landed work that reads the removal.
+    `layout-allow-list/file-rule.txt` now holds 25 records;
+    the two files of `src/native/worktree` still over `rust/max-lines` are
+    `worktree_remove.rs` (468 code lines) and `mod.rs` (335),
+    neither of which this round may split or shorten.
 4.  `refactor/git-policy-cli-split-call-changes`:
     step 4's five call changes,
     one commit each:
