@@ -19,15 +19,19 @@
 //! ```
 
 /// Evidence about the holder of a lock:
-/// the two records a look reads and the words they are reported in.
+/// the two records a look reads,
+/// and the words they are reported in.
 use crate::index_lock_evidence::{
     Evidence,
     Verdict,
-    blocker_words,
     classify_index_lock,
-    dead_owner_diagnostic,
     gather_with,
     host_pid_process,
+};
+/// The sentences a look reports the evidence in.
+use crate::index_lock_evidence_words::{
+    blocker_words,
+    dead_owner_diagnostic,
 };
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;

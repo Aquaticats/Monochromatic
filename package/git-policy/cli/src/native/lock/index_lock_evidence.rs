@@ -34,19 +34,6 @@
 
 /// Whether a process's command name is Git's.
 use crate::git_command_name::names_git_command;
-/// The end of a wait and the sentences the evidence is reported in.
-pub use crate::index_lock_evidence_words::{
-    DEAD_OWNER_LOCK_LEFT,
-    THE_ENDING_SAYS_IT,
-    WaitEnd,
-    blocker_words,
-    ceiling_line,
-    dead_owner_diagnostic,
-    proven_holder_line,
-    proven_holder_progress_line,
-    unproven_removal_advice,
-    unproven_wait_line,
-};
 /// The sentences about a live holder.
 pub use crate::index_lock_holder_words::holder_way_out;
 /// Open-holder scans.

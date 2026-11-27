@@ -34,6 +34,9 @@ use crate::process_tree::descendants_of_read;
 /// state and processor time,
 /// from one `/proc/<pid>/stat`.
 use crate::process_tree::use_of;
+/// The process the kernel is holding,
+/// which a look names when it finds one.
+use crate::scratch_step_stall_decided_once::HeldProgram;
 /// Time spans,
 /// for the processor time a look reports.
 use std::time::Duration;
@@ -173,12 +176,10 @@ pub(crate) fn what_the_look_says(step: u32) -> WhatTheLookSays {
         None => return WhatTheLookSays::CouldNotLook,
     };
     return match the_process_the_kernel_holds(below.as_slice()) {
-        Some((found, used)) => {
-            WhatTheLookSays::TheKernelHoldsIt(crate::scratch_step_held_by_the_kernel::HeldProgram {
-                number: *found,
-                name: used.name.clone(),
-            })
-        }
+        Some((found, used)) => WhatTheLookSays::TheKernelHoldsIt(HeldProgram {
+            number: *found,
+            name: used.name.clone(),
+        }),
         None => WhatTheLookSays::NotHeld,
     };
 }
@@ -201,7 +202,7 @@ pub(crate) fn what_the_look_says(step: u32) -> WhatTheLookSays {
 pub(crate) enum WhatTheLookSays {
     /// The process the kernel is holding,
     /// which is the step itself or a program it started.
-    TheKernelHoldsIt(crate::scratch_step_held_by_the_kernel::HeldProgram),
+    TheKernelHoldsIt(HeldProgram),
     /// No process of the step is in an uninterruptible call.
     NotHeld,
     /// `/proc` could not be read,

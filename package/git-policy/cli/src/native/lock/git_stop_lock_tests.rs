@@ -32,15 +32,15 @@ use crate::push_limit_held_for_an_ordering::{
     LimitHoldGuard,
     hold_limit_for_an_ordering,
 };
+use crate::stale_ref_lock_names::{
+    LOCK_SUFFIX,
+    PID_LOCK_SUFFIX,
+};
 use crate::stop_waits_while_a_member_cannot_be_interrupted::{
     ControlRules,
     RulesGuard,
     STOP_CEILING,
     rules_for_this_thread,
-};
-use crate::stopped_git_locks::{
-    LOCK_SUFFIX,
-    PID_LOCK_SUFFIX,
 };
 use crate::test_support::{
     fixture,
