@@ -4,16 +4,19 @@
 //! the message the merge carries,
 //! the capture of the person's own work,
 //! the merge commit,
-//! and the update that puts it in the checkout.
+//! the update that puts it in the checkout,
+//! and the lines that name the files the word pass merged.
 //! Why:
-//!   `merge_isolation.rs` reads the branch,
+//!   `merge_isolation_round.rs` reads the branch,
 //! the person's paths and the merge tree,
 //! and keeps its own file inside the code-line limit;
 //! the steps that write the message,
 //! the capture and the commit are a file of their own that it imports
 //!  and that imports nothing from it.
 //!  The words a merge whose editor left no message prints belong here too,
-//! because nothing else reads them.
+//! because nothing else reads them,
+//! and so do the lines a finished merge prints about the files the word pass merged,
+//! because nothing else prints them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,14 +25,13 @@
 
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
+/// The number this command is known by in the journal.
+use crate::journald_native::CLIENT_IDENTIFIER;
 /// The writing half of an isolated merge,
-/// the merge commit,
-/// and the lines that list the files the second pass merged.
-use crate::merge_isolation_apply::{
-    apply,
-    commit_merge,
-    with_second_pass_report,
-};
+/// which moves the checkout.
+use crate::merge_isolation_apply::apply;
+/// The merge commit this round creates.
+use crate::merge_isolation_apply_commit::commit_merge;
 /// The person's own work in the paths the merge changes.
 use crate::merge_isolation_carry::capture_work;
 /// The record of that work in the paths the merge changes.
@@ -64,10 +66,54 @@ use crate::merge_isolation_run_types::{
 use crate::merge_options::MergeShape;
 /// The word-level second pass over the conflicts of the merge tree.
 use crate::merge_second_pass::Merged;
+/// The lines that name the files the word pass merged.
+use crate::merge_second_pass_tree::announce;
 /// Real Git.
 use crate::transaction_git::GitContext;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
+
+/// What:
+///  The finished merge with the lines that list the files the second pass merged by word,
+/// ahead of Git's own words.
+/// Why:
+///   The journal entries and the lines are produced only now,
+/// after the merge is in the checkout,
+/// so neither says a merge
+///  happened that was refused or undone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withSecondPassReport(done: IsolatedMerge, merged: Merged[]): IsolatedMerge;
+/// ```
+pub fn with_second_pass_report(
+    done: IsolatedMerge,
+    merged: &[Merged],
+) -> IsolatedMerge {
+    match done {
+        IsolatedMerge::Finished {
+            code: 0,
+            stdout,
+            stderr,
+        } if !merged.is_empty() => {
+            let mut report: String = String::new();
+            for line in announce(
+                "monochromatic-git-policy-cli: ",
+                (CLIENT_IDENTIFIER, "merge"),
+                merged,
+            ) {
+                report.push_str(line.as_str());
+                report.push('\n');
+            }
+            return IsolatedMerge::Finished {
+                code: 0,
+                stdout,
+                stderr: report + stderr.as_str(),
+            };
+        }
+        other => return other,
+    }
+}
 
 /// What:
 ///  The message the merge carries,

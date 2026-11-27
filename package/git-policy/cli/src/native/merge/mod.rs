@@ -280,9 +280,20 @@
 //!   the merge tree of an isolated merge,
 //!   computed from objects,
 //!   and the word-level second pass over its conflicts.
+//! - `merge_isolation_apply_record.rs`:
+//!   what an isolated merge writes before any byte of the checkout changes:
+//!   the intent record,
+//!   the look at `index.lock`,
+//!   and the marker phase a crash control arms.
+//! - `merge_isolation_apply_commit.rs`:
+//!   the merge commit of an isolated merge,
+//!   signed as the options and the settings ask.
 //! - `merge_isolation_apply.rs`:
 //!   the writing half of an isolated merge:
-//!   the commit and the two-way update.
+//!   the clear of the person's paths,
+//!   Git's own update that puts the merge in the checkout,
+//!   the carry of their work after it,
+//!   and the report the command ends with.
 //! - `merge_isolation_recovery_before_the_merge.rs`:
 //!   the merges a dead process left,
 //!   finished or discarded before this merge reads the checkout.
@@ -680,8 +691,21 @@ pub mod merge_isolation_carry_place;
 /// and the permission bits a person set on their own entry.
 pub mod merge_isolation_carry_place_write;
 
+/// What a merge wrote before any byte of the checkout changed:
+/// its intent record,
+/// its look at `index.lock`,
+/// and the marker phase a crash control arms.
+pub mod merge_isolation_apply_record;
+
+/// The merge commit of an isolated merge,
+/// signed as the options and the settings ask.
+pub mod merge_isolation_apply_commit;
+
 /// The writing half of an isolated merge:
-/// the commit and the two-way update.
+/// the clear of the person's paths,
+/// Git's own update that puts the merge in the checkout,
+/// the carry of their work after it,
+/// and the report the command ends with.
 pub mod merge_isolation_apply;
 
 /// The merge a command saves for a later one:
