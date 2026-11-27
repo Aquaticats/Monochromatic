@@ -47,13 +47,14 @@ use crate::command_test_support::{
 };
 use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::discard_audit::AUDIT_FILE;
-/// The removal one directory of a pass goes through, which the control of a directory whose change time did not
-/// move calls directly.
+/// The removal one directory of a pass goes through,
+/// which the control of a directory whose change time did not move calls directly.
 use crate::discarded_prune_removal::{
     Removal,
     remove_entry,
 };
-/// The folder of saved copies, opened once without following a link.
+/// The folder of saved copies,
+/// opened once without following a link.
 use crate::discarded_store::Store;
 use crate::iso_time::format_iso_milliseconds;
 use std::os::unix::fs::PermissionsExt;
@@ -436,7 +437,8 @@ fn a_second_pass_while_one_runs_does_its_own_work_and_neither_loses_a_record() {
 /// with the new
 /// file,
 /// and the pass says why.
-/// (A change time that moved says nothing by itself: another pass removing files moves it,
+/// (A change time that moved says nothing by itself:
+/// another pass removing files moves it,
 /// and a file added inside the tick the listing's stamp came from leaves it where it was on a file system whose
 /// times advance in one-millisecond steps,
 /// so the pass compares what the directory holds now with what it held when listed.)
