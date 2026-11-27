@@ -437,6 +437,7 @@ pub mod worktree_copy_settling;
 pub mod worktree_copy_install_entry;
 
 /// The stable name a fallback's temporary is filled under.
+#[cfg(unix)]
 pub mod worktree_copy_publish_file_temporary_name;
 
 /// The calls that make one file in a directory this module holds open.
@@ -730,6 +731,7 @@ pub mod worktree_removal_of_a_bound_clone;
 
 /// Which destinations one recovery pass may finish a copy into,
 /// and whether a destination is still a registered worktree of the repository.
+#[cfg(unix)]
 pub mod worktree_copy_recovery_destinations;
 
 /// Recovery of interrupted copies:
