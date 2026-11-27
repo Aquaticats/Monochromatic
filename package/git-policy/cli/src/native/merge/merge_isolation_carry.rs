@@ -58,57 +58,9 @@ pub(crate) use crate::merge_isolation_worktree_entry::{
     worktree_entry_at,
 };
 
-/// The Git mode of a symbolic link.
-const SYMBOLIC_LINK_MODE: &str = "120000";
-
-/// The Git mode of an executable file.
-const EXECUTABLE_MODE: &str = "100755";
-
-/// The Git mode of an ordinary file.
-const PLAIN_FILE_MODE: &str = "100644";
-
-/// What:
-///  The words for a path of the person's work that could not be read.
-/// Why:
-///   Two reads of one path answer with the same sentence,
-///  and the path is the one the person names.
-pub(crate) fn could_not_be_read(
-    location: &Path,
-    error: std::io::Error,
-) -> String {
-    return format!("{} could not be read: {error}", location.display());
-}
-
-/// What:
-///  The mode Git records for what stands at a worktree path.
-/// Why:
-///   A link's bytes are its target text and Git records no mode of the file it points at,
-/// so the kind is read before
-///  the bytes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function modeOf(metadata): '120000' | '100755' | '100644';
-/// ```
-pub(crate) fn mode_of(metadata: &std::fs::Metadata) -> &'static str {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if metadata.file_type().is_symlink() {
-            return SYMBOLIC_LINK_MODE;
-        }
-        if metadata.permissions().mode() & 0o111 != 0 {
-            return EXECUTABLE_MODE;
-        }
-        return PLAIN_FILE_MODE;
-    }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    {
-        let _ = metadata;
-        return PLAIN_FILE_MODE;
-    }
-}
+/// The Git mode a symbolic link is recorded with,
+/// which a capture compares a path's mode with.
+use crate::merge_isolation_carry_place_write::SYMBOLIC_LINK_MODE;
 
 /// What:
 ///  The bytes the worktree holds at one path:
@@ -151,46 +103,6 @@ pub(crate) fn bytes_at(
         WorktreeEntry::Absent => Ok(None),
         WorktreeEntry::NoBytes(kind) => Err(not_one_edit_a_merge_can_carry(location, &kind)),
     };
-}
-
-/// Every permission bit a person can set on an entry:
-/// the read,
-/// write and execute bits of each of the owner,
-/// the group and everyone,
-/// and the setuid,
-/// setgid and sticky bits above them.
-const EVERY_PERMISSION_BIT: u32 = 0o7777;
-
-/// What:
-///  The permission bits a plain file carries,
-///  or nothing on a platform whose permissions are not these bits.
-/// Why:
-///  A capture keeps them because a path the merge deletes stands empty when the carry writes the person's entry back,
-///  and the read,
-/// write and special bits of their file are then nowhere else:
-///  Git records the executable bit alone,
-/// so a `chmod 0600` on a tracked `0644` file is invisible to Git.
-///  A path the merge writes takes Git's own mode instead,
-/// which the file system decides from the umask as it does for Git
-///  (`SPEC.md`,
-///  "Carry edits forward").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const thePermissions = (metadata) => process.platform === 'win32' ? undefined : metadata.mode & 0o7777;
-/// ```
-pub(crate) fn the_permissions(metadata: &std::fs::Metadata) -> Option<u32> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        return Some(metadata.permissions().mode() & EVERY_PERMISSION_BIT);
-    }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    {
-        let _ = metadata;
-        return None;
-    }
 }
 
 /// What:
