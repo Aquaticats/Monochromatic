@@ -135,6 +135,14 @@ process per test: `keep/red-before-the-two-controls.log`,
 deleted on 2026-11-27;
 what this record uses from it is stated here).
 
+### The scanner's package met the same cause (issue 6491)
+
+`package/forbidden-strings/cli`'s embedding control makes a rule file whose name is not valid UTF-8 under
+`CARGO_TARGET_TMPDIR`, which is on the dataset above, and met this cause on 2026-11-27.
+Its own answer and its red and green runs are recorded in
+`package/forbidden-strings/cli/doc/embedding-control-on-a-file-system-that-refuses-a-name-that-is-not-utf8.md`;
+this section keeps only the fact that the refusing layer is the same one described above.
+
 ### The inner half's Git holds no capability (issue 6459)
 
 Recorded 2026-11-25T07:55:39-05:00 by the round `any-name-fixture-root-git-without-capabilities`,
