@@ -34,7 +34,7 @@ import { recipe, } from './guest-host/host-side-commands.ts';
 import {
   type RunArguments,
   runArguments,
-} from './guest-host/run-arguments.ts';
+} from './guest-host/guest-host-rules-fixture.ts';
 import { runTheAdoption, } from './adoption-guest-arms/adoption-arm.ts';
 import { buildInGuest, } from './adoption-guest-arms/crate-build.ts';
 import { delegation, } from './adoption-guest-arms/delegation-arm.ts';

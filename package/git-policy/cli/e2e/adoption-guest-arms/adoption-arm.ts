@@ -15,11 +15,11 @@
  */
 
 import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { shellQuote, } from '../guest-host/shell-quote.ts';
 import {
   holdsLineStartingWith,
   requireMarkers,
-} from '../guest-host/log-markers.ts';
+  shellQuote,
+} from '../guest-host/guest-host-rules-fixture.ts';
 import {
   adoptionGuestVariable,
   armTimeoutMilliseconds,

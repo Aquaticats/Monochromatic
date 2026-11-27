@@ -22,7 +22,7 @@
 
 import type { GuestRun, } from '../guest-host/guest-run.ts';
 import { guest, } from '../guest-host/guest-side-scripts.ts';
-import { requireMarkers, } from '../guest-host/log-markers.ts';
+import { requireMarkers, } from '../guest-host/guest-host-rules-fixture.ts';
 import {
   armTimeoutMilliseconds,
   delegationAccount,

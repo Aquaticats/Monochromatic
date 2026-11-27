@@ -14,8 +14,10 @@
  */
 
 import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { requireMarkers, } from '../guest-host/log-markers.ts';
-import { shellQuote, } from '../guest-host/shell-quote.ts';
+import {
+  requireMarkers,
+  shellQuote,
+} from '../guest-host/guest-host-rules-fixture.ts';
 import {
   armTimeoutMilliseconds,
   crateDirectory,

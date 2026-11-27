@@ -1,33 +1,26 @@
 /**
- The bounds every guest-driving script shares: how long one host command and one
- guest command may take, how often the host asks a detached guest script whether
- it has finished, and how large the swap file a guest's build gets.
+ The bounds every guest-driving script shares: how long one host command may take,
+ how often the host asks a detached guest script whether it has finished, how
+ large the swap file a guest's build gets, and how many host-command bounds one
+ guest-recipe step is given.
 
  These are the values the three drivers carried separately, kept here so a change
  to one is a change to all of them. What each bounds is stated beside it; the
- guest's own `timeout` fires `guestTimeoutMarginSeconds` before `mvm` would kill
- the command, so a guest script that runs away leaves its own log rather than a
- kill nobody can read.
+ guest's own `timeout` fires the margin in `guest-host-rules-fixture.ts` before
+ `mvm` would kill the command, so a guest script that runs away leaves its own log
+ rather than a kill nobody can read.
 
  @example
  ```ts
- const seconds = guestCommandTimeoutSeconds({ timeoutMilliseconds: 900_000 });
+ const bound = recipeTimeoutMilliseconds;
  ```
  */
-
-import { millisecondsPerSecond, } from '../../bin/native-release-host-control-requirements.ts';
 
 /**
  Milliseconds one host command may take: the `mvm` client calls and the host's
  `tar` around a guest run.
  */
 export const hostCommandTimeoutMilliseconds = 120_000;
-
-/**
- Seconds the guest's own `timeout` fires before `mvm`'s kill, so a script that
- runs away is stopped inside the guest, where its log is.
- */
-export const guestTimeoutMarginSeconds = 60;
 
 /**
  How often the host asks a guest whether a detached script has finished, in
@@ -63,25 +56,3 @@ const recipeBoundsPerHostCommand = 60;
  */
 export const recipeTimeoutMilliseconds: number = hostCommandTimeoutMilliseconds
   * recipeBoundsPerHostCommand;
-
-/**
- Seconds a guest command is given, after the margin the guest's own `timeout`
- leaves before `mvm`'s kill.
-
- @param timeoutMilliseconds - milliseconds the host waits for the command
-
- @returns the whole seconds the guest's `timeout` is given
-
- @example
- ```ts
- guestCommandTimeoutSeconds({ timeoutMilliseconds: 900_000 });
- ```
- */
-export function guestCommandTimeoutSeconds({
-  timeoutMilliseconds,
-}: {
-  readonly timeoutMilliseconds: number;
-},): number {
-  return Math.floor(timeoutMilliseconds / millisecondsPerSecond)
-    - guestTimeoutMarginSeconds;
-}

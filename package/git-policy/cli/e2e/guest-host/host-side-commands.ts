@@ -110,10 +110,12 @@ export async function recipe({
   readonly extraArguments?: readonly string[];
 },): Promise<void> {
   /**
-   The recipe's own entry point, in the sibling package that owns the guest.
+   The recipe's own entry point, in the sibling package that owns the guest:
+   this folder is four levels below `package/`, which is where that package sits.
    */
   const script = resolve(
     import.meta.dirname,
+    '..',
     '..',
     '..',
     '..',

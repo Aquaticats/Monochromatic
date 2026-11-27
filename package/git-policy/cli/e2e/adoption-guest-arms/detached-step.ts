@@ -24,7 +24,6 @@ import { join, } from 'node:path';
 import { promisify, } from 'node:util';
 
 import {
-  detachedScriptFiles,
   startDetachedScript,
   waitForDoneLine,
 } from '../guest-host/guest-side-scripts.ts';
@@ -32,9 +31,10 @@ import type { GuestRun, } from '../guest-host/guest-run.ts';
 import { hostCommandTimeoutMilliseconds, } from '../guest-host/guest-host-bounds.ts';
 import { host, } from '../guest-host/host-side-commands.ts';
 import {
+  detachedScriptFiles,
   doneStatusOf,
   readLog,
-} from '../guest-host/log-markers.ts';
+} from '../guest-host/guest-host-rules-fixture.ts';
 
 /**
  `execFile` with a promise result, typed through Node's own adapter contract,

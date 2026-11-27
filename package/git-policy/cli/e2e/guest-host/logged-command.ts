@@ -264,6 +264,9 @@ export async function statusOf({
       child,
       'close',
     );
+    /**
+     The status the close event carried, in its own position.
+     */
     const [status,] = closeArguments;
     return statusOfClose({ status, },);
   }

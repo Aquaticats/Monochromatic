@@ -29,7 +29,7 @@ import { host, } from '../guest-host/host-side-commands.ts';
 import {
   readLog,
   requireMarkers,
-} from '../guest-host/log-markers.ts';
+} from '../guest-host/guest-host-rules-fixture.ts';
 import {
   armTimeoutMilliseconds,
   expectedFsyncMarkers,
@@ -129,10 +129,12 @@ export async function publicationFsync({
   readonly chosen: GuestRun;
 },): Promise<string> {
   /**
-   The probe itself, in the package's own `doc` folder.
+   The probe itself, in the package's own `doc` folder, which this arms folder
+   sits two levels below.
    */
   const probe = resolve(
     import.meta.dirname,
+    '..',
     '..',
     'doc',
     'slot-identity-store-write-cost',

@@ -42,11 +42,9 @@ import { recipe, } from './guest-host/host-side-commands.ts';
 import {
   readLog,
   requireMarkers,
-} from './guest-host/log-markers.ts';
-import {
-  type RunArguments,
   runArguments,
-} from './guest-host/run-arguments.ts';
+  type RunArguments,
+} from './guest-host/guest-host-rules-fixture.ts';
 import { buildInGuest, } from './start-probe-arms/crate-build.ts';
 import {
   probeDatasetArm,

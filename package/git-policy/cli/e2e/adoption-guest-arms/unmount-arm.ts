@@ -21,8 +21,8 @@ import { host, } from '../guest-host/host-side-commands.ts';
 import {
   readLog,
   requireMarkers,
-} from '../guest-host/log-markers.ts';
-import { shellQuote, } from '../guest-host/shell-quote.ts';
+  shellQuote,
+} from '../guest-host/guest-host-rules-fixture.ts';
 import {
   armTimeoutMilliseconds,
   crateDirectory,

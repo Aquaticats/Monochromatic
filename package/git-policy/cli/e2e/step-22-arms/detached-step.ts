@@ -16,12 +16,14 @@
  */
 
 import {
-  detachedScriptFiles,
   startDetachedScript,
   waitForDoneLine,
 } from '../guest-host/guest-side-scripts.ts';
 import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { doneStatusOf, } from '../guest-host/log-markers.ts';
+import {
+  detachedScriptFiles,
+  doneStatusOf,
+} from '../guest-host/guest-host-rules-fixture.ts';
 import {
   lastLineWithText,
   pullSharedLog,

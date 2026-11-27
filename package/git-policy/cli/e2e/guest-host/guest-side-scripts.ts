@@ -3,6 +3,9 @@
  in a log, start a long one detached so a lost answer cannot lose its work, and
  wait for the `DONE=` line it appends when it ends.
 
+ The step and launcher files a detached script runs from are made in
+ `guest-host-rules-fixture.ts`, beside the quoting they carry.
+
  A guest build and a guest arm run for minutes, and the guest agent has lost the
  status of a long `exec` (`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`).
  The detached shape is therefore the one a long step uses: the script runs under
@@ -16,7 +19,6 @@
 
  @example
  ```ts
- const { step, launch } = detachedScriptFiles({ chosen, script, log, timeout, hostnameCheckInLaunch: true });
  await startDetachedScript({ chosen, step, launch, log });
  ```
  */
@@ -30,35 +32,19 @@ import {
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import {
+  detachedScriptFiles,
   guestCommandTimeoutSeconds,
+  readLog,
+  shellQuote,
+  sharedFolder,
+} from './guest-host-rules-fixture.ts';
+import {
   hostCommandTimeoutMilliseconds,
   pollIntervalMilliseconds,
 } from './guest-host-bounds.ts';
 import type { GuestRun, } from './guest-run.ts';
 import { host, } from './host-side-commands.ts';
-import { readLog, } from './log-markers.ts';
 import { runIgnoring, } from './logged-command.ts';
-import { shellQuote, } from './shell-quote.ts';
-
-/**
- The guest folder every detached script and its log live in, which `mvm push`
- writes and the host can read for a guest that has no agent answer.
- */
-export const sharedFolder = '/mnt/shared';
-
-/**
- The two files one detached guest script runs from.
- */
-export type DetachedScriptFiles = {
-  /**
-   The bounded script itself, which runs detached inside the guest.
-   */
-  readonly step: string;
-  /**
-   The launcher the host starts, which returns as soon as the script is detached.
-   */
-  readonly launch: string;
-};
 
 /**
  Run one guest script to its end with its whole output in its own log.
@@ -113,79 +99,6 @@ export async function guest({
     chosen.logDir,
     log,
   ), },);
-}
-
-/**
- The step and launcher files one detached guest script runs from.
-
- The launcher is what the host starts, and the step is what it runs detached:
- both are pushed into the guest's shared folder under their own names, which is
- where the launcher looks for the step.
-
- @param chosen - the run's guest and log folder
-
- @param script - the shell script to run inside the guest
-
- @param log - the log's name inside the shared folder
-
- @param timeout - milliseconds the script may take inside the guest
-
- @param hostnameCheckInLaunch - whether the launcher refuses a guest that is not
-   this one, rather than the step naming the check
-
- @returns the two files' whole text
-
- @example
- ```ts
- const files = detachedScriptFiles({ chosen, script: 'id', log: 'guest-id.log', timeout: 900_000, hostnameCheckInLaunch: true });
- ```
- */
-export function detachedScriptFiles({
-  chosen,
-  script,
-  log,
-  timeout,
-  hostnameCheckInLaunch,
-}: {
-  readonly chosen: GuestRun;
-  readonly script: string;
-  readonly log: string;
-  readonly timeout: number;
-  readonly hostnameCheckInLaunch: boolean;
-},): DetachedScriptFiles {
-  /**
-   The check that the command reached the guest it names, in whichever file
-   carries it.
-   */
-  const hostnameCheck = `test "$(hostname)" = ${chosen.name}`;
-  /**
-   How the detached script puts its own status into its log, which is what the
-   host waits for.
-   */
-  const doneLine = `echo "DONE=$status" >> ${sharedFolder}/${log}`;
-  /**
-   The bounded script, which is what runs detached.
-   */
-  const stepLines = [
-    ...(hostnameCheckInLaunch ? [] : [hostnameCheck,]),
-    `timeout ${String(guestCommandTimeoutSeconds({ timeoutMilliseconds: timeout, },))} sh -ec ${shellQuote(script,)} > ${sharedFolder}/${log} 2>&1`,
-    'status=$?',
-    doneLine,
-    '',
-  ];
-  /**
-   The launcher, which is what the host starts and which returns at once.
-   */
-  const launchLines = [
-    ...(hostnameCheckInLaunch ? [`${hostnameCheck} || exit 1`,] : []),
-    `setsid nohup sh ${sharedFolder}/${log}.step.sh < /dev/null > /dev/null 2>&1 &`,
-    'exit 0',
-    '',
-  ];
-  return {
-    step: stepLines.join('\n',),
-    launch: launchLines.join('\n',),
-  };
 }
 
 /**

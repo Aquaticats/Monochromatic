@@ -32,7 +32,7 @@ import type { GuestRun, } from './guest-host/guest-run.ts';
 import {
   type RunArguments,
   runArguments,
-} from './guest-host/run-arguments.ts';
+} from './guest-host/guest-host-rules-fixture.ts';
 import { buildInGuest, } from './step-22-arms/crate-build.ts';
 import { measureTheHolderScan, } from './step-22-arms/holder-scan-arm.ts';
 import {

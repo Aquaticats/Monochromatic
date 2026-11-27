@@ -19,7 +19,7 @@ import type { GuestRun, } from '../guest-host/guest-run.ts';
 import {
   holdsLineStartingWith,
   requireMarkers,
-} from '../guest-host/log-markers.ts';
+} from '../guest-host/guest-host-rules-fixture.ts';
 import { detachedStep, } from './detached-step.ts';
 import {
   armLog,
