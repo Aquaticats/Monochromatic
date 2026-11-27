@@ -25,6 +25,29 @@ reuses ping-pong buffers,
 a non-class body (e.g. an optional group `(?:ab)?`) and nested set algebra inside an
 operand still route to the eager DFA.
 
+## Reader's note on paths (split of 2026-11-26)
+
+This note names files as they stood when it was written.
+The repository split the two it names most on 2026-11-26
+(`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`):
+
+- `src/regex.rs` keeps the `Regex` and `RegexSet` types,
+ `compile` and the module
+declarations.
+ Its `RegexSet` methods now live in `src/regex/ruleset_construction.rs`,
+`src/regex/ruleset_matching.rs`,
+ `src/regex/ruleset_profiling.rs`,
+`src/regex/ruleset_diagnostics.rs`
+ and `src/regex/ruleset_serialization.rs`.
+- `tests/integration.rs` is now `tests/integration/main.rs`,
+ with its tests in four role
+modules beside it (`dialect_of_one_pattern.rs`,
+ `routing_a_line_through_a_ruleset.rs`,
+`saving_and_reloading_a_compiled_set.rs`
+ and `diagnostic_counts_and_profiling_hooks.rs`).
+
+Every mention below keeps the earlier path.
+
 ## Throughput status: BEAT regex on BOTH arches (x86 ~1.30-1.32x, arm64/m1 ~1.21-1.23x)
 
 Latest (post-u16):
@@ -1032,7 +1055,14 @@ Back-ends:
 - `src/gate.rs`:
    `SetGate` owns the SIMD literal prefilter plus DFA aho-corasick which-rule
   matcher over seeded rules.
-- `src/regex.rs`:
+- `src/regex.rs`
+ (the types and `compile`)
+ with `src/regex/ruleset_construction.rs`,
+`src/regex/ruleset_matching.rs`,
+ `src/regex/ruleset_diagnostics.rs`,
+`src/regex/ruleset_serialization.rs`
+ and `src/regex/ruleset_profiling.rs`
+ (the methods):
    `Regex` wraps one `Engine`;
    `RegexSet` stores per-rule engines for exact
   checks plus `anchored`,
@@ -1052,7 +1082,7 @@ Back-ends:
 
 Core regression coverage:
 
-- `tests/integration.rs`:
+- `tests/integration/main.rs` and the four modules beside it:
    end-to-end (literals,
    anchors,
    classes/shorthands,
