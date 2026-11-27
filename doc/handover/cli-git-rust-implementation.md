@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:12:46-05:00
+## The state at 2026-11-27T12:27:32-05:00
 
-`main` was `dcb2bcd6a5`.
+`main` was `0f33063f26`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 222 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 226 more by this time.
 
 ### Rounds running
 
@@ -125,38 +125,34 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- for the wrapper package's lint,
-  which was red on `main` with nothing running it,
-  the last round for the guest scripts of issue 6581,
-  `issue-6581-oxlint-clean-guest-scripts-part-1-of-3`
-  (it writes `Refs #6581`,
-  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`;
-  three files were left,
-  with 235 errors and 447 warnings,
-  when part 2 measured `main`).
-  Part 3 is merged (`3621047a9d`):
-  the four ZFS guest drivers lint clean,
-  share their plumbing in `bin/guest-route-*.ts`,
-  and two of them build one target at two jobs,
-  because one release `rustc` of this crate's tests takes 6.7 to 6.9 GiB of an 8 GiB guest
-  and the kernel had killed both builds.
-  Part 2 is merged (`cc660cae3a`):
-  four more drivers lint clean and share steps in `bin/mvm-guest-*.ts`,
-  a second set beside part 3's,
-  which issue 6612 joins into one once part 1 has merged
-  (no round yet;
-  part 1 was told of both sets by an inbox note);
-- three rounds for what part 2's report left,
-  started 2026-11-27T11:40:23-05:00 from one list:
-  `issue-6608-verification-process-tests-wait-for-the-child-by-a-fact-it-gives`;
-  `issue-6610-a-check-scopes-last-counters-keep-every-part-they-read`
-  (a unit test of what a check's scope counted failed once in one whole run,
-  reading no `pids.events`;
-  the cause is not established);
-  and `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
+- nothing for the wrapper package's lint,
+  which is clean on `main` and whose issue 6581 is closed ("What the rounds found").
+  Its rounds left three sets of shared guest-step helpers,
+  `bin/guest-route-*.ts`,
+  `bin/mvm-guest-*.ts` and `e2e/guest-host/`,
+  which issue 6612 joins into one.
+  No round holds it yet:
+  it touches every guest driver,
+  so it starts when issue 6611's round,
+  which holds the managed-lock driver,
+  has merged.
+  Issue 6615
+  (the adoption driver's holder-scan arm cannot run twice in one guest,
+  and its `snapdir` arm's pattern matches any character where it means a dot)
+  starts after issue 6612;
+- for what part 2's report left,
+  `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
   (the driver's build at four jobs is killed in its 8 GiB guest,
   so its arm has not run on the current tree;
-  it and the Sanoid driver also get a `mise` task each);
+  it and the Sanoid driver also get a `mise` task each),
+  started 2026-11-27T11:40:23-05:00.
+  Its two siblings are merged ("What the rounds found");
+- two rounds started 2026-11-27T12:15:56-05:00 from one list:
+  `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`
+  (the gate's reader of a container's control group has the defect issue 6610 fixed in a check scope's reader:
+  a container killed for memory can be reported as one that met no kill);
+  and `issue-6613-a-passing-typescript-check-says-what-it-ran`
+  (`native:ts-checks` prints only `exit 0` for a check that passed);
 - in the linter,
   `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
   ("Releases of 2026-11-27");
@@ -180,20 +176,25 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
-  `native:ts-checks` prints no suite or file names for a check that passed,
-  which is issue 6613
-  (no round yet:
-  it waits for issue 6610's round,
-  which holds two of its files);
 - for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  three rounds started 2026-11-27T12:00:02-05:00 from one list,
+  two rounds started 2026-11-27T12:00:02-05:00,
   each named `cargo-shadow-alpha-13-release-pass-` and then:
-  `the-retire-gates-fallback-and-its-words-are-held-by-controls`;
-  `the-refusals-listing-and-its-records-say-what-the-code-does`;
-  and `a-scope-whose-empty-notification-the-manager-lost`,
-  which builds nothing:
-  it shows the state in a guest and adds it to
-  `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
+  `the-retire-gates-fallback-and-its-words-are-held-by-controls`
+  and `the-refusals-listing-and-its-records-say-what-the-code-does`.
+  The third of that list is merged (`17a5efdf9a`):
+  in a guest on systemd 262.2,
+  with the account's inotify watches used up,
+  a scope started the way `cargo-shadow` starts one stayed `loaded active running` with no member after its program ended,
+  and the released `0.1.5-alpha.13` left its four scopes that way and exited 0;
+  a re-execution of the manager collects such units and can also lose one
+  (two of forty in one of two timed attempts).
+  A leftover holds no process;
+  twenty of them grew the manager by about 130 KiB each in one reading without a control.
+  `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md` now holds this second road:
+  the option that stops the unit a journal recorded cannot reach it,
+  the two sweeps can,
+  and the ranking stays as it was,
+  with its first pair closer;
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
   four rounds started 2026-11-27T12:11:40-05:00 from one list,
   each named `mpm-shadow-alpha-14-release-pass-` and then:
@@ -339,7 +340,6 @@ in a second worktree no merge moves
 `native:check` and the four Clippy tasks exited 0
 and the 232 tests of the modules issue 6595 touched passed;
 `native:ts-checks` exited 0 there at `7976b3daff`.
-The package's `lint:oxlint` stays red until part 1 of issue 6581 merges.
 Tip checks run in such a worktree:
 on 2026-11-27 three Clippy arms run in the main checkout exited 0 while Rust merges landed under them,
 and stood for no commit.
@@ -786,7 +786,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6613,
+  issues 6524 to 6615,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -981,6 +981,43 @@ and the two `truepeak` files wait on their branch.
   (`doc/handover/questions-for-the-owner.md`).
   `cargo-shadow`'s start uses a check of its own with two outcomes the shared refusal has no word for,
   and keeps its own line.
+- A check scope's last counters keep every part they read (`07f9232af0`,
+  issue 6610).
+  The kernel takes a dying control group's files away one at a time before its directory,
+  so a reading can lose `pids.events` while `pids.peak` still answers;
+  one real dying scope read 144 times gave one such reading.
+  The runner kept that reading in place of a whole one,
+  which is why `native:ts-checks` could miss saying that a bound and not a test had failed.
+  The record is `doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`.
+- Two verification-process unit tests wait for their child by the record it writes (`3dbb56c5a6`,
+  issue 6608),
+  and arm the bound they assert only then;
+  a two-second delay planted in the child's start leaves them green,
+  and each still fails when the code under test is broken the way it exists to catch.
+  `runCommand` was split at the seam where a bound is armed,
+  with two exports more and no change of behaviour.
+- On `main` at `07f9232af0`,
+  in a worktree no merge moved,
+  the package's whole `test:unit` exited 0 with 176 `[PASS]` suite lines and none failing,
+  and `lint:types` exited 0.
+- The wrapper package's `lint:oxlint` exits 0 on `main` (`0f33063f26`,
+  2026-11-27):
+  `Found 0 warnings and 0 errors.` on 341 files,
+  where issue 6581 had counted 850 errors and 1,856 warnings in fifteen TypeScript files with nothing running the check.
+  Every guest driver was shown to run in its guest against `main`'s version,
+  with the lines that say what an arm did compared and found the same.
+  The rewrite found that the start probe's shared header had been broken since `dcf5877982`:
+  an unquoted handler assignment ran the wrapper as a command,
+  so every arm after `green` stopped at its fourth line,
+  in `main`'s driver and the rewritten one alike;
+  it is quoted now,
+  and those arms run.
+  Three of that probe's arms
+  (`m3-kill`,
+  `timings`,
+  `timings-boot-first`)
+  were compared byte for byte and not run in a guest;
+  issue 6612's round runs each once.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
