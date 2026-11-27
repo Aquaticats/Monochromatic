@@ -13,10 +13,13 @@
 //!
 //! - `diagnostics.rs`:
 //!   JSONL event rendering for wrapper-made diagnostics.
+//! - `direct_fix_install_attributes_reading.rs`:
+//!   the calls that read what a file carries outside its bytes:
+//!   the list of names,
+//!   one value,
+//!   and the retry that reads them until the length the kernel reports fits.
 //! - `direct_fix_install_attributes.rs`:
 //!   the extended attributes a replacement carries with it.
-//! - `direct_fix_install_attributes_reading.rs`:
-//!   the answers direct fix install attributes reading holds.
 //! - `direct_fix_install_writes.rs`:
 //!   the swap and the replacement write an install uses.
 //! - `direct_fix_install_journal.rs`:
@@ -66,6 +69,11 @@
 //!   numbered in emission order.
 //! - `policy_engine.rs`:
 //!   ordered policy execution for one lifecycle point.
+//! - `the_answers_a_policy_gives.rs`:
+//!   nothing found,
+//!   one finding about the command,
+//!   and the answer of a repository fact that could not be read,
+//!   which every check of this folder ends with.
 //! - `policy_branch_worktree.rs`:
 //!   the branch-worktree-only check.
 //! - `policy_content.rs`:
@@ -92,12 +100,12 @@
 //! - `policy_forbidden_strings.rs`:
 //!   the optional forbidden-strings policy over the linked scanner,
 //!   with redacted findings.
-//! - `policy_linked_worktree.rs`:
-//!   the linked-worktree check,
-//!   in its own file so the registry of shipped policies stays readable.
 //! - `policy_linked_worktree_nested_repositories.rs`:
 //!   keeping the nested Git repositories a clean would delete,
 //!   and the one place a form is let through.
+//! - `policy_linked_worktree.rs`:
+//!   the linked-worktree check,
+//!   in its own file so the registry of shipped policies stays readable.
 //! - `policy_root_context.rs`:
 //!   the optional root-context policy:
 //!   no top-level `CONTEXT.md` enters the index.
@@ -152,6 +160,12 @@ pub mod path_bytes;
 
 /// Ordered policy execution for one lifecycle point.
 pub mod policy_engine;
+
+/// The three answers every check of this folder gives:
+/// nothing found,
+/// one finding about the command,
+/// and a repository fact that could not be read.
+pub mod the_answers_a_policy_gives;
 
 /// The bounded loop that repeats a pass after corrections changed candidate content.
 pub mod policy_convergence;
@@ -214,6 +228,12 @@ pub mod policy_forbidden_strings;
 /// Installing a direct fix's corrections into the worktree,
 ///  all or none.
 pub mod direct_fix_install;
+
+/// The calls that read what a file carries outside its bytes:
+/// the list of names,
+/// one value,
+/// and the retry that reads them until the length the kernel reports fits.
+pub mod direct_fix_install_attributes_reading;
 
 /// The extended attributes a replacement carries with it.
 pub mod direct_fix_install_attributes;

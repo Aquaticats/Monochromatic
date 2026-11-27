@@ -4,7 +4,6 @@
 //! and a check that hangs is killed at the deadline.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -21,6 +20,7 @@ use super::{
     repository_link_verdict,
     under_repository_link,
 };
+use crate::toolchain::fixture_programs::write_program;
 
 /// A disposable home with the repository's link path inside it.
 struct Home {
@@ -64,9 +64,11 @@ impl Home {
         body: &str,
     ) -> PathBuf {
         let program: PathBuf = self.path().join(CHECK_RELATIVE_PATH);
-        fs::create_dir_all(program.parent().expect("parent")).expect("install folder");
-        fs::write(program.as_path(), format!("#!/bin/sh\n{body}\n")).expect("check program");
-        fs::set_permissions(program.as_path(), fs::Permissions::from_mode(0o755)).expect("chmod");
+        // What:     The check is a shell script this test starts.
+        // Why:      A write descriptor this process held would be inherited by a child
+        //           another thread forked, and the start would be refused with `ETXTBSY`
+        //           (issue 6527), so a child process writes it.
+        write_program(&program, format!("#!/bin/sh\n{body}\n").as_bytes());
         return program;
     }
 

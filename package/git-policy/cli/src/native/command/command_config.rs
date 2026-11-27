@@ -32,6 +32,7 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// import { DEFAULT_MODE, OptionError, OptionSpec, ParseMode, ParsedOptions, WrapperOccurrence } from './command_options_types.ts';
 /// import { parseOptions } from './command_options.ts';
 /// ```
 use crate::command_config_table::{
@@ -62,21 +63,21 @@ use crate::command_config_table::{
     UNSET_ROWS,
     WORKTREE,
 };
-use crate::command_options::{
-    DEFAULT_MODE,
-    OptionError,
-    OptionSpec,
-    ParseMode,
-    ParsedOptions,
-    WrapperOccurrence,
-    parse_options,
-};
+use crate::command_options::parse_options;
 use crate::command_options_query::{
     is_enabled,
     is_stated,
     last_occurrence,
     positional_tokens,
     value_bytes,
+};
+use crate::command_options_types::{
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParseMode,
+    ParsedOptions,
+    WrapperOccurrence,
 };
 /// The reader that turns the bytes Git prints or receives into a path,
 ///  whose form differs per platform.

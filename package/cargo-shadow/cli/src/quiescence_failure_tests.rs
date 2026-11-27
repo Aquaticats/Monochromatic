@@ -38,7 +38,9 @@ use crate::bounded_run::{
 use crate::cgroup_test_support::{
     assert_ran_in_recorded_scope,
     assert_scope_record,
+    group_of,
     scope_directory_of,
+    v2_path_of_cgroup_file,
     wait_until,
 };
 use crate::control_group::{
@@ -360,7 +362,7 @@ fn a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_s
 #[test]
 fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
-    let original: String = fs::read_to_string("/proc/self/cgroup").expect("own group");
+    let original: String = group_of("self");
     let (at_start_sender, at_start) = mpsc::channel::<()>();
     let (release_sender, release) = mpsc::channel::<()>();
     let first = std::thread::spawn(move || {
@@ -386,7 +388,7 @@ fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_bo
         .arg("600")
         .spawn()
         .expect("an unrelated child");
-    let group_during: String = fs::read_to_string("/proc/self/cgroup").expect("own group");
+    let group_during: String = group_of("self");
     let _ = crate::bounded_run::take_trace_for_test();
     let second = output_within(
         Command::new("sh").args(["-c", "cat /proc/self/cgroup"]),
@@ -402,8 +404,7 @@ fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_bo
     let first_planned: String = crate::round_sixteen_tests::launched_scope(&first_trace);
 
     let unrelated_alive: bool = unrelated.try_wait().expect("asks").is_none();
-    let unrelated_group: String =
-        fs::read_to_string(format!("/proc/{}/cgroup", unrelated.id())).unwrap_or_default();
+    let unrelated_group: String = group_of(&unrelated.id().to_string());
     let _ = unrelated.kill();
     let _ = unrelated.wait();
     let first_group: String = String::from_utf8_lossy(&first_output.stdout)
@@ -415,14 +416,16 @@ fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_bo
         "the wrapper changed its group during a start"
     );
     assert_eq!(
-        fs::read_to_string("/proc/self/cgroup").expect("own group"),
-        original
+        group_of("self"),
+        original,
+        "the wrapper changed its group after a start"
     );
-    // Compared as control group paths (the file's `0::` prefix removed from every one), each against the scope its own run launched.
+    // Compared as the path of each version 2 line (a version 1 line, which this host writes first, is no path), each against the scope
+    // its own run launched.
     let (first_path, second_path, own_path) = (
-        crate::round_sixteen_tests::reported_path(&first_group),
-        crate::round_sixteen_tests::reported_path(&second_group),
-        crate::round_sixteen_tests::reported_path(&original),
+        v2_path_of_cgroup_file(&first_group),
+        v2_path_of_cgroup_file(&second_group),
+        v2_path_of_cgroup_file(&original),
     );
     assert!(
         first_path.ends_with(&first_planned) && second_path.ends_with(&second_planned),

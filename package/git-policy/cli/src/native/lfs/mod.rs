@@ -60,6 +60,10 @@
 //!   what the destination of an upload is,
 //!   and the server it is connected to,
 //!   beside the plan itself so that each file passes the package's length limit.
+//! - `lfs_upload_plan_itself.rs`:
+//!   what an upload sends,
+//!   and the argument lists one run of it takes,
+//!   beside the arguments that decide it and the two faces that build it.
 //! - `lfs_upload_plan_arguments.rs`:
 //!   what the arguments of a push and the configuration decide about an upload,
 //!   before either face of the plan asks Git anything.
@@ -114,6 +118,10 @@ pub mod lfs_program_search;
 /// What the arguments of a push and the configuration decide about an upload,
 /// before either face of the plan asks Git anything.
 pub mod lfs_upload_plan_arguments;
+
+/// What an upload sends,
+/// and the argument lists one run of it takes.
+pub mod lfs_upload_plan_itself;
 
 /// What the Git LFS upload sends:
 /// the remote and the refs,
