@@ -93,6 +93,10 @@
 //!   reads one line of the protocol as a service message,
 //!   checking every number,
 //!   name and figure of a landing.
+//! - `service_protocol_forgetting_programs.rs`:
+//!   reads protocol lines as messages,
+//!   checking every field.
+//!   The reader of the message that names the push records which can no longer run.
 //! - `service_protocol_decode_lines_to_messages.rs`:
 //!   reads one line of the protocol as a client message or a service message,
 //!   checking every field.
@@ -116,10 +120,6 @@
 //! - `service_journal_intent_text_and_parse.rs`:
 //!   the text form of a batch intent:
 //!   written and parsed.
-//! - `service_protocol_forgetting_programs.rs`:
-//!   reads protocol lines as messages,
-//!   checking every field.
-//!   The reader of the message that names the push records which can no longer run.
 //! - `service_reply.rs`:
 //!   the connection of one waiting client,
 //!   answered by the landing thread and kept alive by a beat from the reading thread.
