@@ -74,16 +74,16 @@ use crate::control_group::{
     Route,
 };
 /// What:
-/// `use crate::control_group_stop_report::StopReport;` imports what the stop of a scope answers.
+/// `use crate::control_group_stop::report::StopReport;` imports what the stop of a scope answers.
 /// Why:
 /// The shortfall of a run that cannot be shown stopped is built from that report,
 /// so the same facts reach the refusal and the caller.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { StopReport } from 'crate/control_group_stop_report';
+/// import { StopReport } from 'crate/control_group_stop/report';
 /// ```
-use crate::control_group_stop_report::StopReport;
+use crate::control_group_stop::report::StopReport;
 /// What:
 /// `use rustix::event::{PollFd, PollFlags, Timespec, poll};` imports the descriptor watcher and its timeout shape.
 /// Why:

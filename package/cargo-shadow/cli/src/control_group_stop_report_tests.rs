@@ -28,7 +28,8 @@ use std::path::{
 };
 /// Starts the fixture and waits for it.
 use std::process::Command;
-/// The bound of the contained run, and the time the stop is given to show the scope empty.
+/// The bound of the contained run,
+/// and the time the stop is given to show the scope empty.
 use std::time::{
     Duration,
     Instant,
@@ -72,7 +73,8 @@ const CRATE_DIR: &str = "package/s/one";
 /// Why:
 /// A shell reaps its background children,
 /// so only a program that forks and never waits can leave a member that has exited and waits to be reaped
-/// (measured 2026-11-27: `sh -c 'sleep 0.2 & sleep 600'` reaped the `sleep`,
+/// (measured 2026-11-27:
+/// `sh -c 'sleep 0.2 & sleep 600'` reaped the `sleep`,
 /// and a zombie of its parent's leaving is reaped by the manager).
 /// The fixture's holder prints the member's process id only after `/proc` shows it as a zombie,
 /// so the run's stop happens while the member really is a zombie.
@@ -393,7 +395,7 @@ fn a_member_alive_past_the_stop_bound_is_named_with_the_time_the_stop_waited() {
 /// so no state is assumed from the text of a document.
 #[test]
 fn the_state_of_a_process_tells_an_exited_thread_from_a_live_one() {
-    use crate::control_group_stop_report::{
+    use crate::control_group_stop::report::{
         MemberStanding,
         standing_of,
     };
@@ -466,7 +468,7 @@ fn the_state_of_a_process_tells_an_exited_thread_from_a_live_one() {
 /// so the words are the stop's own reading and not a second one.
 #[test]
 fn the_sentence_of_a_report_states_the_wait_and_the_state_of_every_member() {
-    use crate::control_group_stop_report::{
+    use crate::control_group_stop::report::{
         MemberListing,
         MemberStanding,
         StopReport,

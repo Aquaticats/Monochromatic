@@ -155,7 +155,8 @@ impl MemberStanding {
     }
 }
 
-/// One member of a scope, by process id,
+/// One member of a scope,
+/// by process id,
 /// with the state its threads were in.
 pub(crate) struct MemberListing {
     /// The process id the scope listed.

@@ -2301,7 +2301,8 @@ fn a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_
 /// so the install step refuses and keeps the journal with the lockfile cargo wrote.
 /// The writer ends by itself,
 /// and a second install step of the same workspace finishes that journal:
-/// the leftover lockfile passes the policy, so it is kept,
+/// the leftover lockfile passes the policy,
+/// so it is kept,
 /// the journal is removed,
 /// and the second run goes on to its own check and passes.
 #[test]

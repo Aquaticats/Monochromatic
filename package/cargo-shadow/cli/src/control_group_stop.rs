@@ -136,6 +136,52 @@ use rustix::process::{
 };
 
 /// What:
+/// `mod report;` declares what a stop reports:
+/// how long it waited,
+/// whether the kernel still reported the scope populated,
+/// and the members it listed with the state of their threads.
+/// Why:
+/// The report is built from the stop's own reading and handed to the refusal of the command,
+/// so it lives beside the stop;
+/// `#[path]` keeps its file beside this one and named for what it holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { StopReport, standingOf } from './control_group_stop_report.ts';
+/// ```
+#[path = "control_group_stop_report.rs"]
+pub(crate) mod report;
+/// What:
+/// `mod report_tests;` declares the controls of what a stop reports (issue 6528).
+/// Why:
+/// A unit test belongs in a sidecar file,
+/// and declaring it here keeps the crate root's list of modules out of the change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a sidecar test file next to the module it tests
+/// ```
+#[cfg(test)]
+#[path = "control_group_stop_report_tests.rs"]
+mod report_tests;
+
+/// What:
+/// `use self::report::{MemberListing, StopReport, standing_of};` imports what a stop reports,
+/// and the read of one member's threads.
+/// Why:
+/// The stop answers a report,
+/// and the report must be able to say whether a member it waited for had exited or was alive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { MemberListing, StopReport, standingOf } from './control_group_stop_report.ts';
+/// ```
+use self::report::{
+    MemberListing,
+    StopReport,
+    standing_of,
+};
+/// What:
 /// `use crate::control_group::ControlGroup;` imports the scope this stop acts on.
 /// Why:
 /// `stop`,
@@ -161,22 +207,6 @@ use crate::control_group_route_discovery::{
     View,
     namespace_id,
     view_of,
-};
-/// What:
-/// `use crate::control_group_stop_report::{MemberListing, StopReport, standing_of};` imports what a stop reports,
-/// and the read of one member's threads.
-/// Why:
-/// The stop answers a report,
-/// and the report must be able to say whether a member it waited for had exited or was alive.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { MemberListing, StopReport, standingOf } from 'crate/control_group_stop_report';
-/// ```
-use crate::control_group_stop_report::{
-    MemberListing,
-    StopReport,
-    standing_of,
 };
 
 /// The methods that stop the scope,

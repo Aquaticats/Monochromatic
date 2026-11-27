@@ -99,7 +99,8 @@ pub(crate) struct ScopeState {
     pub(crate) log: PathBuf,
     /// Whether a run under this scope could not show that everything it started was stopped.
     pub(crate) lost: Cell<bool>,
-    /// Why it could not, in the words the refusal of the command carries:
+    /// Why it could not,
+    /// in the words the refusal of the command carries:
     /// how long the stop waited and what it was waiting for.
     pub(crate) lost_reason: RefCell<Option<String>>,
     /// Whether a run under this scope was contained by a process group only.
@@ -176,7 +177,8 @@ impl RunScope {
     /// was stopped,
     /// in the words the refusal carries.
     /// Why:
-    /// Issue 6528: a reader of the refusal has to be able to tell a member that has exited from one that is alive,
+    /// Issue 6528:
+    /// a reader of the refusal has to be able to tell a member that has exited from one that is alive,
     /// and a bound that passed on a loaded host from a member that cannot be killed,
     /// so the message says how long the stop waited and what it was waiting for.
     ///
