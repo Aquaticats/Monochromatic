@@ -1032,11 +1032,20 @@ fn package_of_a_chain_behind_one_direct_use(plain: usize) -> crate::test_fs::Fix
     // Why: a folder that no `mod` line reaches is no folder of the tree.
     let mut lib: String = String::from("mod g;\n");
     let mut files: Vec<(String, String)> = Vec::<(String, String)>::new();
-    files.push((String::from("src/g/mod.rs"), String::from("pub mod c0;\npub mod own;\n")));
-    files.push((String::from("src/g/c0/mod.rs"), String::from("pub struct C;\n")));
+    files.push((
+        String::from("src/g/mod.rs"),
+        String::from("pub mod c0;\npub mod own;\n"),
+    ));
+    files.push((
+        String::from("src/g/c0/mod.rs"),
+        String::from("pub struct C;\n"),
+    ));
     // What: the own file's use of the first folder of the chain, which is the use the finding reports.
     // Why: that folder reaches the group directly, so its route is one use long however long the chain behind it is.
-    files.push((String::from("src/g/own.rs"), String::from("use crate::p0::P;\n")));
+    files.push((
+        String::from("src/g/own.rs"),
+        String::from("use crate::p0::P;\n"),
+    ));
     for index in 0..plain {
         lib.push_str(format!("mod p{index};\n").as_str());
         // What: the use that puts this folder one step further from the group.
@@ -1046,7 +1055,10 @@ fn package_of_a_chain_behind_one_direct_use(plain: usize) -> crate::test_fs::Fix
         } else {
             format!("use crate::p{}::P;\n", index - 1)
         };
-        files.push((format!("src/p{index}/mod.rs"), format!("{used}pub struct P;\n")));
+        files.push((
+            format!("src/p{index}/mod.rs"),
+            format!("{used}pub struct P;\n"),
+        ));
     }
     let mut listed: Vec<(&str, &str)> = vec![("src/lib.rs", lib.as_str())];
     for (path, body) in &files {
