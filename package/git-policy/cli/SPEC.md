@@ -21449,7 +21449,8 @@ when another region holds fewer of them.
 It is read for a region one side also wrote a line into as well:
 a copy that side wrote lifts the bound of that one line,
 and says nothing about the others.
-A line the base never held, and a line both sides wrote more copies of than the base held,
+A line the base never held,
+and a line both sides wrote more copies of than the base held,
 are not judged:
 no bound over the two sides is right for either.
 And a region whose two parts each hold only lines of the base's part,

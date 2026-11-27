@@ -553,7 +553,8 @@ const AN_ADDED_LINE_SEED: u64 = 20_261_129;
 const AN_ADDED_LINE_CASES: usize = 400;
 
 /// The records a side may write of its own:
-/// two the base may hold, so a merge may hold a copy the other side does not,
+/// two the base may hold,
+/// so a merge may hold a copy the other side does not,
 /// and one the base never holds.
 const WRITTEN_RECORDS: &[&str] = &["alpha", "beta", "delta"];
 
@@ -780,7 +781,8 @@ fn the_text_a_refused_file_keeps_holds_both_sides() {
 ///  the other side kept `a` then `c`,
 ///  and the word pass wrote `a` then `c`,
 ///  which is a run of the other side and no run this side holds:
-/// the answer is wrong for this side alone, so only this side's order can refuse it.
+/// the answer is wrong for this side alone,
+/// so only this side's order can refuse it.
 #[test]
 fn an_answer_in_an_order_the_first_side_does_not_hold_keeps_both_sides() {
     let base: &[u8] = b"c\na\na\na\nc\nc\n";

@@ -439,7 +439,8 @@ pub(super) fn writes_past_the_copies_the_sides_leave(
 /// What:
 ///  Whether `merged` writes text no union of the two sides leaves:
 ///  more copies of a line than the sides leave,
-///  or, where each side only deleted lines,
+///  or,
+///  where each side only deleted lines,
 ///  its lines in an order one side does not hold them in.
 /// Why:
 ///   A region whose base writes one line twice cannot tell which copy a side deleted,
@@ -451,7 +452,8 @@ pub(super) fn writes_past_the_copies_the_sides_leave(
 /// A resolved answer replaces a conflict a person would have read,
 /// so a region whose two sides each only deleted lines is kept as a conflict
 /// when its answer holds a copy or an order that no union of the two deletions does.
-/// The copies bound is read for every shape, a region one side also wrote a line into included:
+/// The copies bound is read for every shape,
+/// a region one side also wrote a line into included:
 /// a line that side added only lifts the bound of that line.
 /// The order bound is read only where both sides only deleted lines,
 /// because a side that wrote a line of its own holds an order of lines the other side does not,

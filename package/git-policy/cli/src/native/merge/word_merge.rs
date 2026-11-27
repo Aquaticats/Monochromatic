@@ -531,7 +531,8 @@ fn walk(
 /// A region one side left as it was is no word merge of the pass,
 /// yet it is still a region the two sides disagree about,
 /// so `everything_kept` keeps both sides of it as well:
-/// an answer the copies bound refuses has to land as a conflict, and a refusal this walk could not carry
+/// an answer the copies bound refuses has to land as a conflict,
+/// and a refusal this walk could not carry
 /// would leave the refused text in the file with no marker in it.
 ///
 /// In TS you'd write (pseudocode):

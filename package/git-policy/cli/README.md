@@ -4752,7 +4752,8 @@ at most as many as the side that holds fewer of them holds
 while neither side wrote more copies of that line than the base held,
 which covers a region where one side also wrote a line:
 a copy that side wrote lifts the bound of that one line and no other.
-That bound is the answer's, so no resolved file writes back a copy a side removed,
+That bound is the answer's,
+so no resolved file writes back a copy a side removed,
 whether the region it sits in deleted lines only or wrote a line as well.
 A base line written twice is where the word level cannot tell which copy a side deleted,
 so a region both sides only deleted lines from keeps both sides as well
