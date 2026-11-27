@@ -68,6 +68,15 @@ pub mod journal;
 /// conditional replace).
 pub mod journal_replace;
 
+/// What one replacement answered and where the file it displaced is kept (split out of the journal replacement module).
+pub mod journal_replace_outcome_and_keep_rule;
+
+/// Making the names a file is published under durable and exclusive (split out of the journal replacement module).
+pub mod journal_replace_creates;
+
+/// The directories a creation left unsynchronized (split out of the journal replacement module).
+pub mod journal_replace_unsynced;
+
 /// Keeping the displaced file under a surviving name (split out of the journal replacement module).
 pub mod journal_replace_preserve;
 
@@ -118,6 +127,15 @@ pub mod journal_unready_record_context;
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
+/// What one bounded call is allowed and how it fails (split out of the bounded run module).
+pub mod bounded_run_bound_and_error;
+
+/// The open scope of one run as this process remembers it (split out of the bounded run module).
+pub mod bounded_run_scope;
+
+/// The trace of a run and the hooks a test drives inside one (split out of the bounded run module).
+pub mod bounded_run_trace_and_hooks;
+
 /// The cache of the control group route (split out of the bounded run module).
 pub mod bounded_run_route_cache;
 
@@ -128,6 +146,9 @@ pub mod bounded_run_record_writes;
 /// its choice,
 /// start and stop (split out of the bounded run module).
 pub mod bounded_run_containment;
+
+/// The start of a child inside the containment (split out of the containment module).
+pub mod bounded_run_start;
 
 /// Error text that is built only when a failure happens,
 /// passed as a `format_args!` value instead of a closure.
@@ -146,6 +167,12 @@ pub mod control_group_records;
 
 /// Discovery of the route to a delegated control group (split out of the control group module).
 pub mod control_group_route_discovery;
+
+/// The mount view a control group route records (split out of the route discovery module).
+pub mod control_group_route_view;
+
+/// The short programs the route discovery runs under one deadline (split out of the route discovery module).
+pub mod control_group_route_child_runs;
 
 /// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
 pub mod control_group_process_identity;
@@ -233,6 +260,9 @@ pub mod policy;
 /// the counterpart of `pnpm install`.
 pub mod install;
 
+/// The stale crate roots of an install and the update that repairs them (split out of the install module).
+pub mod install_stale_roots;
+
 /// The helpers of the install that decide which policy checks a lockfile still needs,
 /// split out of `install.rs`.
 pub mod install_verify;
@@ -256,6 +286,13 @@ pub mod notice_marker;
 
 /// The crates.io lookups.
 pub mod registry;
+
+/// crates.io through a fetcher,
+/// with the API limits it keeps (split out of the registry module).
+pub mod registry_crates_io;
+
+/// Reading crates.io's answers and the history cache into records (split out of the registry module).
+pub mod registry_record_reading;
 
 /// Removes stale exclude selectors from the catalog.
 pub mod prune;
@@ -310,6 +347,23 @@ pub mod update;
 
 /// The work values of the update (split out of the update module).
 pub mod update_recorded_work;
+
+/// The failure of an update,
+/// the text it prints and the two conversions into it (split out of the update module).
+pub mod update_error;
+
+/// The locked crates a name-only exclude selector exempts from the release age (split out of the update module).
+pub mod update_excluded_specs;
+
+/// The manifests a `--breaking` update may rewrite (split out of the update module).
+pub mod update_manifests;
+
+/// The procedure an update runs,
+/// what it needs and what it reports (split out of the update module).
+pub mod update_request_and_report;
+
+/// The transaction body of an update and the one cargo call it makes (split out of the update module).
+pub mod update_run;
 
 /// The option tests and the raised-floor warning wording that `update` asks about.
 pub(crate) mod update_argument_and_warning_text;
