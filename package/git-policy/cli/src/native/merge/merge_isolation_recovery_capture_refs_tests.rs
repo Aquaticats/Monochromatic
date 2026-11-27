@@ -43,6 +43,7 @@ use std::path::{
     PathBuf,
 };
 
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// What:
 ///  A merge that wrote its record after the owners were read keeps its copy in the merge's own hands.
 /// Why:
@@ -501,12 +502,12 @@ fn a_capture_ref_a_lock_blocked_is_deleted_by_the_next_call() {
     locked.git.real_git = shim;
     let run_cleanup = |place: RecoveryPlace, kept_record: PathBuf, kept_intent: MergeIntent| {
         return crate::lazy_runtime::run_on_runtime(async move {
-            return crate::merge_isolation_recovery_carry::drop_the_records_refs_then_the_record(
+            return crate::merge_isolation_recovery_cleanup::drop_the_records_refs_then_the_record(
                 &place,
                 place.cwd.as_path(),
                 kept_record.as_path(),
                 &kept_intent,
-                crate::merge_isolation_recovery_carry::SideRef::Drop,
+                crate::merge_isolation_recovery_cleanup::SideRef::Drop,
             )
             .await
             .expect("the cleanup");

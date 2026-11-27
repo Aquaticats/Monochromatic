@@ -18,9 +18,14 @@
 
 use super::*;
 use crate::process_tree::TreeMember;
+use crate::stale_ref_lock_names::PID_LOCK_SUFFIX;
 use crate::test_support::{
     fixture,
     remove,
+};
+use std::path::{
+    Path,
+    PathBuf,
 };
 use std::process::Child;
 use std::time::Duration;

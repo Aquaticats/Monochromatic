@@ -218,7 +218,7 @@ pub(crate) fn write_after_the_lock(
     lock: &Path,
     content: &str,
 ) {
-    let pid_file: std::path::PathBuf = crate::stale_ref_lock_walk::pid_file_beside(lock);
+    let pid_file: std::path::PathBuf = crate::stale_ref_lock_names::pid_file_beside(lock);
     let began: std::time::Instant = std::time::Instant::now();
     loop {
         let _ = std::fs::remove_file(pid_file.as_path());

@@ -24,7 +24,7 @@ use crate::index_holder_wait::{
     look_at_the_index_lock_once,
     wait_for_index_release_while_finishing_a_merge,
 };
-use crate::index_lock_evidence::{
+use crate::index_lock_evidence_words::{
     THE_ENDING_SAYS_IT,
     dead_owner_diagnostic,
 };

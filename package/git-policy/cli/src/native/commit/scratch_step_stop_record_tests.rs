@@ -1,8 +1,8 @@
 //! Controls for the record of one stop of the scratch `git commit`.
 
 use super::*;
-use crate::scratch_step_held_by_the_kernel::HeldProgram;
 use crate::scratch_step_stall_decided_once::{
+    HeldProgram,
     TheStallItWaitsThrough,
     WhyTheStepWasWaitedFor,
 };

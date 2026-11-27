@@ -50,10 +50,14 @@ use crate::lock_holder_records::{
     remember_repository,
     the_self_record_is_this_processs,
 };
-/// The names a lock and its PID file have.
-use crate::stopped_git_locks::{
+/// The names a lock and its PID file have,
+/// the number a PID file names,
+/// and where that file sits.
+use crate::stale_ref_lock_names::{
     LOCK_SUFFIX,
     PID_LOCK_SUFFIX,
+    pid_file_beside,
+    pid_named_by,
 };
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{
@@ -346,8 +350,7 @@ pub fn clear_abandoned_locks_telling(
 fn standing_lock_pids(locks: &[PathBuf]) -> Vec<i64> {
     let mut pids: Vec<i64> = Vec::new();
     for lock in locks {
-        if let Some(pid) = crate::stopped_git_locks::pid_named_by(proving_pid_file(lock).as_path())
-        {
+        if let Some(pid) = pid_named_by(proving_pid_file(lock).as_path()) {
             pids.push(i64::from(pid));
         }
     }
@@ -356,7 +359,7 @@ fn standing_lock_pids(locks: &[PathBuf]) -> Vec<i64> {
 
 /// The PID file Git writes beside one lock.
 fn proving_pid_file(lock: &Path) -> PathBuf {
-    return crate::stale_ref_lock_walk::pid_file_beside(lock);
+    return pid_file_beside(lock);
 }
 
 /// What:

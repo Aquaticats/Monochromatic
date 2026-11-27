@@ -38,6 +38,7 @@ use crate::test_support::{
 };
 use std::path::PathBuf;
 
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// What:
 ///  A saved merge that replaces an existing symbolic link finishes.
 /// Why:

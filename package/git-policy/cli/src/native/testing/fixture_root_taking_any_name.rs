@@ -30,13 +30,15 @@
 //! if (!inARootTakingAnyName(fixtureRoot(), 'repair::package_repair_prewarm::tests::a_test')) return; // only where the run acknowledged that this host has no user namespaces
 //! ```
 
-use super::root_namespace_test_support::in_a_root_namespace;
+use super::child_test_process::CHILD_TEST_DEADLINE;
+use super::root_namespace_test_support::in_a_root_namespace_within;
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{
     Path,
     PathBuf,
 };
+use std::time::Duration;
 
 /// The name written and removed again to learn whether a root takes a name that is not UTF-8.
 /// Its last byte starts no character,
@@ -54,7 +56,8 @@ const INSIDE_VARIABLE: &str = "CLI_GIT_FIXTURE_ROOT_ANY_NAME";
 
 /// What:
 ///  Whether the caller may go on to make a fixture under `root` whose name is not UTF-8,
-///  starting the same test inside a namespace of its own and mounting a tmpfs at `root` when it may not.
+///  starting the same test inside a namespace of its own and mounting a tmpfs at `root` when it may not,
+///  within the file's own `CHILD_TEST_DEADLINE`.
 /// `false` means this run is the outer half:
 ///  the inner one has already run and passed,
 ///  or this host lets no unprivileged user namespace and the run said so.
@@ -65,6 +68,8 @@ const INSIDE_VARIABLE: &str = "CLI_GIT_FIXTURE_ROOT_ANY_NAME";
 ///  `in_a_root_namespace` fails the control when the host refuses a namespace that the run did not
 ///  acknowledge,
 ///  and prints one line naming the control that did not run.
+///  A control whose body is longer than that deadline states its own
+///  (`in_a_root_taking_any_name_within`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,10 +79,31 @@ pub(crate) fn in_a_root_taking_any_name(
     root: &Path,
     test: &str,
 ) -> bool {
+    return in_a_root_taking_any_name_within(root, test, CHILD_TEST_DEADLINE);
+}
+
+/// What:
+///  `in_a_root_taking_any_name` with `deadline` as the window the child that runs the whole control is given.
+/// Why:
+///  A control that makes a name that is not UTF-8 runs all of its body in that child,
+///  so the window covers the control's own work and not its setup:
+///  a control that lands change lists past `MAX_CHANGES` does minutes of Git's work on a loaded host,
+///  and a window sized on a quiet host fails it for the host's load
+///  (`AGENTS.md` rule `SLW`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function inARootTakingAnyNameWithin(root: string, test: string, deadlineMs: number): boolean;
+/// ```
+pub(crate) fn in_a_root_taking_any_name_within(
+    root: &Path,
+    test: &str,
+    deadline: Duration,
+) -> bool {
     if a_name_that_is_not_utf8_can_be_made(root) {
         return true;
     }
-    if !in_a_root_namespace(INSIDE_VARIABLE, test) {
+    if !in_a_root_namespace_within(INSIDE_VARIABLE, test, deadline) {
         return false;
     }
     mount_a_tmpfs(root, None);

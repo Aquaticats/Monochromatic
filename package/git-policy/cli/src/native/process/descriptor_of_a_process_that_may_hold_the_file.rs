@@ -86,7 +86,7 @@ pub fn descriptor_is_file_with(
     opened: fn(
         &Path,
         &std::ffi::OsStr,
-    ) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>,
+    ) -> std::io::Result<crate::the_file_a_descriptor_holds_open::OpenedFile>,
 ) -> Result<bool, Unread> {
     let text: String = match crate::descriptor_record::descriptor_record(
         process,
@@ -124,7 +124,7 @@ pub fn descriptor_is_file_with(
     if held != Some(inode) {
         return Ok(false);
     }
-    let file: crate::open_file_of_a_descriptor::OpenedFile = match opened(process, fd) {
+    let file: crate::the_file_a_descriptor_holds_open::OpenedFile = match opened(process, fd) {
         Ok(found) => found,
         Err(error) => return Err(Unread::File(format!("{error}"))),
     };
