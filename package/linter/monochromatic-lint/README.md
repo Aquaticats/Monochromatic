@@ -1113,6 +1113,13 @@ Findings:
   and a doc with no list then reports every file of its folder as missing from the list,
   one finding per file,
   so a file added to such a folder is a finding and no `no-file-list` line tolerates it.
+- The top doc spells the marker nearly,
+  so no list is read at all:
+  one finding names the doc,
+  the line,
+  the words found and the marker expected,
+  and the doc then also reports the missing list and each unlisted file
+  (see "When the marker is nearly there").
 - The top doc lists a file twice,
   lists a name that is not a module file of the folder,
   or omits a file.
@@ -1170,6 +1177,55 @@ because the index holds no code that could take part in a loop.
 A sibling that reaches a name through the index is a use of the file the index re-exports the name from
 (see the re-export decision under the folder rule),
 so a re-export hides neither a loop nor a listing order.
+
+#### When the marker is nearly there
+
+A doc that does not hold the marker has no list,
+and the rule reports the missing list as `no-file-list`
+and every file of the folder as `missing-entry`.
+When the doc spells the marker nearly,
+it also reports one `near-miss-marker` finding that names the doc,
+the line where the words start,
+the words found and the marker expected,
+so the person fixing it sees the cause and not only those effects.
+
+A near miss is a run of whole doc lines,
+starting where a line starts,
+whose words are the marker's words with at most one word added,
+dropped or put in place of another.
+The words are compared without their capital letters,
+so the same words in another case are a near miss too.
+A text two words away is a different sentence that its author wrote on purpose,
+so no finding asks for it to be changed.
+Which texts count,
+with one example of each:
+
+- one word added:
+  `Files in this folder, each using only the files listed before it:`.
+- one word dropped:
+  `Files in this folder, each using only files before it:`.
+- one word put in place of another:
+  `Files in this folder, each using only files listed after it:`,
+  and the same marker without its colon,
+  where `it` stands in place of `it:`.
+- the same words in another case:
+  `files in this folder, Each using only files listed before it:`.
+- a paragraph break inside the marker:
+  `//! Files in this folder,`,
+  a blank `//!` line,
+  `//! each using only files listed before it:`.
+  A plain comment or an inner attribute between the two halves breaks the paragraph as well,
+  and the finding names both lines.
+
+A break between two words inside one paragraph is already the marker,
+because the reader joins the lines of a paragraph,
+so it is no near miss.
+A doc that holds the marker reports no near miss,
+even beside text that is nearly the marker,
+because it reads its list.
+One doc reports one finding per near miss in the order it writes them,
+keyed `near-miss-marker <index file>`
+and numbered `#2` and then `#3` for a later one.
 
 #### Index files hold only the index
 
@@ -1395,6 +1451,7 @@ Every key names exactly one finding:
 - A finding of the file checks starts with its own shape word:
   `no-top-doc`,
   `no-file-list`,
+  `near-miss-marker`,
   `unreadable-index`,
   `index-item`,
   `space-in-file-name`,
@@ -1754,6 +1811,27 @@ and every other line stays as it is.
   is refused with one `core/processing-failure`,
   where alpha.16 printed a key that named another folder,
   so the name is changed rather than recorded.
+
+#### How a list written before alpha.18 maps
+
+A tree that holds this shape gains the line below from one `--debug` run,
+and every other line stays as it is.
+
+- A top doc that spells the marker nearly,
+  and so has no list at all,
+  reports one `near-miss-marker <index file>` finding
+  (and `near-miss-marker#2` for a second one in that doc),
+  beside the `no-file-list` and `missing-entry` lines it already owed.
+  The new finding is added to those rather than replacing them,
+  because the doc really has no list,
+  and a tree whose top docs spell the marker exactly gains no line.
+  `package/git-policy/cli` is such a tree:
+  the built executable reports no near-miss finding there,
+  while the same rules without the crate's two lists report 558 folder findings
+  and 71 file findings over it,
+  which those lists tolerate
+  (measured on 2026-11-27 with the release build of this branch on the tree of its last merge from `main`).
+
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,

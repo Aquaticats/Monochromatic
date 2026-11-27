@@ -19,9 +19,6 @@
 /// Imports the file-system module that writes the stand-in script and reads `/proc`.
 use std::fs;
 
-/// Imports the trait that adds `from_mode` to permissions (marks a script executable).
-use std::os::unix::fs::PermissionsExt;
-
 /// Imports the borrowed path type used to name the copied programs.
 use std::path::Path;
 
@@ -59,17 +56,15 @@ fn a_script_that_starts_the_other_shadow_stops_on_arrival_with_one_line_and_a_no
     let link: PathBuf = link_as(&first, "grep");
     link_as(&second, "grep");
     // No test of the script's bytes can tell that it leads to a shadow: only the start itself shows it.
-    fs::create_dir_all(&scripts).expect("make the folder");
-    fs::write(
-        scripts.join("grep"),
+    // A test starts this script as the real tool, so a child process writes it (issue 6527).
+    crate::through_a_child_process::write_program(
+        scripts.join("grep").as_path(),
         format!(
             "#!/bin/sh\nexec '{}' \"$@\"\n",
             second.join("grep").display()
-        ),
-    )
-    .expect("write the script");
-    fs::set_permissions(scripts.join("grep"), fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
+        )
+        .as_bytes(),
+    );
 
     // The script comes after the first shadow on PATH and the second shadow's link is out of PATH: the script is the real tool the first one finds.
     let output = finished(run_bounded(command_for(

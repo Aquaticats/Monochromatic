@@ -1,32 +1,27 @@
 //! What:
 //!  The writing half of an isolated merge:
-//! the merge tree,
-//! the merge commit,
-//! and the two-way update that applies it to the checkout.
+//! the clear of the person's paths,
+//! Git's own two-way update that puts the merge in the checkout,
+//! the carry of their work after it,
+//! and the report the command ends with.
 //! Why:
-//!  `merge_isolation.rs` decides and loops over rounds;
-//! the steps that write objects and move the checkout are a file of their own that it imports and that imports nothing from it.
+//!  `merge_isolation.rs` decides and loops over rounds,
+//! and one round is `merge_isolation_round.rs`;
+//! the steps that move the checkout are a file of their own that they import and that imports nothing from them.
+//!  The record written before any byte changes,
+//! the look at `index.lock`,
+//! the merge commit and the lines that name the files the word pass merged are files of their own as well,
+//! so each file here stays inside the code-line limit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const outcome = await apply(input, session, plan); // commit-tree, then merge --ff-only
+//! const outcome = await apply(input, session, plan); // merge --ff-only, then the carry
 //! ```
 
 /// Diagnostics for the log.
 use crate::diagnostic_log::debug;
-/// Waiting for any program's hold on the index lock before the checkout changes,
-/// and what the wait proved.
-use crate::index_holder_wait::{
-    IndexWait,
-    look_at_the_index_before_a_merge,
-};
-/// Scanning every readable process for a descriptor on that lock.
-use crate::index_lock_holders::scan_platform_holders_bounded;
 /// Where Git's words about the wrapper's own fast-forward go now that the run carries no `--quiet`.
 use crate::inner_git_words::record_streams;
-/// Unique identifiers and the clock.
-use crate::iso_time::now_iso;
-use crate::journald_native::CLIENT_IDENTIFIER;
 /// The refusal findings.
 use crate::merge_isolation_apply_findings::failure_text;
 /// The words a merge that could not be finished now prints,
@@ -41,6 +36,13 @@ use crate::merge_isolation_apply_findings::{
 use crate::merge_isolation_apply_moved::{
     CarryEnding,
     carry_and_settle,
+};
+/// What a merge wrote before any byte of the checkout changed,
+/// and the marker phase a crash control arms.
+use crate::merge_isolation_apply_record::{
+    TheRecordAndTheLockLook,
+    reach_phase,
+    write_the_record_and_look_at_the_index,
 };
 /// The save of a merge that met the index lock for a later command,
 /// kept in a file of its own so this one stays inside the code-line limit.
@@ -69,13 +71,13 @@ use crate::merge_isolation_carry_landed::{
 use crate::merge_isolation_carry_ref::drop_capture_ref;
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
-/// Owned operating-system text.
+/// The questions an isolated merge asks Git.
 use crate::merge_isolation_git_reads::Session;
-/// The intent record.
+/// The intent record,
+/// and its removing once the merge has ended.
 use crate::merge_isolation_journal::{
     MergeIntent,
     remove_merge_intent,
-    write_merge_intent,
 };
 /// Recovery of records.
 use crate::merge_isolation_recovery::RecoveryPlace;
@@ -83,42 +85,19 @@ use crate::merge_isolation_run_types::{
     Bail,
     IsolatedMerge,
     IsolatedMergeInput,
-    MergeConfig,
     Plan,
     TAG,
-    refused,
 };
 /// The command-line reading.
-use crate::merge_options::{
-    MergeShape,
-    Signing,
-};
-/// The files the word pass merged,
-/// and the lines that list them.
-use crate::merge_second_pass::Merged;
-use crate::merge_second_pass_tree::announce;
-use crate::random_id::random_uuid;
-/// The platform whose unlink removes the lock.
-use crate::service_index_placement::SYSTEM;
-/// Removing an index lock a gone process left,
-/// on the commit service's proof of disuse.
-use crate::service_index_unheld_removal::{
-    Unheld,
-    remove_if_the_owner_is_gone,
-};
+use crate::merge_options::MergeShape;
 /// Real Git.
 use crate::transaction_git::{
     GitContext,
     GitOutput,
 };
-/// The owner of the intent record,
-/// and its identifier.
-use crate::transaction_owner::current_transaction_owner;
-/// Marker phases for the crash controls.
-use crate::transaction_phase::{
-    Phase,
-    reach_transaction_phase,
-};
+/// The marker phases a crash control arms.
+use crate::transaction_phase::Phase;
+/// Owned operating-system text.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{
@@ -126,97 +105,12 @@ use std::path::{
     PathBuf,
 };
 
-/// What:
-///  The finished merge with the lines that list the files the second pass merged by word,
-/// ahead of Git's own words.
-/// Why:
-///   The journal entries and the lines are produced only now,
-/// after the merge is in the checkout,
-/// so neither says a merge
-///  happened that was refused or undone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function withSecondPassReport(done: IsolatedMerge, merged: Merged[]): IsolatedMerge;
-/// ```
-pub fn with_second_pass_report(
-    done: IsolatedMerge,
-    merged: &[Merged],
-) -> IsolatedMerge {
-    match done {
-        IsolatedMerge::Finished {
-            code: 0,
-            stdout,
-            stderr,
-        } if !merged.is_empty() => {
-            let mut report: String = String::new();
-            for line in announce(
-                "monochromatic-git-policy-cli: ",
-                (CLIENT_IDENTIFIER, "merge"),
-                merged,
-            ) {
-                report.push_str(line.as_str());
-                report.push('\n');
-            }
-            return IsolatedMerge::Finished {
-                code: 0,
-                stdout,
-                stderr: report + stderr.as_str(),
-            };
-        }
-        other => return other,
-    }
-}
-
 /// The merge tree of an isolated merge and the pass over its conflicts,
 /// which moved to a file of their own and keep their names here.
 pub use crate::merge_isolation_merge_tree::{
     merge_tree,
     merge_tree_awaiting,
 };
-
-/// What:
-///  Create the merge commit with its parents in Git's order,
-/// signing it as the options and settings ask.
-/// Why:
-///   `commit-tree` signs only when given `-S` and never reads `commit.gpgSign`;
-/// a merge on a signed branch must not
-///  be the one unsigned commit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function commitMerge({ session, shape, config, parents, tree, message }): Promise<string>;
-/// ```
-pub fn commit_merge(
-    session: &Session,
-    shape: &MergeShape,
-    config: &MergeConfig,
-    ends: (&str, &str, &str),
-    message: Vec<u8>,
-) -> Result<String, String> {
-    let (head, target, tree): (&str, &str, &str) = ends;
-    let signing: Option<String> = match &shape.signing {
-        Signing::Never => None,
-        Signing::Sign(None) => Some(String::from("-S")),
-        Signing::Sign(Some(key)) => Some(format!("-S{}", String::from_utf8_lossy(key))),
-        Signing::Default => {
-            if config.sign_commits {
-                Some(String::from("-S"))
-            } else {
-                None
-            }
-        }
-    };
-    let mut arguments: Vec<&str> = vec!["commit-tree", tree, "-p", head, "-p", target];
-    if let Some(flag) = signing.as_deref() {
-        arguments.push(flag);
-    }
-    let created: GitOutput = session.run_with_input(arguments.as_slice(), message)?;
-    if !created.succeeded() {
-        return Err(created.error_text());
-    }
-    return Ok(String::from_utf8_lossy(&created.stdout).trim().to_owned());
-}
 
 /// What:
 ///  Record the intent,
@@ -241,89 +135,13 @@ pub fn apply(
     let (old_oid, new_oid): (&str, &str) = (plan.old_oid, plan.new_oid);
     let shape: &MergeShape = plan.shape;
     let reference: String = shape.reference.to_string_lossy().into_owned();
-    let target_ref: Option<String> = {
-        let named: GitOutput = session.run(&["symbolic-ref", "--quiet", "HEAD"])?;
-        if named.succeeded() {
-            Some(String::from_utf8_lossy(&named.stdout).trim().to_owned())
-        } else {
-            None
-        }
-    };
-    let transaction_id: String = match random_uuid() {
-        Ok(id) => id,
-        Err(error) => return Err(Bail::from(error.0)),
-    };
-    let owner = match current_transaction_owner(transaction_id.as_str(), now_iso().as_str()) {
-        Ok(found) => found,
-        Err(error) => return Err(Bail::from(error.to_string())),
-    };
-    let intent: MergeIntent = MergeIntent {
-        owner,
-        repository_root: root.to_path_buf(),
-        target_ref,
-        old_oid: String::from(old_oid),
-        new_oid: String::from(new_oid),
-        side_ref: None,
-        carried: plan.carried.cloned(),
-    };
-    let record: PathBuf = match write_merge_intent(git_dir, &intent) {
-        Ok(written) => written,
-        Err(error) => {
-            // A capture whose record could not be written names nothing a later command would settle, so it goes; a capture whose
-            //  ref stays names itself in the refusal, because nothing else does.
-            let kept: String = match plan.carried {
-                Some(capture)
-                    if !drop_capture_ref(&session.context, git_dir, root, capture, None) =>
-                {
-                    match capture.reference.as_deref() {
-                        Some(kept) => format!(
-                            ", and the keep of your edits is still on {kept}, which nothing removes: `git update-ref -d {kept}` deletes it"
-                        ),
-                        None => String::new(),
-                    }
-                }
-                _ => String::new(),
-            };
-            return Err(Bail::from(format!(
-                "the merge record could not be written: {error}{kept}"
-            )));
-        }
-    };
-    // The bytes the person's paths hold are objects on a ref of their own now, and the record names them; nothing of the
-    //  checkout has changed yet, which is the instant a kill leaves the command exactly as it was.
-    reach_phase(Phase::MergeCarried)?;
-    reach_phase(Phase::MergeIntent)?;
-    // Git's fast-forward takes `index.lock` before it changes anything and dies when another program holds it. The look names a
-    //  dead owner whose lock this command may clear, and a live one it does not wait for: waiting on another agent's command is
-    //  what the owner forbids, and the save below is the answer that needs no wait. The record is written first, so a merge that
-    //  saves itself leaves the next command the work of finishing this very merge.
-    let looked: IndexWait =
-        look_at_the_index_before_a_merge(git_dir.join("index").as_path(), &mut std::io::stderr());
-    let mut why: Option<WhyTheMergeIsSaved> = None;
-    match looked {
-        IndexWait::NotHeld | IndexWait::Released(_) => {}
-        IndexWait::GaveUp(waited_for) => why = Some(WhyTheMergeIsSaved::TheWaitEnded(waited_for)),
-        // The look never waits, so a holder it met is one this merge leaves for the next command rather than wait for.
-        IndexWait::HeldByAnotherCommand(holder) => {
-            why = Some(WhyTheMergeIsSaved::AnotherProgramHoldsIt(holder))
-        }
-        IndexWait::OwnerGone(_) => {
-            // A lock a gone process left is removed on the proof the commit service acts on, so a merge repairs what a commit
-            //  repairs (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 3). A lock that proof does
-            //  not cover (it holds content, it stands behind a service's marker, a process has it open) stays where it is.
-            if !matches!(
-                remove_if_the_owner_is_gone(
-                    &SYSTEM,
-                    git_dir.join("index").as_path(),
-                    &scan_platform_holders_bounded
-                ),
-                Unheld::Removed(_)
-            ) {
-                why = Some(WhyTheMergeIsSaved::NotTheCommandsToClear);
-            }
-        }
-    }
-    if let Some(reason) = why {
+    // The record names the person's own bytes and the branch this merge is made on, and it is written before any byte of the
+    //  checkout changes; the look at the lock then decides whether that record is what a later command finishes or what this
+    //  command does now.
+    let recorded: TheRecordAndTheLockLook = write_the_record_and_look_at_the_index(session, plan)?;
+    let (transaction_id, intent, record): (String, MergeIntent, PathBuf) =
+        (recorded.transaction_id, recorded.intent, recorded.record);
+    if let Some(reason) = recorded.not_now {
         // The owner's answer for a live foreign `index.lock` (`SPEC.md`, "Merges and commits never fail"): the merge saves its
         //  result on a side ref, exits 0, and the next command finishes the checkout when the lock is free.
         // Nothing of the clear has run at this instant, so the files hold the person's own bytes where they were.
@@ -552,27 +370,6 @@ pub fn apply(
         stdout,
         stderr,
     });
-}
-
-/// What:
-///  Reach a marker phase,
-/// failing the invocation when the marker variable is malformed.
-/// Why:
-///   The crash controls arm a phase by environment;
-/// a malformed value must not be ignored.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await reachTransactionPhase({ phase });
-/// ```
-pub fn reach_phase(phase: Phase) -> Result<(), Bail> {
-    return match reach_transaction_phase(phase, None) {
-        Ok(()) => Ok(()),
-        Err(error) => Err(refused(
-            2,
-            format!("monochromatic-git-policy-cli: {error}\n"),
-        )),
-    };
 }
 
 /// Apply controls stay out of the release executable.

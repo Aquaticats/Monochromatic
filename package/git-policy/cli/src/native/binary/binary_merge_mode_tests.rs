@@ -275,7 +275,7 @@ const THE_ASIDE_FILE: &str = "aside.txt";
 ///  Native Git refuses every merge that creates a commit while the index differs from `HEAD` at all,
 ///  so a staged edit is what makes this command complete the merge itself,
 ///  which is the one route where the carry writes the files of the merge's paths
-///  (`merge_isolation.rs`,
+///  (`merge_isolation_round.rs`,
 ///  "the staged-work check").
 ///  A control without it takes the route where Git's own update writes the files.
 ///

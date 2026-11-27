@@ -28,18 +28,22 @@
 //! ```
 
 use std::fs;
-use std::os::unix::fs::{
-    PermissionsExt,
-    symlink,
-};
+use std::os::unix::fs::symlink;
 use std::path::{
     Path,
     PathBuf,
 };
+
+/// The writer of the program files these tests start,
+/// shared with the crate's other test binaries.
+#[path = "written_programs/through_a_child_process.rs"]
+mod through_a_child_process;
+
 use std::process::{
     Command,
     Output,
 };
+use through_a_child_process::write_program;
 
 use mpm_shadow::toolchain::lock::{
     parse_lock,
@@ -217,9 +221,11 @@ fn write_script(
     path: &Path,
     body: &str,
 ) {
-    fs::create_dir_all(path.parent().expect("a parent")).expect("make the directory");
-    fs::write(path, format!("#!/bin/sh\n{body}\n")).expect("write the script");
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // What:     A test starts this script as the tool an install wrote.
+    // Why:      A write descriptor this process held on it would be inherited by a child of
+    //           another test thread, and the start would be refused with `ETXTBSY`
+    //           (issue 6527), so a child process writes it.
+    write_program(path, format!("#!/bin/sh\n{body}\n").as_bytes());
 }
 
 /// Points `link` at `target`,

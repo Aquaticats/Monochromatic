@@ -13,6 +13,7 @@ use super::{
     uses_between,
 };
 use crate::{
+    layout_finding::LayoutFinding,
     layout_module_uses::collect_uses,
     layout_test_support::{
         package_with,
@@ -543,6 +544,95 @@ fn the_missing_list_help_shows_the_wrapped_marker() {
     assert!(
         help.contains(format!("`//! {head},` and `//! {tail}`").as_str()),
         "{help}"
+    );
+}
+
+/// A top doc that spells the marker nearly is a finding of its own:
+///  it names the doc, the line, the words found and the marker expected,
+///  so the reader sees the cause and not only the missing list and every file it holds.
+#[test]
+fn a_near_miss_marker_is_a_finding_of_its_own() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            "//! Words about the folder.\n//!\n//! Files in this folder,\n//! each using only the files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\n",
+        ),
+        ("src/a/one.rs", ""),
+    ]);
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let found = check_file_order(&tree, uses.as_slice(), &fixture.path, None);
+    let near: Vec<&LayoutFinding> = found
+        .iter()
+        .filter(|item| return item.key.starts_with("near-miss-marker"))
+        .collect::<Vec<&LayoutFinding>>();
+    assert_eq!(near.len(), 1, "{found:#?}");
+    let item = near[0];
+    assert_eq!(item.file, fixture.path.join("src/a/mod.rs"));
+    assert_eq!(item.line, 3);
+    for part in [
+        "The top doc of src/a/mod.rs nearly spells the file-list marker at line 3",
+        "`Files in this folder, each using only the files listed before it:`",
+        format!("where the marker is `{LIST_MARKER}`").as_str(),
+    ] {
+        assert!(
+            item.message.contains(part),
+            "{part} missing in {}",
+            item.message
+        );
+    }
+    assert_eq!(item.key, "near-miss-marker src/a/mod.rs");
+}
+
+/// The near-miss key is a line the list reads back,
+///  so a round records the finding and the next run reports nothing.
+#[test]
+fn the_near_miss_key_is_a_line_the_list_reads_back() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            "//! Words about the folder.\n//!\n//! Files in this folder,\n//! each using only the files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\n",
+        ),
+        ("src/a/one.rs", ""),
+    ]);
+    assert_eq!(
+        findings_with(
+            &fixture.path,
+            "no-file-list src/a/mod.rs\nmissing-entry src/a/mod.rs one.rs\nnear-miss-marker src/a/mod.rs\n",
+        ),
+        Vec::<String>::new(),
+    );
+}
+
+/// A second near miss in one doc keeps a key of its own,
+///  and each finding is reported on the line where its words start.
+#[test]
+fn a_second_near_miss_in_one_doc_keeps_its_own_key() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        (
+            "src/a/mod.rs",
+            "//! Files in this folder, each using only the files listed before it:\n//!\n//! Files in this folder, each using only files listed after it:\n//! - `one.rs`: one.\nmod one;\n",
+        ),
+        ("src/a/one.rs", ""),
+    ]);
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let found = check_file_order(&tree, uses.as_slice(), &fixture.path, None);
+    let near: Vec<(&str, usize)> = found
+        .iter()
+        .filter(|item| return item.key.starts_with("near-miss-marker"))
+        .map(|item| return (item.key.as_str(), item.line))
+        .collect::<Vec<(&str, usize)>>();
+    assert_eq!(
+        near,
+        [
+            ("near-miss-marker src/a/mod.rs", 1),
+            ("near-miss-marker#2 src/a/mod.rs", 3),
+        ],
+        "{found:#?}"
     );
 }
 
