@@ -1272,7 +1272,7 @@ whichever route installed them.
   (`bin` writes JSON on standard output);
   the shim path (`mpm`) resolves no tool versions and prints none.
 
-### What a kill leaves, and what the next install does about it
+### What a kill leaves and what the next install does about it
 
 A process killed at any instruction is normal on this host,
 so each step of an archive install either leaves nothing that a start reads
@@ -2071,7 +2071,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   which the record's threaded arm refused in 5 to 12 of 20 starts
   and in none of 20 with the forking thread off.
   A start that meets one of those renames instead of a write finds the program absent,
-  which the archive install and `uv` both show,
+  which `uv` shows,
+  and which the archive install showed before it replaced a version in one exchange
+  (see "What a kill leaves and what the next install does about it"),
   and that is reported as the missing-program cause.
   A writer that does hold the published file open is outside this tool
   and keeps it for as long as its own work takes.

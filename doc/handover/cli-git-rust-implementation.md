@@ -571,8 +571,6 @@ with no High finding:
   (`doc/handover/questions-for-the-owner.md`).
 - A program that vanishes during a start is reported three ways,
   one of which repeats advice the release removed.
-- An installer killed between the two renames of a republish leaves the version missing
-  until the next install (issue 6600).
 - Right as claimed:
   43 commands compared between the two binaries,
   41 identical and two differing only in the version string.
