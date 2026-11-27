@@ -65,6 +65,16 @@
 //! - `package_repair_cargo_clean_arguments.rs`:
 //!   the arguments of the clean,
 //!   and the command a person can run instead.
+//! - `package_repair_tree_clone_entries_and_places.rs`:
+//!   what a walk of the source finds,
+//!   what a clone made,
+//!   and which places its steps take.
+//! - `package_repair_tree_clone_walk.rs`:
+//!   the walk,
+//!   the destination's directories,
+//!   and the modes they take last.
+//! - `package_repair_tree_clone_placing.rs`:
+//!   placing one entry of a clone and one slice of its entries.
 //! - `package_repair_tree_clone.rs`:
 //!   cloning one directory tree with its modes,
 //!   times and links,
@@ -167,6 +177,22 @@ pub mod package_repair_command;
 /// one plain line per repair that could not finish.
 #[cfg(target_os = "linux")]
 pub mod package_repair_report;
+
+/// What a walk of the source finds,
+/// what a clone made,
+/// and which places its steps take.
+#[cfg(target_os = "linux")]
+pub mod package_repair_tree_clone_entries_and_places;
+
+/// The walk,
+/// the destination's directories,
+/// and the modes they take last.
+#[cfg(target_os = "linux")]
+pub mod package_repair_tree_clone_walk;
+
+/// Placing one entry of a clone and one slice of its entries.
+#[cfg(target_os = "linux")]
+pub mod package_repair_tree_clone_placing;
 
 /// Cloning one directory tree with its modes,
 /// times and links,
