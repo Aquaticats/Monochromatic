@@ -444,7 +444,8 @@ const steps: Record<string, (chosen: GuestDriverOptions,) => Promise<void>> = {
  The step and the values the command line gave this run.
  */
 const chosen = guestDriverOptions({
-  argv: process.argv.slice(2,),
+  argv: process.argv
+    .slice(2,),
   defaultName: 'git-policy-cli-slot-state',
   defaultLogDir: resolve(
     import.meta.dirname,

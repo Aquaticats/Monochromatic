@@ -123,10 +123,10 @@ export function recipeStepOf({
   readonly step: string;
   readonly extraArgumentWords?: readonly string[];
 },): (run: { readonly chosen: GuestFacts; }) => Promise<void> {
-  return async function recipeStep({ chosen: { name, logDir }, }) {
+  return async function recipeStep({ chosen, }) {
     await runGuestRecipeStep({
-      name,
-      logDirectory: logDir,
+      name: chosen.name,
+      logDirectory: chosen.logDir,
       step,
       extraArgumentWords,
     },);

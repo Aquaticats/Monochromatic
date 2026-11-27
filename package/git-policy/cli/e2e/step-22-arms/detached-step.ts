@@ -16,8 +16,6 @@
  */
 
 import {
-  type LastLine,
-  type Pull,
   awaitDetachedGuestScript,
   startDetachedGuestScript,
 } from '../../bin/mvm-guest-detached-script.ts';
@@ -42,17 +40,20 @@ import {
  await lastLineOfTheSharedFolder({ chosen, file: 'guest-crate-build.log' });
  ```
  */
-const lastLineOfTheSharedFolder: LastLine = async function lastLineOfTheSharedFolder({
+async function lastLineOfTheSharedFolder({
   chosen,
   file,
-}) {
+}: {
+  readonly chosen: GuestFacts;
+  readonly file: string;
+},): Promise<string> {
   return await lastLineWithText({
     path: sharedFile({
       name: chosen.name,
       file,
     },),
   },);
-};
+}
 
 /**
  The log as the guest left it, copied out of the host's own side of its shared folder into the run's folder.
@@ -60,8 +61,6 @@ const lastLineOfTheSharedFolder: LastLine = async function lastLineOfTheSharedFo
  @param chosen - the run's guest and log folder
 
  @param file - the log's name inside the guest's shared folder
-
- @param log - the name of the pull's own host log, which this copy keeps no separate record of
 
  @returns the log's whole text, as the guest left it
 
@@ -72,16 +71,20 @@ const lastLineOfTheSharedFolder: LastLine = async function lastLineOfTheSharedFo
  await pullFromTheSharedFolder({ chosen, file: 'adoption-arm.log', log: 'host-pull-arm.log' });
  ```
  */
-const pullFromTheSharedFolder: Pull = async function pullFromTheSharedFolder({
+async function pullFromTheSharedFolder({
   chosen,
   file,
-}) {
+}: {
+  readonly chosen: GuestFacts;
+  readonly file: string;
+  readonly log: string;
+},): Promise<string> {
   return await pullSharedLog({
     name: chosen.name,
     file,
     logDir: chosen.logDir,
   },);
-};
+}
 
 /**
  Start one detached guest script, wait for its own end, and pull its log.

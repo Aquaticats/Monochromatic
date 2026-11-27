@@ -25,8 +25,8 @@
 import {
   SWAP_GIBIBYTES,
 } from '../../bin/mvm-guest-bounds.ts';
-import {
-  type GuestFacts,
+import type {
+  GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
 import {
   pushWorktreeSnapshot,

@@ -359,7 +359,7 @@ async function destroy(chosen: GuestDriverOptions,): Promise<void> {
 
  @example
  ```ts
- await using guest = madeGuest(chosen);
+ await using thisGuest = madeGuest(chosen);
  ```
  */
 function madeGuest(chosen: GuestDriverOptions,): { readonly [Symbol.asyncDispose]: () => Promise<void>; } {
@@ -382,7 +382,7 @@ async function all(chosen: GuestDriverOptions,): Promise<void> {
   /**
    The guest this run made, destroyed however this run ends.
    */
-  await using guest = madeGuest(chosen,);
+  await using thisGuest = madeGuest(chosen,);
   await prepare(chosen,);
   await build(chosen,);
   await arm(chosen,);
@@ -408,7 +408,8 @@ const steps: Record<string, (chosen: GuestDriverOptions,) => Promise<void>> = {
  The step and the values the command line gave this run.
  */
 const chosen = guestDriverOptions({
-  argv: process.argv.slice(2,),
+  argv: process.argv
+    .slice(2,),
   defaultName: 'git-policy-doctor-route',
   defaultLogDir: resolve(
     import.meta.dirname,

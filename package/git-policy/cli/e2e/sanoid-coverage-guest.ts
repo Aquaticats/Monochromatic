@@ -195,7 +195,8 @@ function defaultLogDirectory(): string {
  */
 function options(): GuestDriverOptions {
   return guestDriverOptions({
-    argv: process.argv.slice(2,),
+    argv: process.argv
+      .slice(2,),
     defaultName: DEFAULT_GUEST_NAME,
     defaultLogDir: defaultLogDirectory(),
   },);
@@ -409,6 +410,23 @@ async function destroy({
 }
 
 /**
+ Build the crate in the guest and run the coverage arm there.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError when the build or the arm refused
+
+ @example
+ ```ts
+ await buildAndRunTheArm({ chosen });
+ ```
+ */
+async function buildAndRunTheArm({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await build({ chosen, },);
+  await arm({ chosen, },);
+}
+
+/**
  Create, prepare, build, arm and destroy, in that order, destroying the guest whatever the work said.
 
  @param chosen - the run's options
@@ -428,10 +446,7 @@ async function all({ chosen, }: { readonly chosen: GuestDriverOptions; },): Prom
     steps: {
       create,
       prepare,
-      work: async function buildAndRunTheArm({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await build({ chosen: facts, },);
-        await arm({ chosen: facts, },);
-      },
+      work: buildAndRunTheArm,
       destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
         await destroy({
           chosen: facts,
@@ -499,7 +514,7 @@ const chosen = options();
 /**
  The step this run performs, or nothing when the command line named one this driver does not know.
  */
-const step: ((chosen: GuestDriverOptions,) => Promise<void>) | undefined = steps.get(chosen.step,);
+const step = steps.get(chosen.step,);
 if (step === undefined) {
   throw new GuestDriverError(`unknown step '${chosen.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }

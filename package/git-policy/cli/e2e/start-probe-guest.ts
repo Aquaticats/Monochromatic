@@ -40,57 +40,21 @@ import {
   requireMarkers,
 } from '../bin/mvm-guest-arm-log.ts';
 import {
-  type GuestFacts,
-} from '../bin/mvm-guest-guest-facts.ts';
-import {
-  recipe,
-} from '../bin/mvm-guest-host-command.ts';
-import {
-  runArguments,
   type RunArguments,
+  runArguments,
 } from '../bin/mvm-guest-options.ts';
 import {
   readLog,
 } from '../bin/mvm-guest-step-command.ts';
-import {
-  runWholeGuestRun,
-} from '../bin/mvm-guest-whole-run.ts';
 
 
-
-
-import { buildInGuest, } from './start-probe-arms/crate-build.ts';
-import {
-  probeDatasetArm,
-  red as redArm,
-} from './start-probe-arms/fixture-arms.ts';
-import {
-  green as greenArm,
-  greenLog,
-} from './start-probe-arms/green-arm.ts';
-import {
-  m1Key,
-  m1ReadWrite,
-} from './start-probe-arms/key-arms.ts';
-import { m3Kill, } from './start-probe-arms/kill-matrix-arm.ts';
-import {
-  noConfiguration as noConfigurationArm,
-  noConfigurationLog,
-} from './start-probe-arms/no-configuration-arm.ts';
+import { greenLog, } from './start-probe-arms/green-arm.ts';
+import { noConfigurationLog, } from './start-probe-arms/no-configuration-arm.ts';
 import {
   greenMarkers,
   noConfigurationMarkers,
 } from './start-probe-arms/probe-fixture.ts';
-import {
-  gateSkip,
-  m9Busy,
-} from './start-probe-arms/refusal-arms.ts';
-import { m7Scan, } from './start-probe-arms/scan-arm.ts';
-import { m2Controls, } from './start-probe-arms/table-window-arm.ts';
-import {
-  timings,
-  timingsBootFirst,
-} from './start-probe-arms/timing-arms.ts';
+import { stepsOf, } from './start-probe-arms/whole-run.ts';
 
 /**
  The guest name a run uses when the command line names none.
@@ -184,302 +148,6 @@ function options({
 }
 
 /**
- Create the guest, refusing a name another run holds.
-
- @param chosen - the run's options
-
- @throws Error naming the recipe step and its status
-
- @example
- ```ts
- await create(chosen);
- ```
- */
-async function create(chosen: GuestFacts,): Promise<void> {
-  await recipe({
-    chosen,
-    step: 'create',
-  },);
-}
-
-/**
- Install OpenZFS 2.4.4 and the Rust toolchain in the guest.
-
- @param chosen - the run's options
-
- @throws Error naming the recipe step and its status
-
- @example
- ```ts
- await prepare(chosen);
- ```
- */
-async function prepare(chosen: GuestFacts,): Promise<void> {
-  await recipe({
-    chosen,
-    step: 'prepare',
-  },);
-}
-
-/**
- Destroy the guest.
-
- @param chosen - the run's options
-
- @throws Error naming the recipe step and its status
-
- @example
- ```ts
- await destroy(chosen);
- ```
- */
-async function destroy(chosen: GuestFacts,): Promise<void> {
-  await recipe({
-    chosen,
-    step: 'destroy',
-  },);
-}
-
-/**
- One arm of the run: what it needs is the guest and where its logs go.
- */
-type Arm = (armArguments: { readonly chosen: GuestFacts; }) => Promise<void>;
-
-/**
- Build the handler in the guest unless this run was told the guest holds it, then
- run one arm.
-
- @param chosen - the run's options
-
- @param arm - the arm to run after the build
-
- @throws Error naming what refused
-
- @example
- ```ts
- await armed({ chosen, arm: greenArm });
- ```
- */
-async function armed({
-  chosen,
-  arm,
-}: {
-  readonly chosen: Options;
-  readonly arm: Arm;
-},): Promise<void> {
-  if (!chosen.noBuild) await buildInGuest({ chosen, },);
-  await arm({ chosen, },);
-}
-
-/**
- Every arm the whole run performs, in the order the design reads them.
-
- @param chosen - the run's options
-
- @throws Error naming the arm that refused
-
- @example
- ```ts
- await everyArm(chosen);
- ```
- */
-async function everyArm(chosen: Options,): Promise<void> {
-  await probeDatasetArm({ chosen, },);
-  await greenArm({ chosen, },);
-  await noConfigurationArm({ chosen, },);
-  await m1Key({ chosen, },);
-  await m1ReadWrite({ chosen, },);
-  await m2Controls({ chosen, },);
-  await m3Kill({ chosen, },);
-  await m7Scan({ chosen, },);
-  await m9Busy({ chosen, },);
-  await gateSkip({ chosen, },);
-}
-
-/**
- Create, prepare, build, run every arm, and destroy, destroying even when a step
- refused.
-
- @param chosen - the run's options
-
- @throws Error naming the step that refused, after the guest it created is gone
-
- @example
- ```ts
- await all(chosen);
- ```
- */
-async function all(chosen: Options,): Promise<void> {
-  await runWholeGuestRun({
-    label: 'git-policy probe guest',
-    chosen,
-    keepGuest: chosen.keepGuest,
-    steps: {
-      create: async function createTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await recipe({
-          chosen: facts,
-          step: 'create',
-        },);
-      },
-      prepare: async function prepareTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await recipe({
-          chosen: facts,
-          step: 'prepare',
-        },);
-      },
-      work: async function buildAndRunEveryArm({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await buildInGuest({ chosen: facts, },);
-        await everyArm({
-          ...facts,
-          step: chosen.step,
-          keepGuest: chosen.keepGuest,
-          noBuild: true,
-        },);
-      },
-      destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await recipe({
-          chosen: facts,
-          step: 'destroy',
-        },);
-      },
-    },
-  },);
-}
-
-/**
- The steps this driver knows, and nothing else.
- */
-const steps: ReadonlyMap<string, (chosen: Options,) => Promise<void>> = new Map([
-  [
-    'create',
-    create,
-  ],
-  [
-    'prepare',
-    prepare,
-  ],
-  [
-    'red',
-    async function redStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: redArm,
-      },);
-    },
-  ],
-  [
-    'probe-dataset',
-    async function probeDatasetStep(chosen: Options,): Promise<void> {
-      await probeDatasetArm({ chosen, },);
-    },
-  ],
-  [
-    'green',
-    async function greenStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: greenArm,
-      },);
-    },
-  ],
-  [
-    'no-configuration',
-    async function noConfigurationStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: noConfigurationArm,
-      },);
-    },
-  ],
-  [
-    'm1-key',
-    async function m1KeyStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: m1Key,
-      },);
-    },
-  ],
-  [
-    'm1-read-write',
-    async function m1ReadWriteStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: m1ReadWrite,
-      },);
-    },
-  ],
-  [
-    'm2-controls',
-    async function m2ControlsStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: m2Controls,
-      },);
-    },
-  ],
-  [
-    'm3-kill',
-    async function m3KillStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: m3Kill,
-      },);
-    },
-  ],
-  [
-    'm7-scan',
-    async function m7ScanStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: m7Scan,
-      },);
-    },
-  ],
-  [
-    'm9-busy',
-    async function m9BusyStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: m9Busy,
-      },);
-    },
-  ],
-  [
-    'gate-skip',
-    async function gateSkipStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: gateSkip,
-      },);
-    },
-  ],
-  [
-    'timings',
-    async function timingsStep(chosen: Options,): Promise<void> {
-      await armed({
-        chosen,
-        arm: timings,
-      },);
-    },
-  ],
-  [
-    'timings-boot-first',
-    async function timingsBootFirstStep(chosen: Options,): Promise<void> {
-      await timingsBootFirst({ chosen, },);
-    },
-  ],
-  [
-    'destroy',
-    destroy,
-  ],
-  [
-    'all',
-    all,
-  ],
-],);
-
-/**
  Refuse a pulled arm log that proves nothing, which is what a run that only
  returned leaves behind.
 
@@ -551,10 +219,19 @@ async function runTheStep(chosen: Options,): Promise<void> {
       mode: logFolderMode,
     },
   );
-  await step(chosen,);
+  await step({
+    chosen,
+    noBuild: chosen.noBuild,
+    keepGuest: chosen.keepGuest,
+  },);
   await proveTheArmRan(chosen,);
   console.log(`git-policy probe guest: step '${chosen.step}' finished; logs in ${chosen.logDir}`);
 }
+
+/**
+ The steps this driver's command line knows.
+ */
+const steps = stepsOf();
 
 /**
  The words the command line gave, after the script's path.

@@ -50,9 +50,10 @@ import {
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
 import {
-  runArguments,
   type GuestDriverOptions,
   type RunArguments,
+  flagWord,
+  runArguments,
 } from '../bin/mvm-guest-options.ts';
 import {
   recipeStepOf,
@@ -206,25 +207,38 @@ function options(): Options {
    */
   const read: RunArguments = runArguments({ argv: argumentLine, },);
   /**
-   The template the command line names, or absent when it names none.
+   The `mvm` template this run makes its guest from, empty when the line names none.
    */
-  const image = read.values
-    .get('--image',);
+  const image = flagWord({
+    read,
+    flag: '--image',
+    fallback: '',
+  },);
   /**
-   The kernel release the command line names, or absent when it names none.
+   The kernel release that template boots, empty when the line names none.
    */
-  const kernelRelease = read.values
-    .get('--kernel-release',);
+  const kernelRelease = flagWord({
+    read,
+    flag: '--kernel-release',
+    fallback: '',
+  },);
+
   return {
     step: read.step,
-    name: read.values
-      .get('--name',) ?? DEFAULT_GUEST_NAME,
-    logDir: read.values
-      .get('--log-dir',) ?? defaultLogDirectory(),
+    name: flagWord({
+      read,
+      flag: '--name',
+      fallback: DEFAULT_GUEST_NAME,
+    },),
+    logDir: flagWord({
+      read,
+      flag: '--log-dir',
+      fallback: defaultLogDirectory(),
+    },),
     keepGuest: read.flags
       .has('--keep-guest',),
-    ...(image === undefined ? {} : { image, }),
-    ...(kernelRelease === undefined ? {} : { kernelRelease, }),
+    ...(image === '' ? {} : { image, }),
+    ...(kernelRelease === '' ? {} : { kernelRelease, }),
   };
 }
 
@@ -462,7 +476,7 @@ const steps: ReadonlyMap<string, (chosen: GuestDriverOptions,) => Promise<void>>
 /**
  The step this run performs.
  */
-const step: ((chosen: GuestDriverOptions,) => Promise<void>) | undefined = steps.get(runOptions.step,);
+const step = steps.get(runOptions.step,);
 if (step === undefined) {
   throw new GuestDriverError(`unknown step '${runOptions.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }

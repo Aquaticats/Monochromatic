@@ -343,6 +343,22 @@ async function destroy({
 
 //endregion Steps
 
+/**
+ Build the test target in the guest and run the managed-lock arm there.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError when a step refused, or when the pulled arm log lacks a line
+
+ @example
+ ```ts
+ await runTheArm({ chosen });
+ ```
+ */
+async function runTheArm({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await run({ chosen, },);
+}
+
 //region The whole run
 
 /**
@@ -365,9 +381,7 @@ async function all({ chosen, }: { readonly chosen: GuestDriverOptions; },): Prom
     steps: {
       create: recipeStepOf({ step: 'create', },),
       prepare: recipeStepOf({ step: 'prepare', },),
-      work: async function runTheArm({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await run({ chosen: facts, },);
-      },
+      work: runTheArm,
       destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
         await destroy({
           chosen: facts,
@@ -437,7 +451,8 @@ const steps: ReadonlyMap<string, (chosen: GuestDriverOptions,) => Promise<void>>
  The options this run was given.
  */
 const chosen = guestDriverOptions({
-  argv: process.argv.slice(2,),
+  argv: process.argv
+    .slice(2,),
   defaultName: DEFAULT_GUEST_NAME,
   defaultLogDir: defaultLogDirectory(),
 },);
@@ -453,7 +468,7 @@ await mkdir(
 /**
  The step this run performs.
  */
-const step: ((chosen: GuestDriverOptions,) => Promise<void>) | undefined = steps.get(chosen.step,);
+const step = steps.get(chosen.step,);
 if (step === undefined) {
   throw new GuestDriverError(`unknown step '${chosen.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }

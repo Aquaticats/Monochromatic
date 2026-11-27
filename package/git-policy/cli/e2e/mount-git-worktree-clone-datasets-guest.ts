@@ -28,8 +28,8 @@
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
-import {
-  type GuestFacts,
+import type {
+  GuestFacts,
 } from '../bin/mvm-guest-guest-facts.ts';
 import {
   recipe,
@@ -336,9 +336,7 @@ async function all(chosen: GuestFacts & Options,): Promise<void> {
           extraArgumentWords: imageArguments(chosen,),
         },);
       },
-      work: async function runEveryArm({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await run(facts,);
-      },
+      work: runEveryArm,
       destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
         await recipe({
           chosen: facts,
@@ -348,6 +346,22 @@ async function all(chosen: GuestFacts & Options,): Promise<void> {
       },
     },
   },);
+}
+
+/**
+ Build the test target in the guest and run every arm of this driver.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError naming the step that refused, or the marker a pulled log lacks
+
+ @example
+ ```ts
+ await runEveryArm({ chosen });
+ ```
+ */
+async function runEveryArm({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await run(chosen,);
 }
 
 /**

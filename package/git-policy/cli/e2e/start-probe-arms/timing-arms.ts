@@ -15,8 +15,8 @@
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
-import {
-  type GuestFacts,
+import type {
+  GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
 import {
   guest,

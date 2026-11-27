@@ -21,8 +21,8 @@ import {
 import {
   shellQuote,
 } from '../../bin/mvm-guest-command-line.ts';
-import {
-  type GuestFacts,
+import type {
+  GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
 
 

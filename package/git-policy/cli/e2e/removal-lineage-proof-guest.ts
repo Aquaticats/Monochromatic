@@ -52,8 +52,8 @@ import {
   pushWorktreeSnapshot,
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
-import type { GuestDriverOptions, } from '../bin/mvm-guest-options.ts';
 import {
+  type GuestDriverOptions,
   guestDriverOptions,
 } from '../bin/mvm-guest-options.ts';
 import {
@@ -325,7 +325,8 @@ const steps: ReadonlyMap<string, (chosen: GuestDriverOptions,) => Promise<void>>
  The options this run was given.
  */
 const chosen = guestDriverOptions({
-  argv: process.argv.slice(2,),
+  argv: process.argv
+    .slice(2,),
   defaultName: DEFAULT_GUEST_NAME,
   defaultLogDir: defaultLogDirectory(),
 },);
@@ -333,7 +334,7 @@ const chosen = guestDriverOptions({
 /**
  The step this run performs.
  */
-const step: ((chosen: GuestDriverOptions,) => Promise<void>) | undefined = steps.get(chosen.step,);
+const step = steps.get(chosen.step,);
 if (step === undefined) {
   throw new GuestDriverError(`unknown step '${chosen.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }

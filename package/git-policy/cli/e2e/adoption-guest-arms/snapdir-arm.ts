@@ -24,8 +24,8 @@
 import {
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
-import {
-  type GuestFacts,
+import type {
+  GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
 import {
   guest,

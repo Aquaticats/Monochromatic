@@ -21,7 +21,10 @@ import {
 } from 'node:path';
 
 import { copyWrapperSnapshot, } from './native-wrapper-snapshot.ts';
-import { FOLDER_MODE, HOST_COMMAND_TIMEOUT_MS, } from './mvm-guest-bounds.ts';
+import {
+  FOLDER_MODE,
+  HOST_COMMAND_TIMEOUT_MS,
+} from './mvm-guest-bounds.ts';
 import type {
   GuestFacts,
   GuestLogFolder,

@@ -434,31 +434,11 @@ export async function awaitDetachedGuestScript({
   /**
    How this run learns the script has ended, which asks the guest agent unless the driver named its own reader.
    */
-  const readLastLine: LastLine = lastLine
-    ?? function ofThisGuest({ chosen: facts, file }: {
-      readonly chosen: GuestFacts;
-      readonly file: string;
-    },): Promise<string> {
-      return lastLineFromTheGuest({
-        chosen: facts,
-        file,
-      },);
-    };
+  const readLastLine: LastLine = lastLine ?? lastLineFromTheGuest;
   /**
    How this run brings the log onto the host, which is `mvm`'s own copy unless the driver named its own.
    */
-  const readPull: Pull = pull
-    ?? function ofThisGuest({ chosen: facts, file, log: pullLog }: {
-      readonly chosen: GuestFacts;
-      readonly file: string;
-      readonly log: string;
-    },): Promise<string> {
-      return pullGuestLog({
-        chosen: facts,
-        file,
-        log: pullLog,
-      },);
-    };
+  const readPull: Pull = pull ?? pullGuestLog;
   /**
    Whether the script had written its status line before the host stopped asking.
    */

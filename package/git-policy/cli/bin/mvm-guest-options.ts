@@ -113,6 +113,39 @@ export function runArguments({
 }
 
 /**
+ The word one flag was given, or the fallback when the line gave it none.
+
+ A driver with flags of its own reads each of them through this, so the word after a flag is read the one way the four
+ shared flags are.
+
+ @param read - the command line, read by {@link runArguments}
+
+ @param flag - the flag whose word is read, spelled out such as `--image`
+
+ @param fallback - what is answered when the flag holds no word
+
+ @returns the flag's word, or the fallback
+
+ @example
+ ```ts
+ flagWord({ read, flag: '--image', fallback: '' });
+ ```
+ */
+export function flagWord({
+  read,
+  flag,
+  fallback,
+}: {
+  readonly read: RunArguments;
+  readonly flag: string;
+  readonly fallback: string;
+},): string {
+  return read.values
+    .get(flag,)
+    ?? fallback;
+}
+
+/**
  Read the step and the four flags every guest driver shares.
 
  Built on {@link runArguments}, so a flag is read the same way whichever of the two a driver asks.
@@ -149,10 +182,16 @@ export function guestDriverOptions({
   const read: RunArguments = runArguments({ argv, },);
   return {
     step: read.step,
-    name: read.values
-      .get('--name',) ?? defaultName,
-    logDir: read.values
-      .get('--log-dir',) ?? defaultLogDir,
+    name: flagWord({
+      read,
+      flag: '--name',
+      fallback: defaultName,
+    },),
+    logDir: flagWord({
+      read,
+      flag: '--log-dir',
+      fallback: defaultLogDir,
+    },),
     keepGuest: read.flags
       .has('--keep-guest',),
   };

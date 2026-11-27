@@ -26,8 +26,8 @@
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
-import {
-  type GuestFacts,
+import type {
+  GuestFacts,
 } from '../bin/mvm-guest-guest-facts.ts';
 import {
   recipe,
@@ -219,28 +219,84 @@ async function all(chosen: GuestFacts,): Promise<void> {
     chosen,
     keepGuest: false,
     steps: {
-      create: async function createTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await recipe({
-          chosen: facts,
-          step: 'create',
-        },);
-      },
-      prepare: async function prepareTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await recipe({
-          chosen: facts,
-          step: 'prepare',
-        },);
-      },
-      work: async function runAndMeasure({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await run(facts,);
-      },
-      destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
-        await recipe({
-          chosen: facts,
-          step: 'destroy',
-        },);
-      },
+      create: createTheGuest,
+      prepare: prepareTheGuest,
+      work: runAndMeasure,
+      destroy: destroyTheGuest,
     },
+  },);
+}
+
+/**
+ Make the guest this run acts on.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError when the recipe's creation refused
+
+ @example
+ ```ts
+ await createTheGuest({ chosen });
+ ```
+ */
+async function createTheGuest({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await recipe({
+    chosen,
+    step: 'create',
+  },);
+}
+
+/**
+ Install OpenZFS 2.4.4, the Rust toolchain and `cargo-nextest` in the guest.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError when the recipe's preparation refused
+
+ @example
+ ```ts
+ await prepareTheGuest({ chosen });
+ ```
+ */
+async function prepareTheGuest({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await recipe({
+    chosen,
+    step: 'prepare',
+  },);
+}
+
+/**
+ Build the test target in the guest, lay the pools, and run the measurement arm and the holder scan beside it.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError naming the step that refused
+
+ @example
+ ```ts
+ await runAndMeasure({ chosen });
+ ```
+ */
+async function runAndMeasure({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await run(chosen,);
+}
+
+/**
+ Take the guest away.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError when the recipe's destruction refused
+
+ @example
+ ```ts
+ await destroyTheGuest({ chosen });
+ ```
+ */
+async function destroyTheGuest({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await recipe({
+    chosen,
+    step: 'destroy',
   },);
 }
 
