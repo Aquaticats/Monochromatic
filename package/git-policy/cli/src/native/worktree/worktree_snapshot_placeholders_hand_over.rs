@@ -30,6 +30,7 @@ use crate::fs_beneath::{
     make_directory_at,
     open_directory_at,
 };
+use crate::the_names_and_the_manifest_of_the_trash::TRASH_PARENT;
 use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_snapshot_placeholders_entries::{
     FoldSeams,
@@ -38,11 +39,12 @@ use crate::worktree_snapshot_placeholders_entries::{
     is_an_empty_stand_in,
 };
 use crate::worktree_snapshot_source::SnapshotSource;
-use crate::worktree_trash::{
-    TRASH_PARENT,
-    Trash,
+use crate::worktree_trash_manifest::{
     TrashManifest,
     entry_name,
+};
+use crate::worktree_trash_set_aside::{
+    Trash,
     make_trash,
     reopen_trash,
 };

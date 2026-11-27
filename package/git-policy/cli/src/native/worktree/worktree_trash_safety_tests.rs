@@ -594,7 +594,7 @@ fn a_manifest_naming_another_trash_keeps_its_file_and_the_trash() {
         .expect("the trash says what it is");
     let foreign: TrashManifest = TrashManifest {
         name: name.clone(),
-        trash: ObjectId {
+        trash: crate::fs_beneath::ObjectId {
             device: manifest.trash.device,
             inode: manifest.trash.inode.wrapping_add(1),
             birth: manifest.trash.birth,
@@ -604,7 +604,7 @@ fn a_manifest_naming_another_trash_keeps_its_file_and_the_trash() {
     let file: PathBuf = worktree
         .join(TRASH_PARENT)
         .join(&name)
-        .join(crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME);
+        .join(crate::the_names_and_the_manifest_of_the_trash::MANIFEST_FILE_NAME);
     std::fs::write(file.as_path(), foreign.encode())
         .expect("a manifest that names another directory");
     let verdict: Verdict = empty_trash(&item_of(worktree.as_path(), git_dir.as_path(), &manifest));

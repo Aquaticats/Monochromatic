@@ -12,8 +12,8 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use crate::the_names_and_the_manifest_of_the_trash::MANIFEST_FILE_NAME;
 use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME;
 use std::ffi::OsStr;
 use std::path::{
     Path,
