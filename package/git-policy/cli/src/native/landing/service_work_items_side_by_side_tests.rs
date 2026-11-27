@@ -37,6 +37,7 @@ use crate::service_work::{
     work_directory,
 };
 use crate::service_work_handlers_replanning_and_acceptance::WorkHandlers;
+use crate::service_work_items_side_by_side::A_HOST_THAT_BOUNDS_NO_BATCH;
 use crate::test_support::{
     fixture,
     git,
@@ -77,12 +78,6 @@ const OTHER_BRANCH: &str = "refs/heads/topic";
 /// How long one item of these controls is inside its work,
 /// so an item that starts while it runs is measured beside it.
 const HANDOVER: Duration = Duration::from_millis(300);
-
-/// A host large enough that neither the CPUs nor the memory narrow a batch.
-const LARGE_HOST: HostResources = HostResources {
-    parallelism: 8,
-    memory_available: None,
-};
 
 /// What:
 ///  A batch of one kind run as the drain runs it,
@@ -322,6 +317,7 @@ fn two_worktrees_trash_records_run_beside_each_other() {
         &both,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
+        &A_HOST_THAT_BOUNDS_NO_BATCH,
     ));
     assert_eq!(settled(&world, DONE), 2, "both trashes were emptied");
     assert_eq!(
@@ -381,6 +377,7 @@ fn one_worktrees_two_trash_records_run_one_after_the_other() {
         &both,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
+        &A_HOST_THAT_BOUNDS_NO_BATCH,
     ));
     assert_eq!(
         settled(&world, DONE),
@@ -439,7 +436,7 @@ fn two_branches_of_one_repository_are_pushed_at_once() {
         directories: assignments.as_slice(),
         handlers: Arc::clone(&both),
         now: &ClaimTime::read(),
-        host: &LARGE_HOST,
+        host: &A_HOST_THAT_BOUNDS_NO_BATCH,
     })
     .waits;
     assert_eq!(settled(&world, DONE), 2, "both branches' pushes ran");
@@ -722,6 +719,7 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
                             &handlers,
                             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
                             crate::service_work::CLAIM_LEASE,
+                            &HostResources::read(),
                         )
                         .await;
                     })
@@ -1282,6 +1280,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
             lane_handlers.as_ref(),
             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
             crate::service_work::CLAIM_LEASE,
+            &A_HOST_THAT_BOUNDS_NO_BATCH,
         )
         .await;
     };
@@ -1306,7 +1305,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
         directories: assignments.as_slice(),
         handlers: Arc::clone(&stand_ins),
         now: &ClaimTime::read(),
-        host: &LARGE_HOST,
+        host: &A_HOST_THAT_BOUNDS_NO_BATCH,
     })
     .waits;
     let waited: Duration = asked.elapsed();

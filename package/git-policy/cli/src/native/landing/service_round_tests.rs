@@ -6,6 +6,7 @@
 //! and the host budget bounds the overlap.
 
 use super::*;
+use crate::parallel_budget::HostResources;
 use crate::parallel_test_support::{
     PATIENCE,
     Rendezvous,
@@ -683,7 +684,12 @@ fn drain_one_after_another(
     let mut answer: RoundAnswer = RoundAnswer::default();
     for assignment in directories.iter() {
         let (wait, changes): (Option<Duration>, Vec<RetryChange>) =
-            crate::merge_second_pass::tests::await_it(drain_one(handlers, now, assignment));
+            crate::merge_second_pass::tests::await_it(drain_one(
+                handlers,
+                now,
+                assignment,
+                &HostResources::read(),
+            ));
         if let Some(lease_wait) = wait {
             answer
                 .waits
