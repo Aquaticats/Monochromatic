@@ -27,10 +27,8 @@ use crate::command_clean::{
 };
 /// Which nested Git repositories that answer says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
-/// The bound on the folder of saved copies applied after a save,
-///  and the place saved copies live.
+/// The bound on the folder of saved copies applied after a save.
 use crate::conflict_sides::{
-    SAVED_DIRECTORY,
     SavedCopy,
     prune_after_save,
 };
@@ -65,6 +63,8 @@ use crate::rule_linked_worktree_nested_repository_messages::{
     nested_repository_not_saved_message,
     saved_nested_repository_notice,
 };
+/// The place saved copies live.
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 /// The Git directories of an identity,
 ///  for naming the place saved copies live and the worktree the paths are below.
 use crate::worktree_identity::{
