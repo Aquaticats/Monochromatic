@@ -319,6 +319,24 @@ await describe({
       },
     },),
     it({
+      name: 'keeps a long caller timeout when native background tasks are disabled',
+      fn: async () => {
+        const output = withEnv({ env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', }, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'printf ok', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(updatedInput(output,).timeout,).toBe(OBSERVED_LONG_CALLER_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'passes through an unwrapped leading sleep when native background tasks are disabled',
+      fn: async () => {
+        const output = withEnv({ env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', }, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'sleep 5 > result.txt', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(output,).toEqual({},);
+      },
+    },),
+    it({
       name: 'leaves a leading sleep unprefixed when the policy is disabled',
       fn: async () => {
         const output = withEnv({ env: { [BLOCKING_TIMEOUT_ENABLED_ENV]: 'off', }, fn: () => bashOutputFilterHandler(

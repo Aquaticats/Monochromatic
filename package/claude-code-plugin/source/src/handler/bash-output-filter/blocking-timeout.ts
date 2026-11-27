@@ -115,6 +115,27 @@ function isTimeoutPolicyCall(
 }
 
 /**
+ Whether Claude Code can move a timed-out command to the background in this session.
+
+ With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` a timeout stops the command instead,
+ so clamping a caller's timeout there would only stop it sooner.
+ Bare mode has the same effect but sets no variable the hook can read.
+
+ @param env - process environment holding {@link DISABLE_BACKGROUND_TASKS_ENV}
+
+ @returns `false` only when the variable is exactly `1`
+
+ @example
+ ```ts
+ canMoveToBackground({}); // true
+ canMoveToBackground({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' }); // false
+ ```
+ */
+function canMoveToBackground(env: Readonly<NodeJS.ProcessEnv>,): boolean {
+  return env[DISABLE_BACKGROUND_TASKS_ENV] !== '1';
+}
+
+/**
  Foreground timeout a policy call carries after the clamp.
 
  A caller value from just above zero up to {@link BLOCKING_TIMEOUT_MS} survives,
@@ -124,6 +145,11 @@ function isTimeoutPolicyCall(
  a longer one,
  and zero,
  which Claude Code 2.1.332 treated as no early move (an 8-second command with `timeout: 0` waited in front).
+ When {@link canMoveToBackground} is `false`,
+ a caller's value stays as given,
+ because the clamp exists to move commands and there it could only stop them.
+
+ @param env - process environment holding {@link DISABLE_BACKGROUND_TASKS_ENV}
 
  @param timeout - caller's timeout, with `undefined` meaning absent
 
@@ -131,14 +157,25 @@ function isTimeoutPolicyCall(
 
  @example
  ```ts
- clampedTimeout(undefined); // 1000
- clampedTimeout(3_480_000); // 1000
- clampedTimeout(500); // 500
+ clampedTimeout({ env: {} }); // 1000
+ clampedTimeout({ env: {}, timeout: 3_480_000 }); // 1000
+ clampedTimeout({ env: {}, timeout: 500 }); // 500
  ```
  */
-function clampedTimeout(timeout?: number,): number {
-  if ((timeout !== undefined) && (timeout > 0)
-    && (timeout <= BLOCKING_TIMEOUT_MS))
+function clampedTimeout(
+  {
+    env,
+    timeout,
+  }: Readonly<{
+    env: Readonly<NodeJS.ProcessEnv>;
+    timeout?: number;
+  }>,
+): number {
+  if (timeout === undefined)
+    return BLOCKING_TIMEOUT_MS;
+  if (!canMoveToBackground(env,))
+    return timeout;
+  if ((timeout > 0) && (timeout <= BLOCKING_TIMEOUT_MS))
     return timeout;
   return BLOCKING_TIMEOUT_MS;
 }
@@ -294,6 +331,7 @@ function withSleepPrefix(command: string,): string {
 export {
   BLOCKING_TIMEOUT_ENABLED_ENV,
   BLOCKING_TIMEOUT_MS,
+  canMoveToBackground,
   clampedTimeout,
   DISABLE_BACKGROUND_TASKS_ENV,
   disabledBackgroundTasksWarning,

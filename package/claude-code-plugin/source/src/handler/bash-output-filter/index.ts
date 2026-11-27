@@ -8,6 +8,7 @@ import type {
 import type { ReadonlyDeep, } from 'type-fest';
 
 import {
+  canMoveToBackground,
   clampedTimeout,
   DISABLE_BACKGROUND_TASKS_ENV,
   disabledBackgroundTasksWarning,
@@ -107,11 +108,16 @@ function bashOutputFilterHandler(event: ReadonlyDeep<BashOutputFilterInput>,): B
     /**
      Unwrapped command text, prefixed when Claude Code would see a leading `sleep`.
      */
-    const command = withSleepPrefix(bashInput.command,);
+    const command = canMoveToBackground(process.env,)
+      ? withSleepPrefix(bashInput.command,)
+      : bashInput.command;
     /**
      Timeout after the clamp.
      */
-    const timeout = clampedTimeout(bashInput.timeout,);
+    const timeout = clampedTimeout({
+      ...(bashInput.timeout === undefined ? {} : { timeout: bashInput.timeout, }),
+      env: process.env,
+    },);
     if ((command === bashInput.command) && (timeout === bashInput.timeout))
       return {};
 
@@ -151,7 +157,14 @@ function bashOutputFilterHandler(event: ReadonlyDeep<BashOutputFilterInput>,): B
       updatedInput: {
         ...bashInput,
         command: wrappedCommand,
-        ...(policyCall ? { timeout: clampedTimeout(bashInput.timeout,), } : {}),
+        ...(policyCall
+          ? {
+            timeout: clampedTimeout({
+              ...(bashInput.timeout === undefined ? {} : { timeout: bashInput.timeout, }),
+              env: process.env,
+            },),
+          }
+          : {}),
       },
     },
   };

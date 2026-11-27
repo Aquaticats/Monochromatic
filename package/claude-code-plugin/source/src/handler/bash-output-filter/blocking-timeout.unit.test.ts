@@ -6,6 +6,7 @@ import {
 import {
   BLOCKING_TIMEOUT_ENABLED_ENV,
   BLOCKING_TIMEOUT_MS,
+  canMoveToBackground,
   clampedTimeout,
   DISABLE_BACKGROUND_TASKS_ENV,
   disabledBackgroundTasksWarning,
@@ -181,13 +182,31 @@ await describe({
       ],
     },),
     describe({
+      name: canMoveToBackground.name,
+      children: [
+        it({
+          name: 'allows moves when native background tasks are enabled',
+          fn: async () => {
+            expect(canMoveToBackground({},),).toBe(true,);
+            expect(canMoveToBackground({ [DISABLE_BACKGROUND_TASKS_ENV]: '0', },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'refuses moves when native background tasks are disabled',
+          fn: async () => {
+            expect(canMoveToBackground({ [DISABLE_BACKGROUND_TASKS_ENV]: '1', },),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: clampedTimeout.name,
       children: [
         ...KEPT_TIMEOUTS.map(function keptTimeout(timeout,) {
           return it({
             name: `keeps caller timeout ${timeout}, which already moves no later than the default`,
             fn: async () => {
-              expect(clampedTimeout(timeout,),).toBe(timeout,);
+              expect(clampedTimeout({ env: {}, timeout, },),).toBe(timeout,);
             },
           },);
         },),
@@ -195,9 +214,25 @@ await describe({
           return it({
             name: `replaces caller timeout ${String(timeout,)} with the default`,
             fn: async () => {
-              expect(clampedTimeout(timeout,),).toBe(BLOCKING_TIMEOUT_MS,);
+              expect(clampedTimeout({ env: {}, ...(timeout === undefined ? {} : { timeout, }), },),)
+                .toBe(BLOCKING_TIMEOUT_MS,);
             },
           },);
+        },),
+        it({
+          name: 'keeps every caller timeout when native background tasks are disabled',
+          fn: async () => {
+            const env = { [DISABLE_BACKGROUND_TASKS_ENV]: '1', };
+            expect(clampedTimeout({ env, timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, },),)
+              .toBe(OBSERVED_LONG_CALLER_TIMEOUT_MS,);
+            expect(clampedTimeout({ env, timeout: 0, },),).toBe(0,);
+          },
+        },),
+        it({
+          name: 'still supplies the default to an absent timeout when native background tasks are disabled',
+          fn: async () => {
+            expect(clampedTimeout({ env: { [DISABLE_BACKGROUND_TASKS_ENV]: '1', }, },),).toBe(BLOCKING_TIMEOUT_MS,);
+          },
         },),
       ],
     },),
