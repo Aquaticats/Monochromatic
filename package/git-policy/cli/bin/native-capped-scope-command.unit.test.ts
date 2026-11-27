@@ -370,6 +370,68 @@ setTimeout(function end() {
       },
     }),
     it({
+      name: 'answers the last whole reading when the control group lost part of itself before the runner looked again',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'check-scope-accounting-', });
+        /**
+         The control group this fixture's scope takes.
+         */
+        const cgroupPath = checkScopeCgroupPath({
+          name: testScopeName,
+          root: scratch.path,
+        });
+        /**
+         What the runner answered.
+         */
+        const outcome = await runInCappedScope({
+          name: testScopeName,
+          caps: defaultCheckScopeCaps,
+          program: process.execPath,
+          args: [
+            '-e',
+            `const fs = require('node:fs');
+const path = require('node:path');
+const directory = process.env.CHECK_TEST_CGROUP_PATH;
+const written = directory + '.written';
+fs.mkdirSync(written, { recursive: true });
+fs.writeFileSync(path.join(written, 'pids.peak'), '434\\n');
+fs.writeFileSync(path.join(written, 'pids.max'), '400\\n');
+fs.writeFileSync(path.join(written, 'pids.events'), 'max 6\\n');
+fs.writeFileSync(path.join(written, 'memory.peak'), '1953531904\\n');
+fs.writeFileSync(path.join(written, 'memory.events'), 'oom_kill 2\\n');
+fs.writeFileSync(path.join(written, 'cpu.max'), '200000 100000\\n');
+fs.writeFileSync(path.join(written, 'cpu.stat'), 'nr_periods 557\\nnr_throttled 314\\nusage_usec 74283909\\n');
+fs.renameSync(written, directory);
+setTimeout(function loseParts() {
+  // A kernel removes a control group's files one at a time before the folder itself goes, so the folder the runner looks
+  // at once the check has ended can still hold some of its files and not the others. This fixture leaves that moment in
+  // place rather than deleting the folder whole, so no host load decides what the runner reads.
+  fs.rmSync(path.join(directory, 'pids.events'));
+  fs.rmSync(path.join(directory, 'cpu.stat'));
+  process.exit(0);
+}, ${String(fixtureScopeMilliseconds)});`,
+          ],
+          deadlineMilliseconds: testDeadlineMilliseconds,
+          environment: {
+            ...standIn.environment,
+            CHECK_TEST_CGROUP_PATH: cgroupPath,
+          },
+          scopeRoot: scratch.path,
+          pollMilliseconds: fixturePollMilliseconds,
+        });
+        expect(outcome.status,).toBe(0,);
+        if (outcome.accounting === SCOPE_NOT_READ)
+          throw new Error('the runner read no control group while the fixture scope ran');
+        // The reading the runner took after the check ended lost two of the group's files, and the whole reading it had
+        // already taken is what its answer is made of.
+        expect(outcome.accounting.pidsPeak,).toBe(434,);
+        expect(outcome.accounting.pidsEvents.max,).toBe(6,);
+        expect(outcome.accounting.memoryEvents.oom_kill,).toBe(2,);
+        expect(outcome.accounting.cpuStat.nr_throttled,).toBe(314,);
+      },
+    }),
+    it({
       name: 'runs the command in the directory it was given',
       fn: async () => {
         await using standIn = await createScopeStandIn();

@@ -7653,8 +7653,15 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   a CPU quota its tasks waited more than twice as long for as they ran.
   Each line names the option that raises that bound and that the bound and not a test is what failed.
   The counters are read every 50 ms while the check runs
-  (`bin/native-check-scope-accounting.ts`),
-  because a scope takes its control group with it.
+  (`bin/native-check-scope-watch-accounting.ts`),
+  because a scope takes its control group with it,
+  and a reading that answers less than the whole one before it is not kept
+  (`bin/native-check-scope-accounting.ts`):
+  the kernel removes a control group's files one at a time and the directory after them,
+  so a reading taken while a scope ends answers part of the group,
+  and a check judged on that reading was told no bound of its own failed it
+  (`doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`,
+  issue 6610).
   The exit status is 0 when every check passed and 2 when one failed or ran past its deadline,
   so a coordinator can branch on it;
   a command line or a cap that is refused exits 1 and prints the reason.
