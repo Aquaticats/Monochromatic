@@ -60,7 +60,8 @@ pub(crate) enum WhatTheServiceSaid {
     /// The commit landed,
     /// or was written and kept behind a reference lock,
     /// and its ending is the command's.
-    Landed(ServiceCommit),
+    /// It is boxed because every attempt of a commit builds this value and the other variant carries nothing.
+    Landed(Box<ServiceCommit>),
     /// This attempt did not land,
     /// and the next one starts from what it wrote into the attempt's values.
     Rebuild,
@@ -174,7 +175,7 @@ pub(crate) fn the_answer_of_the_service(
                 config: values.config.clone(),
             });
             timing.after_landing += after_landing.elapsed();
-            Ok(WhatTheServiceSaid::Landed(outcome))
+            Ok(WhatTheServiceSaid::Landed(Box::new(outcome)))
         }
         Ok(Submitted::Held {
             words,
@@ -194,7 +195,7 @@ pub(crate) fn the_answer_of_the_service(
                 "{}: {words}",
                 crate::wrapper_names_old_and_new::PROGRAM.current
             );
-            Ok(WhatTheServiceSaid::Landed(ServiceCommit {
+            Ok(WhatTheServiceSaid::Landed(Box::new(ServiceCommit {
                 result: TransactionResult {
                     events: Vec::new(),
                     exit_code: 0,
@@ -202,7 +203,7 @@ pub(crate) fn the_answer_of_the_service(
                     uses_lfs: false,
                 },
                 handoff: None,
-            }))
+            })))
         }
         Ok(Submitted::PrepareAgain {
             landed,
@@ -277,7 +278,7 @@ pub(crate) fn the_answer_of_the_service(
                     config: &values.config,
                 };
             return match crate::service_commit_after_a_failure::answer_after_a_failure(failed) {
-                Ok(commit) => Ok(WhatTheServiceSaid::Landed(commit)),
+                Ok(commit) => Ok(WhatTheServiceSaid::Landed(Box::new(commit))),
                 Err(stop) => Err(stop),
             };
         }

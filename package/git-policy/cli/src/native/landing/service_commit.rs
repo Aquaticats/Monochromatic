@@ -312,9 +312,9 @@ pub fn service_commit<F: RepositoryFacts>(
         //  removal of an abandoned tree, would otherwise take it from under a wait that outlasts its age.
         //  Both bounds of that wait, the renewed directory and the notices a terminal which stopped draining cannot hold, are
         //  in `service_commit_waiting_notices.rs`.
-        // The client configuration is lent its own name here, so the line that submits reads as the control of the waiting notices
-        //  pins it (`foundation/notice_stream_that_does_not_hold_its_writer.rs`).
-        let config: &ClientConfig = &the.config;
+        // This attempt gets its own copy of the client configuration, so the line that submits reads exactly as the control of the
+        //  waiting notices pins it (`foundation/notice_stream_that_does_not_hold_its_writer.rs`).
+        let config: ClientConfig = the.config.clone();
         let submitted: Result<Submitted, ClientFailure> = submit_saying_where_it_stands(
             &config,
             ready.scratch.0.as_path(),
@@ -363,7 +363,7 @@ pub fn service_commit<F: RepositoryFacts>(
             lands_as_new,
             attempt,
         })? {
-            WhatTheServiceSaid::Landed(commit) => return Ok(commit),
+            WhatTheServiceSaid::Landed(commit) => return Ok(*commit),
             WhatTheServiceSaid::Rebuild => {}
         }
     }

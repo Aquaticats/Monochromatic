@@ -553,7 +553,8 @@
 //!   what a settlement owes after the move:
 //!   the index lock taken again,
 //!   the entries installed under it,
-//!   and the conclusion state, the push and the owed record that follow.
+//!   and the conclusion state,
+//!   the push and the owed record that follow.
 //! - `held_commit_settle.rs`:
 //!   moving the branch of a held commit once nothing stands in the way,
 //!   and finishing what the landing owes after the move.
