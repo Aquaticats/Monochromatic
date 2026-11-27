@@ -1,7 +1,6 @@
 //! Controls for the one decision two enforcers of a step's ceiling share.
 
 use super::*;
-use crate::scratch_step_held_by_the_kernel::HeldProgram;
 
 /// A stand-aside of a step the kernel held,
 /// counted from the step's start.

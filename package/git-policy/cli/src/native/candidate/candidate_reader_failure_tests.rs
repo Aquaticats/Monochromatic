@@ -29,10 +29,8 @@ use crate::candidate_object::{
     ObjectId,
     parse_object_id,
 };
-use crate::child_watch::{
-    WatchTerms,
-    reader_subject,
-};
+use crate::child_watch::WatchTerms;
+use crate::child_watch_one_shot_run::reader_subject;
 use crate::test_support::{
     SharedSink,
     executable,

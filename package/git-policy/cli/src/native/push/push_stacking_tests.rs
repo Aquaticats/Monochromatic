@@ -483,7 +483,7 @@ fn a_push_whose_git_a_signal_ended_keeps_the_signal() {
             stack: false,
             start_directory: Some(root.clone()),
         };
-        let code: i32 = run_stacked_push(&forward);
+        let code: i32 = run_stacked_push(&forward, &plain_git_merge_push);
         // Only reached when the death could not end this process: the parent names that status.
         std::process::exit(code);
     }

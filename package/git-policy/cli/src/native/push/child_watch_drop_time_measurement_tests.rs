@@ -10,6 +10,7 @@
 #![cfg(unix)]
 
 use super::*;
+use crate::child_watch_one_shot_run::output_watched;
 use crate::test_support::{
     SharedSink,
     fixture,
