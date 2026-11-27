@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T18:25:42-05:00
+## The state at 2026-11-27T18:42:35-05:00
 
-`main` was `e6026dbd46`.
+`main` was `60ecd08eef`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 286 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 290 more by this time.
 
 ### Rounds running
 
@@ -355,8 +355,47 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   check,
   Clippy,
   the whole `source_guard` module (225 of 225) and the five other modules whose guards changed passed both times.
-  Four of the five rounds for the reads are merged,
-  and the round on a bare shell alias still runs.
+  All five rounds for the reads are merged,
+  the round on a bare shell alias last (`461d441ef7`).
+  A guarded command behind a bare `!git` alias is judged for the worktree its own words name,
+  whether they say `-C`,
+  `--git-dir` or `--work-tree`:
+  before,
+  a reset of a dirty main checkout typed from a clean linked worktree ran,
+  and the reverse was refused.
+  One control compares the alias spelling with the direct one for 17 guarded commands,
+  in both directions and three spellings of the target.
+  The slot refusals read the records of the repository those words name.
+  A removal,
+  a move or a prune behind a `!` alias whose shell directory Git could not be asked for is refused,
+  with words saying what could not be read,
+  where it was forwarded with no refusal;
+  a prune only when its own words name a repository.
+  Every refused byte of the alias reader has a row,
+  each shown red by widening the reader with it,
+  and `SPEC.md` and the README state the bytes the reader trusts.
+  Every slot refusal keeps the lines the policy stage printed before it,
+  which closed issue 6624.
+  That round ran the modules it changed and the whole `source_guard` module,
+  and no `binary::` module and no gate.
+  It put two more files of `invocation/` over the line budget,
+  `entry_forward_action_planning.rs` and `global_arguments.rs`,
+  and added one `group-file` line to the folder rule's allow list for a file it made;
+  nine files of that folder are over the budget now,
+  and their splits run after the crate's move
+  (`doc/planning/cli-git-source-layout-target-tree.md`,
+  the note of 2026-11-26T20:03:52-05:00).
+  Its three picks wait in `doc/handover/questions-for-the-owner.md`.
+  The whole gate runs on `main` at `beb61ec46b` since 2026-11-27T18:39:13-05:00
+  (unit `gpc-gate-wrapper-next-alpha-on-beb61ec46b-20261127T183913-0500`,
+  log `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-beb61ec46b-20261127T183913-0500.log`),
+  with the tip checks beside it in `.claude/worktrees/tip-checks-on-main-before-wrapper-alpha-51`
+  and their logs in `~/temp/agent/wrapper-alpha-51-gate-and-tip-checks-2026-11-27/keep/`.
+  No branch that changes the wrapper's release code merges between that commit and the release's dispatch,
+  so the released tree is the gated one;
+  the round of issue 6625,
+  started 2026-11-27T18:38:26-05:00,
+  waits for it if it ends first.
   Nine planted spellings passed their guard on `main`:
   a renamed import,
   a function taken as a value,
@@ -373,8 +412,8 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   so a use removed and another added fails twice;
   and the two exemptions that named no file are entries now.
   Its question about the line-break rule is answered by "The Markdown the line-break sweep left out":
-  the package's 3,368 findings are that sweep's,
-  owed once the rounds that edit those files have merged.
+  the package's findings were that sweep's,
+  and the linter's own fix took them out after the alias round's merge (`beb61ec46b`).
   It reported that the rule broke an inline code span;
   a probe of `0.5.2-alpha.21` on a Markdown file found no finding for a comma inside one,
   beside two findings for a plain sentence on the next line,
@@ -2679,26 +2718,51 @@ and the two `truepeak` files wait on their branch.
   and each of the 139 tracked links under `uses/` folders points at a folder,
   so each prints `read error: Is a directory`;
   run 46079689494 scanned 8149 entries and printed those 139 lines and no other finding.
-  The round
-  `issue-6632-the-forbidden-strings-workflow-ends-green-on-a-push-whose-changed-entries-hold-links-to-folders`
-  started 2026-11-27T18:09:51-05:00.
-  It cures the workflow's list,
-  under the rule that nothing the step inspects today stops being inspected,
-  and builds nothing in the scanner,
-  whose release is asked of the owner first.
+  Its round is merged (`fc1c84b58e`),
+  and run 46083398424 on that commit was green,
+  the first since 2026-11-20:
+  it left out the 139 folder links,
+  said so,
+  scanned 8017 entries and found nothing.
+  The issue is closed.
+  The step reads each changed entry's mode from `git diff --raw`
+  and leaves out a gitlink and a link whose target on disk is a folder;
+  it became two steps,
+  because the linter caps a shell step's length and the old one stood at the cap.
+  One thing is narrower than before:
+  the old step checked a folder link's own name against the name rules before its read failed,
+  and the new one does not.
+  The released scanner's `--name-path` takes a link's target text under the link's name,
+  so the workflow can hand it both with no release of the scanner:
+  issue 6633,
+  whose round,
+  `issue-6633-the-forbidden-strings-workflow-scans-a-left-out-links-own-name-and-target-text`,
+  started 2026-11-27T18:40:25-05:00.
   After its merge,
-  read the first push run on `main`:
-  the issue closes when that run is green.
+  read the first push run on `main` that completes,
+  and push nothing to `main` while it runs:
+  a later push cancels it.
+  What a positional link means inside the scanner waits for the owner.
 - `cargo-shadow`'s `src/lib.rs` holds 218 `mod` declarations and no function,
   and is the package's one `rust/max-lines` finding.
-  The round `cargo-shadow-lib-rs-is-under-the-line-budget-with-room-for-the-modules-to-come`
-  started 2026-11-27T18:20:36-05:00,
+  Its round is merged (`60ecd08eef`),
   under the owner's "Keep 300,
   split everything"
-  (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`).
-  Its brief asks that no public item move,
-  that the tests' names stay the same set,
-  and for a control that goes red when the file is over again.
+  (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`):
+  the file holds 201 code lines,
+  because 52 test files are declared by the module they test,
+  as the crate's newest modules already were,
+  and a module that brings tests costs the file one line where it cost three.
+  The crate's 731 public paths,
+  and the release binary's help and version,
+  are byte-identical before and after;
+  the same 919 unit test names are there,
+  527 under a new module path;
+  and the package's task ran 968 and passed 968.
+  Two tests that start their own binary with a filter naming their old path matched nothing after the move,
+  failed in the first run,
+  and name the new path now.
+  A round that starts in this package from the alpha.16 read declares a test file the same way.
 - The store fixture that tests of several packages build with `createSopsFixture`
   joins a tool's output when the tool exits,
   before its pipe has closed,
@@ -2991,7 +3055,11 @@ sweep of 2026-11-23 left out,
 because the branches that were changing them could not take the diff:
 `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` alone reports 683 findings on
 `main`,
-and everything under `package/git-policy/cli` is the same.
+and everything under `package/git-policy/cli` was the same.
+Both are fixed (`beb61ec46b`):
+4,062 findings in 480 files,
+with `bin/` and `e2e/` left as they are while the round of issue 6612 works there,
+where one file keeps two findings.
 The installed linter applies that fix itself with `--fix`,
 which changes whitespace only,
 so the scratch script of 2026-11-23 is not needed.
@@ -3007,7 +3075,16 @@ each changed file was equal to its old text once whitespace and comment markers 
 `cargo check` and Clippy exited 0,
 and the whole test task passed,
 910 of 910 and 968 of 968.
-Do the same for the files this passage names once the rounds that edit them have merged.
+The wrapper's fix was checked the same way,
+and three ways more:
+of 6,789 changed Rust lines none began with anything but a doc marker;
+the linter reported no layout finding and no processing failure,
+as before;
+and the `source_guard` module (225 of 225) and the two modules whose tests read `SPEC.md` passed.
+The same count,
+of changed lines that are no doc comment,
+is zero for the two packages' merges too.
+Do the same for `bin/` and `e2e/` once the round of issue 6612 has merged.
 The driver package's build,
 `lint` and `lint:types` exited 0 in its worktree,
 and its unit suite printed 228 `[PASS]` lines beside one failure that is not the fix's:
