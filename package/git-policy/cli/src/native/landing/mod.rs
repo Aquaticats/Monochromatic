@@ -236,9 +236,17 @@
 //! - `service_scratch_abandonment.rs`:
 //!   which commit scratch trees a later command takes for abandoned,
 //!   and which it leaves alone because their owner still runs.
+//! - `service_scratch_ref_names_and_values.rs`:
+//!   the names of a landing's side references,
+//!   how a reference's value is read,
+//!   the one write of a side reference,
+//!   and the line that says one was left where it is.
 //! - `service_scratch_ref_of_a_dropped_batch.rs`:
-//!   the two side references of a landing,
-//!   and the scratch reference a restart removes once a batch it dropped has its commit kept.
+//!   the face a caller on a thread asks of the removal of a batch's scratch reference,
+//!   once the commit it holds is kept.
+//! - `service_scratch_ref_of_a_dropped_batch_awaiting.rs`:
+//!   the same removals as the face a task of the runtime awaits,
+//!   every Git child and every look at an intent a job of the pool.
 //! - `held_commit_words.rs`:
 //!   what the wrapper says about a commit that a reference lock keeps off its branch.
 //! - `held_commit_settle_outcomes.rs`:
@@ -1179,9 +1187,19 @@ pub mod service_index_claim;
 /// Whether a new index file holds the live index's bytes.
 pub mod service_index_same;
 
-/// The two side references of a landing,
-/// and the scratch reference a restart removes once a batch it dropped has its commit kept.
+/// The names of a landing's side references,
+/// how a reference's value is read,
+/// the one write of a side reference,
+/// and the line that says one was left where it is.
+pub mod service_scratch_ref_names_and_values;
+
+/// The face a caller on a thread asks of the removal of a batch's scratch reference,
+/// once the commit it holds is kept.
 pub mod service_scratch_ref_of_a_dropped_batch;
+
+/// The same removals as the face a task of the runtime awaits,
+/// every Git child and every look at an intent a job of the pool.
+pub mod service_scratch_ref_of_a_dropped_batch_awaiting;
 
 /// The record that names the worktree of a batch's scratch reference,
 /// so a restart can remove a reference whose landing was killed before its intent.
