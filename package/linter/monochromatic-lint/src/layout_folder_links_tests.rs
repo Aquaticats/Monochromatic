@@ -519,7 +519,7 @@ fn findings_with(
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"), root)
         .expect("the fixture list is valid");
     let prefix: String = format!("{}/", root.display());
     return check_folder_links(&tree, uses.as_slice(), root, Some(&list))
@@ -940,7 +940,7 @@ fn findings_asked_with(
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"), root)
         .expect("the fixture list is valid");
     return check_folder_links(&tree, uses.as_slice(), root, Some(&list));
 }

@@ -201,11 +201,10 @@ pub fn check_folder_links(
             base,
         ));
     }
-    // What: the list as this package's rule asks it, with every listed path in the key's spelling.
-    // Why: one spelling must decide both whether a line tolerates a use and whether it is dead,
-    // and the key's spelling is the one a reader copies; the package folder is what reads a listed path back.
-    let spelled: Option<AllowList> = allow.map(|list| return list.in_key_spelling(base));
-    let listed: Option<&AllowList> = spelled.as_ref();
+    // What: the list as this package's rule asks it, already in the one spelling a key writes.
+    // Why: the reader read every listed path back against this package folder,
+    // so one spelling decides tolerance, death and a repeat, in both rules alike.
+    let listed: Option<&AllowList> = allow;
     let untolerated: FolderUses = match listed {
         Some(list) => without_tolerated(&grouped, list, base),
         None => grouped.clone(),

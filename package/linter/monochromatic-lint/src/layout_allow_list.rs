@@ -57,13 +57,7 @@ pub(crate) use crate::layout_allow_list_reading::{
     read_at_most,
 };
 /// Import the finding shape and the path a key writes.
-use crate::{
-    layout_finding::{
-        LayoutFinding,
-        key_path,
-    },
-    markdown_lfs_target::lexical_normal,
-};
+use crate::layout_finding::LayoutFinding;
 /// Import ordered collections and native paths.
 use std::{
     collections::{
@@ -149,6 +143,8 @@ pub struct AllowList {
 /// Why:
 ///  The lines are read by `layout_allow_entries.rs`,
 ///  and the list they make is the one a rule asks about.
+///  The package folder is passed with the text,
+///  because one listed path has two spellings and the keys write only one of them.
 ///  The uses, the keys and the line each key sits on are also collected once here,
 ///  because a rule asks about one use or one key per finding it makes,
 ///  and a list of a dense loop holds a line for every use inside that loop:
@@ -157,13 +153,14 @@ pub struct AllowList {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseAllowList(text: string, source: Path): AllowList;
+/// function parseAllowList(text: string, source: Path, base: Path): AllowList;
 /// ```
 pub fn parse_allow_list(
     text: &str,
     source: &Path,
+    base: &Path,
 ) -> Result<AllowList, String> {
-    let entries: Vec<AllowEntry> = parse_entries(text)?;
+    let entries: Vec<AllowEntry> = parse_entries(text, base)?;
     let mut uses: BTreeSet<(PathBuf, PathBuf)> = BTreeSet::<(PathBuf, PathBuf)>::new();
     let mut keys: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
     for (index, entry) in entries.iter().enumerate() {
@@ -268,83 +265,6 @@ impl AllowList {
     ) -> Option<usize> {
         return self.keys.get(key).copied();
     }
-
-    /// What:
-    ///  The list as one package's rule asks it, with every `uses` path written the way a key writes it.
-    /// Why:
-    ///  A line may climb out of the package with `..` and come back into it:
-    ///  with the package folder named `p`, `uses ../p/src/a -> src/b` names the use `src/a -> src/b`,
-    ///  which is the spelling every key prints.
-    ///  The tolerance lookups compared the listed spelling with the key's and found neither,
-    ///  while the dead-entry check read the line as alive,
-    ///  so one use had two answers and a mistyped line stayed unreported.
-    ///  Reading each path back against the package folder and writing it from there gives one spelling,
-    ///  and it is the key's, which is the one a reader copies out of `--debug`.
-    ///  A line's own text stays as written, because a dead entry quotes it.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// list.inKeySpelling(base): AllowList // 'uses ../p/src/a -> src/b' holds the use 'src/a -> src/b'
-    /// ```
-    pub fn in_key_spelling(
-        &self,
-        base: &Path,
-    ) -> AllowList {
-        // What: the entries with every `uses` path in the key's spelling, in file order.
-        // Why: a rule reports a dead entry on its line, so the order and the text of each line must survive.
-        let mut entries: Vec<AllowEntry> = Vec::<AllowEntry>::with_capacity(self.entries.len());
-        let mut uses: BTreeSet<(PathBuf, PathBuf)> = BTreeSet::<(PathBuf, PathBuf)>::new();
-        for entry in &self.entries {
-            let kind: AllowKind = match &entry.kind {
-                AllowKind::FolderUse {
-                    from,
-                    to,
-                } => {
-                    let spelled_from: PathBuf = PathBuf::from(spelled_path(base, from).as_str());
-                    let spelled_to: PathBuf = PathBuf::from(spelled_path(base, to).as_str());
-                    uses.insert((spelled_from.clone(), spelled_to.clone()));
-                    AllowKind::FolderUse {
-                        from: spelled_from,
-                        to: spelled_to,
-                    }
-                }
-                // A file use names a folder and two file names, and a key holds all three as written.
-                AllowKind::FileUse {
-                    ..
-                }
-                | AllowKind::Key(_) => entry.kind.clone(),
-            };
-            entries.push(AllowEntry {
-                line: entry.line,
-                text: entry.text.clone(),
-                kind,
-            });
-        }
-        return AllowList {
-            source: self.source.clone(),
-            entries,
-            uses,
-            keys: self.keys.clone(),
-        };
-    }
-}
-
-/// What:
-///  One listed path written the way a key writes that folder:
-///  the path read back against the package folder, then shown from it.
-/// Why:
-///  That is the one spelling both a tolerance lookup and a dead-entry check must compare,
-///  and `key_path` is what every finding's key already writes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const spelledPath = (base, listed) => keyPath(lexicalNormal(base.join(listed)), base);
-/// ```
-fn spelled_path(
-    base: &Path,
-    listed: &Path,
-) -> String {
-    return key_path(&lexical_normal(&base.join(listed)), base);
 }
 
 /// What:

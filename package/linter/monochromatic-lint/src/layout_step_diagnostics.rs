@@ -83,13 +83,15 @@ pub(crate) fn diagnostics(
 /// Why:
 ///  A list that cannot be read would let every finding through unseen,
 ///  so the package fails the run instead of being checked without it.
+///  The package folder reads every listed path back into the spelling a key writes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function listFor(path: Path | undefined, rule: string, cwd: Path, outcome: LayoutOutcome): AllowList | undefined;
+/// function listFor(path: Path | undefined, base: Path, rule: string, cwd: Path, outcome: LayoutOutcome): AllowList | undefined;
 /// ```
 pub(crate) fn list_for(
     path: &Option<PathBuf>,
+    base: &Path,
     rule: &str,
     cwd: &Path,
     outcome: &mut LayoutOutcome,
@@ -97,7 +99,7 @@ pub(crate) fn list_for(
     let Some(named) = path else {
         return Ok(None);
     };
-    match read_allow_list(named) {
+    match read_allow_list(named, base) {
         Ok(list) => return Ok(Some(list)),
         Err(reason) => {
             outcome.findings.push(processing_failure(
