@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:57:41-05:00
+## The state at 2026-11-27T13:03:16-05:00
 
-`main` was `3c88496446`.
+`main` was `b596c35090`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -146,6 +146,14 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   locked (`94b2e0d22e`) and installed ("Releases of 2026-11-27"),
   and a Claude Sonnet read of it runs as a background agent of the coordinating session
   (`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`);
+- for the wrapper's `0.6.1-alpha.49` behaviour pass,
+  four rounds started 2026-11-27T13:02:42-05:00 from one list,
+  each named `wrapper-alpha-49-release-pass-` and then:
+  `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`;
+  `every-sentence-that-names-a-process-shows-its-name-safely`;
+  `two-deletions-of-repeated-lines-never-write-back-a-line-a-side-removed`;
+  and `four-small-points-of-the-behaviour-read`.
+  One whole gate on `main` and then `0.6.1-alpha.50` follow their merges and the structure pass's;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -359,19 +367,56 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
+Three reads run as background agents of the coordinating session,
 each a Claude Sonnet read
 (same vendor as some of the authors,
-so a second pass and not an independent review)
-of the wrapper's `0.6.1-alpha.49` against `0.6.1-alpha.48`,
-started 2026-11-27T12:08-05:00
-(their scratch folders were made at 12:08:26 and 12:08:58):
-one of the merges that change behaviour
-(`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`),
-one of the two that claim to change none,
-the reach and platform gates and the list guards
-(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`).
+so a second pass and not an independent review):
+the wrapper's `0.6.1-alpha.49` structure pass,
+of the reach and platform gates and the list guards
+(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`),
+the linter's `0.5.2-alpha.20` and `cargo-shadow`'s `0.1.5-alpha.14`,
+at the paths this section gives beside each release.
 The coordinator rewrites what lasts from each into this file before scratch expires.
+
+What the wrapper's alpha.49 behaviour pass found
+(`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`):
+no High finding,
+four Medium and three Low,
+none a regression of alpha.49.
+Demonstrated with both released binaries:
+with a reader of standard error gone,
+alpha.48 removed a notice's record and alpha.49 kept it;
+after a failed start of the real Git with standard error a closed pipe,
+alpha.48 was ended by `SIGPIPE` and alpha.49 exited 2;
+over 56 merge cases alpha.48 resolved 6 conflicts and alpha.49 resolved 14,
+each extra one matching an oracle;
+and 44 of 45 commands compared were identical,
+the other being the intended change.
+Its Medium findings,
+each with a round:
+a slot removal or move reached through a shell alias reads its operand from the directory the wrapper was started in,
+where Git runs the alias at the top of the working tree after `-C`,
+so `./wt/two` from a subdirectory or `../one` with `-C` passes the refusal and removes a bound slot's registration
+(argued from the code and from Git's own behaviour;
+the refusal itself was not run);
+a process's name is escaped at two of the seven sentences that print it;
+five alias spellings made only of readable forms stay unread
+(a shell alias naming a shell alias,
+`! git`,
+a tab after `!git`,
+a bare `!git` before the caller's own global option,
+a chain past 16),
+while `SPEC.md` says every spelling is read;
+and the merge pass,
+when both sides only delete and the base repeats a line,
+can write back a line one side removed
+(base `b a a`,
+ours `a`,
+theirs `b` resolves to `a`),
+the same in alpha.48,
+in 11 of 199 and 15 of 521 answers of a seeded search over unusually repetitive files.
+That last one lands wrong text with no marker,
+which is what the merge pass's own rule exists to stop.
 
 The whole gate on `main` at `97d9afb21c` passed
 (unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
