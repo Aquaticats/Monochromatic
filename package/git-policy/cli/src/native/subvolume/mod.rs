@@ -102,6 +102,11 @@
 //!   statistics,
 //!   work entries,
 //!   the pass state and the entry checks.
+//! - `subvolume_sync_directory_visit.rs`:
+//!   the walk of one directory of a tree pass,
+//!   and the test-only callback a control installs at it.
+//! - `subvolume_sync_source_child.rs`:
+//!   the dispatch of one source child by what it is.
 //! - `subvolume_sync.rs`:
 //!   one idempotent pass that makes a directory tree match another,
 //!   in process.
@@ -267,6 +272,15 @@ pub mod subvolume_platform;
 /// times and extended attributes onto a copy.
 #[cfg(target_os = "linux")]
 pub mod subvolume_sync_attrs;
+
+/// The walk of one directory of a tree pass,
+/// and the test-only callback a control installs at it.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_directory_visit;
+
+/// The dispatch of one source child by what it is.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_source_child;
 
 /// One idempotent pass that makes a directory tree match another,
 /// in process.
