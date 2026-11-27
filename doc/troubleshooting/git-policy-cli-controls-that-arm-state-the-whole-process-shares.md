@@ -724,7 +724,8 @@ assertion `left == right` failed
 test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 10758 filtered out
 ```
 
-So the control that moved the record is named: `work_without_a_recording_is_forgotten`.
+So the control that moved the record is named:
+`work_without_a_recording_is_forgotten`.
 Before the window was planted the same control failed twice in two runs,
 so the failure did not need the window;
 the window only made the interleaving visible and named the other control.
@@ -732,7 +733,8 @@ the window only made the interleaving visible and named the other control.
 ### The change
 
 Six controls of `src/native/worktree/add_timing_tests.rs` now run their body in a child of their own
-(`run_the_body_in_a_child_of_its_own`, `src/native/testing/process_wide_state_child_test_support.rs`):
+(`run_the_body_in_a_child_of_its_own`,
+which is in `src/native/testing/process_wide_state_child_test_support.rs`):
 every one that begins a recording,
 which is `steps_nest_through_the_thread_recorder`,
 `a_missing_common_directory_is_not_created`,
@@ -745,18 +747,22 @@ and `a_step_without_a_recorder_returns_its_body`,
 set nothing that belongs to the process,
 so they stay beside the module's other threads.
 
-That the child really runs the body is measured, not assumed:
+That the child really runs the body is measured and not assumed:
 `strace --follow-forks --trace=execve` on one of them shows this test binary started twice,
-the second time with `--exact worktree::add_timing::tests::work_on_other_threads_is_summed_by_name --nocapture
---test-threads=1`.
+and the second start carries `--exact` with the control's path in this module
+and `--nocapture` beside `--test-threads=1`.
 
 No release code changed:
-`WORK`, `begin`, `finish`, the notice and the record are as they were,
+`WORK` is still one list for the process,
+and `begin` and `finish` still replace and take it.
+The notice and the record are as they were,
 and one process still runs one add's record,
 which is what the shipped wrapper does.
 
-After the change the same filter answered `test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 10758
-filtered out` in each of three runs (0.04 s, 0.09 s and 0.07 s).
+After the change the same filter answered
+`test result: ok. 13 passed; 0 failed`
+in each of three runs,
+taking 0.04 s then 0.09 s then 0.07 s.
 
 ### Not covered
 

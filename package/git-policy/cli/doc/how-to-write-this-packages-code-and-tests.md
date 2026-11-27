@@ -142,7 +142,7 @@ and a control that ran its body beside another's recording read a line holding n
 No `source_guard` ban covers that record yet:
 the scan such a ban is built on reads every test-only source,
 and seven controls of four other files still begin a recording in the run's own process
-(`worktree/add_standing_notice_tests.rs`, which is issue 6533,
+(`worktree/add_standing_notice_tests.rs` is issue 6533's,
 `worktree/worktree_clone_tests.rs`,
 `worktree/worktree_ladder_finish_tests.rs` and
 `worktree/worktree_ladder_target_tree_skip_tests.rs`).
