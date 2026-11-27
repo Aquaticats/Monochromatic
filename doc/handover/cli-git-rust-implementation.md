@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:07:03-05:00
+## The state at 2026-11-27T13:13:22-05:00
 
-`main` was `e937565658`.
+`main` was `4e858efdee`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 239 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 240 more by this time.
 
 ### Rounds running
 
@@ -218,7 +218,10 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
   `mpm-shadow-alpha-14-release-pass-the-publish-and-the-hidden-name-rounds-joined-on-one-tree`,
   started 2026-11-27T12:46:15-05:00;
-  `0.2.7-alpha.15` follows its merge and issue 6616's.
+  `0.2.7-alpha.15` follows its merge;
+  issue 6616's fix,
+  which that release also waited for,
+  is merged (`4e858efdee`).
   The round on who owns a hidden name has ended and is not merged:
   its branch,
   `fix/mpm-shadow-cli-mpm-shadow-alpha-14-release-pass-a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`,
@@ -267,10 +270,6 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which bash and zsh reject),
   and an `mpm` without its execute bit is named with its remedy;
   17 scenarios kept their exit status and standard output.
-- `issue-6616-the-launchers-not-there-message-names-the-interpreter-that-fits`,
-  started 2026-11-27T12:41:38-05:00:
-  the launcher's own message still names a `#!` first line for a compiled program,
-  in a file the round on the shim's messages was told to leave.
 
 Released again on 2026-11-27:
 `cargo-shadow` `0.1.5-alpha.13`
@@ -460,6 +459,46 @@ and the behaviour pass read both as identity changes;
 nothing shows that the crate builds on a target other than Linux,
 and the README does not say which targets build;
 and the package guide records none of the rules the two merges brought.
+
+Beyond their findings,
+the two reads name changes that no merge's description carried.
+`cd62517318` made the refusal of a removal behind an unknown global option need a slot record in the record folder,
+where alpha.48 refused on the folder alone:
+with an empty folder alpha.48 exits 1,
+and alpha.49 passes the command to Git,
+which exits 129.
+That is the decision's own wording
+(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`):
+
+```text
+In a repository with no slot records the command is forwarded as before.
+```
+
+The control `the_home_says_whether_it_holds_a_record` holds it for an empty folder,
+an unrelated file,
+a record and a record being written;
+the read says a folder that holds only an add's claim also counts as holding no record,
+and no control shows that case.
+`7d6bd90c92` changes a real run in three edge cases:
+a runtime directory whose name is not UTF-8 is used where it was ignored,
+an empty bus address is passed on and treated as before,
+and an empty `XDG_RUNTIME_DIR` on the ZFS add route is refused as not set.
+The release binary's code grew by about 112 KiB between the two releases,
+and neither read says which merge grew it.
+
+The coordinator corrected four of the six briefs by a note to each round at 2026-11-27T13:11:19-05:00,
+because each stated the coordinator's own design as the requirement:
+the shell-alias round adds no refusal for an alias the wrapper cannot follow,
+which is the open choice of `doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`;
+the four-points round writes the control for a failed memory reading and leaves what the code does with one;
+the surface round lists the items its control newly sees and narrows only one a split widened;
+and the list-guards round is held to the outcome,
+a use added to an excused file fails,
+and not to the coordinator's shape for it.
+Each report is read against its brief and its note.
+After each of the two structure branches merges,
+`native:check` runs on the pinned tree before the next merge:
+a narrowed item or a changed excuse can break a build through a merge with no textual conflict.
 
 The whole gate on `main` at `97d9afb21c` passed
 (unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
@@ -1212,6 +1251,17 @@ and the two `truepeak` files wait on their branch.
   each names a checkout's root,
   or runs `/usr/bin/git`,
   or throws with the refusal's words.
+- `mpm-shadow`'s launcher names the interpreter that is missing (`4e858efdee`,
+  issue 6616):
+  for a start the system answers with "No such file or directory",
+  it names the program after `#!` for a script and the dynamic linker for a compiled program,
+  and names both kinds,
+  claiming neither,
+  when the program's own bytes are gone.
+  Each refusal in its fixture is the kernel's own.
+  `being_written_cause_and_remedy` takes a program where it took an option,
+  and `being_written_cause_and_remedy_for` is gone;
+  the note of `0.2.7-alpha.15` is to say so.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

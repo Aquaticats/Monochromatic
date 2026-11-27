@@ -1128,6 +1128,83 @@ and its round runs.
   and brings back the question per scoped run that alpha.13 removed.
   The choice stays the owner's and stays open.
 
+## Open: two choices the wrapper's alpha.49 reads left (recorded 2026-11-27T13:13:22-05:00)
+
+Neither holds a round or a release.
+Both come from Claude Sonnet reads of `0.6.1-alpha.49`,
+same-vendor second passes and not independent reviews.
+Each is to be filled in from its round's report before it is asked:
+the rounds measure what the options cost.
+
+### What a batch's width is when the host's free memory cannot be read
+
+The service sizes each batch of its work from the CPUs and the free memory it reads when the batch starts
+(`worker_budget` in `package/git-policy/cli/src/native/foundation/parallel_budget.rs`).
+When the CPU count cannot be read the width is one.
+When the memory reading fails there is no memory bound at all,
+so the width is the CPUs less their margin;
+the read of alpha.49 points out that one failure narrows and the other widens.
+Alpha.48 did the same per round of work.
+The round `wrapper-alpha-49-release-pass-four-small-points-of-the-behaviour-read` writes a control that holds what the code does now,
+and reports the width each caller gets with no reading.
+
+- A,
+  keep the last good reading:
+  a batch that cannot read memory uses the reading of the batch before it.
+  It never widens past what memory last allowed and never drops to one for a passing failure.
+  It costs a value kept between batches,
+  and a first batch with no reading still needs one of the other two answers.
+- B,
+  no memory bound,
+  as now:
+  work runs as wide as the CPUs allow,
+  which is what ran before the memory bound existed.
+  On a host short of memory it can start more than memory holds.
+- C,
+  width one:
+  the safe answer,
+  and the slowest:
+  a passing failure makes a whole batch run one item at a time.
+
+Ranking:
+A > B > C.
+A beats B because it keeps the bound the reading exists to give,
+at the price of one remembered number.
+B beats C because C makes a whole batch run one item at a time behind a failure that may say nothing about memory:
+nothing measured says a failed reading goes with a host short of memory,
+and the coordinator has not looked for a failed reading in any log.
+A and C are limits the shipped wrapper would carry,
+and `AGENTS.md` asks such a limit to cite a workload measurement or the owner's decision beside its value.
+
+### Whether the wrapper crate's published functions should be narrowed
+
+The control that stops a split from widening an item's reach
+(`source_guard/nothing_becomes_nameable_from_outside_tests.rs`)
+did not see a function written `pub async fn`:
+154 of them are nameable from outside the crate with no line in its list,
+by the read's count.
+The round `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`
+makes the control see them and gives each a line,
+and narrows only an item a split widened.
+Whether the rest should be public was never decided.
+
+- A,
+  a round narrows each one that still builds narrower:
+  the compiler then warns about any that nothing uses,
+  which it never does for a `pub` item,
+  and the list shrinks to what is meant to be published.
+  It touches many files at once,
+  so it meets every other round at merge.
+- B,
+  leave them listed:
+  the control holds the line from here,
+  and nothing moves.
+
+Ranking:
+A > B,
+because a narrower reach lets the compiler find dead code that a `pub` hides,
+and the control already keeps the surface from growing either way.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.
