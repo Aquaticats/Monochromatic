@@ -24,6 +24,35 @@ import {
 export type SourceLanguage = 'toml' | 'typescript' | 'yaml';
 
 /**
+ The comment syntax each extension a scanned file can hold.
+
+ One row per extension, so a caller reads a file's language from its path alone, and a language the scan learns is one
+ row here beside the reader that blanks it.
+ */
+export const SOURCE_LANGUAGE_BY_EXTENSION: ReadonlyMap<string, SourceLanguage> = new Map([
+  [
+    '.mjs',
+    'typescript',
+  ],
+  [
+    '.toml',
+    'toml',
+  ],
+  [
+    '.ts',
+    'typescript',
+  ],
+  [
+    '.yaml',
+    'yaml',
+  ],
+  [
+    '.yml',
+    'yaml',
+  ],
+],);
+
+/**
  Three of these quotes, read together, open and close a multi-line TOML string.
  */
 const TOML_MULTI_LINE_QUOTE = '"""';

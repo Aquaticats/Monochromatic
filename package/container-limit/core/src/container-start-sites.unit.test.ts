@@ -33,8 +33,8 @@ import {
 import { definedTextByName, } from './defined-text-in-source-text.ts';
 import { importedModuleByName, } from './imported-module-by-name.ts';
 import {
+  SOURCE_LANGUAGE_BY_EXTENSION,
   stripSourceComments,
-  type SourceLanguage,
 } from './source-text-without-comments.ts';
 import {
   DISK_WEIGHT_OFF,
@@ -91,17 +91,6 @@ const PASSES_MARKERS: readonly string[] = [
   'Limits',
   'container-arguments',
 ];
-
-/**
- The comment syntax each scanned extension holds.
- */
-const LANGUAGES_BY_EXTENSION: ReadonlyMap<string, SourceLanguage> = new Map([
-  ['.ts', 'typescript',],
-  ['.mjs', 'typescript',],
-  ['.toml', 'toml',],
-  ['.yml', 'yaml',],
-  ['.yaml', 'yaml',],
-],);
 
 /**
  Paths whose start still has no bound, each waiting on a size decision the owner has not made.
@@ -348,15 +337,9 @@ const SKIPPED_FRAGMENTS: readonly string[] = [
 ];
 
 /**
- Extensions of files that can hold a command.
+ Extensions of files that can hold a command: those whose comment syntax the scan knows.
  */
-const SCANNED_EXTENSIONS: readonly string[] = [
-  '.ts',
-  '.mjs',
-  '.toml',
-  '.yml',
-  '.yaml',
-];
+const SCANNED_EXTENSIONS: readonly string[] = [...SOURCE_LANGUAGE_BY_EXTENSION.keys(),];
 
 /**
  Quote characters that can wrap a program name.
@@ -470,7 +453,7 @@ function definitionsOf({ path, }: {
   /**
    The language whose comment syntax the file holds, when its extension holds one.
    */
-  const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+  const language = SOURCE_LANGUAGE_BY_EXTENSION.get(extensionOf(path,),);
   /**
    The index itself, which stays empty for a path no start can be written in.
    */
@@ -655,7 +638,7 @@ function importedDefinitionsOf({ path, }: {
   /**
    The importing file's own language, when its extension holds one.
    */
-  const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+  const language = SOURCE_LANGUAGE_BY_EXTENSION.get(extensionOf(path,),);
   if (language === undefined)
     return imported;
   /**
@@ -672,7 +655,7 @@ function importedDefinitionsOf({ path, }: {
     /**
      Whether the module is a file of this repository that a start can be written in.
      */
-    const readable = LANGUAGES_BY_EXTENSION.has(extensionOf(modulePath,),)
+    const readable = SOURCE_LANGUAGE_BY_EXTENSION.has(extensionOf(modulePath,),)
       && existsSync(join(repositoryRoot, modulePath,),);
     if (!readable)
       continue;
@@ -702,7 +685,7 @@ function uncoveredStarts(): readonly UncoveredStart[] {
     /**
      The language whose comment syntax the file holds, when its extension holds one.
      */
-    const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+    const language = SOURCE_LANGUAGE_BY_EXTENSION.get(extensionOf(path,),);
     if (language === undefined)
       continue;
     /**
