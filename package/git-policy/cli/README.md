@@ -1858,11 +1858,24 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
 ## Requirements
 
 - Linux with glibc 2.39 or newer.
-  Release archives exist for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` only.
-  They are built on the `ubuntu-latest` runner and link `pidfd_spawnp` and `pidfd_getpid`,
+  Release archives exist for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` only:
+  the release workflow builds those two targets (`gpc-build-binary` in `.github/workflows/cargo-publish.yml`,
+  on the `ubuntu-24.04` and `ubuntu-24.04-arm` runners),
+  and each archive links the glibc of the runner that built it:
+  they link `pidfd_spawnp` and `pidfd_getpid`,
   which glibc added in 2.39
   (measured on the 0.2.2 x86_64 archive with `objdump -T`),
   so they do not start on Debian 12 or Ubuntu 22.04.
+  The crate builds for no other target,
+  and the platform gates do not add one:
+  `worktree/mod.rs` declares `worktree_remove_clears_the_registration` for Linux alone
+  (`#[cfg(target_os = "linux")]`),
+  and `worktree/worktree_remove_around.rs`,
+  which carries no gate,
+  imports `finish` from it,
+  so a build for another target names an item the modules of that target do not provide.
+  Nothing here has compiled the crate for another target:
+  `rustup target list --installed` answers `x86_64-unknown-linux-gnu` on the machine this was written on.
   The crate does not compile for Windows:
   `cargo check --target x86_64-pc-windows-gnu --lib` fails with 16 errors in
   eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
@@ -4706,7 +4719,8 @@ two edits of different arguments of one call become one call with both edits.
 Nothing either side added is dropped,
 and no line both sides kept is dropped,
 and the parts are listed so you can check them.
-A region both sides only deleted lines from resolves to the lines both sides kept:
+A region both sides only deleted lines from resolves to the lines both sides kept,
+when the base writes each of its lines there once:
 a file that holds one record per line is merged as the union of the two deletions,
 which the word level alone cannot give,
 because it pairs one side's deleted line with the other side's kept line and keeps it
@@ -4725,6 +4739,14 @@ while the other side left it as it was,
 keeps both sides instead,
 so you resolve it;
 a merge that writes only the copies that side still holds is right and resolves.
+A base line written twice is where the word level cannot tell which copy a side deleted,
+so a region both sides only deleted lines from keeps both sides as well
+when its answer would hold more copies of a line than both sides hold,
+or hold its lines in an order one side does not hold them in,
+which no union of the two deletions does.
+That is the shape a file of one record per line reaches when it writes one record more than once:
+the words are merged rather than the records,
+so an answer that writes a record back would land with no marker for you to read.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every

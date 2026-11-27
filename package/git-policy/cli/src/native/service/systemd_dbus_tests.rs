@@ -1165,6 +1165,11 @@ fn a_bus_that_accepts_and_never_answers_ends_at_the_deadline() {
 ///  and the alpha.48 split spread that module over four more files,
 ///  so the scope is stated as a prefix rather than as the one file it used to be
 ///  (issue 6599).
+///  Every file the split made of that module begins with this prefix,
+///  and a file of the client named without it is one this ban does not read:
+///  the folder it lives in (`service/`) holds the rest of the service and its own sockets,
+///  so the folder would be a ban on code that is no client,
+///  and `SCOPE_ANCHORS` is what fails when the prefix stops reaching the client at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1187,27 +1192,32 @@ const THE_WIRE_ITSELF: &[&str] = &["UnixStream", "encode_call(", "decode_reply("
 
 /// What:
 ///  `MAY_HOLD` is the wire-format file,
-///  and the reason it writes what the client no longer does.
+///  each entry naming the one use of its text that file holds and the reason it writes what the client no longer
+///  does.
 /// Why:
 ///  The format needs no socket and stays testable by bytes alone,
 ///  and the controls' fake bus and the fuzz target are what reach it now;
 ///  it is no call of the client's.
-///  An entry whose line went fails here instead of excusing the file for ever.
+///  An entry whose line went fails here instead of excusing the file for ever,
+///  and a second use of either builder in that file fails,
+///  because the entry names the count it holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAY_HOLD = [{ file: 'service/systemd_dbus_wire_format.rs', text: 'encode_call(', why: '...' }];
+/// const MAY_HOLD = [{ file: 'service/systemd_dbus_wire_format.rs', text: 'encode_call(', uses: 1, why: '...' }];
 /// ```
 const MAY_HOLD: &[MayHold] = &[
     MayHold {
         file: "service/systemd_dbus_wire_format.rs",
         text: "encode_call(",
+        uses: 1,
         why: "the format a call is written in, which the controls' fake bus and the fuzz target build by hand; \
               the client itself sends none of it",
     },
     MayHold {
         file: "service/systemd_dbus_wire_format.rs",
         text: "decode_reply(",
+        uses: 1,
         why: "the same format read back, which only the controls' fake bus and the fuzz target read",
     },
 ];
@@ -1295,5 +1305,18 @@ fn the_scan_flags_a_socket_in_a_receiver_file() {
         lines_no_entry_excuses(written.as_slice(), MAY_HOLD),
         Vec::<String>::new(),
         "the format's own builder is the one arm the ban lets stand"
+    );
+    let second_builder: Vec<(String, String)> = vec![(
+        String::from("service/systemd_dbus_wire_format.rs"),
+        String::from(
+            "fn built(serial: u32) { let _ = encode_call(serial); }\nfn built_again(serial: u32) { let _ = encode_call(serial); }\n",
+        ),
+    )];
+    let twice = lines_holding_one_of(second_builder.as_slice(), THE_WIRE_ITSELF);
+    let excused: Vec<String> = lines_no_entry_excuses(twice.as_slice(), MAY_HOLD);
+    assert_eq!(
+        excused.len(),
+        2,
+        "a second use of a builder in the file the entry excuses fails, because the entry names one: {excused:?}"
     );
 }

@@ -419,3 +419,23 @@ fn a_run_of_lines_is_placed_at_the_stage_s_own_bytes() {
     assert_eq!(place_in_stage(text, b"", 7), Some(7..7));
     assert_eq!(place_in_stage(text, b"four\n", 0), None);
 }
+
+/// What:
+///  A run whose last line would end a file at a place before the one the search starts at is no place at all.
+/// Why:
+///   A `--zdiff3` answer holds its regions in file order,
+///  so a region's side is a run of whole lines of its own stage at or after the place the region before it ended at.
+/// The run here is the stage's last line with no line end of its own,
+/// which `place_in_stage` finds by its end rather than by its start;
+/// a place before the search's start is one bytes an earlier region already hold,
+/// so placing this region there would join one region's text to another's.
+#[test]
+fn a_run_that_would_end_a_file_before_the_search_starts_is_not_placed() {
+    let text: &[u8] = b"one\ntwo";
+    // The stage's last line has no line end, so the run is found by its end at the search's own start.
+    assert_eq!(place_in_stage(text, b"two\n", 4), Some(4..7));
+    // A search that starts past the line's start finds no place: the run would go back into the region before it.
+    assert_eq!(place_in_stage(text, b"two\n", 5), None);
+    // A region that already reached the end of the stage leaves no place for a line of it either.
+    assert_eq!(place_in_stage(text, b"two\n", 7), None);
+}

@@ -40,6 +40,7 @@ use crate::stale_ref_lock_identity::{
 use crate::stale_ref_lock_judge::{
     Examined,
     Judge,
+    a_held_file_verdict,
     verdict_with,
 };
 /// The later of the two times a file carries.
@@ -93,11 +94,7 @@ impl Judge {
         }
         if let Some(user) = scan.users.first() {
             return verdict_with(
-                Verdict::Held(format!(
-                    "process {} ({}) has the file open",
-                    user.pid,
-                    user.command.clone().unwrap_or_default()
-                )),
+                Verdict::Held(a_held_file_verdict(user.pid, user.command.as_deref())),
                 PidFile::Absent,
                 identity,
                 born,
