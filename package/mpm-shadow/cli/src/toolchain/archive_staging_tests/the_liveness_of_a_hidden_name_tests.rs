@@ -7,7 +7,8 @@
 //! Each decides whether a leftover is ever reclaimed,
 //! and none was held:
 //! the first was answered by a forced "unreadable" that returns before the code asks the kernel at all,
-//! the second writes the shorter name an earlier build wrote, which no later run judges,
+//! the second writes the shorter name an earlier build wrote,
+//! which no later run judges,
 //! and the third was read as "the system did not say" although no process survives a reboot.
 //!
 //! In TS you'd write (pseudocode):
@@ -24,7 +25,8 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Imports the three purposes and the answer of a recovery,
-/// the hidden names of a version directory, and the step that reads them.
+/// the hidden names of a version directory,
+/// and the step that reads them.
 use super::super::archive_staging::{
     AnOlderVersion,
     FinishedCopy,
@@ -37,7 +39,8 @@ use super::super::archive_staging::{
     staging_dir_of,
     write_complete_marker,
 };
-/// Imports the reader facts a control forces, and the two seams that force them.
+/// Imports the reader facts a control forces,
+/// and the two seams that force them.
 use super::super::archive_staging::{
     ReaderView,
     read_as,
@@ -50,13 +53,17 @@ use super::super::layout::tool_directory;
 use super::super::published_archive::is_finished;
 /// Imports the text of a path's own last name.
 use super::super::util::file_name_text;
-/// Imports the fixture's tool id, its program, and the archive digest a marker records.
+/// Imports the fixture's tool id,
+/// its program,
+/// and the archive digest a marker records.
 use super::{
     BIN,
     ID,
     release_digest,
 };
-/// Imports the rig, the names a tool directory holds, the writer of an executable stand-in,
+/// Imports the rig,
+/// the names a tool directory holds,
+/// the writer of an executable stand-in,
 /// and a program a control keeps running while it judges which installer still runs.
 use super::{
     Rig,
@@ -86,7 +93,8 @@ use super::{
 const A_BOOT_THIS_MACHINE_NEVER_HAD: &str = "11111111-1111-1111-1111-111111111111";
 
 /// What:
-/// A live program whose record `/proc` reports, read through a `/proc` that holds no record at all.
+/// A live program whose record `/proc` reports,
+/// read through a `/proc` that holds no record at all.
 /// Why:
 /// A `hidepid` mount hides a live installer's record,
 /// and reading that as an ended installer removes the directory a running install is publishing from;

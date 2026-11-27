@@ -5,7 +5,8 @@
 //! Why:
 //! Both cost a person a wrong status or the only finished copy of a version,
 //! and neither could be seen without a control that stops the publish at the instant and asks again:
-//! the exchange refusal, the refused rename and the second install are plants of the package's own
+//! the exchange refusal,
+//! the refused rename and the second install are plants of the package's own
 //! (`a_control_plants_these_steps`),
 //! so the red of each depends on nothing but the code.
 //!
@@ -40,15 +41,19 @@ use super::super::published_archive::is_finished;
 use super::super::sync::sync_tools;
 /// Imports the context one tree's sync reads.
 use super::context_of;
-/// Imports the error one rename of a publish is answered with, and the question whether a finished copy of the
-/// version is still on disk.
+/// Imports the error one rename of a publish is answered with,
+/// and the question whether a finished copy of the version is still on disk.
 use super::{
     AN_INPUT_OUTPUT_ERROR,
     a_finished_copy_at_the_version_as_another_install,
     a_finished_copy_is_on_disk,
 };
-/// Imports the fixture's tool id, its program, the lock of one version, its archive digest,
-/// the archive that was there without its marker, and the releases the fake network serves.
+/// Imports the fixture's tool id,
+/// its program,
+/// the lock of one version,
+/// its archive digest,
+/// the archive that was there without its marker,
+/// and the releases the fake network serves.
 use super::{
     BIN,
     ID,
@@ -57,7 +62,9 @@ use super::{
     serve_releases,
     unmarked_archive,
 };
-/// Imports the rig, the names a tool directory holds, and the writer of an executable stand-in.
+/// Imports the rig,
+/// the names a tool directory holds,
+/// and the writer of an executable stand-in.
 use super::{
     Rig,
     names_of,
@@ -141,7 +148,8 @@ fn a_second_install_that_publishes_between_the_two_renames_leaves_nothing_to_rep
 /// The finished copy is the only way an offline machine gets that version back,
 /// so a failed publish must leave it under the name the run holds it at,
 /// which the next run publishes without downloading.
-/// The install path is driven here, never `publish_staged` alone:
+/// The install path is driven here,
+/// never `publish_staged` alone:
 /// the step this control holds is the one `install_archive` gives the publish.
 ///
 /// In TS you'd write (pseudocode):

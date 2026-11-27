@@ -581,7 +581,8 @@ thread_local! {
 /// What:
 /// Whether this test thread reads every process record as one `/proc` hides it.
 /// Why:
-/// The record path is the one place a hidden record is read from, so one question decides it there.
+/// The record path is the one place a hidden record is read from,
+/// so one question decides it there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -596,7 +597,8 @@ fn a_proc_that_hides_records() -> bool {
 /// Puts this test thread under a `/proc` that hides every process's record until the guard drops.
 /// Why:
 /// A control reaches the arm that asks the kernel whether a number is held only when the record is absent,
-/// and the guard takes the answer away when the control leaves, however it left.
+/// and the guard takes the answer away when the control leaves,
+/// however it left.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
