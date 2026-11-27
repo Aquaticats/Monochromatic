@@ -164,7 +164,7 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[allow(clippy::disallowed_methods)]",
     ),
     (
-        "worktree_clone_unmount/staged_unmount.rs",
+        "worktree_clone_unmount/staged_unmount_held.rs",
         "#[allow(clippy::large_enum_variant)]",
     ),
     (

@@ -67,8 +67,13 @@
 //!   the facts and seams one turn reads and acts on.
 //! - `unmount_record.rs`:
 //!   the pre-bind shape checks and the record's write.
+//! - `staged_unmount_held.rs`:
+//!   the two unmounts a held descriptor takes,
+//!   with the topmost read before each and the transition check after it.
+//! - `staged_unmount_recovery.rs`:
+//!   the finish of an interrupted unmount from the record's handle.
 //! - `staged_unmount.rs`:
-//!   the held-descriptor unmount and the later sweep from the record.
+//!   the later sweep's reading of one record and the word it answers with.
 //! - `staging_cleanup.rs`:
 //!   the wrapper's rmdir-only cleanup and the folder's creation.
 //! - `unmount_pair.rs`:
@@ -138,6 +143,13 @@ pub mod unmount_pair;
 
 /// The held-descriptor unmount and the later sweep from the record.
 pub mod staged_unmount;
+
+/// The two unmounts a held descriptor takes,
+/// with their checks.
+pub mod staged_unmount_held;
+
+/// The finish of an interrupted unmount from the record's handle.
+pub mod staged_unmount_recovery;
 
 /// The staging claim one repository keeps.
 pub mod staging_claim;
