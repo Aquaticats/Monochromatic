@@ -18,7 +18,8 @@
 //! 2,174 lines on 2026-11-27,
 //! finding Medium 4 of the release read.
 //! So the guard walks the tree through the crate's one source walk
-//! (`src/source_tree_files.rs`, which never enters a link),
+//! (`src/test_scratch/source_tree_files.rs`,
+//! which never enters a link),
 //! it states every file it read,
 //! and it fails when the tree names a lean file that it did not read.
 
@@ -30,25 +31,27 @@ use std::fs;
 /// What:
 /// `Path` is a borrowed file-system path and `PathBuf` an owned one.
 /// Why:
-/// Each file the guard read is kept as an owned path, which its messages name.
+/// Each file the guard read is kept as an owned path,
+/// which its messages name.
 use std::path::{
     Path,
     PathBuf,
 };
 
 /// What:
+/// `scratch` is one empty folder under the build output,
+/// removed when its guard drops.
+/// Why:
+/// The control below makes a tree to walk,
+/// and never writes under `/tmp`.
+use crate::test_scratch::scratch;
+/// What:
 /// `source_tree_files` is the crate's one walk of its own sources,
 /// which visits each file once and never enters a link.
 /// Why:
 /// A split moves lean code into a new folder,
 /// and a folder listed by name would stop being read without anything failing.
-use crate::source_tree_files::source_tree_files;
-/// What:
-/// `scratch` is one empty folder under the build output,
-/// removed when its guard drops.
-/// Why:
-/// The control below makes a tree to walk, and never writes under `/tmp`.
-use crate::test_scratch::scratch;
+use crate::test_scratch::source_tree_files::source_tree_files;
 
 /// Text no lean-folder source may contain,
 /// with why.
@@ -146,7 +149,8 @@ fn is_scannable(name: &str) -> bool {
 
 /// What:
 /// `fn is_read_as_lean_code(relative: &Path) -> bool` says whether the guard reads a path under `src`:
-/// the path's first part, which is the file's own name at the top of `src` or the top folder it sits in,
+/// the path's first part,
+/// which is the file's own name at the top of `src` or the top folder it sits in,
 /// starts with `lean_`.
 /// Why:
 /// This is the walk's own rule,
@@ -170,7 +174,8 @@ fn is_read_as_lean_code(relative: &Path) -> bool {
 
 /// What:
 /// `fn is_named_lean_code(relative: &Path) -> bool` says whether the crate's naming makes a path under `src` lean code:
-/// any part of it starts with `lean_`, at any depth.
+/// any part of it starts with `lean_`,
+/// at any depth.
 /// Why:
 /// The coverage check needs the naming rule alone,
 /// so a `lean_` file in a folder the walk does not enter is named rather than silently skipped.
@@ -221,7 +226,8 @@ fn lean_sources_under(root: &Path) -> Vec<(PathBuf, String)> {
 
 /// What:
 /// `fn named_lean_files_under(root: &Path) -> Vec<PathBuf>` is each file below one folder that the crate's naming makes
-/// lean code, whether or not the guard reads it.
+/// lean code,
+/// whether or not the guard reads it.
 /// Why:
 /// The guard's coverage is a comparison between this list and the one it read,
 /// never a count a person keeps.
@@ -305,7 +311,8 @@ fn no_lean_source_starts_cargo_or_itself() {
     );
 }
 
-/// The coverage itself, on a tree small enough to state whole:
+/// The coverage itself,
+/// on a tree small enough to state whole:
 /// a lean file the walk does not reach is named as unread,
 /// so the check above can fail instead of passing on a count.
 #[test]

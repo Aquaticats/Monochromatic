@@ -12,7 +12,7 @@
 //! A source that writes an event and is not in `SOURCES` is outside the guard,
 //! so one test compares the list with the tree itself:
 //! every production source below `src` that writes an event must be one of `SOURCES`,
-//! and none of them is reached through a link (`src/source_tree_files.rs`).
+//! and none of them is reached through a link (`src/test_scratch/source_tree_files.rs`).
 
 /// What:
 /// `fs` is the file system's own functions.
@@ -31,7 +31,7 @@ use std::path::PathBuf;
 /// Why:
 /// A split can move an event into a new file,
 /// and a list kept by hand would stop covering it without anything failing.
-use crate::source_tree_files::source_tree_files;
+use crate::test_scratch::source_tree_files::source_tree_files;
 
 /// The production sources of the bounded run that write trace events.
 const SOURCES: [(&str, &str); 13] = [

@@ -3,7 +3,8 @@
 //! each one visited once and never read through a symbolic link.
 //! Why:
 //! A source folder of this repository may hold a `uses/` folder whose entries are links to the folders its code uses
-//! (`AGENTS.md` rules `LYD`, `LYL` and `LYF`),
+//! (`AGENTS.md` rules `LYD`,
+//! `LYL` and `LYF`),
 //! so a walk that followed a link would reach the same source once per chain of links above it,
 //! and a guard that reads the sources would read one file many times and could read a file that is not part of the tree.
 //! Measured for the wrapper package on 2026-11-27 (issue 6580):
@@ -14,30 +15,35 @@
 //! Gotcha:
 //! This crate's `src` holds no link on 2026-11-27 (`find src -type l` found none),
 //! so the rule is held by the control `a_folder_link_is_never_entered_and_a_file_link_is_never_read`
-//! (`src/source_tree_files_tests.rs`) instead of by anything in the tree.
-//! This module is compiled into a test build only (`#[cfg(test)]` in `src/lib.rs`).
+//! (`src/test_scratch/source_tree_files_tests.rs`) instead of by anything in the tree.
+//! It is a test's support (`src/test_scratch.rs`),
+//! so only a test build compiles it.
 
 /// What:
 /// `OsString` is an owned name whose bytes need not be valid text.
-/// The sibling a reader might expect is `String`, which cannot name a file on a file system that takes other bytes.
+/// The sibling a reader might expect is `String`,
+/// which cannot name a file on a file system that takes other bytes.
 /// Why:
 /// The walk hands each entry's own name to the path it builds unchanged.
 use std::ffi::OsString;
 /// What:
 /// `fs` is the file system's own functions.
-/// The sibling a reader might expect is `std::path`, which names a path but never reads one.
+/// The sibling a reader might expect is `std::path`,
+/// which names a path but never reads one.
 /// Why:
 /// The walk lists a folder and asks each entry what it is.
 use std::fs;
 /// What:
 /// `io` is the error type and the `Result` alias of a file-system call.
 /// Why:
-/// A folder that cannot be read is the caller's to answer, never silence.
+/// A folder that cannot be read is the caller's to answer,
+/// never silence.
 use std::io;
 /// What:
 /// `Path` is a borrowed file-system path and `PathBuf` an owned one.
 /// Why:
-/// The folder is lent to this module, and every path it answers is owned here.
+/// The folder is lent to this module,
+/// and every path it answers is owned here.
 use std::path::{
     Path,
     PathBuf,
@@ -50,7 +56,8 @@ use std::path::{
 /// A guard that reads the sources asks this,
 /// so it reads what the tree holds rather than a list a person keeps.
 /// `Vec<PathBuf>` and not `Vec<String>`:
-/// a name that is not valid text is still a path, and text would lose it.
+/// a name that is not valid text is still a path,
+/// and text would lose it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

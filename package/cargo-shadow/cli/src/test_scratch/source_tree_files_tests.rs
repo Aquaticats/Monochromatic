@@ -4,9 +4,11 @@
 //! a file link is never read as a file of its own,
 //! and a folder that cannot be read is an error rather than an empty listing.
 //! Why:
-//! `AGENTS.md` rules `LYD`, `LYL` and `LYF` put a `uses/` folder of links in a crate's source folders,
+//! `AGENTS.md` rules `LYD`,
+//! `LYL` and `LYF` put a `uses/` folder of links in a crate's source folders,
 //! and a walk that followed them would read one source once per chain of links above it
-//! (measured for the wrapper package on 2026-11-27, issue 6580:
+//! (measured for the wrapper package on 2026-11-27,
+//! issue 6580:
 //! 165,978 entries and 163,498 `.rs` names where the tree holds 4,234 entries and 3,905 Rust sources).
 //! This crate's `src` holds no link on 2026-11-27,
 //! so this control is what holds the rule for the guards that read the sources.
@@ -19,26 +21,30 @@
 /// Why:
 /// The guards of this crate read the sources through it,
 /// so a defect in it is a defect in every one of them.
-use crate::source_tree_files::source_tree_files;
+use crate::test_scratch::source_tree_files::source_tree_files;
 /// What:
-/// `scratch` is one empty folder under the build output, removed when its guard drops.
+/// `scratch` is one empty folder under the build output,
+/// removed when its guard drops.
 /// Why:
 /// The fixture is a tree this test makes and can link into,
 /// never a folder of the repository and never `/tmp`.
 use crate::test_scratch::scratch;
 /// What:
 /// `skip_or_fail` ends a control whose schedule this host cannot build:
-/// it fails the test, unless `CARGO_SHADOW_ALLOW_SKIPS` is set.
+/// it fails the test,
+/// unless `CARGO_SHADOW_ALLOW_SKIPS` is set.
 /// Why:
 /// A control that returned green without asking its question would be evidence of nothing.
 use crate::test_scratch::skip_or_fail;
 /// What:
 /// `fs` is the file system's own functions.
 /// Why:
-/// The fixture is made, linked and listed with them.
+/// The fixture is made,
+/// linked and listed with them.
 use std::fs;
 /// What:
-/// `symlink` makes a symbolic link, and `PermissionsExt` adds `from_mode` to a set of permissions.
+/// `symlink` makes a symbolic link,
+/// and `PermissionsExt` adds `from_mode` to a set of permissions.
 /// Why:
 /// The first control needs links and the second a folder this user may not read.
 use std::os::unix::fs::{
@@ -104,7 +110,8 @@ fn a_folder_link_is_never_entered_and_a_file_link_is_never_read() {
     );
 }
 
-/// A folder this user may not read is an error from the walk, never an empty listing.
+/// A folder this user may not read is an error from the walk,
+/// never an empty listing.
 #[test]
 fn a_folder_that_cannot_be_read_is_an_error_and_not_an_empty_listing() {
     let root: tempfile::TempDir = scratch();
