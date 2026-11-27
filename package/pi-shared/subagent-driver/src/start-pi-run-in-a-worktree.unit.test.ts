@@ -37,6 +37,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   CLOSED_POOL_EXIT_STATUS,
+  KEPT_FOLDER_NAME,
   NEURALWATT_DEEPSEEK_FLEX,
   NEURALWATT_KIMI_FLEX,
   NEURALWATT_STANDARD,
@@ -45,9 +46,11 @@ import {
   POOL_LIMITS_VARIABLE,
   PROVIDER_POOLS,
   QWEN_PLAN_DEEPSEEK,
+  SCRATCH_FOLDER_NAME_END,
   SUMMARY_FILE_NAME,
   VIRTUAL_WRITER,
   WRAPPER_COMMAND,
+  entriesOrNothingIn,
   entryLineOf,
   poolTakesNoNewRun,
   reasonInFailedStart,
@@ -444,10 +447,11 @@ async function writeLauncherProcess({
  Launches one run through the stand-ins that reach its unit, in a folder of the test's own that goes when the answer is read.
 
  @param request - the provider and model the run names, when it names them; the environment the launcher runs with; the branch
- the run works on; the runs another launch has going, which the counts read; and whether the manager lists no unit at all
+ the run works on; the runs another launch has going, which the counts read; whether the manager lists no unit at all; and
+ whether the run's brief wrote in its scratch folder, which this test fills with the tree a run leaves there
 
  @returns what the launcher ended with, whether its unit manager was reached, the words that manager was asked with, and what its
- runs and checkout folders hold
+ runs, checkout and scratch folders hold
 
  @example
  ```ts
@@ -461,6 +465,7 @@ async function launchThroughTheStandIns({
   branch = 'none',
   otherLaunchers = [],
   unitsCannotBeListed = false,
+  withScratchFolder = false,
 }: {
   readonly provider?: string;
   readonly model?: string;
@@ -468,6 +473,7 @@ async function launchThroughTheStandIns({
   readonly branch?: string;
   readonly otherLaunchers?: readonly OtherLauncher[];
   readonly unitsCannotBeListed?: boolean;
+  readonly withScratchFolder?: boolean;
 },): Promise<{
   readonly code: number;
   readonly stdout: string;
@@ -476,6 +482,8 @@ async function launchThroughTheStandIns({
   readonly unitWords: readonly string[];
   readonly runsFolderHolds: readonly string[];
   readonly checkoutHolds: readonly string[];
+  readonly scratchFolderHolds: readonly string[];
+  readonly scratchFolderKeptHolds: readonly string[];
 }> {
   await using folder = await makeFolder();
   /**
@@ -568,6 +576,53 @@ async function launchThroughTheStandIns({
     unitsCannotBeListed,
   },);
   /**
+   The folder every run's scratch lives in, under the home the launcher is given.
+   */
+  const agentScratchFolder = join(
+    folder.path,
+    'temp',
+    'agent',
+  );
+  /**
+   The run's scratch folder, named the way a brief names it: the run's name and `-scratch`.
+   */
+  const scratchFolder = join(
+    agentScratchFolder,
+    `refused${SCRATCH_FOLDER_NAME_END}`,
+  );
+  if (withScratchFolder) {
+    // The tree a run leaves in its scratch folder: what a build and a fixture repository made, a file whose name only starts with
+    // the kept folder's, and the report a reader of the run needs, which is inside the kept folder.
+    await mkdir(
+      join(
+        scratchFolder,
+        KEPT_FOLDER_NAME,
+      ),
+      { recursive: true, },
+    );
+    await writeFile(join(
+      scratchFolder,
+      KEPT_FOLDER_NAME,
+      'report.md',
+    ), 'the report',);
+    await mkdir(
+      join(
+        scratchFolder,
+        'build',
+      ),
+      { recursive: true, },
+    );
+    await writeFile(join(
+      scratchFolder,
+      'build',
+      'index.html',
+    ), '<p>built</p>',);
+    await writeFile(join(
+      scratchFolder,
+      'keepsake',
+    ), 'a file that only starts with keep',);
+  }
+  /**
    What the launcher ended with.
    */
   const ended = await launch({
@@ -593,6 +648,11 @@ async function launchThroughTheStandIns({
       },),
     runsFolderHolds: await readdir(runs,),
     checkoutHolds: await readdir(checkout,),
+    scratchFolderHolds: (await entriesOrNothingIn(scratchFolder,)).toSorted(),
+    scratchFolderKeptHolds: (await entriesOrNothingIn(join(
+      scratchFolder,
+      KEPT_FOLDER_NAME,
+    ),)).toSorted(),
   };
 }
 
@@ -1559,6 +1619,22 @@ await describe({
         expect(answered.unitWords.filter(function isTheLimitsWord(word,) {
           return word.startsWith(`--setenv=${POOL_LIMITS_VARIABLE}=`,);
         },),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'clears the scratch folder of a run whose unit has ended, and keeps the keep/ its brief left a report in',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          provider: OPENCODE_GO.provider,
+          model: OPENCODE_GO.model,
+          withScratchFolder: true,
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.scratchFolderHolds,).toEqual([KEPT_FOLDER_NAME,],);
+        expect(answered.scratchFolderKeptHolds,).toEqual(['report.md',],);
+        expect(answered.stdout,).toContain(`refused: the scratch folder`,);
+        expect(answered.stdout,).toContain('2 entries removed',);
+        expect(answered.stdout,).toContain(`cleared beside ${KEPT_FOLDER_NAME}/`,);
       },
     },),
     it({

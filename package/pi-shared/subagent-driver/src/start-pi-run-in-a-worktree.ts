@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- `start-pi-run-in-a-worktree`: makes the worktree a run works in, starts the driver as a capped systemd unit, and removes the
- worktree once the run has finished with it. The wrapper's `git worktree add` fills the worktree from the checkout's ignored
- files and relinks the copied `node_modules` it puts there, so this command installs nothing. See `README.md` for the options
- and for what the worktree holds.
+ `start-pi-run-in-a-worktree`: makes the worktree a run works in, starts the driver as a capped systemd unit, removes the
+ worktree once the run has finished with it, and clears the run's scratch folder under `${HOME}/temp/agent` beside its `keep/`.
+ The wrapper's `git worktree add` fills the worktree from the checkout's ignored files and relinks the copied `node_modules` it puts
+ there, so this command installs nothing. See `README.md` for the options and for what the worktree holds.
 
  A command line that names no provider takes the first open pool in the owner's order, which this command counts the way the pool
  gate counts, so the unit it starts names the pool and the gate reads the run as holding its slot.
@@ -70,6 +70,7 @@ import {
   unitStateNow,
 } from './the-line-a-launcher-ends-with.ts';
 import { makeWorktree, } from './worktree-of-a-run.ts';
+import { AGENT_SCRATCH_FOLDER_PARTS, } from './scratch-folder-of-a-run.ts';
 
 // The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
 // or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
@@ -99,6 +100,18 @@ const options = parseWorktreeLauncherOptions({
   commandLine: argv.slice(2,),
   checkoutFolder,
 },);
+
+/**
+ The folder every run's scratch lives in, which every brief names to its run as `${HOME}/temp/agent` and whose folders this
+ launcher clears once a run has ended (rule `ATH`; issue 6618).
+
+ It is built from the home directory the unit is given rather than from this account's own, so a run started with a home of its
+ own reads the same place its brief does, and a home that is not absolute is refused by the clearing before anything is deleted.
+ */
+const agentScratchFolder = join(
+  env.HOME ?? '',
+  ...AGENT_SCRATCH_FOLDER_PARTS,
+);
 
 /**
  The folder the process table is read from, which is where a Linux machine keeps it. A test points this at a folder of its own, so
@@ -417,6 +430,10 @@ const finished = await finishTheRun({
   wakesSoFar: Number(env.PI_RUN_WAKES ?? '0',),
   environment: env,
   unitStatus: status,
+  // A run whose unit is still going is no run whose scratch folder may be cleared: this launcher's own wait gave up, and the
+  // folder of a run that is still working is the folder a removal would take from under it.
+  unitEnded: waited.ended === 'the-unit-ended',
+  agentScratchFolder,
   git,
   run: runCommandWithChildProcess,
   report: function report(line,) {

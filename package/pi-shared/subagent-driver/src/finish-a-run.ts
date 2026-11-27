@@ -1,9 +1,10 @@
 /**
- What a launcher does once its unit has ended: the wake of an agent whose own work outlived its turn, and what becomes of the
- worktree.
+ What a launcher does once its unit has ended: the wake of an agent whose own work outlived its turn, what becomes of the worktree,
+ and what becomes of the run's scratch folder under `${HOME}/temp/agent`.
 
- The step is kept apart from the launcher that starts the unit so it can be read alone: it is where a run is resumed and where a
- worktree may be removed, and both turn on what the run left running.
+ The step is kept apart from the launcher that starts the unit so it can be read alone: it is where a run is resumed, where a
+ worktree may be removed, and where a scratch folder is cleared beside its `keep/`, and each of the three turns on what the run
+ left running.
 
  @module
  */
@@ -26,6 +27,7 @@ import {
   SessionFileUnreadableError,
   sessionFileOfRun,
 } from './session-file-of-a-run.ts';
+import { clearScratchFolderOfARun, } from './scratch-folder-of-a-run.ts';
 import {
   type GitRunner,
   removeWorktree,
@@ -74,6 +76,17 @@ export type FinishRequest = {
    The status the run's unit ended with, which this step answers with unless the run was resumed.
    */
   readonly unitStatus: number;
+
+  /**
+   Whether the manager answered that the unit is not running, which is what a run's end is for its scratch folder: a launcher
+   whose own wait gave up leaves the folder whole.
+   */
+  readonly unitEnded: boolean;
+
+  /**
+   The folder every run's scratch lives in, which is absolute: the home directory of the run plus `temp/agent`.
+   */
+  readonly agentScratchFolder: string;
 
   /**
    How long the run may last, which bounds the wait for its own work.
@@ -263,13 +276,13 @@ async function resumeTheSession({
  A run that is resumed answers with the status the resumed launcher ended with; every other run answers with the status its unit
  ended with.
 
- @param request - the run, its worktree, how it ended, and the seams a test replaces
+ @param request - the run, its worktree, its scratch folder, how it ended, and the seams a test replaces
 
  @returns the status the launcher exits with
 
  @example
  ```ts
- const finished = await finishTheRun({ runName: 'a', runFolder: '/runs/a-1', unitStatus: 0, wallSeconds: 600, readOnlyInMain: false, worktree: '/repo/.claude/worktrees/pi-a', checkoutFolder: '/repo', processFolder: '/proc', runsFolder: '/runs', commandLine: [], launcherEntry: '/pkg/src/start-pi-run-in-a-worktree.ts', wakesSoFar: 0, environment: process.env, git, run, report: console.log, wait, now: Date.now, },);
+ const finished = await finishTheRun({ runName: 'a', runFolder: '/runs/a-1', unitStatus: 0, unitEnded: true, agentScratchFolder: '/home/a/temp/agent', wallSeconds: 600, readOnlyInMain: false, worktree: '/repo/.claude/worktrees/pi-a', checkoutFolder: '/repo', processFolder: '/proc', runsFolder: '/runs', commandLine: [], launcherEntry: '/pkg/src/start-pi-run-in-a-worktree.ts', wakesSoFar: 0, environment: process.env, git, run, report: console.log, wait, now: Date.now, },);
  ```
  */
 export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun> {
@@ -369,6 +382,21 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
       worktree: request.worktree,
     },)}`,);
   }
+  // The run's scratch folder goes with its worktree: what the agent left beside its `keep/` is a build folder, a checkout or a
+  // fixture repository that nothing needs once the run has ended, and leaving it was what put 346 folders under `~/temp/agent` by
+  // 2026-11-27 (issue 6618). What stays is the report, the logs and the measurements a reader of the report needs, and a run that
+  // is resumed finds them because its `keep/` was never touched.
+  /**
+   What became of the run's scratch folder.
+   */
+  const scratch = await clearScratchFolderOfARun({
+    agentScratchFolder: request.agentScratchFolder,
+    runName: request.runName,
+    unitEnded: request.unitEnded,
+    ownWorkStillRuns: ownWorkLeftRunning.length > 0,
+    processFolder: request.processFolder,
+  },);
+  request.report(`${request.runName}: ${scratch.line}`,);
   // A run whose Pi left before the run got going is the one ending whose reason only Pi can give: a load failure, a refused
   // provider, a missing module all reach its standard error and nothing else. It is reported last, because a batch's one line
   // per entry is the last line of what a start printed, and `status 1 Memory peak: 12M` was what it said instead.

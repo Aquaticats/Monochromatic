@@ -174,6 +174,14 @@ export {
 } from './program-on-a-path.ts';
 export { siblingCommandEntry, } from './sibling-command-entry.ts';
 export {
+  AGENT_SCRATCH_FOLDER_PARTS,
+  KEPT_FOLDER_NAME,
+  SCRATCH_FOLDER_NAME_END,
+  type ScratchFolderOutcome,
+  clearScratchFolderOfARun,
+  scratchFolderOfARun,
+} from './scratch-folder-of-a-run.ts';
+export {
   type TailKeeper,
   tailKeeper,
 } from './tail-of-a-command.ts';
