@@ -33,13 +33,13 @@ use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
     an_existing_cleanup_record,
     origin_cleanups_folder,
 };
+use crate::worktree_clone_removal_proof_and_plan::plan_names_and_states::the_names_not_destroyed;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{
     HeadWord,
     SnapshotOutcome,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_completion::the_names_not_destroyed;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     ClearingDevice,
     EpochProbe,

@@ -11,6 +11,21 @@
 //! and the fixture has no cargo record for the copy,
 //! so the removal takes the direct path (the `cargo uninstall` path is covered by the unit tests and by a run of
 //! the binary against a disposable cargo home).
+//! This file holds the disposable tree every test runs against;
+//! each test is a file of its own beside it:
+//! every link moving before the copy goes (`every_link_moves_and_the_old_copy_goes`),
+//! the two `--lockfile-only` modes touching nothing (`lockfile_only_touches_no_link`),
+//! and a tree git cannot list keeping the copy (`a_tree_git_cannot_list_keeps_the_copy`).
+//! Why:
+//! One fixture means the tests cannot disagree about what the binary sees.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // old_copies.test.ts
+//! import { Fixture, makeLink, text, writeScript } from './old_copies/fixture.ts';
+//! await import('./old_copies/every_link_moves_and_the_old_copy_goes.ts');
+//! // ...one import per test...
+//! ```
 
 use std::fs;
 use std::os::unix::fs::{
@@ -222,144 +237,14 @@ fn text(bytes: &[u8]) -> String {
     return String::from_utf8_lossy(bytes).to_string();
 }
 
-#[test]
-fn install_moves_every_link_to_the_managed_copy_then_removes_the_old_one_and_a_second_run_does_nothing()
- {
-    let fixture = Fixture::new();
-    let local_git = fixture.home().join(".local/bin/git");
-    let second_checkout_git = fixture.work_two().join(".cache/cli-git-bin/git");
-    let foreign_target = fixture.home().join(".local/share/other/tool");
-    write_script(&foreign_target, "echo foreign");
-    let foreign_link = fixture.home().join(".local/bin/foreign");
-    write_script(
-        &fixture.home().join(".local/bin/not-a-link"),
-        "echo regular",
-    );
-    make_link(&local_git, &fixture.old_copy());
-    make_link(&second_checkout_git, &fixture.old_copy());
-    make_link(&foreign_link, &foreign_target);
+/// The run that moves every link before the old copy goes.
+#[path = "old_copies/every_link_moves_and_the_old_copy_goes.rs"]
+mod every_link_moves_and_the_old_copy_goes;
 
-    let listed = fixture.run(&["list"]);
-    assert_eq!(
-        listed.status.code(),
-        Some(0),
-        "an old copy is not drift: {}",
-        text(&listed.stdout)
-    );
-    assert!(
-        text(&listed.stdout)
-            .contains("would be removed by `install` after it did: re-point 2 link(s)"),
-        "{}",
-        text(&listed.stdout)
-    );
-    assert!(fixture.old_copy().exists(), "list changes nothing");
+/// The runs that show the two `--lockfile-only` modes touch no link and remove no copy.
+#[path = "old_copies/lockfile_only_touches_no_link.rs"]
+mod lockfile_only_touches_no_link;
 
-    let installed = fixture.run(&["install", "--frozen-lockfile"]);
-    assert_eq!(
-        installed.status.code(),
-        Some(0),
-        "{}{}",
-        text(&installed.stdout),
-        text(&installed.stderr)
-    );
-    let managed = fixture.managed_root().join("current/bin/cli-git-native");
-    for link in [&local_git, &second_checkout_git] {
-        assert_eq!(
-            fs::read_link(link).expect("still a link"),
-            managed,
-            "{}",
-            link.display()
-        );
-    }
-    assert!(
-        fs::symlink_metadata(fixture.old_copy()).is_err(),
-        "the old copy is gone: {}",
-        text(&installed.stdout)
-    );
-    assert_eq!(
-        fs::read_link(&foreign_link).expect("a link"),
-        foreign_target,
-        "a foreign link is untouched"
-    );
-    assert!(
-        fixture.home().join(".local/bin/not-a-link").is_file(),
-        "a regular file is untouched"
-    );
-    let output = text(&installed.stdout);
-    assert_eq!(
-        output.matches("toolchain install: re-pointed ").count(),
-        2,
-        "{output}"
-    );
-    assert!(
-        output.contains(&format!(
-            "toolchain install: removed {}",
-            fixture.old_copy().display()
-        )),
-        "{output}"
-    );
-    let through_the_link = Command::new(&local_git)
-        .env_clear()
-        .output()
-        .expect("run git through the re-pointed link");
-    assert_eq!(
-        text(&through_the_link.stdout).trim(),
-        "managed",
-        "git now runs the managed copy"
-    );
-
-    let again = fixture.run(&["install", "--frozen-lockfile"]);
-    assert_eq!(again.status.code(), Some(0), "{}", text(&again.stderr));
-    assert!(
-        !text(&again.stdout).contains("old copy") && !text(&again.stdout).contains("re-pointed"),
-        "{}",
-        text(&again.stdout)
-    );
-    assert!(!text(&fixture.run(&["list"]).stdout).contains("old copy"));
-}
-
-#[test]
-fn install_lockfile_only_changes_no_link_and_removes_no_copy() {
-    let fixture = Fixture::new();
-    let local_git = fixture.home().join(".local/bin/git");
-    make_link(&local_git, &fixture.old_copy());
-    let locked = fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]);
-    assert_eq!(locked.status.code(), Some(0), "{}", text(&locked.stderr));
-    let offline = fixture.run(&["install", "--lockfile-only", "--offline"]);
-    assert_eq!(offline.status.code(), Some(0), "{}", text(&offline.stderr));
-    assert!(fixture.old_copy().exists());
-    assert_eq!(
-        fs::read_link(&local_git).expect("a link"),
-        fixture.old_copy()
-    );
-}
-
-#[test]
-fn a_tree_git_cannot_list_keeps_the_old_copy_and_says_why() {
-    let fixture = Fixture::new();
-    let local_git = fixture.home().join(".local/bin/git");
-    make_link(&local_git, &fixture.old_copy());
-    fs::remove_dir_all(fixture.work().join(".git")).expect("make the tree not a repository");
-    let installed = fixture.run(&["install", "--frozen-lockfile"]);
-    assert_eq!(
-        installed.status.code(),
-        Some(0),
-        "{}{}",
-        text(&installed.stdout),
-        text(&installed.stderr)
-    );
-    assert!(
-        fixture.old_copy().exists(),
-        "a checkout's link could be hiding where git would not tell"
-    );
-    assert!(
-        text(&installed.stdout).contains("is kept"),
-        "{}",
-        text(&installed.stdout)
-    );
-    assert_eq!(
-        fs::read_link(&local_git).expect("a link"),
-        fixture.managed_root().join("current/bin/cli-git-native"),
-        "the link that was seen moved"
-    );
-}
+/// The run that shows a tree git cannot list keeps the old copy and says why.
+#[path = "old_copies/a_tree_git_cannot_list_keeps_the_copy.rs"]
+mod a_tree_git_cannot_list_keeps_the_copy;
