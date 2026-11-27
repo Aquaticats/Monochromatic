@@ -50,9 +50,9 @@ use super::probe_status_line::StepLine;
 use super::probe_walk_arm::{
     make_scratch_tree,
     open_checkout,
-    refusal_controls,
     walk_to_slot,
 };
+use super::probe_walk_refusal_controls::refusal_controls;
 use super::probe_worker_holder_scans::{
     ask_holder,
     own_namespace,

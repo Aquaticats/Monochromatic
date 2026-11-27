@@ -82,8 +82,9 @@
 //! - `probe_attach_arm.rs`:
 //!   the exclusive attach itself.
 //! - `probe_walk_arm.rs`:
-//!   the walk,
-//!   its refusal controls and the checkout open.
+//!   the walk and the checkout open.
+//! - `probe_walk_refusal_controls.rs`:
+//!   the four refusals the walk must keep refusing.
 //! - `probe_report.rs`:
 //!   the lines folded into arm outcomes and one verdict.
 //! - `probe_record.rs`:
@@ -217,9 +218,10 @@ pub mod probe_status_prefix;
 pub mod probe_test_switch;
 /// The child that moves and unmounts.
 pub mod probe_unmount_child;
-/// The walk,
-/// its refusal controls and the checkout open.
+/// The walk and the checkout open.
 pub mod probe_walk_arm;
+/// The four refusals the walk must keep refusing.
+pub mod probe_walk_refusal_controls;
 /// The worker's arms.
 pub mod probe_worker;
 /// The two holder requests and the scans' comparisons.
