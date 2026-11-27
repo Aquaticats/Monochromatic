@@ -6,7 +6,7 @@
 //! Why:
 //!  The relay's handler runs asynchronously,
 //! so it can only read state through atomics and through one number that is never closed
-//! (`signal_relay::RELAY_FD`).
+//! (`RELAY_FD`).
 //!  `dup3` replaces what that number refers to in one step,
 //! so the handler never sees a closed number and never a descriptor of another process,
 //! and a pidfd names the child for good,
@@ -23,6 +23,23 @@ use std::io;
 use std::os::raw::c_int;
 
 /// What:
+///  The one descriptor number the relay signals through,
+/// made by the first guard and never closed.
+/// Why:
+///   A descriptor that is closed while a handler reads its number can be reused by an unrelated pidfd and then signal the wrong
+///  process.
+/// This number is never closed,
+/// so it always names either the published child or `/dev/null`:
+/// publishing and
+///  retiring replace what it refers to with `dup3`,
+/// atomically,
+/// and no other code can be handed this number.
+/// A signal that finds
+///  `/dev/null` fails harmlessly.
+#[cfg(target_os = "linux")]
+pub(crate) static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync::OnceLock::new();
+
+/// What:
 ///  Make the descriptor number the relay signals through,
 /// once for the process.
 /// Why:
@@ -35,7 +52,7 @@ use std::os::raw::c_int;
 /// ```
 #[cfg(target_os = "linux")]
 pub(crate) fn ensure_relay_descriptor() -> io::Result<()> {
-    if crate::signal_relay::RELAY_FD.get().is_some() {
+    if RELAY_FD.get().is_some() {
         return Ok(());
     }
     let nothing: std::os::fd::OwnedFd = rustix::fs::open(
@@ -46,7 +63,7 @@ pub(crate) fn ensure_relay_descriptor() -> io::Result<()> {
     .map_err(io::Error::from)?;
     let number: std::os::fd::RawFd = std::os::fd::IntoRawFd::into_raw_fd(nothing);
     // A guard that lost the race closes its own descriptor; the winner's number is the only one that is kept.
-    if crate::signal_relay::RELAY_FD.set(number).is_err() {
+    if RELAY_FD.set(number).is_err() {
         // SAFETY: the number was just made here and was not published, so nothing else holds or reads it.
         drop(unsafe { <std::os::fd::OwnedFd as std::os::fd::FromRawFd>::from_raw_fd(number) });
     }
@@ -67,7 +84,7 @@ pub(crate) fn ensure_relay_descriptor() -> io::Result<()> {
 /// ```
 #[cfg(target_os = "linux")]
 pub(crate) fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
-    let Some(target) = crate::signal_relay::RELAY_FD.get() else {
+    let Some(target) = RELAY_FD.get() else {
         return Err(io::Error::other("the relay descriptor was never made"));
     };
     let nothing: std::os::fd::OwnedFd;

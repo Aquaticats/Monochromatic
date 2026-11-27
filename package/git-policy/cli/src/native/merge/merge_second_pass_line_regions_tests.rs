@@ -6,6 +6,13 @@
 //! and where a region sits in a stage.
 
 use super::*;
+/// Where a run of lines sits in one stage,
+/// which the controls count against the carried places.
+use crate::merge_second_pass_stage_line_places::{
+    lines_before,
+    lines_between,
+    offset_from_line,
+};
 
 /// The labels the second pass gives one merge:
 /// a fresh value per call,

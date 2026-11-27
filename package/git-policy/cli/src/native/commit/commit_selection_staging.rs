@@ -19,18 +19,47 @@
 //! await git(['add', '--', ...exactFiles], { index: commitIndex }); await git(['add', '--update', '--', ...patterns], { index: commitIndex });
 //! ```
 
+/// The selection a commit names,
+///  and the arguments one of its forms is staged with.
 use crate::commit_index_selection::{
     IndexSelection,
     selection_arguments,
 };
+/// The pathspec a caller named that Git refuses for matching nothing,
+///  and the words Git's answer is read with.
 use crate::commit_pathspec_matching_nothing::{
     WrittenPathspecs,
     pathspec_matching_nothing,
 };
-use crate::commit_staged_additions::{
-    explain_ignored_refusal,
-    pathspecs_of_file,
+/// The words one pathspec element is read as,
+/// kept in a file of their own,
+/// re-exported where every reader already looks for them.
+pub(crate) use crate::commit_selection_staging_element_words::{
+    excludes_paths,
+    names_one_file,
+    pattern_characters_are_literal,
 };
+use crate::commit_selection_staging_element_words::{
+    names_a_path,
+    subtracts_paths,
+};
+/// The failure class and the sentence a refusal keeps,
+/// kept in a file of their own,
+/// re-exported where every caller of it already looks.
+pub use crate::commit_selection_staging_failure::SelectionStagingFailure;
+use crate::commit_selection_staging_failure::explain_a_git_failure;
+/// What one selection gives this staging step,
+/// kept in a file of its own,
+/// re-exported where every caller already looks for it.
+pub(crate) use crate::commit_selection_staging_selection::{
+    ITEMS_BYTES_LIMIT,
+    PATHSPEC_FILE_LIMIT,
+    Selected,
+    selection_elements,
+    selection_items,
+};
+/// The private index and object store a commit's preparation selects,
+///  and the request builder of its Git starts.
 use crate::private_index_request::{
     CaptureIndexes,
     caller_pathspec_request,
@@ -44,51 +73,13 @@ use crate::transaction_git::{
     run_git,
     run_git_checked,
 };
-use std::ffi::{
-    OsStr,
-    OsString,
-};
+/// `OsString` owns one whole argument.
+use std::ffi::OsString;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  Why a start of the private staging ended:
-///  Git's own failure,
-/// or the caller's pathspec that matches nothing.
-/// Why:
-///   Only one cause of these starts is the caller's input,
-/// so the two are kept apart:
-/// a Git failure stays the engine failure it was,
-///  and a refused pathspec ends the command with a finding of its own (issue 6283).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type SelectionStagingFailure = { kind: 'git'; failure: GitFailure } | { kind: 'pathspec'; tokens: Uint8Array[] };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SelectionStagingFailure {
-    /// A Git start failed for a reason that is not a pathspec the caller wrote naming nothing.
-    Git(GitFailure),
-    /// Git refused pathspecs the caller wrote because they match nothing.
-    PathspecMatchesNothing(Vec<Vec<u8>>),
-}
-
-impl From<GitFailure> for SelectionStagingFailure {
-    /// What:
-    ///  A Git failure of the staging keeps the class it had before the classification existed.
-    /// Why:
-    ///  Every step that is not the classified refusal needs no change of report.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const fromGitFailure = (failure) => ({ kind: 'git', failure });
-    /// ```
-    fn from(failure: GitFailure) -> Self {
-        return Self::Git(failure);
-    }
-}
 
 /// What:
 ///  Stages the named paths into the private index,
@@ -347,294 +338,6 @@ fn stage_the_callers_pathspec_file(
     }
     checked_from(outcome, request.arguments.as_slice()).map_err(explain_a_git_failure)?;
     return Ok(());
-}
-
-/// What:
-///  `explain_ignored_refusal` for a start of the selection staging,
-/// as the failure this file's callers take.
-/// Why:
-///  The ignored-refusal sentence still applies to a pathspec file this reader passes to Git,
-///  and what remains of the failure is Git's,
-/// which the caller reports as the engine failure it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const explainAStagingFailure = (failure) => ({ kind: 'git', failure: explainIgnoredRefusal(failure) });
-/// ```
-fn explain_a_git_failure(failure: GitFailure) -> SelectionStagingFailure {
-    return SelectionStagingFailure::Git(explain_ignored_refusal(failure));
-}
-
-/// What:
-///  What one selection gives this staging step:
-/// its elements when they can be read,
-/// the pathspec file itself when it is too large to name,
-/// which is what an unreadable one leaves to Git,
-/// and nothing for an empty selection.
-/// Why:
-///   Every shape stages differently,
-/// and a reader that does not take a file must not change what Git does with it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Selected = { kind: 'items', items: string[] } | { kind: 'file' } | { kind: 'unreadable' };
-/// ```
-pub(crate) enum Selected {
-    /// The selection's elements,
-    /// from the command line or from a pathspec file.
-    Items(Vec<OsString>),
-    /// A pathspec file with no element.
-    Empty,
-    /// A pathspec file too large to name on one command line.
-    File,
-    /// A pathspec file this reader cannot take.
-    Unreadable,
-}
-
-/// The most bytes of pathspec elements this wrapper puts on one command line instead of naming the pathspec file.
-///  Exempt from a citation under `LQM` (class:
-/// reader fallback):
-/// above it the file is passed as a file with `--update`,
-/// so the commit still takes the tracked paths and only a file nothing staged stays out;
-/// one argument may not exceed 128 KiB (`MAX_ARG_STRLEN`) and a whole Linux command line stays under 2 MiB (`ARG_MAX`),
-/// so this bound leaves room for the rest of the command.
-pub(crate) const ITEMS_BYTES_LIMIT: u64 = 64 * 1024;
-
-/// The most bytes of a pathspec file this reader takes when it asks Git about the same paths.
-///  Exempt from a citation under `LQM` (class:
-/// reader fallback):
-/// a file larger than this is not a selection a commit can carry,
-/// and its elements would hold twice its bytes in memory,
-/// so this reader leaves the file to Git,
-/// which reports what it finds when the private staging opens it.
-/// The 1 GiB is the bound the in-process index reads already take (`INDEX_LIMIT_BYTES` in
-/// `commit_named_ignored_files.rs`,
-/// `conflict_side_guard.rs` and
-/// `merge_second_pass_worktree_watch.rs`).
-pub(crate) const PATHSPEC_FILE_LIMIT: u64 = 1 << 30;
-
-/// What:
-///  Every element the selection names,
-/// read from the pathspec file when it names one,
-/// and nothing when this reader cannot take that file.
-/// Why:
-///   A question about which paths a selection takes must be asked about the same elements the staging takes,
-/// and a pathspec file is one form of the same selection:
-///  the command line carries its elements as arguments,
-/// so a file's paths would otherwise go unasked.
-///  Every reason to decline answers with nothing,
-/// because the staging hands the file to Git itself and Git then reports what it finds,
-/// which is the answer that was right before this reading.
-///  The file is read through `plain_file::read_plain_file`,
-/// so a named pipe at its name answers at once instead of holding the commit for a writer that may never come,
-/// and the handle's own type decides what is read rather than a look at the path that a swap could change.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const elements = selection.pathspecFile ? pathspecsOfFile(readPlainFile(selection.pathspecFile, PATHSPEC_FILE_LIMIT), selection.nul) : selection.pathspecs;
-/// ```
-pub(crate) fn selection_elements(selection: &IndexSelection) -> Option<Vec<OsString>> {
-    let Some(file) = selection.pathspec_file else {
-        return Some(selection.pathspecs.to_vec());
-    };
-    let bytes: Vec<u8> = crate::plain_file::read_plain_file(file, PATHSPEC_FILE_LIMIT).ok()?;
-    return pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul);
-}
-
-/// What:
-///  The elements one selection names,
-/// and which form the staging step takes for them.
-/// Why:
-///   Telling an exact file name from a directory or a pattern needs the elements,
-/// and a file's elements are the same selection a command line carries.
-///  The file is read on the handle's own type (`plain_file::read_plain_file`),
-/// so a named pipe at its name is one this reader cannot take rather than a wait for a writer,
-/// and a file past the bound is still passed to Git as a file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const selected = pathspecFile ? readPlainFile(pathspecFile, ITEMS_BYTES_LIMIT).length <= LIMIT ? items(pathspecsOfFile(...)) : { kind: 'file' } : items(pathspecs);
-/// ```
-pub(crate) fn selection_items(selection: &IndexSelection) -> Selected {
-    let Some(file) = selection.pathspec_file else {
-        if selection.pathspecs.is_empty() {
-            return Selected::Empty;
-        }
-        return Selected::Items(selection.pathspecs.to_vec());
-    };
-    let bytes: Vec<u8> = match crate::plain_file::read_plain_file(file, ITEMS_BYTES_LIMIT) {
-        Ok(read) => read,
-        // A file past the bound is handed to Git as a file; any other refusal is one this reader cannot take.
-        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => return Selected::File,
-        Err(_unreadable) => return Selected::Unreadable,
-    };
-    let Some(items) = pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul) else {
-        return Selected::Unreadable;
-    };
-    if items.is_empty() {
-        return Selected::Empty;
-    }
-    return Selected::Items(items);
-}
-
-/// Whether one byte is a pattern character of the glob mode:
-/// `*`,
-/// `?` or `[`.
-fn is_pattern_character(byte: &u8) -> bool {
-    return matches!(*byte, b'*' | b'?' | b'[');
-}
-
-/// What:
-///  Whether the pathspec modes in effect make a glob character ordinary text,
-/// so `st*r.txt` names the file of that name.
-/// Why:
-///   The elements the person named decide both which paths this stage takes from the worktree and which of them an
-/// ignore rule can refuse,
-///  so both ask one owner rather than each reading the modes again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const literal = globCharactersAreLiteral(modesInEffect(globalPrefix, overlay));
-/// ```
-pub(crate) fn pattern_characters_are_literal(context: &GitContext) -> bool {
-    return crate::conflict_side_modes::glob_characters_are_literal(
-        crate::conflict_side_modes::modes_in_effect(
-            context.global_prefix.as_slice(),
-            context.overlay.as_slice(),
-        )
-        .as_slice(),
-    );
-}
-
-/// What:
-///  Whether one pathspec token names one file of the worktree rather than a directory or a pattern.
-/// Why:
-///   An exact name is the only shape step 3 of `SPEC.md` "Explicit-path commit" selects from the worktree,
-/// and a directory or a pattern must take what native Git takes.
-///  Pathspec magic selects a set and never one name,
-/// and a glob character is a pattern character only in a mode that reads it as one:
-///  `--literal-pathspecs` and `--noglob-pathspecs` make `st*r.txt` the file of that name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesOneFile = (cwd, token, literal) => !token.startsWith(':') && (literal || !/[*?[]/.test(token)) && lstat(join(cwd, token)).isFile();
-/// ```
-pub(crate) fn names_one_file(
-    cwd: &Path,
-    token: &OsStr,
-    literal: bool,
-) -> bool {
-    let bytes: &[u8] = token.as_encoded_bytes();
-    if bytes.first() == Some(&b':') {
-        return false;
-    }
-    // A backslash is Git's escape and not a pattern character here: `a\\b.txt` names the file of that name when one is
-    // there, and a token whose literal pathname is not there is left to Git as the pattern it may be.
-    if !literal && bytes.iter().any(is_pattern_character) {
-        return false;
-    }
-    let Ok(held) = std::fs::symlink_metadata(cwd.join(token)) else {
-        return false;
-    };
-    let kind = held.file_type();
-    return kind.is_file() || kind.is_symlink();
-}
-
-/// What:
-///  Whether one pathspec token subtracts the paths it names from the rest of the selection:
-///  the long-form word `exclude` and the short forms `:!` and `:^`.
-/// Why:
-///   A subtracting element applies to the whole selection,
-/// so the exact files a commit stages need it in the same `git add` start:
-///  `a.txt ':(exclude)a.txt'` is no path to native Git,
-/// and one start per element would stage the file the caller excluded.
-///  The grammar is Git's own (`pathspec.c`,
-/// `parse_short_magic` and `parse_long_magic`):
-///  the long form holds words between the parentheses,
-/// which Git matches by their whole spelling and only in lower case,
-/// and the short form is a run of `!`,
-/// `^` and
-/// `/`,
-/// of which only the first two subtract.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const excludesPaths = (token) => token.startsWith(':(exclude') || /^:[!^]/.test(token);
-/// ```
-pub(crate) fn excludes_paths(token: &OsStr) -> bool {
-    let bytes: &[u8] = token.as_encoded_bytes();
-    let Some(magic) = bytes.strip_prefix(b":") else {
-        return false;
-    };
-    if let Some(long) = magic.strip_prefix(b"(") {
-        let Some(close) = long.iter().position(is_close_paren) else {
-            return false;
-        };
-        return long
-            .get(..close)
-            .unwrap_or(long)
-            .split(is_comma)
-            .any(is_exclude_word);
-    }
-    let mut at: usize = 0;
-    while let Some(byte) = magic.get(at) {
-        match *byte {
-            b'!' | b'^' => return true,
-            b'/' => at += 1,
-            _ => return false,
-        }
-    }
-    return false;
-}
-
-/// Whether one borrowed element subtracts the paths it names.
-/// Why:
-///   The element lists below are read by path rather than by a closure,
-/// so each question is one named function (`rust/avoidable-closure`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const subtractsPaths = (element) => excludesPaths(element);
-/// ```
-fn subtracts_paths(element: &&OsString) -> bool {
-    return excludes_paths(element.as_os_str());
-}
-
-/// Whether one borrowed element names paths the selection takes.
-/// Why:
-///   The complement of `subtracts_paths`,
-/// read the same way:
-/// a pattern list that holds no naming element reads as every path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesAPath = (element) => !subtractsPaths(element);
-/// ```
-fn names_a_path(element: &&OsString) -> bool {
-    return !subtracts_paths(element);
-}
-
-/// Whether one long-form magic word is the subtraction word.
-/// Why:
-///   Git matches the word by its whole spelling in lower case,
-/// so `EXCLUDE` and `exclude-` are other magic and stay naming elements.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isExcludeWord = (word) => word === 'exclude';
-/// ```
-fn is_exclude_word(word: &[u8]) -> bool {
-    return word == b"exclude";
-}
-
-/// Whether one byte closes the long form of pathspec magic.
-fn is_close_paren(byte: &u8) -> bool {
-    return *byte == b')';
-}
-
-/// Whether one byte separates the words of long-form pathspec magic.
-fn is_comma(byte: &u8) -> bool {
-    return *byte == b',';
 }
 
 /// What:

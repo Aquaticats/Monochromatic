@@ -26,6 +26,7 @@ use crate::test_support::{
     shown_notices,
 };
 use crate::worktree_removal_only_deletions::Reported;
+use std::path::PathBuf;
 
 /// The two volumes a control works with:
 ///  a nested subvolume and a mount point,
@@ -380,7 +381,11 @@ fn a_record_of_a_removal_that_went_around_is_shown_once() {
     .expect("the record is written");
     assert!(
         left_in_place_directory(common.as_path())
-            .join(record_name(worktree.as_path()))
+            .join(
+                crate::worktree_removal_goes_around_a_foreign_volume_records::record_name(
+                    worktree.as_path(),
+                )
+            )
             .is_file(),
         "the record is where the reader looks"
     );

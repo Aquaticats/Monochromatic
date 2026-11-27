@@ -4,5 +4,8 @@
 # even when an editor opens the repo through /home/user.
 ZIG_GLOBAL_CACHE_DIR = { value = "package/terminal/app/target/zig-global-cache", relative = true }
 
-# Slint build scripts need this when Cargo is launched outside mise.
-SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"
+# Slint build scripts need this when Cargo is launched outside mise. Slint 1.19.0 reads a
+# comma-separated list of feature names and rejects any other value, '1' included; `internal-types`
+# is what the music player's `SlintInternal.accent-color` needs
+# (doc/troubleshooting/slint-lsp-experimental-features.md).
+SLINT_ENABLE_EXPERIMENTAL_FEATURES = "internal-types"

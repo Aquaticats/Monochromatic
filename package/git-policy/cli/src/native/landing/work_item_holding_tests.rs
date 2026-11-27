@@ -12,6 +12,7 @@ use crate::test_support::{
     remove,
     restore_owner_access,
 };
+use crate::work_item_state_directories_and_claim_names::PENDING;
 use std::path::PathBuf;
 
 /// The commit the gate of these controls refused.

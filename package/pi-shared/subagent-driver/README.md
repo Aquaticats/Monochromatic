@@ -283,8 +283,18 @@ Pi's `rate-limit-fallback` plugin publishes two virtual selections,
 `rate-limit-fallback/writer` and `rate-limit-fallback/reviewer`
 (`package/pi-plugin/rate-limit-fallback/README.md`).
 A run on one holds no single pool,
-so the driver counts it in every pool that selection's router may send it to,
-read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
+and the driver counts it in none.
+The owner,
+2026-11-26,
+asked how the driver's pool gate counts a run on the virtual writer:
+"No count (Recommended)".
+So the gate counts only the runs pinned to one pool,
+and a run on `--provider=rate-limit-fallback --model=writer`,
+or on the reviewer selection the same way,
+holds no slot in any member pool,
+because the router moves a refused request on by itself.
+The members each selection's router may take are read from `VIRTUAL_POOLS` in `src/pool-limits.ts`,
+in the order it tries them:
 
 - `rate-limit-fallback/writer`:
   `qwen-plan-deepseek`, `opencode-go`, `neuralwatt-flex`,
@@ -293,18 +303,30 @@ read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
   the same three pools.
   Its fourth member,
   Synthetic's DeepSeek model,
-  belongs to no pool of this table,
-  so it holds no slot here.
+  belongs to no pool of this table.
 
-While one member has room and another does not, the router's request can land on either,
-so a run on a virtual selection holds a slot in each and starts only while every one of them has room.
-That is what keeps a pool from taking more runs than its room when a member answers `429`
-and the router moves the request, and later the run, to the next member.
-The cost is that the smallest member bounds how many such runs may go at once:
-five qwen runs at the time of writing,
-however much room `opencode-go` and `neuralwatt-flex` have left.
-A refusal names each member pool with its count and its limit,
-and the setting that gives a pool room again.
+No pool's room decides whether a run on a virtual selection may start,
+so it starts whatever any member's own count reads,
+and its router moves each request on when a member refuses with a `429` before any output.
+A member a caller closes with `PI_RUNS_POOL_LIMITS` adds no room to any count,
+and it does not by itself stop a run on the selection,
+because the gate counts no run of it:
+that member's provider refusal is what moves the request on.
+A pool's own room bounds only the runs pinned to it,
+and a run on a virtual selection neither fills a pool nor keeps one from taking a pinned run,
+so a run that names no model of its own may take the first pool of the owner's order
+while virtual-writer runs are going.
+
+The counts line counts the runs pinned to each pool,
+and says nothing about a virtual selection,
+whose runs hold no slot to show.
+A run on a virtual selection gets a line of its own when its launcher places it,
+naming the members its router may take and saying it holds no slot in any pool.
+A refusal names each member pool a run that names no provider may take,
+with its count and the reason it takes no run now,
+and gives the setting that gives a pool room again.
+A run on the reviewer selection is counted the same way,
+from the same three pools.
 
 The member order is the plugin's,
 and this table carries a copy of it because the driver declares no dependency on that package,
@@ -317,8 +339,8 @@ because that pair is what lets the plugin's router move a refused request on;
 rewriting it into one member's pair would pin the run to that member.
 It gets the largest wall factor of those members,
 because the run keeps one wall clock wherever its router lands.
-A run naming a member pool directly is not this case:
-the pool it names takes it, and that pool is the only one it holds.
+A run naming one pool directly is not this case:
+that pool's own room takes it.
 
 ### The room a new run needs
 

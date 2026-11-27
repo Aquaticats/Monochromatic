@@ -75,6 +75,9 @@ the owner answered "Kimi K3.1 Pro (Recommended)".
   The exception lasts until the owner says the quota is back.
 - It is carried by one file:
   `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/reviews-go-to-kimi-k3-1-pro-while-this-file-exists.md`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   While it exists the queue's starter starts each range review on provider `neuralwatt`,
   model `kimi-k3.1-pro-flex`
   (the package's pool `neuralwatt-kimi-flex`,

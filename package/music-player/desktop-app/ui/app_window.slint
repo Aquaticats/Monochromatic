@@ -184,7 +184,8 @@ export component AppWindow inherits Window {
     in property <[string]> licenses-lines: [];
     // Opacity of the right pane, 1 at rest. A new selection drops it to 0 at once and animates it back to 1 over 150 ms,
     // linear. The drop is made with a zero-length animation, because an `animate` block would otherwise also animate the
-    // drop. Slint 1.18 exposes no reduced-motion setting, so the fade is always this short.
+    // drop. Slint 1.19 takes every animation out when the system asks for reduced motion, and only its Windows backend
+    // reads that setting, so on Linux and macOS the fade is always this short.
     out property <float> settings-pane-opacity: 1;
     property <bool> settings-fade-reset: false;
     animate settings-pane-opacity {

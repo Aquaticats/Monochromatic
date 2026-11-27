@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::transaction_journal::TransactionMode;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 /// A repository directory under this control's fixture,

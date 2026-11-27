@@ -8,6 +8,9 @@ on the four choices the release pass over alpha.45's clone rung left
 (`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/clone-rung/keep/review.md`,
 "For the owner to decide",
 D1 to D4).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Recorded by the session.
 
 ## A source whose only change is untracked (D1)
