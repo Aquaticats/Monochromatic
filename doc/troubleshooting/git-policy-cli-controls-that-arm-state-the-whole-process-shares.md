@@ -783,3 +783,115 @@ taking 0.04 s then 0.09 s then 0.07 s.
 - A whole `worktree::` threaded run was not made either:
   the module's own filter shows the failure and its fix,
   and four split rounds' 14 kept runs of that filter are what the issue reports from.
+
+## Fourth round, 2026-11-27T05:32:05-05:00: the trash removal place control (issue 6534)
+
+### Symptom
+
+`worktree::worktree_trash_entries::tests::the_removals_take_places_of_the_processs_bound_on_blocking_jobs`
+failed in 12 of the 14 kept threaded runs of the whole `worktree::` filter
+that four split rounds made on 2026-11-26,
+and passed in the other two (issue 6534).
+The module's own filter alone passed,
+so the failure needed a run in which another control had already made the process's bound.
+
+Measured again on this round's tree before the change,
+with
+`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1 cargo test --locked --offline --lib --features test-only-switches worktree:: -- --skip guest --skip _arm_tests`,
+default threads:
+
+- `test result: FAILED. 1011 passed; 4 failed; 1 ignored; 0 measured; 9755 filtered out`,
+  the control failing at `src/native/worktree/worktree_trash_entries_tests.rs:340`
+  with `left: [false, false, false, false]` and `right: [true, true, true, true]`;
+  the other three failures were `worktree::add_standing_notice::tests`,
+  which issue 6533's own round owns.
+- the module alone answered `test result: ok. 8 passed; 0 failed`,
+  which is why the control's own filter never showed it.
+
+### Root cause
+
+The control calls `hold_the_only_place()` (`testing/parallel_test_support.rs`),
+which stores `ONE_PLACE` in `HELD_TO`,
+then holds its place with a job of the process's blocking pool.
+`BUDGET` is one `OnceLock` for the process,
+and it reads `HELD_TO` only where it is first made
+(`foundation/blocking_jobs_within_the_budget.rs`),
+so a hold that comes after another control's thread has made the bound changes nothing:
+the holder takes one place of seven,
+and the removals take the others and start at once.
+This is the same mechanism issue 6477 measured for `repair::package_repair_toolchain`.
+
+### The evidence
+
+A print at the budget's own creation,
+planted uncommitted and reverted before the change,
+read in the failing `worktree::` run:
+
+```text
+MEASURE the budget is made now: heldTo=18446744073709551615 allowed=7
+```
+
+`heldTo` was `usize::MAX`,
+so the budget was made before any control held it,
+and it had the seven places the CPUs allow.
+The same print in the module's own filter read
+`the budget is made now: heldTo=1 allowed=1`,
+which is the process the control was written for.
+
+### The change
+
+The control's body runs in a child of its own
+(`process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own`),
+as its four neighbours in the module do,
+and it reads `budgeted_blocking_jobs()` once the hold is taken,
+failing at its own line when the bound is not the one place it holds.
+
+No release code changed:
+`hold_blocking_jobs_to` and the budget are as they were,
+and a hold that arrives after the budget is made still changes nothing,
+which issue 6477 owns for the shared helper.
+
+### What the guard is worth
+
+With the child start taken out and the read left in place,
+the module alone still passed `test result: ok. 8 passed; 0 failed`,
+because the control's own hold made the budget first there,
+and the whole `worktree::` run failed at the new line:
+
+```text
+assertion `left == right` failed: this process's bound on blocking jobs has 7 places, and the control holds one of them, so a removal takes another and starts at once: the body needs a process of its own, whose bound is the one place it holds
+```
+
+### After the change
+
+- the module threaded:
+  `test result: ok. 8 passed; 0 failed; 0 ignored`,
+  in 0.27 s.
+- the whole `worktree::` filter threaded:
+  `test result: FAILED. 1011 passed; 4 failed; 1 ignored`,
+  with all four failures in `worktree::add_standing_notice::tests`
+  and this control passing.
+- the same filter with that module skipped:
+  `test result: ok. 1007 passed; 0 failed; 1 ignored`,
+  in 25.12 s.
+- `source_guard`:
+  `test result: ok. 176 passed; 0 failed`.
+- `cargo fmt --check` printed nothing.
+- `cargo check --locked --offline --all-targets` finished clean,
+  and so did `cargo clippy --locked --offline --all-targets -- -D warnings`.
+
+### Not covered
+
+- The container gate was not run,
+  and a whole-library threaded run is not run here
+  (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+- The other callers of `hold_the_only_place` are unchanged:
+  `lfs`,
+  `subvolume`,
+  `worktree_copying`,
+  `landing`,
+  `repair` and
+  `worktree`,
+  and issue 6477 owns the helper's own fix.
+- No `source_guard` ban refuses a control that holds the process's bound outside a child;
+  `hold_blocking_jobs_to` is the one setter of that fact that still has none.
