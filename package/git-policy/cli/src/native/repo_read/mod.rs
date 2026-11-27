@@ -38,8 +38,18 @@
 //! - `repo_read_config_list.rs`:
 //!   in-process repository reads:
 //!   the merged configuration listing with includes and environment entries.
+//! - `repo_read_config_value_words.rs`:
+//!   the words a configuration value may be spelled with:
+//!   the booleans,
+//!   the per-driver and per-remote names,
+//!   the `color.grep.<slot>` slots and the color and attribute words.
+//! - `repo_read_config_key_kinds_table.rs`:
+//!   the configuration keys whose value is a plain boolean,
+//!   any text,
+//!   or a path.
 //! - `repo_read_config_value_kinds.rs`:
-//!   the table of which configuration keys Git reads at startup and what kind of value each takes.
+//!   the kinds of value a configuration key takes,
+//!   and the lookup from a key to its kind.
 //! - `repo_read_config_typed.rs`:
 //!   in-process repository reads:
 //!   proof that every configuration value Git types at startup is one Git accepts silently.
@@ -240,7 +250,19 @@ pub mod repo_read_config_scan;
 /// proof that every configuration value Git types at startup is one Git accepts silently.
 pub mod repo_read_config_typed;
 
-/// The table of which configuration keys Git reads at startup and what kind of value each takes.
+/// The words a configuration value may be spelled with:
+/// the booleans,
+/// the per-driver and per-remote names,
+/// the `color.grep.<slot>` slots and the color and attribute words.
+pub mod repo_read_config_value_words;
+
+/// The configuration keys whose value is a plain boolean,
+/// any text,
+/// or a path.
+pub mod repo_read_config_key_kinds_table;
+
+/// The kinds of value a configuration key takes,
+/// and the lookup from a key to its kind.
 pub mod repo_read_config_value_kinds;
 
 /// The object name hash a repository's configuration selects,
