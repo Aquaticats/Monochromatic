@@ -45,8 +45,10 @@ use super::query_ending::QueryEnding;
 /// The seam a control places an ending in,
 /// between the last look at the query and the bound's signal.
 use super::query_ending::the_ending_seam;
-/// `OsString` is owned operating-system text, which this query's arguments and environment are.
-/// Its sibling `&str` is a borrowed view that must be UTF-8, and `OsString` need not be.
+/// `OsString` is owned operating-system text,
+/// which a query's arguments and environment are.
+/// Its sibling `&str` is a borrowed view that must be UTF-8.
+/// `OsString` need not be.
 use std::ffi::OsString;
 /// `Write` fills the standard input of a query,
 /// on a thread of its own.
