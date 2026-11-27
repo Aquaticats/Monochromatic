@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:16:15-05:00
+## The state at 2026-11-27T12:25:24-05:00
 
-`main` was `07f9232af0`.
+`main` was `17eb875aa3`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 224 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 225 more by this time.
 
 ### Rounds running
 
@@ -183,14 +183,24 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
 - for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  three rounds started 2026-11-27T12:00:02-05:00 from one list,
+  two rounds started 2026-11-27T12:00:02-05:00,
   each named `cargo-shadow-alpha-13-release-pass-` and then:
-  `the-retire-gates-fallback-and-its-words-are-held-by-controls`;
-  `the-refusals-listing-and-its-records-say-what-the-code-does`;
-  and `a-scope-whose-empty-notification-the-manager-lost`,
-  which builds nothing:
-  it shows the state in a guest and adds it to
-  `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
+  `the-retire-gates-fallback-and-its-words-are-held-by-controls`
+  and `the-refusals-listing-and-its-records-say-what-the-code-does`.
+  The third of that list is merged (`17a5efdf9a`):
+  in a guest on systemd 262.2,
+  with the account's inotify watches used up,
+  a scope started the way `cargo-shadow` starts one stayed `loaded active running` with no member after its program ended,
+  and the released `0.1.5-alpha.13` left its four scopes that way and exited 0;
+  a re-execution of the manager collects such units and can also lose one
+  (two of forty in one of two timed attempts).
+  A leftover holds no process;
+  twenty of them grew the manager by about 130 KiB each in one reading without a control.
+  `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md` now holds this second road:
+  the option that stops the unit a journal recorded cannot reach it,
+  the two sweeps can,
+  and the ranking stays as it was,
+  with its first pair closer;
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
   four rounds started 2026-11-27T12:11:40-05:00 from one list,
   each named `mpm-shadow-alpha-14-release-pass-` and then:
