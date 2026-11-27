@@ -14,14 +14,20 @@ and the release gate's own steps stay the owner's until the owner chooses
 what the gate runs is recorded as the owner's").
 The owner declares completion.
 
-The round ran the three checks once each on this host,
+The round ran the three checks on this host,
+once at the start and once after merging `main`'s later tip,
 read what runs today out of the tasks,
 the gate's scripts and the workflows,
 and fixed the first red commit of each check.
+`main` moved to `64e3eb1a55` while the proposal was written,
+with the fixes for issues 6579 and 6580,
+so the unit tests pass at the tree this branch ends on and the lint is still red;
+both sets of figures are below,
+and each is dated to the tree it was taken on.
 What is not yet known:
 
-- what a CI job that installs this workspace costs,
-  because no runner is reachable from this host and no install was run for it,
+- what the three checks cost on a CI runner,
+  whose four virtual cores and cold caches are not this host,
 - whether the owner wants a red check to hold a merge,
   which decides whether a CI placement is a signal or a gate,
 - the exact commit at which oxlint went red between 2026-11-04 and 2026-11-13,
@@ -30,7 +36,7 @@ What is not yet known:
 - the run-to-run spread of `test:unit`'s peak memory,
   which is the largest figure any placement has to size a bound for.
 
-## The three checks, and which are red today
+## The three checks, and which were red
 
 On `main` at `1c8acd5bfb`,
 in this round's worktree,
@@ -41,6 +47,8 @@ The three failures have their own issues:
 the service-words guard is issue 6579,
 the planted-controls walk is issue 6580,
 and the lint is issue 6581.
+The first two were fixed on `main` while this proposal was written,
+so at `64e3eb1a55` the unit tests pass and the lint is still red.
 This document is about where the checks run,
 not about the three failures.
 
@@ -411,7 +419,7 @@ the browser suite and the e2e suite.
 
 ## What was measured
 
-Each check ran once on this host in this worktree,
+Each check ran in this worktree on this host,
 in its own `systemd-run --user --scope` on `agent-work.slice`,
 with `MemoryMax=8G`,
 `CPUQuota=400%`,
@@ -422,10 +430,12 @@ and peak memory is the scope's own `memory.peak`,
 read from inside the scope before it ended.
 The host is a ten-CPU machine with 61 GiB of memory,
 16 GiB of it available,
-and its load average was 17 to 27 during the runs.
+and its load average was 17 to 27 during these runs.
+The figures here are the runs at `1c8acd5bfb`:
 `lint:types` ran twice,
 once with no TypeScript build record and once with one,
 and the other two ran once each.
+The runs after merging `main`'s later tip are in "Where main moved while this was written".
 `RuntimeMaxSec` was passed as the brief asks,
 and `systemctl --user show <scope> -p RuntimeMaxUSec` reported `infinity` for a scope unit,
 so each run was bounded by the round's own command bound instead.
@@ -488,6 +498,30 @@ What could not be measured:
   which is the owner's decision this document asks for,
 - the oxlint count at the commit it went red,
   because that needs an install and a lint run at that commit.
+
+### Where main moved while this was written
+
+`main` reached `64e3eb1a55` during the round,
+with the fixes for issues 6579 and 6580,
+and the round merged it and re-ran the three checks once each in the same scopes.
+That tree is the one this branch ends on,
+and its figures are what the checks cost now:
+
+- `test:unit` exits 0 in 19,365 ms with a peak of 1,819.0 MB.
+  The memory drop from 4,541.9 MB is the fix's own effect:
+  the planted-controls walk read 160,599 source paths and joined them,
+  and it now reads each file once.
+  The wall time also fell,
+  from 22,166 ms,
+  and the host's load average had fallen from 17 to 27 at the first runs to about 10.6 at these,
+  so the time difference is not attributed to the fix.
+- `lint:oxlint` still exits 1 with the same 850 errors and 1,856 warnings,
+  in 8,378 ms with a peak of 939.8 MB.
+- `lint:types` exits 0 in 1,996 ms with a peak of 413.1 MB,
+  on a tree that gained `bin/source-tree-files.ts` and its unit test.
+
+The three cost 29.7 s run one after another at `64e3eb1a55`,
+and the memory a step needs there is 1.9 GB rather than 4.5 GB.
 
 ## When each red check went red, and how long it stayed unseen
 
@@ -614,7 +648,8 @@ Pros:
 - The gate's unit already holds ten CPUs and 20 GiB
   (`defaultGateCaps` in `bin/native-gate-caps.ts:53`,
   whose `unitCpuQuota` is `1000%` and whose `unitMemoryMax` is `20G`),
-  which is more room than `test:unit`'s 4.5 GB peak needs,
+  which is more room than `test:unit`'s peak needs,
+  4.5 GB at `1c8acd5bfb` and 1.8 GB at `64e3eb1a55`,
   and that unit's own peak was 1,017 MiB of it
   (`doc/planning/git-policy-cli-cachyos-test-containers.md:1093`).
 - The whole placement is one package's own code and one task,
@@ -669,7 +704,8 @@ Cons:
   so a launcher that starts only the gate (as `native:gate:main-tip` does today) leaves the second unstarted,
   and nothing says so.
 - It puts a second 4.5 GB peak on the host while the gate compiles,
-  which on this host is the kind of pressure the gate's own controls are sensitive to.
+  which on this host is the kind of pressure the gate's own controls are sensitive to,
+  and 1.8 GB once issue 6580's fix is in the tree.
 
 What a person sees when it goes red:
 two verdict lines in one note,
@@ -974,11 +1010,12 @@ stated as a cost and not as a ranking reason:
 ## What this does not settle
 
 The proposal is not the fix.
-Issues 6579,
-6580 and 6581 make the checks red today,
+At `1c8acd5bfb` two of the three checks were red.
+At the tree this branch ends on,
+issue 6581 alone keeps the lint red with 850 errors while the unit tests pass,
 and every placement above makes that redness visible,
 which is the point,
-but a gate or a required check that lands while the checks are red refuses every batch and every merge until those three are fixed.
+but a gate or a required check that lands while the lint is red refuses every batch and every merge until that issue is fixed.
 That ordering is one of the questions below.
 
 ## Questions only the owner can answer
@@ -1000,13 +1037,14 @@ That ordering is one of the questions below.
    That decides whether CI is a signal or a gate,
    and it needs a required check and branch protection,
    which the recorded merge bar says the project does not have.
-4. Does the placement land before or after issues 6579,
-   6580 and 6581 are fixed?
+4. Does the placement land before or after issue 6581 is fixed,
+   and before or after the removals issue 6581 asks to weigh?
    Landing it first makes every batch's gate red for a reason unrelated to the batch's Rust work,
-   and landing it after leaves the checks unrun for however long the three fixes take.
+   and landing it after leaves the lint unrun for however long that takes.
 5. What memory and CPU bound does the step get wherever it runs?
-   `test:unit` peaked at 4.5 GB here,
-   which is twice the suite container's 2 GiB bound and inside the gate unit's 20 GiB.
+   `test:unit` peaked at 4.5 GB at `1c8acd5bfb` and 1.8 GB at `64e3eb1a55`,
+   so the bound has to hold the first figure,
+   which is twice the suite container's 2 GiB and inside the gate unit's 20 GiB.
 6. Should `native:ts-checks` grow `lint:oxlint` in its default list?
    C and F both rest on that,
    and it is one line.
