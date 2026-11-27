@@ -220,6 +220,119 @@ and no release change was made:
 a real Git open for writing while a package manager replaces it is a separate question
 for the owner.
 
+## The same refusal in issue 6540's named-Git reader control, whose failure said nothing
+
+`repo_read::repo_read_hook::tests::a_caller_that_names_only_its_git_still_gets_in_process_answers`
+failed once in a threaded run of `repo_read::` on 2026-11-26 (issue 6540),
+after a merge of `main`,
+in `package/git-policy/cli`:
+
+```text
+test result: FAILED. 237 passed; 1 failed; 0 ignored; 0 measured; 10530 filtered out; finished in 140.23s
+thread 'repo_read::repo_read_hook::tests::a_caller_that_names_only_its_git_still_gets_in_process_answers' panicked at src/native/repo_read/repo_read_hook_tests.rs:266:10:
+the readers answer without the forward-target variable
+```
+
+That control writes the Git it starts,
+as `invocation/git_version_cache_tests.rs`'s controls do:
+`std::fs::copy(REAL_GIT, &named_git)` into `bin/git` of its fixture,
+and `try_request` then starts it to learn the system configuration file.
+
+### The cause, made to happen on purpose
+
+The refusal needs a window of microseconds,
+so the control was made to fail for it deliberately,
+in an uncommitted change that was reverted before the fix:
+
+- the copy was written slowly,
+  one mebibyte per `write_all` with 300 ms between them,
+  so the destination stayed open for writing for about 1.8 s;
+- a sibling control of the same file forked a child every 500 ms whose `pre_exec` slept 500 ms,
+  so each child held what it inherited across its own `exec`,
+  as the trace in this file found a child doing for 0.8 ms.
+
+Run this, with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1`,
+five tests, default threads,
+the test process started afresh:
+
+```sh
+# in package/git-policy/cli
+cargo test --locked --offline --lib --features test-only-switches repo_read::repo_read_hook::tests -- --skip guest --skip _arm_tests
+```
+
+```text
+---- repo_read::repo_read_hook::tests::a_caller_that_names_only_its_git_still_gets_in_process_answers stdout ----
+PLANT copy window opens at 12.426126ms
+PLANT copy window closes at 1.969954493s
+
+thread 'repo_read::repo_read_hook::tests::a_caller_that_names_only_its_git_still_gets_in_process_answers' (3901801) panicked at src/native/repo_read/repo_read_hook_tests.rs:271:10:
+the readers answer without the forward-target variable
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 10767 filtered out; finished in 20.23s
+```
+
+The failure named what the control wanted and not why it got nothing.
+
+### Why the answer was silent
+
+`repo_read/git_system_config.rs` ended the question with `.ok()?`:
+
+```rust
+let output = crate::captured_child_run_to_its_end::output_of_within_bound(
+    &mut command,
+    crate::wait_ceilings::PLUMBING_STEP_CEILING,
+)
+.ok()?;
+```
+
+A start the system refused and a wait the ceiling ended both became `None`,
+and `None` makes `ScopeEnvironment::from_variables` set `unresolvable` (`repo_read/repo_read_config_scan.rs`),
+which makes every in-process reader decline
+(`outer_scopes_avoid_keys` answers `None`),
+so `try_request` answered nothing and the control could say only what it wanted.
+
+### The repair
+
+- `ask_git_var` warns with one line naming the executable, the question and what ended the wait:
+  the system's own refusal,
+  or the ceiling's sentence with the program and its length (`no_answer_text`).
+- the control reads the lines the wrapper wrote for its request (`diagnostic_log::take_lines_written`)
+  and puts them into its own failure,
+  so a later failure names the start error or the ceiling.
+- the control's body runs in a child of its own (`run_the_body_in_a_child_of_its_own`,
+  `testing/process_wide_state_child_test_support.rs`),
+  which is the workaround this file records in `Verified workarounds`.
+
+The same planted change, after the repair, in the same run shape:
+
+```text
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 10769 filtered out; finished in 20.23s
+```
+
+A control of the line itself,
+`repo_read::git_system_config::tests`,
+names a refused start and a reached ceiling:
+
+```text
+[monochromatic-git-policy-cli] [ask_git_var] the answer of /nonexistent-directory/git to `var GIT_CONFIG_SYSTEM` was not read, so the in-process readers leave this request to Git: No such file or directory (os error 2)
+```
+
+### What the repair does not cover
+
+- The ceiling's words are proved from a real start ended at a two-second ceiling (`git_system_config_tests.rs`),
+  not by shortening the release's own two-minute bound.
+- A Git that answers `var` with a non-zero status still declines silently,
+  and its standard error is discarded.
+- `repo_read/git_system_config_tests.rs`'s `copy_git` writes a fixture Git the same way;
+  that module is issue 6541's to repair,
+  and this round's run of it failed once for this refusal,
+  which the new line named:
+  `the answer of .../system-config-scope/git to `var GIT_CONFIG_SYSTEM` was not read ... Text file busy (os error 26)`.
+- The ban in `source_guard/no_control_writes_a_fixture_git_in_the_run_tests.rs` still reads only
+  `invocation/git_version_cache_tests.rs`.
+
+This record is unapproved and non-final.
+
 ## Upstream filing decision
 
 Nothing is filed,
