@@ -19,7 +19,7 @@
 //! const refused = inventsDoubledWord(...) || inventsLine(...); // one line region of a three-way merge
 //! ```
 
-use crate::merge::word_merge::{
+use crate::merge::word_merge_tokens::{
     LINE_END,
     Level,
     is_line_end,

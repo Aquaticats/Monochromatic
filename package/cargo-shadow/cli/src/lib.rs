@@ -55,6 +55,10 @@ pub mod http;
 /// Runs the repository-wide catalog commands for the CLI.
 pub mod commands;
 
+/// What a catalog command prints:
+/// its findings and its install and update reports (split out of `commands.rs`).
+pub mod command_report_printing;
+
 /// The restore of lockfiles after a run and the recording side of the journal that recovers a killed run.
 pub mod journal;
 
@@ -64,12 +68,25 @@ pub mod journal;
 /// conditional replace).
 pub mod journal_replace;
 
+/// What one replacement answered and where the file it displaced is kept (split out of the journal replacement module).
+pub mod journal_replace_outcome_and_keep_rule;
+
+/// Making the names a file is published under durable and exclusive (split out of the journal replacement module).
+pub mod journal_replace_creates;
+
+/// The directories a creation left unsynchronized (split out of the journal replacement module).
+pub mod journal_replace_unsynced;
+
 /// Keeping the displaced file under a surviving name (split out of the journal replacement module).
 pub mod journal_replace_preserve;
 
 /// The recovery of a run that was killed,
 /// split out of `journal.rs`.
 pub mod journal_recover;
+
+/// The recovery of one journal:
+/// its roots and the temporaries a killed run left (split out of `journal_recover.rs`).
+pub mod journal_recover_one;
 
 /// Reads of a journal directory:
 /// index,
@@ -108,8 +125,20 @@ pub mod journal_unready_verdict;
 /// The assessment of one journal's containment records (split out of the journal unready module).
 pub mod journal_unready_assessment;
 
+/// The record of one journal and the context it was made in (split out of the journal unready assessment module).
+pub mod journal_unready_record_context;
+
 /// Runs a child process within a time bound.
 pub mod bounded_run;
+
+/// What one bounded call is allowed and how it fails (split out of the bounded run module).
+pub mod bounded_run_bound_and_error;
+
+/// The open scope of one run as this process remembers it (split out of the bounded run module).
+pub mod bounded_run_scope;
+
+/// The trace of a run and the hooks a test drives inside one (split out of the bounded run module).
+pub mod bounded_run_trace_and_hooks;
 
 /// The cache of the control group route (split out of the bounded run module).
 pub mod bounded_run_route_cache;
@@ -121,6 +150,9 @@ pub mod bounded_run_record_writes;
 /// its choice,
 /// start and stop (split out of the bounded run module).
 pub mod bounded_run_containment;
+
+/// The start of a child inside the containment (split out of the containment module).
+pub mod bounded_run_start;
 
 /// Error text that is built only when a failure happens,
 /// passed as a `format_args!` value instead of a closure.
@@ -140,8 +172,17 @@ pub mod control_group_records;
 /// Discovery of the route to a delegated control group (split out of the control group module).
 pub mod control_group_route_discovery;
 
+/// The mount view a control group route records (split out of the route discovery module).
+pub mod control_group_route_view;
+
+/// The short programs the route discovery runs under one deadline (split out of the route discovery module).
+pub mod control_group_route_child_runs;
+
 /// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
 pub mod control_group_process_identity;
+
+/// Opening and reading the mounted procfs (split out of the control group process identity module).
+pub mod control_group_procfs_reading;
 
 /// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
 pub mod control_group_machine_identity;
@@ -169,6 +210,9 @@ pub mod file_owner;
 /// Fills the history cache from the crates.io database dump.
 pub mod dump;
 
+/// Reads one table of the crates.io database dump (split out of `dump.rs`).
+pub mod dump_table_reading;
+
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
@@ -183,9 +227,11 @@ pub mod git_system_config_lookup;
 /// without Git.
 pub mod git_config;
 
-/// The plain-file reader of `HEAD`,
-/// branch configuration and references that chooses the trust base without Git.
+/// The plain-file reader of `HEAD` and of where a repository's files are that chooses the trust base without Git.
 pub mod git_refs;
+
+/// What a reference names and the reference a branch's upstream names (split out of `git_refs.rs`).
+pub mod git_reference_lookup;
 
 /// The environment and the Git program a native read runs with.
 /// (split out of the git refs module).
@@ -226,6 +272,9 @@ pub mod policy;
 /// the counterpart of `pnpm install`.
 pub mod install;
 
+/// The stale crate roots of an install and the update that repairs them (split out of the install module).
+pub mod install_stale_roots;
+
 /// The helpers of the install that decide which policy checks a lockfile still needs,
 /// split out of `install.rs`.
 pub mod install_verify;
@@ -249,6 +298,13 @@ pub mod notice_marker;
 
 /// The crates.io lookups.
 pub mod registry;
+
+/// crates.io through a fetcher,
+/// with the API limits it keeps (split out of the registry module).
+pub mod registry_crates_io;
+
+/// Reading crates.io's answers and the history cache into records (split out of the registry module).
+pub mod registry_record_reading;
 
 /// Removes stale exclude selectors from the catalog.
 pub mod prune;
@@ -307,6 +363,23 @@ pub mod update;
 
 /// The work values of the update (split out of the update module).
 pub mod update_recorded_work;
+
+/// The failure of an update,
+/// the text it prints and the two conversions into it (split out of the update module).
+pub mod update_error;
+
+/// The locked crates a name-only exclude selector exempts from the release age (split out of the update module).
+pub mod update_excluded_specs;
+
+/// The manifests a `--breaking` update may rewrite (split out of the update module).
+pub mod update_manifests;
+
+/// The procedure an update runs,
+/// what it needs and what it reports (split out of the update module).
+pub mod update_request_and_report;
+
+/// The transaction body of an update and the one cargo call it makes (split out of the update module).
+pub mod update_run;
 
 /// The option tests and the raised-floor warning wording that `update` asks about.
 pub(crate) mod update_argument_and_warning_text;

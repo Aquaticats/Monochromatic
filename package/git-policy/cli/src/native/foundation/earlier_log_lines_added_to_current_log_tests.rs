@@ -7,6 +7,8 @@ use crate::earlier_log_lines_journal_held_and_recorded::{
     parse_journal,
 };
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
+/// Writing the lines a straggling program adds to a log.
+use std::io::Write;
 use std::path::PathBuf;
 
 /// One empty fixture folder for a control.

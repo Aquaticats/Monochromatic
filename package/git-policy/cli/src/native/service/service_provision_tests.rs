@@ -7,9 +7,21 @@
 //! The manager is a recorder.
 
 use super::*;
-use crate::service_instance::socket_path;
+use crate::service_instance::{
+    LEGACY_SOCKET_RELATIVE,
+    earlier_service_unit_instance,
+    earlier_socket_path,
+    earlier_socket_unit_instance,
+    program_link,
+    service_unit_instance,
+    socket_path,
+};
 use crate::service_messages::render;
 use crate::service_provision_unit_file_ownership_and_writes::remove_settled;
+use crate::systemd_dbus::{
+    CallError,
+    NO_SUCH_UNIT,
+};
 use crate::test_support::{
     fixture,
     remove,
