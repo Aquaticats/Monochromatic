@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T11:12:18-05:00
+## The state at 2026-11-27T11:20:49-05:00
 
-`main` was `bf8adbb8e3`.
+`main` was `65bffa15ec`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 216 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 218 more by this time.
 
 ### Rounds running
 
@@ -144,8 +144,10 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which the reader has refused since 2026-11-25;
   every assertion after `SLOT-STATE pending-add` in that arm is unverified until it is fixed.
   The container gate does not run that arm;
-- `issue-6607-the-wrapper-after-a-failed-exec-ends-as-it-means-to`
-  ("What the rounds found");
+- in the linter,
+  `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
+  ("Releases of 2026-11-27");
+  `0.5.2-alpha.20` follows its merge;
 - the last round for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
   `wrapper-alpha-48-release-pass-list-guards-name-the-files-the-splits-made`.
   Every other finding of the two passes that earned a fix is merged:
@@ -177,8 +179,10 @@ its pass runs,
 `~/temp/agent/cargo-shadow-alpha-13-release-review-2026-11-27/`)
 and `mpm-shadow` `0.2.7-alpha.14`
 (release commit `bf8adbb8e3`,
-started 2026-11-27T11:10,
-to be locked and installed once published).
+locked `bf626a6017`,
+installed;
+its pass runs,
+`~/temp/agent/mpm-shadow-alpha-14-release-review-2026-11-27/`).
 `cargo-shadow` alpha.13 holds the retire that asks the manager nothing on an ordinary run
 (`d0b821414c`:
 a trivial shadow call at 0.874 times alpha.11's time at the median,
@@ -205,14 +209,14 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-One read runs as a background agent of the coordinating session,
-a Claude Sonnet read
+Two reads run as background agents of the coordinating session,
+each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review)
 that writes `keep/review.md` under its scratch folder:
-the linter's `0.5.2-alpha.19`
-(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`).
-The coordinator rewrites what lasts from it into this file before scratch expires.
+`cargo-shadow`'s `0.1.5-alpha.13` and `mpm-shadow`'s `0.2.7-alpha.14`,
+at the paths this section gives beside each release.
+The coordinator rewrites what lasts from each into this file before scratch expires.
 
 The whole gate on `main` at `ff1ae3e5c7` passed
 (unit `gpc-gate-wrapper-next-alpha-on-ff1ae3e5c7-20261127T095035-0500`,
@@ -624,6 +628,26 @@ with no High finding:
   41 commands compared between the two binaries,
   identical but for the version line.
 
+What the linter's alpha.19 pass found:
+no High and no Medium finding,
+and both of alpha.18's Medium findings fixed
+(the near-miss search is linear again,
+0.93 to 1.07 times alpha.17 where alpha.18 was 69 times).
+Every printed key reads back with the same binary,
+and the layout gate on `package/git-policy/cli` and on the ZFS binding reports nothing,
+with a control that removes the allow keys reporting 558 and 16 findings.
+Its six Low findings have one round:
+a `uses` line spaced with tabs or no-break spaces still stops the whole rule,
+with a message that does not mention whitespace
+(163 of 220 spellings,
+all of which alpha.16 read);
+a mistyped `file-uses` line gets the wrong message;
+two wording gaps;
+a README mapping gap;
+edits no test would catch;
+and one constructed walk shape that costs 1.64 times alpha.16,
+fixed only if a package of this repository has that shape.
+
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
 `cargo:monochromatic-cargo-shadow`,
@@ -853,6 +877,11 @@ and the two `truepeak` files wait on their branch.
   the four-small-points round through a command without its own `cd`);
   both are on issue 6378,
   which holds the branch that fences a run's writes.
+- After a failed `exec` of the real Git the wrapper now puts the `SIGPIPE` action back
+  and ends by the status its exit contract gives a command that ran no Git (`65bffa15ec`,
+  issue 6607):
+  with standard error a pipe whose reader was gone,
+  the parent read `SIGPIPE` before and status 2 after.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
