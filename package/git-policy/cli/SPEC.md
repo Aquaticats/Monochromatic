@@ -5499,12 +5499,30 @@ what a removal would prove and lose is printed beside it,
 which the section "Removal of a ZFS worktree clone" below describes.
 A pending add's removal is not refused,
 because the add's own refusal names `git worktree remove <slot>` as its way forward;
+a pending add whose record has reached the phase that makes a clone
+(`cloned` or `settling`) is the exception:
+an unreadable mount table alone would say whether that clone is mounted at the slot,
+so it refuses the removal until it can be read;
 a pending removal is left to Git,
 and a slot whose binding record cannot be read is refused rather than left to Git,
 naming the record and what to repair,
 as `git worktree move` already refuses it.
 That refusal is decided from the record alone,
 so no pool and no mount table is read before it.
+A slot the readings prove nothing about is refused too,
+in the three cases the owner answered on 2026-11-26:
+no record is filed under the slot's name and a mount stands at its path,
+the record filed under that name names another path,
+or the mount table,
+which includes the mount at the slot,
+cannot be read.
+Each of the three refuses before Git with what could not be proved and the repair
+that ends it,
+so no pool is read to make the answer.
+A phase that disagrees with its mount and a destruction plan nobody could read are
+still left to Git,
+because the answer names these three and no more,
+and the slot's report says which reading it met.
 A global option this build does not know is refused rather than forwarded while the
 repository holds slot records:
 `git worktree remove` and `git worktree move` behind such an option stop before Git,
@@ -5514,7 +5532,17 @@ The refusal names that option and the two spellings the wrapper reads,
 the command without it and `git -C <repository> worktree ...`.
 A repository with no slot record forwards the command as it always did,
 because no record can be endangered there,
-and that refusal too reads no pool and no mount table
+and that refusal too reads no pool and no mount table.
+A spelling that stands a global option the wrapper does not read before the words
+that name the repository is refused as well,
+even where the wrapper names no repository to check:
+`git --future-option=x -C checkouts/repo worktree remove -f -f slot-one` stops the
+reading at the option,
+so a `-C`,
+`--git-dir` or `--work-tree` after it names a repository the wrapper never
+read,
+and the refusal says that nothing proves which repository the command names or whether
+that repository holds slot records
 (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
 
 The underlay pointer is kept for `git worktree prune`,

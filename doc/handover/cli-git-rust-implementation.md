@@ -103,57 +103,116 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-26T18:55:00-05:00
+## The state at 2026-11-26T20:11:42-05:00
 
-`main` was `61274c4d32` (2026-11-26T18:34:32-05:00).
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 
 ### Rounds running
 
-About 64 Pi rounds run at once, the owner's "Up to 64 rounds at once."
+About 64 Pi rounds run at once,
+the owner's "Up to 64 rounds at once."
 (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
-Every one runs on Pi's virtual writer, pinned to no member
+Every one runs on Pi's virtual writer,
+pinned to no member
 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
 and each round's brief is `~/temp/agent/<round>-2026-11-26/prompt.md`.
 
-- The crate split's file rounds, after the owner's "Keep 300, split everything"
+- The crate split's file rounds,
+  after the owner's "Keep 300,
+  split everything"
   (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`):
-  the wrapper's 42 rounds (`split-wrapper-<folder>-files-over-the-line-budget-<n>`)
-  and the other crates' 30 (`split-<package>-files-over-the-line-budget[-part-<n>-of-<m>]`).
+  the wrapper's rounds (`split-wrapper-<folder>-files-over-the-line-budget-<n>`)
+  and the other crates' (`split-<package>-files-over-the-line-budget[-part-<n>-of-<m>]`),
+  on branches `refactor/<package>-split-files-over-the-line-budget[-part-<n>-of-<m>]`.
   Each brief tells its round to leave a file another open branch changes,
   so rounds in one folder may still meet at merge.
-  `worktree/worktree_remove.rs` is in no round:
-  it waits for the split plan's round 3 loop breaks (`doc/planning/cli-git-source-layout-target-tree.md`, "Next").
 - Issue 6521 (the service log-line controls share one queue).
 - The linter's alpha.16 release pass fixes
-  (`~/temp/agent/monochromatic-lint-alpha-16-release-pass-fixes-2026-11-26/prompt.md`;
+  (`monochromatic-lint-alpha-16-release-pass-fixes`;
   the pass found one Medium and six Lows).
   The coordinator releases alpha.17 after it merges.
-- The driver round that counts a virtual-writer run once against its members' combined room
+- The driver round whose pool gate counts no virtual-writer run,
+  the owner's "No count (Recommended)" of 2026-11-26
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+  "The pool gate counts no virtual run").
+  Its folder keeps the name of the count it began with
   (`subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room`).
-  The count is the coordinator's design, not the owner's,
-  so its count change does not merge until the owner chooses
-  (`doc/planning/pi-round-start-failures-and-what-would-stop-them.md`, "Open question for the owner").
+  After its merge the coordinator rebuilds the package's `dist` in the main checkout.
+- The six rounds that restate what repository documents use from scratch
+  (`restate-the-scratch-evidence-cited-by-<family>`),
+  all started by 2026-11-26T19:55-05:00;
+  the cleanup deletes what they read at 2026-11-27T15:26:37-05:00.
+- The driver's worktree launcher fix
+  (`subagent-driver-worktree-launcher-skips-pnpm-install-after-the-add`,
+  issue 6339).
+  After it merges,
+  rounds start through `start-pi-run-in-a-worktree`.
+- `slint-1-19-pin-and-locks-so-three-apps-resolve-again`,
+  which finishes the half-applied Slint update ("What the split rounds found").
+- Issue 6491 (`forbidden-strings`' embedding control fails on a `utf8only` home)
+  and issue 6398 (the daily update moves a catalog floor without the manifests and locks).
 
-Waiting for a place under the 64, in this order:
-`split-mpm-shadow-cli-files-over-the-line-budget-part-3-of-3`,
-`split-music-player-desktop-app-files-over-the-line-budget-part-3-of-3`,
-`split-forbidden-strings-core.bench-files-over-the-line-budget`,
-`split-music-player-truepeak-core.bench-files-over-the-line-budget`,
-`split-music-player-truepeak-core-files-over-the-line-budget`,
-`split-ide-app-files-over-the-line-budget-part-4-of-4`,
-`split-cargo-shadow-cli-files-over-the-line-budget-part-4-of-4`.
-Their branches are `refactor/<package>-split-files-over-the-line-budget[-part-<n>-of-<m>]`.
+Nothing waits for a place under the 64.
+Waiting on a named merge:
 
-Ended and in their merge checks at this time:
-issue 6522 (the service client controls share one manager and stop flag)
-and the owner's two follow-up refusals (the `-C` spelling and three more unproven slots,
-`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+- The music player's split rounds part 1 and 2 of 3 (second runs) and part 3 of 3,
+  on the Slint round's merge.
+- Issues 6524,
+  6525 and 6526 (three landing controls that fail only threaded),
+  on the merge of the landing split rounds 2 to 4,
+  which change the same folder.
+- Issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy"),
+  on the merge of the `mpm-shadow` and `cargo-shadow` split rounds.
 
 Not yet briefed:
 issue 6513 (the linter reads a near-miss file-list marker as no list),
-and the linter's own files over the line budget, after alpha.17.
+and the linter's own files over the line budget,
+after alpha.17.
+
+A round that has ended is found by listing the round folders whose latest `run-<n>/summary.json` exists
+while `.claude/worktrees/<round>` still does.
+The coordinator's watcher named only the first round to end after it was started,
+and nine ended rounds sat unmerged for up to three hours on 2026-11-26 because of it.
+A `git worktree add` through the session wrapper took from about 17 minutes to more than 30 that evening,
+with two to five adds copying at once beside about sixty running rounds
+(disk stall `some avg10` between 55 and 64).
+
+### What the split rounds found
+
+- `package/music-player/desktop-app` and `package/ide/app` resolve no dependency set on `main`:
+  the daily update raised the Slint floor to `>=1.19.0` (`aead90ed51`,
+  issue 6398),
+  `f4a30120e8` wrote the floor into four manifests,
+  and the pinned row `i-slint-backend-testing = "=1.18.1"` still stands,
+  which `rust-catalog.toml` says must equal the resolved Slint release.
+  The music player's split rounds part 1 and 2 of 3 stopped before their first edit;
+  their worktrees are kept for a second run,
+  and part 3 of 3 is not started,
+  until the round `slint-1-19-pin-and-locks-so-three-apps-resolve-again` has merged.
+  The IDE's rounds work around it with an uncommitted manifest edit.
+- The landing round 1 left three files over the budget,
+  each for a reason a move cannot fix:
+  `service_land_batch_body.rs` (one 387-line function around a retry loop that shares eight mutable values),
+  `held_commit_settle.rs` (in a tolerated loop with `held_commit_settle_move.rs` and `service_land_finish.rs`)
+  and `service_land_side_reference_write.rs`
+  (in a tolerated loop with `service_land_without_its_scratch_reference.rs`).
+  They wait,
+  with `worktree/worktree_remove.rs`,
+  for the split plan's round 3 loop breaks (`doc/planning/cli-git-source-layout-target-tree.md`,
+  "Next").
+- `monochromatic-lint.config.jsonc` turns `rust/max-lines` off for `**/tests/**/*.rs`,
+  so the linter never reported the integration test files the briefs named;
+  the rounds split them to the same budget anyway.
+- `forbidden-strings`' `embedding::public_embedding_runs_without_real_user_state` fails on `main`
+  on this machine's `utf8only` home (issue 6491).
+- Two rounds split the four byte-identical copies of `src/shadow_identity.rs` into different parts,
+  because each scanned the open branches before the other pushed.
+  The `pnpm-shadow` round's layout landed first (`0eac88f14d`),
+  the `search-shadow` branch took it in its merge (`f216e142a3`,
+  on `main` as `437293c4b0`),
+  and the two rounds still running with that file in their brief were told to leave it.
+  A file that several crates must keep identical belongs to one round.
 
 ### Next
 
@@ -164,11 +223,12 @@ and the linter's own files over the line budget, after alpha.17.
   run in a capped unit of its own;
   the last one ran at `42a59e812e` and passed 12028 of 12028
   (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
-- Rework the Pi start proposal after its Sonnet read, which found it not ready
-  (`~/temp/agent/pi-start-proposal-sonnet-read-2026-11-26/keep/review.md`):
-  merging when a round ends would merge before the report is read;
-  the package already has a start command, `start-pi-run-in-a-worktree`;
-  and live text still carried the retracted limits.
+- A new brief names `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`
+  and,
+  for the wrapper,
+  its guide;
+  the coordinator's scratch rules files are not named again (`cf78109e15`,
+  `dfdf83a21f`).
 - Owner questions wait in `doc/handover/questions-for-the-owner.md`,
   among them the next step a typed network command names at a new host key
   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).
@@ -179,17 +239,21 @@ The owner set `/etc/tmpfiles.d/temp.conf` on 2026-11-26 to `d /home/user/temp - 
 `systemd-tmpfiles-clean.timer` runs daily (next at 2026-11-27T15:26:37-05:00) and 15 minutes after a boot,
 and the home dataset is mounted `noatime`,
 so a file under `~/temp` survives only if it changed in the last 24 hours.
-The owner, the same evening:
+The owner,
+the same evening:
 "Don't promote anything in ~/temp that breaks repo rules or plain broken into the repo.
-If you can't move everything before the scheduled cleanup, too bad.
+If you can't move everything before the scheduled cleanup,
+too bad.
 That is for you to learn."
 
-So the coordinator's private launchers, merge lanes and gate runner under `~/temp/agent` expire
+So the coordinator's private launchers,
+merge lanes and gate runner under `~/temp/agent` expire
 and are not carried into the repository.
 What replaces them is built in the repository by its own rules;
 until then a round starts through the driver package's commands
 and a merge runs by hand under the merge bar.
-801 repository documents cite paths under `~/temp/agent` (3827 citations, counted 2026-11-26),
+801 repository documents cite paths under `~/temp/agent` (3827 citations,
+counted 2026-11-26),
 and those citations point at nothing once the cleanup reaches them.
 
 ### The session wrapper is a build of 2026-11-22
@@ -198,10 +262,13 @@ and those citations point at nothing once the cleanup reaches them.
 `.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`.
 That build predates `4acb1b04b6` (2026-11-24T19:39:21-05:00),
 so every `git worktree remove` warns and keeps the removed worktree's service journal
-because it "holds rules-repository, a file this release does not know";
+because it "holds rules-repository,
+a file this release does not know";
 the kept journals are harmless and sit in `~/.local/state/monochromatic-git-policy-cli/service/`.
 `0.6.1-alpha.47` (release commit `68af165851`) is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`,
-and its sweep, run by absolute path, removes them.
+and its sweep,
+run by absolute path,
+removes them.
 The session link stays on the reviewed build:
 the AppArmor rules name that exact path,
 and pointing them at a newer build takes the fresh review that waits in `doc/handover/questions-for-the-owner.md`.
@@ -221,8 +288,11 @@ Memory is judged by the stall and by `MemAvailable` plus the ZFS ARC above `c_mi
 (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`).
 No start or merge check waits on memory or on a spacing between starts:
 the coordinator had applied both,
-and the owner, 2026-11-26: "I didn't tell you to apply the 3 minutes apart and memory test rules."
-At 18:25 that evening, with 58 worktree adds copying at once,
+and the owner,
+2026-11-26:
+"I didn't tell you to apply the 3 minutes apart and memory test rules."
+At 18:25 that evening,
+with 58 worktree adds copying at once,
 the disk stall read `some avg10=76.24` and `MemAvailable` 10290 MiB:
 each add through the session wrapper copies about 39,000 ignored entries,
 the cost the owner's hold of 2026-11-18 on heavy worktree use names.
@@ -279,7 +349,9 @@ so nothing calls `enter_the_removal` yet and `source_guard`'s
   writing `sanoid.conf` is the owner's act.
   Step 21 merged.
 - Step 22's guest half is measured (`2ddf2853ad`);
-  its storage half is the agent's act, logged, by the owner's answers of 2026-11-26.
+  its storage half is the agent's act,
+  logged,
+  by the owner's answers of 2026-11-26.
 - Step 23's host-kernel qualification run merged as `0c4064831d`
   (`doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`);
   the owner declares the release qualified or not.
@@ -292,23 +364,35 @@ steps 19,
 and a release carrying them,
 installed.
 Nothing of the route is installed on this machine.
-The checkout migration of plan steps 12, 18 and 19 is the agent's act,
+The checkout migration of plan steps 12,
+18 and 19 is the agent's act,
 run with sudo when no process has the checkout open,
 by the owner's answer of 2026-11-24 ("You run it whenever you feel convenient.",
-`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`, "Who runs the checkout migration").
+`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+"Who runs the checkout migration").
 The other host changes the plan keeps for the owner
-(`zfs allow`, the units, the zedlet, the immutable entry, `sanoid.conf`, other datasets' properties,
-step 22's storage half, step 23's image build and any reboot)
-are the agent's act too, logged, by the owner's answers of 2026-11-26
+(`zfs allow`,
+the units,
+the zedlet,
+the immutable entry,
+`sanoid.conf`,
+other datasets' properties,
+step 22's storage half,
+step 23's image build and any reboot)
+are the agent's act too,
+logged,
+by the owner's answers of 2026-11-26
 (`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`);
-the owner chooses the moment of the migration and of any reboot, which the agent prepares.
+the owner chooses the moment of the migration and of any reboot,
+which the agent prepares.
 
 Next:
 the wiring of steps 17 and 18 with step 22's request budget,
 which lifts the removal path's cut.
 It edits the crate the split rounds rewrite now,
 so the coordinator briefs it against `main` once they have merged
-(the coordinator's sequencing, not an owner decision).
+(the coordinator's sequencing,
+not an owner decision).
 
 Rounds keep their files under `~/temp/agent/<round name>-<date>/`,
 which expires a day after its last change ("Scratch expires after a day");
@@ -362,7 +446,8 @@ State,
 at 2026-11-26T18:55-05:00:
 the split's round 1 merged as `3418cdaebc`,
 round 2's 19 files that were over the budget before the reformat merged in five branches,
-and the owner's "Keep 300, split everything" put every Rust file over 300 lines in a round
+and the owner's "Keep 300,
+split everything" put every Rust file over 300 lines in a round
 ("Rounds running").
 
 The layout rules `AGENTS.md` sets for every crate are switched on for this one,
@@ -493,7 +578,9 @@ or that is no issue:
   The rule against acting on the system service manager in the skill `pi-as-subagent` binds the agents a
   session briefs.
   The checkout migration is the agent's act by the owner's answer of 2026-11-24;
-  the other ZFS host changes are the agent's act, logged (owner, 2026-11-26),
+  the other ZFS host changes are the agent's act,
+  logged (owner,
+  2026-11-26),
   and the owner picks the moment of the migration and of any reboot.
 - No round runs `mise run toolchain:install`,
   not even for one tool in its own worktree:
@@ -514,7 +601,10 @@ or that is no issue:
 - Orphaned cargo build folders under `~/.cargo/build`,
   left by integration passes,
   are not removed without the owner.
-- The checkout migration is the agent's act (owner, 2026-11-24);
-  the other ZFS host changes are the agent's act, logged (owner, 2026-11-26),
+- The checkout migration is the agent's act (owner,
+  2026-11-24);
+  the other ZFS host changes are the agent's act,
+  logged (owner,
+  2026-11-26),
   and the owner picks the moment of the migration and of any reboot.
   Old drives stay read-only and unwiped until the ZFS route is released.
