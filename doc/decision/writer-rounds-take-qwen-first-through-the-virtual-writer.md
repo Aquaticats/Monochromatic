@@ -92,9 +92,10 @@ which refuses only a closed pool and checks no pool's room (its own header, line
 so the driver's count never reached those rounds.
 From 2026-11-26T17:50-05:00 every coordinator round starts on the virtual writer,
 pinned to no member,
-under the owner's start rules alone
-(three minutes apart, behind the memory test, up to 64 at once;
-`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/schedule-every-queued-round.ts`).
+under the owner's "Up to 64 rounds at once." alone.
+The coordinator had also spaced starts three minutes apart behind a memory test,
+which the owner never set; the owner, 2026-11-26: "I didn't tell you to apply the 3 minutes apart and memory test rules."
+From 2026-11-26T17:45-05:00 every queued round was started at once, up to the 64.
 A first try pinned the overflow to opencode-go,
 and both rounds it started ended on their first request with opencode-go's
 `429: {"type":"GoUsageLimitError"` refusal of its spent monthly quota,
@@ -105,3 +106,14 @@ Starts through the driver's pool gate
 still count a virtual-writer run as a slot in every member and so stop at Qwen's 5;
 the driver is being changed to count such a run once against its members' combined room
 (round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`).
+
+## The pool gate counts no virtual run (owner, 2026-11-26)
+
+Asked at about 19:10 -05:00 how the driver's pool gate counts a run on the virtual writer
+(no count, once against the members' combined room, or a slot in every member as before),
+the owner answered "No count (Recommended)":
+the gate counts only runs pinned to one pool,
+and a run on the virtual writer or the virtual reviewer holds no slot in any member,
+because the router moves a refused request on by itself.
+The driver round that was building the combined-room count was told so through its inbox the same minute,
+since that count was the coordinator's design and not the owner's.
