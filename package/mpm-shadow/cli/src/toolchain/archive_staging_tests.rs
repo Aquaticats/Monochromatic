@@ -37,7 +37,6 @@ use super::archive_staging::{
     FinishedCopy,
     Owner,
     Plant,
-    Published,
     RECOVERED_PURPOSE,
     REPLACED_PURPOSE,
     Recovered,
@@ -86,6 +85,11 @@ use super::published_archive_tests::{
 };
 /// Imports the install itself.
 use super::sync::sync_tools;
+
+/// The control of a publish a second install races between its two renames,
+/// and of the copy an install's own failed publish keeps.
+#[path = "archive_staging_tests/the_publishes_that_fail_or_race_tests.rs"]
+mod the_publishes_that_fail_or_race_tests;
 
 /// The variable the installer this control kills reads the tool directory of its fixture from.
 const TOOL_DIRECTORY_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_TOOL_DIRECTORY";
@@ -1273,83 +1277,6 @@ fn a_publish_whose_put_back_fails_keeps_the_finished_copy_and_names_the_aside_co
     assert!(
         version_dir.join(WHAT_THE_VERSION_HELD).is_file(),
         "the copy the second install put there is at the version's name"
-    );
-}
-
-/// What:
-/// A second install that publishes the version in the instant between this publish's two renames,
-/// on a file system that cannot exchange the two names.
-/// Why:
-/// The version is finished by that install,
-/// so this publish has no copy left to put in place and none to put back:
-/// its own copy is redundant and the copy it moved aside is unfinished,
-/// and a failed status here says an install broke while the version sits there whole.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// test('a second install that publishes between the two renames leaves nothing to report', () => {
-///   unmarkedArchive(root, '0.2.1');
-///   writeFinishedCopy(stagingDirOf(versionDir));
-///   plantTheseSteps({ refuseTheExchange: true, anotherInstallActs: aFinishedCopyAtTheVersionAsAnotherInstall });
-///   expect(publishStaged(staging, versionDir, BIN)).toBe('already-there');
-/// });
-/// ```
-#[test]
-fn a_second_install_that_publishes_between_the_two_renames_leaves_nothing_to_report() {
-    let rig = Rig::new();
-    let root = rig.scope.toolchain_root.clone();
-    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
-    let version_dir: PathBuf = tool_dir.join("0.2.1");
-    // The copy that was there, unfinished, and the finished copy this publish holds.
-    unmarked_archive(&root, "0.2.1");
-    let staging: PathBuf = staging_dir_of(&version_dir);
-    fs::create_dir_all(staging.join("release-folder")).expect("make the staging directory");
-    write_executable(&staging.join("release-folder").join(BIN));
-    write_complete_marker(&staging, ID, "0.2.1", &release_digest("0.2.1"))
-        .expect("write the completion marker");
-
-    // What: the file system cannot exchange the two names, and another install publishes the finished version in the
-    //  instant between this publish's two renames.
-    // Why: that instant is where a second install acts, and the control picks it exactly instead of timing it.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // plantTheseSteps({ refuseTheExchange: true, anotherInstallActs: aFinishedCopyAtTheVersionAsAnotherInstall });
-    // ```
-    plant_these_steps(Plant {
-        refuse_the_exchange: true,
-        another_install_acts: Some(a_finished_copy_at_the_version_as_another_install),
-        ..Plant::default()
-    });
-    // What: the answer of the publish, or the error it failed with.
-    // Why: a publish whose version is finished by another install did nothing wrong and has nothing to report.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const published = publishStaged(staging, versionDir, BIN);
-    // ```
-    let published: Result<Published, super::error::ToolchainError> =
-        publish_staged(&staging, &version_dir, BIN);
-    clear_the_plant();
-    // What: the answer of that publish.
-    // Why: the version's name holds the finished copy, so this call dropped the copy it held.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const outcome = published.expect('the version is finished by the second install');
-    // ```
-    let outcome: Published = published.expect(
-        "the version is finished by the second install, so this publish has nothing left to do",
-    );
-    assert_eq!(outcome, Published::AlreadyThere, "{outcome:?}");
-    assert!(
-        is_finished(&version_dir, BIN),
-        "the version's name holds the copy the second install published"
-    );
-    assert_eq!(
-        names_of(&tool_dir),
-        vec!["0.2.1".to_string()],
-        "nothing of the kill or of this publish stays beside the finished version"
     );
 }
 
