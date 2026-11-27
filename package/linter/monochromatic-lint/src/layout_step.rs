@@ -286,35 +286,39 @@ fn note_keys(
 ///  Every key about such a path holds the name,
 ///  and a line that ends in a trimmed character reads as if the character were not there,
 ///  while a line ends at a newline,
-///  a folder name that holds a backslash is written by every key as another folder,
-///  and a folder name that holds the words a `uses` line sets its arrow off with
-///  leaves that line unable to say where the used folder starts,
+///  a `uses` line writes a folder as a path with `/` between its segments,
+///  so a folder name that holds a backslash would name another folder on a machine that separates folders with it,
+///  and a folder name that ends or begins with the words a `uses` line sets its arrow off with,
+///  or that is the arrow alone,
+///  leaves that line unable to say which of its two folders is the one used,
 ///  so no finding about it could be written down;
 ///  a run over such a tree would report findings no list can hold.
 ///  The caller passes the paths the keys are built from,
 ///  so the parts checked are exactly those parts,
-///  and says whether the last part is a file name,
-///  because a file name is no path and a `file-uses` line keeps its backslash as written.
+///  and the last part of each is a name rather than a folder,
+///  because a file name and an entry of a `uses` folder are no paths:
+///  their keys write them as the source does, backslash and arrow words included.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistablePath(paths: Path[], lastIsFileName: boolean, base: Path): [Path, string, UnlistableName] | undefined;
+/// function unlistablePath(paths: Path[], base: Path): [Path, string, UnlistableName] | undefined;
 /// ```
 fn unlistable_path(
     paths: &[PathBuf],
-    last_is_a_file_name: bool,
     base: &Path,
 ) -> Option<(PathBuf, String, UnlistableName)> {
     for path in paths {
         let mut parts: Vec<String> = Vec::<String>::new();
         let mut unlistable: Option<UnlistableName> = None;
         // What: each name a key writes, as the file system spells it.
-        // Why: a written key writes `/` for a backslash inside a name, so its own parts cannot show one.
+        // Why: a key writes a name's own backslash as written, so the parts of the written path cannot show one.
         let names: Vec<String> = key_names(path, base);
         let last: usize = names.len().saturating_sub(1);
         for (index, part) in names.iter().enumerate() {
-            let folder_or_file: bool = !(last_is_a_file_name && index == last);
-            let checked: Option<(String, UnlistableName)> = if folder_or_file {
+            // What: whether this part is a folder, which a `uses` line must name as a path, or the name the path ends in.
+            // Why: only a folder name can leave a `uses` line unable to say where one folder ends.
+            let folder: bool = index != last;
+            let checked: Option<(String, UnlistableName)> = if folder {
                 unlistable_folder_name_part(part.as_str())
             } else {
                 unlistable_name_part(part.as_str())
@@ -353,7 +357,7 @@ fn unlistable_name(
     for module in &tree.modules {
         paths.push(module.file.clone());
     }
-    return unlistable_path(paths.as_slice(), true, base);
+    return unlistable_path(paths.as_slice(), base);
 }
 
 /// What:
@@ -362,6 +366,9 @@ fn unlistable_name(
 ///  A link's key holds the entry's own name,
 ///  so an entry named with a trailing space or a line break keys a finding no line could hold,
 ///  although no module file of the package carries that name.
+///  An entry is no path and never appears on a `uses` line,
+///  so its key writes its name as the source does:
+///  a backslash or the arrow words are no reason to refuse it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -386,9 +393,9 @@ fn unlistable_link_name(
         }
     }
     paths.sort();
-    // What: an entry of a `uses` folder names a folder, so it is checked as a folder name.
-    // Why: its key writes the entry as a path, backslash and arrow words included.
-    return unlistable_path(paths.as_slice(), false, base);
+    // What: an entry of a `uses` folder is a name and no path, so only the character the reader trims and a line break forbid it.
+    // Why: its key writes the entry as written, and no `uses` line names an entry.
+    return unlistable_path(paths.as_slice(), base);
 }
 
 /// What:
@@ -461,12 +468,12 @@ fn check_package(
                 "its name holds no line break",
             ),
             UnlistableName::HoldsBackslash => (
-                "its name holds a backslash, which every key writes as the separator `/`, so a line about it would name another folder",
+                "its name holds a backslash, which a `uses` line writes as the folder separator `/` on a machine that separates folders with it, so such a line would name another folder",
                 "its name holds no backslash",
             ),
             UnlistableName::HoldsArrowWords => (
-                "its name holds the words ` -> ` that a `uses` line sets its arrow off with, so the line could not say where the used folder starts",
-                "its name holds no ` -> `",
+                "its name holds ` -> `, begins with `-> `, ends with ` ->`, or is `->`, so a `uses` line naming it would read as another pair of folders",
+                "its name holds no arrow word at its beginning or its end",
             ),
         };
         outcome.findings.push(processing_failure(
