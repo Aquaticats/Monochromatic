@@ -12,6 +12,7 @@
 //! with the reason.
 
 use super::*;
+use crate::merge_second_pass_verdicts::LARGEST_BLOB_BYTES;
 use crate::test_support::{
     fixture,
     git,
@@ -21,9 +22,15 @@ use crate::test_support::{
     repository,
 };
 use crate::transaction_git::GitContext;
-use crate::word_merge::LineSpan;
+use crate::word_merge::{
+    LineSpan,
+    MergedPart,
+};
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A stored corpus file of the word-level merge.
 pub(crate) fn corpus(
