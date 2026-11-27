@@ -1,0 +1,16 @@
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1        19G  4.3G   15G  24% /
+mvm-shared      1.6T  403G  1.2T  26% /mnt/shared
+               total        used        free      shared  buff/cache   available
+Mem:         8131780      610080     4356344        1004     3480572     7521700
+Swap:              0           0           0
+Setting up swapspace version 1, size = 6 GiB (6442446848 bytes)
+no label, UUID=79a39b5c-5bab-4f8f-8bcf-3c115416ed05
+               total        used        free      shared  buff/cache   available
+Mem:         8131780      608884     4356344        1004     3481748     7522896
+Swap:        6291452           0     6291452
+   Compiling sha1 v0.11.0
+   Compiling sysinfo v0.40.3
+   Compiling similar v3.2.1
+   Compiling monochromatic-git-policy-cli v0.6.1-alpha.48 (/opt/git-policy-cli-lock/package/git-policy/cli)
+    Finished `release` profile [optimized] target(s) in 22m 22s

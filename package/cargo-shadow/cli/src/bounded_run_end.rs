@@ -9,11 +9,16 @@
 //! The control group then never becomes populated,
 //! the kernel sends no empty notification for it,
 //! and the unit stays `active (running)` with no member.
-//! So the run ends its unit itself on every path it controls:
+//! So every path a run controls ends with one last look at the unit it started:
 //! a normal end,
 //! a bound that passes,
 //! a refusal after the program started,
 //! and a launcher that is gone.
+//! The look asks the manager to stop the unit only when the group never held a process,
+//! because a group that held one has already told the manager that it emptied;
+//! a group that still has a member,
+//! and one whose emptiness was not shown,
+//! keep their unit and the run says why.
 //! Split out of `bounded_run_containment.rs`,
 //! which keeps the stop of the containment and answers whether it was shown empty.
 //!
@@ -148,8 +153,9 @@ fn retire_and_warn(
 /// This is the one way a run is ended,
 /// on timeout,
 /// on a normal exit and on every error path.
-/// The unit is asked to stop on every one of those paths,
-/// because a scope the manager never noticed becoming empty would otherwise stay loaded.
+/// Every one of those paths ends with the last look at the unit,
+/// because a scope the manager never noticed becoming empty would otherwise stay loaded;
+/// the look asks the manager to stop the unit only for a group that never held a process.
 /// The direct child goes first:
 /// it is the process that becomes the program,
 /// so once it is reaped nothing of this program's can

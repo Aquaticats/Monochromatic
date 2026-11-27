@@ -6,6 +6,73 @@ after the final shared-understanding check in
 This decision supersedes the blanket forced-background policy recorded in
 `package/claude-code-plugin/bash-output-filter/README.md`.
 
+## Amendment of 2026-11-27: caller timeouts are clamped and leading sleeps are prefixed
+
+Accepted by the owner on 2026-11-27T12:29:58-05:00,
+who chose "Clamp + prefix (Recommended)" in the question tool,
+together with the answers of 2026-11-27T12:26:54-05:00:
+"Accept the move (Recommended)" for bare sleeps
+and "Keep both (Recommended)" for the hook's own default.
+The cause,
+measurements,
+probes and ranked options are in `doc/planning/claude-code-bash-caller-timeout-cap.md`.
+The amendment replaces the caller-timeout and bare-sleep parts of "Timeout policy"
+and the exemption in "Sleep and filter behavior".
+
+For a Bash call without `agent_id`,
+without `run_in_background: true`,
+and with the policy enabled:
+
+- A caller timeout above 0 and at most `1000` stays.
+  Every other value,
+  absent included,
+  becomes `1000`.
+  Zero is included because Claude Code 2.1.332 kept an 8-second command with `timeout: 0` in front.
+- A command the output filter leaves unwrapped,
+  whose first command word after blank and whole comment lines is `sleep`,
+  is sent as `true && <command>`.
+  Claude Code stops a timed-out command whose first word is `sleep` and moves every other one,
+  so the prefix makes it move;
+  a filter-wrapped command already starts with `set -o pipefail`.
+- The bare numeric-sleep exemption is removed:
+  a bare `sleep N` receives `1000` and moves like any other command.
+- With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` a caller timeout stays as given and no prefix is added,
+  because a timeout there stops the command instead of moving it;
+  an absent timeout still becomes `1000` as the startup warning describes.
+  This follows the owner's note of 2026-11-27T12:26:54-05:00 that the clamp should
+  "leave them running in background";
+  the Claude Sonnet review of that day pointed out the stop.
+
+Shell commands that REPL code-mode scripts run reach the hook as main-session Bash calls
+and get the same treatment,
+by the owner's answer "Clamp REPL too (Recommended)" of 2026-11-27T12:49:24-05:00:
+a script's `.timeout(ms)` no longer keeps a long command in front,
+and its result arrives with the task notification.
+
+Unchanged:
+native subagents keep their execution fields and get no prefix;
+explicit background calls keep their flag and timeout;
+PowerShell,
+the opt-out variable,
+and the startup warning stay as decided.
+
+Accepted consequences:
+
+- No main-session Bash call stays in front much past two seconds;
+  a long wait goes on in the background and ends with its task notification.
+- In an unattended session (`-p`,
+  SDK,
+  CI or cloud),
+  a moved command is stopped 30 minutes after the move,
+  or 10 in a `-p` run with a text prompt.
+- The prefix hides the `sleep` from Claude Code's other checks keyed on the first subcommand,
+  such as the one that describes a `standalone sleep N`.
+- The prefix relies on Claude Code reading only the first command word.
+  A release that read further would stop prefixed sleeps at their timeout,
+  so the behavior is re-probed after each Claude Code upgrade as
+  `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md` describes.
+- A `cd` in any command lasting longer than about two seconds does not persist.
+
 ## Scope
 
 The change applies to the Bash tool only.
@@ -19,6 +86,9 @@ and separate `spawn-claude` child sessions,
 remain in scope.
 
 ## Timeout policy
+
+The caller-timeout and bare-sleep conditions in this section are superseded
+by "Amendment of 2026-11-27: caller timeouts are clamped and leading sleeps are prefixed".
 
 For an eligible main-agent Bash call,
 the hook supplies `timeout: 1000` only when all of these hold:
@@ -53,6 +123,9 @@ The value `1000` comes from the user's request,
 not a workload measurement.
 
 ## Sleep and filter behavior
+
+The bare-sleep exemption in this section is superseded
+by "Amendment of 2026-11-27: caller timeouts are clamped and leading sleeps are prefixed".
 
 The existing bare numeric-sleep exemption remains exactly as implemented.
 Chained sleeps are eligible.

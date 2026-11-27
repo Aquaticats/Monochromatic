@@ -68,13 +68,22 @@ and successfully returned `startupWired` from its Bash command.
 ## Open work
 
 - Owner review and acceptance are not recorded.
-- Calls that carry their own `timeout` skip the one-second default and can wait in front for up to their timeout.
-  The cause,
-  measurements,
-  a probe of Claude Code's native `CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS` cap
-  and the ranked options are in `doc/planning/claude-code-bash-caller-timeout-cap.md`,
-  first committed 2026-11-27T12:19:19-05:00;
-  the owner's choice is pending.
+- Caller timeouts and leading sleeps:
+  the owner chose the hook clamp with a sleep prefix on 2026-11-27T12:29:58-05:00
+  (`doc/decision/claude-code-bash-blocking-timeout.md`,
+  "Amendment of 2026-11-27").
+  The owner also chose to clamp REPL commands and to merge at once (2026-11-27T12:49:24-05:00).
+  Merged as `88632f16aa` at 2026-11-27T12:49:47-05:00 and live from then on in every session,
+  since `~/.claude/settings.json` runs the bundle from the main checkout.
+  Live check at 12:50 -05:00:
+  in this interactive code-mode session a REPL command with `.timeout(600000)` moved at 2058 ms.
+  Open:
+  a Claude Sonnet second pass (same vendor,
+  not independent) is still running,
+  and its findings are to be weighed and fixed;
+  re-probe the sleep rule after each Claude Code upgrade as
+  `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md` describes.
+  `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the evidence.
 
 ## Next step
 
