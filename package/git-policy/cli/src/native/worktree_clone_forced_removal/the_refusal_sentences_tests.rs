@@ -109,6 +109,61 @@ fn the_namespace_sentence_says_leaving_the_folder_is_not_enough() {
 }
 
 /// What:
+///  How many parentheses `text` writes as its own,
+///  which is every `)` an escape does not carry.
+/// Why:
+///  A count of `)` counts the ones inside the escape too,
+///  so a name holding `)` would look like the sentence wrote one more;
+///  this walks the escapes and counts only the parentheses the sentence wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parenthesesTheTextWrites(text: string): number {
+///   let count = 0;
+///   for (let at = 0; at < text.length; at += 1) {
+///     if (text[at] !== '\\') { if (text[at] === ')') count += 1; continue; }
+///     at += text[at + 1] === 'u' ? text.indexOf('}', at) - at : 1;
+///   }
+///   return count;
+/// }
+/// ```
+fn parentheses_the_text_writes(text: &str) -> usize {
+    let characters: Vec<char> = text.chars().collect();
+    let mut count: usize = 0;
+    let mut at: usize = 0;
+    while at < characters.len() {
+        let character: char = characters[at];
+        if character != '\\' {
+            if character == ')' {
+                count += 1;
+            }
+            at += 1;
+            continue;
+        }
+        // What: where this escape ends, which is past its brace for `\u{..}` and two characters otherwise.
+        // Why:  the characters inside an escape are the name's, not the sentence's own punctuation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // at += characters[at + 1] === 'u' ? characters.indexOf('}', at) - at + 1 : 2;
+        // ```
+        let escape_ends: usize = if characters.get(at + 1) == Some(&'u') {
+            let closing: Option<usize> = characters
+                .iter()
+                .enumerate()
+                .skip(at)
+                .find(|(_, found)| return **found == '}')
+                .map(|(found_at, _)| return found_at);
+            closing.map_or(characters.len(), |found_at| return found_at + 1)
+        } else {
+            at + 2
+        };
+        at = escape_ends;
+    }
+    return count;
+}
+
+/// What:
 ///  Whether `hostile` shows `name` through the escape, and holds nothing else the name
 ///  brought: no line of its own,
 ///  no control character,
@@ -128,7 +183,7 @@ fn the_namespace_sentence_says_leaving_the_folder_is_not_enough() {
 ///   expect(controlCharacters(hostile)).toBe(controlCharacters(plain));
 ///   expect(hostile).not.toContain('\u202e');
 ///   expect(hostile).not.toContain('\u2028');
-///   expect(hostile.split(')').length).toBe(plain.split(')').length);
+///   expect(parenthesesTheTextWrites(hostile)).toBe(parenthesesTheTextWrites(plain));
 /// }
 /// ```
 fn only_the_shown_name_differs(
@@ -155,8 +210,8 @@ fn only_the_shown_name_differs(
         "a bidirectional control and a line separator come back spelled out: {hostile:?}"
     );
     assert_eq!(
-        hostile.matches(')').count(),
-        plain.matches(')').count(),
+        parentheses_the_text_writes(hostile),
+        parentheses_the_text_writes(plain),
         "a parenthesis inside the name cannot close the parentheses around it: {hostile:?}"
     );
 }
