@@ -78,6 +78,30 @@ const TWO_WAITS_START: StartThatEndedWithoutARun = {
   next: 'read what Pi printed to its standard error, which names why it left',
 };
 
+/**
+ A folder one test writes in, removed when the test's scope ends.
+
+ @returns the folder, and how to remove it
+ */
+async function makeFolder(): Promise<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  /**
+   The folder, under the scratch root the harness gives this suite.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'start-without-a-run-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(
+        path,
+        { recursive: true, force: true, },
+      );
+    },
+  };
+}
+
 await describe({
   name: '',
   children: [
@@ -156,61 +180,42 @@ await describe({
         it({
           name: 'writes the line under its own name in the run folder, and answers the same line',
           fn: async () => {
-            /**
-             A run folder of this test's own, which no other test reads.
-             */
-            const folder = await mkdtemp(join(scratchRoot(), 'start-without-a-run-',),);
-            try {
-              await mkdir(folder, { recursive: true, },);
-              const written = await writeAStartThatEndedWithoutARun({
-                runFolder: folder,
-                start: BOUNDED_START,
-              },);
-              const kept = await readFile(
-                join(
-                  folder,
-                  START_WITHOUT_A_RUN_FILE_NAME,
-                ),
-                'utf8',
-              );
-              expect(kept,).toBe(`${written}\n`,);
-              expect(written,).toContain('sops decrypt',);
-            }
-            finally {
-              await rm(
-                folder,
-                { recursive: true, force: true, },
-              );
-            }
+            await using folder = await makeFolder();
+            await mkdir(folder.path, { recursive: true, },);
+            const written = await writeAStartThatEndedWithoutARun({
+              runFolder: folder.path,
+              start: BOUNDED_START,
+            },);
+            const kept = await readFile(
+              join(
+                folder.path,
+                START_WITHOUT_A_RUN_FILE_NAME,
+              ),
+              'utf8',
+            );
+            expect(kept,).toBe(`${written}\n`,);
+            expect(written,).toContain('sops decrypt',);
           },
         },),
         it({
           name: 'writes nothing over a line an earlier write of the same folder left',
           fn: async () => {
-            const folder = await mkdtemp(join(scratchRoot(), 'start-without-a-run-',),);
-            try {
-              const file = join(
-                folder,
-                START_WITHOUT_A_RUN_FILE_NAME,
-              );
-              await writeFile(file, 'a line an earlier attempt left\n',);
-              /**
-               What the second write answered.
-               */
-              const written = await writeAStartThatEndedWithoutARun({
-                runFolder: folder,
-                start: UNBOUNDED_START,
-              },);
-              // The file the earlier attempt left is not replaced, and the answer says so rather than claiming a write.
-              expect(await readFile(file, 'utf8',),).toBe('a line an earlier attempt left\n',);
-              expect(written,).toContain('not written',);
-            }
-            finally {
-              await rm(
-                folder,
-                { recursive: true, force: true, },
-              );
-            }
+            await using folder = await makeFolder();
+            const file = join(
+              folder.path,
+              START_WITHOUT_A_RUN_FILE_NAME,
+            );
+            await writeFile(file, 'a line an earlier attempt left\n',);
+            /**
+             What the second write answered.
+             */
+            const written = await writeAStartThatEndedWithoutARun({
+              runFolder: folder.path,
+              start: UNBOUNDED_START,
+            },);
+            // The file the earlier attempt left is not replaced, and the answer says so rather than claiming a write.
+            expect(await readFile(file, 'utf8',),).toBe('a line an earlier attempt left\n',);
+            expect(written,).toContain('not written',);
           },
         },),
       ],
@@ -222,35 +227,19 @@ await describe({
         it({
           name: 'answers the line a start left, for the launcher to print',
           fn: async () => {
-            const folder = await mkdtemp(join(scratchRoot(), 'start-without-a-run-',),);
-            try {
-              const written = await writeAStartThatEndedWithoutARun({
-                runFolder: folder,
-                start: BOUNDED_START,
-              },);
-              expect(await linesOfAStartThatEndedWithoutARun({ runFolder: folder, },),).toEqual([written,],);
-            }
-            finally {
-              await rm(
-                folder,
-                { recursive: true, force: true, },
-              );
-            }
+            await using folder = await makeFolder();
+            const written = await writeAStartThatEndedWithoutARun({
+              runFolder: folder.path,
+              start: BOUNDED_START,
+            },);
+            expect(await linesOfAStartThatEndedWithoutARun({ runFolder: folder.path, },),).toEqual([written,],);
           },
         },),
         it({
           name: 'answers nothing for a folder a start that ended with a run left alone',
           fn: async () => {
-            const folder = await mkdtemp(join(scratchRoot(), 'start-without-a-run-',),);
-            try {
-              expect(await linesOfAStartThatEndedWithoutARun({ runFolder: folder, },),).toEqual([],);
-            }
-            finally {
-              await rm(
-                folder,
-                { recursive: true, force: true, },
-              );
-            }
+            await using folder = await makeFolder();
+            expect(await linesOfAStartThatEndedWithoutARun({ runFolder: folder.path, },),).toEqual([],);
           },
         },),
       ],

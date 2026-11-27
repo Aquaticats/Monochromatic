@@ -12,10 +12,8 @@ import {
   type ConnectionToPi,
   startConnectionToPi,
 } from './connection-to-pi.ts';
-import {
-  type StartThatEndedWithoutARun,
-  type WaitThatEndedAStart,
-} from './a-start-that-ended-without-a-run.ts';
+import type { StartThatEndedWithoutARun, } from './a-start-that-ended-without-a-run.ts';
+import { startThatEndedWithoutARunOf, } from './notes-of-a-start-that-ended-without-a-run.ts';
 import {
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
@@ -174,111 +172,6 @@ function stopReasonOf({
   }
   // The decision above rules this out unless the clock moved under the pause: the bound is read again rather than assumed.
   return (now >= deadline) ? 'wall-clock-too-near' : 'start-sequence-spent';
-}
-
-/**
- Says which bound refused another start, in words that name what a reader can change.
-
- @param stoppedBy - the bound the decision named
-
- @param startMilliseconds - how long the starts had been going
-
- @param startUpAnswerMilliseconds - the time the whole sequence of starts is given
-
- @param wallSeconds - the run's own wall clock, in seconds
-
- @returns the wait that ended the run without one
- */
-function stoppingWaitOf({
-  stoppedBy,
-  startMilliseconds,
-  startUpAnswerMilliseconds,
-  wallSeconds,
-}: {
-  readonly stoppedBy: NoFurtherStart;
-  readonly startMilliseconds: number;
-  readonly startUpAnswerMilliseconds: number;
-  readonly wallSeconds: number;
-},): WaitThatEndedAStart {
-  if (stoppedBy === 'tries-spent') {
-    return {
-      wait: 'the number of starts a run is allowed, after which Pi is not started again',
-      bound: `${String(START_ATTEMPTS,)} starts`,
-      waitedMilliseconds: startMilliseconds,
-    };
-  }
-  if (stoppedBy === 'start-sequence-spent') {
-    return {
-      wait: 'the time the whole sequence of starts is given, after which Pi is not started again',
-      bound: `${String(startUpAnswerMilliseconds,)} ms`,
-      waitedMilliseconds: startMilliseconds,
-    };
-  }
-  return {
-    wait: 'the run\'s own wall clock, which left no time for another start',
-    bound: `${String(wallSeconds,)} s`,
-    waitedMilliseconds: startMilliseconds,
-  };
-}
-
-/**
- Says what a start that ended without a run has to say once a bound refused another start: the start's own reason, and the bound
- that stopped the starts, so a reader learns both without opening anything.
-
- @param start - what the last start said of itself, when it said anything
-
- @param stoppedBy - the bound that refused another start
-
- @param startMilliseconds - how long the starts had been going
-
- @param startUpAnswerMilliseconds - the time the whole sequence of starts is given
-
- @param wallSeconds - the run's own wall clock, in seconds
-
- @returns the note for the summary, the run folder's line and the launcher
- */
-function startThatEndedWithoutARunOf({
-  start,
-  stoppedBy,
-  startMilliseconds,
-  startUpAnswerMilliseconds,
-  wallSeconds,
-}: {
-  readonly start?: StartThatEndedWithoutARun;
-  readonly stoppedBy: NoFurtherStart;
-  readonly startMilliseconds: number;
-  readonly startUpAnswerMilliseconds: number;
-  readonly wallSeconds: number;
-},): StartThatEndedWithoutARun {
-  /**
-   The wait the refusing bound is, as the line reports it.
-   */
-  const stopping = stoppingWaitOf({
-    stoppedBy,
-    startMilliseconds,
-    startUpAnswerMilliseconds,
-    wallSeconds,
-  },);
-  /**
-   Why no start followed, in words.
-   */
-  const whyNoStartFollowed = (stoppedBy === 'tries-spent')
-    ? `all ${String(START_ATTEMPTS,)} starts a run is allowed were made`
-    : ((stoppedBy === 'start-sequence-spent')
-      ? `the ${String(startUpAnswerMilliseconds,)} ms the whole sequence of starts is given was already spent`
-      : `the run\'s own wall clock of ${String(wallSeconds,)} s left no time for another start`);
-  if (start === undefined) {
-    return {
-      waits: [stopping,],
-      what: `No start of this run took the prompt, and ${whyNoStartFollowed}`,
-      next: 'Read what Pi printed to its standard error, which is where a load failure, a refused provider and a missing module all say why: the run\'s stderr.log holds those lines, and its feed.jsonl holds each start the driver made.',
-    };
-  }
-  return {
-    waits: [...start.waits, stopping,],
-    what: `${start.what}, and no start followed because ${whyNoStartFollowed}`,
-    next: start.next,
-  };
 }
 
 /**

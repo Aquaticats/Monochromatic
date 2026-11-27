@@ -41,91 +41,91 @@ const STORE_READ_START: StartThatEndedWithoutARun = {
   next: 'start the run again when the host is quieter',
 };
 
+/**
+ A folder one test writes in, removed when the test's scope ends.
+
+ @returns the folder, and how to remove it
+ */
+async function makeFolder(): Promise<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  /**
+   The folder, under the scratch root the harness gives this suite.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'launcher-start-line-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(
+        path,
+        { recursive: true, force: true, },
+      );
+    },
+  };
+}
+
 await describe({
   name: reportAStartThatEndedWithoutARun.name,
   children: [
     it({
       name: 'prints the line the start left, so the launcher names the wait and its bound',
       fn: async () => {
-        const folder = await mkdtemp(join(scratchRoot(), 'launcher-start-line-',),);
-        try {
-          /**
-           The line the driver left in the run folder, which is what the launcher is to print.
-           */
-          const written = await writeAStartThatEndedWithoutARun({
-            runFolder: folder,
-            start: STORE_READ_START,
-          },);
-          /**
-           Every line the launcher printed.
-           */
-          const printed: string[] = [];
-          await reportAStartThatEndedWithoutARun({
-            runFolder: folder,
-            report: function report(line,) {
-              printed.push(line,);
-            },
-          },);
-          expect(printed,).toEqual([written,],);
-          expect(printed[0],).toContain('sops decrypt',);
-          expect(printed[0],).toContain('15000 ms',);
-          expect(printed[0],).toContain('start the run again when the host is quieter',);
-        }
-        finally {
-          await rm(
-            folder,
-            { recursive: true, force: true, },
-          );
-        }
+        await using folder = await makeFolder();
+        /**
+         The line the driver left in the run folder, which is what the launcher is to print.
+         */
+        const written = await writeAStartThatEndedWithoutARun({
+          runFolder: folder.path,
+          start: STORE_READ_START,
+        },);
+        /**
+         Every line the launcher printed.
+         */
+        const printed: string[] = [];
+        await reportAStartThatEndedWithoutARun({
+          runFolder: folder.path,
+          report: function report(line,) {
+            printed.push(line,);
+          },
+        },);
+        expect(printed,).toEqual([written,],);
+        expect(printed[0],).toContain('sops decrypt',);
+        expect(printed[0],).toContain('15000 ms',);
+        expect(printed[0],).toContain('start the run again when the host is quieter',);
       },
     },),
     it({
       name: 'prints nothing for a run folder a start that ended with a run left alone',
       fn: async () => {
-        const folder = await mkdtemp(join(scratchRoot(), 'launcher-start-line-',),);
-        try {
-          const printed: string[] = [];
-          await reportAStartThatEndedWithoutARun({
-            runFolder: folder,
-            report: function report(line,) {
-              printed.push(line,);
-            },
-          },);
-          expect(printed,).toEqual([],);
-        }
-        finally {
-          await rm(
-            folder,
-            { recursive: true, force: true, },
-          );
-        }
+        await using folder = await makeFolder();
+        const printed: string[] = [];
+        await reportAStartThatEndedWithoutARun({
+          runFolder: folder.path,
+          report: function report(line,) {
+            printed.push(line,);
+          },
+        },);
+        expect(printed,).toEqual([],);
       },
     },),
     it({
       name: 'names the file it could not read, rather than leaving a start that left one unmentioned',
       fn: async () => {
-        const folder = await mkdtemp(join(scratchRoot(), 'launcher-start-line-',),);
-        try {
-          // A path where the line belongs that is a folder: the launcher cannot read it, and saying so is what keeps the start
-          // from reading as one that ended with a run.
-          await mkdir(join(folder, START_WITHOUT_A_RUN_FILE_NAME,),);
-          const printed: string[] = [];
-          await reportAStartThatEndedWithoutARun({
-            runFolder: folder,
-            report: function report(line,) {
-              printed.push(line,);
-            },
-          },);
-          expect(printed,).toHaveLength(1,);
-          expect(printed[0],).toContain(START_WITHOUT_A_RUN_FILE_NAME,);
-          expect(printed[0],).toContain('could not be read',);
-        }
-        finally {
-          await rm(
-            folder,
-            { recursive: true, force: true, },
-          );
-        }
+        await using folder = await makeFolder();
+        // A path where the line belongs that is a folder: the launcher cannot read it, and saying so is what keeps the start
+        // from reading as one that ended with a run.
+        await mkdir(join(folder.path, START_WITHOUT_A_RUN_FILE_NAME,),);
+        const printed: string[] = [];
+        await reportAStartThatEndedWithoutARun({
+          runFolder: folder.path,
+          report: function report(line,) {
+            printed.push(line,);
+          },
+        },);
+        expect(printed,).toHaveLength(1,);
+        expect(printed[0],).toContain(START_WITHOUT_A_RUN_FILE_NAME,);
+        expect(printed[0],).toContain('could not be read',);
       },
     },),
   ],

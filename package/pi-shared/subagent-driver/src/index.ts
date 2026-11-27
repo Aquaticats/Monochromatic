@@ -98,16 +98,6 @@ export {
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from './environment-without-credentials.ts';
 export {
-  sentenceOfAStartThatEndedWithoutARun,
-  type StartThatEndedWithoutARun,
-  START_WITHOUT_A_RUN_FILE_NAME,
-  type WaitThatEndedAStart,
-  lineOfAStartThatEndedWithoutARun,
-  linesOfAStartThatEndedWithoutARun,
-  reportAStartThatEndedWithoutARun,
-  writeAStartThatEndedWithoutARun,
-} from './a-start-that-ended-without-a-run.ts';
-export {
   answerModelError,
   type RetryWaiting,
 } from './answer-a-model-error.ts';

@@ -653,7 +653,9 @@ function startWithoutARunOf({
       }\nThe driver printed:\n${run.standardError}`,
     );
   }
-  expect(note.waits.map((wait,) => wait.wait,).join('; ',),).toContain(waitWords,);
+  expect(note.waits.map(function waitInWords(one,) {
+    return one.wait;
+  },).join('; ',),).toContain(waitWords,);
   /**
    The same fact as the file in the run folder keeps it, which a reader who opens the folder finds without the summary.
    */
@@ -1456,7 +1458,9 @@ await describe({
          the one that refused another start, and what to do next.
          */
         const note = startWithoutARunOf({ run, waitWords: 'which ended when Pi went', },);
-        expect(note.waits.map((wait,) => wait.wait,).join(' ',),).toContain('not started again',);
+        expect(note.waits.map(function waitInWords(one,) {
+          return one.wait;
+        },).join(' ',),).toContain('not started again',);
         expect(note.waits.at(-1,)?.bound,).toBe(`${String(START_ATTEMPTS,)} starts`,);
         expect(note.next,).toContain('standard error',);
         // Nothing of the run happened: no turn, and no prompt Pi took.
@@ -1532,7 +1536,9 @@ await describe({
          */
         const note = startWithoutARunOf({ run, waitWords: 'get_state', },);
         // Both asks that went unanswered are named, which is the two the recorded runs of 2026-11-26 spent 120 s each on.
-        expect(note.waits.map((wait,) => wait.wait,).join('; ',),).toContain('get_commands',);
+        expect(note.waits.map(function waitInWords(one,) {
+          return one.wait;
+        },).join('; ',),).toContain('get_commands',);
         expect(note.waits[0]?.bound,).toBe(`${String(SHORT_START_UP_ANSWER_MILLISECONDS,)} ms`,);
         expect(note.waits[0]?.waitedMilliseconds,).toBeGreaterThanOrEqual(SHORT_START_UP_ANSWER_MILLISECONDS,);
         expect(note.what,).toContain('sent no prompt',);
@@ -2592,7 +2598,7 @@ await describe({
         const kept = run.runFiles[START_WITHOUT_A_RUN_FILE_NAME];
         expect(kept,).toContain('sops decrypt',);
         expect(kept,).toContain(`${String(SOPS_TIMEOUT_MS,)} ms`,);
-        expect(kept,).toMatch(/waited \d+ ms/u,);
+        expect(kept,).toContain('had waited',);
         expect(kept,).toContain('What to do next',);
         // And the driver prints the same line, so the unit's journal carries it without a reader opening the folder.
         expect(run.standardError,).toContain('sops decrypt',);

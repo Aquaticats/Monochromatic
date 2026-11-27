@@ -88,7 +88,7 @@ export const START_UP_ANSWER_MILLISECONDS_VARIABLE = 'PI_RUNS_START_UP_ANSWER_MI
 export function startUpAnswerMillisecondsOf({
   environment,
 }: {
-  readonly environment: Readonly<Record<string, string | undefined>>;
+  readonly environment: Readonly<NodeJS.ProcessEnv>;
 },): number {
   /**
    What the environment names, when it names anything.

@@ -103,7 +103,7 @@ function waitInWords({
 /**
  Says the waits that ended a start, in the order they ended, as one sentence a line can carry beside what else it says.
 
- @param start - the start
+ @param waits - the waits that ended the start
 
  @returns the sentence, which names every wait
  */
@@ -129,6 +129,11 @@ function waitsSentence({
  @param start - the start
 
  @returns the sentence, which names the waits, why no run happened, and what to do next
+
+ @example
+ ```ts
+ const sentence = sentenceOfAStartThatEndedWithoutARun({ start, },);
+ ```
  */
 export function sentenceOfAStartThatEndedWithoutARun({
   start,
@@ -146,6 +151,11 @@ export function sentenceOfAStartThatEndedWithoutARun({
  @param start - the start
 
  @returns the line, without its line ending
+
+ @example
+ ```ts
+ const line = lineOfAStartThatEndedWithoutARun({ runFolder: '/runs/a-1', start, },);
+ ```
  */
 export function lineOfAStartThatEndedWithoutARun({
   runFolder,
@@ -171,6 +181,11 @@ export function lineOfAStartThatEndedWithoutARun({
  every other file of a run is
 
  @returns the line as written, or what kept it from being written
+
+ @example
+ ```ts
+ await writeAStartThatEndedWithoutARun({ runFolder: '/runs/a-1', start, },);
+ ```
  */
 export async function writeAStartThatEndedWithoutARun({
   runFolder,
@@ -184,7 +199,10 @@ export async function writeAStartThatEndedWithoutARun({
   /**
    The line, through the masking: a path or a bound can hold a value this machine masks, and no file of a run carries one.
    */
-  const line = mask.maskText(lineOfAStartThatEndedWithoutARun({ runFolder, start, }),);
+  const line = mask.maskText(lineOfAStartThatEndedWithoutARun({
+    runFolder,
+    start,
+  },),);
   try {
     await writeFile(
       join(
@@ -225,6 +243,11 @@ export async function writeAStartThatEndedWithoutARun({
  @returns the file's lines, or none when the start left none
 
  @throws Error when the file is there and cannot be read
+
+ @example
+ ```ts
+ const lines = await linesOfAStartThatEndedWithoutARun({ runFolder: '/runs/a-1', },);
+ ```
  */
 export async function linesOfAStartThatEndedWithoutARun({
   runFolder,
@@ -250,7 +273,9 @@ export async function linesOfAStartThatEndedWithoutARun({
       file,
       'utf8',
     )).split('\n',)
-      .filter((line,) => line !== '');
+      .filter(function isALine(line,) {
+        return line !== '';
+      },);
   }
   catch (error) {
     if (!Error.isError(error,)) {
@@ -269,6 +294,11 @@ export async function linesOfAStartThatEndedWithoutARun({
  @param runFolder - the run's own folder
 
  @param report - where the launcher prints a line
+
+ @example
+ ```ts
+ await reportAStartThatEndedWithoutARun({ runFolder: '/runs/a-1', report: console.log, },);
+ ```
  */
 export async function reportAStartThatEndedWithoutARun({
   runFolder,
