@@ -295,6 +295,10 @@ pub(crate) fn routes_to(
     let mut distance: BTreeMap<PathBuf, usize> = BTreeMap::<PathBuf, usize>::new();
     let mut queue: VecDeque<PathBuf> = VecDeque::<PathBuf>::new();
     distance.insert(goal.to_path_buf(), 0);
+    // What: one entry this walk reached, which a control counts.
+    // Why: a walk that reaches everything that leads to the group costs that whole graph once for every group.
+    #[cfg(test)]
+    counted_work::note_reach();
     queue.push_back(goal.to_path_buf());
     while let Some(node) = queue.pop_front() {
         // What: this entry's distance, which every entry that reaches it shares one more of.
@@ -307,6 +311,10 @@ pub(crate) fn routes_to(
                 continue;
             }
             distance.insert(before.clone(), here + 1);
+            // What: one entry this walk reached, which a control counts.
+            // Why: how many of them it reaches is what a group costs, and the shape it needs decides that number.
+            #[cfg(test)]
+            counted_work::note_reach();
             queue.push_back(before.clone());
         }
     }
