@@ -1597,7 +1597,7 @@ so `test-scratch` in the crate's build folder) may sit on a dataset that refuses
 answering `EILSEQ`;
 this host's `zpcachyos/nosnap/cargo-build` does,
 which is where cargo writes artifacts here (`~/.cargo/config.toml`).
-`src/fixture_root_taking_any_name.rs` asks that root whether it takes the name and,
+`src/test_scratch/fixture_root_taking_any_name.rs` asks that root whether it takes the name and,
 where it does not,
 runs the same test again for that one test inside a user and mount namespace of its own with a tmpfs at the root,
 so the control runs here instead of failing for the file system's refusal.

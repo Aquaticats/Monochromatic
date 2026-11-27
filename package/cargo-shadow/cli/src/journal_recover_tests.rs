@@ -199,7 +199,7 @@ fn an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_
     //  file system refuses it, starts this same test again inside a user and mount namespace with a tmpfs at the
     //  scratch root.
     // Why: the dataset behind this build folder refuses a name that is not UTF-8 (issue 6550).
-    if !crate::fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
+    if !crate::test_scratch::fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
         crate::test_scratch::scratch_root().as_path(),
     ) {
         return;

@@ -1311,7 +1311,7 @@ fn a_manifest_path_that_is_not_utf8_is_recovered_exactly() {
     //  scratch root.
     // Why: the dataset behind this build folder refuses a name that is not UTF-8 (issue 6550), and a control that
     //  skipped there would pass a run in which the recovery was never exercised.
-    if !crate::fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
+    if !crate::test_scratch::fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
         crate::test_scratch::scratch_root().as_path(),
     ) {
         return;

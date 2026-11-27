@@ -53,7 +53,7 @@ Summary [   0.263s] 1 test run: 0 passed, 1 failed, 892 skipped
 
 ## The answer
 
-`src/fixture_root_taking_any_name.rs` asks the fixture root whether it takes the name,
+`src/test_scratch/fixture_root_taking_any_name.rs` asks the fixture root whether it takes the name,
 with a probe named after this process and made with `File::create_new`.
 Where the root takes it,
 the control runs as it always did,
@@ -165,7 +165,7 @@ which is why the case asserts that and not only the message.
 
 ## Files changed
 
-- `src/fixture_root_taking_any_name.rs` (new):
+- `src/test_scratch/fixture_root_taking_any_name.rs` (new):
   the question,
   the namespace re-execution,
   the tmpfs mount,

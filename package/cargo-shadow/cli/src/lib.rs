@@ -392,22 +392,6 @@ mod shadow_identity_tests;
 mod test_scratch;
 
 /// What:
-/// `#[cfg(test)] mod fixture_root_taking_any_name;` declares the question whether a control's fixture root takes a name
-/// that is not UTF-8,
-/// and the re-execution that mounts a tmpfs there when it does not.
-/// Why:
-/// A control that makes such a name cannot run where the file system refuses it,
-/// as this host's build dataset does under `utf8only=on` (issue 6550),
-/// and a control that quietly skipped there would pass a run in which it never ran.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // fixture-root-taking-any-name.test-support.ts, imported by the tests that make such a name
-/// ```
-#[cfg(test)]
-mod fixture_root_taking_any_name;
-
-/// What:
 /// `#[cfg(test)] mod catalog_warning_tests;` declares the tests in `src/catalog_warning_tests.rs`;
 /// the attribute compiles it only for test builds (a TS test file that production code never imports).
 /// Why:
