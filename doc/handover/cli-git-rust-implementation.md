@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:12:46-05:00
+## The state at 2026-11-27T12:16:15-05:00
 
-`main` was `dcb2bcd6a5`.
+`main` was `07f9232af0`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 222 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 224 more by this time.
 
 ### Rounds running
 
@@ -146,17 +146,19 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which issue 6612 joins into one once part 1 has merged
   (no round yet;
   part 1 was told of both sets by an inbox note);
-- three rounds for what part 2's report left,
-  started 2026-11-27T11:40:23-05:00 from one list:
-  `issue-6608-verification-process-tests-wait-for-the-child-by-a-fact-it-gives`;
-  `issue-6610-a-check-scopes-last-counters-keep-every-part-they-read`
-  (a unit test of what a check's scope counted failed once in one whole run,
-  reading no `pids.events`;
-  the cause is not established);
-  and `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
+- for what part 2's report left,
+  `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
   (the driver's build at four jobs is killed in its 8 GiB guest,
   so its arm has not run on the current tree;
-  it and the Sanoid driver also get a `mise` task each);
+  it and the Sanoid driver also get a `mise` task each),
+  started 2026-11-27T11:40:23-05:00.
+  Its two siblings are merged ("What the rounds found");
+- two rounds started 2026-11-27T12:15:56-05:00 from one list:
+  `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`
+  (the gate's reader of a container's control group has the defect issue 6610 fixed in a check scope's reader:
+  a container killed for memory can be reported as one that met no kill);
+  and `issue-6613-a-passing-typescript-check-says-what-it-ran`
+  (`native:ts-checks` prints only `exit 0` for a check that passed);
 - in the linter,
   `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
   ("Releases of 2026-11-27");
@@ -180,11 +182,6 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
-  `native:ts-checks` prints no suite or file names for a check that passed,
-  which is issue 6613
-  (no round yet:
-  it waits for issue 6610's round,
-  which holds two of its files);
 - for `cargo-shadow`'s `0.1.5-alpha.13` pass,
   three rounds started 2026-11-27T12:00:02-05:00 from one list,
   each named `cargo-shadow-alpha-13-release-pass-` and then:
@@ -786,7 +783,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6613,
+  issues 6524 to 6614,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -981,6 +978,25 @@ and the two `truepeak` files wait on their branch.
   (`doc/handover/questions-for-the-owner.md`).
   `cargo-shadow`'s start uses a check of its own with two outcomes the shared refusal has no word for,
   and keeps its own line.
+- A check scope's last counters keep every part they read (`07f9232af0`,
+  issue 6610).
+  The kernel takes a dying control group's files away one at a time before its directory,
+  so a reading can lose `pids.events` while `pids.peak` still answers;
+  one real dying scope read 144 times gave one such reading.
+  The runner kept that reading in place of a whole one,
+  which is why `native:ts-checks` could miss saying that a bound and not a test had failed.
+  The record is `doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`.
+- Two verification-process unit tests wait for their child by the record it writes (`3dbb56c5a6`,
+  issue 6608),
+  and arm the bound they assert only then;
+  a two-second delay planted in the child's start leaves them green,
+  and each still fails when the code under test is broken the way it exists to catch.
+  `runCommand` was split at the seam where a bound is armed,
+  with two exports more and no change of behaviour.
+- On `main` at `07f9232af0`,
+  in a worktree no merge moved,
+  the package's whole `test:unit` exited 0 with 176 `[PASS]` suite lines and none failing,
+  and `lint:types` exited 0.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
