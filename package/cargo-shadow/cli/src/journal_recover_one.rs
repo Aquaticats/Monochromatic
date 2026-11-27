@@ -90,7 +90,7 @@ fn report_leftover_temporaries(
             let name: String = entry.file_name().to_string_lossy().to_string();
             if name.starts_with('.') && name.contains(".shadow-") && name.ends_with(".tmp") {
                 // Macro `format!`: builds or prints text (or a list) from a template.
-                messages.push(format!("{} may hold a file that a killed run displaced and did not get to keep under another name; it was left as it is", entry.path().display()));
+                messages.push(format!("{} may hold a file that an earlier run displaced and did not get to keep under another name; it was left as it is", entry.path().display()));
             }
         }
     }
@@ -124,7 +124,7 @@ pub(crate) fn recover_one(
         }
         Err(error) => {
             messages.push(format!(
-                "{}: the journal of a killed run is damaged ({error}); it was kept",
+                "{}: the journal of an earlier run is damaged ({error}); it was kept",
                 directory.display()
             ));
             return;
@@ -134,7 +134,7 @@ pub(crate) fn recover_one(
         Ok(found) => found,
         Err(error) => {
             messages.push(format!(
-                "{}: the journal of a killed run could not be read ({error}); it was kept",
+                "{}: the journal of an earlier run could not be read ({error}); it was kept",
                 directory.display()
             ));
             return;
@@ -144,7 +144,7 @@ pub(crate) fn recover_one(
         match read_manifest_index(directory) {
             Ok(found) => found,
             Err(error) => {
-                messages.push(format!("{}: the manifest record of a killed run could not be read ({error}); its journal was kept", directory.display()));
+                messages.push(format!("{}: the manifest record of an earlier run could not be read ({error}); its journal was kept", directory.display()));
                 return;
             }
         }
@@ -156,7 +156,7 @@ pub(crate) fn recover_one(
         Ok(found) => found,
         Err(error) => {
             messages.push(format!(
-                "{}: a lockfile of a killed run could not be read ({error}); its journal was kept",
+                "{}: a lockfile of an earlier run could not be read ({error}); its journal was kept",
                 directory.display()
             ));
             return;
@@ -240,7 +240,7 @@ fn recover_root(
     }
     let problems: Vec<String> = judge.judge(std::slice::from_ref(old), std::slice::from_ref(now));
     if problems.is_empty() {
-        messages.push(format!("{}/{LOCKFILE_NAME} was left by a run that was killed; its new versions pass the policy, so it was kept", old.crate_dir));
+        messages.push(format!("{}/{LOCKFILE_NAME} was left by a run that did not finish; its new versions pass the policy, so it was kept", old.crate_dir));
         return RootDecision::Kept;
     }
     let path: PathBuf = root.join(&old.crate_dir).join(LOCKFILE_NAME);
@@ -248,7 +248,7 @@ fn recover_root(
     return match replace_keeping_with_hook(&path, &now.source, &old.source, &keep, between) {
         Ok(ReplaceOutcome::Replaced(copy)) => {
             messages.push(format!(
-                "{}/{LOCKFILE_NAME} was left by a run that was killed and holds versions the policy refuses ({}); it was saved as {} and the earlier lockfile was put back",
+                "{}/{LOCKFILE_NAME} was left by a run that did not finish and holds versions the policy refuses ({}); it was saved as {} and the earlier lockfile was put back",
                 old.crate_dir,
                 problems.join("; "),
                 match &copy {
@@ -259,12 +259,12 @@ fn recover_root(
             RootDecision::Restored
         }
         Ok(ReplaceOutcome::LeftAlone) => {
-            messages.push(format!("{}/{LOCKFILE_NAME} was changed by another process while a killed run was being recovered; it was left as that process wrote it, not restored", old.crate_dir));
+            messages.push(format!("{}/{LOCKFILE_NAME} was changed by another process while the journal of an earlier run was being recovered; it was left as that process wrote it, not restored", old.crate_dir));
             RootDecision::LeftAlone
         }
         Ok(ReplaceOutcome::Displaced(kept)) => {
             messages.push(format!(
-                "{}/{LOCKFILE_NAME}: the earlier lockfile was put back; the file it displaced is kept as {} (it may not be the one the killed run wrote)",
+                "{}/{LOCKFILE_NAME}: the earlier lockfile was put back; the file it displaced is kept as {} (it may not be the one that run wrote)",
                 old.crate_dir,
                 kept.display()
             ));
@@ -280,7 +280,7 @@ fn recover_root(
         }
         Err(error) => {
             messages.push(format!(
-                "{}/{LOCKFILE_NAME}: could not recover a killed run: {error}; its journal was kept",
+                "{}/{LOCKFILE_NAME}: could not recover the journal of an earlier run: {error}; its journal was kept",
                 old.crate_dir
             ));
             RootDecision::Failed

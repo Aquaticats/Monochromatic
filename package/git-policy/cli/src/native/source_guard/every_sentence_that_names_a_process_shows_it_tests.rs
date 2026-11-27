@@ -27,6 +27,20 @@
 //!  a sentence that binds the name to a local of another spelling before it formats it is
 //!  seen by the first list alone,
 //!  which is why the first list names every sentence and fails when one stops calling the escape.
+//!  A wider read of the locals was tried on 2026-11-27 and cannot be precise:
+//!  the name propagates from an accessor into locals called `name`,
+//!  `operation` and `relative`,
+//!  and those words are also this program's own text in the same files,
+//!  so the wider read reported eleven sentences that show no process name at all.
+//!  What a reader of this file checks,
+//!  because the scan cannot:
+//!  every new sentence that shows a name is written into `THE_SENTENCES`,
+//!  and no `format!` of such a sentence interpolates the name through a local,
+//!  or through any other name of its own,
+//!  instead of the escape.
+//!  The control `a_sentence_that_binds_a_name_to_a_local_of_another_spelling_is_not_seen`
+//!  plants that sentence and asserts the scan reports nothing,
+//!  so the hole is recorded where a reader meets the rule.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -247,6 +261,20 @@ const THE_SENTENCES: &[ASentence] = &[
         wrapping: "Parentheses",
         names: 1,
         why: "the process that keeps an abandoned stage or tree",
+    },
+    ASentence {
+        file: "worktree_clone_forced_removal/the_refusal_sentences.rs",
+        function: "caller_holds_in_its_working_directory",
+        wrapping: "Parentheses",
+        names: 1,
+        why: "the process that holds the clone through its working directory, in a forced removal's refusal",
+    },
+    ASentence {
+        file: "worktree_clone_forced_removal/the_refusal_sentences.rs",
+        function: "the_callers_namespace_holds",
+        wrapping: "Parentheses",
+        names: 1,
+        why: "the process in the caller's session that a mount namespace's copy is held through",
     },
 ];
 
@@ -636,6 +664,58 @@ fn the_scan_finds_a_planted_sentence_that_does_not_show_its_name() {
         found,
         vec![String::from("reader.rs:2")],
         "the planted sentence that interpolates a name raw, and not the one that takes it through the escape"
+    );
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A sentence that binds the name to a local of another spelling
+///  (`let Some(ref seen) = process.command` and `{seen}`) is not seen by the scan,
+///  and the same fixture's sentence that interpolates the accessor itself is seen.
+/// Why:
+///  The accessor list reads spellings,
+///  and neither `{seen}` nor the line that binds it holds one,
+///  so this is the hole the top doc names and the sentence list closes.
+///  The second file is the positive control:
+///  a null over a fixture the scan cannot read at all would prove nothing,
+///  and this one shows the same run reports the raw interpolation beside it.
+///  A round that teaches the scan the local should turn this control into one that
+///  expects `reader.rs:3` too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(findingsIn(fixtureRoot, [releaseRoot('lib.rs')])).toEqual(['raw.rs:2']);
+/// ```
+#[test]
+fn a_sentence_that_binds_a_name_to_a_local_of_another_spelling_is_not_seen() {
+    let root: PathBuf = crate::test_support::fixture("source-guard-process-name-locals");
+    write_tree(
+        root.as_path(),
+        &[
+            ("lib.rs", "mod raw;\nmod reader;\n"),
+            (
+                "reader.rs",
+                "pub fn through_a_local(user: &crate::process_use::ProcessUser) -> String {\n\
+                 \x20   let Some(ref seen) = user.command else {\n\
+                 \x20       return String::new();\n\
+                 \x20   };\n\
+                 \x20   format!(\"process {} ({seen}) has it\", user.pid)\n\
+                 }\n",
+            ),
+            (
+                "raw.rs",
+                "pub fn raw(user: &crate::process_use::ProcessUser) -> String {\n\
+                 \x20   format!(\"process {} ({}) has it\", user.pid, user.command.as_deref().unwrap_or(\"\"))\n\
+                 }\n",
+            ),
+        ],
+    );
+    let found: Vec<String> =
+        findings_in(root.as_path(), &[release_root("lib.rs")]).expect("the fixture sources");
+    assert_eq!(
+        found,
+        vec![String::from("raw.rs:2")],
+        "the local spelling is not seen, and the raw interpolation beside it is"
     );
     crate::test_support::remove(root.as_path());
 }

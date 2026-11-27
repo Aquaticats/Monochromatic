@@ -2289,18 +2289,15 @@ fn a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_
         message.contains(&member),
         "the refusal does not name the member that was left ({member}): {message}"
     );
-    // The refusal says which runs settle the journal it kept and which leave it
-    // (`refusal_journal_next_runs_tests` holds each of the four at a real refusal).
+    // The refusal says which runs settle the journal it kept and which leave it, in one sentence both refusals carry
+    // (`refusal_journal_next_runs_tests` holds every kind measured at a real refusal).
     assert!(
-        message.contains(
-            "a later run that resolves dependencies or runs `cargo-shadow update` settles it"
-        ),
-        "the refusal does not name the runs that settle the kept journal: {message}"
+        message.contains(crate::journal_recover::KEPT_JOURNAL),
+        "the refusal does not carry the one sentence about the kept journal: {message}"
     );
     assert!(
-        message.contains("a command that resolves nothing (`cargo fmt`, `cargo --version`)")
-            && message.contains("a frozen run (`--locked`, `--frozen`, or `CI`) leave it"),
-        "the refusal does not name the runs that leave the kept journal: {message}"
+        !message.contains("and the command was not run"),
+        "the refusal says the command was not run, and the line the shim prints after it says so again: {message}"
     );
     assert_eq!(
         fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
