@@ -32,7 +32,8 @@ fn dropping_the_worker_leaves_no_child_process() {
     support::children_until_none();
     let received = support::received(&support::report(&root));
     assert!(
-        received.contains(&"shutdown".to_string()) && received.contains(&"exit".to_string()),
+        received.iter().any(|method| return method == "shutdown")
+            && received.iter().any(|method| return method == "exit"),
         "the server was not asked to shut down: {received:?}"
     );
     // A server stuck in `initialize` cannot be asked. helix-lsp closes its input instead, and
@@ -85,7 +86,8 @@ fn server_that_ignores_exit_is_killed_and_reaped_before_the_drop_returns() {
     );
     let received = support::received(&support::report(&root));
     assert!(
-        received.contains(&"shutdown".to_string()) && received.contains(&"exit".to_string()),
+        received.iter().any(|method| return method == "shutdown")
+            && received.iter().any(|method| return method == "exit"),
         "the server was not asked to shut down before it was killed: {received:?}"
     );
 }
