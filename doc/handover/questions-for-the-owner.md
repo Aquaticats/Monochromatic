@@ -3485,3 +3485,85 @@ the round's and the coordinating session's:
 narrow > list,
 because the crate is not on crates.io,
 so a narrower surface is a design change and breaks no published contract.
+
+## Veto open: two things `mpm-shadow` `0.2.7-alpha.16` does that no record chose (recorded 2026-11-27T17:12:22-05:00)
+
+The second pass over `0.2.7-alpha.16` found both,
+with both released binaries on fixtures.
+The coordinating session read it whole and wrote this entry.
+A round holds each with a control and writes it into the README;
+neither behaviour changes before the owner says so.
+
+### A recovery that puts an unfinished copy back also points `current` at the newest finished version
+
+The state:
+an older version finished,
+`current` absent,
+and a newer version whose copy a kill left unfinished and no lock vouches for.
+
+- As `0.2.7-alpha.16` does (kept for now):
+  `current` names the older version and the launcher starts it,
+  while `list` says drift and `install` ended 1.
+  A person's tool works.
+  The cost is that it is silently the older one.
+- As `0.2.7-alpha.15` did:
+  `current` stays absent,
+  and the launcher fails and says to run the install.
+  The cost is a tool that does not start although a finished version is on disk.
+
+Ranking,
+the coordinating session's:
+as alpha.16 does > as alpha.15 did,
+because `list` and the install's own exit status already say the newer version is missing,
+and a start that fails helps nobody who has a working older copy.
+
+### A move of `current` that fails once ends the run 1, and the older version stays
+
+One failed rename of the link:
+nothing is removed,
+the run reports the failure and ends 1,
+a later step of the same run moves the link,
+and the older version stays until `prune --toolchain`.
+The README says a run ends 1 only when the locked version is not at its name afterwards,
+which is not so here.
+
+- The run makes up for it when its later step moves the link:
+  the removal runs then and the first failure is a warning.
+  The cost is a second place that removes older versions.
+- The behaviour stays and the README says what happens:
+  no code changes.
+  The cost is a status 1 for a run that left everything in place,
+  and a retired version on disk until a `prune`.
+
+The round builds the one it can argue from the package's own rules and returns the other;
+the coordinating session ranks neither before its report.
+
+## Veto open: two picks of the wrapper round on the list guards (recorded 2026-11-27T17:12:22-05:00)
+
+The coordinating session read the report whole and wrote this entry.
+None holds a release.
+
+### An excuse names the line of the one use it covers
+
+- The line (taken):
+  a use removed and another of the same text added to the same file fails,
+  which a count let through.
+  The cost is that a line `rustfmt` reflows makes its entry stale,
+  and the entry and the reflow become one commit's work.
+- A count of uses per file,
+  as before:
+  a reflow costs nothing.
+  The cost is the swap the read found.
+
+Ranking,
+the round's and the coordinating session's:
+the line > a count,
+because the swap is the finding,
+and one guard of the crate already named its lines.
+
+### `Command::new(r` stays a banned text
+
+It also matches a start through a variable whose name begins with that letter.
+No file of the commit path holds one today,
+so the round left the ban;
+a rule that reads a literal argument would be narrower and is not built.
