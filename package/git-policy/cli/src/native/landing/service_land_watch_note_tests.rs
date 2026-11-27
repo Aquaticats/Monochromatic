@@ -13,6 +13,18 @@
 //! so a control that holds that write kept the place of every other control of a threaded run,
 //! which never reached its own note (issue 6497).
 //!
+//! A window one of these controls times holds the wait for a note and the answer that follows it,
+//! and never a commit's landing:
+//! the release code grants a ceiling to the note's write (`LANDING_WATCH_NOTE_CEILING`)
+//! and none to a landing,
+//! so a wall-clock bound that covered a landing would fail on a host whose disk is busy
+//! (measured 2026-11-26 in a threaded `landing::` run:
+//! the nine landings that run logged took 140 ms to 22576 ms,
+//! and the child that failed here answered its second commit 3893 ms after that commit was submitted,
+//! of which 501 ms was the first commit's note ceiling and 3367 ms was that commit's own index update;
+//! issue 6525).
+//! What each bound rests on is written beside it.
+//!
 //! The service and its clients are the ones `service_land_hung_write_tests.rs` runs,
 //! and the fixtures are the ones the landing's controls make.
 
@@ -71,6 +83,8 @@ const A_CEILING_NOBODY_WAITS_FOR: Duration = Duration::from_secs(30);
 /// The most a commit may wait beside the ceiling for its own note:
 /// what the rest of the answer's path costs is a send on a channel,
 /// so anything past this is a wait that is not the ceiling's.
+/// The window it bounds starts once that commit has landed,
+/// because a landing is granted no ceiling of its own (see the module words).
 const BESIDE_THE_CEILING: Duration = Duration::from_millis(2500);
 
 /// The ceiling the clients of these controls give the service's answer:
@@ -174,6 +188,20 @@ fn subjects_since(
     );
 }
 
+/// Whether a watch of `store` names `git_dir`,
+/// which is what the service that starts next would look at.
+fn the_store_names(
+    store: &Path,
+    git_dir: &Path,
+) -> bool {
+    return ClaimWatch::restored(store, None)
+        .directories()
+        .iter()
+        .any(|named| {
+            return named == git_dir;
+        });
+}
+
 /// Waits,
 /// no longer than the longest a control waits,
 /// until a watch of `store` names `git_dir`,
@@ -184,13 +212,7 @@ fn wait_until_the_next_service_would_look(
 ) {
     let began: Instant = Instant::now();
     loop {
-        if ClaimWatch::restored(store, None)
-            .directories()
-            .iter()
-            .any(|named| {
-                return named == git_dir;
-            })
-        {
+        if the_store_names(store, git_dir) {
             return;
         }
         assert!(
@@ -326,8 +348,8 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
 }
 
 /// A commit submitted while another commit's note write is held is not queued behind it:
-/// both are answered,
-/// the second without waiting for a ceiling of its own,
+/// both are answered while the store has answered nothing,
+/// the commit whose note is held is answered inside that write's ceiling,
 /// and both stay on the branch in their order.
 /// The store is handed no second write while the first has not ended,
 /// so the note the first gave up on is written by the work loop's look instead,
@@ -342,28 +364,51 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
             let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
             let serving: Serving = serving(&world, "note-queued");
             let mut held: HeldNoteWrite = HeldNoteWrite::arm(world.repo.join(".git").as_path());
+            // The clients here give the service's answer the longest a control waits, and never a shorter ceiling:
+            //  a landing is granted no ceiling of its own, so a landing that takes seconds is a wait this control must
+            //  not read as a failure, and only a hang ends one of these waits.
             let first: Submitting = submit_on_a_thread(
-                client(&serving, ANSWER_CEILING, PATIENCE),
+                client(&serving, PATIENCE, PATIENCE),
                 request(&world, "first", "first.txt", "first\n"),
             );
             held.wait_until_written();
-            let second_began: Instant = Instant::now();
-            let second: Submitting = submit_on_a_thread(
-                client(&serving, ANSWER_CEILING, PATIENCE),
-                request(&world, "second", "second.txt", "second\n"),
-            );
+            // The second commit is prepared here and submitted after the moment below is taken, so the window the first
+            //  answer is timed in holds that commit's note wait and the answer that follows it, and nothing this
+            //  control's own thread does.
+            let second_request: CommitRequest = request(&world, "second", "second.txt", "second\n");
+            let note_began: Instant = Instant::now();
+            let second: Submitting =
+                submit_on_a_thread(client(&serving, PATIENCE, PATIENCE), second_request);
             let (first_answer, first_notices) = answered(first, "the client of the first commit");
+            let first_waited: Duration = note_began.elapsed();
+            let first_landed: String = landed_commit(first_answer, first_notices.as_str());
+            assert!(
+                first_waited < NOTE_CEILING + BESIDE_THE_CEILING,
+                "the commit whose note's write began was answered {first_waited:?} after that write began, and the write is granted {NOTE_CEILING:?}"
+            );
             let (second_answer, second_notices) =
                 answered(second, "the client of the second commit");
-            let second_waited: Duration = second_began.elapsed();
-            let first_landed: String = landed_commit(first_answer, first_notices.as_str());
             assert!(
                 matches!(second_answer, Ok(Submitted::Landed { .. })),
                 "{second_answer:?} {second_notices}"
             );
+            // What:
+            //  The store names no repository once both commits are answered,
+            //  so neither answer came from it.
+            // Why:
+            //   The second commit is answered while the store has answered nothing,
+            //  which is the whole of "not queued behind it":
+            //  an answer that had waited for the store would have come only after the held write is let go, below.
+            //  No wall-clock bound stands in for this,
+            //  because the window it would time holds the second commit's own landing,
+            //  which the release code grants no ceiling and this host does in seconds (see the module words).
             assert!(
-                second_waited < NOTE_CEILING + BESIDE_THE_CEILING,
-                "the commit behind the held note was answered after {second_waited:?}, and that note's write is granted {NOTE_CEILING:?}"
+                !the_store_names(
+                    store_of(&world).as_path(),
+                    world.repo.join(".git").as_path()
+                ),
+                "the store already names {}, so an answer here may have come from it",
+                world.repo.join(".git").display()
             );
             assert_eq!(
                 subjects_since(&world, base.as_str()),
