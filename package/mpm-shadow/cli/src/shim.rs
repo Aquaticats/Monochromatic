@@ -282,7 +282,9 @@ pub fn start_and_wait(
         // What:     The system's own error is handed on with its kind, so the message is chosen by what happened.
         // Why:      A program that is no longer there has to reach the missing-program arm: wrapped in a
         //           text it reached the catch-all, which told the reader to run the missing program by hand.
-        Err(VetRefusal::NotOpened(error)) => {
+        Err(VetRefusal::NotOpened {
+            error,
+        }) => {
             return ProgramRun::NotStarted {
                 error,
                 retry: RetryReport::default(),
@@ -290,7 +292,9 @@ pub fn start_and_wait(
         }
         // What:     A shadow (or a launcher that leads to one) found at the moment of the start.
         // Why:      Starting it would start a shadow, so the start is reported as refused.
-        Err(VetRefusal::LeadsToShadow(sentence)) => {
+        Err(VetRefusal::LeadsToShadow {
+            sentence,
+        }) => {
             return ProgramRun::NotStarted {
                 error: std::io::Error::other(sentence),
                 retry: RetryReport::default(),

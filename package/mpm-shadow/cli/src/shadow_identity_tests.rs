@@ -472,14 +472,18 @@ fn a_missing_program_is_refused_with_the_systems_own_answer_and_its_kind() {
     // What:     The error's own kind is the system's `NotFound`, and its text is the system's.
     // Why:      The start's message is chosen by the kind: a text with no kind reached the catch-all arm.
     match refused {
-        VetRefusal::NotOpened(error) => {
+        VetRefusal::NotOpened {
+            error,
+        } => {
             assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{error}");
             assert!(
                 error.to_string().contains("No such file or directory"),
                 "{error}"
             );
         }
-        VetRefusal::LeadsToShadow(sentence) => {
+        VetRefusal::LeadsToShadow {
+            sentence,
+        } => {
             panic!("a missing program is not a shadow: {sentence}")
         }
     }

@@ -113,7 +113,8 @@ fn nesting_note(depth: u32) -> String {
 /// this tool cannot tell which process holds it or why,
 /// and the same command works once the write has finished and left a whole program.
 /// It never names a usual cause and never claims a replacement is in progress:
-/// the refusal proves a write, and nothing about who writes or why.
+/// the refusal proves a write,
+/// and nothing about who writes or why.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

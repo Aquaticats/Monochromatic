@@ -83,19 +83,24 @@ pub struct Vetted {
 /// ```
 #[derive(Debug)]
 pub enum VetRefusal {
-    /// The file could not be opened,
-    /// with the system's own answer and its kind kept whole.
-    NotOpened(Error),
+    /// The file could not be opened.
+    NotOpened {
+        /// The system's own answer,
+        /// with its kind kept whole.
+        error: Error,
+    },
     /// The file is a shadow,
-    /// or a launcher that leads to one,
-    /// with the sentence that says which.
-    LeadsToShadow(String),
+    /// or a launcher that leads to one.
+    LeadsToShadow {
+        /// The sentence that says which shadow.
+        sentence: String,
+    },
 }
 
 /// What:
 /// `impl Display for VetRefusal` prints the refusal in one line.
 /// Why:
-/// A caller that only wants the words (a test, a log) does not have to destructure the enum.
+/// A caller that only wants the words can print it without destructuring the enum.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,8 +114,12 @@ impl std::fmt::Display for VetRefusal {
         formatter: &mut std::fmt::Formatter<'_>,
     ) -> std::fmt::Result {
         return match self {
-            VetRefusal::NotOpened(error) => write!(formatter, "{error}"),
-            VetRefusal::LeadsToShadow(sentence) => write!(formatter, "{sentence}"),
+            VetRefusal::NotOpened {
+                error,
+            } => write!(formatter, "{error}"),
+            VetRefusal::LeadsToShadow {
+                sentence,
+            } => write!(formatter, "{sentence}"),
         };
     }
 }
@@ -146,20 +155,28 @@ pub fn vet(program: &Path) -> Result<Vetted, VetRefusal> {
                             program.display()
                         ),
                     );
-                    return Err(VetRefusal::NotOpened(both));
+                    return Err(VetRefusal::NotOpened {
+                        error: both,
+                    });
                 }
             };
             (by_path, false)
         }
         // What:     The system's own error is handed on as it is, kind and text together.
         // Why:      A missing program has to be told apart from every other refusal.
-        Err(error) => return Err(VetRefusal::NotOpened(error)),
+        Err(error) => {
+            return Err(VetRefusal::NotOpened {
+                error,
+            });
+        }
     };
     if let Some(identity) = identity_of_open_file_unless_launcher(&file, program) {
-        return Err(VetRefusal::LeadsToShadow(format!(
-            "{} is or leads to {identity}, a shadow, so it was not started",
-            program.display()
-        )));
+        return Err(VetRefusal::LeadsToShadow {
+            sentence: format!(
+                "{} is or leads to {identity}, a shadow, so it was not started",
+                program.display()
+            ),
+        });
     }
     let mut magic: [u8; 4] = [0; 4];
     let looks_compiled: bool =

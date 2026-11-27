@@ -132,7 +132,8 @@ pub fn hold_open_for_writing(path: &Path) -> HeldOpenForWriting {
 /// Why:
 /// A control that bounds what a refused start does needs a hold with an end it can state:
 /// a start that repeated the attempt would still be holding the file when the program became
-/// startable, so it would start the program instead of being refused again.
+/// startable,
+/// so it would start the program instead of being refused again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,7 +150,8 @@ impl HeldOpenUntil {
     /// and so still holds the file open.
     /// Why:
     /// A control that asks this after a refused start proves the start gave up while the file was
-    /// still being written, never that it waited for the write to end.
+    /// still being written,
+    /// never that it waited for the write to end.
     pub fn still_holding(&mut self) -> bool {
         // What:     `try_wait()` returns `Some(status)` once the child ended and `None` while it runs.
         // Why:      The holder ends when its `sleep` finishes, which closes its descriptor.

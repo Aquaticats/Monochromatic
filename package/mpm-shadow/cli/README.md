@@ -1522,10 +1522,12 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   or the interpreter named on its first line is,
   and the command that writes the tool's links again is the remedy for both.
   A start the system refused because another process holds a file it needs open for writing gets the same explanation the shadow mode gives:
-  some process holds open for writing the program's file, or the interpreter named on its first line,
+  some process holds open for writing the program's file,
+  or the interpreter named on its first line,
   the shadow cannot tell which process holds it or why,
   the same command works once that write has finished and left a whole program,
-  and a write cut short leaves a broken program, which installing the tool again replaces.
+  and a write cut short leaves a broken program,
+  which installing the tool again replaces.
   The launcher does not retry it either,
   for the reason the shadow mode does not.
 - The launcher never reads `PATH` or the working directory,
@@ -1979,7 +1981,8 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   the message says the file is the program or the interpreter named on its first line,
   that the shadow cannot tell which process holds it or why,
   that the same command works once that write has finished and left a whole program,
-  and that a write cut short leaves a broken program, which installing it again replaces.
+  and that a write cut short leaves a broken program,
+  which installing it again replaces.
   It never names a usual cause,
   because no measurement shows one,
   and it never names running the program by hand,
@@ -2003,7 +2006,10 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   because the archive install moves the old version directory aside before renaming the new one in,
   and it is reported as a program that is not there:
   one cause and one remedy,
-  whichever of the lookup, the check on the open file and the start itself is the step that found nothing.
+  whichever step found nothing:
+  the lookup,
+  the check on the open file,
+  or the start itself.
   A writer that does hold the published file open is outside this tool
   and keeps it for as long as its own work takes,
   which is why the refusal is explained rather than hidden behind a stall.
