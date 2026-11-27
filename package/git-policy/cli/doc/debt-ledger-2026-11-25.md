@@ -1194,6 +1194,9 @@ The difference is the reformat of 2026-11-26 (`00b6a940b4`), which grew the crat
 19 files were over 300 before it and are split now; the 262 over only because of it wait for the owner's answer on the budget
 (answered on 2026-11-26: "Keep 300, split everything", `doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`)
 (`doc/handover/questions-for-the-owner.md`; the counts are in `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 Note of 2026-11-26T14:09-05:00:
 the split round for four of these files ended

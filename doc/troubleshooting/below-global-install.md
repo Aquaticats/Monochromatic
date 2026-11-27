@@ -195,6 +195,11 @@ if names.contains(&tool.version) {
 }
 ```
 
+Both snippets are `version_directory_names` and `observe_version_directory`,
+now in `package/mpm-shadow/cli/src/toolchain/observe/what_the_file_system_holds.rs`
+(the split of `observe.rs` moved them on 2026-11-27;
+the paths above are the record of where they were).
+
 After listing the destination,
 the incomplete directory was moved into the private scratch directory as `failed-git-root`.
 The next installation launched Cargo again.

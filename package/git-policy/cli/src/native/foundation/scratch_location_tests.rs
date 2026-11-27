@@ -2,6 +2,13 @@
 //!  each in its own disposable directory under the target directory.
 
 use super::*;
+/// The mode a private directory ends with,
+/// and the call that sets a looser one,
+/// which the controls below use to make a folder they loosen.
+use crate::private_storage::{
+    PRIVATE_DIRECTORY_MODE,
+    protect_path,
+};
 use crate::test_support::{
     fixture,
     remove,

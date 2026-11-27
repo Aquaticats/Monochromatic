@@ -1,5 +1,7 @@
 //! What:
-//!  Which typed command the person wrote, the remote URL Git would use for it, and whether ssh carries that URL.
+//!  Which typed command the person wrote,
+//!  the remote URL Git would use for it,
+//!  and whether ssh carries that URL.
 //! Why:
 //!  The decision reads the remote first and relays only a command ssh carries;
 //!  every other command keeps the process replacement it has today
@@ -31,27 +33,14 @@ use crate::global_arguments::command_tokens;
 // import { remoteOperand } from './the-options-before-the-remote';
 // ```
 use super::the_options_before_the_remote::remote_operand;
-
-/// What:
-///  A typed network command whose remote may be carried by ssh.
-/// Why:
-///  These are the four the decision covers; a command outside this list keeps the process replacement it has today.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type TypedNetworkCommand = 'clone' | 'fetch' | 'pull' | 'push';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum TypedNetworkCommand {
-    /// `git clone`.
-    Clone,
-    /// `git fetch`.
-    Fetch,
-    /// `git pull`.
-    Pull,
-    /// `git push`.
-    Push,
-}
+// What: The four command words, whose home is the option table each one selects.
+// Why:  The index of this folder names the four through this module, so they are re-exported here.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// export type { TypedNetworkCommand } from './the-options-before-the-remote';
+// ```
+pub use super::the_options_before_the_remote::TypedNetworkCommand;
 
 /// What:
 ///  The typed network command this argument list names, its words after the command word, and Git's global options before it.
