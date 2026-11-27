@@ -291,6 +291,11 @@
 //!   the wrapper's own provisioning of the commit service's socket activation.
 //! - `service_client_settings_and_watches.rs`:
 //!   the settings of one client run and the watch on the service manager's answer.
+//! - `service_client_reach_service_the_waits_own_steps.rs`:
+//!   the wait for a service that speaks this release:
+//!   the start it asks the manager for,
+//!   what it says,
+//!   and how it ends.
 //! - `service_client_reach_service.rs`:
 //!   reaching the commit service,
 //!   starting it when nothing answers.
@@ -576,6 +581,12 @@ pub mod service_client_connect_within_a_bound;
 
 /// The settings of one client run and the watch on the service manager's answer.
 pub mod service_client_settings_and_watches;
+
+/// The wait for a service that speaks this release:
+/// the start it asks the manager for,
+/// what it says,
+/// and how it ends.
+pub mod service_client_reach_service_the_waits_own_steps;
 
 /// Reaching the commit service,
 /// starting it when nothing answers.
