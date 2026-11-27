@@ -11,10 +11,8 @@
 // });
 // ```
 
-use super::{
-    CheckedFull,
-    RegexSet,
-};
+use super::RegexSet;
+use super::line_checks::CheckedFull;
 
 #[test]
 fn checked_full_reports_each_rule_exactly_once() {
