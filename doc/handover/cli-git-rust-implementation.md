@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:25:24-05:00
+## The state at 2026-11-27T12:27:32-05:00
 
-`main` was `17eb875aa3`.
+`main` was `0f33063f26`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 225 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 226 more by this time.
 
 ### Rounds running
 
@@ -125,27 +125,21 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- for the wrapper package's lint,
-  which was red on `main` with nothing running it,
-  the last round for the guest scripts of issue 6581,
-  `issue-6581-oxlint-clean-guest-scripts-part-1-of-3`
-  (it writes `Refs #6581`,
-  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`;
-  three files were left,
-  with 235 errors and 447 warnings,
-  when part 2 measured `main`).
-  Part 3 is merged (`3621047a9d`):
-  the four ZFS guest drivers lint clean,
-  share their plumbing in `bin/guest-route-*.ts`,
-  and two of them build one target at two jobs,
-  because one release `rustc` of this crate's tests takes 6.7 to 6.9 GiB of an 8 GiB guest
-  and the kernel had killed both builds.
-  Part 2 is merged (`cc660cae3a`):
-  four more drivers lint clean and share steps in `bin/mvm-guest-*.ts`,
-  a second set beside part 3's,
-  which issue 6612 joins into one once part 1 has merged
-  (no round yet;
-  part 1 was told of both sets by an inbox note);
+- nothing for the wrapper package's lint,
+  which is clean on `main` and whose issue 6581 is closed ("What the rounds found").
+  Its rounds left three sets of shared guest-step helpers,
+  `bin/guest-route-*.ts`,
+  `bin/mvm-guest-*.ts` and `e2e/guest-host/`,
+  which issue 6612 joins into one.
+  No round holds it yet:
+  it touches every guest driver,
+  so it starts when issue 6611's round,
+  which holds the managed-lock driver,
+  has merged.
+  Issue 6615
+  (the adoption driver's holder-scan arm cannot run twice in one guest,
+  and its `snapdir` arm's pattern matches any character where it means a dot)
+  starts after issue 6612;
 - for what part 2's report left,
   `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
   (the driver's build at four jobs is killed in its 8 GiB guest,
@@ -346,7 +340,6 @@ in a second worktree no merge moves
 `native:check` and the four Clippy tasks exited 0
 and the 232 tests of the modules issue 6595 touched passed;
 `native:ts-checks` exited 0 there at `7976b3daff`.
-The package's `lint:oxlint` stays red until part 1 of issue 6581 merges.
 Tip checks run in such a worktree:
 on 2026-11-27 three Clippy arms run in the main checkout exited 0 while Rust merges landed under them,
 and stood for no commit.
@@ -793,7 +786,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6614,
+  issues 6524 to 6615,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -1007,6 +1000,24 @@ and the two `truepeak` files wait on their branch.
   in a worktree no merge moved,
   the package's whole `test:unit` exited 0 with 176 `[PASS]` suite lines and none failing,
   and `lint:types` exited 0.
+- The wrapper package's `lint:oxlint` exits 0 on `main` (`0f33063f26`,
+  2026-11-27):
+  `Found 0 warnings and 0 errors.` on 341 files,
+  where issue 6581 had counted 850 errors and 1,856 warnings in fifteen TypeScript files with nothing running the check.
+  Every guest driver was shown to run in its guest against `main`'s version,
+  with the lines that say what an arm did compared and found the same.
+  The rewrite found that the start probe's shared header had been broken since `dcf5877982`:
+  an unquoted handler assignment ran the wrapper as a command,
+  so every arm after `green` stopped at its fourth line,
+  in `main`'s driver and the rewritten one alike;
+  it is quoted now,
+  and those arms run.
+  Three of that probe's arms
+  (`m3-kill`,
+  `timings`,
+  `timings-boot-first`)
+  were compared byte for byte and not run in a guest;
+  issue 6612's round runs each once.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
