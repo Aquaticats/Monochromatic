@@ -144,7 +144,10 @@ same path and prefix. Unrelated filenames and the rest of Documents retain their
 No execute, capability, broad home, or unrelated-directory grant is added.
 
 The pre-change local policy is retained privately at
-`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/firefox-local.before-backup-archive-replace`.
+`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/firefox-local.before-backup-archive-replace`
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 ### Preserve the parser spelling for a path containing a space
 

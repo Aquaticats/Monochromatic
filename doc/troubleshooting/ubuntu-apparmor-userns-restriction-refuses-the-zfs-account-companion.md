@@ -190,7 +190,10 @@ The same probe therefore succeeds at `setgroups` where the restriction is off,
 and fails where it is on,
 and the mapping write answers `EPERM` in both.
 The measured lines are kept in the round folder
-`/home/user/temp/agent/zfs-add-clone-inherits-legacy-issue-6462-2026-11-25/keep/guest-logs/companion-measurements.md`.
+`/home/user/temp/agent/zfs-add-clone-inherits-legacy-issue-6462-2026-11-25/keep/guest-logs/companion-measurements.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## Verified workarounds
 

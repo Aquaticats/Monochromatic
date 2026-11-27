@@ -21,13 +21,13 @@
 //! // const state = lstatAndRead(path); const same = state.kind === 'file' && equal(state.bytes, bytes) && sameKept(state.kept, kept);
 //! ```
 
-/// The site a judgement is about.
-use crate::direct_fix_install::Prepared;
 /// The attributes themselves,
 ///  read from the file each judgement is about.
 use crate::direct_fix_install_attributes::attributes_of;
 /// The journal that holds what a swap displaced.
 use crate::direct_fix_install_journal::content_of;
+/// The site a judgement is about.
+use crate::direct_fix_install_records::Prepared;
 /// The permission bits,
 ///  owner and extended attributes a file carries.
 use crate::direct_fix_install_writes::Kept;

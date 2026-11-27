@@ -474,7 +474,10 @@ GitHub
 CLI 2.105.0-1,
 and the custom confined Helium package.
 
-Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/`.
+Evidence is under `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Reports marked
 `ownerAcceptance: false` are not final approval.
 
@@ -788,6 +791,9 @@ The same command naming `0.6.1-alpha.47`'s link by its absolute path
 (`.cache/wrapper-release-0.6.1-alpha.47/`, the release archive whose sha256 matches the release's digest)
 removed 201 journals and left 22 entries in `~/.local/state/monochromatic-git-policy-cli/service/`
 (logs in `~/temp/agent/wrapper-alpha-47-release-2026-11-26/keep/`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ### Helium and Git
 
@@ -991,7 +997,10 @@ All of them are in the `local/` includes,
 loaded with `apparmor_parser --replace`,
 which also wrote each profile's entry in the early-policy cache.
 Backups of each local file as it was are under
-`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`.
+`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/`
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 ```text
 # /etc/apparmor.d/local/git, first batch
@@ -1111,7 +1120,10 @@ so it is loaded with `/etc/apparmor.d/git`.
 Each batch after the fourth is appended,
 and its profiles loaded,
 by `append-a-batch-of-local-rules-and-load.ts` in
-`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/`,
+`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/`
+(scratch,
+deleted on 2026-11-27;
+not kept),
 which keeps each local file as it was beside the batch in that folder's `keep/`.
 
 On this machine a denial is in `/var/log/audit/audit.log` and nowhere else a session first looks:
@@ -1368,6 +1380,9 @@ and no other container of those minutes made it.
 The other containers of the window are the reason most of the list is not the gate's.
 The askpass design round
 (`~/temp/agent/typed-network-command-next-step-at-a-new-host-key-design-2026-11-24`)
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 saw throwaway containers at 01:20:00,
 01:20:59 and 01:26:36,
 and then `cli-git-askpass-probe-2026-11-24` at 01:26:50,
@@ -1802,7 +1817,10 @@ the profile does not let it run the user environment generators,
 the verify ignores them,
 and no rule is added for them.
 The logs are `coordinator-verify-*.log` in
-`~/temp/agent/apparmor-ninth-batch-for-the-gate-at-8519c599d0-2026-11-24/keep/`.
+`~/temp/agent/apparmor-ninth-batch-for-the-gate-at-8519c599d0-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Tradeoff of the read rules:
 `systemd-analyze` may read the account's user unit files and the user manager's runtime unit folders,
 which is what a `--user` verify is for;
@@ -2071,7 +2089,11 @@ Under the owner's rule recorded under "Eleventh batch" the profiles were widened
 In the same window, issue 6518's round preloaded a measurement shim it built in its scratch folder into Git,
 and the `git` profile denied 378 `file_mmap` of `scratch/shim/eraser_shim.so`:
 `local/git` gained `owner @{HOME}/temp/agent/**/scratch/**.so m,`.
-Logs: `~/temp/agent/ssh-terminal-sshd-on-the-host-2026-11-26/keep/`.
+Logs:
+`~/temp/agent/ssh-terminal-sshd-on-the-host-2026-11-26/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## Thirteenth batch: IVPN Desktop 3.15.15, and apparmor_parser reading scratch drafts, 2026-11-26T01:41:13-05:00
 
@@ -2082,7 +2104,11 @@ and the owner's request on 2026-11-26 to make sure both packages "have suitable 
 Probes ran in throwaway network namespaces (`sudo unshare --net`),
 so no firewall rule, route or tunnel reached the host;
 the AVC windows were read from `/var/log/audit/audit.log`.
-Probe logs: `~/temp/agent/ivpn-apparmor-netns-probes-2026-11-26/keep/`.
+Probe logs:
+`~/temp/agent/ivpn-apparmor-netns-probes-2026-11-26/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ### OpenVPN connections were denied their configuration
 
