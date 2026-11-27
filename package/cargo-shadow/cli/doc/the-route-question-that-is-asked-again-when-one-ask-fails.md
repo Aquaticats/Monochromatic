@@ -215,16 +215,18 @@ what it answered and how long it took.
   systemd 262,
   a user manager of its own holding 657 units (this account's held 606 on that day),
   and `systemctl --user` answered over the manager's private socket.
-  Three reexecs of 0.430 s,
-  0.517 s and 0.588 s and one reload of 0.654 s,
-  with 305 to 574 rounds of the asks across them and 10 s after each:
+  Seven reexecs of 0.430 s to 0.588 s and two reloads of 0.654 s and 0.734 s,
+  in three runs of 284,
+  305 and 574 rounds of the asks,
+  each reaching 10 s past its last disturbance:
   every ask answered except during the reexecs themselves,
-  where asks refused in 3 ms to 6 ms
+  where 59 asks refused over those seven windows,
+  in 3 ms to 6 ms
   (`Failed to connect to user scope bus via local transport: Connection reset by peer`)
   or after waiting 0.08 s to 0.35 s
   (`Transport endpoint is not connected`,
   `Connection reset by peer`),
-  and the reload refused no ask at all.
+  and neither reload refused an ask at all.
   In a control run of the same length with no disturbance every ask answered,
   and the long asks (2.5 s to 3.0 s) that appear in both runs are this machine's pressure,
   not the manager's.
@@ -236,16 +238,19 @@ what it answered and how long it took.
   a user manager of its own holding 760 units,
   and `systemctl --user` answered over the session bus (dbus-broker),
   which is the transport this account's manager has.
-  Three reexecs of 0.292 s to 0.393 s and one reload of 0.415 s,
-  7,307 rounds of the asks across them and 5 s after each:
-  five asks refused,
+  Seven reexecs of 0.292 s to 0.393 s and three reloads of 0.375 s to 0.448 s,
+  in three runs of 6,886,
+  7,145 and 7,307 rounds of the asks,
+  each reaching 5 s past its last disturbance:
+  fifteen asks refused,
   every one of them inside a reexec window
   (`Transport endpoint is not connected`,
   `Message recipient disconnected from message bus without replying`,
   `Warning! D-Bus connection terminated.`),
   after 0.08 s to 0.35 s each,
   and not one ask refused in the five seconds after any of them
-  (1,129 to 1,340 manager asks per window).
+  (1,129 to 1,340 manager asks per window),
+  nor in any reload's window or the seconds after it.
   The read of the caller's limits,
   the slice's stat,
   its `cgroup.kill`,
@@ -269,7 +274,10 @@ the event itself.
 The ten controls that failed on 2026-11-27 asked about half a second **after** the reexec had ended,
 and no ask failed in the seconds after any reexec measured here,
 in either environment,
-so no figure is sized to that event and the trigger stays open (issue 6623).
+so no figure here is sized to that event,
+and what makes an ask fail after a reexec has ended is still unknown.
+The constants are sized to a reexec,
+which is what a measurement showed.
 
 ### The two controls of the span
 
