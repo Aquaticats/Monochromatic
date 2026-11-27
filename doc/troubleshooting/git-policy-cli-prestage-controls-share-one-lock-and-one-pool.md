@@ -98,8 +98,7 @@ no marker was made ahead
 
 That is the log's first failure,
 at the same line of the same helper,
-ten seconds after a making that had a thread
-to wait for.
+ten seconds after a making that never got a thread.
 The plant is test-only and uncommitted;
 it is not in the change.
 
