@@ -32,6 +32,11 @@
 //! is re-merged;
 //! everything else is left to the person exactly as Git left it.
 //!
+//! The limits,
+//! the reasons a path is left and what became of it
+//! live in `merge_second_pass_verdicts.rs`;
+//! the blobs and the tree a merge from objects is carried by live in `merge_second_pass_objects.rs`.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const verdicts = await secondPass(runner, conflicts); // [{ merged: { path, mode, bytes, parts } } | { left: { path, why } }]
@@ -53,6 +58,13 @@ pub use crate::merge_second_pass_git_runner::{
     GitRunner,
     config_options,
 };
+/// The objects a pass over a merge from objects makes live in a file of their own;
+/// named here so every `merge_second_pass::name` path stays the same.
+pub use crate::merge_second_pass_objects::{
+    resolved_record,
+    tree_with_files,
+    write_blob,
+};
 /// The report words and the journal entry live in a file of their own;
 /// named here so every `merge_second_pass::name` path stays the same.
 pub use crate::merge_second_pass_report::{
@@ -68,63 +80,24 @@ pub use crate::merge_second_pass_report::{
     part_text,
     report_lines,
 };
+use crate::merge_second_pass_verdicts::shared_plain_mode;
+/// Whether a stage is binary or too large stays the pass's own question,
+/// asked of the file that holds the limits;
+/// named here so `merge_isolation_carry_layers.rs` keeps its import path.
+pub(crate) use crate::merge_second_pass_verdicts::unfit;
+/// What the pass accepts and what it leaves live in a file of their own;
+/// named here so every `merge_second_pass::name` path stays the same.
+pub use crate::merge_second_pass_verdicts::{
+    AttributeSource,
+    LARGEST_STAGE_BYTES,
+    Left,
+    Merged,
+    Verdict,
+    is_attributes_path,
+};
 use crate::path_bytes::path_message_text;
-use crate::word_merge::{
-    MergedPart,
-    WordMerge,
-};
+use crate::word_merge::WordMerge;
 use std::collections::BTreeMap;
-use std::path::Path;
-
-/// The number of leading bytes in which Git looks for a NUL byte to call a file binary:
-/// `FIRST_FEW_BYTES` in Git 2.56.0's
-///  `xdiff-interface.c` line 197,
-/// used by `buffer_is_binary` and by the merge driver choice in `merge-ll.c` lines 120 to 122.
-const BINARY_PROBE_BYTES: usize = 8000;
-
-/// The size above which Git's own merge treats a file as binary and does not merge it by text:
-/// `MAX_XDIFF_SIZE`,
-/// 1023 MiB,
-/// in
-///  `xdiff-interface.h` line 14,
-/// tested in `merge-ll.c` lines 117 to 119.
-const GIT_MAX_XDIFF_SIZE: usize = 1024 * 1024 * 1023;
-
-/// The size above which this pass leaves a file to the person,
-/// although Git would still merge it by text.
-/// Git's value cannot
-///  bound the cost of this pass:
-/// measured on three texts that share no line,
-/// one 1 MiB of lines took 0.08 s and 45 MB,
-/// 8 MiB took
-///  0.73 s and 352 MB,
-/// 32 MiB took 4.12 s and 1320 MB (release build,
-/// Myers diff,
-/// one core),
-/// so a file at Git's limit would take
-///  minutes and tens of gigabytes.
-/// 8 MiB keeps the worst case under a second.
-const PASS_COST_LIMIT_BYTES: usize = 8 * 1024 * 1024;
-
-/// The largest blob the second pass re-merges:
-/// the smaller of Git's own limit and the one measured above.
-const LARGEST_BLOB_BYTES: usize = if PASS_COST_LIMIT_BYTES < GIT_MAX_XDIFF_SIZE {
-    PASS_COST_LIMIT_BYTES
-} else {
-    GIT_MAX_XDIFF_SIZE
-};
-
-/// The largest stage the pass reads,
-/// in the bytes a caller's answer ceiling counts.
-/// Why:
-///   The pass asks `git cat-file --batch` for the three stages of every candidate and refuses a file past this size,
-/// so an answer larger than one
-///  of these per name asked for is one the pass would refuse after reading it.
-pub const LARGEST_STAGE_BYTES: u64 = LARGEST_BLOB_BYTES as u64;
-
-/// The modes of a plain file,
-/// with and without the executable bit.
-const PLAIN_FILE_MODES: &[u32] = &[0o100_644, 0o100_755];
 
 /// The values of the `merge` attribute that leave the text merge to Git's own algorithm:
 /// none given,
@@ -136,132 +109,6 @@ const TEXT_MERGE_VALUES: &[&str] = &["unspecified", "set", "text"];
 /// the path,
 /// the attribute and its value.
 const ATTRIBUTE_FIELDS: usize = 3;
-
-/// Why a conflicted path is left to the person.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Left {
-    /// A stage is missing:
-    /// both sides added the path,
-    /// or one side deleted it.
-    MissingStage,
-    /// The stages differ in mode,
-    /// or the file is a link,
-    /// a submodule or not a plain file.
-    NotAPlainFile,
-    /// A stage holds a NUL byte near its start.
-    Binary,
-    /// A stage is larger than the pass takes.
-    TooLarge,
-    /// The `merge` attribute names a driver,
-    /// `binary` or is unset,
-    /// so the merge belongs to that setting.
-    Driver(String),
-    /// At least one line region holds two different changes of the same words,
-    /// or a word merge of it would write text no side wrote in that shape.
-    Overlap(usize),
-    /// A `.gitattributes` of the merge is itself conflicted,
-    /// so no `merge` setting can be read for the path.
-    UnknownAttributes,
-}
-
-/// Where the pass reads the `merge` attribute of the paths it may merge.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AttributeSource<'a> {
-    /// Whatever the invocation itself names:
-    /// the worktree of a merge a person runs,
-    /// or the tree that `--attr-source`,
-    /// `GIT_ATTR_SOURCE` or `attr.tree` names.
-    Invocation,
-    /// The tree the merge produced,
-    /// which carries a `merge` rule the merge itself introduces.
-    Tree(&'a str),
-    /// A `.gitattributes` of the merge is itself conflicted,
-    /// so no rule of it can be trusted and nothing may be merged.
-    Unknown,
-}
-
-/// A conflicted file that the word pass merged completely.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Merged {
-    /// The path as bytes.
-    pub path: Vec<u8>,
-    /// The mode all three stages share.
-    pub mode: u32,
-    /// The merged bytes.
-    pub bytes: Vec<u8>,
-    /// The line regions that needed the word pass.
-    pub parts: Vec<MergedPart>,
-    /// The three stages the file was merged from,
-    /// kept to put the conflict back if a later step fails.
-    pub stages: Conflict,
-}
-
-/// What became of one conflicted path.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Verdict {
-    /// Merged completely.
-    Merged(Box<Merged>),
-    /// Left as Git left it.
-    Left {
-        /// The path as bytes.
-        path: Vec<u8>,
-        /// Why.
-        why: Left,
-    },
-}
-
-/// What:
-///  Whether the bytes are text the pass may merge:
-/// no NUL byte near the start,
-/// and not larger than the limit.
-/// Why:
-///   Git's own binary test looks at the first bytes only;
-/// a file it would call binary is never a candidate for a
-///  line-and-word merge.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const verdict = (bytes) => bytes.length > LARGEST ? 'too-large' : bytes.subarray(0, PROBE).includes(0) ? 'binary' : 'text';
-/// ```
-pub(crate) fn unfit(bytes: &[u8]) -> Option<Left> {
-    if bytes.len() > LARGEST_BLOB_BYTES {
-        return Some(Left::TooLarge);
-    }
-    if bytes[..bytes.len().min(BINARY_PROBE_BYTES)].contains(&0) {
-        return Some(Left::Binary);
-    }
-    return None;
-}
-
-/// The mode all three stages share,
-/// when it is a plain file's.
-fn shared_plain_mode(stages: [&Stage; 3]) -> Option<u32> {
-    let mode: u32 = stages[0].mode;
-    for stage in stages {
-        if stage.mode != mode {
-            return None;
-        }
-    }
-    if PLAIN_FILE_MODES.contains(&mode) {
-        return Some(mode);
-    }
-    return None;
-}
-
-/// What:
-///  Whether a conflicted path is a `.gitattributes` file.
-/// Why:
-///   A `.gitattributes` names the rules of its own folder and of everything below it,
-/// so one a merge left conflicted can change any rule that bears on a candidate,
-/// and a copy of it that holds Git's markers is no side's rule.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isAttributesPath = (path: string) => path === '.gitattributes' || path.endsWith('/.gitattributes');
-/// ```
-pub fn is_attributes_path(path: &[u8]) -> bool {
-    return path == b".gitattributes" || path.ends_with(b"/.gitattributes");
-}
 
 /// What:
 ///  The value of the `merge` attribute of each path,
@@ -535,106 +382,6 @@ pub async fn second_pass(
         verdicts.insert(index, verdict);
     }
     return Ok(verdicts.into_values().collect());
-}
-
-/// What:
-///  Write one merged file as a blob and return its object name.
-/// Why:
-///   `--no-filters` keeps the bytes exactly as merged;
-/// the checkout filters apply when a worktree file is made,
-/// not here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function writeBlob(runner: GitRunner, bytes: Uint8Array): Promise<string>;
-/// ```
-pub async fn write_blob(
-    runner: &dyn GitRunner,
-    bytes: &[u8],
-) -> Result<String, String> {
-    let reply: GitReply = runner
-        .run(
-            &["hash-object", "-w", "--no-filters", "--stdin"],
-            Some(bytes),
-            None,
-        )
-        .await?;
-    if reply.code != Some(0) {
-        return Err(format!(
-            "git hash-object failed: {}",
-            String::from_utf8_lossy(&reply.stderr).trim()
-        ));
-    }
-    return Ok(String::from_utf8_lossy(&reply.stdout).trim().to_owned());
-}
-
-/// The `update-index --index-info` record that puts a blob at a path as a resolved entry.
-pub fn resolved_record(
-    mode: u32,
-    oid: &str,
-    path: &[u8],
-) -> Vec<u8> {
-    let mut record: Vec<u8> = format!("{mode:06o} {oid}\t").into_bytes();
-    record.extend_from_slice(path);
-    record.push(0);
-    return record;
-}
-
-/// What:
-///  The tree that is `tree` with the named files replaced,
-/// from a scratch index.
-/// Why:
-///   The tree `git merge-tree` wrote holds the conflicted file with markers;
-/// replacing it by the merged blob makes the tree
-///  of the merge as if Git had merged cleanly.
-/// A scratch index is the way to edit a tree with Git's own commands.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function treeWithFiles(runner, tree: string, files: { path, mode, oid }[], scratchIndex: string): Promise<string>;
-/// ```
-pub async fn tree_with_files(
-    runner: &dyn GitRunner,
-    tree: &str,
-    files: &[(&[u8], u32, &str)],
-    scratch_index: &Path,
-) -> Result<String, String> {
-    let read: GitReply = runner
-        .run(&["read-tree", tree], None, Some(scratch_index))
-        .await?;
-    if read.code != Some(0) {
-        return Err(format!(
-            "git read-tree failed: {}",
-            String::from_utf8_lossy(&read.stderr).trim()
-        ));
-    }
-    let mut records: Vec<u8> = Vec::new();
-    for (path, mode, oid) in files {
-        records.extend_from_slice(resolved_record(*mode, oid, path).as_slice());
-    }
-    let updated: GitReply = runner
-        .run(
-            &["update-index", "-z", "--index-info"],
-            Some(records.as_slice()),
-            Some(scratch_index),
-        )
-        .await?;
-    if updated.code != Some(0) {
-        return Err(format!(
-            "git update-index failed: {}",
-            String::from_utf8_lossy(&updated.stderr).trim()
-        ));
-    }
-    let written: GitReply = runner
-        .run(&["write-tree"], None, Some(scratch_index))
-        .await?;
-    if written.code != Some(0) {
-        return Err(format!(
-            "git write-tree failed: {}",
-            String::from_utf8_lossy(&written.stderr).trim()
-        ));
-    }
-    return Ok(String::from_utf8_lossy(&written.stdout).trim().to_owned());
 }
 
 /// Controls for the parsing,

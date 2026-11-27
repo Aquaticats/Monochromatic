@@ -18,9 +18,21 @@
 //! so the Rust side owns it and pushes it
 //! to the window;
 //! the movement rules themselves are the pure functions of `list_focus`.
+//! The row layout the window's pane asks back lives in `ui_lists/track_layout.rs`.
 
-/// Imports the cell that holds the row tops that the window reads back.
-use std::cell::RefCell;
+/// What:
+/// `mod track_layout;` the published row tops and the window's two layout questions,
+/// with the callbacks that answer them (`src/ui_lists/track_layout.rs`).
+/// Why:
+/// the pane builds only the rows on screen,
+/// so the geometry of the whole list crosses to
+/// the window as plain numbers,
+/// apart from the ring keys below.
+mod track_layout;
+
+/// Re-exports the layout publication,
+/// which the screen calls after each projection through this module's path.
+pub(crate) use self::track_layout::publish_track_layout;
 
 /// Imports the focus zone and the shortcut action that list keys carry.
 use music_player::keymap::{
@@ -41,8 +53,6 @@ use slint::ComponentHandle;
 use crate::AppWindow;
 /// Imports the generated focus type.
 use crate::Focus;
-/// Imports the generated track layout global.
-use crate::TrackLayout;
 /// Imports the host through which actions leave the window.
 use crate::ui_host::Host;
 /// Imports the projection and the state accessors of the screen.
@@ -56,119 +66,12 @@ use crate::ui_screen_rows::{
     ListRow,
     PickerName,
 };
-/// Imports the scroll geometry calculations of the track list.
+/// Imports the scroll geometry of the two rings:
+/// a row's height and where it starts.
 use crate::ui_screen_scroll::{
-    row_at_px,
     row_height_px,
     row_offset_px,
-    row_tops_px,
-    top_of_px,
 };
-
-thread_local! {
-    /// What:
-    /// the top of every row of the track list the window shows,
-    /// and one more entry for the end of the content.
-    /// Why:
-    /// the pane builds only the rows on screen,
-    /// and asks for the row at a scroll offset through a pure callback that
-    /// must answer from plain memory;
-    /// the window's own model would cost a copy of the row per probe.
-    static TRACK_TOPS: &'static RefCell<Vec<f32>> = Box::leak(Box::new(RefCell::new(Vec::new())));
-}
-
-/// What:
-/// `track_tops` returns this thread's row tops cell.
-/// Why:
-/// the window's pure layout callbacks read it for every probe,
-/// so they borrow it directly:
-/// a copy of the whole vector per probe would cost the length of the library.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const trackTops = (): Cell<number[]> => TRACK_TOPS;
-/// ```
-fn track_tops() -> &'static RefCell<Vec<f32>> {
-    return TRACK_TOPS.with(Clone::clone);
-}
-
-/// What:
-/// `row_at_offset` answers the layout's question which row sits at a scroll offset.
-/// Why:
-/// the pane builds only the rows on screen,
-/// and asks through this callback that answers from the published row tops.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const rowAtOffset = (offset: number, _generation: number): number => rowAtPx(trackTops, offset);
-/// ```
-fn row_at_offset(
-    offset: f32,
-    _generation: i32,
-) -> i32 {
-    return i32::try_from(row_at_px(&track_tops().borrow(), offset)).unwrap_or(i32::MAX);
-}
-
-/// What:
-/// `top_of_row` answers the layout's question where a row starts.
-/// Why:
-/// the pane places each row it builds from the published row tops.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const topOfRow = (index: number, _generation: number): number => topOfPx(trackTops, index);
-/// ```
-fn top_of_row(
-    index: i32,
-    _generation: i32,
-) -> f32 {
-    return top_of_px(&track_tops().borrow(), usize::try_from(index).unwrap_or(0));
-}
-
-/// What:
-/// `publish_track_layout` gives the window the layout of the whole track list:
-/// where every row starts and how tall
-/// the content is.
-/// Why:
-/// the pane builds only the rows that are on screen,
-/// so it needs the layout of all the rows to place them,
-/// to size the
-/// scroll range and its scrollbar,
-/// and to find the first row at a scroll offset.
-/// The callbacks are installed on the first
-/// call,
-/// and each call bumps the generation so a pane asks again after the rows changed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function publishTrackLayout(win: AppWindow, rows: ListRow[]): void {
-///   tops = rowTopsPx(rows);
-///   win.trackLayout.totalHeight = tops.at(-1) ?? 0;
-///   win.trackLayout.generation += 1;
-/// }
-/// ```
-pub(crate) fn publish_track_layout(
-    window: &AppWindow,
-    rows: &[ListRow],
-) {
-    let tops = row_tops_px(rows);
-    let total = tops.last().copied().unwrap_or(0.0);
-    *track_tops().borrow_mut() = tops;
-    let layout = window.global::<TrackLayout>();
-    if !layout.get_wired() {
-        layout.on_row_at(row_at_offset);
-        layout.on_top_of(top_of_row);
-        layout.set_wired(true);
-        tracing::debug!("the track layout callbacks are installed");
-    }
-    layout.set_total_height(total);
-    layout.set_generation(layout.get_generation().wrapping_add(1));
-    tracing::debug!(
-        rows = rows.len(),
-        total_height = total,
-        "the track layout was published"
-    );
-}
 
 /// What:
 /// `track_position_of` finds the list position of the track row with library index `ring`.

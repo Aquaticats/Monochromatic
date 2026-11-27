@@ -147,6 +147,15 @@ The four share one comparison,
 `the_figures_did_not_move` in `testing/run_progress_tests.rs`,
 which refuses a look where a task that is not the control's own moved between two looks
 and says which helper runs the body alone.
+The thread count of the process is one of those figures,
+so `renewals_running_at_once_start_no_thread_each` reads it in a child of its own
+(`testing/process_wide_state_child_test_support.rs`).
+And the same rule covers a count of the tasks a control started:
+the renewal makes the count of its one task's ending and hands the control a share of it
+(`service_claim_renewal_running.rs`,
+`ClaimRenewal::endings`),
+so a control reads the endings of the task it made and never a count the whole test process shares
+(issue 6526).
 
 A control that holds a fault point of the service
 (`service_fault_hooks_test_support.rs`)

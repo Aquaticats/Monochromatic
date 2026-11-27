@@ -298,7 +298,10 @@ so a run stopped while its failure is unanswered has not finished its task.
 A review of the temporary-folder change ran the whole package suite once and saw one test fail that
 this record did not name
 (`keep/unit-suite-at-tip.log` in
-`/home/user/temp/agent/review-of-the-temporary-folder-a-run-gives-pi-2026-11-19/`):
+`/home/user/temp/agent/review-of-the-temporary-folder-a-run-gives-pi-2026-11-19/`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 ```text
 [drive-pi-subagent] [leaves a session alone that Pi reports and this run did not make]
@@ -376,7 +379,10 @@ The three:
 - `refuses to start a run whose secret environment cannot be read, naming the cause and starting no Pi`
   in `src/drive-pi-subagent.unit.test.ts`,
   in the review's one run of the suite at `9f815bc830`
-  (`keep/unit-suite.log` in `/home/user/temp/agent/review-answer-at-9f815bc830/`).
+  (`keep/unit-suite.log` in `/home/user/temp/agent/review-answer-at-9f815bc830/`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
 Every one of them reads a store the fixture made,
 and the failure is the store's own text not being JSON,
@@ -397,7 +403,10 @@ and that the wait for `exit` is where the cut happens,
 was measured by the env-local-json fixture review of 2026-11-18:
 four of eighty waits for `exit` captured nothing,
 where eighty of eighty waits for `close` captured the whole document
-(`~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/prompt.md`,
+(`~/temp/agent/env-local-json-fixture-waits-for-close-review-2026-11-18/prompt.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
 and the entry naming branch `74dbe1200e` under `doc/handover/cli-git-rust-implementation.md`).
 Branch `74dbe1200e` changes the wait to `close`,
 and that change is not merged here.

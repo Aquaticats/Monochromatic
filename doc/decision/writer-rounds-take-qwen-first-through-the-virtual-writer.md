@@ -52,7 +52,10 @@ and the launchers start rounds on `--provider=rate-limit-fallback --model=writer
 
 ## Until the virtual writer is ready
 
-The round launcher (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`)
+The round launcher (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`;
+scratch,
+deleted on 2026-11-27;
+not kept)
 takes `qwen` by default from 2026-11-26T02:50-05:00,
 and a launcher names `WRITER_POOL=opencode-go` or `WRITER_POOL=neuralwatt-flex` for the next pool,
 so a refused round is restarted on the next pool by hand,
@@ -141,7 +144,10 @@ The tallies the driver prints count the runs pinned to each pool and name no sel
 and the launcher's line for a run on a selection names its members and says it holds no slot in any pool.
 A member a caller closes with `PI_RUNS_POOL_LIMITS` adds no room to any count and does not by itself stop such a run:
 the provider's refusal at that member is what moves the request on.
-(round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`).
+(round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## The pool gate counts no virtual run (owner, 2026-11-26)
 

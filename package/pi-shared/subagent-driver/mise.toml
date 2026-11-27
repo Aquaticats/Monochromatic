@@ -44,7 +44,7 @@ description = "Start one Pi run when its provider pool has room, or say why it s
 run = "node src/start-pi-run-when-a-pool-has-room.ts"
 
 [tasks."start-pi-run-in-a-worktree"]
-description = "Make a run's worktree with its branch started at the commit or branch the run names, link its dependencies, start the driver as a capped unit, and remove the worktree once the run has finished with it"
+description = "Make a run's worktree with its branch started at the commit or branch the run names, leave its copied node_modules to the wrapper's relink, start the driver as a capped unit, and remove the worktree once the run has finished with it"
 run = "node src/start-pi-run-in-a-worktree.ts"
 
 [tasks."retry-pi-run-start-until-a-pool-has-room"]

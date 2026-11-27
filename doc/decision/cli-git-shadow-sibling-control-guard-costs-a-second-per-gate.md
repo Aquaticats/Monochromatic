@@ -25,7 +25,11 @@ commit a one-second delay inside the test's stand-in Git,
 so the regular test suite catches a regression.
 Measured since:
 the test takes 1.87 to 1.95 s with the delay against 0.91 to 0.95 s without,
-so about one second more per whole gate run of roughly 17 to 29 minutes.
+so about one second more per whole gate run of roughly 17 to 29 minutes
+(`~/temp/agent/integration-pass-shadow-sibling-control-two-timing-windows-2026-11-22/fu-main-now-cause-m.txt`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## What was chosen
 
