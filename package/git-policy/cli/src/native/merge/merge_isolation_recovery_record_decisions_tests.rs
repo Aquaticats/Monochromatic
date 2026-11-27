@@ -46,6 +46,8 @@ use crate::transaction_owner::{
 };
 use std::path::PathBuf;
 
+use crate::merge_isolation_recovery_records::merge_intents_to_recover;
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// A merge killed before it touched anything is discarded,
 /// and the checkout is as it was.
 #[test]

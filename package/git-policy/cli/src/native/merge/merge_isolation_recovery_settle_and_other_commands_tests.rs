@@ -31,6 +31,7 @@ use crate::test_support::{
 };
 use std::path::PathBuf;
 
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// What:
 ///  The awaited settle decides what the synchronous one decides,
 /// and the synchronous one is refused from inside the runtime.

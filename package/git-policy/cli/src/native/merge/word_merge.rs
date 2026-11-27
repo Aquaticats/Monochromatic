@@ -35,6 +35,14 @@
 //! or,
 //! in a region that spans lines on some side,
 //! a line no side holds.
+//! A region both sides only deleted lines from is not read by word at all:
+//! it resolves to the
+//! lines both sides kept,
+//! which is the union of the two deletions
+//! (`src/native/merge/word_merge_deleted_lines.rs`,
+//! issue 6529).
+//! A region one side also wrote a line into is read by word,
+//! and a word merge that would write back a line one side deleted is refused there.
 //! The owner asked on 2026-11-10 for wrong text to land less often;
 //! the controls for both refusals are
 //!  `src/native/merge/word_merge_refusals/`
@@ -45,6 +53,12 @@
 //! const merged = mergeByWord({ base, ours, theirs }); // { kind: 'resolved', merged, parts } | { kind: 'conflict', unresolved }
 //! ```
 
+/// The answer for a region both sides only deleted lines from,
+/// and the check that keeps a line one side deleted out of a merged region.
+use crate::merge::word_merge_deleted_lines::{
+    keeps_a_deleted_line,
+    merged_deletions,
+};
 /// The checks that keep a word merge from writing text no side wrote.
 use crate::merge::word_merge_invented_text::refuses_word_merge;
 /// The lines and words a text is cut into,
@@ -212,19 +226,27 @@ fn trivial<'a>(gap: &Gap<'a>) -> Option<&'a [u8]> {
     return None;
 }
 
-///  Re-merge one line region by word,
-/// then by the bytes between the words;
+///  Re-merge one line region:
+/// by the union of two sides' deletions where each side only deleted lines,
+/// otherwise by word and then by the bytes between the words;
 /// `None` unless every part resolves.
 /// Why:
 ///   A result that merged some parts and left others in conflict would mix contexts and be hard to review,
 /// so a region
 ///  is taken whole or not at all.
+/// A region each side only deleted lines from has one answer no side has to judge,
+/// and reading it word by word loses which line is which
+/// (`src/native/merge/word_merge_deleted_lines.rs`,
+/// issue 6529).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function mergeGapByWord(gap: Gap): Uint8Array | undefined;
 /// ```
 fn merge_gap_by_word(gap: &Gap<'_>) -> Option<Vec<u8>> {
+    if let Some(deleted) = merged_deletions(gap.base, gap.ours, gap.theirs) {
+        return Some(deleted);
+    }
     let mut merged: Vec<u8> = Vec::new();
     for hunk in align(gap.base, gap.ours, gap.theirs, Level::Word) {
         match hunk {
@@ -248,6 +270,9 @@ fn merge_gap_by_word(gap: &Gap<'_>) -> Option<Vec<u8>> {
         }
     }
     if refuses_word_merge(gap.base, gap.ours, gap.theirs, merged.as_slice()) {
+        return None;
+    }
+    if keeps_a_deleted_line(gap.base, gap.ours, gap.theirs, merged.as_slice()) {
         return None;
     }
     return Some(merged);

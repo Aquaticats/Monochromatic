@@ -17,11 +17,14 @@
 use crate::client_journal::record_entry_as;
 use crate::diagnostic_log::debug;
 use crate::journald_native::Priority;
-use crate::merge_second_pass::Merged;
 use crate::merge_second_pass_conflicts::{
     Conflict,
     Stage,
 };
+/// What the pass accepts,
+/// what it leaves,
+/// and the parts this file words.
+use crate::merge_second_pass_verdicts::Merged;
 use crate::path_bytes::path_message_text;
 use crate::word_merge::{
     LineSpan,
