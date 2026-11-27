@@ -7,8 +7,9 @@ and propose how to stop it.
 Status:
 a proposal awaiting the owner's decision,
 not accepted.
-Recorded 2026-11-27T12:25:00-05:00 by a Claude Code session;
-the gate review by Claude Sonnet was started at the same time and its verdict is not yet folded in.
+First committed 2026-11-27T12:19:19-05:00 (`1f2f98005c`) by a Claude Code session;
+a gate review by Claude Sonnet started after that commit,
+and its verdict is not yet folded in.
 
 ## Question as asked
 
@@ -98,8 +99,19 @@ The longest-timeout samples are wait loops
 (polling run markers,
 `timeout 7500 tail --pid=...`)
 whose tool timeout sits just above the loop's own bound.
-The value `3480000` appears in neither the 2.1.332 executable nor this repository;
+The value `3480000` appears in no string of the 2.1.332 executable,
+and in this repository only as a digit run inside unrelated numbers in evidence files;
 it is the models' own choice.
+
+The waits are deliberate.
+In the interactive session (transcript `entrypoint` `cli`) that issued most of the long timeouts,
+descriptions read like "Wait until the gate run reaches a terminal state"
+and "Wait until all three gate runs report a terminal result".
+They echo the rule at `CLAUDE.md:17` ("wait in one command that ends at a terminal state")
+and the bounded PID wait `timeout 600 tail --pid=<pid> --follow /dev/null` at `AGENTS.md:682`;
+`doc/handover/lint-sweep.md` lines 386 to 390 prescribe `timeout 3600 tail --pid=<pid>`.
+None of these says whether the wait runs in front,
+and agents keep it in front by giving the tool a timeout above the wait's own bound.
 
 ### The async hook lines
 
@@ -189,6 +201,12 @@ Each item gives the capped arm first and the control arm second.
   moved in both arms,
   at 2067 ms and 2058 ms,
   under the hook's `timeout: 1000`.
+- A command the filter skips that does not start with `sleep`
+  (`node ... > m7.out`,
+  an 8-second command with caller `timeout: 600000`,
+  run in a second round at about 12:22 -05:00):
+  moved at 2145 ms;
+  finished in front at 8202 ms.
 - REPL code mode:
   not exercised.
   `claude -p` with `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1` loaded no REPL tool.
@@ -206,9 +224,10 @@ Add `"CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS": "1000"` to the `env` of `~/.claud
 Pros:
 no code change;
 probed on the installed version;
-applies to every main-session Bash call,
-REPL commands presumably included,
-whatever timeout the caller passes;
+moves filter-wrapped and filter-skipped main-session calls alike,
+whatever timeout the caller passes,
+except a command Claude Code sees starting with `sleep`
+(REPL commands are expected to follow but were not probed);
 leaves subagents alone;
 a command Claude Code sees starting with `sleep` keeps its timeout instead of being stopped.
 
@@ -221,6 +240,31 @@ a filter-wrapped bare `sleep` moves after 2 s instead of waiting;
 an unwrapped command starting with `sleep` and carrying its own timeout still waits in front;
 a `cd` in a command lasting over 2 s does not persist,
 as the decision already accepts for calls without a timeout.
+
+### Cost shared by every option that moves these calls
+
+A moved command runs on in the background,
+but in an unattended session it then has a time limit.
+The [tools reference][tools-reference-background-limit],
+fetched 2026-11-27,
+states:
+"A command that starts in the foreground and then moves to the background at its timeout gets 30 minutes from the move",
+10 minutes in a `-p` run whose prompt is passed as text,
+and "A local session you work in from a terminal,
+the desktop app,
+or the VS Code extension has no time limit on background commands."
+The 2.1.332 bundle matches:
+the default `QCt()` starts from `PEl=1800000`,
+and deadlines apply only when `JCt()` holds.
+So in a `-p`,
+SDK,
+CI or cloud main session,
+a long wait that the cap or a clamp moves is stopped at that limit,
+where today its own timeout would have kept it running in front.
+Such sessions would need to start long waits with `run_in_background: true` and their own `timeout`.
+Raising `BASH_DEFAULT_TIMEOUT_MS` would lift the limit,
+but it also changes the default foreground timeout of subagents,
+which the decision's "Scope" forbids.
 
 ### Hook clamps caller timeouts
 
@@ -311,9 +355,17 @@ For the native cap:
   and the agent learns completion from the task notification,
   the pattern the "Verified workarounds" of
   `doc/troubleshooting/claude-code-subagent-background-wait-context-dump.md` already uses.
+- The wait guidance in `AGENTS.md` (the rules behind `CLAUDE.md:17` and `AGENTS.md:682`)
+  says that such a wait runs in the background and ends with its notification;
+  otherwise agents can keep waits in front through the one shape the cap leaves alone,
+  a filter-skipped command starting with `sleep`.
 
 ## Open
 
 - The owner's choice among the options and the two separate choices.
 - The Claude Sonnet gate review's findings.
 - The REPL surface under the cap stays unprobed until an interactive code-mode session runs with the variable set.
+- A background subagent under the cap was not probed;
+  the source reads the variable only for the main agent.
+
+[tools-reference-background-limit]: https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands
