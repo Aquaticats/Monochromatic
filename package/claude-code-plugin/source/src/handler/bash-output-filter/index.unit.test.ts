@@ -302,9 +302,9 @@ await describe({
       name: 'prefixes an unwrapped leading sleep and clamps its long caller timeout',
       fn: async () => {
         const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
-          bashEvent({ input: { command: '# wait\nsleep 300 && check > out', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+          bashEvent({ input: { command: '# wait\nsleep 20 && check > out', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
         ) },);
-        expect(updatedInput(output,).command,).toBe(`${SLEEP_PREFIX}# wait\nsleep 300 && check > out`,);
+        expect(updatedInput(output,).command,).toBe(`${SLEEP_PREFIX}# wait\nsleep 20 && check > out`,);
         expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
       },
     },),
@@ -325,6 +325,35 @@ await describe({
           bashEvent({ input: { command: 'printf ok', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
         ) },);
         expect(updatedInput(output,).timeout,).toBe(OBSERVED_LONG_CALLER_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'keeps a long caller timeout when Claude Code reads the disable variable as true',
+      fn: async () => {
+        const output = withEnv({ env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: 'true', }, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'printf ok', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(updatedInput(output,).timeout,).toBe(OBSERVED_LONG_CALLER_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'times an unwrapped command without a timeout when native background tasks are disabled',
+      fn: async () => {
+        const output = withEnv({ env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1', }, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'sleep 5 > result.txt', }, }),
+        ) },);
+        expect(updatedInput(output,).command,).toBe('sleep 5 > result.txt',);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'prefixes a command whose first statement is only a redirection',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: '> log\nsleep 5 && printf ok', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(updatedInput(output,).command,).toBe(`${SLEEP_PREFIX}> log\nsleep 5 && printf ok`,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
       },
     },),
     it({

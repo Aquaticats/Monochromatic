@@ -29,25 +29,42 @@ and with the policy enabled:
   becomes `1000`.
   Zero is included because Claude Code 2.1.332 kept an 8-second command with `timeout: 0` in front.
 - A command the output filter leaves unwrapped,
-  whose first command word after blank and whole comment lines is `sleep`,
+  whose first command word after blanks,
+  backslash-newlines and whole comment lines is `sleep`,
+  or whose first statement starts with a redirection (`> log`),
   is sent as `true && <command>`.
   Claude Code stops a timed-out command whose first word is `sleep` and moves every other one,
-  so the prefix makes it move;
+  and it skips a statement made only of redirections when it looks for that word,
+  so the prefix makes such a command move;
   a filter-wrapped command already starts with `set -o pipefail`.
 - The bare numeric-sleep exemption is removed:
   a bare `sleep N` receives `1000` and moves like any other command.
-- With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` a caller timeout stays as given and no prefix is added,
+- When `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` holds a value Claude Code reads as true
+  (`1`,
+  `true`,
+  `yes` or `on`,
+  in any case),
+  a caller timeout stays as given and no prefix is added,
   because a timeout there stops the command instead of moving it;
-  an absent timeout still becomes `1000` as the startup warning describes.
-  This follows the owner's note of 2026-11-27T12:26:54-05:00 that the clamp should
-  "leave them running in background";
-  the Claude Sonnet review of that day pointed out the stop.
+  an absent timeout still becomes `1000`.
+  The startup warning keeps its owner-chosen trigger,
+  the exact value `1`.
+  This exception was adopted by the implementing session,
+  open to the owner's veto,
+  from the owner's note of 2026-11-27T12:26:54-05:00 that the clamp should
+  "leave them running in background",
+  after the Claude Sonnet review of that day pointed out the stop.
+  Settings or remote constraints that disable moves set no variable the hook can read;
+  bare mode needs no check because hooks from settings files never run there.
 
 Shell commands that REPL code-mode scripts run reach the hook as main-session Bash calls
 and get the same treatment,
 by the owner's answer "Clamp REPL too (Recommended)" of 2026-11-27T12:49:24-05:00:
-a script's `.timeout(ms)` no longer keeps a long command in front,
-and its result arrives with the task notification.
+a script's `.timeout(ms)` no longer keeps a long command in front:
+the script gets the command's task ID (`.running`) and no exit code,
+and the result arrives with the task notification
+(live check at 2026-11-27T12:50 -05:00:
+an 8-second command with `.timeout(600000)` moved at 2058 ms).
 
 Unchanged:
 native subagents keep their execution fields and get no prefix;
@@ -65,8 +82,13 @@ Accepted consequences:
   CI or cloud),
   a moved command is stopped 30 minutes after the move,
   or 10 in a `-p` run with a text prompt.
-- The prefix hides the `sleep` from Claude Code's other checks keyed on the first subcommand,
-  such as the one that describes a `standalone sleep N`.
+- Claude Code refuses a call whose first statement is `sleep N` with N of 25 or more
+  ("Do not chain shorter sleeps to work around this block"),
+  and the second-pass review traced that check to the input as the model sent it,
+  before any hook runs,
+  so the prefix does not get such a call past it.
+- After a prefixed `sleep N & ...`,
+  `$!` names the background subshell rather than the `sleep`.
 - The prefix relies on Claude Code reading only the first command word.
   A release that read further would stop prefixed sleeps at their timeout,
   so the behavior is re-probed after each Claude Code upgrade as
@@ -211,6 +233,9 @@ Real Claude Code 2.1.332 probes verified:
 The final review's missing derived measurement file was created from the raw unwrapped log.
 
 ## Implementation requirements
+
+The bare-sleep requirement in this list is superseded
+by "Amendment of 2026-11-27: caller timeouts are clamped and leading sleeps are prefixed".
 
 - Add the synchronous startup registration and event dispatch without requiring the startup `model` field.
 - Replace the old forcing helper and tests,
