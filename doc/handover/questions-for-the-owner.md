@@ -324,6 +324,48 @@ Read first beats run now because five signatures are five design choices nobody 
 Run now beats leave because rounds 5 to 7 build on these changes,
 and the files over the budget in `invocation/` and `health/` wait for round 7's move.
 
+## Open: where a worktree removal's Git reads its cache place (issue 6571, recorded 2026-11-27T07:08:00-05:00)
+
+Controls whose service runs inside the test process wrote `git-system-attributes-<digest>`
+under the real home cache.
+The round measured the writers and fixed the ones it could without a signature the release's callers see
+(`c1a3b33db5`):
+a fixture names a cache place of its own,
+and `for_context` now lets a variable its caller named win over the process's own,
+where the caller's entries were appended and the first match won,
+so a caller's variable never reached the place.
+That last change is release code:
+the release's overlay names no cache place,
+and the built binary run with a throwaway home wrote its two cache files there.
+
+One writer is left,
+and reaching it changes a signature:
+a worktree removal's service-side Git (`the_service_git`) builds a context of its own from the process's environment,
+so a removal a control runs still writes `git-system-config-<digest>` under the real home cache.
+The proposal is `doc/planning/cli-git-removal-work-cache-place-the-caller-hands.md`.
+
+- A:
+  the removal work runs under the `GitContext` its handlers already hold,
+  and `the_service_git`'s own resolution of Git goes.
+  One channel for the place;
+  the removal stops resolving a second Git.
+- B:
+  the work keeps resolving its own Git,
+  and its caller hands it the variables.
+  It keeps the Git of the attempt for a service that restarts mid-record.
+- C:
+  a build of the controls refuses a write to the process's own home cache.
+  No signature changes;
+  two callers already catch a panic and decline,
+  so the file can be written and the control stay green.
+
+Ranking,
+the round's:
+A > B > C.
+A beats B because the service already holds that one value for every child it runs.
+B beats C because B fixes the place for every route that reaches the work,
+where C only refuses the write.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.

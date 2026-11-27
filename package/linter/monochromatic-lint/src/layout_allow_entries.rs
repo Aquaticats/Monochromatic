@@ -14,15 +14,24 @@
 //!  or, when a folder name holds a space,
 //!  the two sides of the arrow the line holds,
 //!  so a name the rule prints is a name the reader reads.
+//!  A listed path is then read back against the package folder,
+//!  so a line that climbs out with `..` and comes back in names the folder every key names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type AllowEntry = { line: number; text: string; kind: AllowKind };
-//! function parseEntries(text: string): AllowEntry[];
+//! function parseEntries(text: string, base: Path): AllowEntry[];
 //! ```
 
+/// Import the spelling every listed path is read into,
+///  and the reading that removes the `.` segments and the folders a `..` reads back over.
+use crate::{
+    layout_finding::key_path,
+    markdown_lfs_target::lexical_normal,
+};
 /// Import the set that keeps one line from repeating another,
-/// and native paths.
+///  the one spelling of a listed path,
+///  and native paths.
 use std::{
     collections::BTreeSet,
     path::{
@@ -38,7 +47,7 @@ pub(crate) const FOLDER_USE_WORD: &str = "uses";
 const FILE_USE_WORD: &str = "file-uses";
 
 /// The text that joins the two ends of a tolerated use.
-const ARROW: &str = "->";
+pub(crate) const ARROW: &str = "->";
 
 /// The arrow as a line writes it,
 ///  with the spaces that set it off from the folders.
@@ -225,19 +234,57 @@ fn listed_path(text: &str) -> PathBuf {
 }
 
 /// What:
+///  The folder a `file-uses` line names,
+///  when its words are more than the shape has and the ones in the folder's place hold a space.
+/// Why:
+///  The shape is five words set off with one whitespace character each,
+///  so a folder whose name holds a space makes six and the line cannot be read at all.
+///  The five-word sentence alone would send its reader back to a line that already reads as the shape it names,
+///  so the refusal names the folder and the space in its name instead.
+///  A file name never holds a space in a tree the rules accept (that is `space-in-file-name`),
+///  so the words between the word and the arrow are the folder's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const spacedFolder = (words: string[]) =>
+///   words.length >= 6 && words[words.length - 2] === '->'
+///     ? words.slice(1, words.length - 3).join(' ')
+///     : undefined
+/// ```
+fn spaced_file_use_folder(words: &[&str]) -> Option<String> {
+    // What: whether the arrow stands where the shape puts it, with one file name after it.
+    // Why: a line whose arrow stands anywhere else is a misspelling of the shape and not a spaced folder.
+    if words.len() < 6 || words[words.len() - 2] != ARROW {
+        return None;
+    }
+    // What: the words between the word that starts the line and the file before the arrow.
+    // Why: the shape puts the folder there, and a folder name holding a space is the one reason those words are more than one.
+    let folder: String = words[1..words.len() - 3].join(" ");
+    if !folder.contains(' ') {
+        return None;
+    }
+    // What: the folder name the line cannot carry.
+    // Why: the caller's sentence names it, so its reader sees which name to change.
+    return Some(folder);
+}
+
+/// What:
 ///  Read one line as an entry,
 ///  or say why it names nothing.
 /// Why:
 ///  A line that is a misspelling must fail the run,
 ///  because a silently ignored line would let a finding through.
+///  The package folder reads every listed path back into the one spelling a key writes,
+///  so what a line names and what a finding names meet in one place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function entryOf(line: number, text: string): AllowEntry;
+/// function entryOf(line: number, text: string, base: Path): AllowEntry;
 /// ```
 fn entry_of(
     line: usize,
     text: &str,
+    base: &Path,
 ) -> Result<AllowEntry, String> {
     let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
     let kind: AllowKind = if words.first() == Some(&FOLDER_USE_WORD) {
@@ -250,10 +297,15 @@ fn entry_of(
             }
         }
         AllowKind::FolderUse {
-            from: listed_path(from),
-            to: listed_path(to),
+            from: spelled_path(base, &listed_path(from)),
+            to: spelled_path(base, &listed_path(to)),
         }
     } else if words.first() == Some(&FILE_USE_WORD) {
+        if let Some(folder) = spaced_file_use_folder(words.as_slice()) {
+            return Err(format!(
+                "Line {line} names the folder `{folder}`, which holds a space: a `file-uses` line sets its five words off with one whitespace character each, so it cannot carry a name that holds one. Rename the folder so its name holds no space, or untangle the loop of files inside it."
+            ));
+        }
         if words.len() != 5 || words[3] != ARROW {
             return Err(format!(
                 "Line {line} reads `{text}`. A use between two files is written `file-uses <folder> <file> {ARROW} <file>`."
@@ -265,7 +317,7 @@ fn entry_of(
             ));
         }
         AllowKind::FileUse {
-            folder: listed_path(words[1]),
+            folder: spelled_path(base, &listed_path(words[1])),
             from: String::from(words[2]),
             to: String::from(words[4]),
         }
@@ -277,6 +329,31 @@ fn entry_of(
         text: String::from(text),
         kind,
     });
+}
+
+/// What:
+///  One listed path written the way a finding's key writes that folder:
+///  read back against the package folder, then shown from it.
+/// Why:
+///  A line may climb out of the package with `..` and come back into it:
+///  with the package folder named `p`, `uses ../p/src/a -> src/b` names the use `src/a -> src/b`,
+///  which is the spelling every key prints.
+///  Reading every listed path into that spelling once, as the list is read,
+///  gives tolerance, death and the repeat check one answer for one use,
+///  where the listed spelling and the key's disagreed:
+///  a repeat written two ways stayed unreported,
+///  and a `file-uses` folder the walk names one way tolerated nothing when the line spelled it the other.
+///  A line's own text stays as written, because a dead entry quotes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const spelled = (base: Path, listed: string) => keyPath(lexicalNormal(base.join(listed)), base)
+/// ```
+fn spelled_path(
+    base: &Path,
+    listed: &Path,
+) -> PathBuf {
+    return PathBuf::from(key_path(&lexical_normal(&base.join(listed)), base).as_str());
 }
 
 /// What:
@@ -321,14 +398,17 @@ fn sets_words_off_with_one_whitespace(text: &str) -> bool {
 ///  and the rule prints a key in exactly this shape,
 ///  so what a run prints is what the next run reads.
 ///  The four words are read when the line sets them off with one whitespace character each;
-///  every other line is read from the two sides of its arrow with no space taken off either side,
+///  every other line is read from the two sides of its arrow,
+///  with exactly the one space taken off each side,
 ///  because a folder name may start with a space,
 ///  and the space a line sets its words off with must never be read as part of a name or the other way round.
+///  One rule therefore holds for both sides of the arrow and for the space after the word:
+///  a second whitespace character beside a name is part of that name and not a separator.
+///  No folder name a tree the rules accept can hold ends in whitespace,
+///  so a line that leaves one before the arrow names no folder of any tree and is reported dead,
+///  which costs its own line and not the rule's whole report.
 ///  A name that holds the arrow itself is refused before any check,
 ///  because the line would not say which folder the one used is.
-///  A name before the arrow that ends in whitespace is a misspelling rather than a name:
-///  no folder name a tree the rules accept can hold ends in whitespace,
-///  so no line the rule prints can leave one there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -373,15 +453,6 @@ fn use_ends(
             "Line {line} reads `{text}`. No folder name stands before the arrow: a use between two folders is written `uses <folder> {ARROW} <folder>`."
         ));
     }
-    // What: a name before the arrow that ends in whitespace.
-    // Why: a folder whose name ends in a character the reader trims is refused before any check,
-    //  so no tree the rules accept holds such a folder and such a line is a misspelling,
-    //  which the run must name rather than report as an entry that named a folder no tree holds.
-    if from.trim_end() != from {
-        return Err(format!(
-            "Line {line} reads `{text}`. The name before the arrow ends in whitespace, and no folder name the rules accept ends in whitespace, so the line is a misspelling: a use between two folders is written `uses <folder> {ARROW} <folder>`, each word set off with one space."
-        ));
-    }
     return Ok((from, to));
 }
 
@@ -392,12 +463,18 @@ fn use_ends(
 ///  every other line must read as one entry,
 ///  and no line may repeat another,
 ///  because a list that names one thing twice is not a list of distinct findings.
+///  A repeat is one use however it is spelled,
+///  so the two spellings a `..` walk allows are caught here,
+///  where every listed path already stands in the spelling a key writes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseEntries(text: string): AllowEntry[];
+/// function parseEntries(text: string, base: Path): AllowEntry[];
 /// ```
-pub fn parse_entries(text: &str) -> Result<Vec<AllowEntry>, String> {
+pub fn parse_entries(
+    text: &str,
+    base: &Path,
+) -> Result<Vec<AllowEntry>, String> {
     let mut entries: Vec<AllowEntry> = Vec::<AllowEntry>::new();
     let mut seen: BTreeSet<String> = BTreeSet::<String>::new();
     for (index, raw) in text.lines().enumerate() {
@@ -406,7 +483,7 @@ pub fn parse_entries(text: &str) -> Result<Vec<AllowEntry>, String> {
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        let entry: AllowEntry = entry_of(line, trimmed)?;
+        let entry: AllowEntry = entry_of(line, trimmed, base)?;
         if !seen.insert(entry.identity()) {
             return Err(format!(
                 "Line {line} repeats the entry `{}` that an earlier line already holds.",

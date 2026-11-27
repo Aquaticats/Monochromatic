@@ -59,12 +59,17 @@ pub const MAX_BYTES: u64 = 4 * 1024 * 1024;
 /// Why:
 ///  The option names a file a person edits;
 ///  reading it must not block on a pipe or fill memory from a device.
+///  The package folder is passed through,
+///  because a listed path that climbs out with `..` is read back from it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readAllowList(path: Path): AllowList;
+/// function readAllowList(path: Path, base: Path): AllowList;
 /// ```
-pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
+pub fn read_allow_list(
+    path: &Path,
+    base: &Path,
+) -> Result<AllowList, String> {
     let metadata: std::fs::Metadata = std::fs::metadata(path).map_err(|error| {
         return format!(
             "The allow-list file {} cannot be read: {error}.",
@@ -97,7 +102,7 @@ pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
             path.display()
         );
     })?;
-    return parse_allow_list(text.as_str(), path);
+    return parse_allow_list(text.as_str(), path, base);
 }
 
 /// What:
