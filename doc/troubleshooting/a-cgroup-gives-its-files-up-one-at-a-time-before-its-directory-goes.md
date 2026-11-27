@@ -32,7 +32,8 @@ so `pids.peak` can still answer when `pids.events` is already gone.
 A file the kernel has deactivated and not yet unlinked answers `ENODEV`,
 not `ENOENT`:
 `kernfs_fop_open` refuses the open at `fs/kernfs/file.c:626`,
-and a read of an open file that was deactivated the same way answers it at `fs/kernfs/file.c:469`.
+and a read of an open file that was deactivated the same way answers it at `fs/kernfs/file.c:167`,
+where `kernfs_seq_start` returns `ERR_PTR(-ENODEV)` for the file a cgroup's read goes through.
 Both windows are open while `kernfs_drain` waits for the node's last user
 (`fs/kernfs/dir.c:539`) and until it is unlinked,
 after which the same lookup answers `ENOENT`.

@@ -148,8 +148,8 @@ await describe({
       name: 'takes the kernel removing a file of a control group as a file that answers no figure',
       fn: async () => {
         // The error Node builds for this kernel's answer, captured on this host on 2026-11-27 from a control group the
-        // account made and removed while a reader read it (`kernfs_fop_read_iter` answering `ENODEV` for a node the
-        // kernel had deactivated): `doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`.
+        // account made and removed while a reader read it (`kernfs_seq_start` answering `ENODEV` for a node the kernel
+        // had deactivated): `doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`.
         /**
          One answer of a file whose control group is going.
          */
