@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:23:53-05:00
+## The state at 2026-11-27T13:36:46-05:00
 
-`main` was `9480230fea`.
+`main` was `1dc907ad53`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 242 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 243 more by this time.
 
 ### Rounds running
 
@@ -141,11 +141,18 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   has no round:
   it changes a driver this round moves,
   so it starts when this round has merged;
-- nothing in the linter:
-  `0.5.2-alpha.20` is released,
-  locked (`94b2e0d22e`) and installed ("Releases of 2026-11-27"),
-  and a Claude Sonnet read of it runs as a background agent of the coordinating session
-  (`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`);
+- for the linter's `0.5.2-alpha.20` read,
+  `monochromatic-lint-alpha-20-release-pass-a-whitespace-folder-in-a-file-uses-line-and-messages-that-point-wrong`,
+  started 2026-11-27T13:30:34-05:00;
+  `0.5.2-alpha.21` follows its merge;
+- `issue-6618-the-driver-deletes-a-finished-runs-scratch-folder-all-but-keep`,
+  started 2026-11-27T13:30:34-05:00:
+  the owner's answer of 2026-11-13 has the launcher delete a run's scratch folder at run end,
+  all but `keep/`,
+  and nothing in the driver package does it,
+  so the folders stay whole until the daily expiry of `~/temp`
+  (346 folders named `*-scratch` under `~/temp/agent`,
+  counted 2026-11-27T13:26);
 - for the wrapper's `0.6.1-alpha.49` behaviour pass,
   four rounds started 2026-11-27T13:02:42-05:00 from one list,
   each named `wrapper-alpha-49-release-pass-` and then:
@@ -178,14 +185,16 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   both reads of it have returned.
-- nothing for `cargo-shadow`:
-  every round of its `0.1.5-alpha.13` pass is merged,
-  and `0.1.5-alpha.14` is released
+- for `cargo-shadow`'s `0.1.5-alpha.14` read,
+  two rounds started 2026-11-27T13:36:24-05:00 from one list,
+  each named `cargo-shadow-alpha-14-release-pass-` and then:
+  `the-retire-gates-new-decision-is-held-through-retire-and-its-words-say-what-was-read`
+  and `the-refusal-says-which-next-run-settles-the-journal-and-the-records-are-exact`;
+  `0.1.5-alpha.15` follows their merges.
+  `0.1.5-alpha.14` is released
   (release commit `8673ec1309`),
   locked (`c652b74260`) and installed,
-  with the session's `git` link put back at 2026-11-27T12:54:30-05:00.
-  A Claude Sonnet read of it runs as a background agent of the coordinating session
-  (`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`).
+  and every round of the `0.1.5-alpha.13` pass is merged.
   The round on the retire's gate is merged (`67103f2285`):
   seven controls,
   each shown red by the edit it guards and reading the real gate through a group directory of its own;
@@ -217,11 +226,12 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   with its first pair closer;
 - nothing for `mpm-shadow`:
   every round of its `0.2.7-alpha.14` pass is merged,
-  and `0.2.7-alpha.15` is being released
-  (started 2026-11-27T13:22:46-05:00,
-  release commit `9480230fea`),
-  to be locked,
-  installed and read by a Claude Sonnet pass once published.
+  and `0.2.7-alpha.15` is released
+  (release commit `9480230fea`),
+  locked (`481a09a3ae`) and installed,
+  with the session's `git` link put back at 2026-11-27T13:29:21-05:00.
+  A Claude Sonnet read of it runs as a background agent of the coordinating session
+  (`~/temp/agent/mpm-shadow-alpha-15-release-review-2026-11-27/keep/review.md`).
   The two rounds that changed one module are joined (`d3f0628c0b`),
   with both rounds' rules kept,
   and the package's suite passed 866 of 866 on the joined tree against 857 of 857 on `main`.
@@ -353,9 +363,9 @@ and its directory removed or published;
 the recovery publishes an older locked version beside a newer installed one;
 and no test would catch an edit that publishes the wrong copy.
 A plain `install` with the network up repairs each.
-This machine runs alpha.14 until `0.2.7-alpha.15`:
-`findmnt /proc` shows no `hidepid` here,
-and the race needs a killed install's leftovers and two installs at once.
+This machine ran alpha.14 until `0.2.7-alpha.15` was installed at 2026-11-27T13:29:
+`findmnt /proc` showed no `hidepid` here,
+and the race needed a killed install's leftovers and two installs at once.
 Two merges met in one file each and were resolved by keeping both sides,
 with the package's test task run on the merged tree
 (`package/mpm-shadow/cli/README.md`,
@@ -372,13 +382,79 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
-each a Claude Sonnet read
+One read runs as a background agent of the coordinating session,
+a Claude Sonnet read of `mpm-shadow`'s `0.2.7-alpha.15`
 (same vendor as some of the authors,
-so a second pass and not an independent review):
-the linter's `0.5.2-alpha.20` and `cargo-shadow`'s `0.1.5-alpha.14`,
-at the paths this section gives beside each release.
-The coordinator rewrites what lasts from each into this file before scratch expires.
+so a second pass and not an independent review),
+at the path this section gives beside that release.
+The coordinator rewrites what lasts from it into this file before scratch expires.
+
+What `cargo-shadow`'s alpha.14 read found
+(`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
+no High finding,
+two Medium and ten Low,
+and no decision or output that differs from alpha.13 beyond what the merges name.
+The manager is asked two questions a call in alpha.11,
+alpha.13 and alpha.14 alike,
+over 260 timed calls;
+the cost of a call against alpha.11 had a median ratio of 1.021 for alpha.14
+(0.409 to 2.072 over 20 rounds),
+with a byte-identical copy of alpha.11 as the control at 0.907
+(0.457 to 2.019),
+so the harness tells alpha.14 from neither alpha.13 nor alpha.11.
+Its Medium findings,
+each with a round:
+the refusal says the next run settles the kept journal by itself,
+while a pass-through run such as `cargo fmt --check` and a frozen run under `CI=true` leave it and print nothing
+(shown with a journal a killed run left,
+not with a real refusal);
+and the release's one new decision,
+a `pids.peak` read that fails because the group's directory went away,
+is held only at its helper,
+so putting alpha.13's behaviour back would pass every test
+(argued from the test files;
+the round applies the edit once to settle it).
+Its Low findings are sentences that say more than was read
+(two warnings of the retire gate,
+four sentences of the README,
+one of which gives a ratio outside its own control's range),
+two controls that stay green under named edits,
+and a state outside these merges:
+a scope that does not exist yet may be read as collected and its unit left loaded in silence.
+
+What the linter's alpha.20 read found
+(`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`):
+no High finding,
+two Medium and eight Low.
+What it confirmed with both binaries:
+of 220 spellings of a `uses` line alpha.20 reads 31 and reports 189 dead,
+with none refused,
+where alpha.19 refused 163;
+over 4,092 lists,
+none that alpha.19 read clean is unclean in alpha.20;
+the keys it prints read back with no dead line;
+the two allow lists of `package/git-policy/cli` give identical output in alpha.16,
+alpha.19 and alpha.20;
+and CPU time against alpha.19 was 0.89 to 1.08 over five interleaved rounds,
+with a byte-identical copy of alpha.19 as the control at 0.90 to 1.11,
+so no cost was measurable.
+One real change of behaviour beyond the release's notes:
+a tree whose folder name sets `->` off with a tab or a no-break space is refused with exit 2,
+where alpha.19 read it clean.
+Its Medium findings:
+a `file-uses` line for a folder whose name holds a tab,
+a no-break space or two spaces gets only the shape sentence,
+where alpha.19 named the folder;
+and five behaviours of the new code are held by no test,
+argued from the test files and not by running the edits.
+Its Low findings are messages that point the wrong way
+(a byte order mark gets the advice to delete a line that records a real loop),
+three README sentences,
+and arms no input reaches.
+The closure step did not run on this host for either binary,
+because its Dylint driver is absent and fetching it needs the network.
+One round holds all of it.
+
 
 What the wrapper's alpha.49 behaviour pass found
 (`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`):
@@ -626,7 +702,7 @@ the workflow pushes its bump commit to `origin/main`,
 and a local merge made meanwhile diverges from it.
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
-(last at 2026-11-27T12:54:30-05:00).
+(last at 2026-11-27T13:29:21-05:00).
 
 - The linter,
   `0.5.2-alpha.19`:
