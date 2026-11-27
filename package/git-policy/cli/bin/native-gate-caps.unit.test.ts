@@ -53,6 +53,29 @@ await describe({
       },
     }),
     it({
+      name: 'refuse a container memory bound that is no memory size, naming the option that carried it',
+      fn: async () => {
+        expect(gateCapsProblems({
+          caps: {
+            ...recordedCaps(),
+            containerMemory: 'eight gigs',
+          },
+        }).join('\n',),).toContain('--container-memory',);
+      },
+    }),
+    it({
+      name: 'accept a container memory bound a person lowered, and none at all, so the gate\'s own bounds stand',
+      fn: async () => {
+        expect(gateCapsProblems({
+          caps: {
+            ...recordedCaps(),
+            containerMemory: '3g',
+          },
+        }),).toEqual([],);
+        expect(gateCapsProblems({ caps: recordedCaps(), }),).toEqual([],);
+      },
+    }),
+    it({
       name: 'refuse a cap value systemd cannot read, so a start never fails on a property long after the value was typed',
       fn: async () => {
         const problem = gateCapsProblems({

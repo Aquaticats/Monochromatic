@@ -39,7 +39,7 @@ const logDirectoryOption = '--log-directory';
 /**
  How the command is called, printed by every refusal that reads the command line.
  */
-const usage = 'usage: native:gate [--repository <path>] [--log-directory <path>] [--unit-cpu-quota <value>] [--unit-memory-max <value>] [--unit-tasks-max <count>] [--unit-io-weight <weight>] [--container-pids-limit <count>] <worktree name under the worktrees folder, or its full path> <label>';
+const usage = 'usage: native:gate [--repository <path>] [--log-directory <path>] [--unit-cpu-quota <value>] [--unit-memory-max <value>] [--unit-tasks-max <count>] [--unit-io-weight <weight>] [--container-pids-limit <count>] [--container-memory <size>] <worktree name under the worktrees folder, or its full path> <label>';
 
 /**
  Start one gate and print the unit and log it was started with.
