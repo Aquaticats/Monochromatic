@@ -217,6 +217,197 @@ fn a_test_gate_keeps_a_name_out_of_the_surface() {
     assert_eq!(keys_of(&root), vec![String::from("outer fn released")]);
 }
 
+/// A constant of a type the chain publishes is a name,
+/// and a constant of a type nothing publishes is not.
+#[test]
+fn a_constant_inside_a_published_types_impl_is_a_name() {
+    let root = fixture("surface-associated-constants");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "pub struct Published;\n\
+                 impl Published {\n\
+                 \x20   pub const ALL: &[Published] = &[Published];\n\
+                 \x20   pub const NONE: Published = Published;\n\
+                 \x20   pub(crate) const KEPT_INSIDE: u8 = 0;\n\
+                 \x20   pub fn seen(&self) {}\n\
+                 }\n\
+                 struct Hidden;\n\
+                 impl Hidden {\n\
+                 \x20   pub const REACHED_BY_NOTHING: u8 = 0;\n\
+                 }\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer const Published::ALL"),
+            String::from("outer const Published::NONE"),
+            String::from("outer fn Published::seen"),
+            String::from("outer struct Published"),
+        ]
+    );
+}
+
+/// A type or an `impl` whose header runs over several lines publishes its members all the same,
+/// and one whose header is written on one line is read the same way.
+#[test]
+fn a_header_written_over_several_lines_still_publishes_its_members() {
+    let root = fixture("surface-headers-over-lines");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "pub struct Published<\n\
+                 \x20   'a,\n\
+                 \x20   T: Clone = u8,\n\
+                 > {\n\
+                 \x20   pub held: T,\n\
+                 \x20   pub stated: &'a str,\n\
+                 \x20   pub(crate) kept_inside: u8,\n\
+                 }\n\
+                 impl<'a> Published<'a, u8>\n\
+                 where\n\
+                 \x20   u8: Copy,\n\
+                 {\n\
+                 \x20   pub fn seen(&self) -> u8 {\n\
+                 \x20       return self.held;\n\
+                 \x20   }\n\
+                 }\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer field Published::held"),
+            String::from("outer field Published::stated"),
+            String::from("outer fn Published::seen"),
+            String::from("outer struct Published"),
+        ]
+    );
+}
+
+/// A function is a name whatever count of qualifiers stands before its `fn`,
+/// and two such functions of one module are two names.
+#[test]
+fn a_function_qualified_more_than_once_is_still_a_function() {
+    let root = fixture("surface-two-qualifiers");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "pub const unsafe fn unchecked_one() {}\n\
+                 pub const unsafe fn unchecked_two() {}\n\
+                 pub const extern \"C\" fn called() {}\n\
+                 pub unsafe extern \"C\" fn called_too() {}\n\
+                 pub const KEPT: u8 = 0;\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer const KEPT"),
+            String::from("outer fn called"),
+            String::from("outer fn called_too"),
+            String::from("outer fn unchecked_one"),
+            String::from("outer fn unchecked_two"),
+        ]
+    );
+}
+
+/// An item a gate keeps out of the test build alone is published,
+/// and one a gate keeps out of the release build is not,
+/// whatever shape the predicate is written in.
+#[test]
+fn a_gate_that_names_the_test_inside_a_negation_leaves_the_item_published() {
+    let root = fixture("surface-negated-test-gates");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\n"),
+            (
+                "outer.rs",
+                "#[cfg(all(not(test), unix))]\n\
+                 pub fn released_on_unix() {}\n\
+                 #[cfg(any(test, unix))]\n\
+                 pub fn released_too() {}\n\
+                 #[cfg(all(test, unix))]\n\
+                 pub fn only_in_the_test_build() {}\n\
+                 #[cfg(test)]\n\
+                 pub fn only_for_tests() {}\n",
+            ),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer fn released_on_unix"),
+            String::from("outer fn released_too"),
+        ]
+    );
+}
+
+/// A `pub use` that gives a name another spelling publishes that spelling,
+/// and a re-export that keeps the name publishes nothing the chain does not already reach.
+#[test]
+fn a_re_export_under_another_name_is_a_name_of_its_own() {
+    let root = fixture("surface-renamed-re-exports");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\npub mod reached;\n"),
+            (
+                "outer.rs",
+                "pub use crate::reached::Open as Renamed;\n\
+                 pub use crate::reached::Kept;\n",
+            ),
+            ("reached.rs", "pub struct Open;\npub struct Kept;\n"),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("outer pub use crate::reached::Renamed"),
+            String::from("reached struct Kept"),
+            String::from("reached struct Open"),
+        ]
+    );
+}
+
+/// A bare `pub use` is read from the module that writes it,
+/// so a private child of that module is not a public module of another folder.
+#[test]
+fn a_bare_re_export_is_read_from_the_module_that_writes_it() {
+    let root = fixture("surface-bare-re-export");
+    write_tree(
+        &root,
+        &[
+            ("lib.rs", "pub mod outer;\npub mod elsewhere;\n"),
+            ("outer.rs", "mod subject;\npub use subject::Held;\n"),
+            ("outer/subject.rs", "pub struct Held;\n"),
+            ("elsewhere.rs", "pub mod subject;\n"),
+            ("elsewhere/subject.rs", "pub struct Other;\n"),
+        ],
+    );
+    assert_eq!(
+        keys_of(&root),
+        vec![
+            String::from("elsewhere::subject struct Other"),
+            String::from("outer pub use subject::Held"),
+        ]
+    );
+}
+
 /// What this reading cannot see stays out of the surface,
 /// and each shape below is named in the reader's own doc with the reason it is out:
 /// a trait's method,

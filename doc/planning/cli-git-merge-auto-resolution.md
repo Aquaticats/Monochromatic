@@ -2793,9 +2793,9 @@ and none of it is in the repository;
 the counts above are the durable record,
 and `src/native/merge/word_merge_refusals/` holds the two real shapes as controls.
 
-## 2026-11-27T16:00:00-05:00: a hunk one side also wrote a line into reads the copies bound too
+## 2026-11-27T16:51:13-05:00: a hunk one side also wrote a line into reads the copies bound too
 
-Recorded 2026-11-27T16:00:00-05:00.
+Recorded 2026-11-27T16:51:13-05:00.
 Unapproved and non-final:
 only the owner declares work complete.
 
