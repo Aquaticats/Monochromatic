@@ -151,7 +151,10 @@ transitions, capabilities, or access to another user's files. `mimeinfo.cache` a
 destination grant in the stock profile; `intent.cache` needed both destination and temporary grants.
 
 The pre-change state, an absent local file, is recorded privately at
-`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/update-desktop-database-local.before-user-cache-temp`.
+`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/update-desktop-database-local.before-user-cache-temp`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## What does not work
 
