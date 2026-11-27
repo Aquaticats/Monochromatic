@@ -26,10 +26,7 @@
 //! ```
 
 use std::fs;
-use std::os::unix::fs::{
-    PermissionsExt,
-    symlink,
-};
+use std::os::unix::fs::symlink;
 use std::path::{
     Path,
     PathBuf,
@@ -198,10 +195,14 @@ impl Machine {
         let program: PathBuf = self.shadow_program();
         fs::create_dir_all(program.parent().expect("a parent"))
             .expect("make the version directory");
-        fs::copy(env!("CARGO_BIN_EXE_mpm-shadow"), &program)
-            .expect("copy the shadow into the install");
-        fs::set_permissions(&program, fs::Permissions::from_mode(0o755))
-            .expect("make it executable");
+        // What:     The farm links this program and a fresh shell starts it.
+        // Why:      A copy this process made would be open for writing here, and a child of
+        //           another thread could inherit that descriptor (issue 6527), so a child
+        //           process makes the copy.
+        crate::through_a_child_process::copy_program(
+            Path::new(env!("CARGO_BIN_EXE_mpm-shadow")),
+            &program,
+        );
         fs::write(version_dir.join(COMPLETE_MARKER), format!("{version}\n"))
             .expect("mark the install finished");
         let folder: String = program
@@ -229,9 +230,11 @@ impl Machine {
             .join(INSTALLED);
         let program: PathBuf = version_dir.join("bin").join(DEMO_BIN);
         fs::create_dir_all(program.parent().expect("a parent")).expect("make the install");
-        fs::write(&program, "#!/bin/sh\necho the demo tool ran\n").expect("write the program");
-        fs::set_permissions(&program, fs::Permissions::from_mode(0o755))
-            .expect("make it executable");
+        // A fresh shell starts this program, so a child process writes it.
+        crate::through_a_child_process::write_program(
+            &program,
+            b"#!/bin/sh\necho the demo tool ran\n",
+        );
         fs::write(
             version_dir.join(".crates.toml"),
             format!("[v1]\n\"{DEMO_CRATE} {INSTALLED} (registry+https://example.invalid/index)\" = [\"{DEMO_BIN}\"]\n"),

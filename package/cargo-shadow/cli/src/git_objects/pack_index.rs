@@ -17,7 +17,7 @@
 // ```
 /// Imports the object-name length,
 /// so a name is read and compared by the length a SHA-1 name has.
-use crate::git_objects::OBJECT_NAME_BYTES;
+use super::OBJECT_NAME_BYTES;
 /// Imports `File`,
 /// which the positioned reads below take.
 use std::fs::File;
