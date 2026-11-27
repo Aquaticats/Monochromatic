@@ -6,6 +6,12 @@
 
 use super::*;
 use std::io::Write as _;
+use std::os::fd::OwnedFd;
+use std::process::{
+    Command,
+    Stdio,
+};
+use std::time::Duration;
 
 /// The answer every read of this file's first control is given,
 /// so a whole answer is one the stream closed after writing this.

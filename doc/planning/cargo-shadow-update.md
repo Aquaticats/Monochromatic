@@ -978,7 +978,10 @@ not the tree.
 ## Queued for round 8 (the P2 and P3 findings and the missing-test lists)
 
 Not worked on in round 7 unless a P1 fix needed it.
-Files are under `/var/home/user/temp/agent/reviews/`.
+Files are under `/var/home/user/temp/agent/reviews/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 - `cargo-shadow-sol-6a.txt`:
   R4 (blocking opens;
@@ -1234,7 +1237,10 @@ the contract and this section are current:
 ## Round 9 (2026-11-04): the answers to the round 8 reviews
 
 Reviews answered:
-`cargo-shadow-sol-8a.txt` and `cargo-shadow-sol-8b.txt` (in `/var/home/user/temp/agent/reviews/`).
+`cargo-shadow-sol-8a.txt` and `cargo-shadow-sol-8b.txt` (in `/var/home/user/temp/agent/reviews/`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows;
 a counterexample reopened rows but added none.
 Where the sections from What `cargo update` does under the cargo shadow to
@@ -1310,7 +1316,10 @@ Reviews answered:
 "does not meet the list for this part") and
 `cargo-shadow-sol-9b.txt` (tests;
 "meets it after named fixes"),
-both in `/var/home/user/temp/agent/reviews/`.
+both in `/var/home/user/temp/agent/reviews/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows;
 both reviews said that no row is added,
 and none is.
@@ -1822,7 +1831,10 @@ Reviews answered:
 `cargo-shadow-sol-11a.txt` (production,
 "does not meet the list for this part") and `cargo-shadow-sol-11b.txt` (tests,
 "meets it after named fixes"),
-in `/var/home/user/temp/agent/reviews/`;
+in `/var/home/user/temp/agent/reviews/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here);
 both say no acceptance row is needed,
 and none is added.
 
@@ -1956,7 +1968,10 @@ Reviews answered:
 `cargo-shadow-sol-12a.txt` (production,
 "does not meet the list for this part") and `cargo-shadow-sol-12b.txt` (tests,
 "meets it after named fixes"),
-in `/var/home/user/temp/agent/reviews/`;
+in `/var/home/user/temp/agent/reviews/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here);
 neither adds a row,
 and none is added.
 The owner's decision,
@@ -2092,7 +2107,10 @@ Review answered:
 `cargo-shadow-sol-13.txt` ("does not meet the list";
 every 12a finding closed or excluded by the amended assumption a,
 the 12b repairs closed;
-no row needed) in `/var/home/user/temp/agent/reviews/`.
+no row needed) in `/var/home/user/temp/agent/reviews/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ### Section 3: the start time and the time namespace
 
@@ -2190,7 +2208,10 @@ Nothing was published and nothing was merged into main.
 Review answered:
 `cargo-shadow-sol-14.txt` ("does not meet the list for the changes;
 not ready for the certification pass") in
-`/var/home/user/temp/agent/reviews/`.
+`/var/home/user/temp/agent/reviews/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Closed per the review:
 the original distinct-time-namespace schedule,
 and the shim route and fault evidence.
@@ -2330,7 +2351,10 @@ K1,
 K2,
 V5,
 weaker path),
-in `/var/home/user/temp/agent/reviews/`.
+in `/var/home/user/temp/agent/reviews/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Verdicts:
 not certified;
 no production defect established;

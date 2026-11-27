@@ -159,7 +159,7 @@ branches = "^0.4.3"
 [catalogs.pinned]
 # Slint's testing backend has no semver guarantee and must equal the resolved slint release
 # (package/ide/app, package/music-player/desktop-app).
-i-slint-backend-testing = "=1.18.1"
+i-slint-backend-testing = "=1.19.1"
 # All rust-analyzer crates share one exact release (package/linter/monochromatic-lint and its fuzz sidecar).
 ra_ap_hir = "=0.0.336"
 ra_ap_hir_ty = "=0.0.336"

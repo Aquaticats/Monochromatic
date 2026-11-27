@@ -7,6 +7,10 @@
 //!  next,
 //! so a large manifest is split in slices that run side by side,
 //! each stopping when another has failed.
+//! This file splits the manifest and gathers what the slices left;
+//! what one file,
+//! one link and one entry of a slice are made of lives beside it,
+//! and the names the rest of the crate reaches are re-exported here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,21 +23,16 @@ use crate::parallel_budget::{
 };
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_ceiling::CopyCeiling;
-use crate::worktree_copy_error::failure_with_cause;
 use crate::worktree_copy_error::{
     WorktreeCopyError,
     raw_failure,
-    raw_failure_of,
 };
 use crate::worktree_copy_manifest::{
     EntryKind,
     FileStamp,
     WorktreeCopyEntry,
-    stamp_of,
 };
 use crate::worktree_copy_selection::filesystem_path;
-use crate::worktree_copy_symlink_target::target_for_the_new_place;
-use crate::worktree_copy_vanished_entry::lstat_or_absent;
 use std::path::{
     Path,
     PathBuf,
@@ -43,252 +42,26 @@ use std::sync::atomic::{
     AtomicBool,
     Ordering,
 };
+// What: the names the rest of the crate reaches through this file, defined in the two files beside it.
+// Why: a split moves code, never a caller, so every path outside this folder stays what it was.
+pub use crate::worktree_copy_stage_entry_copying::CopiedLeaf;
+pub use crate::worktree_copy_stage_entry_copying::copy_one_leaf;
+pub use crate::worktree_copy_stage_file_copying::copy_file_exclusive;
+pub use crate::worktree_copy_stage_file_copying::copy_file_exclusive_with;
+pub use crate::worktree_copy_stage_file_copying::create_private_tree;
+pub(crate) use crate::worktree_copy_stage_file_copying::stamp_is_settled;
+pub use crate::worktree_copy_stage_file_copying::try_clone;
 
-/// What:
-///  Creates one private directory with mode `0700`,
-/// parents included.
-/// Why:
-///   Staged content is never readable by other users,
-/// even before installation.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await mkdir(path, { recursive: true, mode: 0o700 });
-/// ```
-#[cfg(unix)]
-pub fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
-    use std::os::unix::fs::DirBuilderExt;
-    return std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(path)
-        .map_err(raw_failure_of);
-}
-
-/// What:
-///  Creates one directory tree on a platform without Unix modes.
-/// Why:
-///   Keeps the staging code identical on every platform;
-/// no mode is claimed here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await mkdir(path, { recursive: true, mode: 0o700 });
-/// ```
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-pub fn create_private_tree(path: &Path) -> Result<(), WorktreeCopyError> {
-    return std::fs::create_dir_all(path).map_err(raw_failure_of);
-}
-
-/// What:
-///  Asks the filesystem to clone the source's content into a new destination file,
-/// when it can.
-/// Why:
-///   A clone shares storage on copy-on-write filesystems;
-/// any refusal means the caller must copy bytes instead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// copyFile(source, destination, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE)
-/// ```
-#[cfg(target_os = "linux")]
-pub fn try_clone(
-    source: &std::fs::File,
-    destination: &std::fs::File,
-) -> bool {
-    // The one `FICLONE` call lives with the other Linux filesystem primitives, which the cheap-worktree ladder shares.
-    return crate::fs_clone_exchange::clone_file(source, destination, std::path::Path::new(""))
-        .is_ok();
-}
-
-/// What:
-///  Declines cloning on platforms where this lane has no clone request,
-/// so every copy takes the byte path.
-/// Why:
-///   The incumbent's fallback is a full copy,
-/// which is always correct.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// copyFile(source, destination, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE)
-/// ```
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(target_os = "linux"))]
-pub fn try_clone(
-    _source: &std::fs::File,
-    _destination: &std::fs::File,
-) -> bool {
-    return false;
-}
-
-/// What:
-///  Creates a destination file exclusively and fills it with the source's bytes,
-///  cloning when the filesystem allows.
-/// Why:
-///   Exclusive creation never overwrites an existing staged file.
-///  The failure is the operating system's own,
-/// so a caller that is not this copy reads the cause from its kind
-///  instead of guessing it from the message,
-/// and the copy stage words it for the person.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await copyFile(sourcePath, stagePath, COPYFILE_EXCL | COPYFILE_FICLONE);
-/// ```
-pub fn copy_file_exclusive(
-    source: &Path,
-    destination: &Path,
-) -> Result<(), std::io::Error> {
-    return copy_file_exclusive_with(source, destination, try_clone).map(drop);
-}
-
-/// What:
-///  How recent a change time may be and still be too close to the clock to prove "unchanged".
-/// Why:
-///   Filesystem timestamps have a granularity;
-/// a write that lands in the same tick as the stamp would leave it equal,
-///  so a file changed this recently is compared byte for byte instead of trusted.
-///  A control states it as well,
-/// so it can ask for a settled stamp without waiting for the clock to move.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const RECENT_CHANGE_NANOS = 20_000_000n;
-/// ```
-pub(crate) const RECENT_CHANGE_NANOS: i128 = 20_000_000;
-
-/// A time of the file system's stamping in nanoseconds since the epoch,
-/// from its seconds and nanoseconds.
-/// One conversion for the clock and the stamp,
-/// so a control can compare the same two figures.
-pub(crate) fn stamp_nanos(parts: (i64, i64)) -> i128 {
-    return i128::from(parts.0) * 1_000_000_000 + i128::from(parts.1);
-}
-
-/// What:
-///  The clock that says whether a change time is old enough to prove that no write follows it unseen,
-/// in
-///  nanoseconds since the epoch.
-/// Why:
-///   A control has to ask the question about a stated instant,
-/// not about how long the host took between
-///  the write and the look:
-/// a control of this repository failed once in a whole-suite run because a 7-byte write
-///  and the look after its copy were more than the 20 ms granularity apart
-/// (`doc/troubleshooting/git-policy-cli-stop-lock-controls-wait-on-order-not-time.md`).
-/// Nothing of
-///  the pinning is in the release executable.
-fn clock_nanos() -> Option<i128> {
-    #[cfg(test)]
-    if let Some(pinned) = PINNED_CLOCK_NANOS.with(std::cell::Cell::get) {
-        return Some(pinned);
-    }
-    let now: std::time::Duration = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?;
-    return Some(i128::from(now.as_secs()) * 1_000_000_000 + i128::from(now.subsec_nanos()));
-}
-
+// What: the four names only a control asks for, so a release build holds no copy of them.
+// Why: the controls that pin a clock or read a settled stamp are the only readers outside this folder.
 #[cfg(test)]
-thread_local! {
-    /// The reading a control on this thread gave the clock;
-    /// nothing outside a control.
-    static PINNED_CLOCK_NANOS: std::cell::Cell<Option<i128>> = const { std::cell::Cell::new(None) };
-}
-
-/// What:
-///  Make the clock read `nanos` on this thread until the returned guard drops.
-/// Why:
-///   The control decides the question by the file's own change time against a stated instant,
-/// so it never waits
-///  for a clock to move and never fails because the host was slow.
+pub(crate) use crate::worktree_copy_stage_file_copying::ClockPin;
 #[cfg(test)]
-pub(crate) fn clock_reads(nanos: i128) -> ClockPin {
-    PINNED_CLOCK_NANOS.with(|slot| {
-        slot.set(Some(nanos));
-    });
-    return ClockPin;
-}
-
-/// Ends the pinned reading of this thread's clock when dropped.
+pub(crate) use crate::worktree_copy_stage_file_copying::RECENT_CHANGE_NANOS;
 #[cfg(test)]
-pub(crate) struct ClockPin;
-
+pub(crate) use crate::worktree_copy_stage_file_copying::clock_reads;
 #[cfg(test)]
-impl Drop for ClockPin {
-    fn drop(&mut self) {
-        PINNED_CLOCK_NANOS.with(|slot| {
-            slot.set(None);
-        });
-    }
-}
-
-/// What:
-///  Whether a stamp is old enough,
-/// against the clock now,
-/// to prove that no write follows it unseen.
-/// Why:
-///   A change time in the future or within the timestamp granularity of now proves nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// now - ctime >= RECENT_CHANGE_NANOS
-/// ```
-pub(crate) fn stamp_is_settled(changed: (i64, i64)) -> bool {
-    let Some(now_nanos) = clock_nanos() else {
-        return false;
-    };
-    return now_nanos - stamp_nanos(changed) >= RECENT_CHANGE_NANOS;
-}
-
-/// What:
-///  Creates a destination file exclusively and fills it with the source's bytes,
-///  using the clone request the caller supplies,
-/// and returns the source's stamp when a clone proved the bytes.
-/// Why:
-///   Whether the filesystem clones is the machine's choice,
-/// so a test supplies a clone that accepts or refuses
-///  and sees each path taken on every machine.
-/// A clone shares the source's blocks as of one instant;
-/// a source stamp that is
-///  equal before and after it and old enough to be settled proves no write interleaved,
-/// and the final check compares it again.
-/// The source is opened by the plain-file reader,
-/// which waits for no writer and follows no link,
-///  so a name the walk listed as a file and a dev server replaced with a named pipe between the two passes
-///  is refused at once instead of waiting for a writer that may never come,
-/// with the checkout held and nothing
-///  said ("nothing should ever wait forever or indefinitely").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const stamp = await copyFileWith({ sourcePath, stagePath, clone }); // undefined when bytes were copied
-/// ```
-pub fn copy_file_exclusive_with(
-    source: &Path,
-    destination: &Path,
-    clone: fn(&std::fs::File, &std::fs::File) -> bool,
-) -> Result<Option<FileStamp>, std::io::Error> {
-    let mut input: std::fs::File = crate::plain_file::open_plain_file(source)?;
-    let mut output: std::fs::File = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(destination)?;
-    let before: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
-    // A successful clone already holds every byte, so only a refused clone copies them.
-    if !clone(&input, &output) {
-        std::io::copy(&mut input, &mut output)?;
-        return Ok(None);
-    }
-    let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
-    return Ok(match (before, after) {
-        (Some(first), Some(second)) if first == second && stamp_is_settled(second.changed) => {
-            Some(second)
-        }
-        _ => None,
-    });
-}
+pub(crate) use crate::worktree_copy_stage_file_copying::stamp_nanos;
 
 /// What:
 ///  The entries below which a copy stays on one thread:
@@ -463,143 +236,6 @@ fn copy_leaves(
         gone,
     });
 }
-
-/// What:
-///  The answer of copying one manifest entry into the stage.
-/// Why:
-///   A source entry that is no longer there has nothing to copy,
-/// and a live checkout is constantly
-///  removing and rewriting its ignored files,
-/// so that answer is not a failure of the copy.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CopiedLeaf = { kind: 'staged'; stamp?: FileStamp } | { kind: 'gone' };
-/// ```
-pub enum CopiedLeaf {
-    /// The entry is in the stage;
-    /// the stamp proves the bytes when one was taken from a clone.
-    Staged(Option<FileStamp>),
-    /// The source no longer holds the entry.
-    Gone,
-}
-
-/// What:
-///  Copy one file or link of the manifest into `stage_path`,
-/// and say whether the source still had it.
-/// Why:
-///   The walk and the copy are separate passes,
-/// so a file a build removed between them is gone by now;
-///  reading it is what discovers that,
-/// and the answer is a skip rather than a failure.
-/// An entry that changed kind in between is answered the same way:
-/// it holds none of what the
-///  listing promised,
-/// so the entry the copy listed is no more part of this copy than one that went away.
-/// A failure names the source path it
-///  could not read,
-/// never only the checkout it was copying from.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function copyOneLeaf(sourceRoot, stagePath, entry): CopiedLeaf { try { return { kind: 'staged', stamp: copyFileExclusiveWith(...) }; } catch (e) { if (e.code === 'ENOENT' || stillHoldsTheListedKind(sourcePath, entry.kind) === false) return { kind: 'gone' }; throw `${sourcePath} cannot be copied (${e})`; } }
-/// ```
-pub fn copy_one_leaf(
-    source_root: &Path,
-    stage_path: &Path,
-    entry: &WorktreeCopyEntry,
-    clone: fn(&std::fs::File, &std::fs::File) -> bool,
-) -> Result<CopiedLeaf, WorktreeCopyError> {
-    let source_path: PathBuf = filesystem_path(source_root, entry.relative_path.as_slice())?;
-    return match entry.kind {
-        EntryKind::Directory => Ok(CopiedLeaf::Staged(None)),
-        EntryKind::File => match copy_file_exclusive_with(source_path.as_path(), stage_path, clone)
-        {
-            Ok(stamp) => Ok(CopiedLeaf::Staged(stamp)),
-            Err(_no_longer_the_listed_entry)
-                if !still_holds_the_listed_kind(&source_path, EntryKind::File) =>
-            {
-                Ok(CopiedLeaf::Gone)
-            }
-            Err(error) => Err(named_source_failure(
-                &source_path,
-                "cannot be copied",
-                &error,
-            )),
-        },
-        EntryKind::Symlink => match std::fs::read_link(source_path.as_path()) {
-            Ok(target) => {
-                // The text is written for the place the link will occupy, never for the stage: a relative text counts levels
-                //  from the directory the link sits in, and the stage stands elsewhere.
-                let written: PathBuf =
-                    target_for_the_new_place(target.as_path(), source_path.as_path(), source_root);
-                symlink_at(written.as_path(), stage_path)?;
-                Ok(CopiedLeaf::Staged(None))
-            }
-            Err(_no_longer_the_listed_entry)
-                if !still_holds_the_listed_kind(&source_path, EntryKind::Symlink) =>
-            {
-                Ok(CopiedLeaf::Gone)
-            }
-            Err(error) => Err(named_source_failure(&source_path, "cannot be read", &error)),
-        },
-    };
-}
-
-/// What:
-///  Whether the source still holds the entry the walk listed,
-/// in the kind the walk recorded for it.
-/// Why:
-///   A file and the directory holding it can both go between the walk and the copy,
-/// and only the
-///  filesystem knows whether the failure was that,
-/// so the question is asked again after the failure rather than guessed
-///  from its text.
-/// A kind that changed is the same answer as an entry that went away:
-/// a named pipe where a
-///  file was listed holds none of the bytes the listing promised,
-/// and the copy stage's answer stays the same
-///  whatever the entry became.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const stillHoldsTheListedKind = (path, kind) => { try { const found = lstatSync(path); return kind === 'directory' ? found.isDirectory() : kind === 'file' ? found.isFile() : found.isSymbolicLink(); } catch { return false; } };
-/// ```
-fn still_holds_the_listed_kind(
-    source_path: &Path,
-    kind: EntryKind,
-) -> bool {
-    let Ok(Some(metadata)) = lstat_or_absent(source_path) else {
-        return false;
-    };
-    return match kind {
-        EntryKind::Directory => metadata.is_dir(),
-        EntryKind::File => metadata.is_file(),
-        EntryKind::Symlink => metadata.file_type().is_symlink(),
-    };
-}
-
-/// What:
-///  A failure of one source entry,
-/// worded with the path the person can act on.
-/// Why:
-///   `No such file or directory` names no file,
-/// and the checkout it came from holds thousands:
-/// the line says which entry failed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${path} ${what} (${error})`
-/// ```
-fn named_source_failure(
-    source_path: &Path,
-    what: &str,
-    error: &dyn std::fmt::Display,
-) -> WorktreeCopyError {
-    let message: String = format!("{} {what} ({error})", source_path.display());
-    return failure_with_cause(message.as_str(), None);
-}
-
 /// What:
 ///  What one slice of the manifest left in the stage,
 /// and what it found gone.
@@ -878,43 +514,4 @@ fn parent_of(path: &Path) -> PathBuf {
         Some(parent) => parent.to_path_buf(),
         None => path.to_path_buf(),
     };
-}
-
-/// What:
-///  Creates a symbolic link with the exact target text.
-/// Why:
-///   The target is never resolved,
-/// so a link to a missing or outside path is copied as-is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await symlink(target, stagePath);
-/// ```
-#[cfg(unix)]
-fn symlink_at(
-    target: &Path,
-    link: &Path,
-) -> Result<(), WorktreeCopyError> {
-    return std::os::unix::fs::symlink(target, link).map_err(raw_failure_of);
-}
-
-/// What:
-///  Creates a symbolic link on a platform where this lane does not stage links.
-/// Why:
-///   Links are a Unix feature in the copy contract;
-/// other platforms refuse them with the generic sentence.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await symlink(target, stagePath);
-/// ```
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-fn symlink_at(
-    _target: &Path,
-    _link: &Path,
-) -> Result<(), WorktreeCopyError> {
-    return Err(raw_failure(&std::io::Error::other(
-        "symbolic links are not staged on this platform",
-    )));
 }

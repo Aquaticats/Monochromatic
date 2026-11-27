@@ -830,7 +830,7 @@ Build from source on Alpine:
 apk add rust cargo build-base cmake samurai pkgconf linux-headers clang21-libclang \
   pipewire-dev alsa-lib-dev fontconfig-dev freetype-dev
 cd package/music-player/desktop-app
-SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 cargo build --release --locked --features alsa-fallback
+SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types cargo build --release --locked --features alsa-fallback
 ```
 
 `mise run //package/music-player/desktop-app:test:alpine` runs the unit tests and a smoke test in Alpine containers,

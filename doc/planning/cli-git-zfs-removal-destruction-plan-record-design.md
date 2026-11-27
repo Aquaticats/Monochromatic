@@ -14,7 +14,10 @@ and it designs no other open item.
 
 This revision answers the gate review at
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`
-(the review's ids P1 to P21,
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+the review's ids P1 to P21,
 X1 and its list of wrong citations),
 reads the sibling records as they stand on their branches,
 and rewrites what the review found undecided.
@@ -22,7 +25,10 @@ and rewrites what the review found undecided.
 
 This revision also answers the second gate pass at
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-second-pass.md`
-(the review's ids X3,
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+the review's ids X3,
 X4,
 N1,
 N2,
@@ -37,7 +43,10 @@ and rewrites every statement about the two siblings at the commits it now cites.
 This revision also answers the third pass,
 the diff check at
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`
-(its ids Z1,
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+its ids Z1,
 Z3,
 Z4,
 Z5 and Z8),
@@ -55,7 +64,10 @@ and whether the plan records who a forced removal ended.
 
 This revision also answers the third check at
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-third-check.md`
-(its ids Y3,
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+its ids Y3,
 Y4,
 Y6,
 Y8,
@@ -76,7 +88,10 @@ and adds the settling command's words for a plan whose head is not `gone`.
 
 This revision also answers the fourth check at
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-fourth-check.md`
-(its ids W1,
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+its ids W1,
 W5,
 W6,
 W8,
@@ -95,7 +110,10 @@ the binding's bound and its finisher condition's second arm.
 
 This revision also answers the fifth diff read at
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-fifth-diff-read.md`
-(its ids N3 for this design and N4,
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+its ids N3 for this design and N4,
 with N8 and N9),
 which read this text at `8ae3f1d6e6`.
 It states the answer to the accepted deferred-destroy design's request under its own heading,
@@ -106,7 +124,10 @@ and corrects the origin record's bound and the two missing cells.
 
 This revision also answers the sixth read at
 `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-sixth-read-before-acceptance.md`
-(its ids G6 and G7 for this design),
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here;
+its ids G6 and G7 for this design),
 which read this text at `2a333a511e`.
 It names the settling command only where it is true,
 for every head word but `gone`,
@@ -207,7 +228,10 @@ What it did not run:
 - no timing measurement.
 
 The evidence is in
-`~/temp/agent/zfs-removal-destruction-plan-record-design-2026-11-22/keep/`,
+`~/temp/agent/zfs-removal-destruction-plan-record-design-2026-11-22/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 and the scripts that ran are in the sibling `scratch/` folder.
 The citations it writes were checked for existence and range by
 `scratch/citation-check.ts`,
@@ -4182,10 +4206,19 @@ Each item names the probe that would settle it and the step that owes it.
   the origin cleanup record and the add's binding record.
 - The gate reviews this document answers,
   at
-  `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`,
+  `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-second-pass.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   and
-  `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`.
+  `~/temp/agent/gate-review-zfs-removal-side-record-designs-2026-11-22/keep/review-diff-check.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - OpenZFS at tag `zfs-2.4.4` (commit `71a9f95`) and Git at `v2.56.1`,
   read in shallow clones checked out in a scratch folder.
 

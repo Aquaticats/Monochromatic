@@ -62,12 +62,12 @@ pub(crate) fn file_name(file: &Path) -> String {
 /// What:
 ///  Why one name can never be written on a list line.
 /// Why:
-///  The two reasons give the refusal two sentences,
+///  Each reason gives the refusal its own sentence,
 ///  so the message says which one the name earns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type UnlistableName = 'ends-in-trimmed-whitespace' | 'holds-a-line-break';
+/// type UnlistableName = 'ends-in-trimmed-whitespace' | 'holds-a-line-break' | 'holds-a-backslash' | 'holds-the-arrow-words';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum UnlistableName {
@@ -75,6 +75,10 @@ pub(crate) enum UnlistableName {
     EndsInTrimmedWhitespace,
     /// The name holds a line break, which ends a list line.
     HoldsLineBreak,
+    /// The name holds a backslash, which every key writes as a separator.
+    HoldsBackslash,
+    /// The name holds the two words a `uses` line sets its arrow off with.
+    HoldsArrowWords,
 }
 
 /// What:
@@ -113,6 +117,32 @@ pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName
         last as u32
     );
     return Some((spelled, UnlistableName::EndsInTrimmedWhitespace));
+}
+
+/// What:
+///  Whether a folder name can never be written on a list line,
+///  and that name with such a character written as an escape.
+/// Why:
+///  A key writes a folder as a path,
+///  so a backslash inside one is written as `/` and would name another folder;
+///  this check is for the folders alone,
+///  because a file name is no path and a `file-uses` line names it as written.
+///  A `uses` line is read from the two sides of the arrow it holds,
+///  so a folder name that holds the arrow's own words would leave the line unable to say where the used folder starts.
+///  Everything a key cannot write of any name is refused here too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unlistableFolderNamePart(name: string): [string, UnlistableName] | undefined;
+/// ```
+pub(crate) fn unlistable_folder_name_part(name: &str) -> Option<(String, UnlistableName)> {
+    if name.contains('\\') {
+        return Some((String::from(name), UnlistableName::HoldsBackslash));
+    }
+    if name.contains(crate::layout_allow_entries::SET_OFF_ARROW) {
+        return Some((String::from(name), UnlistableName::HoldsArrowWords));
+    }
+    return unlistable_name_part(name);
 }
 
 /// What:

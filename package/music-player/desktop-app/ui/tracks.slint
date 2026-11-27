@@ -134,7 +134,9 @@ export component TrackListPane inherits Rectangle {
     }
 
     // Scrolls just enough to bring a row inside the viewport; the list keys use it so the ringed row stays visible.
-    function ensure-visible(top: length, height: length) {
+    // Not `ensure-visible`: Slint 1.19 has a builtin function of that name on a Flickable's parent, and a component
+    // function shadows it with a warning.
+    function keep-row-visible(top: length, height: length) {
         if (top < -flick.content-y) {
             flick.content-y = min(0px, -top);
         } else if (top + height > -flick.content-y + flick.height) {
@@ -143,7 +145,7 @@ export component TrackListPane inherits Rectangle {
     }
 
     changed ring-tick => {
-        root.ensure-visible(root.ring-offset, root.ring-height);
+        root.keep-row-visible(root.ring-offset, root.ring-height);
     }
     changed menu-tick => {
         // The menu opens under the row's top, 32 px in from the left, kept inside the pane.

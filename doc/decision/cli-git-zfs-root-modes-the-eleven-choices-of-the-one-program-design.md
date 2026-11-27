@@ -25,13 +25,20 @@ through six revisions,
 each read by a Claude Sonnet second pass.
 The sixth read,
 `read-of-the-sixth-one-program-revision.md`
-in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`,
+in `~/temp/agent/gate-review-zfs-root-modes-sixth-revision-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 found no high finding and judged the choices ready after five text repairs that change no command,
 no ranking order and no boot behaviour;
 the questions carried its corrected blocks:
 choice 4's pair of B over C stated as a tie by delivery,
 choice 5's pair of A over B given its reason,
 and choice 5's line noted to carry choice 2's word.
+The two repairs not named here were choice 9's printed usage line,
+which named both the kernel's token and the record's token for `--replace`,
+and choice 9's stale-record window con for two options,
+which rests on what the boot refusal prints rather than on the option itself.
 
 In every command this record quotes,
 `<file>` is `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets`,

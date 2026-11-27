@@ -8,6 +8,17 @@ use crate::capture_invocation::{
     capture_invocation_base,
     capture_invocation_layout,
 };
+/// The bytes of the index a copy is written from,
+///  the seed a reset to a tree follows,
+///  and the addition-carrying step this file controls directly.
+use crate::commit_index_bytes::IndexBytes;
+use crate::commit_index_checks::carry_selected_staged_additions;
+use crate::commit_index_copying::{
+    PrivateIndexSeed,
+    seed_of_index_bytes,
+};
+/// The request builder and the starts the private-index steps are driven with.
+use crate::private_index_request::indexed_request;
 use crate::test_support::{
     fixture,
     git,
@@ -17,6 +28,10 @@ use crate::test_support::{
     repository,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use crate::transaction_git::{
+    GitFailure,
+    run_git_checked,
+};
 use crate::transaction_journal::RefFormat;
 use std::ffi::OsString;
 use std::fs::FileTimes;

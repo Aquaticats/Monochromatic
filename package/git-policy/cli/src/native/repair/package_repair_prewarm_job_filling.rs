@@ -36,7 +36,7 @@ use super::staged_state::staged_names;
 /// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
 /// Import the clean arguments and the command a person runs instead.
-use crate::package_repair_cargo::{
+use crate::package_repair_cargo_clean_arguments::{
     locked_clean_arguments,
     manual_command,
 };

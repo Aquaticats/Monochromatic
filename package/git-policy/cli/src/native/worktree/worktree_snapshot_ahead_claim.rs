@@ -26,7 +26,10 @@
 //! so a copy
 //!  proven before it was claimed is never walked twice.
 //! The names,
-//! the work items and the service seam this file uses are in `worktree_snapshot_ahead.rs`.
+//! the work items and the service seam this file uses are in `worktree_snapshot_ahead.rs`,
+//! and the answers that need no pool entry and no service,
+//! such as what the wait came to,
+//! are beside this file in `worktree_snapshot_ahead_claim_facts.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,16 +45,10 @@ use crate::add_timing::{
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{
     ObjectId,
-    entry_metadata_at,
-    identity_at,
     open_root,
     rename_at,
 };
 use crate::wait_ceilings::waiting_notice_after;
-use crate::work_item::{
-    FAILED,
-    state_directory,
-};
 use crate::worktree_clean_content::ConversionEnvironment;
 use crate::worktree_command_facts::AddPlan;
 use crate::worktree_snapshot_ahead::{
@@ -65,6 +62,17 @@ use crate::worktree_snapshot_ahead::{
     made_at,
     over_kept,
     pool_folder,
+};
+/// Import the identity of a claimed name,
+/// and hand it on under this module's name,
+/// which is the name the controls of the snapshot rung already write.
+pub(crate) use crate::worktree_snapshot_ahead_claim_facts::identity_of_name;
+/// Import the plain facts the claim and its wait are written from.
+use crate::worktree_snapshot_ahead_claim_facts::{
+    Waited,
+    given_up,
+    in_words,
+    is_a_directory,
 };
 use crate::worktree_snapshot_index_step::{
     Proof,
@@ -89,44 +97,6 @@ use std::time::{
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeSnapshotAheadClaim";
-
-/// What:
-///  The identity of what a path's name leads to now,
-/// or nothing when its parent cannot be opened or the name cannot be looked up.
-/// Why:
-///   The claimed snapshot's identity is what the add records for a later removal to check.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// identityAt(openRoot(dirname(path)), basename(path)) ?? undefined
-/// ```
-pub(crate) fn identity_of_name(path: &Path) -> Option<ObjectId> {
-    let parent: File = open_root(path.parent().unwrap_or(path)).ok()?;
-    return identity_at(&parent, path.file_name()?).ok();
-}
-
-/// What:
-///  Whether the entry `name` below `folder` is a directory,
-/// which is the only thing that can hold a copy of a source.
-/// Why:
-///   The proof opens the entry as a tree,
-/// and an entry that is a link is refused rather than renamed,
-/// because the rename
-///  would move whatever stands at the link's target.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isADirectory = (dir, name) => lstatSync(join(handlePath(dir), name)).isDirectory();
-/// ```
-fn is_a_directory(
-    folder: &File,
-    name: &OsStr,
-) -> bool {
-    return match entry_metadata_at(folder, name) {
-        Ok(found) => found.is_dir(),
-        Err(_unreadable) => false,
-    };
-}
 
 /// What:
 ///  Claim the newest snapshot ahead whose files equal the source's index,
@@ -286,78 +256,6 @@ fn hand_over(
     let _told = (service.hand_over)(stale.as_slice());
     handed.extend_from_slice(stale.as_slice());
     stale.clear();
-}
-
-/// What:
-///  A wait in the unit a person reads it in:
-/// whole seconds from one second up,
-/// milliseconds below that.
-/// Why:
-///   A control shortens the ceiling to milliseconds,
-/// and a person's sentence must state the bound it actually
-///  reached rather than rounding it to "0 s".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const inWords = (d: number) => d >= 1000 ? `${Math.round(d / 1000)} s` : `${d} ms`;
-/// ```
-fn in_words(ceiling: Duration) -> String {
-    return if ceiling.as_secs() >= 1 {
-        format!("{} s", ceiling.as_secs())
-    } else {
-        format!("{} ms", ceiling.as_millis())
-    };
-}
-
-/// What:
-///  What one add's wait for a snapshot ahead came to.
-/// Why:
-///   The three answers decide three different things:
-/// a claimed copy travels on to the index step,
-///  a request the service gave up ends the rung for a copy that can never come,
-/// and a ceiling ends it with
-///  the reason the person reads.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Waited = { kind: 'claimed'; made: ObjectId; proof: Proof; copiedAtMillis: number } | { kind: 'givenUp' } | { kind: 'ceiling' };
-/// ```
-enum Waited {
-    /// A copy proved equal to the source's index,
-    /// the object now at the stage name,
-    /// and the millisecond its name says it was made in.
-    Claimed(ObjectId, Proof, u128),
-    /// The service gave this add's own request up for good.
-    GivenUp,
-    /// Nothing came within the ceiling.
-    Ceiling,
-}
-
-/// What:
-///  Whether the service gave this add's own request for a copy up for good:
-/// its record stands in `failed`,
-///  which is the state nothing scans.
-/// Why:
-///   A request the service refused for a condition nothing can change is answered once,
-/// and
-///  nothing later makes the copy it asked for;
-/// a wait that could only end at its ceiling would cost the add that
-///  ceiling for work that cannot come,
-/// where taking its own snapshot serves it.
-/// The id is the one the ask
-///  answered,
-/// so another add's refused request ends no wait.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const givenUp = (workDir, asked) => asked !== undefined && existsSync(join(workDir, 'failed', asked));
-/// ```
-fn given_up(
-    work_dir: &Path,
-    asked: Option<&str>,
-) -> bool {
-    let Some(id) = asked else { return false };
-    return state_directory(work_dir, FAILED).join(id).exists();
 }
 
 /// What:

@@ -7907,7 +7907,10 @@ in order:
     the reformat with the root `rustfmt.toml` (`00b6a940b4`) grew the crate's code lines 1.472 times,
     so the locked linter counts 281 files over 300 on `987635373a`;
     19 of them were over before the reformat, and 262 are over only because of it
-    (`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`).
+    (`~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/code-lines-now-and-before-the-reformat.tsv`;
+    scratch,
+    deleted on 2026-11-27;
+    what this record uses from it is stated here).
     The 19 are this round's list:
     13 run in five queued branches (`refactor/git-policy-cli-split-*-files-over-the-line-budget`),
     one commit per file,
@@ -7917,6 +7920,30 @@ in order:
     The owner answered on 2026-11-26 "Keep 300, split everything" (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`),
     so this round splits all of them;
     a file whose split would add an allow-list line (`worktree/worktree_remove.rs`, the first met) waits for the loop break of round 3 that frees it.
+    Note of 2026-11-26T20:03:52-05:00,
+    from the `invocation/` split round
+    (`~/temp/agent/split-wrapper-invocation-files-over-the-line-budget-1-2026-11-26/keep/blocker-evidence.md`):
+    `invocation/` is a group folder,
+    because it holds `mod.rs` and the source folder `typed_network_command_relay/`,
+    so the folder rule reports each of its 48 files as a file a group folder may not hold,
+    and 48 `group-file` lines in `layout-allow-list/folder-rule.txt` tolerate them.
+    A new sibling file there is one more such finding,
+    and its only remedy is a line,
+    so a split of this folder cannot run while that list may only shrink;
+    a child folder per split file is blocked too,
+    because a use by that child which joins a loop the list tolerates
+    cannot be recorded by any line,
+    and the child owes the group's summary links,
+    which the decision of 2026-11-25 defers until the loops break.
+    So a split round for a group folder runs after round 7's move,
+    not before it,
+    or the owner grants an exception for the about 20 `group-file` lines
+    a split of those eight files needs,
+    which round 9 deletes once the files are child folders.
+    `health/` is the crate's other group folder,
+    with 10 such lines.
+    Nothing is reordered here;
+    the note records what a brief for that round has to say.
 3.  `refactor/git-policy-cli-split-loop-breaks`:
     step 3,
     one commit per loop of the list above,
