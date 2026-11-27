@@ -627,6 +627,33 @@ two readers of this package list a folder recursively and each follows a link it
 and neither fixture holds a link as of 2026-11-27,
 because no script of the package makes one there.
 
+A Rust test that reads this crate's sources walks them through the shared scan of `source_guard`:
+`source_scan_tests::discover` lists every `.rs` file under a root once,
+`source_scan_tests::classified_sources` adds the module tree's answer about which of them are test-only,
+and `source_scan_tests::source_text` reads one listed file.
+`discover` enters each folder once,
+reads nothing through a symbolic link,
+skips a `uses` link that names a folder below the root and refuses every other link,
+and its control `the_walk_reaches_a_linked_back_source_once_where_a_recursive_read_reaches_it_again`
+(`source_guard/source_scan_walk_tests.rs`) holds a fixture of one source file and one link back into the tree:
+the walk lists that file once and the `read_dir` recursion the walk replaces reaches it once per link above it.
+No test of this crate lists a source folder with a `read_dir` recursion of its own,
+and no test decides whether an entry is a folder with `path.is_dir()`,
+which follows a link.
+A check that looks for a needle reads one file at a time and holds that file's text alone.
+Measured 2026-11-27 (issue 6598):
+this crate's sources are 3,905 Rust files of 46,090,082 bytes,
+and the control that held them all read through the `uses` links read 165,978 entries,
+104,219 files and
+888,676,493 bytes,
+holding 890.5 MiB of resident memory for 22.1 s of a suite that runs for about sixteen minutes;
+the same control reads one file at a time now,
+in 6.0 s and 29.2 MiB.
+A control that builds a tree from the sources reads them the same way,
+because a walk that descends one link builds that tree forty times over:
+`binary/binary_worktree_clone_zfs_measurement_tests.rs` read 163,706 files and 1,658,426,907 bytes of `src`
+where the tree holds 4,110 files and 49,829,839 bytes.
+
 A planted control names one file and one needle in it,
 and a needle goes stale without anything renaming it:
 a split moves the guard into a sibling file,
