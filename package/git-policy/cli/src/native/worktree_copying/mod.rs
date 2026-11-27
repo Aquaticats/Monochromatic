@@ -286,6 +286,16 @@
 //!   the destination is still the registration the add made,
 //!   the source is still a worktree of this repository,
 //!   and anything at the stage's name is provably this copy's own.
+//! - `worktree_copy_owed_copy_records.rs`:
+//!   what the claim and the two records beside it say about the copy an add owes:
+//!   its selection,
+//!   its destination,
+//!   and the identity that proves the worktree there is still that one.
+//! - `worktree_copy_owed_copy_making_it.rs`:
+//!   how one owed copy is made:
+//!   the checks that still hold,
+//!   the staging and installation under the journal,
+//!   and the record of an unfilled worktree when it cannot be made.
 //! - `worktree_copy_owed_copy.rs`:
 //!   the ignored-state copy an interrupted `git worktree add` still owes,
 //!   made by a command in the worktree it fills.
@@ -662,6 +672,20 @@ pub mod worktree_copy_owed_taking;
 /// and anything at the stage's name is provably this copy's own.
 #[cfg(unix)]
 pub mod worktree_copy_owed_copy_proofs;
+
+/// What the claim and the two records beside it say about the copy an add owes:
+/// its selection,
+/// its destination,
+/// and the identity that proves the worktree there is still that one.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_records;
+
+/// How one owed copy is made:
+/// the checks that still hold,
+/// the staging and installation under the journal,
+/// and the record of an unfilled worktree when it cannot be made.
+#[cfg(unix)]
+pub mod worktree_copy_owed_copy_making_it;
 
 /// The ignored-state copy an interrupted `git worktree add` still owes,
 /// made by a command in the worktree it fills.
