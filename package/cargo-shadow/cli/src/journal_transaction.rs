@@ -19,7 +19,9 @@
 //! lists every file with its
 //! length,
 //! so a recovery can tell a complete journal from a partial one.
-//! How a journal is made (its name, its ready record, the workspace lock taken first) lives in `journal_transaction_creation.rs`;
+//! How a journal is made (its name,
+//! its ready record,
+//! the workspace lock taken first) lives in `journal_transaction_creation.rs`;
 //! this file keeps the handle those rules fill in.
 //!
 //! In TS you'd write (pseudocode):
@@ -78,14 +80,17 @@ use crate::journal_finish::FinishError;
 /// The hook that only the tests of the transaction use.
 #[cfg(test)]
 pub(crate) use crate::journal_transaction_creation::begin_step_for_test;
-/// The steps `begin` takes, and the hook a test stops it at (split out of the journal transaction module).
+/// The steps `begin` takes,
+/// and the hook a test stops it at (split out of the journal transaction module).
 use crate::journal_transaction_creation::{
     MAX_JOURNAL_NAME_ATTEMPTS,
     at_step,
     journal_name,
     write_ready,
 };
-/// The workspace lock, the journal's unique name, the index text and the ready record (split out of the journal transaction module).
+/// The workspace lock,
+/// the journal's unique name,
+/// the index text and the ready record (split out of the journal transaction module).
 pub use crate::journal_transaction_creation::{
     encode_path,
     take_workspace,

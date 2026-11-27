@@ -43,9 +43,11 @@ use rustix::fs::{
 /// ```
 use rustix::io::Errno;
 /// What:
-/// `use std::io::Write;` imports the `Write` trait, the borrowed writer the update reports into.
+/// `use std::io::Write;` imports the `Write` trait,
+/// the borrowed writer the update reports into.
 /// Why:
-/// `run_full_update` and `run_update` take a `&mut dyn Write` sink, which a caller passes as standard error.
+/// `run_full_update` and `run_update` take a `&mut dyn Write` sink,
+/// which a caller passes as standard error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +57,8 @@ use std::io::Write;
 /// What:
 /// `use std::path::Path;` imports the borrowed view of a file path (the sibling `PathBuf` owns one).
 /// Why:
-/// The lockfile and the kept folder are lent to the stand-in helpers, never stored.
+/// The lockfile and the kept folder are lent to the stand-in helpers,
+/// never stored.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +80,8 @@ use crate::commands::{
     print_update_report,
 };
 /// What:
-/// `use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};` imports the catalog marker, the failure code and the lockfile name.
+/// `use crate::constants::{CATALOG_MARKER, INSTALL_FAILED_EXIT_CODE, LOCKFILE_NAME};` imports the catalog marker,
+/// the failure code and the lockfile name.
 /// Why:
 /// `run_update` names the catalog marker and returns the failure code;
 /// `run_full_update` names the lockfile a crate root may be missing.
@@ -94,7 +98,8 @@ use crate::constants::{
 /// What:
 /// `use crate::shadow_step::{Prepared, now_millis};` imports the prepared catalog and the clock reading.
 /// Why:
-/// A full update works on the catalog that `prepare` read, and the update stamps its record with the current time.
+/// A full update works on the catalog that `prepare` read,
+/// and the update stamps its record with the current time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -117,7 +122,9 @@ use crate::tighten::FileEnforcer;
 /// What:
 /// `use crate::update::{UpdateKind, UpdateReport, UpdateRequest, update_rust_lockfiles};` imports the update call and its types.
 /// Why:
-/// `run_update` builds the request, runs it, and prints the report it returns;
+/// `run_update` builds the request,
+/// runs it,
+/// and prints the report it returns;
 /// `UpdateKind` says whether it is the full update or a targeted one.
 ///
 /// In TS you'd write (pseudocode):

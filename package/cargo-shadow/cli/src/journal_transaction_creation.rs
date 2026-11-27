@@ -6,7 +6,8 @@
 //! and the ready record that lists every file with its length.
 //! Why:
 //! A journal is only trusted by a recovery when it is complete and never reused,
-//! so the naming, the ready record and the workspace lock are the rules that make it trustworthy,
+//! so the naming,
+//! the ready record and the workspace lock are the rules that make it trustworthy,
 //! and they are read on their own here.
 //! `journal_transaction.rs` keeps the type those rules fill in and the methods it offers a run.
 //!
@@ -21,9 +22,11 @@
 //! ```
 
 /// What:
-/// `use std::fs::{self, File, OpenOptions};` imports the file system calls, an open file and the opener.
+/// `use std::fs::{self, File, OpenOptions};` imports the file system calls,
+/// an open file and the opener.
 /// Why:
-/// `write_ready` asks each listed file for its length, `take_workspace` opens and truncates the workspace lock,
+/// `write_ready` asks each listed file for its length,
+/// `take_workspace` opens and truncates the workspace lock,
 /// and `try_lock` takes an open file by reference.
 ///
 /// In TS you'd write (pseudocode):
@@ -38,7 +41,8 @@ use std::fs::{
 /// What:
 /// `use std::io::{self, Write};` imports the input/output error type and the write trait.
 /// Why:
-/// Every step of a creation answers an `io::Result`, and the owner line of the workspace lock is written with `write_all`.
+/// Every step of a creation answers an `io::Result`,
+/// and the owner line of the workspace lock is written with `write_all`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -51,7 +55,8 @@ use std::io::{
 /// What:
 /// `use std::os::unix::ffi::OsStrExt;` imports the reading of an operating-system string as bytes.
 /// Why:
-/// `encode_path` writes a path's bytes as hexadecimal, and a path need not be valid UTF-8.
+/// `encode_path` writes a path's bytes as hexadecimal,
+/// and a path need not be valid UTF-8.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +79,8 @@ use std::path::{
 /// What:
 /// `use std::sync::atomic::{AtomicU64, Ordering};` imports the counter that keeps two journals of one process apart.
 /// Why:
-/// Two journals of one process can share a nanosecond reading, and only a counter tells them apart without a lock.
+/// Two journals of one process can share a nanosecond reading,
+/// and only a counter tells them apart without a lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,7 +94,8 @@ use std::sync::atomic::{
 /// What:
 /// `use rustix::fs::{FlockOperation, flock};` imports the lock call and its operation.
 /// Why:
-/// The workspace lock is tried without waiting, which is the `NonBlockingLockExclusive` operation.
+/// The workspace lock is tried without waiting,
+/// which is the `NonBlockingLockExclusive` operation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -102,7 +109,8 @@ use rustix::fs::{
 /// What:
 /// `use crate::journal::{READY_FILE, WORKSPACE_LOCK, atomic_write, create_directories_synced, sync_directory};` imports the journal's names and its durable writes.
 /// Why:
-/// The ready record is published by an atomic write and its directory is synced, and the workspace lock is created with its directories.
+/// The ready record is published by an atomic write and its directory is synced,
+/// and the workspace lock is created with its directories.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

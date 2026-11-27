@@ -8,7 +8,9 @@
 //! The owner's rule "Invoke real git as rarely as possible" is why one `git cat-file --batch-check`
 //! answers every candidate at once (`batch_answers`),
 //! and why the files are asked first (`native_base_counting`).
-//! `git_base.rs` keeps the type, the spelling the base came from, and the reads of one commit.
+//! `git_base.rs` keeps the type,
+//! the spelling the base came from,
+//! and the reads of one commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +22,8 @@
 /// What:
 /// `use std::cell::Cell;` imports the interior-mutability cell that counts Git starts.
 /// Why:
-/// `resolve_trust_base_with` counts the Git processes it starts through a shared reference, which a plain `u32` cannot do.
+/// `resolve_trust_base_with` counts the Git processes it starts through a shared reference,
+/// which a plain `u32` cannot do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,7 +57,8 @@ use std::process::{
 /// What:
 /// `use crate::bounded_run::{Bound, RunError, output_within, output_within_clean_environment};` imports the bounded child run.
 /// Why:
-/// Every Git call here has a deadline and a reaped child, and a run with a cleared environment takes the second entry point.
+/// Every Git call here has a deadline and a reaped child,
+/// and a run with a cleared environment takes the second entry point.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,9 +71,12 @@ use crate::bounded_run::{
     output_within_clean_environment,
 };
 /// What:
-/// `use crate::git_base::{DEFAULT_BASE, TrustBase, not_a_commit_message};` imports what the resolution answers with, from the module that keeps it.
+/// `use crate::git_base::{DEFAULT_BASE, TrustBase, not_a_commit_message};` imports what the resolution answers with,
+/// from the module that keeps it.
 /// Why:
-/// The chosen base is reported as a `TrustBase`, an unanswerable base is worded by `not_a_commit_message`, and `HEAD` is the last candidate.
+/// The chosen base is reported as a `TrustBase`,
+/// an unanswerable base is worded by `not_a_commit_message`,
+/// and `HEAD` is the last candidate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

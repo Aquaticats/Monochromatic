@@ -165,9 +165,11 @@ use crate::shadow_step::{
     prepare,
 };
 /// What:
-/// `use crate::shadow_update_run::{run_full_update, run_update};` imports the two ways an update runs, from the sibling file that holds them.
+/// `use crate::shadow_update_run::{run_full_update, run_update};` imports the two ways an update runs,
+/// from the sibling file that holds them.
 /// Why:
-/// The command below picks one of them for the plan it was given, and the run itself lives in `shadow_update_run.rs`.
+/// The command below picks one of them for the plan it was given,
+/// and the run itself lives in `shadow_update_run.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -180,7 +182,8 @@ use crate::shadow_update_run::{
 /// What:
 /// `use crate::update::UpdateKind;` imports `UpdateKind` from another module of this crate so this file can name it unqualified.
 /// Why:
-/// `UpdateKind` is used by `run_update_command`, which asks for a targeted update by name.
+/// `UpdateKind` is used by `run_update_command`,
+/// which asks for a targeted update by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -203,7 +206,8 @@ use crate::update_plan::{
     plan_update,
 };
 
-/// The stand-in lockfile a full update writes, and the work that runs while it is in place (split out of the shadow update module).
+/// The stand-in lockfile a full update writes,
+/// and the work that runs while it is in place (split out of the shadow update module).
 pub use crate::shadow_update_run::{
     PlaceholderBody,
     run_with_placeholder_lock,

@@ -16,7 +16,9 @@
 //! // git-base.ts
 //! export async function createGitBaseLockReader({ root, base }): Promise<(crateDir: string) => string>
 //! ```
-//! The choice of the base, and the `git` calls it needs, live in `git_base_resolution.rs`;
+//! The choice of the base,
+//! and the `git` calls it needs,
+//! live in `git_base_resolution.rs`;
 //! this file keeps what the choice answers with and the reads of one commit.
 
 /// What:
@@ -78,7 +80,8 @@ use crate::git_refs::NativeEnvironment;
 /// Which system configuration file the selected Git reads (split out of the git base module).
 pub(crate) use crate::git_system_config_lookup::system_config_of_git;
 
-/// How the base is chosen, by the repository's files and then by `git` (split out of the git base module).
+/// How the base is chosen,
+/// by the repository's files and then by `git` (split out of the git base module).
 pub use crate::git_base_resolution::resolve_trust_base_with;
 
 /// The bounded `git` call that the configuration lookup goes through (split out of the git base module).

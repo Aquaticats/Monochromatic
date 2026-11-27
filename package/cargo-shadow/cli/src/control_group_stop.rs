@@ -2,7 +2,8 @@
 //! Stops the delegated control group of one run and waits for the kernel to say it is empty,
 //! and reads the `populated` line of any group's `cgroup.events`.
 //! Why:
-//! The stop is the one proof the contract needs, that every writer a command started has stopped,
+//! The stop is the one proof the contract needs,
+//! that every writer a command started has stopped,
 //! so it is read on its own:
 //! `cgroup.kill` first,
 //! then `SIGKILL` through a pidfd for each listed process,
@@ -20,7 +21,8 @@
 /// What:
 /// `use std::fs;` imports the file system calls.
 /// Why:
-/// `write_text` opens a control file, and the reads here open `cgroup.events` and read a directory's file.
+/// `write_text` opens a control file,
+/// and the reads here open `cgroup.events` and read a directory's file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,7 +32,8 @@ use std::fs;
 /// What:
 /// `use std::io::{self, Write};` imports the input/output error type and the write trait.
 /// Why:
-/// The stop answers an `io::Result`, and a control file's command is written with `write_all`.
+/// The stop answers an `io::Result`,
+/// and a control file's command is written with `write_all`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,7 +46,8 @@ use std::io::{
 /// What:
 /// `use std::os::fd::OwnedFd;` imports the owning wrapper of an open file descriptor.
 /// Why:
-/// A pidfd opened for every listed process must be closed when it goes out of scope, and `OwnedFd` is what closes it.
+/// A pidfd opened for every listed process must be closed when it goes out of scope,
+/// and `OwnedFd` is what closes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,7 +57,8 @@ use std::os::fd::OwnedFd;
 /// What:
 /// `use std::os::unix::fs::FileExt;` imports the positional read that does not move the file's position.
 /// Why:
-/// `populated_through` re-reads `cgroup.events` from its start on every pass, which is also what arms the file for `poll`.
+/// `populated_through` re-reads `cgroup.events` from its start on every pass,
+/// which is also what arms the file for `poll`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,7 +78,8 @@ use std::path::Path;
 /// What:
 /// `use std::time::{Duration, Instant};` imports a length of time and a point on the monotonic clock.
 /// Why:
-/// The stop's bound is a `Duration` and its deadline is an `Instant`, so a slow host cannot stretch the wait.
+/// The stop's bound is a `Duration` and its deadline is an `Instant`,
+/// so a slow host cannot stretch the wait.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,7 +93,8 @@ use std::time::{
 /// What:
 /// `use rustix::event::{PollFd, PollFlags, Timespec, poll};` imports the wait on `cgroup.events` for the next change.
 /// Why:
-/// The stop sleeps on the kernel's own notification rather than polling in a loop, so it costs nothing while it waits.
+/// The stop sleeps on the kernel's own notification rather than polling in a loop,
+/// so it costs nothing while it waits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -102,7 +109,8 @@ use rustix::event::{
 /// What:
 /// `use rustix::io::Errno;` imports the error code of a removed group and of an interrupted wait.
 /// Why:
-/// A removed group reads as unpopulated (`ENODEV`), and `EINTR` ends one wait without ending the stop.
+/// A removed group reads as unpopulated (`ENODEV`),
+/// and `EINTR` ends one wait without ending the stop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,7 +120,8 @@ use rustix::io::Errno;
 /// What:
 /// `use rustix::process::{Pid, PidfdFlags, Signal, pidfd_open, pidfd_send_signal};` imports the pidfd route to signalling one process.
 /// Why:
-/// A process id read from a list can be reused, so the signal is sent through a descriptor that cannot name another process.
+/// A process id read from a list can be reused,
+/// so the signal is sent through a descriptor that cannot name another process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +138,8 @@ use rustix::process::{
 /// What:
 /// `use crate::control_group::ControlGroup;` imports the scope this stop acts on.
 /// Why:
-/// `stop`, `signal_members` and `absence_is_verified` are methods of that one type.
+/// `stop`,
+/// `signal_members` and `absence_is_verified` are methods of that one type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,7 +149,8 @@ use crate::control_group::ControlGroup;
 /// What:
 /// `use crate::control_group_route_discovery::{STRAGGLER_INTERVAL, View, namespace_id, view_of};` imports how long one wait lasts and how a directory is seen.
 /// Why:
-/// A wait is at most `STRAGGLER_INTERVAL` long, and the absence of a scope counts only in the `View` (mount and inode) and the `namespace_id` it was planned in.
+/// A wait is at most `STRAGGLER_INTERVAL` long,
+/// and the absence of a scope counts only in the `View` (mount and inode) and the `namespace_id` it was planned in.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -152,7 +163,8 @@ use crate::control_group_route_discovery::{
     view_of,
 };
 
-/// The methods that stop the scope, and the reads they wait on.
+/// The methods that stop the scope,
+/// and the reads they wait on.
 impl ControlGroup {
     /// What:
     /// `fn signal_members(&self) -> io::Result<()>` sends `SIGKILL` to every listed process through a pidfd that was checked

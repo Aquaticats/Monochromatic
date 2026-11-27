@@ -84,7 +84,8 @@ pub mod journal_manifests;
 /// a journal held by a lock for the life of a run.
 pub mod journal_transaction;
 
-/// The workspace lock, the journal's unique name and its ready record (split out of the journal transaction module).
+/// The workspace lock,
+/// the journal's unique name and its ready record (split out of the journal transaction module).
 pub mod journal_transaction_creation;
 
 /// The completion marker of a journal (split out of the journal transaction module).
@@ -145,7 +146,8 @@ pub mod control_group_process_identity;
 /// The boot and machine identity that a journal record of a mount view is checked against (split out of the control group module).
 pub mod control_group_machine_identity;
 
-/// The stop of a scope, and the reads of `cgroup.events` (split out of the control group module).
+/// The stop of a scope,
+/// and the reads of `cgroup.events` (split out of the control group module).
 pub mod control_group_stop;
 
 /// The resource limits of the caller's control group,
@@ -170,7 +172,8 @@ pub mod dump;
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
-/// How the trust base is chosen, by the repository's files and then by git (split out of the git base module).
+/// How the trust base is chosen,
+/// by the repository's files and then by git (split out of the git base module).
 pub mod git_base_resolution;
 
 /// Which system configuration file the selected Git reads (split out of the git base module).
@@ -266,7 +269,8 @@ pub mod shadow_step;
 /// The shadow's answer to `cargo update` and `cargo generate-lockfile`.
 pub mod shadow_update;
 
-/// Running one update of either kind, and the stand-in lockfile a full update writes (split out of the shadow update module).
+/// Running one update of either kind,
+/// and the stand-in lockfile a full update writes (split out of the shadow update module).
 pub mod shadow_update_run;
 
 /// The rule that a shadow never starts a shadow:
