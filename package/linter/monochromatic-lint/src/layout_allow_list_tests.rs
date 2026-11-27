@@ -329,8 +329,7 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
 
 /// A listed path is read back against the package folder,
 ///  so a line that climbs out with `..` and comes back in names the use the plain spelling names,
-///  on either side of the arrow,
-///  and two spellings of one line are the repeat the list refuses.
+///  on either side of the arrow and on both at once.
 #[test]
 fn a_listed_path_is_read_back_against_the_package_folder() {
     for lines in [
@@ -344,10 +343,18 @@ fn a_listed_path_is_read_back_against_the_package_folder() {
             "{lines}"
         );
     }
+}
+
+/// Two spellings of one use are the repeat a list refuses,
+///  in a `uses` line on either side of the arrow and in a `file-uses` line,
+///  because every listed path is read into one spelling before a repeat is decided.
+#[test]
+fn two_spellings_of_one_use_are_the_repeat_the_list_refuses() {
     for lines in [
         "uses src/a -> src/b\nuses ../package/src/a -> src/b\n",
         "uses src/a -> src/b\nuses src/a -> ../package/src/b\n",
         "uses src/a -> src/b\nuses ../package/src/a -> ../package/src/b\n",
+        "file-uses src/ab one.rs -> two.rs\nfile-uses ../package/src/ab one.rs -> two.rs\n",
     ] {
         let error: String = error_of(lines);
         assert!(error.contains("repeats the entry"), "{error} in {lines}");
