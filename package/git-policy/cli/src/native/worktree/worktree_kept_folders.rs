@@ -33,10 +33,8 @@
 
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::ObjectId;
-use crate::worktree_trash::{
-    TRASH_PARENT,
-    Trash,
-};
+use crate::the_names_and_the_manifest_of_the_trash::TRASH_PARENT;
+use crate::worktree_trash_set_aside::Trash;
 use std::path::{
     Path,
     PathBuf,

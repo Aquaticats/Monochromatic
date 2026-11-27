@@ -19,7 +19,6 @@
 
 use crate::diagnostic_log::debug;
 use crate::merge_isolation_carry_apply::{
-    CarryFailure,
     LandedFile,
     LockWait,
     carry_awaiting,
@@ -27,19 +26,19 @@ use crate::merge_isolation_carry_apply::{
     restore_awaiting,
 };
 use crate::merge_isolation_carry_notice::report_lines;
-use crate::merge_isolation_carry_ref::drop_capture_ref_awaiting;
+use crate::merge_isolation_carry_write_failures::CarryFailure;
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
-use crate::merge_isolation_recovery_cleanup::partly_installed;
-use crate::merge_isolation_recovery_steps::{
-    MergeRefusal,
-    RecoveryPlace,
-    merge_changes_awaiting,
-};
+use crate::merge_isolation_recovery_place::RecoveryPlace;
+use crate::merge_isolation_recovery_record::MergeRefusal;
+use crate::merge_isolation_recovery_record::partly_installed;
+use crate::merge_isolation_recovery_steps::merge_changes_awaiting;
 use crate::recovery_error::RecoveryError;
 use std::io::Write;
 use std::path::Path;
 
+use crate::merge_isolation_recovery_cleanup::SideRef;
+use crate::merge_isolation_recovery_cleanup::drop_the_records_refs_then_the_record;
 /// What:
 ///  Merge the person's own work in the merge's paths with the merge,
 /// and say whether it is back.
@@ -272,109 +271,6 @@ pub(crate) fn the_work_could_not_be_carried(failure: &CarryFailure) -> String {
          in the objects the merge's record names, and the record was kept; the next git command in this worktree tries again. Nothing of \
          the person's was removed."
     );
-}
-
-/// What:
-///  Drop the ref that kept a capture,
-/// once its bytes are back in the checkout,
-///  and say whether the name is gone.
-/// Why:
-///   The record is the only thing that names the ref,
-/// so a caller that removed the record first left a name
-///  nothing ever retried when the deletion met another command's lock.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function dropCapture({ place, root, intent }): boolean;
-/// ```
-pub(crate) async fn drop_capture_awaiting(
-    place: &RecoveryPlace,
-    root: &Path,
-    record: &Path,
-    intent: &MergeIntent,
-) -> bool {
-    let Some(capture) = intent.carried.as_ref() else {
-        return true;
-    };
-    return drop_capture_ref_awaiting(
-        &place.git,
-        place.git_dir.as_path(),
-        root,
-        capture,
-        Some(record),
-    )
-    .await;
-}
-
-/// What:
-///  What becomes of the side ref a record names when the record goes.
-/// Why:
-///   A merge that landed has no use for the ref any more,
-/// while one a command reported as saved keeps its commit
-///  there and names it to the person,
-/// so each caller says which it means.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type SideRef = 'drop' | 'keep';
-/// ```
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub(crate) enum SideRef {
-    /// The side ref goes with the record:
-    /// the merge's commit is in the branch.
-    Drop,
-    /// The side ref stays:
-    /// it is the only name that still keeps the merge's commit reachable.
-    Keep,
-}
-
-/// What:
-///  Take away what a record keeps,
-/// and only then the record itself,
-///  answering whether it could be removed.
-/// Why:
-///   The record is the only name that still needs the capture's ref and a side ref,
-/// so a command that removed
-///  it first and then failed to delete a ref left a name nothing ever retried
-/// (a cross-vendor audit of
-///  alpha.12,
-/// "Capture-ref cleanup is never retried after a transient failure").
-///  Keeping the record when a ref stayed leaves the
-///  retry to the next command,
-/// whose recovery finishes the same merge and tries the refs again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function dropTheRecordsRefsThenTheRecord({ place, root, record, intent, sideRef }): Promise<boolean>;
-/// ```
-pub(crate) async fn drop_the_records_refs_then_the_record(
-    place: &RecoveryPlace,
-    root: &Path,
-    record: &Path,
-    intent: &MergeIntent,
-    side_ref: SideRef,
-) -> Result<bool, RecoveryError> {
-    // The capture's bytes are in the checkout or back in the files by the time a caller gets here, and that is written beside
-    //  the record before its ref is decided: a kill between the two steps then leaves a record whose next settle needs nothing
-    //  from the objects (`merge_isolation_journal.rs`, `mark_carry_finished`).
-    if intent.carried.is_some()
-        && let Err(error) = crate::merge_isolation_journal::mark_carry_finished(record)
-    {
-        return Err(RecoveryError(format!(
-            "the finish of the carried work could not be recorded: {error}"
-        )));
-    }
-    if !drop_capture_awaiting(place, root, record, intent).await {
-        return Ok(false);
-    }
-    if side_ref == SideRef::Drop
-        && !crate::merge_isolation_recovery_cleanup::drop_side_ref_awaiting(place, root, intent)
-            .await
-    {
-        return Ok(false);
-    }
-    crate::merge_isolation_recovery_steps::remove_record(record)?;
-    return Ok(true);
 }
 
 /// The one change of a list that names this path,
