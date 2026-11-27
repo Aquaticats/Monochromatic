@@ -294,6 +294,21 @@ and holds only that ceiling and the answer after it,
 and a property that cannot be timed that way is asserted structurally instead:
 the store named no repository once both answers had come,
 so neither answer came from it.
+A control whose subject is a wait the release code must never enter waits on the work's own answer
+and on the run's own progress,
+never on a clock over the work,
+and says what it saw when it gave up
+(`worktree_copy_settling_tests.rs`,
+`the_copy_answered`):
+the copy of two ignored entries took 0.478 s at its slowest on this host at a load average of 198 to 281,
+and the ten-second patience the control borrowed from the rendezvous helper failed at a load average of 152
+(issue 6548).
+The state a claim like that rests on is measured,
+never inferred:
+a writing open of the named pipe with `O_NONBLOCK` fails with `ENXIO` unless a reader holds it open
+(`pipe(7)`),
+so a reader that holds it is a copy waiting inside the open,
+and the writer that releases it also lets that copy's thread end.
 A state a control means to test is reached by the control and not by a sleep:
 that control offers a line into the queue the writer takes its lines from,
 where sleeping three cadences expected a starved notice thread to have offered one
