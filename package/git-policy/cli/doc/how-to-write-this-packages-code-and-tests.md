@@ -327,3 +327,32 @@ beside the module of the file you changed.
 The fix for issue 6421 (`700a6e4c02`) rewrote the line that starts the commit's notice stream
 and left `the_commit_command_hands_its_waiting_notices_to_this_stream` asserting the line it replaced,
 so the whole container gate on `main` at `132843d9d1` failed in a module that fix never ran.
+
+## A filtered run counts only when it ran the tests you meant
+
+A `cargo test` filter that matches no test prints `ok. 0 passed`,
+which proves nothing.
+A filtered run counts only when its `test result` line names more than zero passed and the tests you meant,
+so filter by the module path libtest prints (`service::service_instance::tests`),
+never by a file name.
+On 2026-11-26 two merge checks named `worktree_landed_after_a_merge::` and `binary::`,
+which match no test in the library target,
+and passed nothing until they were run again with filters that matched.
+
+## Search the open branches before deleting anything as unused
+
+Pieces of later steps are built ahead and live on branches until they merge,
+so a function,
+type or file that nothing on `main` calls may still be called on a branch.
+Before you delete one as unused,
+search every branch on origin for its name
+(`git grep <name> $(git for-each-ref --format='%(refname)' refs/remotes/origin)`).
+`1f5aa01430` (2026-11-25T17:25:36-05:00) deleted `the_account_cache` as uncalled,
+and step 17's branch called it.
+
+## Format with the root `rustfmt.toml` before each commit
+
+The root `rustfmt.toml` sets the layout,
+and this crate was formatted by it in `00b6a940b4` (2026-11-26).
+Run `cargo fmt` in the crate before each commit,
+and end with `cargo fmt --check` printing nothing.

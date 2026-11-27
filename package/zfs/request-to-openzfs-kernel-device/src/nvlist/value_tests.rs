@@ -18,6 +18,15 @@
 
 use super::*;
 use crate::nvlist::NvData;
+/// The wire type numbers the value under test answers with,
+/// which the file it lives in no longer imports.
+use crate::nvlist::data_type::{
+    DATA_TYPE_BOOLEAN,
+    DATA_TYPE_BOOLEAN_VALUE,
+    DATA_TYPE_NVLIST,
+    DATA_TYPE_STRING,
+    DATA_TYPE_UINT64_ARRAY,
+};
 
 #[test]
 fn a_new_list_carries_the_unique_name_flag() {
