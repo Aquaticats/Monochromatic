@@ -19,6 +19,20 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// A pipe whose ends are closed on `exec`,
+/// and the path of a pseudo-terminal's slave side,
+/// in the call each system needs.
+#[path = "binary_support_pipes_and_pseudo_terminals.rs"]
+mod support_pipes_and_pseudo_terminals;
+
+/// Running a command in a fixture and reading what its caller saw:
+/// real Git under the bound of one fixture command,
+/// a repository with one empty commit,
+/// the wrapper and a direct run,
+/// and the exit status and two streams a finished command left.
+#[path = "binary_support_running_a_command_and_reading_the_answer.rs"]
+mod support_running_a_command_and_reading_the_answer;
+
 /// The owner a helper process is started with,
 /// which the child-test runner beside it asks for;
 /// the same file the unit tests use, which this crate includes because the library's own modules are private to it.
