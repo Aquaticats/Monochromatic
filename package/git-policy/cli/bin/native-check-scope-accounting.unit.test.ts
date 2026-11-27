@@ -1,5 +1,7 @@
+import { spawnSync, } from 'node:child_process';
 import {
   mkdir,
+  open,
   rename,
   rm,
   writeFile,
@@ -26,6 +28,11 @@ import { until } from './until-a-test-condition-holds.ts';
  Milliseconds a fixture's watch reads with, which is short so a test ends quickly.
  */
 const fixturePollMilliseconds = 20;
+
+/**
+ Milliseconds `mkfifo` is given to make one named pipe, which is far more than the call needs.
+ */
+const namedPipeDeadlineMilliseconds = 5_000;
 
 /**
  Bytes a fixture's `memory.peak` holds, which is the peak a check at its largest was measured at.
@@ -95,6 +102,27 @@ const fixtureFigures: Readonly<Record<string, string>> = {
   'cpu.max': '800000 100000',
   'cpu.stat': 'usage_usec 76928181\nuser_usec 54543767\nsystem_usec 22384414\nnr_periods 160\nnr_throttled 68\nthrottled_usec 97294323',
 };
+
+/**
+ Makes a named pipe where one of a control group's files is, which holds one read of a watch open at a chosen point.
+
+ A named pipe is a stand-in: no kernel writes one in a control group, and nothing in this package reads one. It is the
+ seam a test needs to know where a reading stood when the group went, rather than hoping a loaded host picks that point.
+ The reader of a named pipe waits inside its open until something opens the other end, and then reads until that end
+ closes.
+
+ @param path - where the pipe goes
+
+ @throws Error when `mkfifo` did not make the pipe
+ */
+function makeNamedPipe({ path }: { readonly path: string; }): void {
+  /**
+   What `mkfifo` answered.
+   */
+  const made = spawnSync('mkfifo', [path,], { timeout: namedPipeDeadlineMilliseconds, },);
+  if (made.status !== 0)
+    throw new Error(`mkfifo could not make ${path}: ${made.error?.message ?? made.stderr.toString()}`);
+}
 
 /**
  Ends one fixture control group, which is what a scope that ends does to its own.
@@ -278,6 +306,72 @@ await describe({
         expect(kept.pidsPeak,).toBe(434,);
         expect(kept.cpuStat.nr_throttled,).toBe(68,);
         await watch.stop();
+      },
+    }),
+    it({
+      name: 'never lets a reading that lost its control group part way replace the whole reading before it',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'check-scope-accounting-', });
+        /**
+         The fixture's control group.
+         */
+        const cgroupPath = join(
+          scratch.path,
+          'app.slice',
+          'gpc-check-c.scope',
+        );
+        await writeCgroup({
+          cgroupPath,
+          // The pipe below goes where `pids.events.local` would be, so this group is one whose kernel writes only the
+          // counters of the subtree, and the reading that saw the whole group answers nine refusals from it.
+          figures: Object.fromEntries(Object.entries(fixtureFigures,)
+            .filter(function notTheLocalPidsEvents([name]) {
+              return name !== 'pids.events.local';
+            },),),
+        });
+        await using watch = watchScopeAccounting({
+          cgroupPath,
+          intervalMilliseconds: fixturePollMilliseconds,
+        });
+        await until({
+          condition: function whole() {
+            /**
+             What the watch has read so far.
+             */
+            const read = watch.lastRead();
+            return (read !== SCOPE_NOT_READ) && (read.cpuStat.nr_throttled === 68);
+          },
+          description: 'the watch to read the whole control group the fixture wrote',
+          pollMilliseconds: fixturePollMilliseconds,
+        },);
+        /**
+         The counter file whose read this test holds open, so the control group goes at a chosen point of a reading.
+         */
+        const held = join(
+          cgroupPath,
+          'pids.events.local',
+        );
+        makeNamedPipe({ path: held, });
+        // The watch's next reading opens the named pipe and waits there, so this writer answers only once that reading
+        // has reached this point of its own: no sleep decides where the group goes.
+        /**
+         The writing end of the held read, held until the group has gone.
+         */
+        const writer = await open(held, 'w',);
+        await removeCgroup({ cgroupPath, });
+        await writer.close();
+        // A watch is stopped by waiting for its reading loop, so the reading that lost its group has certainly ended.
+        await watch.stop();
+        /**
+         What the watch kept once a reading had lost part of its group.
+         */
+        const kept = watch.lastRead();
+        if (kept === SCOPE_NOT_READ)
+          throw new Error('the watch never read the whole control group the fixture wrote');
+        expect(kept.pidsPeak,).toBe(434,);
+        expect(kept.pidsEvents.max,).toBe(9,);
+        expect(kept.memoryEvents.oom_kill,).toBe(2,);
+        expect(kept.cpuStat.nr_throttled,).toBe(68,);
       },
     }),
   ],
