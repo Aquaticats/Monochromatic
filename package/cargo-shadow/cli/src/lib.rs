@@ -198,9 +198,6 @@ pub mod file_owner;
 /// Fills the history cache from the crates.io database dump.
 pub mod dump;
 
-/// Reads one table of the crates.io database dump (split out of `dump.rs`).
-pub mod dump_table_reading;
-
 /// Reads the lockfiles of a base revision with git.
 pub mod git_base;
 
