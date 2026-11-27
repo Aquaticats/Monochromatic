@@ -1,14 +1,6 @@
-import { spawnSync, } from 'node:child_process';
-import {
-  mkdir,
-  open,
-  rename,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { wait as waitUntil } from '@monochromatic-dev/async-time-core/ts';
 import {
   describe,
   expect,
@@ -18,131 +10,16 @@ import {
 import {
   SCOPE_NOT_READ,
   checkScopeCgroupPath,
+  isRemoved,
   readScopeAccounting,
-  watchScopeAccounting,
 } from './native-check-scope-accounting.ts';
 import { createGateScratchDirectory } from './stand-in-gate-programs-for-tests.ts';
-import { until } from './until-a-test-condition-holds.ts';
-
-/**
- Milliseconds a fixture's watch reads with, which is short so a test ends quickly.
- */
-const fixturePollMilliseconds = 20;
-
-/**
- Milliseconds `mkfifo` is given to make one named pipe, which is far more than the call needs.
- */
-const namedPipeDeadlineMilliseconds = 5_000;
-
-/**
- Bytes a fixture's `memory.peak` holds, which is the peak a check at its largest was measured at.
- */
-const fixtureMemoryPeakBytes = 1_953_531_904;
-
-/**
- Bytes a fixture's `memory.max` holds, which is the 4 GiB bound every recorded check ran under.
- */
-const fixtureMemoryMaxBytes = 4_294_967_296;
-
-/**
- Writes one control group's files into a fixture tree, as the kernel would.
-
- @param cgroupPath - the fixture's control group
-
- @param figures - further files to write, by name
- */
-async function writeCgroup({
-  cgroupPath,
-  figures,
-}: {
-  readonly cgroupPath: string;
-  readonly figures: Readonly<Record<string, string>>;
-}): Promise<void> {
-  // The kernel makes a control group with its files already there, so the fixture does too: a watch that read a half
-  // written fixture would read a control group no kernel ever made.
-  /**
-   The folder this fixture writes before its control group appears.
-   */
-  const written = `${cgroupPath}.written`;
-  await mkdir(
-    written,
-    { recursive: true, },
-  );
-  await Promise.all(Object.entries(figures,)
-    .map(async function writeOne([name, text]) {
-      await writeFile(
-        join(
-          written,
-          name
-        ),
-        `${text}\n`
-      );
-    },),);
-  await rename(written, cgroupPath,);
-}
-
-/**
- The figures a control group holds after a loaded check.
-
- These are a stand-in: the shapes of the files are the kernel's (`bin/native-gate-container-cgroup-memory.ts` reads the
- same names), and the numbers are the ones this round measured for `//package/git-policy/cli:test:unit` at 800% on this
- host on 2026-11-27, with the refused forks added because no unbound run of the suite met its task bound.
- */
-const fixtureFigures: Readonly<Record<string, string>> = {
-  'pids.current': '30',
-  'pids.peak': '434',
-  'pids.max': '1024',
-  'pids.events': 'max 9',
-  'pids.events.local': 'max 6',
-  'memory.current': '893263872',
-  'memory.peak': String(fixtureMemoryPeakBytes,),
-  'memory.max': String(fixtureMemoryMaxBytes,),
-  'memory.events': 'low 0\nhigh 0\nmax 1\noom 5\noom_kill 5\noom_group_kill 0',
-  'memory.events.local': 'low 0\nhigh 0\nmax 0\noom 2\noom_kill 2\noom_group_kill 0',
-  'cpu.max': '800000 100000',
-  'cpu.stat': 'usage_usec 76928181\nuser_usec 54543767\nsystem_usec 22384414\nnr_periods 160\nnr_throttled 68\nthrottled_usec 97294323',
-};
-
-/**
- Makes a named pipe where one of a control group's files is, which holds one read of a watch open at a chosen point.
-
- A named pipe is a stand-in: no kernel writes one in a control group, and nothing in this package reads one. It is the
- seam a test needs to know where a reading stood when the group went, rather than hoping a loaded host picks that point.
- The reader of a named pipe waits inside its open until something opens the other end, and then reads until that end
- closes.
-
- @param path - where the pipe goes
-
- @throws Error when `mkfifo` did not make the pipe
- */
-function makeNamedPipe({ path }: { readonly path: string; }): void {
-  /**
-   What `mkfifo` answered.
-   */
-  const made = spawnSync('mkfifo', [path,], { timeout: namedPipeDeadlineMilliseconds, },);
-  if (made.status !== 0)
-    throw new Error(`mkfifo could not make ${path}: ${made.error?.message ?? made.stderr.toString()}`);
-}
-
-/**
- Ends one fixture control group, which is what a scope that ends does to its own.
-
- A scope's control group goes as one path, so the fixture takes its folder away under another name before it deletes it:
- a reader then sees a scope that is gone rather than a control group being deleted file by file, which is a shape no
- kernel makes.
-
- @param cgroupPath - the fixture's control group
- */
-async function removeCgroup({ cgroupPath }: { readonly cgroupPath: string; }): Promise<void> {
-  await rename(cgroupPath, `${cgroupPath}.gone`,);
-  await rm(
-    `${cgroupPath}.gone`,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-}
+import {
+  standInCgroupFigures,
+  standInMemoryMaxBytes,
+  standInMemoryPeakBytes,
+  writeStandInCgroup,
+} from './stand-in-cgroup-files-for-tests.ts';
 
 await describe({
   name: 'the accounting of one check\'s scope',
@@ -168,9 +45,9 @@ await describe({
           'app.slice',
           'gpc-check-a.scope',
         );
-        await writeCgroup({
+        await writeStandInCgroup({
           cgroupPath,
-          figures: fixtureFigures,
+          figures: standInCgroupFigures,
         });
         /**
          What the reader answered.
@@ -181,8 +58,8 @@ await describe({
         expect(read.pidsPeak,).toBe(434,);
         expect(read.pidsMax,).toBe(1_024,);
         expect(read.pidsEvents.max,).toBe(6,);
-        expect(read.memoryPeakBytes,).toBe(fixtureMemoryPeakBytes,);
-        expect(read.memoryMaxBytes,).toBe(fixtureMemoryMaxBytes,);
+        expect(read.memoryPeakBytes,).toBe(standInMemoryPeakBytes,);
+        expect(read.memoryMaxBytes,).toBe(standInMemoryMaxBytes,);
         expect(read.memoryEvents.oom_kill,).toBe(2,);
         expect(read.cpuQuotaMicroseconds,).toBe(800_000,);
         expect(read.cpuPeriodMicroseconds,).toBe(100_000,);
@@ -203,9 +80,9 @@ await describe({
           'app.slice',
           'gpc-check-local.scope',
         );
-        await writeCgroup({
+        await writeStandInCgroup({
           cgroupPath: withLocal,
-          figures: fixtureFigures,
+          figures: standInCgroupFigures,
         });
         /**
          A control group of a kernel that writes only the subtree counters.
@@ -215,7 +92,7 @@ await describe({
           'app.slice',
           'gpc-check-subtree.scope',
         );
-        await writeCgroup({
+        await writeStandInCgroup({
           cgroupPath: subtreeOnly,
           figures: {
             'pids.events': 'max 9',
@@ -268,48 +145,47 @@ await describe({
       },
     }),
     it({
-      name: 'keeps the last figures a scope gave after the scope and its control group are gone',
+      name: 'takes the kernel removing a file of a control group as a file that answers no figure',
       fn: async () => {
-        await using scratch = await createGateScratchDirectory({ prefix: 'check-scope-accounting-', });
+        // The error Node builds for this kernel's answer, captured on this host on 2026-11-27 from a control group the
+        // account made and removed while a reader read it (`kernfs_fop_read_iter` answering `ENODEV` for a node the
+        // kernel had deactivated): `doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`.
         /**
-         The fixture's control group.
+         One answer of a file whose control group is going.
          */
-        const cgroupPath = join(
-          scratch.path,
-          'app.slice',
-          'gpc-check-b.scope',
-        );
-        await writeCgroup({
-          cgroupPath,
-          figures: fixtureFigures,
-        });
-        await using watch = watchScopeAccounting({
-          cgroupPath,
-          intervalMilliseconds: fixturePollMilliseconds,
-        });
-        await until({
-          condition: function read() {
-            return watch.lastRead() !== SCOPE_NOT_READ;
+        const removed = Object.assign(
+          new Error('ENODEV: no such device, read \'/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/gpc-probe-6610-d6157fac49704927860679adb5c5b0b6-110/pids.max\''),
+          {
+            code: 'ENODEV',
+            errno: -19,
+            syscall: 'read',
+            path: '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/gpc-probe-6610-d6157fac49704927860679adb5c5b0b6-110/pids.max',
           },
-          description: 'the watch to read the fixture\'s control group',
-          pollMilliseconds: fixturePollMilliseconds,
-        },);
-        // The scope ends when its work does, which takes its control group with it; what was read must survive that.
-        await removeCgroup({ cgroupPath, });
-        await waitUntil(fixturePollMilliseconds * 2,);
+        );
+        expect(isRemoved(removed,),).toBe(true,);
+        // A file that is not there, and words that only look like the code, are not an answer of the kernel's.
         /**
-         What the watch kept once the control group was gone.
+         The answer of a file a directory does not hold.
          */
-        const kept = watch.lastRead();
-        if (kept === SCOPE_NOT_READ)
-          throw new Error('the watch never read the control group the fixture wrote');
-        expect(kept.pidsPeak,).toBe(434,);
-        expect(kept.cpuStat.nr_throttled,).toBe(68,);
-        await watch.stop();
+        const missing = Object.assign(
+          new Error('ENOENT: no such file or directory, open \'/sys/fs/cgroup/a.scope/pids.max\''),
+          {
+            code: 'ENOENT',
+            errno: -2,
+            syscall: 'open',
+            path: '/sys/fs/cgroup/a.scope/pids.max',
+          },
+        );
+        expect(isRemoved(missing,),).toBe(false,);
+        /**
+         Words that name the code without carrying it.
+         */
+        const words = new Error('ENODEV');
+        expect(isRemoved(words,),).toBe(false,);
       },
     }),
     it({
-      name: 'never lets a reading that lost its control group part way replace the whole reading before it',
+      name: 'answers that a scope was not read when its control group lost a part of the reading it would replace',
       fn: async () => {
         await using scratch = await createGateScratchDirectory({ prefix: 'check-scope-accounting-', });
         /**
@@ -318,60 +194,35 @@ await describe({
         const cgroupPath = join(
           scratch.path,
           'app.slice',
-          'gpc-check-c.scope',
+          'gpc-check-d.scope',
         );
-        await writeCgroup({
+        await writeStandInCgroup({
           cgroupPath,
-          // The pipe below goes where `pids.events.local` would be, so this group is one whose kernel writes only the
-          // counters of the subtree, and the reading that saw the whole group answers nine refusals from it.
-          figures: Object.fromEntries(Object.entries(fixtureFigures,)
-            .filter(function notTheLocalPidsEvents([name]) {
-              return name !== 'pids.events.local';
-            },),),
+          figures: standInCgroupFigures,
         });
-        await using watch = watchScopeAccounting({
+        /**
+         The whole reading, which the readings taken after it are measured against.
+         */
+        const whole = await readScopeAccounting({ cgroupPath, });
+        expect(await readScopeAccounting({
           cgroupPath,
-          intervalMilliseconds: fixturePollMilliseconds,
-        });
-        await until({
-          condition: function whole() {
-            /**
-             What the watch has read so far.
-             */
-            const read = watch.lastRead();
-            return (read !== SCOPE_NOT_READ) && (read.cpuStat.nr_throttled === 68);
-          },
-          description: 'the watch to read the whole control group the fixture wrote',
-          pollMilliseconds: fixturePollMilliseconds,
-        },);
-        /**
-         The counter file whose read this test holds open, so the control group goes at a chosen point of a reading.
-         */
-        const held = join(
+          replaces: whole,
+        },),).not.toBe(SCOPE_NOT_READ,);
+        // A kernel takes a control group's files away one at a time before the folder itself goes, so this is the first
+        // stage of a group going and not a shape no kernel makes.
+        await rm(join(
           cgroupPath,
-          'pids.events.local',
-        );
-        makeNamedPipe({ path: held, });
-        // The watch's next reading opens the named pipe and waits there, so this writer answers only once that reading
-        // has reached this point of its own: no sleep decides where the group goes.
-        /**
-         The writing end of the held read, held until the group has gone.
-         */
-        const writer = await open(held, 'w',);
-        await removeCgroup({ cgroupPath, });
-        await writer.close();
-        // A watch is stopped by waiting for its reading loop, so the reading that lost its group has certainly ended.
-        await watch.stop();
-        /**
-         What the watch kept once a reading had lost part of its group.
-         */
-        const kept = watch.lastRead();
-        if (kept === SCOPE_NOT_READ)
-          throw new Error('the watch never read the whole control group the fixture wrote');
-        expect(kept.pidsPeak,).toBe(434,);
-        expect(kept.pidsEvents.max,).toBe(9,);
-        expect(kept.memoryEvents.oom_kill,).toBe(2,);
-        expect(kept.cpuStat.nr_throttled,).toBe(68,);
+          'cpu.stat',
+        ),);
+        expect(await readScopeAccounting({
+          cgroupPath,
+          replaces: whole,
+        },),).toBe(SCOPE_NOT_READ,);
+        // A reading with nothing to keep replaces nothing, so a group that is still being made is still read.
+        expect(await readScopeAccounting({
+          cgroupPath,
+          replaces: SCOPE_NOT_READ,
+        },),).not.toBe(SCOPE_NOT_READ,);
       },
     }),
   ],
