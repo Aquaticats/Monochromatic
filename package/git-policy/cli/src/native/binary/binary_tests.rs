@@ -776,6 +776,16 @@ mod fault;
 #[path = "binary_fault_run.rs"]
 mod fault_run;
 
+/// A stand-in for the user manager a fixture has none of,
+/// which starts again any service of the fixture that ends.
+#[path = "binary_fault_run_a_stand_in_for_the_manager.rs"]
+mod fault_run_a_stand_in_for_the_manager;
+
+/// A sweep of fault cases: the batches it runs in,
+/// and the message a failure carries with the fixture's service log.
+#[path = "binary_fault_run_a_sweep_of_fault_cases.rs"]
+mod fault_run_a_sweep_of_fault_cases;
+
 /// The hang guard of those runs:
 /// a command that keeps moving is left alone,
 /// and one that stops moving is ended with the words that name the silence.
