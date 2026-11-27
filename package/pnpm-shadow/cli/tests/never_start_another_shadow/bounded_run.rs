@@ -13,7 +13,8 @@
 //! function runBounded(command: Command): Outcome { /* poll until exit or LOOP_BOUND, then kill */ }
 //! ```
 
-/// Imports the child-process builder, the child handle and the captured output.
+/// Imports the child-process builder,
+/// the child handle and the captured output.
 use std::process::{
     Child,
     Command,
@@ -22,7 +23,8 @@ use std::process::{
 };
 /// Imports the sleep that spaces the polls.
 use std::thread::sleep;
-/// Imports the two time types: the deadline and the point it is measured from.
+/// Imports the two time types:
+/// the deadline and the point it is measured from.
 use std::time::{
     Duration,
     Instant,
