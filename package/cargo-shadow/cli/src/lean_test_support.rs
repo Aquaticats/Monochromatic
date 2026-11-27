@@ -223,8 +223,10 @@ pub fn add_incremental(
 /// Why:
 /// A control that sizes what it wrote a moment ago needs a number no file system has to settle first.
 /// On this host's ZFS a fresh file reports one 512-byte block until the pool's transaction group commits,
-/// and once it has, the same 8192-byte file of one repeated byte reports nine blocks (4608 bytes),
-/// because the pool compresses it (measured 2026-11-27, issue 6552).
+/// and once it has,
+/// the same 8192-byte file of one repeated byte reports nine blocks (4608 bytes),
+/// because the pool compresses it (measured 2026-11-27,
+/// issue 6552).
 /// So the length is the one size that is the same at both moments and on a file system that accounts blocks differently.
 ///
 /// In TS you'd write (pseudocode):

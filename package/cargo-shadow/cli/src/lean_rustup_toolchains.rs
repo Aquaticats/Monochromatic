@@ -46,10 +46,10 @@ use crate::lean_proc_scan::{
     ScanReport,
     scan_processes,
 };
-/// Imports the names this file uses from `crate::lean_sizes`.
-use crate::lean_sizes::tree_bytes;
 /// Imports the rule the tool counts bytes by.
 use crate::lean_removal::allocated_bytes_of;
+/// Imports the names this file uses from `crate::lean_sizes`.
+use crate::lean_sizes::tree_bytes;
 /// Named reads of directory entries.
 use crate::lean_text::is_directory;
 

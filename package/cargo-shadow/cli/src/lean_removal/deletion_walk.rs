@@ -59,7 +59,8 @@ const OWNER_ACCESS_BITS: u32 = 0o700;
 /// Gotcha:
 /// A file system need not have accounted a fresh file's blocks yet:
 /// on this host's ZFS a file written a moment ago reports one 512-byte block until the pool's transaction group commits
-/// (measured 2026-11-27, issue 6552),
+/// (measured 2026-11-27,
+/// issue 6552),
 /// which is why a control that sizes what it just wrote counts by `length_bytes` instead.
 ///
 /// In TS you'd write (pseudocode):

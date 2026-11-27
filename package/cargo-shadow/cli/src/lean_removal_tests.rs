@@ -244,13 +244,14 @@ fn a_closed_directory_of_another_user_stays_and_the_removal_says_so() {
     fs::set_permissions(&theirs, fs::Permissions::from_mode(0o500)).expect("mode");
     let item: Item = item_of(&tree).expect("identity");
     let claimed: PathBuf = claim_into_trash(&item, &root.path().join("trash"), 1).expect("claim");
-    let deleted: Deleted = match delete_claimed_as(&claimed, item.identity, somebody_else, length_bytes) {
-        Err(Refusal::PartlyRemoved {
-            deleted,
-            ..
-        }) => deleted,
-        other => panic!("a directory of another user is a partial removal: {other:?}"),
-    };
+    let deleted: Deleted =
+        match delete_claimed_as(&claimed, item.identity, somebody_else, length_bytes) {
+            Err(Refusal::PartlyRemoved {
+                deleted,
+                ..
+            }) => deleted,
+            other => panic!("a directory of another user is a partial removal: {other:?}"),
+        };
     assert_eq!(
         fs::symlink_metadata(claimed.join("theirs"))
             .expect("their directory")

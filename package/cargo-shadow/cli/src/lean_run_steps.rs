@@ -53,6 +53,8 @@ use crate::lean_policy::{
     RECORD_PROTECT_SECONDS,
     RECORD_RETENTION_SECONDS,
 };
+/// Imports the names this file uses from `crate::lean_removal`.
+use crate::lean_removal::allocated_bytes_of;
 /// Imports the names this file uses from `crate::lean_run_records_glue`.
 use crate::lean_run_records_glue::sweep_records_directory;
 /// Imports the names this file uses from `crate::lean_run_report`.
@@ -64,8 +66,6 @@ use crate::lean_rustup_toolchains::{
     installed_toolchains,
     retire_nightlies,
 };
-/// Imports the names this file uses from `crate::lean_removal`.
-use crate::lean_removal::allocated_bytes_of;
 /// Imports the names this file uses from `crate::lean_size_caps`.
 use crate::lean_size_caps::SizeCap;
 /// Imports the names this file uses from `crate::lean_sweep_plan`.

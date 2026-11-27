@@ -55,7 +55,8 @@ pub type ByteCount = fn(&fs::Metadata) -> u64;
 /// The result of one size walk.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Measured {
-    /// The bytes of the entries read, by the rule the caller set.
+    /// The bytes of the entries read,
+    /// by the rule the caller set.
     pub bytes: u64,
     /// Whether the whole tree was read before the deadline.
     pub complete: bool,
