@@ -29,12 +29,9 @@
 //! const STAGE_PREFIX = '.cli-git-worktree-copy-';
 //! ```
 
-/// The prefix of every stage container any rung makes beside its destination.
 use crate::path_bytes::path_bytes_of;
-use crate::worktree_copy_selection::{
-    STAGE_PREFIX,
-    is_separator_byte,
-};
+use crate::worktree_copy_repository_path::is_separator_byte;
+use crate::worktree_copy_stage_prefix::STAGE_PREFIX;
 use crate::worktree_trash_manifest::is_trash_name;
 use std::path::{
     Path,
