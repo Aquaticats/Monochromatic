@@ -218,25 +218,48 @@ not from the public index:
 
 ## Test fixtures
 
-Workspace tests, including the subagent driver, can import
-`@monochromatic-dev/env-local-json-core/ts/fixture.ts` without building this package.
-This is a test-only module, not a built entry point.
+Workspace tests,
+including the subagent driver,
+can import `@monochromatic-dev/env-local-json-core/ts/fixture.ts` without building this package.
+This is a test-only module,
+not a built entry point.
 
-- `createSopsFixture` creates a disposable, encrypted store with a fresh age identity.
+- `createSopsFixture` creates a disposable,
+  encrypted store with a fresh age identity.
   Use it with `await using` so the test removes its files.
-- `encryptJson`, `decryptStore`, and `createIdentityFile` work with that throwaway store and identity.
+- `encryptJson`,
+  `decryptStore`,
+  and `createIdentityFile` work with that throwaway store and identity.
 - `createTempRoot` and `createRepositoryOnGoneDrive` provide disposable directories and a simulated missing drive.
   `readerEnvironment` prepares an environment for the reader with a test home.
 - `runCommand` runs one executable without a shell and returns its complete standard output after both output streams
-  close. It inherits the caller's environment with any `extraEnv` overrides; `readerEnvironment` does not change this.
+  close.
+  It inherits the caller's environment with any `extraEnv` overrides;
+  `readerEnvironment` does not change this.
 
-Every tool call has a two-second deadline by default, including the time for its output to close.
+Every tool call has a two-second deadline by default,
+including the time for its output to close.
 Tests can override it with `runCommand`'s `timeoutMilliseconds` option.
-On expiry the runner closes its ends of the output streams and stops the direct child if it is still running;
-helpers are not killed. A helper that keeps a stream open past the deadline causes failure, not a partial result.
-`FixtureCommandError` identifies the executable and arguments, explains the failure, and includes up to 4 KiB of the
-start of standard error, marked if cut short. It never includes captured standard output.
-Only use these helpers with disposable inputs, not credentials or real stores.
+On expiry the runner closes its ends of the output streams and signals the tool's whole process group.
+The tool runs in a group of its own,
+so a helper it left behind is stopped with it;
+a helper that moved itself into another group survives the deadline.
+A helper that keeps a stream open past the deadline causes failure,
+not a partial result.
+Because the group is separate,
+a terminal signal sent to the test run's group does not reach the tool,
+which leaves an interrupted run to the deadline.
+`FixtureCommandError` identifies the executable and arguments,
+explains the failure,
+and includes up to 4 KiB of the start of standard error,
+marked if cut short.
+It never includes captured standard output.
+Two options exist for tests alone:
+`spawnTool` starts the child instead of `spawn`,
+and `signalGroup` signals the group instead of `process.kill`,
+so a test can raise a failed pipe read or a refused group signal that no real tool produces on demand.
+Only use these helpers with disposable inputs,
+not credentials or real stores.
 
 ## Testing
 
