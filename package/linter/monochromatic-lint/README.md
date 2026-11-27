@@ -2077,8 +2077,10 @@ and what the messages say.
 
 - A `uses` line is read whatever whitespace character sets its words off,
   after the word and on both sides of the arrow:
-  a list aligned with tabs or with no-break spaces is read as one aligned with spaces is,
-  where alpha.19 refused the whole list for such a line and so hid every other finding of the rule.
+  a list aligned with tabs or with no-break spaces is read as one aligned with spaces is.
+  alpha.19 read such a line when every gap was one whitespace character,
+  and refused the whole list for a tab or a no-break space beside a doubled gap,
+  which hid every other finding of the rule.
   Of the 220 spellings of one line the alpha.19 release read built,
   alpha.19 read 31 as the use,
   reported 26 of them dead,
