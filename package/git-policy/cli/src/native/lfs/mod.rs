@@ -22,6 +22,11 @@
 //! - `lfs_pointer.rs`:
 //!   whether a blob is a Git LFS pointer,
 //!   decided as `git-lfs` decides it.
+//! - `lfs_pointer_scan_object_reads.rs`:
+//!   one scan's reads of the objects a push introduces:
+//!   the commits it has parsed,
+//!   their committer times,
+//!   and the comparisons it has made.
 //! - `lfs_pointer_scan.rs`:
 //!   the LFS objects a push introduces,
 //!   found in process from the commits to be pushed.
@@ -143,6 +148,12 @@ pub mod lfs_output_mask;
 /// Whether a blob is a Git LFS pointer,
 /// decided as `git-lfs` decides it.
 pub mod lfs_pointer;
+
+/// One scan's reads of the objects a push introduces:
+/// the commits it has parsed,
+/// their committer times,
+/// and the comparisons it has made.
+pub mod lfs_pointer_scan_object_reads;
 
 /// The LFS objects a push introduces,
 /// found in process from the commits to be pushed.
