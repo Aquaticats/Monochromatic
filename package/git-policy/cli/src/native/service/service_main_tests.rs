@@ -5,6 +5,23 @@ use crate::service_provision::{
     SERVICE_UNIT,
     SERVICE_UNIT_NAME,
 };
+// What:
+//  `release_sources_in` lists the files of this crate the module tree reaches as release code,
+//  and the other three name a source file, read one of them, and give the crate's own source root.
+// Why:
+//  All four are the shared source scan,
+//  so this check walks the tree exactly as every other check of the crate's sources does.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { releaseSourcesIn, sourceText, sourceRoot, realRoots } from './source_guard'
+// ```
+use crate::source_guard::release_sources_in;
+use crate::source_guard::source_scan_tests::{
+    real_roots,
+    source_root,
+    source_text,
+};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use std::path::Path;
 
@@ -152,45 +169,29 @@ fn the_unit_starts_the_program_with_the_service_mode_words() {
     );
 }
 
-/// The source files of this crate that are not controls,
-/// as `(path under src/native, text)`.
-fn release_sources() -> Vec<(String, String)> {
-    fn walk(
-        directory: &Path,
-        root: &Path,
-        found: &mut Vec<(String, String)>,
-    ) {
-        for entry in std::fs::read_dir(directory)
-            .expect("source directory")
-            .flatten()
-        {
-            let path = entry.path();
-            if path.is_dir() {
-                walk(path.as_path(), root, found);
-                continue;
-            }
-            let relative: String = path
-                .strip_prefix(root)
-                .expect("below the root")
-                .to_string_lossy()
-                .into_owned();
-            if relative.ends_with(".rs")
-                && !relative.ends_with("_tests.rs")
-                && !relative.starts_with("binary/")
-                && !relative.starts_with("testing/")
-            {
-                found.push((
-                    relative,
-                    std::fs::read_to_string(&path).expect("source text"),
-                ));
-            }
-        }
-    }
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
-    let mut found: Vec<(String, String)> = Vec::new();
-    walk(root.as_path(), root.as_path(), &mut found);
-    return found;
-}
+/// What:
+///  Each word the service mode owns,
+///  with the `/`-separated files of this crate that may say it in code.
+///  `&str` is borrowed text and `&[&str]` a slice of it,
+///  which never carries a hand-counted length.
+/// Why:
+///  One list read by one pass over the sources keeps the words and the files that may say them beside
+///  each other;
+///  a slice rather than an array means adding a word edits no count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SERVICE_MODE_WORDS: [string, string[]][] = [['service_signal::install()', ['service/service_main.rs']]]
+/// ```
+const SERVICE_MODE_WORDS: &[(&str, &[&str])] = &[
+    ("service_signal::install()", &["service/service_main.rs"]),
+    (
+        "push_deadline_advice::mark_service_process()",
+        &["service/service_main.rs"],
+    ),
+    ("SERVICE_WORDS", &["service/service_main.rs", "main.rs"]),
+    ("service_main::", &["main.rs"]),
+];
 
 /// The process setup of the service is taken in its mode and nowhere else:
 /// the wrapper's own start never installs the
@@ -199,40 +200,52 @@ fn release_sources() -> Vec<(String, String)> {
 /// and the words that select the mode are used by the dispatch alone.
 #[test]
 fn the_service_setup_and_its_words_are_used_only_by_the_service_mode() {
-    let sources = release_sources();
+    // What:
+    //  `release_sources_in` lists the files the module tree reaches as release code,
+    //  and `source_text` reads one of them;
+    //  both come from the shared source scan.
+    // Why:
+    //  The walk this replaces listed the tree itself and followed the `uses` links,
+    //  so it read 104,219 files and 888,676,493 bytes where the tree holds 3,905 Rust sources and
+    //  46,090,082 bytes (issue 6598).
+    let sources: Vec<String> =
+        release_sources_in(&source_root(), &real_roots()).expect("the crate's release sources");
     assert!(sources.len() > 100, "the scan reads the crate's sources");
-    for (needle, allowed) in [
-        ("service_signal::install()", vec!["service/service_main.rs"]),
-        (
-            "push_deadline_advice::mark_service_process()",
-            vec!["service/service_main.rs"],
-        ),
-        ("SERVICE_WORDS", vec!["service/service_main.rs", "main.rs"]),
-        ("service_main::", vec!["main.rs"]),
-    ] {
-        let users: Vec<&str> = sources
-            .iter()
-            .filter(|(_, text)| {
-                return text
-                    .lines()
-                    .filter(|line| {
-                        return !line.trim_start().starts_with("//");
-                    })
-                    .any(|line| {
-                        return line.contains(needle);
-                    });
-            })
-            .map(|(path, _)| {
-                return path.as_str();
-            })
+    // What:
+    //  One list of files per word, filled in one pass over the sources: `SERVICE_MODE_WORDS.iter()` walks the
+    //  words and `.map(|_| Vec::new())` makes an empty list for each of them.
+    // Why:
+    //  Each file is read once and its text dropped before the next one,
+    //  so the words are answered without the tree's whole text in memory.
+    let mut users: Vec<Vec<String>> = SERVICE_MODE_WORDS
+        .iter()
+        .map(|_| return Vec::new())
+        .collect();
+    for path in &sources {
+        let text: String = source_text(path.as_str());
+        // What:
+        //  The file's code lines: `lines()` splits the text at newlines, `filter` keeps those that do not start
+        //  with `//` once trimmed, and `collect` gathers the borrowed lines into one list.
+        // Why:
+        //  A word named in a comment is prose about the code and not a use of it.
+        let code: Vec<&str> = text
+            .lines()
+            .filter(|line| return !line.trim_start().starts_with("//"))
             .collect();
+        for (index, (needle, _allowed)) in SERVICE_MODE_WORDS.iter().enumerate() {
+            if code.iter().any(|line| return line.contains(needle)) {
+                users[index].push(path.clone());
+            }
+        }
+    }
+    for ((needle, allowed), found) in SERVICE_MODE_WORDS.iter().zip(users.iter()) {
         assert!(
-            users.iter().all(|path| {
-                return allowed.contains(path);
-            }),
-            "{needle} is used by {users:?}, allowed {allowed:?}"
+            found
+                .iter()
+                .all(|path| return allowed.contains(&path.as_str())),
+            "{needle} is used by {found:?}, allowed {allowed:?}"
         );
-        assert!(!users.is_empty(), "{needle} is used by the dispatch");
+        assert!(!found.is_empty(), "{needle} is used by the dispatch");
     }
 }
 
