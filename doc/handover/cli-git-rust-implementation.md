@@ -109,7 +109,7 @@ and each stays in force until the owner changes it.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 169 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 168 more by this time.
 
 ### Rounds running
 
