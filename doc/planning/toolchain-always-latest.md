@@ -334,6 +334,8 @@ a failed group never stops the next one.
     `pnpm install --frozen-lockfile` (the check the release workflows run,
     so a lock left out of step with the catalog fails this step and lands nothing),
     `cargo-shadow install` (each `Cargo.lock` satisfies the new manifests),
+    `cargo-shadow install --frozen-lockfile` (the check the repository's CI gate runs on every push,
+    so a lock left stale after the floor moved fails this step and lands nothing),
     `check:files` (nothing generated is stale).
     The two updates are soft steps:
     if one fails,

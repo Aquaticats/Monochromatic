@@ -196,11 +196,14 @@ await describe({
             expect(at('mise run catalog:tighten',),).toBeGreaterThan(at('mise run deps:update',),);
             expect(at('mise run sync:files',),).toBeGreaterThan(at('mise run catalog:tighten',),);
             expect(at('mise exec -- cargo-shadow install',),).toBeGreaterThan(at('mise run sync:files',),);
+            expect(at('mise exec -- cargo-shadow install --frozen-lockfile',),).toBeGreaterThan(
+              at('mise exec -- cargo-shadow install',),
+            );
             expect(at('mise exec -- pnpm install',),).toBeGreaterThan(at('mise run sync:files',),);
             expect(at('mise exec -- pnpm install --frozen-lockfile',),).toBeGreaterThan(
               at('mise exec -- pnpm install',),
             );
-            expect(at('mise run check:files',),).toBeGreaterThan(at('mise exec -- cargo-shadow install',),);
+            expect(at('mise run check:files',),).toBeGreaterThan(at('mise exec -- cargo-shadow install --frozen-lockfile',),);
           },
         },),
         it({
@@ -298,6 +301,31 @@ await describe({
             expect(world.files.get(`${REPOSITORY}/pnpm-lock.yaml`,),).toBe('pnpm-lock-before',);
             expect(world.commits.at(-1,)?.paths,).toEqual(['package/a/Cargo.lock',],);
             expect(world.notifications[0]?.body,).toContain('the rest of the group went on',);
+          },
+        },),
+        it({
+          name: 'lands nothing from the dependency group when a regenerated manifest names a floor its lock does not satisfy',
+          fn: async () => {
+            const { effects, world, } = fakeWorld({
+              tracked: TRACKED,
+              edits: {
+                // The floor moves, `file-enforcer write` renders it into the manifest, and the plain install leaves the
+                // lock as it was while reporting success, which is the pair the frozen install has to refuse.
+                'mise run catalog:tighten': { 'rust-catalog.toml': 'catalog-after', },
+                'mise run sync:files': { 'package/a/Cargo.toml': 'manifest-after', },
+                'mise exec -- cargo-shadow install': { 'package/a/Cargo.lock': 'cargo-lock-before', },
+              },
+              failing: ['mise exec -- cargo-shadow install --frozen-lockfile',],
+            },);
+            const reports = await runDailyUpdate({ effects, groups: GROUPS, },);
+            const dependency = reports.at(-1,);
+            expect(dependency?.outcome,).toBe('failed',);
+            // Nothing landed: no commit names the raised floor, the rendered manifest or the stale lock.
+            expect(world.commits,).toEqual([],);
+            expect(world.files.get(`${REPOSITORY}/rust-catalog.toml`,),).toBe('catalog-before',);
+            expect(world.files.get(`${REPOSITORY}/package/a/Cargo.toml`,),).toBe('manifest-before',);
+            expect(world.files.get(`${REPOSITORY}/package/a/Cargo.lock`,),).toBe('cargo-lock-before',);
+            expect(world.notifications[0]?.body,).toContain('nothing from this group was landed',);
           },
         },),
         it({

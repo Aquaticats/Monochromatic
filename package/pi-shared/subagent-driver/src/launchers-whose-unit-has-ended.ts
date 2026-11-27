@@ -21,8 +21,9 @@ export const STOP_SIGNAL = 'SIGTERM';
 
 /**
  Seconds a launcher must have been running before it counts as one that outlived its unit, when the caller names no age. A
- launcher makes a worktree and links dependencies before its unit exists, which takes minutes, so an hour is a bound rather than a
- measurement: below it, a launcher whose unit has not been made yet reads as one whose unit has ended.
+ launcher makes a worktree before its unit exists, which takes minutes: the wrapper's `git worktree add` copies the checkout's
+ ignored files, and a loaded machine stretches that. An hour is a bound rather than a measurement: below it, a launcher whose unit
+ has not been made yet reads as one whose unit has ended.
  */
 export const LAUNCHER_MINIMUM_AGE_SECONDS = 3_600;
 

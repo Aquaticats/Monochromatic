@@ -21,7 +21,7 @@
 //! const kept = stillTheSame({ worktreeRoot, entries, held }, merged, oids); // { files, oids, moved, unreadable }
 //! ```
 
-use super::merge_second_pass_worktree::conflicts_of_index;
+use super::merge_second_pass_worktree_watch::conflicts_of_index;
 use crate::merge_second_pass::{
     Conflict,
     Merged,

@@ -3331,11 +3331,7 @@ which would leave 6 GiB where the rule
 requires 150 GiB.
 The 860 had 662 G free when the plan was measured.
 
-Agents' scratch folder `~/temp/agent`
-(scratch,
-deleted on 2026-11-27;
-what this record uses from it is stated here)
-is a link to `/var/mnt/encrypted/temp/agent`,
+Agents' scratch folder `~/temp/agent` is a link to `/var/mnt/encrypted/temp/agent`,
 which is on the 860,
 and held 22,242 entries;
 the 25 largest alone measured about 1,113 GiB with `du` (which counts reflinked data
