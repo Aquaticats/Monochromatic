@@ -35,6 +35,7 @@ use super::super::error::ToolchainError;
 /// Imports the release-archive tools a lock names.
 use super::super::published_archive::{
     NamedArchive,
+    every_archive_named,
     named_archives,
 };
 /// The crate name a lock entry installs:
@@ -126,11 +127,13 @@ pub(crate) fn named_by_all(
     (
         BTreeMap<String, BTreeSet<String>>,
         BTreeMap<String, NamedArchive>,
+        BTreeMap<String, NamedArchive>,
     ),
     ToolchainError,
 > {
     let mut named: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut archives: BTreeMap<String, NamedArchive> = BTreeMap::new();
+    let mut every_archive: BTreeMap<String, NamedArchive> = BTreeMap::new();
     let mut locks_to_read: Vec<(&PathBuf, bool)> =
         discovered.iter().map(|file| return (file, false)).collect();
     locks_to_read.extend(explicit.iter().map(|file| return (file, true)));
@@ -159,6 +162,11 @@ pub(crate) fn named_by_all(
             slot.versions.extend(archive.versions);
             slot.first_bin = archive.first_bin;
         }
+        for (id, archive) in every_archive_named(&text) {
+            let slot: &mut NamedArchive = every_archive.entry(id).or_default();
+            slot.versions.extend(archive.versions);
+            slot.first_bin = archive.first_bin;
+        }
     }
-    return Ok((named, archives));
+    return Ok((named, archives, every_archive));
 }
