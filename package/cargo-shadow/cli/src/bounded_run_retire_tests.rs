@@ -54,10 +54,13 @@ use std::path::{
     PathBuf,
 };
 /// What:
-/// `use std::process::{Command, Output};` imports the command builder and the collected output of a run.
+/// `use std::process::{Command, Output, Stdio};` imports the command builder,
+/// the collected output of a run,
+/// and the handles that hold a child's two streams open for the parent to read.
 /// Why:
 /// The run under test is a command,
-/// and its output is what a normal end returns.
+/// its output is what a normal end returns,
+/// and the bound control reads a child process's two streams when it fails.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -66,6 +69,7 @@ use std::path::{
 use std::process::{
     Command,
     Output,
+    Stdio,
 };
 /// What:
 /// `use std::rc::Rc;` imports the reference-counted pointer type (its sibling `Arc` is the one that is safe across threads).
@@ -81,13 +85,17 @@ use std::rc::Rc;
 /// `use std::time::Duration;` imports a span of time.
 /// Why:
 /// Each run gets a bound,
-/// and the guard that waits for the unit to be gone gets one too.
+/// the guard that waits for the unit to be gone gets one too,
+/// and the bound control times a run's end against one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // a number of milliseconds
 /// ```
-use std::time::Duration;
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// The bound a run of these controls gets unless it is the point of the control.
 const RUN_BOUND: Duration = Duration::from_secs(30);
@@ -159,6 +167,30 @@ use crate::control_group::RouteSettings;
 use crate::control_group::retire::{
     RETIRE_BOUND,
     retire_unit,
+};
+/// What:
+/// `use crate::control_group_route_child_runs::KILL_REAP_GRACE;` imports how long a killed short program is given to be reaped.
+/// Why:
+/// The bound the end of a run keeps counts that grace as part of the answer it allows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { KILL_REAP_GRACE } from 'crate/control_group_route_child_runs';
+/// ```
+use crate::control_group_route_child_runs::KILL_REAP_GRACE;
+/// `use crate::failpoints::retire_reads::{arm_directory_check_sees_the_gone_group, arm_peak_read_sees_the_gone_group};`
+/// imports the two switches of the last look's reads that its peak route answers with.
+/// Why:
+/// A run's group cannot be removed between the look's two reads from outside,
+/// so the reads are made to answer that state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { armPeakReadSeesTheGoneGroup } from 'crate/failpoints/retire-reads';
+/// ```
+use crate::failpoints::retire_reads::{
+    arm_directory_check_sees_the_gone_group,
+    arm_peak_read_sees_the_gone_group,
 };
 /// What:
 /// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
@@ -543,6 +575,152 @@ fn a_run_whose_stop_is_not_shown_empty_still_asks_for_its_unit() {
     assert_stopped_and_gone(&observed);
 }
 
+/// What:
+/// `fn silent_stop_systemctl(directory: &Path) -> PathBuf` writes a program that logs its arguments,
+/// never answers a stop request,
+/// and runs the real `systemctl` for every other request.
+/// Why:
+/// The question the end of a run asks is the only one a bound can hold,
+/// and the same program has to answer the route discovery's questions from the real manager,
+/// or the run would make no scope to ask about.
+/// It is a stand-in:
+/// no claim about a real manager rests on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function silentStopSystemctl(dir: string): string
+/// ```
+fn silent_stop_systemctl(directory: &Path) -> PathBuf {
+    let program: PathBuf = directory.join("silent-stop-systemctl");
+    let log: PathBuf = directory.join("silent-stop-systemctl-calls");
+    let text: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nif [ \"$3\" = stop ]; then\n  exec sleep 600\nfi\nexec '{real}' \"$@\"\n",
+        log = log.display(),
+        real = systemctl_path()
+    );
+    fs::write(&program, text).expect("write the stand-in");
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    return program;
+}
+
+/// The environment variable that gives the helper process of the bound control the directory its stand-in lives in.
+const BOUND_DIRECTORY: &str = "CARGO_SHADOW_RETIRE_BOUND_DIRECTORY";
+
+/// The helper process of the bound control:
+/// it makes one run whose end asks a manager that never answers,
+/// and exits once that run ended.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of the_question_at_a_run_end_keeps_the_bound_the_promise_names"]
+fn retire_bound_fixture() {
+    let Ok(scratch) = std::env::var(BOUND_DIRECTORY) else {
+        return;
+    };
+    let directory: PathBuf = PathBuf::from(scratch);
+    let program: PathBuf = silent_stop_systemctl(&directory);
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+    use_route_settings_for_test(Some(settings));
+    let _ = take_trace_for_test();
+    // The look answers the state of the stuck scope of issue 6578, which a run of a real program cannot leave: the one path
+    // that asks the question at the end of a run.
+    arm(Point::RetireSeesStuckScope);
+    let _ = output_within(&mut Command::new("true"), None, &bound(RUN_BOUND));
+    use_route_settings_for_test(None);
+    // What:     `let unit: String = launched_scope(&take_trace_for_test())` is the unit the run made, read from the run's own
+    //           trace.
+    // Why:      The stand-in cannot free the unit it never answered about, and the parent needs the name if this process ends
+    //           before it frees the unit itself.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const unit = launchedScope(takeTrace())
+    // ```
+    let unit: String = launched_scope(&take_trace_for_test());
+    println!("unit {unit}");
+    // The unit is freed through the real manager, so a control that ends here leaves nothing loaded.
+    let _ = retire_unit("systemctl", &unit, RETIRE_BOUND);
+}
+
+/// The control of the bound the question at the end of a run keeps:
+/// a manager that never answers costs the run the bound the promise names,
+/// not one raised to some other value.
+/// The wall clock is what the control reads,
+/// and the run is made in a process of its own with a limit on its life:
+/// a bound raised past the promise then fails here in seconds instead of holding the suite for minutes.
+/// The `systemctl` here is a stand-in that never answers and not a real one;
+/// no claim about a real manager rests on it.
+#[test]
+fn the_question_at_a_run_end_keeps_the_bound_the_promise_names() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    // The question's own bound, its reap grace, and the time a run spends around it (the scope's start and stop).
+    let limit: Duration = RETIRE_BOUND + KILL_REAP_GRACE + Duration::from_secs(5);
+    let began: Instant = Instant::now();
+    // What:     `started` is the helper process of this control, written in its own stdio so the parent reads its failure.
+    // Why:      The helper makes the run, so the parent can bound how long that run is allowed to take.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const started = spawn(process.execPath, args, { stdio: 'pipe' })
+    // ```
+    let started = Command::new(std::env::current_exe().expect("this test executable"))
+        .args([
+            "--ignored",
+            "--exact",
+            "bounded_run_end::retire_tests::retire_bound_fixture",
+            "--nocapture",
+        ])
+        .env(BOUND_DIRECTORY, directory.path())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the bound helper");
+    // What:     `helper` holds the child behind a `RefCell`, so the wait below can ask it a question through a shared borrow.
+    // Why:      The bounded wait takes a closure that cannot hold a mutable borrow of the child.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const helper = { child: started }
+    // ```
+    let helper = std::cell::RefCell::new(started);
+    let finished: bool = wait_up_to(limit, &|| {
+        return matches!(helper.borrow_mut().try_wait(), Ok(Some(_status)));
+    });
+    let elapsed: Duration = began.elapsed();
+    // What:     `reaped` is the helper process taken back out of the `RefCell`; `kill` and `wait_with_output` need it owned.
+    // Why:      A helper that outlived the limit is killed and reaped before the parent reports, so no process of this test is
+    //           left behind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const reaped = helper.child
+    // if (!finished) reaped.kill()
+    // const output = reaped.waitWithOutput()
+    // ```
+    let mut reaped = helper.into_inner();
+    if !finished {
+        let _ = reaped.kill();
+    }
+    let output = reaped.wait_with_output().expect("the helper's answer");
+    assert!(
+        finished,
+        "a manager that never answers held the end of a run for {elapsed:?}, past the {limit:?} this bound allows the bound of {RETIRE_BOUND:?}, its reap grace of {KILL_REAP_GRACE:?} and five seconds: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        output.status.success(),
+        "the helper failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed >= RETIRE_BOUND,
+        "the run's question answered after {elapsed:?}, before the bound of {RETIRE_BOUND:?} it was given"
+    );
+}
+
 /// The environment variable that tells the warning helper process which run to make.
 const WARNING_SCENARIO: &str = "CARGO_SHADOW_RETIRE_WARNING_SCENARIO";
 /// The environment variable that gives the warning helper process the directory its stand-ins live in.
@@ -608,6 +786,13 @@ fn retire_warning_fixture() {
             None,
             &bound(RUN_BOUND),
         )
+    } else if scenario == "gone-at-the-peak" {
+        // The look reads an empty group and then loses the group's directory between its two reads, and the absence it then
+        // reads cannot be verified: both windows are too short to hold open from outside.
+        arm_peak_read_sees_the_gone_group();
+        arm_directory_check_sees_the_gone_group();
+        arm(Point::AbsenceUnverifiable);
+        output_within(&mut Command::new("true"), None, &bound(RUN_BOUND))
     } else {
         // The look answers the state of the stuck scope of issue 6578, which a run of a real program cannot leave.
         arm(Point::RetireSeesStuckScope);
@@ -635,7 +820,7 @@ fn retire_warning_fixture() {
     println!("unit {unit}");
     let _ = retire_unit("systemctl", &unit, RETIRE_BOUND);
     assert!(
-        result.is_err() || scenario == "refused",
+        scenario != "member" || result.is_err(),
         "the member run was not refused, so its member would have been killed by the stop: {result:?}"
     );
 }
@@ -643,7 +828,7 @@ fn retire_warning_fixture() {
 /// The control of the words a run prints:
 /// the warning a refused retirement leaves on the run's own standard error,
 /// read from a fresh process that makes the run,
-/// for each of the two states a run can leave a unit in.
+/// for each state a run can leave a unit in.
 /// The trace of the other controls shows which warning a run selects;
 /// this shows that it is printed,
 /// so a change that removed the printing and kept the answer would fail here and pass there.
@@ -651,13 +836,18 @@ fn retire_warning_fixture() {
 fn a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error() {
     this_test_needs_a_delegated_scope();
     let directory = scratch();
-    let scenarios: [(&str, &str, &str); 2] = [
+    let scenarios: [(&str, &str, &str); 3] = [
         (
             "refused",
             "may still be loaded",
             "the stand-in refuses the stop",
         ),
         ("member", "was left loaded", "still has a member"),
+        (
+            "gone-at-the-peak",
+            "may be left loaded",
+            "`populated 0` line was read for it",
+        ),
     ];
     for (scenario, state, detail) in scenarios {
         let output = Command::new(std::env::current_exe().expect("this test executable"))
@@ -732,6 +922,18 @@ fn a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error() 
                     "a member that joins after this look is killed by that stop with nothing printed"
                 ),
                 "the printed warning does not name the window after the look: {}",
+                printed[0]
+            );
+            assert!(
+                !printed[0].contains("and a stop would kill it"),
+                "the printed warning describes a stop this run never asked for: {}",
+                printed[0]
+            );
+        }
+        if scenario == "gone-at-the-peak" {
+            assert!(
+                !printed[0].contains("so it is not shown that no member is left"),
+                "the printed warning denies the emptiness the run read before the directory went away: {}",
                 printed[0]
             );
         }

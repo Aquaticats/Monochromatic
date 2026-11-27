@@ -842,7 +842,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   the run makes one last look at the unit it started
   (`src/control_group_retire.rs`),
   on every path that ends a run,
-  and it asks the manager to stop that unit only when the group never held a process:
+  and it asks the manager to stop that unit only when the group never held a process,
+  or when its peak read cannot tell what the group held:
   a scope whose process was already exiting when the manager wrote its id into the scope's
   `cgroup.procs` never becomes populated,
   so the kernel sends no empty notification and the unit would stay `active (running)` with no member
@@ -889,9 +890,13 @@ and an HTTP 429 is retried after its `Retry-After`.
   what this step buys is the ordinary case,
   never a promise that the manager always ends an empty scope.
   Only a group that never held a process is the leftover this step exists for,
-  and only that run asks the manager,
+  and that run asks the manager,
   once:
   `systemctl --user --no-ask-password stop <name>.scope`.
+  A `pids.peak` read that fails for any other reason than the group's directory going away takes the same question:
+  the file is not there,
+  or it cannot be read or parsed,
+  and the safe side of a file this run could not read is one program start.
   The answer is the manager's exit status,
   and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),
   which is a collected unit and not a refusal,
@@ -911,6 +916,12 @@ and an HTTP 429 is retried after its `Retry-After`.
   the directory is checked,
   the group is the manager's to free,
   and nothing is asked.
+  The `populated` read makes that check too:
+  a group whose directory is there without its `cgroup.events` in it,
+  which the kernel shows for a moment while it makes a group
+  (`cgroup_create` creates the directory and the base files are added afterwards),
+  is reported as a scope nothing was read from,
+  and keeps its unit.
   The question keeps one bound (`RETIRE_BOUND`,
   five seconds),
   and a request the bound kills is given a measured grace to be reaped before the warning is built.
