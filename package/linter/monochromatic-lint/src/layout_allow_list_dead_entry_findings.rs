@@ -18,8 +18,7 @@
 //! ```
 
 /// Import the list and the entry shapes it holds,
-///  the finding shape,
-///  and the path a key writes.
+///  the finding shape and the spelling of the names in it.
 use crate::{
     layout_allow_list::{
         AllowKind,
@@ -29,6 +28,7 @@ use crate::{
         LayoutFinding,
         key_path,
         shown,
+        spelled_whitespace,
     },
 };
 /// Import ordered collections and native paths.
@@ -87,7 +87,12 @@ pub fn dead_entry_findings(
                     if known.contains(path) {
                         continue;
                     }
-                    absent.push(format!("`{}`", path.display()));
+                    // What: the folder as the message spells it, with every character a reader cannot see written out.
+                    // Why: a tab or a no-break space beside a name is invisible, so `src/a` would be shown for a folder the package does hold.
+                    absent.push(format!(
+                        "`{}`",
+                        spelled_whitespace(path.display().to_string().as_str())
+                    ));
                 }
             }
             AllowKind::FileUse {
@@ -95,7 +100,10 @@ pub fn dead_entry_findings(
                 ..
             } => {
                 if !known.contains(folder) {
-                    absent.push(format!("`{}`", folder.display()));
+                    absent.push(format!(
+                        "`{}`",
+                        spelled_whitespace(folder.display().to_string().as_str())
+                    ));
                 }
             }
             AllowKind::Key(_) => {}

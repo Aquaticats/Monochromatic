@@ -56,6 +56,7 @@ use crate::{
     },
     layout_step_unlistable_names::{
         UnlistableFound,
+        UnlistableKind,
         unlistable_link_name,
         unlistable_name,
     },
@@ -158,7 +159,7 @@ fn check_package(
     // and an entry of a `uses` folder is such a name as much as a module file is.
     let unlistable: Option<UnlistableFound> =
         unlistable_name(&tree, package, arrow_words_are_refused)
-            .or_else(|| return unlistable_link_name(&tree, package, arrow_words_are_refused));
+            .or_else(|| return unlistable_link_name(&tree, package));
     if let Some(found) = unlistable {
         // What: the reason, and what renaming the name must give, in the words of the refusal.
         // Why: a name fails for one cause, and the reader must know which one to fix.
@@ -184,15 +185,18 @@ fn check_package(
                     "its name {}, so a `uses` line naming it would read as another pair of folders",
                     found.shape.unwrap_or("holds an arrow word")
                 ),
-                "its name holds no arrow word at its beginning or its end",
+                "its name holds no `->` set off by whitespace on both sides",
             ),
         };
-        // What: the name to rename, which is a folder inside the path or the file the path ends in.
+        // What: the name to rename, which is a folder inside the path, the file the path ends in, or an entry of a `uses` folder.
         // Why: the file the finding points at is not always the name to change, and a sentence that named it would send its reader to the wrong place.
-        let (subject, noun): (String, &str) = if found.is_folder {
-            (format!("the folder {}", found.written), "the folder")
-        } else {
-            (found.written.clone(), "the file")
+        let (subject, noun): (String, &str) = match found.kind {
+            UnlistableKind::Folder => (format!("the folder {}", found.written), "the folder"),
+            UnlistableKind::File => (found.written.clone(), "the file"),
+            UnlistableKind::LinkEntry => (
+                format!("the entry {} of a `uses` folder", found.written),
+                "that entry",
+            ),
         };
         outcome.findings.push(processing_failure(
             display_name(&found.file, cwd).as_str(),

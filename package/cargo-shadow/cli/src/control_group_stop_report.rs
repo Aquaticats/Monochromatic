@@ -104,7 +104,11 @@ use std::path::Path;
 /// ```
 use std::time::Duration;
 
-/// What the reading of the members found.
+/// What the reading of the members found,
+/// and the one order every listing names the members in:
+/// the scope's own group first,
+/// then each group below it depth first with the greatest name first,
+/// and the processes of one group in ascending process id order.
 pub(crate) enum Listing {
     /// Every group of the scope,
     /// and every group below it,
@@ -112,7 +116,7 @@ pub(crate) enum Listing {
     /// these are the members that were left.
     Read(
         /// The members the read found,
-        /// in process id order.
+        /// in the order `Listing` states.
         Vec<MemberListing>,
     ),
     /// The listing's own bound passed before every member was read:
@@ -120,7 +124,7 @@ pub(crate) enum Listing {
     /// and the rest were not named.
     Cut(
         /// The members the read reached before its bound passed,
-        /// in process id order.
+        /// in the order `Listing` states.
         Vec<MemberListing>,
     ),
     /// The scope's own directory was gone when its members were read,
@@ -131,7 +135,7 @@ pub(crate) enum Listing {
     /// and the reason it failed.
     Unreadable(
         /// The members the read reached before it failed,
-        /// in process id order.
+        /// in the order `Listing` states.
         Vec<MemberListing>,
         /// Why the rest could not be read.
         String,
@@ -372,6 +376,8 @@ impl StopReport {
     /// no member was left to name,
     /// a listing could not be read,
     /// and a listing was cut at its bound.
+    /// A scope the manager had already removed is the one case where nothing of the run is left to wait for,
+    /// so that clause also says what became of the run's journal and what a run that cannot show what this one left prints next.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -391,7 +397,7 @@ impl StopReport {
                 named_members(members)
             ),
             Listing::ScopeGone => {
-                "its directory was gone when its members were read, so none of its members was read (the manager removes the directory of a scope its last member has left)".to_string()
+                "its directory was gone when its members were read, so none of its members was read (the manager removes the directory of a scope its last member has left, so no member of it is left to stop); the journal of this run was kept, and the next run of this workspace settles it by itself once it reads the recorded scope gone; a run that cannot show what this run left says so, names the journal, and prints the `cargo-shadow acknowledge <journal directory>` command to run once every process or worker of this run that can modify the workspace has stopped".to_string()
             }
             Listing::Unreadable(read, reason) if read.is_empty() => {
                 format!("its members could not be read ({reason})")

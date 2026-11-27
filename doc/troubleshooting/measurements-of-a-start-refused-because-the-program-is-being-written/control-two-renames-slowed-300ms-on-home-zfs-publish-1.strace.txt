@@ -1,0 +1,13 @@
+2445277 1795800456.481731 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz.download", "<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz") = 0 (DELAYED) <0.300031>
+2445456 1795800456.788291 +++ exited with 0 +++
+2445455 1795800456.788361 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2445456, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2445455 1795800456.788883 +++ exited with 0 +++
+2445277 1795800456.788911 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2445455, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2445277 1795800456.789470 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2445277/.fixture-tool.2445277.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2445277/fixture-tool") = 0 (DELAYED) <0.300065>
+2445277 1795800457.089781 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.replaced.2445277") = 0 (DELAYED) <0.300040>
+2445277 1795800457.389907 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2445277", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1") = 0 (DELAYED) <0.300042>
+2445277 1795800457.690729 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.current.2445277.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/current") = 0 (DELAYED) <0.300043>
+2445277 1795800457.991594 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.launch.2445277.tmp", "<fixture>/work/.cache/toolchain-launchers/fixture-tool.launch") = 0 (DELAYED) <0.300020>
+2445277 1795800458.291984 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.2445277.bin", "<fixture>/work/.cache/toolchain-launchers/fixture-tool") = 0 (DELAYED) <0.300075>
+2445277 1795800458.592279 rename("<fixture>/work/.cache/toolchain-bin/.fixture-tool.2445277.tmp", "<fixture>/work/.cache/toolchain-bin/fixture-tool") = 0 (DELAYED) <0.300045>
+2445277 1795800458.893525 +++ exited with 0 +++

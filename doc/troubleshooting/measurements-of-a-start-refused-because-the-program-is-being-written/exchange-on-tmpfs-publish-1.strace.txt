@@ -1,0 +1,12 @@
+2396965 1795800379.945816 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz.download", "<fixture>/xdg-data/monochromatic-dev/toolchain/downloads/fixture-tool/0.0.1/fixture-tool-0.0.1.tar.gz") = 0 <0.000013>
+2397034 1795800379.949477 +++ exited with 0 +++
+2397030 1795800379.949514 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2397034, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2397030 1795800379.949699 +++ exited with 0 +++
+2396965 1795800379.949726 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=2397030, si_uid=1000, si_status=0, si_utime=0, si_stime=0} ---
+2396965 1795800379.950149 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2396965.33568753/.fixture-tool.2396965.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2396965.33568753/fixture-tool") = 0 <0.000010>
+2396965 1795800379.950251 renameat2(AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2396965.33568753", AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", RENAME_EXCHANGE) = 0 <0.000007>
+2396965 1795800379.950734 rename("<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.current.2396965.tmp", "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/current") = 0 <0.000007>
+2396965 1795800379.951245 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.launch.2396965.tmp", "<fixture>/work/.cache/toolchain-launchers/fixture-tool.launch") = 0 <0.000015>
+2396965 1795800379.954051 rename("<fixture>/work/.cache/toolchain-launchers/.fixture-tool.2396965.bin", "<fixture>/work/.cache/toolchain-launchers/fixture-tool") = 0 <0.000010>
+2396965 1795800379.954293 rename("<fixture>/work/.cache/toolchain-bin/.fixture-tool.2396965.tmp", "<fixture>/work/.cache/toolchain-bin/fixture-tool") = 0 <0.000009>
+2396965 1795800379.955119 +++ exited with 0 +++

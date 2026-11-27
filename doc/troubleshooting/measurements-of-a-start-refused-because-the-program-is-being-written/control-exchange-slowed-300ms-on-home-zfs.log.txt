@@ -1,0 +1,10 @@
+arm exchange-on-home-zfs: binary <scratch>/bin/a14/mpm-shadow  sha256 b60ba895f3392bad1cdb0396695a127a6b348a47f166dcffc22f82ad66cbb250  file system zfs  server https://127.0.0.1:29543
+delay before entering each rename: 300 ms
+exchange answered EINVAL: False
+  request: "GET /fixture-tool-0.0.1.tar.gz HTTP/1.1" 200 -
+publish 1: install status 0 in 2.16 s
+  the publish is one call: renameat2(AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/.0.0.1.staging.2446904.33576842", AT_FDCWD, "<fixture>/xdg-data/monochromatic-dev/toolchain/fixture-tool/0.0.1", RENAME_EXCHANGE) = 0 (DELAYED) <0.300038>
+  that call took 38 us of its own work, with 300 ms planted before it, and both names existed throughout it
+  POLL path=0.0.1 span_ms=4000 pause_us=20 replaced_inode=18030600 polls=54266 absent=0 old=15577 new=38689 other=0 absences=0 longest_absence_us=0 seen=old
+  after: ['0.0.1                                        dir  marker=fixture-tool 0.0.1 program=echo fixture-tool 0.0.1 v1(exec)', 'current                                      symlink -> 0.0.1']
+  trace: exchange-on-home-zfs-slowed-300ms-publish-1.strace.txt
