@@ -600,7 +600,7 @@ the logs and their raw traces):
   because the poller cannot resolve an absence shorter than its own poll.
 
 Where the file system answers the exchange with `EINVAL`,
-`ENOTSUP`,
+`ENOTSUP` (`EOPNOTSUPP`),
 `EPERM`,
 `EACCES` or `ENOSYS` (`cannot_exchange`),
 the code publishes in two renames (`two_renames`):
@@ -621,7 +621,7 @@ which is what a file system that cannot exchange gives:
 - `0.2.7-alpha.13`
   (sha256 `087df55ec17f5a0c2b2d74c3e9d07cba0bf2730acc9882a736beb4a53b5b2181`,
   fetched with `gh release download`),
-  whose publish is always that pair,
+  whose publish over a copy at the version's name is always that pair,
   measured 25 to 35 us on the home file system
   and 26 to 48 us on tmpfs,
   in three publishes on each;
