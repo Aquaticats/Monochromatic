@@ -8,7 +8,11 @@
 //! `cgroup.kill` first,
 //! then `SIGKILL` through a pidfd for each listed process,
 //! then `populated 0` or a verified absence,
-//! all inside the caller's bound.
+//! all inside the caller's bound,
+//! and then,
+//! only when the wait was spent,
+//! a listing of every member that was left,
+//! inside the listing's own bound.
 //! `control_group.rs` keeps the type and the launcher that start a run in the group.
 //!
 //! In TS you'd write (pseudocode):
@@ -66,9 +70,10 @@ use std::os::fd::OwnedFd;
 /// ```
 use std::os::unix::fs::FileExt;
 /// What:
-/// `use std::path::Path;` imports the borrowed view of a path (the sibling `PathBuf` owns one).
+/// `use std::path::Path;` imports the borrowed view of a path (its sibling `PathBuf` owns one).
 /// Why:
-/// A group's directory is lent to the reads here and never stored.
+/// A group's directory is lent to the reads here and never stored;
+/// the walk that keeps owned paths lives in `control_group_stop_listing.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,6 +141,19 @@ use rustix::process::{
 };
 
 /// What:
+/// `mod listing;` declares the listing a stop makes when its bound passed:
+/// the members of the scope's own group and of every group below it.
+/// Why:
+/// The walk and its two reads are a subject of their own,
+/// and a file that held both the stop and the walk would pass the code-line limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // the listing of the members, beside the stop
+/// ```
+#[path = "control_group_stop_listing.rs"]
+pub(crate) mod listing;
+/// What:
 /// `mod report;` declares what a stop reports:
 /// how long it waited,
 /// whether the kernel still reported the scope populated,
@@ -151,6 +169,7 @@ use rustix::process::{
 /// ```
 #[path = "control_group_stop_report.rs"]
 pub(crate) mod report;
+
 /// What:
 /// `mod report_tests;` declares the controls of what a stop reports (issue 6528).
 /// Why:
@@ -166,20 +185,19 @@ pub(crate) mod report;
 mod report_tests;
 
 /// What:
-/// `use self::report::{MemberListing, StopReport, standing_of};` imports what a stop reports,
-/// and the read of one member's threads.
+/// `use self::report::{Listing, StopReport};` imports what a stop reports and the listing it found.
 /// Why:
 /// The stop answers a report,
-/// and the report must be able to say whether a member it waited for had exited or was alive.
+/// and the report must be able to say whether a member it waited for had exited or was alive;
+/// the listing itself is made in `control_group_stop_listing.rs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { MemberListing, StopReport, standingOf } from './control_group_stop_report.ts';
+/// import { Listing, StopReport } from './control_group_stop_report.ts';
 /// ```
 use self::report::{
-    MemberListing,
+    Listing,
     StopReport,
-    standing_of,
 };
 /// What:
 /// `use crate::control_group::ControlGroup;` imports the scope this stop acts on.
@@ -208,6 +226,26 @@ use crate::control_group_route_discovery::{
     namespace_id,
     view_of,
 };
+
+/// How long reading the members of a scope that was left may take.
+/// Why:
+/// The listing runs after the stop's own bound,
+/// so it is the one wait a refusal adds;
+/// without a bound of its own a scope with many threads would hold the refusal for as long as the reads take.
+/// What the value rests on (measured 2026-11-27 on this host,
+/// release build,
+/// a delegated scope of its own for each round,
+/// a C fixture that starts N threads that sleep,
+/// the stop reporting a member it could not stop so that the listing ran,
+/// three rounds):
+/// 90 µs to 136 µs with no thread beside the program,
+/// 12.5 ms to 15.6 ms with 1000,
+/// 37.5 ms to 45.6 ms with 3000.
+/// Read linearly,
+/// 500 ms covers a scope of about 33000 threads,
+/// far more than a build leaves,
+/// and it still bounds what a refusal adds after its own bound.
+pub(crate) const LISTING_BOUND: Duration = Duration::from_millis(500);
 
 /// The methods that stop the scope,
 /// and the reads they wait on.
@@ -329,7 +367,7 @@ impl ControlGroup {
                     self.absence_is_verified()?;
                     #[cfg(test)]
                     crate::bounded_run::trace(format_args!("scope proved absent"));
-                    return Ok(self.report_absent(started));
+                    return Ok(StopReport::absent(started.elapsed()));
                 }
                 // The signal pass below does the stopping when the kill file cannot be written.
                 Err(error) => eprintln!(
@@ -344,7 +382,7 @@ impl ControlGroup {
                 self.absence_is_verified()?;
                 #[cfg(test)]
                 crate::bounded_run::trace(format_args!("scope proved absent"));
-                return Ok(self.report_absent(started));
+                return Ok(StopReport::absent(started.elapsed()));
             }
             Err(error) => return Err(error),
         };
@@ -355,12 +393,12 @@ impl ControlGroup {
                 // test sees that a successful stop went through this check and not through a snapshot of the members).
                 #[cfg(test)]
                 crate::bounded_run::trace(format_args!("scope proved empty"));
+                // The scope was proved unpopulated, so a listing of it would name no member; none is made here.
                 return Ok(StopReport::new(
                     started.elapsed(),
                     true,
                     Some(false),
-                    Vec::new(),
-                    None,
+                    Listing::Read(Vec::new()),
                 ));
             }
             if !unkillable {
@@ -368,14 +406,10 @@ impl ControlGroup {
             }
             let now: Instant = Instant::now();
             if now >= deadline {
-                let (members, listing_failure) = self.listings();
-                return Ok(StopReport::new(
-                    started.elapsed(),
-                    false,
-                    Some(populated),
-                    members,
-                    listing_failure,
-                ));
+                // The wait is the time up to the deadline; the listing that follows is its own bounded step and is not part of it.
+                let waited: Duration = started.elapsed();
+                let listing: Listing = self.listings();
+                return Ok(StopReport::new(waited, false, Some(populated), listing));
             }
             let wait: Duration = STRAGGLER_INTERVAL.min(deadline - now);
             let timeout: Timespec = Timespec {
@@ -406,31 +440,8 @@ impl ControlGroup {
         &self,
         started: Instant,
     ) -> StopReport {
-        let (members, listing_failure) = self.listings();
-        return StopReport::new(
-            started.elapsed(),
-            false,
-            self.population(),
-            members,
-            listing_failure,
-        );
-    }
-
-    /// What:
-    /// `fn report_absent(&self, started: Instant) -> StopReport` is the report of a scope whose absence was verified.
-    /// Why:
-    /// The same report type carries both answers,
-    /// so no caller has to read two shapes for one question.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// reportAbsent(started: number): StopReport
-    /// ```
-    fn report_absent(
-        &self,
-        started: Instant,
-    ) -> StopReport {
-        return StopReport::new(started.elapsed(), true, None, Vec::new(), None);
+        let listing: Listing = self.listings();
+        return StopReport::new(started.elapsed(), false, self.population(), listing);
     }
 
     /// What:
@@ -449,32 +460,6 @@ impl ControlGroup {
             Ok(found) => Some(found),
             Err(_) => None,
         };
-    }
-
-    /// What:
-    /// `fn listings(&self) -> (Vec<MemberListing>, Option<String>)` is every member the scope lists and its threads' state,
-    /// or the reason the list could not be read.
-    /// Why:
-    /// A refusal that could not list the members must say so instead of naming none,
-    /// because "no member is listed" and "the listing failed" mean different things.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// listings(): [MemberListing[], string | undefined]
-    /// ```
-    fn listings(&self) -> (Vec<MemberListing>, Option<String>) {
-        let listed: Vec<i32> = match self.members() {
-            Ok(found) => found,
-            Err(error) => return (Vec::new(), Some(error.to_string())),
-        };
-        let mut members: Vec<MemberListing> = Vec::new();
-        for pid in listed {
-            members.push(MemberListing {
-                pid,
-                standing: standing_of(pid),
-            });
-        }
-        return (members, None);
     }
 }
 

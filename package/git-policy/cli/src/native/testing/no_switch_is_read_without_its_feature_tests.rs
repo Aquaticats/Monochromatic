@@ -68,6 +68,12 @@ use crate::service_warm_request_control_window::{
     PARK_VARIABLE,
     the_answer_waits_where_a_control_says,
 };
+use crate::session_runtime_directory_and_bus_address::{
+    BUS_ADDRESS_SWITCH,
+    RUNTIME_DIRECTORY_SWITCH,
+    bus_address,
+    runtime_directory,
+};
 use crate::start_probe::TestSwitch;
 use crate::start_probe::probe_test_switch::{
     KEEP_DESCRIPTOR_VARIABLE,
@@ -132,7 +138,8 @@ fn answered_beside(point: &Path) -> PathBuf {
 /// Why:
 ///  The child's fixture folders are its own,
 ///  and this is how a path the parent made reaches the child that must check it;
-///  the value the *crate* would read is the same variable, which the assertions below show it never does.
+///  the value the *crate* would read is the same variable,
+/// which the assertions below show it never does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -283,6 +290,20 @@ fn the_answers_a_build_without_the_feature_gives() {
         Switch::None,
         "a release build read {COMPANION_SWITCH_VARIABLE}"
     );
+
+    asking(RUNTIME_DIRECTORY_SWITCH);
+    assert_eq!(
+        runtime_directory(),
+        None,
+        "a release build read {RUNTIME_DIRECTORY_SWITCH}"
+    );
+
+    asking(BUS_ADDRESS_SWITCH);
+    assert_eq!(
+        bus_address(),
+        None,
+        "a release build read {BUS_ADDRESS_SWITCH}"
+    );
 }
 
 /// What:
@@ -292,7 +313,8 @@ fn the_answers_a_build_without_the_feature_gives() {
 /// Why:
 ///  One list is what the child is started with,
 ///  so a variable this list lacks is a variable this control does not show a release ignoring;
-///  each value is one a build with the feature acts on, never one it could not.
+///  each value is one a build with the feature acts on,
+/// never one it could not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -328,6 +350,14 @@ fn every_switch_a_control_arms(
         (BIRTH_TIME_VARIABLE, OsString::from("none")),
         (TEST_DEADLINE_VARIABLE, OsString::from("1")),
         (COMPANION_SWITCH_VARIABLE, OsString::from("disabled")),
+        (
+            RUNTIME_DIRECTORY_SWITCH,
+            OsString::from("@the-runtime-directory-this-run-names"),
+        ),
+        (
+            BUS_ADDRESS_SWITCH,
+            OsString::from("unix:path=/the-bus-this-run-names"),
+        ),
     ];
     let mut environment: Vec<(&'static str, OsString)> = Vec::new();
     for (variable, value) in pairs {
