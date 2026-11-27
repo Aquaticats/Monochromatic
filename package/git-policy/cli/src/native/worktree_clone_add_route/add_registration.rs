@@ -56,18 +56,6 @@ pub use super::add_registration_reads::ScanInput;
 /// What:
 ///  The registration this add owns, proved from the five facts.
 /// Why:
-///  The caller either has the registration and carries on,
-///  or must run Git's own add,
-///  so the answer is the one value the step acts on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ScanOutcome = { kind: 'adopt'; registration } | { kind: 'runGit' };
-/// ```
-
-/// What:
-///  The registration this add owns, proved from the five facts.
-/// Why:
 ///  The binding records the registration's path,
 ///  its identity and the pointer's bytes,
 ///  so every later step has the two facts without a scan.
