@@ -975,7 +975,7 @@ and what this record uses from them is stated here.
 
 So the Clippy container is bounded at 8 GiB (`gateClippyMemory` in `bin/native-gate-container-limits.ts`):
 8,192 MiB,
-1.79 times the 4,574.4 MiB peak and 2,970 MiB above the peak with all of its swap charge,
+1.62 times the highest peak any run of it read (5,062.8 MiB) and 3,129 MiB above that peak,
 which leaves room for a source change that adds work.
 The suite keeps the 2 GiB its own measurement supports,
 the image build keeps its 8 GiB,
@@ -1005,6 +1005,81 @@ What it costs and how a person lowers it:
 
 The whole gate at this bound is "The gate at the Clippy container's own bound,
 run 2026-11-27" below.
+
+### The gate at the Clippy container's own bound, run 2026-11-27
+
+The bound was then tried by whole gates on the branch that sets it,
+merged with main at `2a3bf031f8`,
+each started by `native:gate` with `--unit-io-weight 1`,
+its own image tag and the gate's own unit caps of ten CPUs,
+20 GiB and 4,000 tasks.
+Each gate's two containers were read the same way the arm was.
+
+The readings of the Clippy container,
+all against the 8,192 MiB bound:
+
+- 4,574.4 MiB in the arm above,
+  with 647.1 MiB of its charge in swap because the host was under its own pressure.
+- 4,790.0 MiB in the first gate,
+  in 6 minutes 54 seconds,
+  with up to 414.0 MiB of swap and `memory.events` `max` 0.
+- 4,835.4 MiB in the second gate,
+  in 4 minutes 29 seconds,
+  with 36.0 MiB of swap and `memory.events` `max` 0.
+- 5,062.8 MiB in the third gate,
+  in 3 minutes 8 seconds,
+  with 18.9 MiB of swap and `memory.events` `max` 0.
+
+A compile the host is reclaiming reads lower than one that keeps its pages,
+so the highest of those,
+5,062.8 MiB,
+is the figure the bound is sized from,
+and its 1,129.2 MiB above the arm is the room a host under pressure hides.
+The suite's container read 1,149.3 MiB in the arm,
+1,160.0 MiB in the first gate,
+1,459.9 MiB in the second,
+and 1,354.6 MiB in the third,
+all of its own 2,048 MiB bound,
+with `memory.events` `max` 0 and `oom_kill` 0 in every one,
+and its `pids.peak` reached 504 and 576 of the 1,024 bound.
+Clippy passed in all three gates,
+and the first two gates refused on their suites alone:
+
+- The first gate,
+  `gpc-gate-issue-6562-clippy-bound-20261127T045928-0500.service`,
+  refused with `Summary [1922.733s] 12096 tests run: 12093 passed (20 slow), 3 failed, 51 skipped`
+  while the host's load average stood at 96 to 48,
+  and took 49 minutes 48 seconds.
+  Each of the three is a control that a loaded host moves under its feet:
+  `a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message` was held 31.9 s by a `gpg` in uninterruptible
+  sleep (`the bound did not end the step`),
+  `a_step_that_finishes_inside_its_ceiling_is_answered` read `the system refused a thread`,
+  and `a_transfer_that_meets_the_floor_is_work_however_slow` ended a slow transfer at its 2-second window.
+  The gate's refusal named the test run alone,
+  so its Clippy check had passed.
+- The second gate,
+  `gpc-gate-issue-6562-clippy-bound-2-20261127T055625-0500.service`,
+  refused with `Summary [1476.182s] 12096 tests run: 12095 passed (9 slow), 1 failed, 51 skipped`:
+  `commit::native_commit_waiting_notice::tests::the_notice_reports_the_programs_that_ran_below_the_step`
+  saw a `sleep` end between two of its looks,
+  which `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md` already records as
+  a control whose own spans another test's spans can disturb.
+  It took 25 minutes 35 seconds.
+- The third gate,
+  `gpc-gate-issue-6562-clippy-bound-3-20261127T062548-0500.service`,
+  passed both checks:
+  `Summary [1259.092s] 12096 tests run: 12096 passed (8 slow), 51 skipped`
+  and `Clippy passed beside the test run.`,
+  with `gate-exit-status=0`.
+  It ran from 06:25:48-05:00 to 06:47:31-05:00,
+  21 minutes 43 seconds,
+  and its unit's own memory peak was 1,017.1 MiB of the 20 GiB the unit allows,
+  which is the clients and the image build rather than the containers,
+  since those sit in their own scopes.
+
+So the bound is what the gate needs at four compile jobs,
+and the two refusals before it were the loaded host's own and the suite's flaky controls,
+not the memory bound.
 
 ### The bound on each check
 

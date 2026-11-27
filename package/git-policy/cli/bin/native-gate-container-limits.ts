@@ -68,12 +68,14 @@ export const gateBuildMemory = '8g';
  Not the repository default, which is the suite's bound. Clippy compiles every target of the crate, the test build
  included, in one `cargo clippy --all-targets` run at the gate's four compile jobs, and on 2026-11-27 a gate that had
  passed every test of the suite refused because Clippy was killed at the 2 GiB it shared with that suite (issue 6562).
- Measured the same day in the gate's own image and settings, with a bound no step of the run met: the Clippy container's
- own cgroup peaked at 4,574.4 MiB (`memory.peak`, `memory.events` `max` 0, `oom_kill` 0), up to 647.1 MiB of that charge
- in swap, so at most 5,221.5 MiB of pages, while the suite's container peaked at 1,149.3 MiB of the same bound
+ Measured the same day in the gate's own image and settings: an arm whose 8 GiB bound no step met peaked at 4,574.4 MiB
+ with 647.1 MiB of that charge in host-driven swap, and three gates at this bound read 4,790.0, 4,835.4 and 5,062.8 MiB,
+ every one with `memory.events` `max` 0 and `oom_kill` 0. A compile with room to keep its pages peaks higher than one the
+ host is reclaiming, so the bound is sized from the highest of those, 5,062.8 MiB, read in the three-minute compile of
+ the gate that passed both checks: 8 GiB is 8,192 MiB, 1.62 times it and 3,129 MiB above it. The suite's container read
+ 1,149.3 MiB in the arm and 1,354.6 MiB in that gate, of the 2 GiB its own measurement supports
  (`doc/planning/git-policy-cli-cachyos-test-containers.md`, "The Clippy container's own memory bound, measured
- 2026-11-27"). 8 GiB is 8,192 MiB, 1.79 times that peak and 2,970 MiB above the peak with all of its swap, so a source
- change that adds work still fits.
+ 2026-11-27").
 
  A container held at its cap is not a smaller container but a stalled one, and a compile held there is killed outright:
  the same crate's test build died with `SIGKILL` under 2 GiB where 4 GiB let it finish (the comment on issue 6455 of
