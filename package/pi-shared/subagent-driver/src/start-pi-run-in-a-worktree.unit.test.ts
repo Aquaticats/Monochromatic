@@ -19,6 +19,7 @@ import {
   readdir,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { existsSync, } from 'node:fs';
@@ -447,8 +448,9 @@ async function writeLauncherProcess({
  Launches one run through the stand-ins that reach its unit, in a folder of the test's own that goes when the answer is read.
 
  @param request - the provider and model the run names, when it names them; the environment the launcher runs with; the branch
- the run works on; the runs another launch has going, which the counts read; whether the manager lists no unit at all; and
- whether the run's brief wrote in its scratch folder, which this test fills with the tree a run leaves there
+ the run works on; the runs another launch has going, which the counts read; whether the manager lists no unit at all; whether the
+ run's brief wrote in its scratch folder, which this test fills with the tree a run leaves there; and whether a process the run left
+ working works in its run folder
 
  @returns what the launcher ended with, whether its unit manager was reached, the words that manager was asked with, and what its
  runs, checkout and scratch folders hold
@@ -466,6 +468,7 @@ async function launchThroughTheStandIns({
   otherLaunchers = [],
   unitsCannotBeListed = false,
   withScratchFolder = false,
+  withOwnWorkStillRunning = false,
 }: {
   readonly provider?: string;
   readonly model?: string;
@@ -474,6 +477,7 @@ async function launchThroughTheStandIns({
   readonly otherLaunchers?: readonly OtherLauncher[];
   readonly unitsCannotBeListed?: boolean;
   readonly withScratchFolder?: boolean;
+  readonly withOwnWorkStillRunning?: boolean;
 },): Promise<{
   readonly code: number;
   readonly stdout: string;
@@ -621,6 +625,33 @@ async function launchThroughTheStandIns({
       scratchFolder,
       'keepsake',
     ), 'a file that only starts with keep',);
+  }
+  if (withOwnWorkStillRunning) {
+    // A process the run left working in its run folder. The folder itself is made by the launcher later, so this link names a path
+    // that is not there yet; the read that weighs a run's own work follows the link and finds it.
+    await mkdir(
+      join(
+        processes,
+        '9001',
+      ),
+      { recursive: true, },
+    );
+    await writeFile(join(
+      processes,
+      '9001',
+      'comm',
+    ), 'bash',);
+    await symlink(
+      join(
+        runs,
+        'refused-1',
+      ),
+      join(
+        processes,
+        '9001',
+        'cwd',
+      ),
+    );
   }
   /**
    What the launcher ended with.
@@ -1635,6 +1666,25 @@ await describe({
         expect(answered.stdout,).toContain(`refused: the scratch folder`,);
         expect(answered.stdout,).toContain('2 entries removed',);
         expect(answered.stdout,).toContain(`cleared beside ${KEPT_FOLDER_NAME}/`,);
+      },
+    },),
+    it({
+      name: 'keeps the scratch folder of a run whose own work still runs, and says why it stays',
+      fn: async () => {
+        const answered = await launchThroughTheStandIns({
+          provider: OPENCODE_GO.provider,
+          model: OPENCODE_GO.model,
+          withScratchFolder: true,
+          withOwnWorkStillRunning: true,
+        },);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.scratchFolderHolds,).toEqual([
+          'build',
+          KEPT_FOLDER_NAME,
+          'keepsake',
+        ],);
+        expect(answered.stdout,).toContain('own work still runs',);
+        expect(answered.stdout,).not.toContain('cleared beside',);
       },
     },),
     it({

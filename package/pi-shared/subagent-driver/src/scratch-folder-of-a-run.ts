@@ -23,12 +23,14 @@ import {
   rmdir,
 } from 'node:fs/promises';
 import {
+  basename,
   isAbsolute,
   join,
 } from 'node:path';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { folderSomeProcessWorksIn, } from './finished-worktrees.ts';
+import { attemptsOfARun, } from './newest-finished-run-of-a-name.ts';
 import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
 //region The folder
@@ -119,7 +121,7 @@ export type ScratchFolderOutcome =
     readonly action: 'cleared';
 
     /**
-     How many entries were removed, which the folder's removal counts as one of them when it held no `keep/`.
+     How many entries beside the folder's own name went.
      */
     readonly removed: number;
 
@@ -128,6 +130,27 @@ export type ScratchFolderOutcome =
      */
     readonly line: string;
   }
+    | {
+    /**
+     Some entries went and the operating system refused the rest, so the folder holds what could not be removed.
+     */
+      readonly action: 'partly-cleared';
+
+    /**
+     How many entries beside the folder's own name went.
+     */
+      readonly removed: number;
+
+    /**
+     What the operating system answered for the entries it refused, in words a coordinator acts on.
+     */
+      readonly reason: string;
+
+    /**
+     The line that says what went and what stayed.
+     */
+      readonly line: string;
+    }
     | {
     /**
      Nothing was removed, and the folder stays as it is.
@@ -232,12 +255,18 @@ function removedClauseOf({ count, }: { readonly count: number },): string {
 
  The folder is read without following anything: a link under its name is kept and never followed, and a path that is not a folder
  is kept too, so nothing outside the folder is ever removed. A symbolic link inside the folder is removed as the link it is, which
- `rm` does by reading the entry itself rather than what it names.
+ `rm` does by reading the entry itself rather than what it names. That holds while nothing swaps the entry in the moment between the
+ reading and the removal: Node has no call that removes an entry relative to an open folder (`unlinkat`), so an entry traded for a
+ link in that window is followed, which is the same limit the folder a run's Pi writes into states.
 
  The folder itself goes when it holds no `keep/`: a run that left nothing worth keeping leaves no folder either, so the next run of
  that name makes one that holds only its own work.
 
  @param agentScratchFolder - the folder every run's scratch lives in, which is absolute
+
+ @param runsFolder - folder the driver writes one run folder per run into
+
+ @param runFolder - this run's own folder inside `runsFolder`, which is what says no newer attempt of the name took the folder over
 
  @param runName - the run's name, which names its scratch folder
 
@@ -251,17 +280,21 @@ function removedClauseOf({ count, }: { readonly count: number },): string {
 
  @example
  ```ts
- const outcome = await clearScratchFolderOfARun({ agentScratchFolder: '/home/a/temp/agent', runName: 'copy-route', unitEnded: true, ownWorkStillRuns: false, processFolder: '/proc', },);
+ const outcome = await clearScratchFolderOfARun({ agentScratchFolder: '/home/a/temp/agent', runsFolder: '/runs', runFolder: '/runs/copy-route-1', runName: 'copy-route', unitEnded: true, ownWorkStillRuns: false, processFolder: '/proc', },);
  ```
  */
 export async function clearScratchFolderOfARun({
   agentScratchFolder,
+  runsFolder,
+  runFolder,
   runName,
   unitEnded,
   ownWorkStillRuns,
   processFolder,
 }: {
   readonly agentScratchFolder: string;
+  readonly runsFolder: string;
+  readonly runFolder: string;
   readonly runName: string;
   readonly unitEnded: boolean;
   readonly ownWorkStillRuns: boolean;
@@ -294,6 +327,19 @@ export async function clearScratchFolderOfARun({
     return keptScratchFolderOf({
       folder,
       reason: 'the run\'s own work still runs, and it may write in there',
+    },);
+  }
+  // One scratch folder serves every attempt of a name, so a newer attempt of this name is working in this one now: the folder of a
+  // run that has ended is the newer run's, and clearing it would take a build folder from under the run that started after this
+  // one. The runs folder answers which attempt is newest, because a resumed run and a fix run each take a folder number of their own.
+  if (await newerAttemptOfTheNameIsThere({
+    runsFolder,
+    runFolder,
+    runName,
+  },)) {
+    return keptScratchFolderOf({
+      folder,
+      reason: 'a newer run of the same name has started since this one ended, so the folder is that run\'s now',
     },);
   }
   try {
@@ -348,6 +394,44 @@ export async function clearScratchFolderOfARun({
 }
 
 /**
+ Says whether a newer attempt of a run's name took the folder over, which is a run folder of that name numbered above this one.
+
+ A scratch folder is named after the run's name alone, so every attempt of that name writes in the same one: a run that ended is not
+ the owner of a folder a newer attempt of its name has since made its own.
+
+ @param runsFolder - folder the driver writes one run folder per run into
+
+ @param runFolder - this run's own folder
+
+ @param runName - the run's name, which every attempt's folder starts with
+
+ @returns whether a newer attempt of the name is there
+
+ @example
+ ```ts
+ const taken = await newerAttemptOfTheNameIsThere({ runsFolder: '/runs', runFolder: '/runs/a-1', runName: 'a', });
+ ```
+ */
+async function newerAttemptOfTheNameIsThere({
+  runsFolder,
+  runFolder,
+  runName,
+}: {
+  readonly runsFolder: string;
+  readonly runFolder: string;
+  readonly runName: string;
+},): Promise<boolean> {
+  /**
+   Every attempt of this run's name, newest first.
+   */
+  const attempts = await attemptsOfARun({
+    runsFolder,
+    runName,
+  },);
+  return attempts[0]?.folder !== basename(runFolder,);
+}
+
+/**
  Removes every entry of a run's scratch folder beside `keep/`, then the folder itself when no `keep/` is there.
 
  The entries are removed all at once because they are disjoint paths: one entry's removal waits on nothing another's does.
@@ -377,7 +461,11 @@ async function clearBesideTheKeptFolder({
   const going = entries.filter(function isNotTheKeptFolder(entry,) {
     return entry !== KEPT_FOLDER_NAME;
   },);
-  await Promise.all(going.map(function removesOne(entry,) {
+  /**
+   What each removal answered, waited for whether it went or was refused: an answer that returns while an entry is still being
+   removed would leave the launcher saying more than it knows.
+   */
+  const attempts = await Promise.allSettled(going.map(function removesOne(entry,) {
     return rm(
       join(
         folder,
@@ -389,18 +477,40 @@ async function clearBesideTheKeptFolder({
       },
     );
   },),);
+  /**
+   How many entries went.
+   */
+  const removed = attempts.filter(function wasRemoved(attempt,) {
+    return attempt.status === 'fulfilled';
+  },).length;
+  /**
+   What the operating system answered for each entry it refused to remove, in words for a reader.
+   */
+  const refused = attempts.flatMap(function refusalOf(attempt,) {
+    return (attempt.status === 'rejected') ? [caughtValueText(attempt.reason,)] : [];
+  });
+  if (refused.length > 0) {
+    return {
+      action: 'partly-cleared',
+      removed,
+      reason: `${entriesTextOf({ count: refused.length, })} could not be removed: ${refused[0] ?? ''}`,
+      line: `the scratch folder ${folder} is cleared only in part: ${removedClauseOf({ count: removed, },)}, and ${
+        entriesTextOf({ count: refused.length, })
+      } could not be removed (${refused[0] ?? ''})`,
+    };
+  }
   if (entries.includes(KEPT_FOLDER_NAME,)) {
     return {
       action: 'cleared',
-      removed: going.length,
-      line: `the scratch folder ${folder} is cleared beside ${KEPT_FOLDER_NAME}/: ${removedClauseOf({ count: going.length, },)}`,
+      removed,
+      line: `the scratch folder ${folder} is cleared beside ${KEPT_FOLDER_NAME}/: ${removedClauseOf({ count: removed, },)}`,
     };
   }
   await rmdir(folder,);
   return {
     action: 'cleared',
-    removed: going.length,
-    line: `the scratch folder ${folder} held no ${KEPT_FOLDER_NAME}/, so it was removed: ${removedClauseOf({ count: going.length, },)}`,
+    removed,
+    line: `the scratch folder ${folder} held no ${KEPT_FOLDER_NAME}/, so it was removed: ${removedClauseOf({ count: removed, },)}`,
   };
 }
 

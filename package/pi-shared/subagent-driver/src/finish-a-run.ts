@@ -1,6 +1,7 @@
 /**
  What a launcher does once its unit has ended: the wake of an agent whose own work outlived its turn, what becomes of the worktree,
- and what becomes of the run's scratch folder under `${HOME}/temp/agent`.
+ and what becomes of the run's scratch folder under `${HOME}/temp/agent`, which is cleared before the worktree is weighed so that
+ no worktree step can skip it.
 
  The step is kept apart from the launcher that starts the unit so it can be read alone: it is where a run is resumed, where a
  worktree may be removed, and where a scratch folder is cleared beside its `keep/`, and each of the three turns on what the run
@@ -184,7 +185,9 @@ export type FinishedRun = {
 async function ownWorkStillRunning(request: FinishRequest,): Promise<readonly string[]> {
   return processesStillWorkingFor({
     runName: request.runName,
-    worktree: request.worktree,
+    // A run that works in the checkout itself has the whole checkout as its worktree, and every other session works there too: only
+    // its run folder and a folder carrying its own name count as its own work.
+    worktree: request.readOnlyInMain ? '' : request.worktree,
     runFolder: request.runFolder,
     processes: await processesAtTheirFolders({ processFolder: request.processFolder, },),
     excludingPid: process.pid,
@@ -338,6 +341,27 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
     ? wake.ownWork
     : [];
 
+  // The run's scratch folder goes before the worktree is weighed, because nothing in it may be skipped by a worktree step that
+  // fails: what the agent left beside its `keep/` is a build folder, a checkout or a fixture repository that nothing needs once the
+  // run has ended, and leaving it was what put 346 folders under `~/temp/agent` by 2026-11-27 (issue 6618). What stays is the
+  // report, the logs and the measurements a reader of the report needs, and a run that is resumed finds them because its `keep/`
+  // was never touched.
+  /**
+   What became of the run's scratch folder.
+   */
+  const scratch = await clearScratchFolderOfARun({
+    agentScratchFolder: request.agentScratchFolder,
+    runsFolder: request.runsFolder,
+    runFolder: request.runFolder,
+    runName: request.runName,
+    unitEnded: request.unitEnded,
+    // Read here rather than taken from the wake above: the wake weighs a run's own work only for one that finished its turn, and a
+    // run that ended on a cap or an error may still have a build in the folder that writes into its scratch by absolute path.
+    ownWorkStillRuns: (await ownWorkStillRunning(request,)).length > 0,
+    processFolder: request.processFolder,
+  },);
+  request.report(`${request.runName}: ${scratch.line}`,);
+
   /**
    Whether the worktree's HEAD is a branch.
    */
@@ -382,21 +406,6 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
       worktree: request.worktree,
     },)}`,);
   }
-  // The run's scratch folder goes with its worktree: what the agent left beside its `keep/` is a build folder, a checkout or a
-  // fixture repository that nothing needs once the run has ended, and leaving it was what put 346 folders under `~/temp/agent` by
-  // 2026-11-27 (issue 6618). What stays is the report, the logs and the measurements a reader of the report needs, and a run that
-  // is resumed finds them because its `keep/` was never touched.
-  /**
-   What became of the run's scratch folder.
-   */
-  const scratch = await clearScratchFolderOfARun({
-    agentScratchFolder: request.agentScratchFolder,
-    runName: request.runName,
-    unitEnded: request.unitEnded,
-    ownWorkStillRuns: ownWorkLeftRunning.length > 0,
-    processFolder: request.processFolder,
-  },);
-  request.report(`${request.runName}: ${scratch.line}`,);
   // A run whose Pi left before the run got going is the one ending whose reason only Pi can give: a load failure, a refused
   // provider, a missing module all reach its standard error and nothing else. It is reported last, because a batch's one line
   // per entry is the last line of what a start printed, and `status 1 Memory peak: 12M` was what it said instead.

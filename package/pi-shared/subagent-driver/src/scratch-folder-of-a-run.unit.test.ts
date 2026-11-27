@@ -57,6 +57,16 @@ type TestHome = {
    */
   readonly processFolder: string;
 
+  /**
+   Folder the driver writes one run folder per run into.
+   */
+  readonly runsFolder: string;
+
+  /**
+   This run's own folder inside `runsFolder`, which is the newest attempt of its name until a test makes another.
+   */
+  readonly runFolder: string;
+
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
 
@@ -89,7 +99,21 @@ async function makeHome(): Promise<TestHome> {
     home,
     'processes',
   );
-  await Promise.all([agentScratchFolder, processFolder,].map(function makes(folder,) {
+  /**
+   Folder the driver writes one run folder per run into.
+   */
+  const runsFolder = join(
+    home,
+    'runs',
+  );
+  /**
+   This run's own folder, which the launcher makes before its unit starts.
+   */
+  const runFolder = join(
+    runsFolder,
+    'copy-route-1',
+  );
+  await Promise.all([agentScratchFolder, processFolder, runsFolder, runFolder,].map(function makes(folder,) {
     return mkdir(
       folder,
       { recursive: true, },
@@ -99,6 +123,8 @@ async function makeHome(): Promise<TestHome> {
     home,
     agentScratchFolder,
     processFolder,
+    runsFolder,
+    runFolder,
     async [Symbol.asyncDispose]() {
       await rm(
         home,
@@ -201,7 +227,7 @@ async function writeProcessAt({
 }
 
 /**
- Reads why a folder stays, which only an answer that kept it carries.
+ Reads why a folder stays or was cleared only in part, which only those answers carry.
 
  @param outcome - what the clearing answered
 
@@ -215,8 +241,8 @@ async function writeProcessAt({
  ```
  */
 function reasonOf(outcome: ScratchFolderOutcome,): string {
-  if (outcome.action !== 'kept') {
-    throw new Error(`the folder was not kept, so no reason is there to read: ${outcome.line}`,);
+  if ((outcome.action !== 'kept') && (outcome.action !== 'partly-cleared')) {
+    throw new Error(`the folder was neither kept nor cleared in part, so no reason is there to read: ${outcome.line}`,);
   }
   return outcome.reason;
 }
@@ -286,6 +312,8 @@ await describe({
          */
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -337,6 +365,8 @@ await describe({
         ), text: 'the report', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -368,6 +398,8 @@ await describe({
         ), text: 'the report', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: false,
           ownWorkStillRuns: false,
@@ -396,6 +428,8 @@ await describe({
         ), text: '<p>built</p>', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: true,
@@ -431,6 +465,8 @@ await describe({
         },);
         const whileItWorks = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -453,6 +489,8 @@ await describe({
         );
         const onceItIsGone = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -479,6 +517,8 @@ await describe({
         ), text: 'another run\'s', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -487,6 +527,128 @@ await describe({
         expect(outcome.action,).toBe('nothing-there',);
         expect(outcome.line,).toContain(`copy-route${SCRATCH_FOLDER_NAME_END}`,);
         expect(await entriesIn(another,),).toEqual(['measurements.txt',],);
+      },
+    },),
+    it({
+      name: 'keeps the folder while a newer run of the same name has started, and clears it once that run is gone',
+      fn: async () => {
+        await using home = await makeHome();
+        const folder = join(
+          home.agentScratchFolder,
+          `copy-route${SCRATCH_FOLDER_NAME_END}`,
+        );
+        await writeFileIn({ file: join(
+          folder,
+          'build',
+          'index.html',
+        ), text: '<p>built</p>', },);
+        await writeFileIn({ file: join(
+          folder,
+          KEPT_FOLDER_NAME,
+          'report.md',
+        ), text: 'the report', },);
+        // A newer attempt of the same name takes the next run folder, which is what a resumed run and a fix run each do.
+        const newer = join(
+          home.runsFolder,
+          'copy-route-2',
+        );
+        await mkdir(
+          newer,
+          { recursive: true, },
+        );
+        const whileTheNewerRunWorks = await clearScratchFolderOfARun({
+          agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
+          runName: 'copy-route',
+          unitEnded: true,
+          ownWorkStillRuns: false,
+          processFolder: home.processFolder,
+        },);
+        expect(whileTheNewerRunWorks.action,).toBe('kept',);
+        expect(reasonOf(whileTheNewerRunWorks,),).toContain('newer run',);
+        expect(await entriesIn(folder,),).toEqual([
+          'build',
+          KEPT_FOLDER_NAME,
+        ],);
+        // The control arm: the same call, once no newer attempt of the name is there.
+        await rm(
+          newer,
+          { recursive: true, force: true, },
+        );
+        const whileOnlyThisRunIsThere = await clearScratchFolderOfARun({
+          agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
+          runName: 'copy-route',
+          unitEnded: true,
+          ownWorkStillRuns: false,
+          processFolder: home.processFolder,
+        },);
+        expect(whileOnlyThisRunIsThere.action,).toBe('cleared',);
+        expect(await entriesIn(folder,),).toEqual([KEPT_FOLDER_NAME,],);
+      },
+    },),
+    it({
+      name: 'says which entries it could not remove, and leaves them, when the operating system refuses some of them',
+      fn: async () => {
+        await using home = await makeHome();
+        const folder = join(
+          home.agentScratchFolder,
+          `copy-route${SCRATCH_FOLDER_NAME_END}`,
+        );
+        await writeFileIn({ file: join(
+          folder,
+          'build',
+          'index.html',
+        ), text: '<p>built</p>', },);
+        await writeFileIn({ file: join(
+          folder,
+          'locked',
+          'inside.txt',
+        ), text: 'a file of a folder that may not be written', },);
+        await writeFileIn({ file: join(
+          folder,
+          KEPT_FOLDER_NAME,
+          'report.md',
+        ), text: 'the report', },);
+        // A folder this account may read and enter but not write in is one `rm` cannot unlink what it holds.
+        await chmod(
+          join(
+            folder,
+            'locked',
+          ),
+          0o500,
+        );
+        const outcome = await clearScratchFolderOfARun({
+          agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
+          runName: 'copy-route',
+          unitEnded: true,
+          ownWorkStillRuns: false,
+          processFolder: home.processFolder,
+        },);
+        // The folder is given back its mode first, so the test's own removal of the home reaches what is inside it.
+        await chmod(
+          join(
+            folder,
+            'locked',
+          ),
+          0o700,
+        );
+        expect(outcome.action,).toBe('partly-cleared',);
+        expect(outcome,).toMatchObject({ removed: 1, },);
+        expect(reasonOf(outcome,),).toContain('could not be removed',);
+        expect(outcome.line,).toContain('cleared only in part',);
+        expect(await entriesIn(folder,),).toEqual([
+          KEPT_FOLDER_NAME,
+          'locked',
+        ],);
+        expect(await entriesIn(join(
+          folder,
+          'locked',
+        ),),).toEqual(['inside.txt',],);
       },
     },),
     it({
@@ -514,6 +676,8 @@ await describe({
         );
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -562,6 +726,8 @@ await describe({
         ), text: 'the report', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -587,6 +753,8 @@ await describe({
         ), text: '<p>built</p>', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -612,6 +780,8 @@ await describe({
         );
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -638,6 +808,8 @@ await describe({
         ), text: 'the report', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -669,6 +841,8 @@ await describe({
         ), text: 'the report', },);
         await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -690,6 +864,8 @@ await describe({
         ), text: '<p>built again</p>', },);
         const secondEnd = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -726,6 +902,8 @@ await describe({
         );
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -755,6 +933,8 @@ await describe({
         );
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -785,6 +965,8 @@ await describe({
         ), text: '12 runs', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: '',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -805,6 +987,8 @@ await describe({
         const relativeRoot = process.cwd();
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: 'temp/agent',
+          runsFolder: '/runs',
+          runFolder: '/runs/copy-route-1',
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -836,6 +1020,8 @@ await describe({
         ), text: 'not this run\'s to remove', },);
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: home.agentScratchFolder,
+          runsFolder: home.runsFolder,
+          runFolder: home.runFolder,
           runName: '../escape',
           unitEnded: true,
           ownWorkStillRuns: false,
@@ -851,6 +1037,8 @@ await describe({
       fn: async () => {
         const outcome = await clearScratchFolderOfARun({
           agentScratchFolder: '',
+          runsFolder: '/runs',
+          runFolder: '/runs/copy-route-1',
           runName: 'copy-route',
           unitEnded: true,
           ownWorkStillRuns: false,
