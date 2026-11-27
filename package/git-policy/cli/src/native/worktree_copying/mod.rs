@@ -213,6 +213,11 @@
 //! - `worktree_copy_transaction.rs`:
 //!   one journaled installation to an end,
 //!   and resumption from the log.
+//! - `worktree_copy_unfilled_record_words.rs`:
+//!   the words one unfilled-copy record holds:
+//!   its suffix,
+//!   its five fields,
+//!   and the name the record of one journal takes.
 //! - `worktree_copy_unfilled_record.rs`:
 //!   the durable record of a worktree left without part of its source's ignored state,
 //!   reported by every later command until the worktree is gone or replaced.
@@ -435,6 +440,10 @@ pub mod worktree_copy_swapped_add_settlement;
 /// recorded beside its payload and checked before every write into a worktree.
 #[cfg(unix)]
 pub mod worktree_copy_stage_binding;
+
+/// The words one unfilled-copy record holds.
+#[cfg(unix)]
+pub mod worktree_copy_unfilled_record_words;
 
 /// The durable record of a worktree left without part of its source's ignored state,
 /// reported by every later command until the worktree is gone or replaced.
