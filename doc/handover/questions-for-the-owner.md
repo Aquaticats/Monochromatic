@@ -362,6 +362,47 @@ and each can be undone by one round.
   where spacing after the arrow is only a dead entry.
   The fix round for the alpha.18 pass was told to make the two sides one rule,
   and to prefer a finding on the line over a refusal of the list unless the reader cannot recover.
+- A drain's batches are sized by a host its caller states,
+  where the drain used to read the machine itself (issue 6567,
+  `e22e629637`):
+  `drain_pending_awaiting`,
+  `drain_the_slow_work_awaiting` and the planned drains take `&HostResources`.
+  Nothing test-only entered a signature;
+  the callers read the machine once.
+  The round measured why the two controls saw one item of two:
+  `HostResources::read` takes the control group's free bytes,
+  which count the page cache a build wrote inside a memory-capped scope,
+  so a scope whose cache fills its cap reads no headroom and every batch falls to one item.
+  That is the shipped conservative behaviour for a service unit too,
+  and whether the width should count reclaimable cache is a design question the round left open
+  (`doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
+- A fixture's removal now waits the package's five seconds for what a landing starts beside its loop,
+  and names what is left when it fails (issue 6568,
+  `291fe5309f`).
+  The writer was the thread that draws a shadow ahead,
+  five milliseconds after the landing returned.
+  Open:
+  the two index-lock markers a landing makes for the next batches stay in a control's fixture
+  until a service's shutdown or the next landing's take,
+  and ending them needs a way that is not a test-only argument of `land_group`;
+  and the shadow pool's fill was measured at 5.6 s in a release note,
+  longer than the five seconds the removal waits.
+- Three place controls of `worktree_copying` (stage,
+  journal,
+  install) own their process now (issue 6477,
+  `d3ea7eaeea`) and can still pass when the bound is not one place,
+  because nothing inside them asserts the width.
+  Adding the assertion issue 6534's control has is one line each.
+- The control for issue 6573 reads every release file of `repo_read/` and `invocation/` for the bounded call,
+  where it read one named file (`53d7f739f3`).
+  The round's search found no other control made stale by the splits,
+  and 58 places where a required literal is absent from the file a pin reads although every such module passes,
+  so it built no guard over source pins and left whether one is worth building.
+- The control for issue 6572 waits for the record its landing writes
+  (`41d82a677e`).
+  The release code did what `SPEC.md` says:
+  a command may report a landed commit from an open batch before the finished record exists.
+  Its new failure message for the bound itself was written and not reached by a run.
 
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 
