@@ -268,6 +268,16 @@
 //! - `manual_push_range.rs`:
 //!   the range computation for manual-push scans:
 //!   which pushed commits a remote does not have.
+//! - `manual_push_probe_confirmation.rs`:
+//!   one destination's confirmation:
+//!   the updates it confirmed,
+//!   and everything its one `ls-remote` reported.
+//! - `manual_push_probe_destination_blocks.rs`:
+//!   one destination's block of Git's own dry-run report,
+//!   confirmed:
+//!   the local objects a new ref needs,
+//!   the updates Git printed for that destination,
+//!   and the pieces that confirm every destination side by side.
 //! - `manual_push_probe.rs`:
 //!   the updates a manual `git push` would send,
 //!   learned from Git's own dry-run report and confirmed against the remote.
@@ -623,6 +633,18 @@ pub mod manual_push_cause;
 /// Why the probe of a manual push could not establish the updates Git would push,
 /// and what Git said when it refused.
 pub mod manual_push_probe_error;
+
+/// One destination's confirmation:
+/// the updates it confirmed,
+/// and everything its one `ls-remote` reported.
+pub mod manual_push_probe_confirmation;
+
+/// One destination's block of Git's own dry-run report,
+/// confirmed:
+/// the local objects a new ref needs,
+/// the updates Git printed for that destination,
+/// and the pieces that confirm every destination side by side.
+pub mod manual_push_probe_destination_blocks;
 
 /// The updates a manual `git push` would send,
 /// learned from Git's own dry-run report and confirmed against the remote.
