@@ -102,3 +102,11 @@ so an entry leaves the list with its fix.
 ## Verification
 
 `mise run //package/container-limit/core:test:unit` runs the tests.
+
+`src/container-start-sites.unit.test.ts` is the test that holds the ledger:
+a tracked file that names `podman` or `docker` as a program and is not listed fails it,
+and so does a listed path that no longer exists.
+So a change that adds or renames such a file runs that task,
+and no routine run after a merge reaches it:
+the advisory `advisory-core` workflow runs it only in an admitted run,
+at most eight a day (issue 6588).
