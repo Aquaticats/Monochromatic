@@ -231,12 +231,14 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the wrapper's own rule that a command runs at the top of its repository refuses it first,
   and a control pins that.
   The guest arm gained one alias case,
-  and one guest run of that arm is going on the pinned tree at `203bd65854`,
-  in the unit `gpc-guest-slot-state-arm-at-203bd65854-20261127T1452.service`
-  (started 2026-11-27T14:45:24-05:00,
-  whatever the unit's name says;
-  logs in `~/temp/agent/guest-run-of-the-slot-state-arm-with-the-alias-case-2026-11-27/keep/`).
-  It passes only with the line `REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused` in `slot-state-arm.log`.
+  and one guest run of that arm passed on the tree at `203bd65854`,
+  whose wrapper source is that of `0.6.1-alpha.50`
+  (`mise run //package/git-policy/cli:e2e:zfs-slot-state -- all`,
+  from 2026-11-27T14:45:24-05:00 to 2026-11-27T15:08:52-05:00):
+  the arm printed `REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused` among its lines,
+  skipped none,
+  and ended `Summary [ 0.753s] 1 test run: 1 passed, 1369 skipped`;
+  the driver destroyed its guest.
   A repository can switch the root rule off
   (`policies.require-root` takes `off`,
   `warn` or `error`),
