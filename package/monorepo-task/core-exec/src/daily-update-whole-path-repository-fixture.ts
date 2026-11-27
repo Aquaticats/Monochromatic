@@ -23,11 +23,16 @@ import { text, } from 'node:stream/consumers';
 
 import {
   CARGO_LOCK,
+  CHECK_SCRIPT,
   CLIPPY_SCRIPT,
+  crateManifest,
   MOVE_SCRIPT,
   PNPM_LOCK,
   PNPM_WORKSPACE,
   ROOT_MISE,
+  RUST_CATALOG,
+  SYNC_SCRIPT,
+  TIGHTEN_CARGO_SCRIPT,
 } from './daily-update-whole-path-scripts-fixture.ts';
 
 /**
@@ -292,6 +297,59 @@ export async function layOutRepository({
     put({
       path: join(
         root,
+        'steps',
+        'sync.ts',
+      ),
+      content: SYNC_SCRIPT,
+    },),
+    put({
+      path: join(
+        root,
+        'steps',
+        'check.ts',
+      ),
+      content: CHECK_SCRIPT,
+    },),
+    put({
+      path: join(
+        root,
+        'steps',
+        'tighten-cargo.ts',
+      ),
+      content: TIGHTEN_CARGO_SCRIPT,
+    },),
+    // The Rust catalog and the manifests `sync:files` renders from it: one crate whose lock the raise leaves behind and
+    // one whose lock follows it. Both carry the exact pin the catalog ties to the slint release.
+    put({
+      path: join(
+        root,
+        'rust-catalog.toml',
+      ),
+      content: RUST_CATALOG,
+    },),
+    put({
+      path: join(
+        root,
+        'package',
+        'a',
+        'broken-crate',
+        'Cargo.toml',
+      ),
+      content: crateManifest({ name: 'broken-crate', },),
+    },),
+    put({
+      path: join(
+        root,
+        'package',
+        'c',
+        'red-crate',
+        'Cargo.toml',
+      ),
+      content: crateManifest({ name: 'red-crate', },),
+    },),
+    put({
+      path: join(
+        root,
         'package',
         'a',
         'broken-crate',
@@ -349,6 +407,7 @@ export async function layOutRepository({
     'toolchain.lock.json',
     'pnpm-workspace.yaml',
     'pnpm-lock.yaml',
+    'rust-catalog.toml',
     'steps',
     'package',
   ];
