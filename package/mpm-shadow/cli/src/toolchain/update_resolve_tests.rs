@@ -1024,7 +1024,8 @@ fn a_brand_new_downloaded_tool_resolves_with_no_lock_at_all() {
 
 //endregion github
 
-/// An incomplete row with a higher build number is skipped, not treated as the answer:
+/// An incomplete row with a higher build number is skipped,
+/// not treated as the answer:
 /// a complete lower-build row already found for the subdir still resolves the platform,
 /// where the old `?` inside the accumulator threw it away and failed the whole platform.
 #[test]
@@ -1044,7 +1045,8 @@ fn conda_keeps_a_complete_lower_build_row_when_a_higher_build_row_is_incomplete(
 }
 
 /// A digest of another algorithm is not recorded as the artifact SHA-256:
-/// the file is hashed instead, so the lock row can verify at install time.
+/// the file is hashed instead,
+/// so the lock row can verify at install time.
 #[test]
 fn a_non_sha256_asset_digest_falls_back_to_hashing_the_download() {
     let rig = Rig::new();
@@ -1073,8 +1075,11 @@ fn a_non_sha256_asset_digest_falls_back_to_hashing_the_download() {
 }
 
 /// A tag is one URL path segment:
-/// characters such as `#`, `?` and `%` are percent-encoded, so the request cannot lose its path at a fragment
-/// or ask for a different tag, and `+` is encoded too because a path treats it literally.
+/// characters such as `#`,
+/// `?` and `%` are percent-encoded,
+/// so the request cannot lose its path at a fragment
+/// or ask for a different tag,
+/// and `+` is encoded too because a path treats it literally.
 #[test]
 fn a_release_tag_is_percent_encoded_as_one_path_segment() {
     let rig = Rig::new();

@@ -1056,7 +1056,8 @@ fn a_conda_extraction_that_finds_no_payload_removes_its_staging_directory() {
 }
 
 /// Components and targets are added to the channel `packageId` names:
-/// that is the toolchain the install step created, and the locked version can spell a date the channel does not.
+/// that is the toolchain the install step created,
+/// and the locked version can spell a date the channel does not.
 #[test]
 fn rust_components_and_targets_use_the_package_id_channel_that_was_installed() {
     let mut rig = Rig::new();

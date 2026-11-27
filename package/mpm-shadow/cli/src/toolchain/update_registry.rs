@@ -117,7 +117,9 @@ pub fn resolve_npm(
 /// `GET https://crates.io/api/v1/crates/<name>`,
 /// then `crate.max_stable_version`.
 /// Why:
-/// A wanted text, exact version or not, is locked as it stands and needs no lookup;
+/// A wanted text,
+/// exact version or not,
+/// is locked as it stands and needs no lookup;
 /// the request above is made only when nothing is wanted.
 pub fn resolve_crate(
     ctx: &Context,
