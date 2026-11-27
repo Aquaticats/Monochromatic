@@ -74,6 +74,11 @@
 //!   and the words a person reads for each cause.
 //! - `sweep_dataset_facts.rs`:
 //!   what one dataset the sweep reached says about itself.
+//! - `sweep_clone_property_values.rs`:
+//!   the values the design gives a clone's properties and its origin snapshot.
+//! - `sweep_clone_refusals.rs`:
+//!   why one child of the pinned parent is not a clone this sweep attaches,
+//!   and the words each cause answers.
 //! - `sweep_clone_check.rs`:
 //!   the checks one child of the pinned parent passes before it is attached.
 //! - `sweep_dataset_reader.rs`:
@@ -230,6 +235,12 @@ pub mod sweep_dataset_facts;
 
 /// The checks one child of the pinned parent passes before it is attached.
 pub mod sweep_clone_check;
+
+/// The values the design gives a clone's properties and its origin snapshot.
+pub mod sweep_clone_property_values;
+
+/// Why one child of the pinned parent is not a clone this sweep attaches.
+pub mod sweep_clone_refusals;
 
 /// The pool reads one sweep makes and the parent's child listing.
 pub mod sweep_dataset_reader;
