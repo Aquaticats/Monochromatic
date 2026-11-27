@@ -23,10 +23,7 @@
 //! ```
 
 use std::fs;
-use std::os::unix::fs::{
-    PermissionsExt,
-    symlink,
-};
+use std::os::unix::fs::symlink;
 use std::path::{
     Path,
     PathBuf,
@@ -112,12 +109,13 @@ impl Home {
         let unsigned = parse_lock(LOCK, "fixture").expect("the fixture lock parses");
         fs::write(home.lock_file(), render_lock(&unsigned.lock)).expect("write the global lock");
         home.install_demo_tool();
-        write_program(&home.bin_dir().join("mpm"), REAL_MPM);
-        fs::copy(
-            env!("CARGO_BIN_EXE_mpm-shadow"),
-            home.bin_dir().join("mpm-shadow"),
-        )
-        .expect("expose the shadow as mpm-shadow");
+        // The printed command runs this stand-in, so a child process writes it.
+        crate::through_a_child_process::write_program(&home.bin_dir().join("mpm"), REAL_MPM.as_bytes());
+        // The printed command starts this build of the shadow, so a child process copies it.
+        crate::through_a_child_process::copy_program(
+            Path::new(env!("CARGO_BIN_EXE_mpm-shadow")),
+            &home.bin_dir().join("mpm-shadow"),
+        );
         return home;
     }
 
@@ -172,7 +170,11 @@ impl Home {
             .join("monochromatic-demo-tool");
         let version_dir = crate_dir.join(INSTALLED);
         fs::create_dir_all(version_dir.join("bin")).expect("make the install");
-        write_program(&version_dir.join("bin").join("tool"), "#!/bin/sh\nexit 0\n");
+        // A fresh shell starts this program, so a child process writes it.
+        crate::through_a_child_process::write_program(
+            &version_dir.join("bin").join("tool"),
+            b"#!/bin/sh\nexit 0\n",
+        );
         fs::write(
             version_dir.join(".crates.toml"),
             format!("[v1]\n\"monochromatic-demo-tool {INSTALLED} (registry+https://example.invalid/index)\" = [\"tool\"]\n"),
@@ -222,16 +224,6 @@ impl Home {
             .expect("run the printed command");
     }
 }
-
-/// Writes `program` with the executable bit set.
-fn write_program(
-    path: &Path,
-    program: &str,
-) {
-    fs::write(path, program).expect("write the program");
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod");
-}
-
 #[test]
 fn the_command_the_older_lock_warning_prints_reaches_the_shadow_and_moves_the_global_lock() {
     let home = Home::new();
