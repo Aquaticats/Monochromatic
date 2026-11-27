@@ -1,0 +1,13 @@
+The commit message lost its inline code spans: the shell expanded the backticked
+words before git saw them, so three sentences read with blanks. The intended
+body is:
+
+  The rules-list entry-syntax part calls `two_file_fixture` and `write` only, so
+  importing the plain `fixture` helper there made the test target warn about an
+  unused import, which `cargo clippy --locked --offline --all-targets -- -D
+  warnings` turns into an error.
+
+  No behaviour changed: the import is only removed, and the part's cases call no
+  other helper.
+
+The change itself is exactly what the body describes: one import line removed.
