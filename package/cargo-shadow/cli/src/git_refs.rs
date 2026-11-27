@@ -570,3 +570,22 @@ pub fn read_head(layout: &GitLayout) -> Result<Head, String> {
         path.display()
     ));
 }
+
+/// What:
+/// `#[cfg(test)] mod git_refs_tests;` declares the tests in `src/git_refs_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the plain-file reader of references and branch configuration,
+/// over hand-made repository directories."
+/// so the behavior of `git_refs` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // git_refs_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "git_refs_tests.rs"]
+mod git_refs_tests;

@@ -292,3 +292,10 @@ where
         return self(cwd, args);
     }
 }
+
+/// The tests of the runner that starts the real cargo for the install and update steps.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "cargo_run_tests.rs"]
+mod cargo_run_tests;

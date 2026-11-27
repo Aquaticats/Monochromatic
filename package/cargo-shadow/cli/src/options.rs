@@ -322,3 +322,21 @@ pub fn asserts_lock(arguments: &[OsString]) -> bool {
         .map(String::as_str)
         .any(is_locked_or_frozen);
 }
+
+/// What:
+/// `#[cfg(test)] mod options_tests;` declares the tests in `src/options_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the option reading:"
+/// so the behavior of `options` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // options_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "options_tests.rs"]
+mod options_tests;
