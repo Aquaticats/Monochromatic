@@ -451,6 +451,11 @@ mod across_roots_tests;
 #[cfg(test)]
 mod archive_install_tests;
 
+/// The unit tests of the publish step:
+/// what a kill between its two renames leaves behind.
+#[cfg(test)]
+mod archive_staging_tests;
+
 /// The unit tests of the tool environment fragment.
 #[cfg(test)]
 mod tool_env_tests;

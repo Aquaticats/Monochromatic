@@ -441,7 +441,7 @@ fn a_link_named_like_the_marker_does_not_mark_a_directory() {
 
 /// The names directly inside `directory`,
 /// sorted.
-fn names_of(directory: &Path) -> Vec<String> {
+pub(super) fn names_of(directory: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(directory)
         .expect("list")
         .flatten()

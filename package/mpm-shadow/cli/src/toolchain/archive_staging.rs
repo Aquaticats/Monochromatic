@@ -40,6 +40,18 @@ use std::path::{
     PathBuf,
 };
 
+/// Imports the step of a publish a build made for controls can arm.
+mod a_control_plants_these_steps;
+
+/// Imports that step,
+/// and re-exports the functions a control arms and forgets it with.
+use self::a_control_plants_these_steps::reached_the_instant_between_the_two_renames;
+#[cfg(test)]
+pub(crate) use self::a_control_plants_these_steps::{
+    clear_the_plant,
+    plant_ending_the_process,
+};
+
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports `is_finished` from `super::published_archive`.
@@ -152,6 +164,8 @@ pub fn publish_staged(
             )));
         }
     }
+    // The instant between the two renames: the version's name holds nothing, and the copy that was there is aside.
+    reached_the_instant_between_the_two_renames();
     if let Err(error) = fs::rename(staging, final_dir) {
         if had_copy && let Err(restore_error) = fs::rename(&aside, final_dir) {
             discard_path(staging);
