@@ -81,21 +81,24 @@ fn push_with_a_folder_link_and_no_forbidden_string_ends_green() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains("folder links 1, submodule gitlinks 0"),
+        result
+            .stdout
+            .contains("folder links 1, submodule gitlinks 0"),
         "the step must break the left-out count down by entry kind\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
     );
     assert!(
-        result.stdout.contains(
-            "A link to a file, a broken link and an unreadable file stay in the scan"
-        ),
+        result
+            .stdout
+            .contains("A link to a file, a broken link and an unreadable file stay in the scan"),
         "the line must name the entries that stay in the scan\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
     );
     assert!(
-        result.stdout.contains("consumer/main.txt") && !result.stdout.contains("consumer/uses/base"),
+        result.stdout.contains("consumer/main.txt")
+            && !result.stdout.contains("consumer/uses/base"),
         "the regular file must reach the scanner while the folder link stays out of its list\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -115,10 +118,7 @@ fn push_still_reports_a_forbidden_string_beside_a_folder_link() {
     fixture.put("base/lib.txt", "clean before the push\n");
     fixture.put("consumer/main.txt", "clean before the push\n");
     fixture.commit("A");
-    fixture.put(
-        "consumer/main.txt",
-        &format!("clean\n{}\n", SENTINEL),
-    );
+    fixture.put("consumer/main.txt", &format!("clean\n{}\n", SENTINEL));
     fixture.link("consumer/uses/base", "../../base");
     fixture.commit("B");
     fixture.write_runs(&[RunRow {
@@ -166,10 +166,7 @@ fn push_still_reports_a_forbidden_string_beside_a_folder_link() {
 fn changed_link_to_a_file_still_reads_its_target_content() {
     let mut fixture = Fixture::new("link-to-file-read-through");
     fixture.write_workflow_revision(true);
-    fixture.put(
-        "base/lib.txt",
-        &format!("clean line\n{}\n", SENTINEL),
-    );
+    fixture.put("base/lib.txt", &format!("clean line\n{}\n", SENTINEL));
     fixture.put("consumer/main.txt", "clean\n");
     fixture.commit("A");
     // The link resolves to the sentinel-bearing file; `fs::read` on it follows
@@ -307,7 +304,9 @@ fn push_of_folder_links_only_ends_green_and_says_what_it_left_out() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains("folder links 2, submodule gitlinks 0"),
+        result
+            .stdout
+            .contains("folder links 2, submodule gitlinks 0"),
         "the step must count both folder links\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -365,7 +364,9 @@ fn push_of_a_submodule_gitlink_ends_green_and_says_what_it_left_out() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains("folder links 0, submodule gitlinks 1"),
+        result
+            .stdout
+            .contains("folder links 0, submodule gitlinks 1"),
         "the step must count the entry as a submodule gitlink\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -392,8 +393,7 @@ fn pull_request_scan_leaves_a_folder_link_out_too() {
     fixture.git(&["switch", "main"]);
     fixture.put("other.txt", "clean\nchanged on main after the fork\n");
     fixture.commit("M");
-    fixture
-        .git(&["update-ref", "refs/remotes/origin/main", &fixture.sha("M")]);
+    fixture.git(&["update-ref", "refs/remotes/origin/main", &fixture.sha("M")]);
     fixture.git(&["switch", "feature"]);
     fixture.write_runs(&[]);
 
@@ -438,17 +438,13 @@ fn pull_request_scan_still_reports_a_forbidden_string_beside_a_folder_link() {
     fixture.put("consumer/main.txt", "clean\n");
     fixture.commit("A");
     fixture.git(&["switch", "--create", "feature", &fixture.sha("A")]);
-    fixture.put(
-        "consumer/main.txt",
-        &format!("clean\n{}\n", SENTINEL),
-    );
+    fixture.put("consumer/main.txt", &format!("clean\n{}\n", SENTINEL));
     fixture.link("consumer/uses/base", "../../base");
     fixture.commit("P");
     fixture.git(&["switch", "main"]);
     fixture.put("other.txt", "clean\nchanged on main after the fork\n");
     fixture.commit("M");
-    fixture
-        .git(&["update-ref", "refs/remotes/origin/main", &fixture.sha("M")]);
+    fixture.git(&["update-ref", "refs/remotes/origin/main", &fixture.sha("M")]);
     fixture.git(&["switch", "feature"]);
     fixture.write_runs(&[]);
 

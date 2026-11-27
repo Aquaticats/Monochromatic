@@ -127,10 +127,16 @@ impl Fixture {
         .expect("write fixture rules file");
         // The workflow runs its selection and its scan as two steps; the
         // fixture runs both bodies, in order, the way the runner does.
-        fs::write(root.join("list-changed-files.sh"), step_body(SCOPE_STEP_NAME))
-            .expect("write extracted scope body");
-        fs::write(root.join("scan-changed-files.sh"), step_body(SCAN_STEP_NAME))
-            .expect("write extracted scan body");
+        fs::write(
+            root.join("list-changed-files.sh"),
+            step_body(SCOPE_STEP_NAME),
+        )
+        .expect("write extracted scope body");
+        fs::write(
+            root.join("scan-changed-files.sh"),
+            step_body(SCAN_STEP_NAME),
+        )
+        .expect("write extracted scan body");
         let runs_tsv = root.join("runs.tsv");
         let fixture = Fixture {
             root,
@@ -445,6 +451,16 @@ fn write_executable(
 #[path = "ci_scan_scope/fixture_inputs.rs"]
 mod fixture_inputs;
 /// What:
+///  `#[path = "ci_scan_scope/folder_link_entry_tests.rs"]
+///  mod folder_link_entry_tests;` registers the cases for changed entries that
+///  are tree entries a content scan cannot open as a file.
+/// Why:
+///  Issue #6632:
+///  every push since 2026-11-20 was red only because the step
+///  handed tracked links to folders to the scanner.
+#[path = "ci_scan_scope/folder_link_entry_tests.rs"]
+mod folder_link_entry_tests;
+/// What:
 ///  `#[path = "ci_scan_scope/pull_request_scope_tests.rs"]
 ///  mod pull_request_scope_tests;` registers the case that keeps the
 ///  pull-request merge-base scope as it was.
@@ -459,16 +475,6 @@ mod pull_request_scope_tests;
 ///  Push scopes are where issue #993 lived.
 #[path = "ci_scan_scope/push_scope_tests.rs"]
 mod push_scope_tests;
-/// What:
-///  `#[path = "ci_scan_scope/folder_link_entry_tests.rs"]
-///  mod folder_link_entry_tests;` registers the cases for changed entries that
-///  are tree entries a content scan cannot open as a file.
-/// Why:
-///  Issue #6632:
-///  every push since 2026-11-20 was red only because the step
-///  handed tracked links to folders to the scanner.
-#[path = "ci_scan_scope/folder_link_entry_tests.rs"]
-mod folder_link_entry_tests;
 /// What:
 ///  `#[path = "ci_scan_scope/scan_step_command.rs"] mod scan_step_command;`
 ///  registers the extraction of the workflow's own step shell bodies.
