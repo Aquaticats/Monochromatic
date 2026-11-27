@@ -6,28 +6,33 @@
  later run of the same driver can take. Only a run that never made its guest leaves one behind, and that is the one case
  where nothing is destroyed.
  */
+import type { GuestFacts, } from './guest-driver-recipe-step.ts';
+
+/**
+ One step of a run, and the facts it names its guest and its logs by.
+ */
+export type GuestRunStep = (run: { readonly chosen: GuestFacts; }) => Promise<void>;
 
 /**
  The four steps one `all` run performs, in the order it performs them.
- 
  */
 export type GuestRunSteps = {
   /**
    Make the guest, which is the only step whose refusal leaves this run owning nothing to destroy.
    */
-  readonly create: () => Promise<void>;
+  readonly create: GuestRunStep;
   /**
    Prepare the guest the way its arms need it.
    */
-  readonly prepare: () => Promise<void>;
+  readonly prepare: GuestRunStep;
   /**
    Perform the run's own arms inside the prepared guest.
    */
-  readonly work: () => Promise<void>;
+  readonly work: GuestRunStep;
   /**
    Take the guest away, which runs even when the work refused.
    */
-  readonly destroy: () => Promise<void>;
+  readonly destroy: GuestRunStep;
 };
 
 /**
@@ -35,7 +40,7 @@ export type GuestRunSteps = {
 
  @param destroy - the step that takes the guest away
 
- @param name - the guest's name, which a logged destruction failure names
+ @param chosen - the facts the guest is named and logged by
 
  @param refusal - what the work refused with, which a failed destruction never hides
 
@@ -43,25 +48,25 @@ export type GuestRunSteps = {
 
  @example
  ```ts
- await destroyAfterRefusal({ destroy: steps.destroy, name: 'guest-a', refusal });
+ await destroyAfterRefusal({ destroy: steps.destroy, chosen, refusal });
  ```
  */
 async function destroyAfterRefusal({
   destroy,
-  name,
+  chosen,
   refusal,
 }: {
-  readonly destroy: () => Promise<void>;
-  readonly name: string;
+  readonly destroy: GuestRunStep;
+  readonly chosen: GuestFacts;
   readonly refusal: unknown;
 },): Promise<void> {
   try {
-    await destroy();
+    await destroy({ chosen, },);
   }
   catch (destruction) {
     if (refusal === undefined)
       throw destruction;
-    console.error(`git-policy guest run: destroying '${name}' also failed: ${String(destruction,)}`,);
+    console.error(`git-policy guest run: destroying '${chosen.name}' also failed: ${String(destruction,)}`,);
   }
 }
 
@@ -70,7 +75,7 @@ async function destroyAfterRefusal({
 
  @param label - how this driver names itself in the lines it prints, such as `git-policy lock guest`
 
- @param name - the guest's name, which every printed line and refusal names
+ @param chosen - the facts the guest is named and logged by
 
  @param steps - the four steps of this run, in the order they are performed
 
@@ -78,36 +83,36 @@ async function destroyAfterRefusal({
 
  @example
  ```ts
- await runWholeGuestRun({ label: 'git-policy lock guest', name: 'guest-a', steps });
+ await runWholeGuestRun({ label: 'git-policy lock guest', chosen, steps });
  ```
  */
 export async function runWholeGuestRun({
   label,
-  name,
+  chosen,
   steps,
 }: {
   readonly label: string;
-  readonly name: string;
+  readonly chosen: GuestFacts;
   readonly steps: GuestRunSteps;
 },): Promise<void> {
   try {
-    await steps.create();
+    await steps.create({ chosen, },);
   }
   catch (caught) {
-    console.error(`${label}: no guest was destroyed, because this run did not create '${name}'`,);
+    console.error(`${label}: no guest was destroyed, because this run did not create '${chosen.name}'`,);
     throw caught;
   }
   try {
-    await steps.prepare();
-    await steps.work();
+    await steps.prepare({ chosen, },);
+    await steps.work({ chosen, },);
   }
   catch (refusal) {
     await destroyAfterRefusal({
       destroy: steps.destroy,
-      name,
+      chosen,
       refusal,
     },);
     throw refusal;
   }
-  await steps.destroy();
+  await steps.destroy({ chosen, },);
 }

@@ -81,3 +81,56 @@ export async function runGuestRecipeStep({
   if (status !== 0)
     throw new GuestDriverError(`the guest recipe's ${step} step exited ${String(status,)}`,);
 }
+
+/**
+ The two facts every step of a guest driver's command line reads from a run's options.
+ */
+export type GuestFacts = {
+  /**
+   The guest's name, which every recipe step and every refusal names.
+   */
+  readonly name: string;
+  /**
+   The directory the recipe keeps one log per command in.
+   */
+  readonly logDirectory: string;
+};
+
+/**
+ One step of the recipe, as a step of a guest driver's own command line.
+
+ A driver's command line is a table of steps by name, and three of every driver's entries are the recipe's. This makes
+ one of those entries without repeating the four words the recipe needs.
+
+ @param step - the recipe's own step
+
+ @param extraArgumentWords - further words the recipe's step takes, such as the custom template `prepare` reads
+
+ @returns a step that hands the recipe the guest's name, its log directory and those extra words
+
+ @example
+ ```ts
+ const steps = { create: recipeStepOf({ step: 'create' }) };
+ ```
+ */
+export function recipeStepOf({
+  step,
+  extraArgumentWords = [],
+}: {
+  readonly step: string;
+  readonly extraArgumentWords?: readonly string[];
+},): (run: { readonly chosen: GuestFacts; }) => Promise<void> {
+  return async function recipeStep({
+    chosen: {
+      name,
+      logDirectory,
+    },
+  }) {
+    await runGuestRecipeStep({
+      name,
+      logDirectory,
+      step,
+      extraArgumentWords,
+    },);
+  };
+}
