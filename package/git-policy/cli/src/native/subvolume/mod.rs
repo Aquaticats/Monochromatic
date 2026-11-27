@@ -57,6 +57,12 @@
 //!   the failure type of the subvolume migration and its simulated-kill hook.
 //! - `subvolume_file_write_steps.rs`:
 //!   write-and-flush and directory-flush steps that the migration's writers share.
+//! - `subvolume_journal_leftover_names.rs`:
+//!   the names a killed journal write may leave beside the journal.
+//! - `subvolume_journal_writes.rs`:
+//!   the journal's durable writes:
+//!   one file written exclusively and renamed over its target,
+//!   and the error for a journal that cannot be understood.
 //! - `subvolume_journal.rs`:
 //!   the migration journal beside the checkout.
 //! - `subvolume_lock.rs`:
@@ -341,6 +347,16 @@ pub mod subvolume_remove_walk;
 /// The moment a removal has read a directory's entries and not yet removed them, for a control that acts there.
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod subvolume_remove_listing_test_support;
+
+/// The names a killed journal write may leave beside the journal.
+#[cfg(target_os = "linux")]
+pub mod subvolume_journal_leftover_names;
+
+/// The journal's durable writes:
+/// one file written exclusively and renamed over its target,
+/// and the error for a journal that cannot be understood.
+#[cfg(target_os = "linux")]
+pub mod subvolume_journal_writes;
 
 /// The migration journal beside the checkout.
 #[cfg(target_os = "linux")]
