@@ -755,10 +755,9 @@ fn the_sentence_after_a_recovery_names_the_removed_version_for_what_it_was() {
     assert!(report.failed.is_empty(), "{report:?}");
     assert!(
         report.recovered.iter().any(|sentence| {
-            return sentence
-                == &format!(
-                    "finished the publish of {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} that a killed install left"
-                );
+            return sentence.starts_with(&format!(
+                "finished the publish of {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} from the finished copy an earlier install left at "
+            ));
         }),
         "the report says which publish this run finished: {report:?}"
     );
@@ -901,7 +900,7 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
     assert_eq!(
         later.recovered,
         vec![format!(
-            "removed 1 hidden directory that a killed install of {ID} left behind"
+            "removed 1 hidden directory that a killed install of {ID} left behind, 1 of which held a finished copy that this run could not publish, so that copy is gone"
         )],
         "a later run publishes nothing from that copy and removes it: {later:?}"
     );
