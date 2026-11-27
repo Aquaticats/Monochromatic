@@ -1858,11 +1858,21 @@ and `git worktree remove` once it has destroyed the worktree's subvolume in one 
 ## Requirements
 
 - Linux with glibc 2.39 or newer.
-  Release archives exist for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` only.
-  They are built on the `ubuntu-latest` runner and link `pidfd_spawnp` and `pidfd_getpid`,
+  Release archives exist for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu` only:
+  the release workflow builds those two targets (`gpc-build-binary` in `.github/workflows/cargo-publish.yml`,
+  on the `ubuntu-24.04` and `ubuntu-24.04-arm` runners),
+  and each archive links the glibc of the runner that built it:
+  they link `pidfd_spawnp` and `pidfd_getpid`,
   which glibc added in 2.39
   (measured on the 0.2.2 x86_64 archive with `objdump -T`),
   so they do not start on Debian 12 or Ubuntu 22.04.
+  The crate builds for no other target, and the platform gates do not add one:
+  `worktree/mod.rs` declares `worktree_remove_clears_the_registration` for Linux alone
+  (`#[cfg(target_os = "linux")]`),
+  and `worktree/worktree_remove_around.rs`, which carries no gate, imports `finish` from it,
+  so a build for another target names an item the modules of that target do not provide.
+  Nothing here has compiled the crate for another target:
+  `rustup target list --installed` answers `x86_64-unknown-linux-gnu` on the machine this was written on.
   The crate does not compile for Windows:
   `cargo check --target x86_64-pc-windows-gnu --lib` fails with 16 errors in
   eight files (the `tempfile` and `ignore` dependencies are unix-only and several modules use `std::os::unix`),
