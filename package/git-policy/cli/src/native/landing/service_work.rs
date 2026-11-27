@@ -43,10 +43,8 @@ pub use super::service_work_git_handlers::GitHandlers;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::Retrying;
 use crate::service_claim_renewal_running::Renewal;
-pub(crate) use crate::service_work_common_directory::common_directory_of;
-pub use crate::service_work_drains_awaiting::{
+use crate::service_work_drains_awaiting::{
     drain_common_records_planned_awaiting,
-    drain_planned_awaiting,
     drain_planned_with_awaiting,
 };
 pub use crate::service_work_handlers_replanning_and_acceptance::*;

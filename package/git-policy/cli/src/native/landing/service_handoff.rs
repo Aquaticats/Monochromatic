@@ -346,13 +346,6 @@ fn push_item(
     };
 }
 
-/// The push record a command that moved a branch leaves,
-/// and the hand-off that carries its values before a round can claim it.
-pub use crate::push_record_of_a_moved_branch::{
-    hand_over_push,
-    write_push_record,
-};
-
 /// Handoff controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_handoff_tests.rs"]
