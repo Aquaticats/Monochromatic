@@ -1,8 +1,9 @@
 # Git cannot create a directory inside a `localhost/git-policy-native-test` container, so a container proof that makes a worktree fails
 
 Unapproved and non-final:
-it records a reproduction and what it ruled out,
-not a root cause.
+it records a reproduction,
+what it ruled out,
+and the root cause read afterwards from the audit log.
 
 ## Symptom
 
@@ -67,30 +68,57 @@ with `--rm --network=none --security-opt=label=disable`:
   `git worktree add /tmp/wt-one` and
   `git worktree add /work2/wt` all fail the same way,
   so the path is not what decides it.
-- **Not confirmed as AppArmor**:
+- **Not visible to the round as AppArmor**:
   `journalctl --since -25 min --lines 3000` holds no
   `apparmor="DENIED"` or `audit` denial,
-  and `dmesg` is not readable from a session (`Operation not permitted`),
-  so a kernel audit record may exist that this session cannot see.
+  and `dmesg` is not readable from a session (`Operation not permitted`).
+  The records are in `/var/log/audit/audit.log`,
+  under "Root cause".
 
-## What was not done
+## Root cause
 
-- The root cause is not established.
-  A denial attached to the `git` program alone,
-  while another program's identical call in the same container and user succeeds,
-  is the shape of a per-program policy,
-  an AppArmor profile or a seccomp filter keyed on the binary,
-  and neither was confirmed.
-- No workaround was applied.
-  `AGENTS.md` rule `AAW` sends an AppArmor denial to the coordinating session,
-  which widens the profile,
-  and this session does not move the work to another path or another tool to get past it.
+Read by the coordinating session on 2026-11-27T08:38:28-05:00 from `/var/log/audit/audit.log`,
+which a round's session cannot read.
+
+This host's AppArmor profile `git` attaches to `/usr/bin/git` by its path,
+inside a container as well as outside it,
+so the container's Git runs confined by the host's profile while the container's shell and Python do not.
+That is why only Git's calls fail.
+Two different refusals stand behind the one message:
+
+- In `/work`,
+  which the profile grants to its owner (`owner /work{,/**} rwlk`),
+  the proof runs Git as the container's root,
+  and `/work` is owned by the container's user.
+  Root needs the capability `dac_override` to write there,
+  and the profile refuses it:
+  17 records `apparmor="DENIED" operation="capable" profile="git" comm="git" capname="dac_override"`
+  at 08:26 and 08:27.
+  A shell's `mkdir` of the same path succeeds because the shell holds the capability and no profile takes it away.
+- In `/tmp` and `/work2`,
+  the profile holds no rule at all,
+  so Git's `mkdir` is refused for any user:
+  six records `operation="mkdir" profile="git" name="/tmp/zz/"` and the like,
+  `requested_mask="c"`.
+
+The capability is refused on purpose
+(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+"The `git` `dac_override` records are the any-name fixture's Git (issue 6459)"),
+so the remedy is in the proof:
+it runs Git as the owner of the directory it writes,
+as the wrapper's own fixtures do since issue 6459.
+The probes in `/tmp` are not work anything needs,
+and no rule was added for them.
+
+## What is still owed
+
+The proof has not run to its end since 2026-11-13.
+Its Git still runs as the container's root,
+and issue 6587 holds that.
 
 ## Upstream filing decision
 
 Nothing is filed.
-Constraint 1 of the six fails:
-the failing component is not shown to be Git's,
-since another program in the same container makes the same call successfully,
-so the defect is in this host's confinement of that container,
-not in Git.
+The failing component is this host's confinement of a program by its path,
+working as its profile is written,
+and the defect is the proof's choice of user.
