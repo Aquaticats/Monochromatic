@@ -211,17 +211,18 @@ pub(crate) fn unlistable_name(
 ///  An entry is no path and never appears on a `uses` line,
 ///  so its key writes its name as the source does:
 ///  a backslash or the arrow words are no reason to refuse it.
-///  The arrow words of a folder above it are refused only when a rule reading a `uses` line is selected,
-///  which is the caller's answer to pass through.
+///  A folder above an entry is one every module file of the package sits inside or under,
+///  and this walk runs only after `unlistable_name` found no such folder unlistable,
+///  so the arrow words of a folder name are asked about here with `false`:
+///  the answer cannot differ, and passing a selection through would only suggest it could.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistableLinkName(tree: ModuleTree, base: Path, arrowWordsAreRefused: boolean): UnlistableFound | undefined;
+/// function unlistableLinkName(tree: ModuleTree, base: Path): UnlistableFound | undefined;
 /// ```
 pub(crate) fn unlistable_link_name(
     tree: &ModuleTree,
     base: &Path,
-    arrow_words_are_refused: bool,
 ) -> Option<UnlistableFound> {
     let mut folders: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
     for index in 0..tree.modules.len() {
@@ -240,8 +241,7 @@ pub(crate) fn unlistable_link_name(
     paths.sort();
     // What: the first name of that folder no list line could hold.
     // Why: its key writes the entry as written, and no `uses` line names an entry.
-    let mut found: Option<UnlistableFound> =
-        unlistable_path(paths.as_slice(), base, arrow_words_are_refused);
+    let mut found: Option<UnlistableFound> = unlistable_path(paths.as_slice(), base, false);
     // What: that name marked as an entry of a `uses` folder, which the last part of such a path always is.
     // Why: the sentence says what to rename, and this name is a link rather than a module file.
     if let Some(item) = found.as_mut()

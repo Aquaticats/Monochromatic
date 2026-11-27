@@ -3466,7 +3466,7 @@ fn layout_a_uses_entry_name_that_holds_a_line_break_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
-        "The layout rules stop at src/a/uses/b\\u{a}c,",
+        "The layout rules stop at the entry src/a/uses/b\\u{a}c of a `uses` folder,",
         "holds a line break, which ends a list line",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
@@ -3922,6 +3922,46 @@ fn layout_a_folder_name_that_sets_its_arrow_off_with_a_tab_is_refused() {
         }
         assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
     }
+}
+
+/// A tree that holds both a folder whose name an allow-list line cannot carry and an entry of a `uses` folder
+///  is refused for the folder,
+///  because the folders of the tree are checked before the entries of its `uses` folders:
+///  the entry check reads those folders too, and only the order makes its answer the same either way.
+#[cfg(unix)]
+#[test]
+fn layout_a_folder_name_no_line_could_hold_is_refused_before_a_uses_folder_entry() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FOLDER_RULES);
+    fixture.write("folder.txt", "");
+    fixture.write(
+        "src/lib.rs",
+        "#[path = \"a -> b/mod.rs\"]\nmod a;\nmod c;\n",
+    );
+    fixture.write("src/a -> b/mod.rs", "pub struct A;\n");
+    fixture.write("src/c/mod.rs", "pub mod x;\n");
+    fixture.write("src/c/x.rs", "pub struct X;\n");
+    // What: an entry of a `uses` folder whose own name ends in a space, which no list line could hold either.
+    // Why: the folder above it is refused first, so this name never reaches the sentence that would name it.
+    uses_link(&fixture.path, "src/c/uses/bad ", "../../a -> b");
+    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
+    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
+    assert_eq!(reported.len(), 1, "{}", refused.stdout);
+    let message: &str = reported[0]["message"].as_str().expect("message");
+    assert!(
+        message.contains("The layout rules stop at the folder src/a -> b,"),
+        "the folder's name is the one to change: {message}"
+    );
+    assert!(
+        !message.contains("src/c/uses/bad"),
+        "the entry behind that folder is not named: {message}"
+    );
+    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
 }
 
 /// Every arrow shape of a folder name is read when the file rule alone is selected,

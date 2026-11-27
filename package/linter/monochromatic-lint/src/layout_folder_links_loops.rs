@@ -304,10 +304,9 @@ pub(crate) fn distances_to(
     queue.push_back(goal.to_path_buf());
     // What: how many of the entries the walk answers still have no distance.
     // Why: once every one of them has its distance, no use further back can answer a use of this group.
+    //  The group itself is never one of them: the caller skips a use whose target entry is the group
+    //  (`group_own_loop_uses`), so every asked entry lies behind it and needs a distance of its own.
     let mut unanswered: usize = asked.len();
-    if asked.contains(goal) {
-        unanswered -= 1;
-    }
     while unanswered > 0 {
         // What: the entry whose uses lead into the group are read next, or nothing once the queue is empty.
         // Why: an entry that no use reaches has no route, so the walk ends without one for it.

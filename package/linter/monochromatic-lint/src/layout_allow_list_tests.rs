@@ -760,6 +760,109 @@ fn a_key_lookup_reads_one_entry_of_the_list() {
     );
 }
 
+/// A rule that asks whether one key is tolerated reads no entry at all,
+///  because the index the list built answers it,
+///  where a scan over the entries would read every one of them.
+#[test]
+fn a_tolerated_key_is_answered_without_reading_an_entry() {
+    // What: the number of keys the fixture list holds, named so the last one is no magic number.
+    // Why: a scan would read every one of them for a question the index answers, which the count shows.
+    const KEYS: usize = 64;
+    let mut text: String = String::new();
+    for index in 0..KEYS {
+        text.push_str(format!("glob src/a{index}/lib.rs child::*\n").as_str());
+    }
+    let list: AllowList = parsed(text.as_str());
+    // What: the control, one entry counted by hand before the question is asked.
+    // Why: a count of zero is only an answer if this counter records work at all.
+    counted_work::note_entry();
+    assert_eq!(
+        counted_work::entries_walked(),
+        1,
+        "the counter records work"
+    );
+    counted_work::reset();
+    assert!(
+        list.covers_key(format!("glob src/a{}/lib.rs child::*", KEYS - 1).as_str()),
+        "the last key is on the list"
+    );
+    assert!(
+        !list.covers_key("glob src/other/lib.rs child::*"),
+        "a key the list does not hold is answered no"
+    );
+    assert_eq!(
+        counted_work::entries_walked(),
+        0,
+        "the index answers both questions, so no entry is read"
+    );
+}
+
+/// What:
+///  A list whose key index names an entry that holds another key, and then an entry that holds none,
+///  built here because a list read from a file builds its index from its own entries.
+/// Why:
+///  The lookup checks the entry its index names instead of trusting the number,
+///  and only a list made by hand can show that check happening.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const list = { source, entries, uses: new Set(), keys: new Map([['glob ...', 1]]) };
+/// ```
+fn list_whose_index_names_another_entry(entry: usize) -> AllowList {
+    let source: PathBuf = PathBuf::from("package/allow-list.txt");
+    let entries: Vec<super::AllowEntry> = vec![
+        super::AllowEntry {
+            line: 1,
+            text: String::from("glob src/a/lib.rs child::*"),
+            kind: AllowKind::Key(String::from("glob src/a/lib.rs child::*")),
+        },
+        // What: an entry that is no key line, which no key may be answered from.
+        // Why: a use line tolerates a use and never a key, so the lookup has to refuse it.
+        super::AllowEntry {
+            line: 2,
+            text: String::from("uses src/a -> src/b"),
+            kind: AllowKind::FolderUse {
+                from: PathBuf::from("src/a"),
+                to: PathBuf::from("src/b"),
+            },
+        },
+    ];
+    let mut keys: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::<String, usize>::new();
+    keys.insert(String::from("glob src/b/lib.rs child::*"), entry);
+    return super::AllowList {
+        source,
+        entries,
+        uses: std::collections::BTreeSet::new(),
+        keys,
+    };
+}
+
+/// A lookup refuses an entry its index names that holds another key, and one that holds no key at all,
+///  so a number is never taken for an answer on its own.
+#[test]
+fn a_key_the_index_names_for_another_entry_is_no_line_of_the_list() {
+    // What: the position of each entry built above, named so neither is a magic number.
+    // Why: the first entry holds another key and the second holds none, and one lookup answers each of them no.
+    let holds_another_key: usize = 0;
+    let holds_no_key: usize = 1;
+    for entry in [holds_another_key, holds_no_key] {
+        let list: AllowList = list_whose_index_names_another_entry(entry);
+        assert_eq!(
+            list.key_entry("glob src/b/lib.rs child::*"),
+            None,
+            "entry {entry} holds no such key, so no line tolerates the finding"
+        );
+    }
+    // The control: a key the index names no entry for is answered no as well.
+    let holding: AllowList = list_whose_index_names_another_entry(holds_another_key);
+    assert_eq!(
+        holding.key_entry("glob src/a/lib.rs child::*"),
+        None,
+        "the index names no entry for that key, so nothing is answered"
+    );
+}
+
 /// A file use is answered by walking the entries,
 ///  which is what the README says of a file-use lookup,
 ///  so asking about the last pair of a long list reads every entry before it.

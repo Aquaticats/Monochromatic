@@ -159,7 +159,7 @@ fn check_package(
     // and an entry of a `uses` folder is such a name as much as a module file is.
     let unlistable: Option<UnlistableFound> =
         unlistable_name(&tree, package, arrow_words_are_refused)
-            .or_else(|| return unlistable_link_name(&tree, package, arrow_words_are_refused));
+            .or_else(|| return unlistable_link_name(&tree, package));
     if let Some(found) = unlistable {
         // What: the reason, and what renaming the name must give, in the words of the refusal.
         // Why: a name fails for one cause, and the reader must know which one to fix.
