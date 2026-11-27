@@ -171,8 +171,8 @@ That's bad design.").
 Every shadow program (`cargo-shadow`,
 `mpm-shadow`,
 `pnpm-shadow` and `search-shadow`) carries the same identity text in the ELF section `.monochromatic_shadow_identity`
-(`src/shadow_identity.rs`,
-a byte-identical copy in each crate;
+(`src/shadow_identity.rs` and its parts under `src/shadow_identity/`,
+byte-identical copies in each crate;
 `package/search-shadow/cli/tests/shadow_identity_copies.rs` fails when the copies differ).
 The lookup skips a candidate that carries it,
 or a launcher whose record leads to one,
