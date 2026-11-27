@@ -69,7 +69,8 @@ const NAMESPACE_HELD: &str = "namespace-held";
 /// so the reader passes over them one at a time.
 /// Measured on 2026-11-27 (issue 6599):
 /// eight runs of this control passed over none or one,
-/// and the three runs before the reader passed over them were handed numbers 44, 4 and 2 below the writer's,
+/// and the three runs before the reader passed over them were handed numbers 44,
+/// 4 and 2 below the writer's,
 /// so this bound is far above every one of those and still ends a host that never hands the number back.
 const READER_ASSIGNMENTS: u32 = 4096;
 
@@ -314,7 +315,8 @@ fn time_namespace_fixture() {
 /// waits for the test to end the processes in it,
 /// gives the number back with its own `close`,
 /// and takes it with the allocations it makes next,
-/// passing over the free numbers below it (each held, so the next ask moves past it) until the kernel hands the writer's back,
+/// passing over the free numbers below it (each held,
+/// so the next ask moves past it) until the kernel hands the writer's back,
 /// and then runs the fixture in the time namespace it was handed.
 /// Why:
 /// The kernel hands a freed namespace number to whoever asks next,
@@ -747,7 +749,8 @@ struct Attempt {
     start: u64,
     /// What the recovery's helper wrote.
     result: String,
-    /// The namespace the planted other session made, when the plant was asked for:
+    /// The namespace the planted other session made,
+    /// when the plant was asked for:
     /// its number and the program that keeps it.
     foreign: Option<ForeignNamespace>,
 }
@@ -775,7 +778,8 @@ impl Attempt {
         );
     }
 
-    /// What the planted other session took, when one was planted.
+    /// What the planted other session took,
+    /// when one was planted.
     fn foreign_number(&self) -> String {
         return self.foreign.as_ref().map_or_else(
             || {
@@ -821,7 +825,8 @@ struct ForeignNamespace {
     /// a new time namespace,
     /// and a `sleep` in it.
     holder: Child,
-    /// The number of the namespace it made, as `/proc/<pid>/ns/time` names it.
+    /// The number of the namespace it made,
+    /// as `/proc/<pid>/ns/time` names it.
     number: String,
 }
 
