@@ -166,6 +166,9 @@
 //!   the most blocking jobs this process runs at once,
 //!   one bound for the whole process,
 //!   taken by each job and given back when it ends.
+//! - `what_a_failed_run_says_to_a_person.rs`:
+//!   why a run of independent items on the runtime did not finish every item,
+//!   in the words a person reads for each reason.
 //! - `parallel_runner_on_the_runtime.rs`:
 //!   independent items as blocking jobs of the process's runtime,
 //!   under the process's bound on blocking jobs,
@@ -376,6 +379,10 @@ pub mod shared_notice_stream;
 /// Independent items on a bounded number of threads,
 /// reported in input order with no lock.
 pub mod parallel_runner;
+
+/// Why a run of independent items on the runtime did not finish every item,
+/// in the words a person reads for each reason.
+pub mod what_a_failed_run_says_to_a_person;
 
 /// Independent items as blocking jobs of the process's runtime,
 /// under the process's bound on blocking jobs,
