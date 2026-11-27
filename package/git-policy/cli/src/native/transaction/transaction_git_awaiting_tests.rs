@@ -12,6 +12,7 @@ use crate::landing_state_carried_by_its_task::in_a_landing_task;
 use crate::test_support::{
     fixture,
     git_context,
+    open_descriptors,
     remove,
     repository,
 };
@@ -184,47 +185,54 @@ fn a_branch_write_awaited_in_a_landing_task_moves_the_ref() {
 
 /// The runner leaves no child of its own behind and no descriptor open,
 /// which a piped step that was never read would show.
+///  The table `/proc/self/fd` lists is every thread's,
+/// so this control's body runs in a child of its own
+///  (`crate::process_wide_state_child_test_support`),
+/// where no other control's thread opens or closes a descriptor beside the count
+/// (issue 6545).
 #[test]
 fn a_run_leaves_no_descriptor_open() {
-    let root: PathBuf = fixture("transaction-git-awaiting-descriptors");
-    let repo: PathBuf = repository(root.as_path(), "repo");
-    let context: GitContext = git_context();
-    // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
-    let warm: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-        return run_git_awaiting(
-            &context,
-            &GitRequest::new(repo.as_path(), &["status", "--short"]),
-        )
-        .await;
-    })
-    .expect("the runtime")
-    .expect("the warm-up runs");
-    assert!(warm.succeeded(), "{}", warm.error_text());
-    let before: usize = std::fs::read_dir("/proc/self/fd")
-        .expect("the descriptor table")
-        .count();
-    for _run in 0..2 {
-        let status: GitOutput = crate::lazy_runtime::run_on_runtime(async {
-            return run_git_awaiting(
-                &context,
-                &GitRequest::new(repo.as_path(), &["status", "--short"]),
-            )
-            .await;
-        })
-        .expect("the runtime")
-        .expect("status runs");
-        assert!(status.succeeded(), "{}", status.error_text());
-    }
-    let after: usize = std::fs::read_dir("/proc/self/fd")
-        .expect("the descriptor table")
-        .count();
-    assert_eq!(
-        after,
-        before,
-        "the runs left {} descriptors of their own open",
-        after.saturating_sub(before)
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_run_leaves_no_descriptor_open",
+        || {
+            let root: PathBuf = fixture("transaction-git-awaiting-descriptors");
+            let repo: PathBuf = repository(root.as_path(), "repo");
+            let context: GitContext = git_context();
+            // The first run builds the runtime and its reactor, whose own descriptors stay for the life of the process.
+            let warm: GitOutput = crate::lazy_runtime::run_on_runtime(async {
+                return run_git_awaiting(
+                    &context,
+                    &GitRequest::new(repo.as_path(), &["status", "--short"]),
+                )
+                .await;
+            })
+            .expect("the runtime")
+            .expect("the warm-up runs");
+            assert!(warm.succeeded(), "{}", warm.error_text());
+            let before: usize = open_descriptors();
+            for _run in 0..2 {
+                let status: GitOutput = crate::lazy_runtime::run_on_runtime(async {
+                    return run_git_awaiting(
+                        &context,
+                        &GitRequest::new(repo.as_path(), &["status", "--short"]),
+                    )
+                    .await;
+                })
+                .expect("the runtime")
+                .expect("status runs");
+                assert!(status.succeeded(), "{}", status.error_text());
+            }
+            let after: usize = open_descriptors();
+            assert_eq!(
+                after,
+                before,
+                "the runs left {} descriptors of their own open",
+                after.saturating_sub(before)
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// What:

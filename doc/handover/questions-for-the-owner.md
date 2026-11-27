@@ -18,9 +18,9 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Open: three proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
+## Open: four proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
 
-Three rounds each wrote a proposal on 2026-11-27 and changed no code.
+Four rounds each wrote a proposal on 2026-11-27 and changed no code.
 Each document gives what happens today with the source lines,
 what was measured,
 the options with what a person would see,
@@ -56,6 +56,24 @@ Its questions are under "What only the owner can answer" in the document.
 Until this is answered the folders stay:
 the wrapper says to remove them by hand once nothing needs them,
 and the coordinator has not removed any.
+
+### How starts from several launchers order their worktree adds (issue 6563)
+
+`doc/planning/pi-driver-order-of-worktree-adds-across-launchers.md`.
+It reads the morning of 2026-11-27 from what the machine left and starts no add of its own.
+Its ranking is A > B > C > D > E:
+A is an add cheap enough to need no order,
+which is what the ZFS route does for a worktree,
+and it says the copy of ignored files is 89% to 99% of an add that returned;
+B moves that copy off the add's waiting path;
+D and E are a claim per add or one queue.
+Its first question is whether any rule about starts is wanted at all,
+or whether the answer is the hold of 2026-11-18 read again
+("We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."),
+and it notes that a bound on overlapping adds needs a figure nobody has measured,
+and that measuring it would mean starting overlapping adds on purpose,
+which is synthetic load and needs your word.
+Its second is when the checkout's move to its own dataset runs and what holds until then.
 
 ### A push the server refuses with GH009 (issue 6559)
 

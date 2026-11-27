@@ -13,16 +13,21 @@
 //!  command's own path may not make that command wait for the disk.
 //! Kept in a file of its own because the primitives file reached the repository's line limit
 //!  (`rust/max-lines`);
-//! it is a module of `private_storage`,
-//! which re-exports both writers,
-//! so no caller changed.
+//! it is a module of the folder rather than a child module of `private_storage`,
+//!  because a child module and the file that declares it use each other in a loop
+//!  (`AGENTS.md` rule `LYF`);
+//! every caller names it where it is.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! export async function replacePrivateFile({ path, bytes, sync }) { const staged = stage(path); await write(staged, bytes); if (sync) await syncIt(staged); await rename(staged, path); if (sync) await syncDirectory(dirname(path)); }
 //! ```
 
-use super::{
+/// The staging file,
+/// the sync that makes its bytes durable,
+/// and the sync of the directory it lands in,
+/// which the primitives of `private_storage` give every publish of this folder.
+use super::private_storage::{
     staging_beside,
     sync_directory,
     sync_when_durable,
@@ -101,7 +106,7 @@ pub fn replace_private_file_unsynced(
     // The same point `write_then_publish` lets a control fail at: the bytes are staged and the name still holds what it held,
     //  which is where a full disk ends a rewrite.
     #[cfg(test)]
-    super::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
+    super::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
         return hook.borrow().as_ref().map_or(Ok(()), |fail| {
             return fail();
         });

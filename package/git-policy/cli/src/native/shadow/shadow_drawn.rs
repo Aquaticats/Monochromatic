@@ -38,7 +38,7 @@ use crate::random_id::random_uuid;
 use crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER;
 use crate::service_scratch_renewal::ScratchRenewal;
 /// The facts a creation is made from.
-use crate::shadow_create::ShadowTemplate;
+use crate::shadow_create_template::ShadowTemplate;
 /// The entries a shadow of a worktree shares,
 /// and whether the worktree keeps its own `info`.
 use crate::shadow_links::keeps_its_own_info;
