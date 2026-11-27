@@ -26,7 +26,22 @@
 import { join, } from 'node:path';
 
 import { NativeVerificationError, } from './native-verification-process.ts';
-import { containerRuntimeDirectory, inside, releasePaths, removeKeptMachines, run, startMachine, worktreePaths, } from './service-manager-machine.ts';
+import {
+  countsOfJournalLines,
+  nonEmptyLines,
+  statusOf,
+} from './service-manager-install-proof-answers.ts';
+import { options, } from './service-manager-install-proof-options.ts';
+import {
+  containerRuntimeDirectory,
+  inside,
+  type Machine,
+  releasePaths,
+  removeKeptMachines,
+  run,
+  startMachine,
+  worktreePaths,
+} from './service-manager-machine.ts';
 import { makeWorktrees, } from './service-manager-worktrees.ts';
 
 /**
@@ -40,39 +55,23 @@ const olderRelease: string = '/opt/release-old';
 const notesFolder: string = `${containerRuntimeDirectory}/systemd/user/monochromatic-git-policy-cli-worktree-notes`;
 
 /**
- What this run was asked to do.
+ How many transient units the machine holds, so a reload of its manager costs what a loaded host's costs.
  */
-type Options = {
-  /**
-   The gate's image, which carries systemd, Git and dbus.
-   */
-  readonly image: string;
-  /**
-   The build of the release the account had before this one.
-   */
-  readonly olderWrapper: string;
-};
+const machineUnits = 200;
 
 /**
- Reads the options this run was given.
-
- @param argv - the arguments after the program's name
-
- @returns the image and the older release's executable
+ What a background commit answered once it ended.
  */
-function options({ argv, }: { readonly argv: readonly string[]; }): Options {
-  const given = new Map<string, string>();
-  for (let index = 0; index < argv.length; index += 2) {
-    const [name = '', value = '',] = argv.slice(index, index + 2,);
-    given.set(name, value,);
-  }
-  const image: string | undefined = given.get('--image',);
-  const olderWrapper: string | undefined = given.get('--older-wrapper',);
-  if ((image === undefined) || (olderWrapper === undefined)) {
-    throw new NativeVerificationError('Usage: node bin/service-manager-install-proof.ts --image <tag> --older-wrapper <path>');
-  }
-  return { image, olderWrapper, };
-}
+type WaitedCommit = {
+  /**
+   The status the commit wrote for itself.
+   */
+  readonly status: number;
+  /**
+   The commit's last lines, joined onto one line.
+   */
+  readonly printed: string;
+};
 
 /**
  One commit through one release's wrapper in one worktree.
@@ -91,7 +90,7 @@ function options({ argv, }: { readonly argv: readonly string[]; }): Options {
 
  @returns the status line of one that ran to its end, or the line that started the other
  */
-async function commit({
+function commit({
   machine,
   release,
   worktree,
@@ -99,7 +98,7 @@ async function commit({
   file,
   background,
 }: {
-  readonly machine: Parameters<typeof inside>[0]['machine'];
+  readonly machine: Machine;
   readonly release: string;
   readonly worktree: string;
   readonly change: string;
@@ -120,6 +119,36 @@ async function commit({
 }
 
 /**
+ Seeds one worktree with one commit through the older release, so its commit service loads that release's unit text.
+
+ @param machine - the machine the seeding commit runs in
+
+ @param worktree - the worktree the commit is made in
+
+ @throws NativeVerificationError when the commit did not land, naming what the machine printed
+ */
+async function seedWorktree({
+  machine,
+  worktree,
+}: {
+  readonly machine: Machine;
+  readonly worktree: string;
+}): Promise<void> {
+  /**
+   The status line the seeding commit printed.
+   */
+  const seeded: string = await commit({
+    machine,
+    release: olderRelease,
+    worktree,
+    change: 'seed',
+    file: 'a.txt',
+    background: false,
+  },);
+  if (!seeded.includes('status=0',)) throw new NativeVerificationError(`the older release did not seed ${worktree}: ${seeded}`);
+}
+
+/**
  The status a background commit ended with, once it has ended.
 
  @param machine - the machine the commit ran in
@@ -128,7 +157,16 @@ async function commit({
 
  @returns its status and its last lines
  */
-async function waited({ machine, change, }: { readonly machine: Parameters<typeof inside>[0]['machine']; readonly change: string; }): Promise<{ readonly status: number; readonly printed: string; }> {
+async function waited({
+  machine,
+  change,
+}: {
+  readonly machine: Machine;
+  readonly change: string;
+}): Promise<WaitedCommit> {
+  /**
+   What the machine printed when it read the commit's own output file.
+   */
   const answer: string = await inside({
     machine,
     script: [
@@ -140,8 +178,13 @@ async function waited({ machine, change, }: { readonly machine: Parameters<typeo
       `tail -n 3 ${containerRuntimeDirectory}/${change}.out 2>/dev/null || true`,
     ].join('\n',),
   },);
-  const found: RegExpMatchArray | null = /^status=(-?\d+)$/mu.exec(answer,);
-  return { status: found === null ? 1 : Number(found[1],), printed: answer.replaceAll('\n', ' | ',) };
+  return {
+    status: statusOf({ printed: answer, },),
+    printed: answer.replaceAll(
+      '\n',
+      ' | ',
+    ),
+  };
 }
 
 /**
@@ -153,12 +196,15 @@ async function waited({ machine, change, }: { readonly machine: Parameters<typeo
 
  @returns the unit names, empty when it lists none
  */
-async function failedUnits({ machine, }: { readonly machine: Parameters<typeof inside>[0]['machine']; }): Promise<readonly string[]> {
+async function failedUnits({ machine, }: { readonly machine: Machine; }): Promise<readonly string[]> {
+  /**
+   What the manager listed.
+   */
   const listed: string = await inside({
     machine,
     script: "systemctl --user list-units --state=failed --all --plain --no-legend --no-pager 2>/dev/null | awk '{print $1}'",
   },);
-  return listed.split('\n',).map((line) => { return line.trim(); }).filter((line) => { return line !== ''; });
+  return nonEmptyLines({ listed, },);
 }
 
 /**
@@ -175,109 +221,294 @@ async function putWrapper({
   wrapper,
   folder,
 }: {
-  readonly machine: Parameters<typeof inside>[0]['machine'];
+  readonly machine: Machine;
   readonly wrapper: string;
   readonly folder: string;
 }): Promise<void> {
-  await inside({ machine, script: `mkdir --parents ${folder}`, },);
-  await run({ args: ['podman', 'cp', wrapper, `${machine.container}:${folder}/git`,], },);
-  await inside({ machine, script: `chmod +x ${folder}/git`, },);
+  await inside({
+    machine,
+    script: `mkdir --parents ${folder}`,
+  },);
+  await run({ args: [
+    'podman',
+    'cp',
+    wrapper,
+    `${machine.container}:${folder}/git`,
+  ], },);
+  await inside({
+    machine,
+    script: `chmod +x ${folder}/git`,
+  },);
 }
 
 /**
- Runs the two steps this proof is about and judges them.
+ What:
+  Runs the two steps this proof is about and judges them.
+
+ Why:
+  The machine is removed when this function ends however it ends, so a run that throws leaves no manager holding a
+  container on this host.
+
+ @param machine - the machine the steps run on
+
+ @param candidate - the executable this worktree built, which the installing command runs
+
+ @param olderReleaseWrapper - the executable of the release the account had before this one
+
+ @returns everything this run found wrong, in the order the steps found it
  */
-async function main_(): Promise<void> {
-  const { image, olderWrapper, } = options({ argv: process.argv.slice(2,), },);
-  const candidate: string = process.env.GPC_CANDIDATE_WRAPPER
-    ?? join(import.meta.dirname, '..', 'target', 'debug', 'monochromatic-git-policy-cli');
-  await using running = await startMachine({ image, units: 200, },);
-  const machine = running.machine;
+async function prove({
+  machine,
+  candidate,
+  olderReleaseWrapper,
+}: {
+  readonly machine: Machine;
+  readonly candidate: string;
+  readonly olderReleaseWrapper: string;
+}): Promise<readonly string[]> {
+  /**
+   The removal of this run's containers, made when the steps end by `await using`.
+   */
+  await using removal = {
+    async [Symbol.asyncDispose](): Promise<void> {
+      await removeKeptMachines();
+    },
+  };
+  /**
+   Everything that makes this run stop proving anything.
+   */
   const problems: string[] = [];
-  try {
-    await putWrapper({ machine, wrapper: olderWrapper, folder: olderRelease, },);
-    await putWrapper({ machine, wrapper: candidate, folder: releasePaths.first, },);
-    await makeWorktrees({ machine, },);
-    for (const worktree of [worktreePaths.first, worktreePaths.second,]) {
-      const seeded: string = await commit({ machine, release: olderRelease, worktree, change: 'seed', file: 'a.txt', background: false, },);
-      if (!seeded.includes('status=0',)) throw new NativeVerificationError(`the older release did not seed ${worktree}: ${seeded}`);
-    }
-    const pointer: string = await inside({
-      machine,
-      script: `readlink ${notesFolder}/service-program 2>/dev/null || echo 'no program pointer'`,
-    },);
-    console.log(`the program pointer the older release's texts name: ${pointer.trim()}`);
-    // What: The install of a release removes the release before it, which is what leaves those texts naming a program that
-    //       is gone.
-    // Why:  `mise run toolchain:install` does exactly this on a machine, and the proof is about the state it leaves.
-    await inside({ machine, script: `rm -rf ${olderRelease}`, },);
-    const since: string = (await inside({ machine, script: 'date +%s', },)).trim();
-    // The installing command: the first commit of this release, in the first worktree only.
-    const installing: string = await commit({ machine, release: releasePaths.first, worktree: worktreePaths.first, change: 'install', file: 'a.txt', background: false, },);
-    console.log(`the installing command: ${installing.replaceAll('\n', ' | ',)}`);
-    if (!installing.includes('status=0',)) problems.push(`the installing command did not land: ${installing}`);
-    // What: Every instance the manager still holds at the text the older release loaded is started again, which is what a
-    //       manager does at such an instance's next start; the socket-activated start would reach it only when the manager
-    //       had not collected the unit first, which the install on this machine did not leave to chance.
-    // Why:  That start reads the program the loaded text names, and the text names a link into the release the install
-    //       removed; what happens then is the whole of the first finding.
-    const restarted: string = await inside({
-      machine,
-      script: `systemctl --user restart 'monochromatic-git-policy-cli@*' 2>&1 | tail -n 3; sleep 2; systemctl --user is-active 'monochromatic-git-policy-cli@*' 2>&1 | sort | uniq -c`,
-    },);
-    console.log(`every instance started again by the manager: ${restarted.trim().replaceAll('\n', '; ')}`);
-    // The second worktree's next commit, through this release, which is a start of its own.
-    const second: string = await commit({ machine, release: releasePaths.first, worktree: worktreePaths.second, change: 'second-worktree', file: 'a.txt', background: false, },);
-    console.log(`the second worktree's next commit: ${second.replaceAll('\n', ' | ',)}`);
-    if (!second.includes('status=0',)) problems.push(`the second worktree's commit did not land: ${second}`);
-    // What: Every wrapper unit's own record, from this container's system journal, from the install step onwards.
-    // Why:  The user manager writes its lines to this journal, so a read of it is the manager's own answer about a start.
-    const journal: string = await inside({
-      machine,
-      script: `journalctl --no-pager --output=short-iso --since=@${since} 2>/dev/null | grep -E 'monochromatic-git-policy-cli@|started release=' || true`,
-    },);
-    const lines: readonly string[] = journal.split('\n',);
-    const starts: number = lines.filter((line) => { return line.includes('started release=',); }).length;
-    const execFailures: number = lines.filter((line) => { return line.includes('203/EXEC',); }).length;
-    const limits: number = lines.filter((line) => { return line.includes('start-limit-hit',); }).length;
-    console.log(`starts of a wrapper service this run made: ${String(starts)}`);
-    console.log(`starts that failed at the EXEC step: ${String(execFailures)}`);
-    console.log(`units that reached the start limit: ${String(limits)}`);
-    // What: A journal that holds no start of a wrapper service is not a pass.
-    // Why:  A read that reached nothing proves nothing about the starts it was meant to show.
-    if (starts === 0) throw new NativeVerificationError('the journal this run read holds no start of a wrapper service');
-    if (execFailures > 0) problems.push(`the manager failed ${String(execFailures)} start(s) at the EXEC step`);
-    if (limits > 0) problems.push(`a wrapper unit reached the start limit`);
-    const failed: readonly string[] = await failedUnits({ machine, },);
-    console.log(`units the manager left failed: ${failed.length === 0 ? 'none' : failed.join('; ')}`);
-    if (failed.length > 0) problems.push(`the manager left ${failed.join('; ')} failed`);
-    // What: Two commits of one worktree at once, across the upgrade, each landing once.
-    // Why:  That is the window the unload's look and stop leave open, and the pair is what shows it is not cut.
-    await inside({ machine, script: `rm -f ${notesFolder}/*.units-the-manager-read`, },);
-    const before: string = await inside({ machine, script: `cd ${worktreePaths.first} && /usr/bin/git rev-list --count HEAD`, },);
-    await commit({ machine, release: releasePaths.first, worktree: worktreePaths.first, change: 'window-a', file: 'a.txt', background: true, },);
-    await commit({ machine, release: releasePaths.first, worktree: worktreePaths.first, change: 'window-b', file: 'b.txt', background: true, },);
-    const first: { readonly status: number; readonly printed: string; } = await waited({ machine, change: 'window-a', },);
-    const secondOfThePair: { readonly status: number; readonly printed: string; } = await waited({ machine, change: 'window-b', },);
-    const after: string = await inside({ machine, script: `cd ${worktreePaths.first} && /usr/bin/git rev-list --count HEAD`, },);
-    const added: number = Number(after.trim(),) - Number(before.trim(),);
-    console.log(`the pair of commits at once: ${String(first.status)} and ${String(secondOfThePair.status)}; commits ${before.trim()} to ${after.trim()} (${String(added)} added)`);
-    if (first.status !== 0) problems.push(`the concurrent commit window-a did not land: ${first.printed}`);
-    if (secondOfThePair.status !== 0) problems.push(`the concurrent commit window-b did not land: ${secondOfThePair.printed}`);
-    if (added !== 2) problems.push(`the pair added ${String(added)} commits, not two`);
-    const failedAfter: readonly string[] = await failedUnits({ machine, },);
-    if (failedAfter.length > 0) problems.push(`after the pair the manager left ${failedAfter.join('; ')} failed`);
-    // What: What every unit did, so a run that fails says which start it was.
-    const summary: string = await inside({
-      machine,
-      script: `journalctl --no-pager --output=short-iso --since=@${since} --unit 'monochromatic-git-policy-cli@*' 2>/dev/null | grep -E 'started release=|retire requested|203/EXEC|start-limit|exiting reason' | tail -n 30`,
-    },);
-    console.log(`every unit's starts and endings:\n${summary}`);
-  } finally {
-    await removeKeptMachines();
-  }
-  if (problems.length > 0) throw new NativeVerificationError(`THE PROOF FAILED: ${problems.join('; ')}`);
-  console.log('THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once');
+  await putWrapper({
+    machine,
+    wrapper: olderReleaseWrapper,
+    folder: olderRelease,
+  },);
+  await putWrapper({
+    machine,
+    wrapper: candidate,
+    folder: releasePaths.first,
+  },);
+  await makeWorktrees({ machine, },);
+  await seedWorktree({
+    machine,
+    worktree: worktreePaths.first,
+  },);
+  await seedWorktree({
+    machine,
+    worktree: worktreePaths.second,
+  },);
+  /**
+   What the notes folder's program pointer names, which is the path an instance loaded under the older release starts.
+   */
+  const pointer: string = await inside({
+    machine,
+    script: `readlink ${notesFolder}/service-program 2>/dev/null || echo 'no program pointer'`,
+  },);
+  console.log(`the program pointer the older release's texts name: ${pointer.trim()}`);
+  // What: The install of a release removes the release before it, which is what leaves those texts naming a program that
+  //       is gone.
+  // Why:  `mise run toolchain:install` does exactly this on a machine, and the proof is about the state it leaves.
+  await inside({
+    machine,
+    script: `rm -rf ${olderRelease}`,
+  },);
+  /**
+   The journal's own starting point, so nothing this run reads was written before it.
+   */
+  const since: string = (await inside({
+    machine,
+    script: 'date +%s',
+  },)).trim();
+  // The installing command: the first commit of this release, in the first worktree only.
+  /**
+   What the installing command printed.
+   */
+  const installing: string = await commit({
+    machine,
+    release: releasePaths.first,
+    worktree: worktreePaths.first,
+    change: 'install',
+    file: 'a.txt',
+    background: false,
+  },);
+  console.log(`the installing command: ${installing.replaceAll(
+    '\n',
+    ' | ',
+  )}`);
+  if (!installing.includes('status=0',)) problems.push(`the installing command did not land: ${installing}`);
+  // What: Every instance the manager still holds at the text the older release loaded is started again, which is what a
+  //       manager does at such an instance's next start; the socket-activated start would reach it only when the manager
+  //       had not collected the unit first, which the install on this machine did not leave to chance.
+  // Why:  That start reads the program the loaded text names, and the text names a link into the release the install
+  //       removed; what happens then is the whole of the first finding.
+  /**
+   What the manager said when every instance it holds was started again.
+   */
+  const restarted: string = await inside({
+    machine,
+    script: `systemctl --user restart 'monochromatic-git-policy-cli@*' 2>&1 | tail -n 3; sleep 2; systemctl --user is-active 'monochromatic-git-policy-cli@*' 2>&1 | sort | uniq -c`,
+  },);
+  console.log(`every instance started again by the manager: ${restarted.trim()
+    .replaceAll(
+      '\n',
+      '; '
+    )}`);
+  // The second worktree's next commit, through this release, which is a start of its own.
+  /**
+   What the second worktree's next commit printed.
+   */
+  const second: string = await commit({
+    machine,
+    release: releasePaths.first,
+    worktree: worktreePaths.second,
+    change: 'second-worktree',
+    file: 'a.txt',
+    background: false,
+  },);
+  console.log(`the second worktree's next commit: ${second.replaceAll(
+    '\n',
+    ' | ',
+  )}`);
+  if (!second.includes('status=0',)) problems.push(`the second worktree's commit did not land: ${second}`);
+  // What: Every wrapper unit's own record, from this container's system journal, from the install step onwards.
+  // Why:  The user manager writes its lines to this journal, so a read of it is the manager's own answer about a start.
+  /**
+   What the journal holds about every wrapper unit, from the install step onwards.
+   */
+  const journal: string = await inside({
+    machine,
+    script: `journalctl --no-pager --output=short-iso --since=@${since} 2>/dev/null | grep -E 'monochromatic-git-policy-cli@|started release=' || true`,
+  },);
+  /**
+   The journal's lines counted by what each one says.
+   */
+  const counts = countsOfJournalLines({ journal, },);
+  console.log(`starts of a wrapper service this run made: ${String(counts.starts)}`);
+  console.log(`starts that failed at the EXEC step: ${String(counts.execFailures)}`);
+  console.log(`units that reached the start limit: ${String(counts.limits)}`);
+  // What: A journal that holds no start of a wrapper service is not a pass.
+  // Why:  A read that reached nothing proves nothing about the starts it was meant to show.
+  if (counts.starts === 0) throw new NativeVerificationError('the journal this run read holds no start of a wrapper service');
+  if (counts.execFailures > 0) problems.push(`the manager failed ${String(counts.execFailures)} start(s) at the EXEC step`);
+  if (counts.limits > 0) problems.push('a wrapper unit reached the start limit');
+  /**
+   The units the manager lists as failed once the install step and the restarted instances have run.
+   */
+  const failed: readonly string[] = await failedUnits({ machine, },);
+  console.log(`units the manager left failed: ${failed.length === 0 ? 'none' : failed.join('; ')}`);
+  if (failed.length > 0) problems.push(`the manager left ${failed.join('; ')} failed`);
+  // What: Two commits of one worktree at once, across the upgrade, each landing once.
+  // Why:  That is the window the unload's look and stop leave open, and the pair is what shows it is not cut.
+  await inside({
+    machine,
+    script: `rm -f ${notesFolder}/*.units-the-manager-read`,
+  },);
+  /**
+   How many commits the first worktree had before the pair.
+   */
+  const before: string = await inside({
+    machine,
+    script: `cd ${worktreePaths.first} && /usr/bin/git rev-list --count HEAD`,
+  },);
+  await commit({
+    machine,
+    release: releasePaths.first,
+    worktree: worktreePaths.first,
+    change: 'window-a',
+    file: 'a.txt',
+    background: true,
+  },);
+  await commit({
+    machine,
+    release: releasePaths.first,
+    worktree: worktreePaths.first,
+    change: 'window-b',
+    file: 'b.txt',
+    background: true,
+  },);
+  /**
+   What the first commit of the pair answered once it ended.
+   */
+  const first: WaitedCommit = await waited({
+    machine,
+    change: 'window-a',
+  },);
+  /**
+   What the second commit of the pair answered once it ended.
+   */
+  const secondOfThePair: WaitedCommit = await waited({
+    machine,
+    change: 'window-b',
+  },);
+  /**
+   How many commits the first worktree had after the pair.
+   */
+  const after: string = await inside({
+    machine,
+    script: `cd ${worktreePaths.first} && /usr/bin/git rev-list --count HEAD`,
+  },);
+  /**
+   How many commits the pair added.
+   */
+  const added: number = Number(after.trim(),) - Number(before.trim(),);
+  console.log(`the pair of commits at once: ${String(first.status)} and ${String(secondOfThePair.status)}; commits ${before.trim()} to ${after.trim()} (${String(added)} added)`);
+  if (first.status !== 0) problems.push(`the concurrent commit window-a did not land: ${first.printed}`);
+  if (secondOfThePair.status !== 0) problems.push(`the concurrent commit window-b did not land: ${secondOfThePair.printed}`);
+  if (added !== 2) problems.push(`the pair added ${String(added)} commits, not two`);
+  /**
+   The units the manager lists as failed after the pair.
+   */
+  const failedAfter: readonly string[] = await failedUnits({ machine, },);
+  if (failedAfter.length > 0) problems.push(`after the pair the manager left ${failedAfter.join('; ')} failed`);
+  // What: What every unit did, so a run that fails says which start it was.
+  /**
+   What every wrapper unit's own journal lines say, from the install step onwards.
+   */
+  const summary: string = await inside({
+    machine,
+    script: `journalctl --no-pager --output=short-iso --since=@${since} --unit 'monochromatic-git-policy-cli@*' 2>/dev/null | grep -E 'started release=|retire requested|203/EXEC|start-limit|exiting reason' | tail -n 30`,
+  },);
+  console.log(`every unit's starts and endings:\n${summary}`);
+  return problems;
 }
 
-await main_();
+/**
+ What this run was asked to do, read before any machine exists.
+ */
+const {
+  image,
+  olderWrapper,
+} = options({ argv: process.argv
+  .slice(2,), });
+
+/**
+ The release built from this worktree, which the caller builds before it runs this file.
+ */
+const candidate: string = process.env
+  .GPC_CANDIDATE_WRAPPER
+  ?? join(
+    import.meta.dirname,
+    '..',
+    'target',
+    'debug',
+    'monochromatic-git-policy-cli',
+  );
+
+/**
+ The machine this proof runs on, whose removal waits for the end of the run's containers.
+ */
+await using running = await startMachine({
+  image,
+  units: machineUnits,
+},);
+
+/**
+ Everything this run found wrong, in the order the steps found it.
+ */
+const problems: readonly string[] = await prove({
+  machine: running.machine,
+  candidate,
+  olderReleaseWrapper: olderWrapper,
+},);
+if (problems.length > 0) throw new NativeVerificationError(`THE PROOF FAILED: ${problems.join('; ')}`);
+console.log('THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once');

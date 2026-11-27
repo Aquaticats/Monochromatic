@@ -2066,6 +2066,60 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Sixteenth batch: the harness's diff folder, the gate fixture's relay, and a proof that runs Git as root, 2026-11-27T08:38:28-05:00
+
+Met while reading why `package/git-policy/cli/bin/service-manager-install-proof.ts` could not make a worktree in its container
+(`doc/troubleshooting/git-cannot-mkdir-inside-the-container-proof.md`).
+`/var/log/audit/audit.log` held four families for the `git` profile in the six hours before
+(the kernel journal held none):
+
+1.  17 `capable` records,
+    `capname="dac_override"`,
+    `comm="git"`,
+    at 08:26 and 08:27:
+    the proof runs Git as the container's root in `/work`,
+    which the image leaves owned by the container's user,
+    so every directory Git makes there asks for that capability.
+    It stays refused,
+    for the reason recorded under "The `git` `dac_override` records are the any-name fixture's Git (issue 6459)":
+    a grant would let a root Git on this host pass every file permission check.
+    The proof is what changes (issue 6587):
+    it runs Git as the owner of the directory it writes.
+2.  Six `mkdir` records for `/tmp/zz/`,
+    `/tmp/zz2/`,
+    `/tmp/wt-one/` and `/work2/wt/`,
+    `requested_mask="c"`:
+    the probes of the round that met the first family.
+    The profile holds no rule for those places and none was added:
+    nothing but a probe writes there.
+3.  Four `mknod` records for `/tmp/claude-1000/bash-edit-diff/<id>/index.lock`,
+    `requested_mask="c"`,
+    at 07:34 and 07:46:
+    Claude Code's own diff of a Bash edit runs Git in a repository it makes there,
+    and the profile let Git read that folder and not write it.
+    `/etc/apparmor.d/local/git` gained
+
+    ```text
+    owner /tmp/claude-@{uid}/bash-edit-diff/** rwlk -> /tmp/claude-@{uid}/bash-edit-diff/**,
+    ```
+
+4.  Six `exec` records in `git//ssh` for
+    `/work/package/git-policy/cli/target/gate-fixtures/process-<pid>/.../relay`,
+    `requested_mask="x"`,
+    in the gate of 2026-11-27:
+    the program the ssh terminal test's `ProxyCommand` names,
+    which the fourteenth batch granted on the host and not in the gate.
+    `/etc/apparmor.d/local/git_ssh` gained
+
+    ```text
+    owner /work/**/gate-fixtures/**/relay rix,
+    ```
+
+`apparmor_parser --replace /etc/apparmor.d/git` exited 0 and `aa-status` lists `git` and `git//ssh`.
+Neither new rule has been exercised since:
+the next gate shows whether the relay's records are gone,
+and the next Bash edit whether the diff folder's are.
+
 ## Fifteenth batch: gh downloading a wrapper release into the repository's cache, 2026-11-27T08:28:28-05:00
 
 Met while unpacking the wrapper's `0.6.1-alpha.48` beside alpha.47's for its release passes:

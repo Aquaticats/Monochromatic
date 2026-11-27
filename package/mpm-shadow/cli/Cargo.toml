@@ -54,7 +54,7 @@ clap = { workspace = true }
 flate2 = { workspace = true }
 
 # The direct registry lookups (registry.npmjs.org, pypi.org) and archive downloads: HTTPS only, behind the `HttpGet`
-# trait in `src/http.rs` so tests use a local fake. Approved by the owner on 2026-10-30, `hyper-rustls` with its
+# trait in `src/toolchain/http.rs` so tests use a local fake. Approved by the owner on 2026-10-30, `hyper-rustls` with its
 # default features (doc/decision/file-enforcer-rust-rewrite.md, "HTTP client").
 http-body-util = { workspace = true }
 hyper = { workspace = true, features = ["client", "http1"] }

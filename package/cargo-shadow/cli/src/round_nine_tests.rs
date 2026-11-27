@@ -444,6 +444,7 @@ fn a_busy_unsynced_registry_returns_at_once_and_answers_conservatively() {
 fn some_route() -> Route {
     return Route {
         systemd_run: "systemd-run".to_string(),
+        systemctl: "systemctl".to_string(),
         slice: "app.slice".to_string(),
         slice_dir: PathBuf::from("/sys/fs/cgroup/app.slice"),
         namespace: 1,

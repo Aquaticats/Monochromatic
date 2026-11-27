@@ -8,6 +8,7 @@
   "include": [
     "e2e/**/*.ts",
     "bin/**/*.ts",
+    "perf/**/*.ts",
     "../cli.fuzz/bin/**/*.ts",
   ],
 }
