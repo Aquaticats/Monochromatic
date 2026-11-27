@@ -545,7 +545,7 @@ fn a_gone_launcher_does_not_clear_a_scope_with_a_member() {
         "an acknowledgement overrode a scope with a member"
     );
     // The control: with the member stopped the same journal is recovered, so the refusals above were the member's.
-    scope
+    let _ = scope
         .group
         .stop(std::time::Duration::from_secs(5))
         .expect("stop the member");

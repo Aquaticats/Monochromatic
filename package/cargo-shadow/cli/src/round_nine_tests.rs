@@ -189,7 +189,10 @@ fn a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended() 
             .unwrap_or(false);
     });
     let after: Option<String> = survivor_note(&journal);
-    let stopped: bool = planned.stop(Duration::from_secs(10)).expect("stops");
+    let stopped: bool = planned
+        .stop(Duration::from_secs(10))
+        .expect("stops")
+        .empty();
     let _ = launcher.wait();
 
     let pending: String = while_pending.expect("a pending launcher blocks");
