@@ -1486,7 +1486,8 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
     };
     assert!(
         messages.iter().any(|message| {
-            return message.contains(failing) && message.contains("could not recover the journal of an earlier run");
+            return message.contains(failing)
+                && message.contains("could not recover the journal of an earlier run");
         }),
         "the failed root was not reported: {messages:?}"
     );
