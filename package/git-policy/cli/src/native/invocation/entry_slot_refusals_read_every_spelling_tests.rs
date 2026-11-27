@@ -32,11 +32,33 @@
 use super::plan_invocation;
 use crate::action::Action;
 use crate::child_environment::invocation_overlay;
+/// The settings file name a control writes to turn the root rule down.
+use crate::config_file::CONFIG_FILE_NAME;
 use crate::forwarded_command::{
     MAX_ALIAS_EXPANSIONS,
     ResolvedCommand,
 };
+/// The rule's own finding and the renderer that prints the engine's events.
+use crate::policy_events::{
+    FindingEvent,
+    PolicyEvent,
+    render_policy_events,
+};
+/// The identities and severity of the policy a control turns down.
+use crate::policy_registry::{
+    PolicyId,
+    Severity,
+};
+/// The lifecycle point a forwarded command's policies run at.
+use crate::policy_trigger::Trigger;
 use crate::real_git::ResolutionInputs;
+/// The root rule's own decision and the code its finding carries.
+use crate::rule_require_root::{
+    NOT_AT_ROOT_CODE,
+    RequireRootFacts,
+    RequireRootVerdict,
+    resolve_require_root,
+};
 use crate::test_support::{
     REAL_GIT,
     executable,
@@ -46,6 +68,7 @@ use crate::test_support::{
     repository,
 };
 use crate::testing::fixture_zfs_binding_record::{
+    CLONE_DATASET,
     RegisteredSlot,
     a_registered_slot,
     publish_under,
@@ -57,6 +80,8 @@ use crate::testing::mounted_dataset_table::{
 };
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::IntentReading;
+/// The move's refusal, which a control builds for the slot it means.
+use crate::worktree_clone_move_refusal::refuse_move_of_a_bound_slot;
 use crate::worktree_clone_slot_state::slot_state_live_read::{
     CloneIntentReads,
     SlotReadingSources,
@@ -2145,8 +2170,340 @@ fn a_command_below_the_top_is_refused_before_the_slot_reading() {
 }
 
 /// What:
-///  A bound slot's move is refused behind a shell alias whose source operand is
-///  not the end of the slot's registered path,
+///  One way a command typed below the top of its repository gets past the
+///  wrapper's own `require-root` rule.
+/// Why:
+///  The rule refuses such a command before any slot refusal runs,
+///  so a control of the slot refusal below the top has to put the rule out of
+///  the way first,
+///  and each way it is out of the way is a spelling of its own:
+///  the settings key at `off`,
+///  the settings key at `warn`
+///  (`config_parse_value_tests.rs`),
+///  and the wrapper's own `--no-enforce-require-root`.
+///  Both keys are read where the engine asks whether a policy applies
+///  (`policy_engine::policy_applies`),
+///  and the flag is the escape that same decision reads
+///  (`wrapper_controls::is_escaped`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PastTheRootRule = 'off' | 'warn' | 'flag';
+/// ```
+#[derive(Clone, Copy, Debug)]
+enum PastTheRootRule {
+    /// `policies.require-root` reads `off`, so the engine never asks the rule.
+    Off,
+    /// `policies.require-root` reads `warn`, so the finding prints and the
+    /// command goes on to the slot refusal.
+    Warn,
+    /// The caller writes `--no-enforce-require-root` before the command word.
+    Flag,
+}
+
+impl PastTheRootRule {
+    /// What:
+    ///  The settings document that turns the rule down,
+    ///  or nothing where the caller's own words do it.
+    /// Why:
+    ///  Where the rule keeps the severity that refuses, the fixture's settings
+    ///  file stays as an ordinary repository's is.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const document = rule === 'flag' ? undefined : `{ "policies": { "require-root": "${rule}" } }`;
+    /// ```
+    fn settings_document(self) -> Option<&'static str> {
+        return match self {
+            Self::Off => Some(r#"{ "policies": { "require-root": "off" } }"#),
+            Self::Warn => Some(r#"{ "policies": { "require-root": "warn" } }"#),
+            Self::Flag => None,
+        };
+    }
+
+    /// The wrapper's own words a control writes before the alias word,
+    /// which the wrapper strips before Git sees them.
+    fn wrapper_words(self) -> &'static [&'static str] {
+        return match self {
+            Self::Off | Self::Warn => &[],
+            Self::Flag => &["--no-enforce-require-root"],
+        };
+    }
+}
+
+/// What:
+///  One fixture repository whose bound slot is watched from below its top,
+///  and the subdirectory a control types the command in.
+/// Why:
+///  The command is typed in a directory below the top rather than at it,
+///  because that is the case the root rule refuses and the alias's directory
+///  differs from the caller's;
+///  the settings file goes at the repository's top,
+///  where the loader finds it.
+fn a_bound_slot_watched_from_below(
+    name: &str,
+    rule: PastTheRootRule,
+) -> (RegisteredSlot, PathBuf) {
+    let bound: RegisteredSlot = a_bound_slot_for_a_shell_alias(name);
+    if let Some(document) = rule.settings_document() {
+        std::fs::write(bound.repository.join(CONFIG_FILE_NAME), document)
+            .expect("the fixture's settings file");
+    }
+    let sub: PathBuf = a_subdirectory_of(bound.repository.as_path());
+    return (bound, sub);
+}
+
+/// What:
+///  The words a person types below the top:
+///  the directory below the top the fixture is reached by,
+///  the way past the root rule,
+///  and then the shell alias that names the slot command.
+/// Why:
+///  A control never changes this process's directory,
+///  and every fact the policies read is a Git query run in this process's own
+///  directory with the caller's globals replayed (`git_facts` takes no
+///  directory),
+///  so `-C <the directory below the top>` is the one spelling that puts the
+///  whole planning in the fixture.
+///  The flag is a global option, so it stands before the alias word as the
+///  caller's own options do;
+///  the settings ways write no word at all.
+fn typed_below_the_top(
+    sub: &Path,
+    rule: PastTheRootRule,
+    then: &[&str],
+) -> Vec<OsString> {
+    let mut words: Vec<OsString> = vec![OsString::from("-C"), sub.as_os_str().to_os_string()];
+    words.extend(text(rule.wrapper_words()));
+    words.extend(text(then));
+    return words;
+}
+
+/// What:
+///  The words the root rule says about a command typed in `typed_in`,
+///  written by the parts that make them.
+/// Why:
+///  A control that asserts what another part prints reads it from that part,
+///  never from a copy written by hand:
+///  `resolve_require_root` makes the finding's message and
+///  `render_policy_events` makes the line,
+///  so this control cannot pass on a wording the rule no longer uses.
+///  At `off` and behind the flag the engine never asks the rule,
+///  so the rule says nothing at all.
+fn the_root_rules_words(
+    rule: PastTheRootRule,
+    bound: &RegisteredSlot,
+    typed_in: &Path,
+) -> String {
+    let RequireRootVerdict::NotAtRoot(violation) = resolve_require_root(&RequireRootFacts {
+        effective_directory: typed_in.to_path_buf(),
+        repository_root: Some(bound.repository.clone()),
+    }) else {
+        panic!(
+            "{} is below the top, so the rule has a finding",
+            typed_in.display()
+        );
+    };
+    return match rule {
+        PastTheRootRule::Warn => render_policy_events(
+            0,
+            &[
+                PolicyEvent::Finding(FindingEvent {
+                    trigger: Trigger::PreForward,
+                    policy: PolicyId::RequireRoot,
+                    severity: Severity::Warn,
+                    code: NOT_AT_ROOT_CODE,
+                    message: violation.message,
+                    path: None,
+                    location: None,
+                    fix_available: false,
+                }),
+                PolicyEvent::WarnUnsafe {
+                    trigger: Trigger::PreForward,
+                    policy: PolicyId::RequireRoot,
+                },
+            ],
+        ),
+        PastTheRootRule::Off | PastTheRootRule::Flag => String::new(),
+    };
+}
+
+/// What:
+///  A bound slot's removal typed below the top behind a shell alias is refused
+///  when `rule` lets the command past the wrapper's root rule,
+///  and the refusal names the slot it read.
+/// Why:
+///  The root rule refuses this command before any slot refusal runs
+///  (`a_command_below_the_top_is_refused_before_the_slot_reading`),
+///  so the slot refusal below the top has no control while the rule is at the
+///  severity that refuses.
+///  The operand is `../one`,
+///  which names the slot only from the top of the working tree,
+///  where Git runs the alias's shell;
+///  read from the directory the person typed it in it names
+///  `<repository>/one`, which is no worktree and holds no record,
+///  so a planning handed the typed directory settles no removal at all.
+fn a_removals_refusal_is_reached_below_the_top(
+    name: &str,
+    rule: PastTheRootRule,
+) {
+    let (bound, sub): (RegisteredSlot, PathBuf) = a_bound_slot_watched_from_below(name, rule);
+    let words: Vec<OsString> = typed_below_the_top(
+        sub.as_path(),
+        rule,
+        &["-c", ALIAS_REMOVES, "rmwt", "../one"],
+    );
+    let action: Action = plan_invocation(words.as_slice(), &[], &inputs(bound.root.as_path()));
+    let (facts, said_first): (CopyFacts, String) = match action {
+        Action::ForwardSettled {
+            copy,
+            stderr,
+            ..
+        } => (*copy, stderr),
+        other => panic!(
+            "a removal below the top must reach the slot refusal with {rule:?} letting it past \
+             the wrapper's root rule, got {other:?}"
+        ),
+    };
+    let slot_as_read: PathBuf =
+        std::fs::canonicalize(bound.slot.as_path()).expect("the slot's path reads");
+    assert_eq!(
+        facts.removal_target.as_deref(),
+        Some(slot_as_read.as_path()),
+        "with {rule:?} the refusal reads the slot from the top for {words:?}"
+    );
+    assert_eq!(
+        said_first,
+        the_root_rules_words(rule, &bound, sub.as_path()),
+        "what the root rule says before the refusal for {rule:?}"
+    );
+    let stderr: String = the_refusals_report(run_the_removal(&facts, words.as_slice()));
+    assert!(
+        stderr.starts_with(
+            format!("the removal of `{}` is refused", slot_as_read.display()).as_str()
+        ),
+        "the refusal names the target it read for {rule:?}: {stderr}"
+    );
+    assert!(
+        stderr.contains("a whole managed clone is bound to this slot"),
+        "{rule:?}: {stderr}"
+    );
+    assert!(bound.slot.is_dir(), "{rule:?}: nothing was removed");
+    remove(bound.root.as_path());
+}
+
+/// A bound slot's removal below the top is refused with the root rule off.
+#[test]
+fn below_the_top_behind_a_shell_alias_a_removal_is_refused_with_the_root_rule_off() {
+    a_removals_refusal_is_reached_below_the_top(
+        "entry-slot-below-top-removal-rule-off",
+        PastTheRootRule::Off,
+    );
+}
+
+/// A bound slot's removal below the top is refused with the root rule at warn,
+/// and the rule's finding and its warn-unsafe line print before the refusal.
+#[test]
+fn below_the_top_behind_a_shell_alias_a_removal_is_refused_with_the_root_rule_at_warn() {
+    a_removals_refusal_is_reached_below_the_top(
+        "entry-slot-below-top-removal-rule-warn",
+        PastTheRootRule::Warn,
+    );
+}
+
+/// A bound slot's removal below the top is refused behind the wrapper's own
+/// flag, which says nothing before the refusal.
+#[test]
+fn below_the_top_behind_a_shell_alias_a_removal_is_refused_behind_the_wrappers_flag() {
+    a_removals_refusal_is_reached_below_the_top(
+        "entry-slot-below-top-removal-rule-flag",
+        PastTheRootRule::Flag,
+    );
+}
+
+/// What:
+///  A bound slot's move typed below the top behind a shell alias is refused
+///  when `rule` lets the command past the wrapper's root rule,
+///  and the refusal is the sentence the producer writes for the slot itself.
+/// Why:
+///  The move's source operand is resolved against the directory Git runs the
+///  command in,
+///  which for a shell alias is the top of the working tree;
+///  the refusal sentence names the slot and the clone its record binds and
+///  never the source path,
+///  so the control builds the sentence the producer makes for the slot and
+///  requires the planner's refusal to end with it.
+///  A planning handed the typed directory resolves `<repository>/one`,
+///  which is no worktree,
+///  and the move is left to Git.
+fn a_moves_refusal_is_reached_below_the_top(
+    name: &str,
+    rule: PastTheRootRule,
+) {
+    let (bound, sub): (RegisteredSlot, PathBuf) = a_bound_slot_watched_from_below(name, rule);
+    let words: Vec<OsString> = typed_below_the_top(
+        sub.as_path(),
+        rule,
+        &["-c", ALIAS_MOVES, "mvwt", "../one", "../moved"],
+    );
+    let (code, stderr): (i32, String) = stopped(plan_invocation(
+        words.as_slice(),
+        &[],
+        &inputs(bound.root.as_path()),
+    ));
+    assert_eq!(
+        code,
+        crate::entry_zfs_slot_commands::REFUSAL_STATUS,
+        "the move below the top is refused with {rule:?} letting it past the root rule: {stderr}"
+    );
+    let slot_as_read: PathBuf =
+        std::fs::canonicalize(bound.slot.as_path()).expect("the slot's path reads");
+    let Some(the_slots_own) =
+        refuse_move_of_a_bound_slot(bound.common.as_path(), slot_as_read.as_path())
+    else {
+        panic!(
+            "the slot at {} is bound, so its move is refused",
+            slot_as_read.display()
+        );
+    };
+    assert!(
+        stderr.ends_with(format!("{}\n", the_slots_own.sentence).as_str()),
+        "the refusal is the sentence for the slot read from the top for {rule:?}: {stderr}"
+    );
+    assert!(
+        stderr.contains(CLONE_DATASET),
+        "the refusal names the clone the slot's record binds for {rule:?}: {stderr}"
+    );
+    assert!(bound.slot.is_dir(), "{rule:?}: nothing was moved");
+    remove(bound.root.as_path());
+}
+
+/// A bound slot's move below the top is refused with the root rule off.
+#[test]
+fn below_the_top_behind_a_shell_alias_a_move_is_refused_with_the_root_rule_off() {
+    a_moves_refusal_is_reached_below_the_top(
+        "entry-slot-below-top-move-rule-off",
+        PastTheRootRule::Off,
+    );
+}
+
+/// A bound slot's move below the top is refused with the root rule at warn.
+#[test]
+fn below_the_top_behind_a_shell_alias_a_move_is_refused_with_the_root_rule_at_warn() {
+    a_moves_refusal_is_reached_below_the_top(
+        "entry-slot-below-top-move-rule-warn",
+        PastTheRootRule::Warn,
+    );
+}
+
+/// A bound slot's move below the top is refused behind the wrapper's own flag.
+#[test]
+fn below_the_top_behind_a_shell_alias_a_move_is_refused_behind_the_wrappers_flag() {
+    a_moves_refusal_is_reached_below_the_top(
+        "entry-slot-below-top-move-rule-flag",
+        PastTheRootRule::Flag,
+    );
+}
 ///  read from the top of the working tree where Git runs the alias's command.
 /// Why:
 ///  `parse_move_source` resolves its source with the removal's own operand rule
