@@ -89,6 +89,9 @@ Read and measured by the coordinating session.
   writes who holds and who waits on the lock every fifteen seconds for four hours
   (unit `record-who-holds-the-cargo-package-cache-lock-20261113`,
   log `~/temp/agent/cargo-package-cache-lock-measured-with-a-cargo-home-of-its-own-2026-11-13/keep/who-held-and-who-waited-from-2026-11-13T1310.jsonl`).
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 - The earlier plan (a cargo home for each run) is not shown to be needed for builds;
   one run made itself a cargo home in its scratch folder,
   which costs it a download of every crate.

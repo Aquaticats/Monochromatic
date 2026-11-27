@@ -21,6 +21,9 @@ moved verbatim on 2026-11-23:
   `module/zfs/zfs_vnops.c:1839` to `:1857` (read;
   excerpt in
   `~/temp/agent/openzfs-bclone-wait-dirty-source-check-2026-11-19/keep/`):
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   a block created in the current transaction
   group makes `dmu_read_l0_bps` answer `EAGAIN`,
   and with that setting the clone waits for the next group to sync and

@@ -123,7 +123,10 @@ before any dataset is opened.
   and the host's own failing and working forms are in
   `keep/host-reads-for-the-provider-2026-11-23.log`.
 - The round folder is
-  `~/temp/agent/zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23/`.
+  `~/temp/agent/zfs-step-19-checkout-boot-mount-provider-and-ordering-2026-11-23/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - A runnable check of the whole claim,
   needing only a pool or dataset name:
 
