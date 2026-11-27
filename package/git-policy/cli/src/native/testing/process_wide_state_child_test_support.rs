@@ -107,7 +107,8 @@ pub(crate) fn refuse_outside_the_child(state: &str) {
 
 /// What:
 ///  The path libtest answers to for one test of `module` named `name`:
-///  the module path without the crate's own first segment, and the test's name.
+///  the module path without the crate's own first segment,
+/// and the test's name.
 ///  Its sibling is the bare test name,
 ///  which `--exact` matches nothing for.
 /// Why:
@@ -220,11 +221,14 @@ pub(crate) fn run_the_body_in_a_child_of_its_own(
 /// Why:
 ///  A measurement that emulates a shipped process's caps holds the bound on blocking jobs (`hold_blocking_jobs_to`),
 ///  which belongs to the whole process and is refused outside a child (issue 6477).
-///  It is marked `#[ignore]`, so a plain run of its module starts it never,
-///  and the child must therefore be asked for it with `--ignored`; `passed` cannot be used as it is,
+///  It is marked `#[ignore]`,
+///  so a plain run of its module starts it never,
+///  and the child must therefore be asked for it with `--ignored`;
+///  `passed` cannot be used as it is,
 ///  because its request names a test that is not ignored and reads no line the measurement printed.
 /// Gotcha:
-///  The figures arrive through the parent's own print, so a run reads them as a line of the test it started;
+///  The figures arrive through the parent's own print,
+///  so a run reads them as a line of the test it started;
 ///  the child's `test result` line comes with them.
 ///
 /// In TS you'd write (pseudocode):

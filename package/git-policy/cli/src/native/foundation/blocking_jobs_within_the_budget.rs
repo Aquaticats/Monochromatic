@@ -166,11 +166,13 @@ pub fn places_a_round_may_take() -> usize {
 /// A budget that is already made is not resized,
 /// so a call after the first job changes nothing,
 /// and a control that means its cap needs a process whose bound is not yet made.
-///  The bound belongs to the whole process, so a control sets it in a child of its own
+///  The bound belongs to the whole process,
+/// so a control sets it in a child of its own
 /// (`testing/process_wide_state_child_test_support.rs`),
 /// and this refuses in any other process (issue 6477).
-///  The one shipped caller sets the service's own cap, and the refusal is a test build's alone, so the release pays
-///  nothing for it.
+///  The one shipped caller sets the service's own cap,
+/// and the refusal is a test build's alone,
+/// so the release pays nothing for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
