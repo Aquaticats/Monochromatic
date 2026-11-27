@@ -307,12 +307,16 @@ fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
 }
 
 /// What:
-///  `THE_COMMIT_PATH` names the release sources the commit path submits from.
+///  `THE_COMMIT_PATH` names the release sources the commit path submits from: the folder the submission moved
+///  inside.
 /// Why:
 ///  The ban below is about the commit path,
 ///  and the alpha.48 split moved `ServiceCommit` out of `landing/service_commit.rs` into
 ///  `landing/service_landed_aftermath.rs`,
 ///  so a ban over the one file stopped reading the submission there (issue 6599).
+///  A folder covers every file a later split makes inside it;
+///  a submission moved to another folder is one this ban does not read,
+///  and `SCOPE_ANCHORS` is what proves the folder still holds the stream's own caller.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -334,19 +338,22 @@ const THE_CALL_THAT_WRITES: &str = "submit_traced(";
 
 /// What:
 ///  `MAY_HOLD` is the stream's own module,
-///  and the reason it calls what the commit path may not.
+///  naming the one use of the call that file holds and the reason it may.
 /// Why:
 ///  `submit_saying_where_it_stands` is the one call that hands the notices over,
 ///  and it is written on top of `submit_traced` inside the stream's own file;
-///  an entry whose line went fails here instead of excusing the file for ever.
+///  an entry whose line went fails here instead of excusing the file for ever,
+///  and a second use in that file fails,
+///  because the entry names the count it holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAY_HOLD = [{ file: 'landing/service_commit_waiting_notices.rs', text: 'submit_traced(', why: '...' }];
+/// const MAY_HOLD = [{ file: 'landing/service_commit_waiting_notices.rs', text: 'submit_traced(', uses: 1, why: '...' }];
 /// ```
 const MAY_HOLD: &[MayHold] = &[MayHold {
     file: "landing/service_commit_waiting_notices.rs",
     text: "submit_traced(",
+    uses: 1,
     why: "the one call that hands a commit's waiting notices over is written on top of this one, inside the \
           stream's own file; a caller never names it",
 }];
@@ -365,3 +372,22 @@ const SCOPE_ANCHORS: &[(&str, &str)] = &[(
     "submit_saying_where_it_stands(",
     "no release file of the commit path submits through the notice stream any more, so this ban reaches nothing",
 )];
+
+/// A second submission in the file the entry excuses is a finding,
+/// because the entry names the one use that file holds.
+#[test]
+fn the_entry_names_the_uses_the_stream_s_file_holds() {
+    let twice: Vec<(String, String)> = vec![(
+        String::from("landing/service_commit_waiting_notices.rs"),
+        String::from(
+            "fn say() { submit_traced(&waiting, request, &mut notices, trace); }\nfn say_again() { submit_traced(&waiting, request, &mut notices, trace); }\n",
+        ),
+    )];
+    let held: Vec<HoldingLine> = lines_holding_one_of(twice.as_slice(), &[THE_CALL_THAT_WRITES]);
+    let excused: Vec<String> = lines_no_entry_excuses(held.as_slice(), MAY_HOLD);
+    assert_eq!(
+        excused.len(),
+        2,
+        "a second submission in the stream's own file fails, because the entry names one: {excused:?}"
+    );
+}
