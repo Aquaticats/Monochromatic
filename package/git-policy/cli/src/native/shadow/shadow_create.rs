@@ -12,7 +12,9 @@
 //!  and its alternates name the real object directory,
 //!  so a real `git prune` cannot delete a pending commit.
 //!  The private files it makes and the facts it is made from are in sibling modules,
-//!  re-exported here under the paths they had.
+//!  re-exported here under the paths they had,
+//!  and the checks and parts that belong to one commit alone are in
+//!  `shadow_create_for_one_commit.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,8 +26,13 @@ use crate::capture_invocation::InvocationCapture;
 /// The build phase's stretches,
 /// which the creation marks as it goes.
 use crate::commit_build_part_durations::BuildPartClock;
-/// Conclusion copy and ref snapshot.
-use crate::conclusion_copy::copy_conclusion_state;
+/// The checks and parts that belong to one commit alone,
+/// re-exported under the path they had in this file.
+pub(crate) use crate::shadow_create_for_one_commit::may_be_handed_a_tree;
+use crate::shadow_create_for_one_commit::{
+    carry_the_commit_parts,
+    conclusion_state_present,
+};
 /// The `git init` a reftable shadow is made by,
 /// re-exported under the path it had in this file.
 pub(crate) use crate::shadow_create_init::init_with_git;
@@ -59,8 +66,6 @@ use crate::shadow_links::link_shadow_entries;
 /// What a tree must be for this invocation,
 /// which is the question a claim and a hand-out both ask.
 use crate::shadow_pool_member::refusal;
-use crate::shadow_ref_write::write_shadow_refs;
-use crate::shadow_refs::SnapshotSources;
 /// The in-process entries of an empty bare repository.
 use crate::shadow_skeleton::create_shadow_skeleton;
 /// Process context and the failure of a step.
@@ -250,67 +255,6 @@ pub struct ShadowTree {
 }
 
 /// What:
-///  Whether the worktree holds the state a conclusion leaves,
-///  which is the state a commit may conclude.
-/// Why:
-///   The landing that concludes compares what Git removed in the shadow with the copy of those files,
-///  and it reads the shadow at the path the commit's own scratch tree holds,
-///  so the hand-out is bounded by the presence of the state itself and not by the caller's wish to carry it:
-///  every explicit-path commit asks to carry it,
-/// and almost none of them has any
-///  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
-///  "The design the owner's decision made").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const conclusionStatePresent = (gitDir) => REMOVED_CONCLUSION_FILES.some((name) => exists(join(gitDir, name)));
-/// ```
-fn conclusion_state_present(git_dir: &Path) -> bool {
-    for name in crate::conclusion_cleanup::REMOVED_CONCLUSION_FILES {
-        if git_dir.join(name).exists() {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  Whether this attempt may ask the service for a drawn shadow.
-/// Why:
-///   Three cases the hand-out cannot serve,
-/// each of which keeps the commit on the path it knows:
-///  a reftable repository's shadow is Git's own tables,
-///  a linked worktree that keeps its own `info` builds its own directory,
-///  and both are never drawn for,
-/// so asking would be one round trip for nothing.
-///  A commit that concludes a merge,
-///  a cherry-pick or a revert copies the state that conclusion leaves and compares it with what Git removed in the
-///  shadow,
-///  reading the shadow at the path its own scratch tree holds,
-///  so it takes a member or makes its creation until that comparison names the tree the request built in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const mayBeHandedATree = (template, carryConclusion) => template.refFormat !== 'reftable' && !keepsItsOwnInfo(template) && !carryConclusion;
-/// ```
-pub(crate) fn may_be_handed_a_tree(
-    template: &ShadowTemplate,
-    carry_conclusion: bool,
-) -> bool {
-    if carry_conclusion {
-        return false;
-    }
-    if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
-        return false;
-    }
-    return !crate::shadow_links::keeps_its_own_info(
-        template.common_dir.as_path(),
-        template.git_dir.as_path(),
-    )
-    .unwrap_or(false);
-}
-
-/// What:
 ///  The shadow of one commit:
 /// a finished one the service drew ahead and handed over,
 /// a finished one this invocation can use from the pool,
@@ -480,56 +424,6 @@ pub fn create_shadow_template(
             template.git_dir.as_path(),
         ),
         "linking the shadow entries",
-    )?;
-    return Ok(());
-}
-
-/// What:
-///  Adds what belongs to this commit alone:
-/// the conclusion state it concludes and the ref store it points at.
-/// Why:
-///   A member of the pool is made before any commit names a branch,
-/// so these two run after the claim as they run after a creation.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await carryTheCommitParts({ context, cwd, capture, shadow, transactionDirectory, carryConclusion, clock });
-/// ```
-fn carry_the_commit_parts(
-    context: &GitContext,
-    cwd: &Path,
-    capture: &InvocationCapture,
-    shadow: &Path,
-    transaction_directory: &Path,
-    carry_conclusion: bool,
-    clock: &mut BuildPartClock,
-) -> Result<(), GitFailure> {
-    let layout = &capture.layout;
-    clock.next("shadow conclusion");
-    if carry_conclusion {
-        copy_conclusion_state(
-            context,
-            cwd,
-            layout.git_dir.as_path(),
-            shadow,
-            transaction_directory,
-            layout.ref_format,
-        )?;
-    }
-    clock.next("shadow refs");
-    write_shadow_refs(
-        context,
-        cwd,
-        shadow,
-        &SnapshotSources::of(
-            layout.git_dir.clone(),
-            layout.common_dir.clone(),
-            layout.ref_format,
-            layout.object_format.as_str(),
-        ),
-        &layout.target_ref,
-        &layout.symbolic_head,
-        &capture.base,
     )?;
     return Ok(());
 }
