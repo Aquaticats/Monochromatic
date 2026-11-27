@@ -103,8 +103,11 @@ pub use self::launcher_chain::{
 };
 /// Re-exports the comparison of two paths by the file they name.
 pub use self::same_file::is_same_file;
-/// Re-exports the checked program and the check.
+/// Re-exports the checked program,
+/// the check,
+/// and the reasons the check hands nothing back.
 pub use self::vetted_program::{
+    VetRefusal,
     Vetted,
     vet,
 };
