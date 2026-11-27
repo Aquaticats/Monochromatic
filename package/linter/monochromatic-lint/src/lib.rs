@@ -208,6 +208,16 @@ mod layout_reference_paths;
 mod layout_source_facts;
 /// The two layout rules as a step of a lint run.
 mod layout_step;
+/// The diagnostics and `--debug` notes a layout rule's findings become,
+///  and the failure a list that cannot be read turns into.
+mod layout_step_diagnostics;
+/// Which packages a layout run checks,
+///  the severity each rule was selected with,
+///  and the allow list each of them names.
+mod layout_step_packages;
+/// The names of a package that no allow-list line could hold,
+///  with the reason each cannot be written.
+mod layout_step_unlistable_names;
 /// The file list in a folder's top doc.
 mod layout_top_doc;
 /// Prose fix boundary that must not create new Markdown block syntax.
