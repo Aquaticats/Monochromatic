@@ -108,7 +108,7 @@ use std::path::Path;
 /// ```ts
 /// async function attemptRound(input): Promise<IsolatedMerge>; // throws Bail
 /// ```
-pub fn attempt_round(
+pub(crate) fn attempt_round(
     input: &IsolatedMergeInput<'_>,
     edited: &mut Option<Vec<u8>>,
 ) -> Result<IsolatedMerge, Bail> {

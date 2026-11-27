@@ -129,7 +129,7 @@ pub fn with_second_pass_report(
 /// ```ts
 /// async function writeTheRoundsMerge(args): Promise<IsolatedMerge>; // throws Bail
 /// ```
-pub fn write_the_rounds_merge(
+pub(crate) fn write_the_rounds_merge(
     input: &IsolatedMergeInput<'_>,
     session: &Session,
     shape: &MergeShape,

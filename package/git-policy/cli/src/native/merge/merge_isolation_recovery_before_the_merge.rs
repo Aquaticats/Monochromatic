@@ -53,7 +53,7 @@ use std::path::{
 /// ```ts
 /// await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
-pub fn recover_dead_merges(
+pub(crate) fn recover_dead_merges(
     input: &IsolatedMergeInput<'_>,
     git_dir: &Path,
     root: &Path,
