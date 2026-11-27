@@ -627,7 +627,7 @@ applied to a memory the wrapper already has.
 The wrapper already does this for a different index:
 a rebuild's private index is copied from the real index so that its scratch `git commit` keeps the cached stat data
 (`package/git-policy/cli/README.md`,
-lines 6193 to 6199):
+lines 6193 to 6197):
 
 > A rebuild's private index is made from a copy of the real index,
 > so the scratch `git commit` keeps the cached stat data of every entry the new tree shares with it
