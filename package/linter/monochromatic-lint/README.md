@@ -986,7 +986,7 @@ so a finding is never reported twice.
   0.98 to 1.10 times alpha.16's CPU time on the 250-group package,
   against 1.00 to 1.02 between two runs of one binary,
   and 1.01 to 1.04 on the three-layer package,
-  where the walk costs both binaries the same 0.90 to 1.05 of the run with empty own files.
+  where the walk costs alpha.16 0.90 to 1.05 of the run with empty own files and this release 1.00 to 1.05.
   A dense loop a group's own file closes is written down in one run too:
   on a package of 200 groups whose own files all use one folder,
   which uses a child folder of every group,
