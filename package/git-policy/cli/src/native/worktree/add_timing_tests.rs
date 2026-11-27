@@ -30,6 +30,7 @@ use crate::command_test_support::{
     fixture,
     remove,
 };
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -137,48 +138,79 @@ fn a_step_without_a_recorder_returns_its_body() {
 /// A step whose body begins another step nests it through the real clock too.
 #[test]
 fn steps_nest_through_the_thread_recorder() {
-    let root: PathBuf = fixture("add-timing-nest");
-    let common: PathBuf = root.join(".git");
-    std::fs::create_dir_all(common.as_path()).expect("common directory");
-    begin(common.clone(), false);
-    let outer: bool = begin_step("outer");
-    let inner: bool = begin_step("inner");
-    end_step(inner);
-    end_step(outer);
-    finish(0);
-    let text: String =
-        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
-    let record = parsed(text.lines().next().expect("one line"));
-    assert_eq!(record["steps"]["outer"]["calls"], 1);
-    assert_eq!(record["steps"]["inner"]["calls"], 1);
-    remove(root.as_path());
+    // What:     `run_the_body_in_a_child_of_its_own` starts this same test in a child process of this test binary,
+    //  which holds that one test and no other, and runs the body given to it there; the parent never runs it, and the
+    //  child's one passing test is the whole assertion. `module_path!()` is this module's path and the second argument
+    //  is this test's name in it. Its sibling is a body run here, beside every other test of the module, which this
+    //  replaces.
+    // Why:      beginning a recording sets the work list of the whole test process, which `begin` replaces and `finish`
+    //  takes, and the step the add's standing notice names, so a body run beside another control's recording lost its
+    //  own work to that control's record and took that control's work for its own (issue 6532).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(modulePath(), 'steps_nest_through_the_thread_recorder', () => {
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "steps_nest_through_the_thread_recorder",
+        || {
+            let root: PathBuf = fixture("add-timing-nest");
+            let common: PathBuf = root.join(".git");
+            std::fs::create_dir_all(common.as_path()).expect("common directory");
+            begin(common.clone(), false);
+            let outer: bool = begin_step("outer");
+            let inner: bool = begin_step("inner");
+            end_step(inner);
+            end_step(outer);
+            finish(0);
+            let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE))
+                .expect("the record was appended");
+            let record = parsed(text.lines().next().expect("one line"));
+            assert_eq!(record["steps"]["outer"]["calls"], 1);
+            assert_eq!(record["steps"]["inner"]["calls"], 1);
+            remove(root.as_path());
+        },
+    );
 }
 
 /// A common directory that does not exist gets no record and no directory.
 #[test]
 fn a_missing_common_directory_is_not_created() {
-    let root: PathBuf = fixture("add-timing-missing");
-    let common: PathBuf = root.join("never-made");
-    begin(common.clone(), false);
-    finish(0);
-    assert!(!common.exists());
-    remove(root.as_path());
+    // What: the body runs in a child of its own (see the starter's comment above). Why: it begins a recording, which is
+    //  the work list of the whole process.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_missing_common_directory_is_not_created",
+        || {
+            let root: PathBuf = fixture("add-timing-missing");
+            let common: PathBuf = root.join("never-made");
+            begin(common.clone(), false);
+            finish(0);
+            assert!(!common.exists());
+            remove(root.as_path());
+        },
+    );
 }
 
 /// A second record is a second line of the same file.
 #[test]
 fn records_append_as_lines() {
-    let root: PathBuf = fixture("add-timing-append");
-    let common: PathBuf = root.join(".git");
-    std::fs::create_dir_all(common.as_path()).expect("common directory");
-    for _ in 0..2 {
-        begin(common.clone(), false);
-        finish(0);
-    }
-    let text: String =
-        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the records were appended");
-    assert_eq!(text.lines().count(), 2);
-    remove(root.as_path());
+    // What: the body runs in a child of its own (see the starter's comment above). Why: each record it writes begins a
+    //  recording, which is the work list of the whole process.
+    run_the_body_in_a_child_of_its_own(module_path!(), "records_append_as_lines", || {
+        let root: PathBuf = fixture("add-timing-append");
+        let common: PathBuf = root.join(".git");
+        std::fs::create_dir_all(common.as_path()).expect("common directory");
+        for _ in 0..2 {
+            begin(common.clone(), false);
+            finish(0);
+        }
+        let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE))
+            .expect("the records were appended");
+        assert_eq!(text.lines().count(), 2);
+        remove(root.as_path());
+    });
 }
 
 /// The subcommand is named past the global options that take a value and the flags that do not.
@@ -215,50 +247,68 @@ fn a_git_run_is_named_by_its_subcommand() {
 /// because threads overlap in time.
 #[test]
 fn work_on_other_threads_is_summed_by_name() {
-    let root: PathBuf = fixture("add-timing-work");
-    let common: PathBuf = root.join(".git");
-    std::fs::create_dir_all(common.as_path()).expect("common directory");
-    begin(common.clone(), false);
-    std::thread::scope(|scope| {
-        for _worker in 0..2 {
-            scope.spawn(|| {
-                let began = begin_work();
-                std::thread::sleep(Duration::from_millis(5));
-                end_work("clone", began);
+    // What: the body runs in a child of its own (see the starter's comment above). Why: the work its worker threads note
+    //  is the recording's one list for the whole process, which another control's `begin` replaced and another
+    //  control's `finish` took, so this control's line held no work of its own (issue 6532, measured).
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "work_on_other_threads_is_summed_by_name",
+        || {
+            let root: PathBuf = fixture("add-timing-work");
+            let common: PathBuf = root.join(".git");
+            std::fs::create_dir_all(common.as_path()).expect("common directory");
+            begin(common.clone(), false);
+            std::thread::scope(|scope| {
+                for _worker in 0..2 {
+                    scope.spawn(|| {
+                        let began = begin_work();
+                        std::thread::sleep(Duration::from_millis(5));
+                        end_work("clone", began);
+                    });
+                }
             });
-        }
-    });
-    finish(0);
-    let text: String =
-        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
-    let record = parsed(text.lines().next().expect("one line"));
-    assert_eq!(record["work"]["clone"]["calls"], 2);
-    assert!(
-        record["work"]["clone"]["ms"]
-            .as_f64()
-            .expect("milliseconds")
-            >= 10.0,
-        "two sleeps of five milliseconds add up"
+            finish(0);
+            let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE))
+                .expect("the record was appended");
+            let record = parsed(text.lines().next().expect("one line"));
+            assert_eq!(record["work"]["clone"]["calls"], 2);
+            assert!(
+                record["work"]["clone"]["ms"]
+                    .as_f64()
+                    .expect("milliseconds")
+                    >= 10.0,
+                "two sleeps of five milliseconds add up"
+            );
+            assert!(record["steps"].get("clone").is_none(), "work is not a step");
+            remove(root.as_path());
+        },
     );
-    assert!(record["steps"].get("clone").is_none(), "work is not a step");
-    remove(root.as_path());
 }
 
 /// Work with no recording begun is its body,
 /// and a later recording does not inherit it.
 #[test]
 fn work_without_a_recording_is_forgotten() {
-    end_work("early", begin_work());
-    let root: PathBuf = fixture("add-timing-work-forgotten");
-    let common: PathBuf = root.join(".git");
-    std::fs::create_dir_all(common.as_path()).expect("common directory");
-    begin(common.clone(), false);
-    finish(0);
-    let text: String =
-        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
-    let record = parsed(text.lines().next().expect("one line"));
-    assert!(record["work"].get("early").is_none());
-    remove(root.as_path());
+    // What: the body runs in a child of its own (see the starter's comment above). Why: the early note lands in whatever
+    //  recording the process holds, which beside another control's is that control's record, and this body's own
+    //  `begin` replaces that control's list.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "work_without_a_recording_is_forgotten",
+        || {
+            end_work("early", begin_work());
+            let root: PathBuf = fixture("add-timing-work-forgotten");
+            let common: PathBuf = root.join(".git");
+            std::fs::create_dir_all(common.as_path()).expect("common directory");
+            begin(common.clone(), false);
+            finish(0);
+            let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE))
+                .expect("the record was appended");
+            let record = parsed(text.lines().next().expect("one line"));
+            assert!(record["work"].get("early").is_none());
+            remove(root.as_path());
+        },
+    );
 }
 
 /// The line carries the quiet gap of each step and tool the add ran,
@@ -296,25 +346,33 @@ fn the_line_carries_the_quiet_gaps() {
 /// ```
 #[test]
 fn an_add_the_ladder_does_not_serve_records_the_route_it_took() {
-    let root: PathBuf = fixture("add-timing-plain-route");
-    let common: PathBuf = root.join("common");
-    std::fs::create_dir(common.as_path()).expect("a common directory");
-    let clause: String =
-        String::from("because the folder it goes in, \"/never/made\", does not exist yet");
-    super::begin_on_route(common.clone(), false, Some(clause.clone()));
-    note("steps", "none of the ladder's");
-    finish(0);
-    let text: String =
-        std::fs::read_to_string(common.join(ADD_TIMING_FILE)).expect("the record was appended");
-    let record: serde_json::Value = parsed(text.lines().next().expect("one line"));
-    assert_eq!(
-        record["notes"]["route"], "plain",
-        "the record says the add ran as plain Git: {text}"
+    // What: the body runs in a child of its own (see the starter's comment above). Why: it begins a recording and
+    //  publishes the plain route to the add's standing notice, both of which belong to the whole process.
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "an_add_the_ladder_does_not_serve_records_the_route_it_took",
+        || {
+            let root: PathBuf = fixture("add-timing-plain-route");
+            let common: PathBuf = root.join("common");
+            std::fs::create_dir(common.as_path()).expect("a common directory");
+            let clause: String =
+                String::from("because the folder it goes in, \"/never/made\", does not exist yet");
+            super::begin_on_route(common.clone(), false, Some(clause.clone()));
+            note("steps", "none of the ladder's");
+            finish(0);
+            let text: String = std::fs::read_to_string(common.join(ADD_TIMING_FILE))
+                .expect("the record was appended");
+            let record: serde_json::Value = parsed(text.lines().next().expect("one line"));
+            assert_eq!(
+                record["notes"]["route"], "plain",
+                "the record says the add ran as plain Git: {text}"
+            );
+            assert_eq!(
+                record["notes"]["whyPlain"],
+                clause.as_str(),
+                "and why it did: {text}"
+            );
+            remove(root.as_path());
+        },
     );
-    assert_eq!(
-        record["notes"]["whyPlain"],
-        clause.as_str(),
-        "and why it did: {text}"
-    );
-    remove(root.as_path());
 }
