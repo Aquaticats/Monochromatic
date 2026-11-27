@@ -84,6 +84,61 @@ use std::{
 };
 
 /// What:
+///  How much work one run of the folder rule did,
+///  for the controls that pin a cost.
+/// Why:
+///  A cost has no test of its own,
+///  and a control that timed one would read this machine's load rather than the code,
+///  so a control counts the work instead and fails when the walk or the index is done more often.
+///  Test builds only, so a release artifact carries no counter and no branch on one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let reverseIndexes = 0;
+/// let walks = 0;
+/// ```
+#[cfg(test)]
+pub(crate) mod counted_work {
+    /// Import the cell the counters live in.
+    use std::cell::Cell;
+    // What: one counter per thread, because the test runner runs several tests at once in one process.
+    // Why: a counter shared between tests would add two tests' work together and make both controls meaningless;
+    // the siblings a reader might expect are a plain `static` and a lock, and neither keeps the tests apart.
+    thread_local! {
+        /// The times the reverse index of the searched graph was built.
+        static REVERSE_INDEXES: Cell<usize> = const { Cell::new(0) };
+        /// The times one group's uses were read backwards to their shortest routes.
+        static WALKS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// Count one building of the reverse index.
+    pub(crate) fn note_reverse_index() {
+        REVERSE_INDEXES.with(|count| return count.set(count.get() + 1));
+    }
+
+    /// Count one backward walk from a group.
+    pub(crate) fn note_walk() {
+        WALKS.with(|count| return count.set(count.get() + 1));
+    }
+
+    /// How many reverse indexes this thread built.
+    pub(crate) fn reverse_indexes() -> usize {
+        return REVERSE_INDEXES.with(|count| return count.get());
+    }
+
+    /// How many backward walks this thread ran.
+    pub(crate) fn walks() -> usize {
+        return WALKS.with(|count| return count.get());
+    }
+
+    /// Start one control from nothing counted.
+    pub(crate) fn reset() {
+        REVERSE_INDEXES.with(|count| return count.set(0));
+        WALKS.with(|count| return count.set(0));
+    }
+}
+
+/// What:
 ///  The finding for a folder that uses another with no link.
 /// Why:
 ///  It is anchored on the reference that proves the use and says how to add the link.
@@ -537,31 +592,21 @@ fn own_loop_search(
 }
 
 /// What:
-///  One shortest route from every entry that reaches one entry, to it,
-///  with the use that proves each step.
+///  The uses that lead into each entry of the searched graph,
+///  so a walk back from an entry can step along them.
 /// Why:
-///  A finding about a group's own file names the use that closes the loop
-///  and every use that leads back, the way a loop finding does.
-///  One table answers every own-file use that closes a loop through the same group,
-///  where a walk per use read the graph once for each of them:
-///  on a package of 2,000 folders whose one group's own file uses all of them,
-///  each use closing a loop, a walk per use cost 14 to 16 times alpha.15's time (measured 2026-11-26).
-///  The walk reads the uses backwards from the group,
-///  so it visits only what reaches the group,
-///  and the caller runs it only for a group whose own file closes a loop at all;
-///  a package whose own files close none walks nothing.
-///  The walk starts at the group and stops when nothing new is reached,
-///  so it reads that part of the graph once rather than once per use.
-///  It is breadth first, so each message spells the fewest uses that lead back.
+///  The index is the same table for every group of one package,
+///  and building it inside the walk that reads it cloned every use of the graph once per group:
+///  on a package of 300 folders that each use every later one,
+///  with a hundred groups whose own files close a loop, that read the graph a hundred times
+///  and cost 3.67 to 4.03 times alpha.16's CPU time (measured 2026-11-27).
+///  A caller builds it once for the package, and only when some group closes a loop at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function routesTo(search: FolderUses, goal: Path): Map<Path, [Path, Proof]>;
+/// function usesLeadingIn(search: FolderUses): Map<Path, Map<Path, Proof>>;
 /// ```
-fn routes_to(
-    search: &FolderUses,
-    goal: &Path,
-) -> BTreeMap<PathBuf, (PathBuf, Proof)> {
+fn uses_leading_in(search: &FolderUses) -> BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>> {
     // What: the uses that lead into each entry, so the walk can step back along them.
     // Why: the walk goes from the group towards the entries that reach it, and a use is read from its source.
     let mut leading_in: BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>> =
@@ -574,23 +619,86 @@ fn routes_to(
                 .insert(from.clone(), proof.clone());
         }
     }
-    // What: the step each entry's shortest route takes first, and the entries already reached.
-    // Why: the first walk to reach an entry gives it the fewest uses that lead back, and the set keeps a loop finite.
-    let mut next_step: BTreeMap<PathBuf, (PathBuf, Proof)> =
-        BTreeMap::<PathBuf, (PathBuf, Proof)>::new();
-    let mut seen: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
+    // What: the one index every walk of this package reads.
+    // Why: a control counts this building, which a walk per group would do once per group.
+    #[cfg(test)]
+    counted_work::note_reverse_index();
+    return leading_in;
+}
+
+/// What:
+///  The first step of the shortest route from every entry that reaches one entry, to it,
+///  with the use that proves each step.
+/// Why:
+///  A finding about a group's own file names the use that closes the loop
+///  and every use that leads back, the way a loop finding does.
+///  One table answers every own-file use that closes a loop through the same group,
+///  where a walk per use read the graph once for each of them:
+///  on a package of 2,000 folders whose one group's own file uses all of them,
+///  each use closing a loop, a walk per use cost 14 to 16 times alpha.15's time (measured 2026-11-26).
+///  The walk reads the uses backwards from the group over the index it is given,
+///  so it visits only what reaches the group,
+///  and the caller runs it only for a group whose own file closes a loop at all;
+///  a package whose own files close none walks nothing.
+///  It is breadth first, so each message spells the fewest uses that lead back,
+///  and it records how far each entry is rather than the order it reached them.
+///  That distance is what decides a tie: a step takes the first of an entry's successors,
+///  read in ascending path order, that sits one use closer to the group,
+///  so two routes of one length spell the one whose entries sort first,
+///  on every machine and after every edit above the finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function routesTo(search: FolderUses, reverse: Map<Path, Map<Path, Proof>>, goal: Path): Map<Path, [Path, Proof]>;
+/// ```
+fn routes_to(
+    search: &FolderUses,
+    reverse: &BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>>,
+    goal: &Path,
+) -> BTreeMap<PathBuf, (PathBuf, Proof)> {
+    // What: how many uses lead from each entry to the group, the group itself at zero.
+    // Why: a step may only go to an entry one use closer, so no route it spells can be longer than the shortest one.
+    let mut distance: BTreeMap<PathBuf, usize> = BTreeMap::<PathBuf, usize>::new();
     let mut queue: VecDeque<PathBuf> = VecDeque::<PathBuf>::new();
+    distance.insert(goal.to_path_buf(), 0);
     queue.push_back(goal.to_path_buf());
-    seen.insert(goal.to_path_buf());
     while let Some(node) = queue.pop_front() {
-        for (before, proof) in leading_in.get(&node).into_iter().flatten() {
-            if !seen.insert(before.clone()) {
+        // What: this entry's distance, which every entry that reaches it shares one more of.
+        // Why: the queue is first in first out, so an entry is reached by the shortest walk that finds it.
+        let Some(here) = distance.get(&node).copied() else {
+            continue;
+        };
+        for (before, _) in reverse.get(&node).into_iter().flatten() {
+            if distance.contains_key(before) {
                 continue;
             }
-            next_step.insert(before.clone(), (node.clone(), proof.clone()));
+            distance.insert(before.clone(), here + 1);
             queue.push_back(before.clone());
         }
     }
+    // What: the step each entry's route takes first, read from the entries that reach the group.
+    // Why: successors are read in ascending path order, so the first one that is a use closer is the smallest of them.
+    let mut next_step: BTreeMap<PathBuf, (PathBuf, Proof)> =
+        BTreeMap::<PathBuf, (PathBuf, Proof)>::new();
+    for (node, here) in &distance {
+        if *here == 0 {
+            continue;
+        }
+        let Some(targets) = search.get(node) else {
+            continue;
+        };
+        for (to, proof) in targets {
+            if distance.get(to) != Some(&(*here - 1)) {
+                continue;
+            }
+            next_step.insert(node.clone(), (to.clone(), proof.clone()));
+            break;
+        }
+    }
+    // What: one walk of this group's uses, which a control counts.
+    // Why: a walk per use would count once per use of the group, and the table it reads answers them all.
+    #[cfg(test)]
+    counted_work::note_walk();
     return next_step;
 }
 
@@ -661,6 +769,7 @@ struct OwnFileLoop {
 ///  it reads the uses backwards from the group once,
 ///  and each use takes its own shortest route from that table,
 ///  where a walk per use read the graph once for each of them.
+///  The reverse index the walks read is built once for the package, as `uses_leading_in` says.
 ///  A use the folder loop already holds is left to the loop checks,
 ///  which report it or the use added inside a tolerated loop.
 ///  A use of the group's own child folders joins no two entries and owes nothing.
@@ -716,11 +825,23 @@ fn group_own_loop_uses(
             ));
         }
     }
+    // What: the reverse index of the searched graph, built once for the package.
+    // Why: it is one table for every group, and building it inside each walk cloned the whole graph per group;
+    // a package whose own files close no loop at all still builds none.
+    let reverse: Option<BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>>> = match closing.is_empty() {
+        true => None,
+        false => Some(uses_leading_in(search)),
+    };
     let mut findings: Vec<OwnFileLoop> = Vec::<OwnFileLoop>::new();
     for (source, uses) in &closing {
-        // What: the shortest route from every entry that reaches this group, to the group.
+        // What: the one index this group's walk reads.
+        // Why: every group reads the same table, so only the walk below is done once per group.
+        let Some(index) = reverse.as_ref() else {
+            continue;
+        };
+        // What: the first step of the shortest route from every entry that reaches this group, to the group.
         // Why: one table answers every use below, and it is read only for a group that closes a loop at all.
-        let next_step: BTreeMap<PathBuf, (PathBuf, Proof)> = routes_to(search, source);
+        let next_step: BTreeMap<PathBuf, (PathBuf, Proof)> = routes_to(search, index, source);
         for (from, to, proof) in uses {
             let target_entry: PathBuf = entry_of(to, groups);
             let Some(route) = route_from(&next_step, &target_entry, source) else {
@@ -1251,7 +1372,15 @@ pub fn check_folder_links(
             base,
         ));
     }
-    let untolerated: FolderUses = match allow {
+    // What: the list as this package's rule asks it, with every listed path in the key's spelling.
+    // Why: one spelling must decide both whether a line tolerates a use and whether it is dead,
+    // and the key's spelling is the one a reader copies; the package folder is what reads a listed path back.
+    let spelled: Option<AllowList> = match allow {
+        Some(list) => Some(list.in_key_spelling(base)),
+        None => None,
+    };
+    let listed: Option<&AllowList> = spelled.as_ref();
+    let untolerated: FolderUses = match listed {
         Some(list) => without_tolerated(&grouped, list, base),
         None => grouped.clone(),
     };
@@ -1282,7 +1411,7 @@ pub fn check_folder_links(
     );
     // Every key names one finding before a line can tolerate it, so a second finding of one shape is reported.
     unique_keys(&mut findings);
-    let Some(list) = allow else {
+    let Some(list) = listed else {
         return findings;
     };
     let reported_loops: FolderLoops = loops_of_each_folder(&folder_list, &untolerated, &groups);
