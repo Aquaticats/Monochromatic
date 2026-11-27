@@ -52,7 +52,8 @@ use super::tool_directories;
 /// What:
 /// What a `prune --toolchain` run read at a hidden name whose installer it cannot judge:
 /// no finished copy at all,
-/// a completion marker with no program name to look for,
+/// no completion marker where no program name is known,
+/// a completion marker where no program name is known,
 /// a finished copy where the version stands finished at its own name,
 /// or a finished copy that is the version's only one here.
 /// Why:
@@ -63,7 +64,7 @@ use super::tool_directories;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WhatItRead = 'no-finished-copy' | 'a-completion-marker-only' | 'a-second-finished-copy' | 'the-versions-only-finished-copy';
+/// type WhatItRead = 'no-finished-copy' | 'no-completion-marker' | 'a-completion-marker-only' | 'a-second-finished-copy' | 'the-versions-only-finished-copy';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum WhatItRead {
