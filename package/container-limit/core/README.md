@@ -117,6 +117,15 @@ such as one that hands a shell `-c` a command line in a string,
 still lists by the program name it holds,
 and its entry here says by hand what it does with the tool.
 
+No Rust source of this repository starts a container today:
+`package/cargo-shadow/cli/src/lean_podman_real.rs` runs `podman images`,
+`ps`,
+`rmi`,
+`volume ls` and `volume rm` through `Command::new("podman").args(...)`,
+whose arguments its callers build,
+and the three other Rust sources that name the tool do so in prose,
+in a sample source line and in a doc comment.
+
 A start whose bound is a size decision the owner has not made is listed by path in the test
 (`UNBOUNDED_SITE_DECISIONS`) with the reason,
 and the paired test fails when such a path gains a bound,
