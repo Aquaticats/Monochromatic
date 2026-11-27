@@ -169,8 +169,8 @@ the kernel's own overflow marker is dropped without a look at any group,
 so a scope that emptied inside the lost range is never queued.
 Only read,
 not shown:
-filling `fs.inotify.max_queued_events` (16384 in the guest) takes generated load,
-which the rules of this machine forbid.
+filling `fs.inotify.max_queued_events` (16384 in the guest) needs a burst of events,
+and no such burst was generated for it.
 
 #### A watch that cannot be added is ignored
 
@@ -249,7 +249,7 @@ root's own user manager started with `systemctl start user@0.service`,
 `max_queued_events` 16384,
 82 watches held by root before each arm.
 Every launcher command in the arms is byte for byte the shape
-`cargo-shadow` builds (`control_group.rs:303` to `316`):
+`cargo-shadow` builds (`control_group.rs:303` to `317`):
 
 ```sh
 systemd-run --user --scope --quiet --collect --property=Delegate=yes \
@@ -324,8 +324,9 @@ The last look read `loaded`,
 `active`,
 `running`,
 `0` again:
-restoring the quota adds no watch,
-because nothing asks the manager to realize the group again.
+two seconds after the quota was restored the unit was still there.
+What the guest shows is that restoring it changed nothing;
+whether the manager ever re-adds that watch is not something these readings look at.
 
 #### The released wrapper, in the same state
 
@@ -394,8 +395,11 @@ and the re-execution returned at 489 ms:
 every other unit of the forty was collected.
 Two more attempts left nothing,
 one of them because its re-execution returned after the last program had ended.
-So the third path is real,
-and catching it takes an exit inside a window that one attempt in three hit.
+So the state is reachable through a re-execution,
+and one attempt in three hit it.
+The manager's own catch-up read and watch add were not instrumented,
+so what those two units show is a result the window in the source explains,
+and no other cause was found for it.
 
 ### What such a unit costs, and what removes it
 
@@ -413,22 +417,27 @@ after the arm that made it.
   twenty leftovers took the manager's loaded units from 91 to 111,
   and `MemoryCurrent` of `user@0.service` from 6,004,736 to 8,675,328 bytes,
   so 2,670,592 bytes more for twenty,
-  about 127 KiB each.
-  These are one reading before and one after,
-  on a manager whose other work did not change meanwhile.
-- No limit counts it:
-  the pids controller counts its processes,
-  and it has none,
-  and no unit-count limit exists on this manager by default.
+  about 130 KiB each.
+  That is one reading before and one after,
+  with no control arm and no run-to-run spread,
+  so the difference is the manager's growth across the arm and not a measured price of one unit.
+- No per-unit limit counts it:
+  the pids controller counts a unit's processes and this unit has none,
+  and the manager sets no limit on how many units it loads.
+  What it adds to the manager counts,
+  the way any of the manager's own memory does,
+  against a limit written on `user@0.service` (`MemoryMax` was not read here).
 - `systemctl --user stop <unit>` ends it:
   exit status 0 in 4 ms,
   then `LoadState=not-found` and the group directory gone.
   That is the same command `retire_unit` would have sent.
 - The user manager stopping ends all of them:
-  `systemctl stop user@0.service`,
-  which is what the last logout does when nothing lingers,
-  left no group directory and no loaded unit;
-  after the restart the nineteen leftovers read 0.
+  `systemctl stop user@0.service` left no group directory and no loaded unit,
+  and after the restart the nineteen leftovers read 0.
+  That is the manager's exit and not a session's logout:
+  the guest had no session for root and no linger,
+  so the manager was started and stopped directly,
+  and a machine where root lingers or stays logged in keeps its manager and its units.
 - A `daemon-reexec` ends them,
   as "The re-execution,
   which cuts both ways" shows.
@@ -438,8 +447,11 @@ after the arm that made it.
   and after the reboot the count of `cargo-shadow-*` units was 0.
 
 So a person meets it in `systemctl --user list-units` and in nothing else,
-it clears itself on the next re-execution or logout,
-and the road that leaves it longest is the one where the account's watch quota stays used up.
+and it goes when the manager is stopped,
+re-executed or rebooted.
+Nothing here says how long one stays:
+a unit was still there two seconds after its quota was restored,
+and that is the whole of what the readings say about its life.
 
 ## Options
 
@@ -597,20 +609,30 @@ and whether the order the section "Ranking" gives still holds.
   leave it and document it:
   applies as written,
   and this state makes the documenting half more valuable,
-  because a person who meets one cannot tell it from the stuck scope of issue 6578 by looking.
+  because a person meeting one in `systemctl --user list-units` cannot tell it from the stuck scope
+  of issue 6578 there,
+  and the one reading that separates them is the `pids.peak` of the group:
+  0 for a group that never held a process,
+  at least 1 here.
 - D,
   a recovery stops the unit its journal recorded:
-  cannot reach this state.
-  A run that ends normally publishes its completion marker and removes the journal directory
-  (`src/journal_done_marker.rs`,
-  `publish_done` then `remove_done`,
-  `finish_journal` at line 181 to 192),
-  so the next run's recovery has no record to read,
-  and the README's own sentence puts the `settled <scope path>` line in a journal that is then removed
+  reaches the killed-run road and not a run that finished.
+  The recovery judges the journals it reads as open
+  (`listing.open` in `src/journal_recover.rs`),
+  and a journal whose completion marker is published is in `listing.done` instead,
+  where the next run only finishes and removes it (`src/journal_recover.rs:285` to `294`)
+  without reading any record from it.
+  A run that finishes therefore puts its journal out of D's reach even when the removal itself fails,
+  which `journal_finish.rs` records as a warning rather than a stop,
+  and the README's sentence puts the `settled <scope path>` line in exactly that journal
   (`README.md` lines 741 to 742).
-  D therefore covers the killed-run road,
-  whose journal is still there,
-  and not this one.
+  What D still covers from this road is the window between the retire step returning `None`
+  (`control_group_retire.rs:264`) and the transaction's completion marker
+  (`journal_transaction.rs:532`):
+  a run killed there leaves an empty scope whose journal is still open,
+  and D would reach it.
+  It cannot reach the state this section is about,
+  where the run finished and the wrapper said nothing.
 - E,
   a sweep in the lean service:
   clears it,
@@ -629,17 +651,24 @@ and each adjacent pair for a stated reason:
   and that is still the only option with that property.
   What this state changes is the size of A's advantage,
   not its kind:
-  A now covers two roads where D covers one,
-  and the journal-gone state it alone reaches is not the accident "Ranking" called it,
-  because every normal end removes the journal.
-  The reason D still ranks first is that this road's leftovers clear themselves
-  (a re-execution,
-  a logout or a reboot,
-  all measured in "What such a unit costs,
-  and what removes it")
-  while the killed-run leftover does not,
-  and A pays for its breadth with a listing on every invocation and a grace that can stop
-  a live run's scope.
+  A reaches both roads where D reaches the killed-run one and the window before a run's
+  completion marker,
+  and the journal-gone state is not the accident "Ranking" called it,
+  since any run that finishes leaves one.
+  The reason D still ranks first is what A costs and what its extra reach buys:
+  A lists on every invocation,
+  and its grace is the only thing between it and another run's momentarily empty scope;
+  what it alone adds is a state with two rare triggers,
+  an account whose inotify watches are used up and a race with a re-execution that one attempt
+  in three engineered here,
+  and both roads' leftovers go on the next re-execution,
+  logout or reboot,
+  as "What such a unit costs,
+  and what removes it" measured,
+  so A buys an earlier clear only where no such event comes before its next invocation.
+  That makes this pair closer than "Ranking" put it,
+  and D keeps the earlier place on its precision,
+  not on any claim about which road clears itself.
 - A above E:
   unchanged and now the stronger pair of the two:
   both clear this state,
@@ -653,15 +682,29 @@ and each adjacent pair for a stated reason:
   unchanged;
   C is a decision the owner can take today and B is unavailable.
 
-One addition would reorder the list,
-and it is not adopted here:
+One addition is available and not adopted here,
+because its price is the opposite of what alpha.13 bought:
 the run is alive when it leaves this unit,
-so its own last step could look at the unit it just started
-and stop or name it,
-with the name already in its hand and no listing and no grace.
-That is D's step on the live path rather than a sixth option,
-it would sit above D,
-and it is put to the owner as question 5 of "Questions for the owner" rather than taken.
+so its own last step could look at the unit it just started,
+with the name already in its hand and no listing and no grace,
+and stop it or name it when the kernel says the group emptied after holding a process.
+That is D's step on the live path.
+Its pros:
+it needs no listing,
+no grace,
+and no journal,
+and it is the only way to learn about this road while the wrapper that made it is still running.
+Its cons:
+the condition is true for every ordinary scoped run,
+because at the last look the manager's notification may simply not have arrived yet,
+so it restores a `systemctl` process start per scoped run,
+which is the cost alpha.13 removed by returning `None` at `control_group_retire.rs:264`;
+and a stop that follows such a look can kill a member that joins in the window between the look
+and the stop,
+silently,
+which is the Low finding of the alpha.13 read.
+It is question 5 of "Questions for the owner",
+not a rank taken here.
 
 ## Questions for the owner
 
@@ -682,14 +725,22 @@ and it is put to the owner as question 5 of "Questions for the owner" rather tha
 5. The second road's leftover is made by a run that is still alive:
    after each program ends,
    the run reads that scope's `populated` line and its `pids.peak` anyway.
-   May its last step ask the manager about the unit it just started,
-   and stop it,
-   when the kernel says the group emptied after holding a process?
-   That is D's step on the live path,
-   with the unit's name already in hand,
-   no listing and no grace,
-   and it ranks above D;
-   it also ends the sentence that an ordinary run asks the manager nothing.
+   Should its last step also ask the manager about the unit it just started?
+   Pro:
+   the name is in hand,
+   and no listing,
+   no grace and no journal are needed,
+   so this is the only option that reaches this road before the run ends.
+   Con:
+   the condition is true of every ordinary scoped run,
+   because the manager's notification may still be in flight at that look,
+   so it brings back a `systemctl` process start per scoped run,
+   which alpha.13 removed;
+   and a stop after such a look can kill a member that joins in between,
+   silently,
+   which the alpha.13 read records as a Low finding.
+   The same two sides are under "The options and the ranking,
+   with the second road".
 6. The package's README and the troubleshooting file state the notification as a law
    ("so that run asks the manager nothing").
    Should the sentence say the manager can lose it,
