@@ -43,20 +43,24 @@ use crate::merge_isolation_index_reading::{
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_cleanup::an_installed_merge_behind_a_held_index;
-use crate::merge_isolation_recovery_steps::{
+use crate::merge_isolation_recovery_place::RecoveryPlace;
+use crate::merge_isolation_recovery_record::{
     IndexHeldAt,
     Installed,
-    Judged,
     MergeRecoveryAction,
     MergeRefusal,
-    RecoveryPlace,
-    Standing,
+};
+use crate::merge_isolation_recovery_steps::{
     index_holds_the_merge_awaiting,
     install_entries_awaiting,
     judge_changes_awaiting,
     merge_changes_awaiting,
     put_back_stranded_takes_awaiting,
     remove_record,
+};
+use crate::merge_isolation_the_merges_paths_judged::{
+    Judged,
+    Standing,
 };
 /// The fail-closed recovery failure,
 /// and the refusal that says whether the merge began.

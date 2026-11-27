@@ -144,7 +144,7 @@ fn a_hold_that_never_ends_stops_the_reruns_at_the_ceiling() {
     let root: PathBuf = fixture("hold-retry-ceiling");
     let index: PathBuf = root.join("index");
     let lock: PathBuf = lock_path_of(index.as_path());
-    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    let identity: String = crate::service_index_identity::own_identity().expect("identity");
     std::fs::write(
         &lock,
         format!("{LOCK_MARKER}1 {} {identity}\n", std::process::id()),

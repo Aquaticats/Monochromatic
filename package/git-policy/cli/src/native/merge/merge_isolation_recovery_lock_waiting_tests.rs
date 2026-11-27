@@ -31,7 +31,8 @@ use crate::index_holder_wait::IndexWait;
 use crate::merge_isolation_journal::parse_merge_intent;
 use crate::merge_isolation_recovery_index_lock::may_install;
 /// The three facts that decide what a command says about an index it cannot write.
-use crate::merge_isolation_recovery_steps::IndexHeldAt;
+use crate::merge_isolation_recovery_record::IndexHeldAt;
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 use crate::test_support::{
     git,
     git_text,

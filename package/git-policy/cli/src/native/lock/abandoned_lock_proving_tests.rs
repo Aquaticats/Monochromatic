@@ -37,7 +37,7 @@ use crate::lock_holder_records::{
     identity_of_process,
     record_text,
 };
-use crate::stale_ref_lock_walk::pid_file_beside;
+use crate::stale_ref_lock_names::pid_file_beside;
 use crate::test_support::{
     fixture,
     remove,
@@ -1060,7 +1060,7 @@ fn a_pid_file_another_program_wrote_over_the_judged_one_is_left_alone() {
         "a PID file another program wrote over the judged one is left alone"
     );
     assert_eq!(
-        crate::stopped_git_locks::pid_named_by(taken.pid_file.as_path()),
+        crate::stale_ref_lock_names::pid_named_by(taken.pid_file.as_path()),
         i32::try_from(taken.new_pid).ok(),
         "the file names the writer that stands"
     );

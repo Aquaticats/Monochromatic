@@ -162,6 +162,30 @@ pub fn in_a_fixture_root_taking_any_name(test: &str) -> bool {
 }
 
 /// What:
+///  `in_a_fixture_root_taking_any_name` with `deadline` as the window the child that runs the whole control is given.
+/// Why:
+///  A control that makes a name that is not UTF-8 runs all of its body in that child,
+///  so its window covers what the control does:
+///  a control that lands change lists past `MAX_CHANGES` does minutes of Git's work on a loaded host,
+///  and the file's own `CHILD_TEST_DEADLINE` is sized for a body of a few files
+///  (`AGENTS.md` rule `SLW`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!inAFixtureRootTakingAnyNameWithin('service_landing_state::...::a_control', 240_000)) return;
+/// ```
+pub fn in_a_fixture_root_taking_any_name_within(
+    test: &str,
+    deadline: std::time::Duration,
+) -> bool {
+    return crate::fixture_root_taking_any_name::in_a_root_taking_any_name_within(
+        fixture_root().as_path(),
+        test,
+        deadline,
+    );
+}
+
+/// What:
 ///  Create a fixture in `directory` whose wrapper comes from `store_root`,
 ///  which may be on another filesystem than the build;
 ///  see `fixture`.

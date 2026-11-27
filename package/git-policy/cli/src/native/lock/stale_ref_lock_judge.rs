@@ -38,6 +38,12 @@ use crate::process_use::{
     processes_using_through,
 };
 use crate::stale_ref_lock_found::PidFile;
+/// What a judgement concluded and why a lock may be removed,
+/// re-exported so a caller of this module names them here.
+pub use crate::stale_ref_lock_found::{
+    Proof,
+    Verdict,
+};
 pub use crate::stale_ref_lock_identity::{
     Identity,
     identity_of,
@@ -51,8 +57,10 @@ use crate::stale_ref_lock_judge_words::{
     looks_older_than_boot,
     process_state_words,
 };
-use crate::stale_ref_lock_walk::pid_file_beside;
-use crate::stopped_git_locks::pid_named_by;
+use crate::stale_ref_lock_names::{
+    pid_file_beside,
+    pid_named_by,
+};
 use std::path::{
     Path,
     PathBuf,
@@ -72,33 +80,6 @@ pub use crate::stale_ref_lock_judge_limits::{
     MARGIN,
     MARGIN_MULTIPLE,
 };
-
-/// Why a lock may be removed.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Proof {
-    /// The staging file `packed-refs.new` has no lock beside it,
-    /// and Git creates it only while holding that lock.
-    OrphanStaging,
-}
-
-/// What a judgement concluded.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Verdict {
-    /// Younger than the margin,
-    /// or not a regular file:
-    /// left,
-    /// and not mentioned.
-    TooNew,
-    /// A running process holds it;
-    /// the text names the process and how that is known.
-    Held(String),
-    /// Nothing proves the holder gone;
-    /// the text says why.
-    Unproven(String),
-    /// Removable,
-    /// on this proof.
-    Stale(Proof),
-}
 
 /// The evidence a judgement may use,
 /// and the limits of what it can see.

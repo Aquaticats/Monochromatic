@@ -2,7 +2,8 @@
 //!  The one decision two enforcers of a step's ceiling make together:
 //!  whether that ceiling stands aside for a step the kernel holds in a disk wait,
 //!  the bound the step then runs under,
-//!  and why it was waited for.
+//!  why it was waited for,
+//!  and the process the kernel is holding.
 //! Why:
 //!  The scratch `git commit` has two enforcers of one ceiling:
 //!  the notice's thread, which prints the lines and can end the step through the descriptor it took at its start,
@@ -37,15 +38,34 @@
 //! const stall = new TheStallDecidedOnce(); stall.state(); stall.standAside({ waited, bound, why }); stall.theUsualCeilingEndsIt();
 //! ```
 
-/// The process the kernel is holding,
-/// which is the step itself or a program it started.
-use crate::scratch_step_held_by_the_kernel::HeldProgram;
 /// The one lock around the decision,
 /// taken only to read or write one small value and never held across a look or a wait.
 use std::sync::Mutex;
 /// Time spans,
 /// for the moment the ceiling stood aside and the bound it named.
 use std::time::Duration;
+
+/// What:
+///  One process the kernel is holding in a call a signal cannot end:
+///  its number and the kernel's name of it.
+/// Why:
+///   The person reads the line with `ps` in hand,
+///  so the process it names must be the one `ps` shows in state `D`,
+///  and the name says what that process is
+///  (`commit/scratch_step_look_below.rs`,
+///  `the_process_the_kernel_holds`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HeldProgram = { number: number; name: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HeldProgram {
+    /// The process number the look found in uninterruptible sleep.
+    pub number: i32,
+    /// The name the kernel gives that process.
+    pub name: String,
+}
 
 /// What:
 ///  Why a step's ceiling stopped ending the step.

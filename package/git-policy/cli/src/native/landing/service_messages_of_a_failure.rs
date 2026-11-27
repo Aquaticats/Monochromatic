@@ -21,7 +21,7 @@
 //! export const failureCode = (failure: ClientFailure): string => ...;
 //! ```
 
-use crate::service_messages::ClientFailure;
+use crate::service_messages_the_failures_a_person_can_meet::ClientFailure;
 
 /// What:
 ///  The failure as the timing record names it,

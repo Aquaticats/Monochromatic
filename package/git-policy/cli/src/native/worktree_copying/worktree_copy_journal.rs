@@ -44,13 +44,14 @@ use crate::worktree_copy_journal_encoding_and_validation::{
     encode_journal,
     parse_journal_reading,
 };
+use crate::worktree_copy_journal_names_and_shapes::UNREADABLE_FOLDER;
 use crate::worktree_copy_owner::{
     CopyOwner,
     current_copy_owner,
     token_owner_is_dead,
 };
 use crate::worktree_copy_selection::by_js_order;
-use crate::worktree_copy_stage::StagedSnapshot;
+use crate::worktree_copy_stage_snapshot::StagedSnapshot;
 use std::path::{
     Path,
     PathBuf,
@@ -462,12 +463,7 @@ pub fn journal_items_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError>
             // those records stands until the repository is gone, and a look at it would make every command pay for a
             // sweep they have nothing to do.
             return match listed {
-                Ok(entry) => {
-                    entry.file_name()
-                        != std::ffi::OsStr::new(
-                            crate::worktree_copy_unreadable_records::UNREADABLE_FOLDER,
-                        )
-                }
+                Ok(entry) => entry.file_name() != std::ffi::OsStr::new(UNREADABLE_FOLDER),
                 Err(_unreadable) => true,
             };
         })),

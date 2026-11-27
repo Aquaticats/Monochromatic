@@ -318,7 +318,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
         "own-record",
     ),
     (
-        "worktree_copying/worktree_copy_stage_claim_reaping.rs",
+        "worktree_copying/worktree_copy_stage_claim_record.rs",
         1,
         "own-record",
     ),

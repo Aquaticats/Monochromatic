@@ -36,6 +36,7 @@ use crate::test_support::{
 };
 use std::path::PathBuf;
 
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// What:
 ///  A branch another program moved away from the merge is settled,
 ///  and the person's captured edit comes back into its file.

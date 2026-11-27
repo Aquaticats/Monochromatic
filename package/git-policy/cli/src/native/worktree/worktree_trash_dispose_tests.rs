@@ -1,7 +1,6 @@
 //! Controls of the emptying that are decided below the handler:
 //! which object the manifest's name must still hold when it is unlinked.
 
-use super::remove_the_manifest;
 use crate::fs_beneath::{
     identity_at,
     open_directory_at,
@@ -12,8 +11,9 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use crate::the_names_and_the_manifest_of_the_trash::MANIFEST_FILE_NAME;
 use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME;
+use crate::worktree_trash_dispose_after_the_entries::remove_the_manifest;
 use std::ffi::OsStr;
 use std::path::{
     Path,
