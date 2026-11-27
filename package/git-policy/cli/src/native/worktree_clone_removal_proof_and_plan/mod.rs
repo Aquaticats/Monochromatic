@@ -75,8 +75,10 @@
 //!   its first write and its bytes.
 //! - `plan_attempt_parse.rs`:
 //!   one attempt region read into one line per attempt.
+//! - `plan_header_fields.rs`:
+//!   the header region read into one plan's fields.
 //! - `plan_parse.rs`:
-//!   the header read into the plan's fields and the two halves joined.
+//!   the header completed into the plan's facts and the two halves joined.
 //! - `plan_reading.rs`:
 //!   the two-stage file read and the folder and owner checks.
 //! - `plan_publication.rs`:
@@ -154,6 +156,7 @@ pub mod lineage_proof;
 pub mod loss_names;
 pub mod plan_attempt_parse;
 pub mod plan_bounds;
+pub mod plan_header_fields;
 pub mod plan_lines;
 pub mod plan_name;
 pub mod plan_names_and_states;
