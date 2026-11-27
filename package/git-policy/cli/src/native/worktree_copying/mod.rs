@@ -116,10 +116,20 @@
 //!   and the shape of one journal record.
 //! - `worktree_copy_journal_encoding_and_validation.rs`:
 //!   the exact JSON encoding of a copy journal and the strict validation of every field recovery will act on.
+//! - `worktree_copy_private_path.rs`:
+//!   the check that a path the copy acts on is canonical,
+//!   this account's,
+//!   private,
+//!   and of the kind it claims.
+//! - `worktree_copy_atomic_write.rs`:
+//!   the publication of one record of the copy whole:
+//!   the name of its temporary,
+//!   the write into it,
+//!   and the one rename that gives it its final name.
 //! - `worktree_copy_journal.rs`:
 //!   the durable journal of one copy:
 //!   private storage,
-//!   atomic writes and reading.
+//!   creating a journal and reading the root.
 //! - `worktree_copy_stage_binding.rs`:
 //!   the registration one staged copy is bound to,
 //!   recorded beside its payload and checked before every write into a worktree.
@@ -453,9 +463,23 @@ pub mod worktree_copy_install;
 #[cfg(unix)]
 pub mod worktree_copy_rollback;
 
+/// The check that a path the copy acts on is canonical,
+/// this account's,
+/// private,
+/// and of the kind it claims.
+#[cfg(unix)]
+pub mod worktree_copy_private_path;
+
+/// The publication of one record of the copy whole:
+/// the name of its temporary,
+/// the write into it,
+/// and the one rename that gives it its final name.
+#[cfg(unix)]
+pub mod worktree_copy_atomic_write;
+
 /// The durable journal of one copy:
 /// private storage,
-/// atomic writes and reading.
+/// creating a journal and reading the root.
 #[cfg(unix)]
 pub mod worktree_copy_journal;
 
