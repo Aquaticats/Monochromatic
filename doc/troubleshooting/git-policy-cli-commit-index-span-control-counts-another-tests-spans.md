@@ -310,3 +310,22 @@ where both orders of that race lose the look
 (`commit/native_commit_waiting_notice_control_window.rs`, `commit/native_commit_waiting_notice_tests.rs`).
 Measured with that stretch planted: `ok. 1 passed; 0 failed`, `looks: 6, looks_found: 5`, 2.800999468 s credited
 of 3.506208296 s watched.
+
+### The module's other controls that rest on the same thing
+
+- `a_step_is_still_stopped_after_a_look_that_could_not_be_made`: on `until_a_look_finds_the_step`, which is
+  `until_looks_find_the_step(1, ..)` now, and on the look window it takes.
+- `a_notice_whose_sink_stopped_reading_does_not_hold_the_commit`: on one look interval passing between two looks
+  before `finish`, and it asserts `looks_found: 0` because no step is published.
+- `the_ceiling_stands_aside_for_a_step_the_kernel_holds` and `the_ceiling_that_stood_aside_prints_no_line_of_its_own`:
+  on a look arriving within five times `A_CEILING_A_STEP_OUTLASTS`, so on the look cadence, beside the stall bound
+  they plant.
+- `a_step_that_ends_at_once_prints_nothing_and_a_long_one_prints_again`: on the loop turning each cadence into a
+  line, so on its pause being no longer than that cadence.
+- `the_same_program_must_be_seen_at_both_looks_to_be_credited`,
+  `a_program_that_takes_another_place_between_looks_is_credited_only_from_its_own` and
+  `a_program_seen_once_is_kept_with_a_zero_lower_bound`: on `credit_between_looks` given a stated interval, and on
+  no schedule at all.
+- `commit/commit_preparation_tests.rs`'s five controls that take this window: on the ceiling and stall plants, which
+  `take_the_window` resets, and on a look finding the step. The stretch a control plants is reset the same way, and
+  none of them states one.
