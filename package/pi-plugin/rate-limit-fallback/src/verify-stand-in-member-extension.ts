@@ -125,7 +125,9 @@ const [HEAD_TARGET, SECOND_TARGET,] = WRITER_TARGETS;
 const HEAD_LABEL = `${HEAD_TARGET.provider}/${HEAD_TARGET.id}`;
 
 /**
- Every provider the writer pool asks, each of which this stand-in answers for in one registration.
+ Every provider the writer's list names. Each gets one registration here, and a provider whose member
+ this stand-in does not play carries no model, so the pool skips that member as it skips an unregistered
+ one.
  */
 const MEMBER_PROVIDERS: readonly string[] = [...new Set(WRITER_TARGETS.map(function providerOf(target: MemberIdentity,) {
   return target.provider;

@@ -114,7 +114,7 @@ read at `@earendil-works/pi-coding-agent` 1.5.2 and `@earendil-works/pi-ai` 1.5.
   (`src/stand-in-pi-fixture.ts`): the installed provider catalogs,
   `@earendil-works/pi-ai` `dist/providers/data/*.json`, and the member extension sources under
   `package/pi-plugin/`.
-- The pool order and the reviewer order (`src/member-order-fixture.ts`): `.agents/skills/pi-as-subagent`
+- The members both pools ask, in their order (`src/member-order-fixture.ts`): `.agents/skills/pi-as-subagent`
   `SKILL.md`, section "Who writes and who reviews", as that file cites its owner decisions.
 - Qwen's `Requests rate limit exceeded` wording and its one-minute advice
   (`src/quota-reentry.unit.test.ts`): the Token Plan FAQ, section "Rate limiting and concurrency",

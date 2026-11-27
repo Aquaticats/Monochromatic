@@ -95,31 +95,30 @@ with its raw lines in `doc/quota-read-latency-records/live-check-2026-11-26.json
 
 ## Order and refusal policy
 
-The owner set these writers on 2026-11-26,
-asked in what order writers take the pools and answering
-"Qwen, opencode-go, flex (Recommended)"
-(`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order").
-That record replaces the writer order of 2026-11-19 in [the subagent skill][writers]
-(section "Who writes and who reviews"),
-which asked standard NeuralWatt first and dropped GPT 6.2 Sol as a writer.
-The `writer` pool asks these members in order:
-
-- `qwen-token-plan-individual/deepseek-v4.1-flash-1017`
-- `opencode-go/deepseek-v4.1-flash`
-- `neuralwatt/deepseek-v4.1-flash-flex`
-
-Standard NeuralWatt's `neuralwatt/deepseek-v4.1-flash` left the list that day:
-the owner closed it to writers on 2026-11-11,
-and `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md` keeps it closed.
-`src/writer-order.unit.test.ts` fails if that member or the provider named `deepseek`
-comes back to either pool.
-
-The `reviewer` pool tries these members in order:
+Both pools ask one list of members, `BOTH_POOLS_MEMBERS` in `src/model-pools.ts`, in this order:
 
 - `qwen-token-plan-individual/deepseek-v4.1-flash-1017`
 - `synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`
 - `opencode-go/deepseek-v4.1-flash`
 - `neuralwatt/deepseek-v4.1-flash-flex`
+
+The owner set the reviewer's order, and on 2026-11-27 typed
+"Change writer's list to match the reviewer's list."
+(`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+"The writer's members become the reviewer's").
+That section supersedes for the writer the order of 2026-11-26,
+"Qwen, opencode-go, flex (Recommended)", which asked three members and left Synthetic's out,
+and it replaces the writer order of 2026-11-19 in [the subagent skill][writers]
+(section "Who writes and who reviews"),
+which asked standard NeuralWatt first and dropped GPT 6.2 Sol as a writer.
+One list carries both pools' order, so a match with the reviewer's cannot drift apart from it,
+and `src/writer-order.unit.test.ts` fails if either pool stops asking it.
+
+Standard NeuralWatt's `neuralwatt/deepseek-v4.1-flash` is no member:
+the owner closed it to writers on 2026-11-11,
+and `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md` keeps it closed.
+`src/writer-order.unit.test.ts` fails if that member or the provider named `deepseek`
+comes back to either pool.
 
 No request is sent to the provider named `deepseek`.
 An unregistered member

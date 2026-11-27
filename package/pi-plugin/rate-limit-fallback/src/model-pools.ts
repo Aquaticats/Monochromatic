@@ -21,9 +21,19 @@ export const PROVIDER_ID = 'rate-limit-fallback';
 const ROUTING_API = 'rate-limit-fallback';
 
 /**
- Reviewer membership in preference order.
+ Members both pools ask, in the order the reviewer has asked them.
+
+ The writer asks these members from 2026-11-27: the owner typed "Change writer's list to match the reviewer's list."
+ (`main:doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writer's members become the
+ reviewer's"), which supersedes for the writer the order of 2026-11-26, "Qwen, opencode-go, flex (Recommended)".
+
+ One list, named by both pools, rather than two equal ones, so that a match with the reviewer's list cannot drift
+ apart from it.
+
+ NeuralWatt's standard DeepSeek lane is no member: the owner closed it to writers on 2026-11-11, and it left this
+ list on 2026-11-26. The provider named `deepseek` is never a member of either pool (the same record).
  */
-const REVIEWER = [
+const BOTH_POOLS_MEMBERS = [
   {
     provider: 'qwen-token-plan-individual',
     id: 'deepseek-v4.1-flash-1017',
@@ -31,30 +41,6 @@ const REVIEWER = [
   {
     provider: 'synthetic',
     id: 'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017',
-  },
-  {
-    provider: 'opencode-go',
-    id: 'deepseek-v4.1-flash',
-  },
-  {
-    provider: 'neuralwatt',
-    id: 'deepseek-v4.1-flash-flex',
-  },
-] as const;
-
-/**
- Writer membership, in the owner's order of 2026-11-26
- (`main:doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order"):
- the qwen individual token plan's DeepSeek V4.1 Flash, then OpenCode Go, then NeuralWatt's flex lane.
-
- The owner answered "Qwen, opencode-go, flex (Recommended)", so NeuralWatt's standard DeepSeek lane leaves this
- pool: it was the head until 2026-11-26, and the owner closed it to writers on 2026-11-11. The provider named
- `deepseek` is never a member for any run (the same record, "The writers' order").
- */
-const WRITER = [
-  {
-    provider: 'qwen-token-plan-individual',
-    id: 'deepseek-v4.1-flash-1017',
   },
   {
     provider: 'opencode-go',
@@ -91,20 +77,20 @@ export type PoolDefinition = Readonly<{
 }>;
 
 /**
- The two pools the package offers, in the order Pi lists them.
+ The two pools the package offers, in the order Pi lists them. Both ask {@link BOTH_POOLS_MEMBERS}.
  */
 export const POOL_DEFINITIONS: readonly PoolDefinition[] = [
   {
     name: 'writer',
     displayName: 'Writer',
     modelId: 'writer-pool',
-    members: WRITER,
+    members: BOTH_POOLS_MEMBERS,
   },
   {
     name: 'reviewer',
     displayName: 'Reviewer',
     modelId: 'reviewer-pool',
-    members: REVIEWER,
+    members: BOTH_POOLS_MEMBERS,
   },
 ];
 

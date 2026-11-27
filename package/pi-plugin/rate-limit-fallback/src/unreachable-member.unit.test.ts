@@ -30,7 +30,7 @@ import {
 } from './transport-failure-fixture.ts';
 
 /** Writer head, the member every request starts at. */
-const [HEAD, SECOND, THIRD,] = WRITER_TARGETS;
+const [HEAD, SECOND,] = WRITER_TARGETS;
 
 /**
  First pool attempt of a case, the one the unreachable member gets.
@@ -244,17 +244,16 @@ await describe({
         // Every member failed the same way, so the last refusal is the request's answer, unchanged.
         expect(first.result.stopReason,).toBe('error',);
         expect(first.result.errorMessage,).toBe(EXHAUSTED_FAILURE.text,);
-        expect(first.result.provider,).toBe(THIRD.provider,);
+        expect(first.result.provider,).toBe(WRITER_TARGETS.at(-1,)
+          ?.provider,);
         clock.now += UNREACHABLE_MEMBER_HOLD_MS / 2;
         const second = await collect(provider.streamSimple(model, TRANSCRIPT, options,),);
         expect(second.result.errorMessage,).toBe(EXHAUSTED_FAILURE.text,);
+        // Every registered member, in the pool's order, on each request: the count comes from the fixture, not from a
+        // number written here.
         expect(calls.map(call => labelOf(call.model,),),).toEqual([
-          labelOf(HEAD,),
-          labelOf(SECOND,),
-          labelOf(THIRD,),
-          labelOf(HEAD,),
-          labelOf(SECOND,),
-          labelOf(THIRD,),
+          ...WRITER_TARGETS.map(target => labelOf(target,),),
+          ...WRITER_TARGETS.map(target => labelOf(target,),),
         ],);
       },
     },),

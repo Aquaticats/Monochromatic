@@ -33,8 +33,8 @@ import {
  */
 const [QWEN, SYNTHETIC,] = REVIEWER_TARGETS;
 
-/** Writer pool in its decided order; the last member is what an exhausted pool returns. */
-const [WRITER_HEAD, WRITER_SECOND, WRITER_LAST,] = WRITER_TARGETS;
+/** Writer head, the member every request starts at; a pool that asks every member returns the last one's refusal. */
+const [WRITER_HEAD,] = WRITER_TARGETS;
 
 /** Retry timing a 429 carries, so a member that was rate-limited is held afterwards. */
 const RETRY_AFTER_SECONDS = 60;
