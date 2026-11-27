@@ -2078,8 +2078,8 @@ and what the messages say.
 - A `uses` line is read whatever whitespace character sets its words off,
   after the word and on both sides of the arrow:
   a list aligned with tabs or with no-break spaces is read as one aligned with spaces is.
-  alpha.19 read such a line when every gap was one whitespace character,
-  and refused the whole list for a tab or a no-break space beside a doubled gap,
+  alpha.19 read such a line when every gap was one whitespace character and neither of its names held one,
+  and refused the whole list for a tab or a no-break space anywhere else,
   which hid every other finding of the rule.
   Of the 220 spellings of one line the alpha.19 release read built,
   alpha.19 read 31 as the use,
@@ -2101,19 +2101,32 @@ and what the messages say.
   and printed a space at either end of a name as itself.
 - A folder name whose arrow word is set off by a tab or a no-break space
   is refused while the folder rule is selected,
-  and the refusal names that shape,
-  where alpha.19 read such a tree and could print a key the next run would read as another pair of folders.
+  and the refusal names that shape.
+  The guard is this release's wider reader:
+  alpha.19 read such a tree clean and printed a key,
+  and this release's reader takes the first arrow whitespace sets off for the line's own,
+  so that key would read as another pair of folders.
+  A tree with such a name therefore goes from a clean run in alpha.19 to a refusal that stops the rule in this release.
 - A `uses` line that sets no arrow off with whitespace on both sides is refused
   with a sentence naming the whitespace characters and where they stand,
   and a line that sets two of them off says so,
   where alpha.19 sent its reader back to the shape of a line alone.
 - A `file-uses` line of six words whose words between the folder's place and the arrow name no folder
-  is refused as the shape it misspells,
-  where alpha.19 told its reader to rename a folder that holds no space and is fine;
-  a six-word line whose words do name such a folder is refused as before.
+  is refused with what is wrong with it:
+  a doubled arrow is named as two `->` set off by whitespace,
+  and any other such line by its word count against the five words the shape has,
+  where alpha.19 told its reader to rename a folder that holds no space and is fine.
+  A six-word line whose words do name such a folder is refused by naming that folder and the whitespace in its name,
+  whether that whitespace is a space,
+  a tab,
+  a no-break space or a doubled space,
+  where the first release of this reader named only a space and told the others only the shape.
 - A refusal says what renaming must give and says what the name is:
-  a folder holding ` -> ` between two names is told to keep no `->` set off by whitespace,
-  where alpha.19 told it to keep none at its beginning or its end and left the middle one in place,
+  a folder whose name is `->`,
+  begins with `-> `,
+  ends with ` ->`,
+  or holds ` -> ` is told the one rename its own shape needs,
+  where alpha.19 told it to keep no arrow word at its beginning or its end and left the middle one in place,
   and an entry of a `uses` folder is named as that entry of a `uses` folder,
   where alpha.19 called it a file.
 
@@ -2160,6 +2173,9 @@ and what the messages say.
   so the whole list is refused,
   and the refusal names that folder and says that the space in its name is why:
   a loop of files in such a folder is untangled or the folder is renamed.
+  A folder name holding a tab,
+  a no-break space or a doubled space is refused the same way,
+  and the refusal spells that character and says what renaming must give.
   That sentence is for the words that name such a folder,
   so a six-word line whose words between the folder's place and the arrow name no folder
   is a third file name or a doubled arrow,
@@ -2199,6 +2215,19 @@ and what the messages say.
   a call whose arguments reach four mebibytes must move out of the index file,
   which is what the finding asks for anyway.
   Every other key's length follows the path and the names the finding holds.
+- A character a reader cannot see is part of the line that holds it:
+  a byte order mark before a line's first word makes that word `\u{feff}uses`,
+  so the line is read as one finding's key and reported dead,
+  and a zero-width space where a separator belongs does the same,
+  while one inside a folder name is read as part of that name.
+  The reader does not take such a character off:
+  it is not whitespace,
+  a line another tool does not read as a `uses` line would start reading as one,
+  and a key a macro prints may hold one as its own content.
+  The dead line's message spells the character,
+  says where it stands,
+  and says to take it out,
+  and a whitespace character where one belongs replaces it.
 
 ### Links and other tools
 

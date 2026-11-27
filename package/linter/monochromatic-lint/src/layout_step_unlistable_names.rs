@@ -47,7 +47,7 @@ use std::{
 ///  the name to spell in its sentence,
 ///  whether that name is a folder's,
 ///  why it cannot be written,
-///  and, for the arrow words, the one shape it has.
+///  and, for the arrow words, the one shape it has and the rename that fixes it.
 /// Why:
 ///  A finding points at a file and names a cause,
 ///  and the cause is a name in the path rather than the file itself:
@@ -70,8 +70,8 @@ pub(crate) struct UnlistableFound {
     pub(crate) kind: UnlistableKind,
     /// Why no list line could hold the name.
     pub(crate) reason: UnlistableName,
-    /// The one shape of the arrow words, when that is the reason.
-    pub(crate) shape: Option<&'static str>,
+    /// The one shape of the arrow words and what renaming must give, when that is the reason.
+    pub(crate) shape: Option<(&'static str, &'static str)>,
 }
 
 /// What:
@@ -162,9 +162,9 @@ fn unlistable_path(
         } else {
             UnlistableKind::Folder
         };
-        // What: the one shape of the arrow words, which only a folder name can have.
-        // Why: the arrow case spells a single cause, so the sentence must not list four.
-        let shape: Option<&'static str> = match reason {
+        // What: the one shape of the arrow words and its fix, which only a folder name can have.
+        // Why: the arrow case spells a single cause and the rename it needs, so the sentence must not list four.
+        let shape: Option<(&'static str, &'static str)> = match reason {
             UnlistableName::HoldsArrowWords => arrow_word_shape(names[index].as_str()),
             UnlistableName::EndsInTrimmedWhitespace
             | UnlistableName::HoldsLineBreak
