@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T10:46:13-05:00
+## The state at 2026-11-27T11:20:49-05:00
 
-`main` was `316c54b72a`.
+`main` was `65bffa15ec`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 209 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 218 more by this time.
 
 ### Rounds running
 
@@ -144,40 +144,61 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which the reader has refused since 2026-11-25;
   every assertion after `SLOT-STATE pending-add` in that arm is unverified until it is fixed.
   The container gate does not run that arm;
-- `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
-  and `issue-6607-the-wrapper-after-a-failed-exec-ends-as-it-means-to`
-  ("What the rounds found");
-- two rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
-  each named `wrapper-alpha-48-release-pass-<what>`:
-  `four-small-points-outside-the-slot-route`
-  and `list-guards-name-the-files-the-splits-made`.
-  Merged from those passes:
-  the items a split had made bare `pub` are narrowed,
-  28 platform gates are back,
-  and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
+- in the linter,
+  `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
+  ("Releases of 2026-11-27");
+  `0.5.2-alpha.20` follows its merge;
+- the last round for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
+  `wrapper-alpha-48-release-pass-list-guards-name-the-files-the-splits-made`.
+  Every other finding of the two passes that earned a fix is merged:
   the slot refusals read every shell alias the guard can follow (`cd62517318`);
   the merge pass reaches a last line with no line end (`f583a0d9bf`),
   where a generated control also found and fixed a correct merge that was refused;
   a notice's record stays until its line is known written (`be93c14734`),
   kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
   the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
-- in `cargo-shadow`,
-  two rounds for its alpha.12 release pass ("Releases of 2026-11-27"):
-  `cargo-shadow-alpha-12-release-pass-the-retire-costs-an-ordinary-run-nothing-and-stops-no-live-scope`
-  and `cargo-shadow-alpha-12-release-pass-the-refusals-branches-and-the-listing-bound-are-held-by-controls`.
-  Issue 6578's second round is merged (`6de3eee877`):
-  the units left loaded came from one test that killed its launcher before the manager attached it;
-  the issue stays open for the unit a killed shadow leaves,
-  whose choices are `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
-- in `mpm-shadow`,
-  `issue-6600-republish-killed-between-its-two-renames-leaves-a-working-version`
-  and `issue-6606-a-refused-shadow-says-what-was-found-and-what-repairs-it`.
-  Both rounds for its alpha.13 pass are merged
-  (the record claims only what was traced,
-  `45cac92526`;
-  a refused or vanished start says only what is known,
-  `c388b2b725`),
-  and `0.2.7-alpha.14` is released once those two have merged.
+  the items a split had made bare `pub` are narrowed,
+  28 platform gates are back,
+  and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
+  a merge record that cannot be read says which file to remove,
+  each batch of the service's work reads the room it has when it starts,
+  and a holder's name cannot rewrite the line that prints it (`14e54207de`).
+  One whole gate on `main` and then `0.6.1-alpha.49` follow that last round's merge;
+- for all four shadow crates,
+  `issue-6609-the-four-shadow-crates-identity-rule-copies-agree-again`:
+  `mpm-shadow`'s copies of the shared identity rule differ from the other three since `c388b2b725`,
+  so `package/search-shadow/cli/tests/shadow_identity_copies.rs` fails on `main`.
+
+Released again on 2026-11-27,
+each with a Claude Sonnet pass to follow or running:
+`cargo-shadow` `0.1.5-alpha.13`
+(release commit `c53db2c4d1`,
+locked `428fc984a9`,
+installed;
+its pass runs,
+`~/temp/agent/cargo-shadow-alpha-13-release-review-2026-11-27/`)
+and `mpm-shadow` `0.2.7-alpha.14`
+(release commit `bf8adbb8e3`,
+locked `bf626a6017`,
+installed;
+its pass runs,
+`~/temp/agent/mpm-shadow-alpha-14-release-review-2026-11-27/`).
+`cargo-shadow` alpha.13 holds the retire that asks the manager nothing on an ordinary run
+(`d0b821414c`:
+a trivial shadow call at 0.874 times alpha.11's time at the median,
+against 0.993 for a same-binary control,
+where alpha.12 was 2.431)
+and the refusal's branches held by controls (`9c4c5aac42`).
+`mpm-shadow` alpha.14 holds the record that claims only what was traced (`45cac92526`),
+a refused or vanished start that says only what is known (`c388b2b725`),
+a refused shadow's own words (`cf1c46518d`)
+and a republish that replaces a version in one exchange and repairs what a killed install left (`08ae962d40`).
+Two merges met in one file each and were resolved by keeping both sides,
+with the package's test task run on the merged tree
+(`package/mpm-shadow/cli/README.md`,
+799 of 799;
+`package/cargo-shadow/cli/src/failpoints.rs`,
+925 of 925).
 
 Issue 6586 is merged (`7d6bd90c92`).
 A build made for tests now reads the session's runtime directory and bus address only from two switches a control sets,
@@ -188,14 +209,14 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-One read runs as a background agent of the coordinating session,
-a Claude Sonnet read
+Two reads run as background agents of the coordinating session,
+each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review)
 that writes `keep/review.md` under its scratch folder:
-the linter's `0.5.2-alpha.19`
-(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`).
-The coordinator rewrites what lasts from it into this file before scratch expires.
+`cargo-shadow`'s `0.1.5-alpha.13` and `mpm-shadow`'s `0.2.7-alpha.14`,
+at the paths this section gives beside each release.
+The coordinator rewrites what lasts from each into this file before scratch expires.
 
 The whole gate on `main` at `ff1ae3e5c7` passed
 (unit `gpc-gate-wrapper-next-alpha-on-ff1ae3e5c7-20261127T095035-0500`,
@@ -607,6 +628,26 @@ with no High finding:
   41 commands compared between the two binaries,
   identical but for the version line.
 
+What the linter's alpha.19 pass found:
+no High and no Medium finding,
+and both of alpha.18's Medium findings fixed
+(the near-miss search is linear again,
+0.93 to 1.07 times alpha.17 where alpha.18 was 69 times).
+Every printed key reads back with the same binary,
+and the layout gate on `package/git-policy/cli` and on the ZFS binding reports nothing,
+with a control that removes the allow keys reporting 558 and 16 findings.
+Its six Low findings have one round:
+a `uses` line spaced with tabs or no-break spaces still stops the whole rule,
+with a message that does not mention whitespace
+(163 of 220 spellings,
+all of which alpha.16 read);
+a mistyped `file-uses` line gets the wrong message;
+two wording gaps;
+a README mapping gap;
+edits no test would catch;
+and one constructed walk shape that costs 1.64 times alpha.16,
+fixed only if a package of this repository has that shape.
+
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
 `cargo:monochromatic-cargo-shadow`,
@@ -663,7 +704,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6607,
+  issues 6524 to 6609,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -823,6 +864,24 @@ and the two `truepeak` files wait on their branch.
   issue 6602 (the moved-log control met a journal lock a fork of another test's thread had copied)
   and issue 6603 (`286f9d6dfc`,
   a deadline control armed its hold after the read had started).
+- `native:ts-checks` now sizes its scope from a measurement (`71d9ce980d`,
+  issue 6605):
+  1,024 tasks against a measured peak of 463,
+  4 GiB against 2,218.8 MiB,
+  and 800% of one CPU,
+  where 200% made the unit suite take 2.66 to 2.79 times as long;
+  it says so when a bound and not a test failed.
+  Two unit tests that give a child a fixed 1.5 s to start are issue 6608.
+- Two rounds wrote into the main checkout by mistake and undid it
+  (issue 6586's through its edit tool,
+  the four-small-points round through a command without its own `cd`);
+  both are on issue 6378,
+  which holds the branch that fences a run's writes.
+- After a failed `exec` of the real Git the wrapper now puts the `SIGPIPE` action back
+  and ends by the status its exit contract gives a command that ran no Git (`65bffa15ec`,
+  issue 6607):
+  with standard error a pipe whose reader was gone,
+  the parent read `SIGPIPE` before and status 2 after.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

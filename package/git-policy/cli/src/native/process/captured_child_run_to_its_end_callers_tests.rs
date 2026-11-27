@@ -5,6 +5,7 @@
 
 use crate::source_guard::source_scan_tests::{
     classified_sources,
+    code_lines,
     real_roots,
     source_root,
 };
@@ -52,51 +53,6 @@ const THE_CAPTURED_RUN: &str = "output_of_within_bound";
 /// const BLOCKING_ON_OUTPUT = '.output()';
 /// ```
 const BLOCKING_ON_OUTPUT: &str = ".output()";
-
-/// What:
-///  `fn code_lines(text: &str) -> String` is one source file's code:
-///  every line that is not a comment,
-///  joined with newlines.
-/// Why:
-///  A comment may name a call the file does not make,
-///  and the header of a split is exactly where the name of the call that moved out survives.
-///  This crate writes every comment as whole lines,
-///  so cutting at a leading `//` loses no code.
-/// Gotcha:
-///  The cut is textual:
-///  a call written inside a string literal is kept and would be read as a call,
-///  which is why the words a file says about itself are checked by its own module,
-///  not here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function codeLines(text: string): string {
-///   return text.split('\n').filter((line) => !line.trimStart().startsWith('//')).join('\n');
-/// }
-/// ```
-fn code_lines(text: &str) -> String {
-    // What: `filter` keeps the lines that do not start with a comment marker, and `collect` gathers them.
-    // Why:  The join below needs the whole list, and the newlines it puts back are the only ones lost.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const kept = text.split('\n').filter((line) => !line.trimStart().startsWith('//'));
-    // ```
-    let kept: Vec<&str> = text
-        .lines()
-        .filter(|line| {
-            return !line.trim_start().starts_with("//");
-        })
-        .collect();
-    // What: `join` puts one newline between the lines it kept.
-    // Why:  A needle that spans two lines of code then reads as it does in the file.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return kept.join('\n');
-    // ```
-    return kept.join("\n");
-}
 
 /// The one-shot Git questions of the two modules are asked through the captured run,
 /// and no release file of either module blocks a thread on `Command::output`.

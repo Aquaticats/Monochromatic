@@ -25,7 +25,6 @@ use super::{
 use crate::hooks_off::StartOwner;
 use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::signal_disposition_of_the_process::{
-    put_the_ignore_back,
     the_disposition_of,
     the_word_for,
 };
@@ -38,13 +37,18 @@ use std::ffi::{
     OsStr,
     OsString,
 };
+use std::io::Write as _;
+use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{
     Path,
     PathBuf,
 };
-use std::process::Command;
+use std::process::{
+    Command,
+    Stdio,
+};
 
 /// Exit codes pass through;
 ///  a terminating signal becomes 128 plus its number,
@@ -201,17 +205,19 @@ fn unstartable_program_is_an_error() {
 }
 
 /// What:
-///  A replacement that cannot run its program leaves `SIGPIPE` at its default in the process that tried,
-///  which is the one fact about this process a control must not set.
+///  A replacement that cannot run its program puts back the action this process had for `SIGPIPE`.
 /// Why:
 ///  Every control of the suite runs as a thread of one process,
 ///  and that process ignores `SIGPIPE` from its start,
-///  so the first write to a pipe nobody reads only answers `EPIPE`.
-///  Once the action is the default instead,
-///  that same write ends every thread of the run,
-///  which is how a threaded run of ten modules ended with `signal: 13` (issue 6604).
+///  so a write to a pipe nobody reads only answers `EPIPE`.
+///  `std` sets `SIGPIPE` to the kernel's default in whatever process calls `exec`,
+///  and a replacement that fails replaces nothing,
+///  so the process that goes on is left at the default unless the action goes back (issue 6604).
+///  The wrapper goes on after a failed start:
+///  it says why it could not start Git and ends with status `2`,
+///  and at the default the first of those writes to a pipe nobody reads would end it by the signal (issue 6607).
 ///  The body runs in a child of its own,
-///  so the action it leaves reaches no other control.
+///  so the action it reads reaches no other control.
 /// Measured 2026-11-27:
 ///  a probe interposing on `sigaction` and `signal` read `SIG_IGN` in the test process at its start,
 ///  then `SIG_DFL` from `std::sys::process::unix::common::Command::do_exec`
@@ -222,13 +228,13 @@ fn unstartable_program_is_an_error() {
 /// ```ts
 /// // in a child: expect(theWordFor(theDispositionOf(SIGPIPE))).toBe('SIG_IGN');
 /// // expect(replaceProcessWithRealGit('/nonexistent-directory/git', [], []).code).toBe('ENOENT');
-/// // expect(theWordFor(theDispositionOf(SIGPIPE))).toBe('SIG_DFL');
+/// // expect(theWordFor(theDispositionOf(SIGPIPE))).toBe('SIG_IGN');
 /// ```
 #[test]
-fn a_replacement_that_cannot_run_the_program_leaves_sigpipe_at_its_default() {
+fn a_replacement_that_cannot_run_the_program_puts_sigpipe_back() {
     run_the_body_in_a_child_of_its_own(
         module_path!(),
-        "a_replacement_that_cannot_run_the_program_leaves_sigpipe_at_its_default",
+        "a_replacement_that_cannot_run_the_program_puts_sigpipe_back",
         || {
             // What: the action in place before the suspect body, which a Rust program's start set.
             // Why:  a reading equal to the one after would say the body changed nothing.
@@ -244,23 +250,107 @@ fn a_replacement_that_cannot_run_the_program_leaves_sigpipe_at_its_default() {
                 std::io::ErrorKind::NotFound
             );
             // What: the action in place after the replacement was refused with `ENOENT`.
-            // Why:  this is the change the control is about: the kernel would have taken this process by `SIGPIPE`
-            //       at its next write to a pipe nobody reads.
+            // Why:  the process that goes on writes its own words and ends with a status, so the action it began
+            //       with is the one a write to a pipe nobody reads has to meet.
             let after: libc::sigaction = the_disposition_of(libc::SIGPIPE);
             assert_eq!(
                 the_word_for(&after),
-                "SIG_DFL",
-                "the replacement left SIGPIPE at its default in the process that called it"
-            );
-            // What: puts back the ignore a Rust program starts with, so this child ends unarmed.
-            // Why:  a child that returned armed could still be ended by a write the control never meant to test.
-            put_the_ignore_back(libc::SIGPIPE);
-            assert_eq!(
-                the_word_for(&the_disposition_of(libc::SIGPIPE)),
                 "SIG_IGN",
-                "the child hands the ignore back"
+                "the replacement put back the action this process had for SIGPIPE"
             );
         },
+    );
+}
+
+/// The variable that marks the child of the failed-replacement control.
+const FAILED_REPLACEMENT_CHILD_VARIABLE: &str = "CLI_GIT_FAILED_REPLACEMENT_CHILD";
+
+/// What:
+///  A wrapper that could not start its real Git writes why and ends with the status it means,
+///  even when its standard error is a pipe nobody reads.
+/// Why:
+///  `Command::exec` puts `SIGPIPE` back to the kernel's default before it tries,
+///  and a start that cannot run its program returns and leaves that default in the process that goes on.
+///  The wrapper goes on:
+///  it says why it could not start Git and returns `2`,
+///  the status the record gives a command where real Git does not run:
+///  (`SPEC.md`'s "Stream and exit contract" and `README.md`'s "Output and exit status").
+///  With the action at the default,
+///  the first of those words written to a pipe nobody reads ends the process by `SIGPIPE`,
+///  and the caller reads a death by a signal where the wrapper meant a status and its own words.
+///  The child of this control takes that path with a program that cannot be started,
+///  and its standard error is a pipe whose reader this control dropped before the child started,
+///  which is what `git log -p | head -1` leaves behind.
+///  The body runs in a child of its own,
+///  because the replacement changes a signal's action in whatever process runs it,
+///  and because the ending is this control's assertion.
+/// Gotcha:
+///  This child's standard error reaches no reader,
+///  so everything the body says about itself goes to standard output,
+///  which `finished` collects and this control prints when the ending is not the one it means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // in a child: const error = replaceProcessWithRealGit('/nonexistent-directory/git', [], []);
+/// // write(2, `monochromatic-git-policy-cli: cannot start ...: ${error}`); process.exit(2);
+/// // in the parent: expect(child.status.code).toBe(2)   // before the fix: SIGPIPE ended it
+/// ```
+#[test]
+fn a_wrapper_that_could_not_start_git_ends_by_the_status_it_means() {
+    if std::env::var_os(FAILED_REPLACEMENT_CHILD_VARIABLE).is_some() {
+        // What: the action a Rust program starts with, which the wrapper's own words are written under.
+        // Why:  a child that began anywhere else would prove nothing about this path.
+        assert_eq!(
+            the_word_for(&the_disposition_of(libc::SIGPIPE)),
+            "SIG_IGN",
+            "the child begins where a wrapper begins"
+        );
+        let missing: &Path = Path::new("/nonexistent-directory/git");
+        let error: std::io::Error = replace_process_with_real_git(missing, &[], &[]);
+        // What: the words `invocation/entry.rs` writes when the replacement fails, then the status it returns.
+        // Why:  the pair is what the wrapper means here, and the write is the one a pipe nobody reads refuses.
+        let said: String = format!(
+            "monochromatic-git-policy-cli: cannot start {}: {error}\n",
+            missing.display()
+        );
+        println!(
+            "writing {} bytes of the wrapper's own words to standard error, whose reader is gone",
+            said.len()
+        );
+        let wrote: std::io::Result<()> = std::io::stderr().write_all(said.as_bytes());
+        assert_eq!(
+            wrote
+                .expect_err("standard error is a pipe nobody reads")
+                .kind(),
+            std::io::ErrorKind::BrokenPipe,
+            "a write to a pipe nobody reads answers EPIPE where the action is the ignore"
+        );
+        std::process::exit(crate::action::ENGINE_FAILURE_EXIT_CODE);
+    }
+    // What: a pipe whose read end this control drops before the child starts, so no reader holds one byte the child writes.
+    // Why:  the reader of a pipe that `head` stopped reading is gone in exactly this way, and a pipe with no reader left is
+    //       what makes a write answer `EPIPE` or end the process by `SIGPIPE`.
+    let (reader, writer) = std::io::pipe().expect("a pipe for the child's standard error");
+    drop(reader);
+    let environment: [(&str, &OsStr); 1] = [(FAILED_REPLACEMENT_CHILD_VARIABLE, OsStr::new("1"))];
+    // The ending by a signal is a case of its own, so this asks for the raw ending and judges it here.
+    let ended: std::process::Output =
+        crate::child_test_process::finished(crate::child_test_process::ChildTest {
+            exact_test: "invocation::forwarding::tests::a_wrapper_that_could_not_start_git_ends_by_the_status_it_means",
+            environment: environment.as_slice(),
+            standard_error: Stdio::from(OwnedFd::from(writer)),
+            ..crate::child_test_process::ChildTest::default()
+        })
+        .expect("the child ends within the deadline");
+    let said: String = String::from_utf8_lossy(ended.stdout.as_slice()).into_owned();
+    assert_eq!(
+        ended.status.code(),
+        Some(crate::action::ENGINE_FAILURE_EXIT_CODE),
+        "a wrapper that could not start its Git ends with status {} and its own words, and this child ended as {:?}: a \
+         write of those words to a pipe nobody reads ended the process by the signal instead, so the caller reads a \
+         death where the wrapper meant a status. The child said: {said}",
+        crate::action::ENGINE_FAILURE_EXIT_CODE,
+        ended.status
     );
 }
 
