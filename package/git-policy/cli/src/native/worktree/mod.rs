@@ -119,6 +119,9 @@
 //!   repository and worktree identity as reported by real Git.
 //! - `worktree_command_facts.rs`:
 //!   the plain facts of one worktree command that several folders pass around.
+//! - `worktree_add_plan_copy_destination.rs`:
+//!   the destination of a `git worktree add` whose worktree Git's checkout fills,
+//!   read from the command line by the grammar of Git's option parser.
 //! - `worktree_add_plan.rs`:
 //!   the plan for one `git worktree add` that the cheap-worktree ladder serves:
 //!   its destination and insertion point.
@@ -169,9 +172,18 @@
 //!   the index install (`worktree_clone_index`),
 //!   and the rung itself,
 //!   whose module doc names each of them.
+//! - `worktree_convert_candidate.rs`:
+//!   the worktree a conversion might change,
+//!   read from its `.git` file and the registration that file names,
+//!   without starting Git:
+//!   its canonical root,
+//!   its administrative and common directories,
+//!   and the exact bytes of its `.git` file.
 //! - `worktree_convert_inspection.rs`:
-//!   the first look at a worktree a conversion might change,
-//!   and every reason the conversion must not start.
+//!   the first look at a worktree a conversion might change:
+//!   the sibling name the copy is built at,
+//!   and every reason the conversion must not start,
+//!   with the kind of each.
 //! - `worktree_convert_leftover_stage_record.rs`:
 //!   the record,
 //!   beside a worktree,
@@ -468,6 +480,14 @@
 //! - `worktree_snapshot_ahead.rs`:
 //!   the snapshots the wrapper makes ahead of an add,
 //!   and the add's claim of one instead of a snapshot of its own.
+//! - `worktree_snapshot_ahead_claim_facts.rs`:
+//!   the plain facts one add's claim of a snapshot ahead is written from,
+//!   none of which reads the pool or the commit service:
+//!   whether a name below the pool is a directory,
+//!   which object a name leads to now,
+//!   what the wait came to,
+//!   whether the service gave up the add's request,
+//!   and the ceiling in the words a person reads.
 //! - `worktree_snapshot_ahead_claim.rs`:
 //!   what one add does with the snapshots the service made ahead of it:
 //!   the proof,
@@ -610,10 +630,15 @@ pub mod worktree_removal_held_commits;
 /// The option table of `git worktree add`,
 /// and the rules that read a long word,
 /// a bundled short word and a value.
-// Its only user is `worktree_add_plan`, which is `#[cfg(unix)]`, so a non-Unix build would hold this table's
-// `pub(crate)` items unused and the Windows lint denies that warning.
+// Its only users are `worktree_add_plan` and `worktree_add_plan_copy_destination`, which are both `#[cfg(unix)]`, so a
+// non-Unix build would hold this table's `pub(crate)` items unused and the Windows lint denies that warning.
 #[cfg(unix)]
 pub mod worktree_add_option_table;
+
+/// The destination of a `git worktree add` whose worktree Git's checkout fills,
+/// read from the command line by the grammar of Git's option parser.
+#[cfg(unix)]
+pub mod worktree_add_plan_copy_destination;
 
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
 /// its destination and insertion point.
@@ -853,6 +878,11 @@ pub mod worktree_snapshot_ahead_asks;
 /// and the hand-over of the copies it proved stale.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_ahead;
+
+/// The plain facts one add's claim of a snapshot ahead is written from,
+/// none of which reads the pool or the commit service.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_claim_facts;
 
 /// What one add does with the snapshots the service made ahead of it:
 /// the proof,
@@ -1101,8 +1131,16 @@ pub mod worktree_finish_commands;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert;
 
-/// The first look at a worktree a conversion might change,
-/// and every reason the conversion must not start.
+/// The worktree a conversion might change,
+/// read from its `.git` file and the registration that file names,
+/// without starting Git.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_candidate;
+
+/// The first look at a worktree a conversion might change:
+/// the sibling name the copy is built at,
+/// and every reason the conversion must not start,
+/// with the kind of each.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_inspection;
 
