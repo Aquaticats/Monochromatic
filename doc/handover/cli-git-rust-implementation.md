@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T16:37:15-05:00
+## The state at 2026-11-27T16:49:43-05:00
 
-`main` was `e772d8ad66`.
+`main` was `e56b8abaec`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 266 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 267 more by this time.
 
 ### Rounds running
 
@@ -124,9 +124,26 @@ then `opencode-go`,
 then Neuralwatt's flex lane,
 and the writer asks those without Synthetic
 (`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`);
-the round `the-virtual-writer-asks-the-members-the-virtual-reviewer-asks`,
-started 2026-11-27T16:17:49-05:00,
-makes the change and says first what context window the writer then advertises.
+the round `the-virtual-writer-asks-the-members-the-virtual-reviewer-asks` built that
+(branch `feat/pi-plugin-rate-limit-fallback-the-virtual-writer-asks-the-members-the-virtual-reviewer-asks`,
+on origin and not merged,
+on purpose)
+and measured what it costs:
+a pool advertises the smallest window among its registered members,
+Synthetic's member has 524,288 tokens where the others have about 1,000,000,
+so the writer's window would fall from 1,000,000 to 524,288 and its output limit from 384,000 to 65,536.
+Asked with those figures through the question tool at about 16:46 -05:00,
+the owner chose "Skip too-small member (Recommended)":
+the shared list stays,
+the router passes over a member whose own window cannot hold the request,
+and the pool advertises its head member's window,
+so the writer keeps 1,000,000 and the reviewer rises to it.
+Not chosen:
+"Keep three members" and "Live as built".
+The round `the-router-passes-over-a-member-too-small-for-the-request-and-the-pool-advertises-its-heads-window`,
+started 2026-11-27T16:48:00-05:00,
+builds that on top of the first branch,
+and until it lands the writer keeps its three members.
 Pi loads that extension from the main checkout's built copy,
 so after the merge the coordinator rebuilds it there
 (`mise run //package/pi-plugin/rate-limit-fallback:build`)
@@ -153,11 +170,23 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the `mpm-shadow` sentences,
   issue 6623 (`cargo-shadow`),
   and the rounds of the wrapper's alpha.50 reads.
-  Two more started alone:
-  `issue-6622-final-newline-warned-for-two-new-files-that-end-with-one-line-feed` at 2026-11-27T16:12:08-05:00,
-  which tries the states on `main`'s code and on the released alpha.44 and alpha.50
-  after the coordinator recovered the finding's own line from the earlier round's feed and posted it on the issue;
-  and the virtual writer's round at 2026-11-27T16:17:49-05:00.
+  The router's round started alone at 2026-11-27T16:48:00-05:00.
+  The round for issue 6622 is merged (`e56b8abaec`) and the issue is closed.
+  Nothing warns about bytes that end with one line feed:
+  on `main`'s code,
+  in each state it built,
+  the `final-newline` check read the bytes the commit writes,
+  and the released alpha.44 and alpha.50 answered the same,
+  each through its own service in a fixture,
+  since a fixture without a manager refuses a commit before any finding is printed.
+  The recorded line carries the hint a lifecycle prints when it corrects nothing,
+  which is what `git add` prints,
+  and the commit that follows corrects the file;
+  so the warning was most likely true when it was read.
+  The branch added controls and no release code.
+  That hint tells a person to edit a file the next commit corrects,
+  which is issue 6627,
+  with no round yet.
   Every round of the list of 2026-11-27T14:54:37-05:00 is merged:
   issue 6620 (`bc24b2e688`),
   issue 6619 (`1ef6287246`),

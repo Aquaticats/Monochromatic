@@ -4773,14 +4773,26 @@ while the other side left it as it was,
 keeps both sides instead,
 so you resolve it;
 a merge that writes only the copies that side still holds is right and resolves.
+An answer that holds more copies of a line than the two sides leave keeps both sides as well,
+at most as many as the side that holds fewer of them holds
+while neither side wrote more copies of that line than the base held,
+which covers a region where one side also wrote a line:
+a copy that side wrote lifts the bound of that one line and no other.
+That bound is the answer's,
+so no resolved file writes back a copy a side removed,
+whether the region it sits in deleted lines only or wrote a line as well.
 A base line written twice is where the word level cannot tell which copy a side deleted,
 so a region both sides only deleted lines from keeps both sides as well
-when its answer would hold more copies of a line than both sides hold,
-or hold its lines in an order one side does not hold them in,
+when its answer would hold its lines in an order one side does not hold them in,
 which no union of the two deletions does.
 That is the shape a file of one record per line reaches when it writes one record more than once:
 the words are merged rather than the records,
 so an answer that writes a record back would land with no marker for you to read.
+Two sides that each wrote more copies of one line than the base held are not judged by that bound:
+no count over the two sides is right there,
+and such a merge resolves as the word pass writes it.
+A file the bound refuses keeps both sides of every region the two sides disagree about,
+so the answer it refused never lands without a marker.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every
