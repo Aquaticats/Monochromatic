@@ -68,13 +68,13 @@ use crate::index_lock_evidence::{
 };
 use crate::index_lock_holders::HolderEvidence;
 use crate::recovery_files::lock_pid_path;
-use crate::service_index_lock::lock_path_of;
 use crate::service_index_marker::marker_of_file;
 use crate::service_index_placement::Platform;
 use crate::service_index_reclaim::{
     open_to_judge,
     same_file,
 };
+use crate::the_names_of_the_index_lock::lock_path_of;
 use std::os::unix::fs::MetadataExt;
 use std::path::{
     Path,

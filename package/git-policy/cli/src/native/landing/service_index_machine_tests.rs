@@ -12,15 +12,15 @@ use super::claim_tests::{
 use super::*;
 use crate::claim_time::current_machine_id;
 use crate::process_identity::ProcessIdentityError;
-use crate::service_index_marker::own_identity;
-use crate::service_index_marker::{
+use crate::service_index_identity::own_identity;
+use crate::service_index_identity::{
     HolderState,
-    LOCK_MARKER,
     ReaderView,
     holder_state,
     holder_state_in,
     identity_in_view_on,
 };
+use crate::service_index_marker::LOCK_MARKER;
 use crate::test_support::remove;
 
 /// A machine ID that is no host's here.
@@ -334,7 +334,7 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
         let text: String = marker_naming(number, respelled);
         std::fs::write(&lock, text.as_bytes())
             .expect("the marker of a live holder, one part respelled");
-        let marked = crate::service_index_marker::marker_of(lock.as_path()).expect("a marker");
+        let marked = crate::service_index_identity::marker_of(lock.as_path()).expect("a marker");
         let state: HolderState = holder_state(marked.holder.as_ref());
         if state != expected {
             wrong.push(format!("{what}: the reader answered {state:?} for {respelled}, and {expected:?} is what a live holder's respelling gets"));
@@ -420,7 +420,7 @@ fn lock_text_on(
     machine: &str,
     boot: &str,
 ) -> String {
-    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let scope: &str = crate::service_index_identity::current_pid_scope().expect("a PID namespace");
     return v2_lock_text(&format!("gone#{boot}#{scope}#{machine}"));
 }
 
@@ -477,7 +477,7 @@ fn a_lock_of_this_machine_in_an_earlier_boot_is_removed() {
 fn a_reader_with_no_machine_id_keeps_the_earlier_reading_of_a_marker_with_none() {
     on_machine(None);
     let (root, _index, lock) = index_in("machine-none-lock");
-    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let scope: &str = crate::service_index_identity::current_pid_scope().expect("a PID namespace");
     std::fs::write(&lock, v2_lock_text(&format!("gone#{BOOT_B}#{scope}")))
         .expect("a lock of an earlier boot");
     assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed);
@@ -503,7 +503,7 @@ fn a_marker_with_no_machine_id_of_another_boot_is_left_by_a_reader_that_has_one(
         "the same boot is judged by the process"
     );
     let (root, _index, lock) = index_in("machine-legacy-boot");
-    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let scope: &str = crate::service_index_identity::current_pid_scope().expect("a PID namespace");
     std::fs::write(&lock, v2_lock_text(&format!("gone#{BOOT_B}#{scope}")))
         .expect("a lock of another boot");
     assert!(matches!(reclaim(&SYSTEM, &lock), Reclaimed::Foreign { .. }));

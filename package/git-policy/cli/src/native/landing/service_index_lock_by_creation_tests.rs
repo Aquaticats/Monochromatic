@@ -4,11 +4,9 @@
 //!  a lock that exists is never removed or replaced by it,
 //! and a failure after the creation leaves no lock of ours.
 
+use crate::service_index_identity::own_identity;
 use crate::service_index_lock::*;
-use crate::service_index_marker::{
-    marker_text,
-    own_identity,
-};
+use crate::service_index_marker::marker_text;
 use crate::service_protocol::FailureCode;
 use crate::test_support::{
     fixture,

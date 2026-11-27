@@ -17,6 +17,7 @@ use crate::index_lock_holders::{
     scan_proc_fd_holders_stopping,
 };
 use crate::service_fault::hooks;
+use crate::service_index_identity::own_identity;
 use crate::service_index_lock::{
     Announce,
     LockFailure,
@@ -24,10 +25,7 @@ use crate::service_index_lock::{
     acquire_within,
     lock_path_of,
 };
-use crate::service_index_marker::{
-    marker_text,
-    own_identity,
-};
+use crate::service_index_marker::marker_text;
 use crate::service_index_placement::{
     Platform,
     SYSTEM,

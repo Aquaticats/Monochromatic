@@ -43,7 +43,17 @@ use crate::service_branch_shows::the_silent_service_after_a_prepare;
 /// How to reach the service.
 use crate::service_client::ClientConfig;
 /// The result and the after-commit work.
-use crate::service_commit::ServiceCommit;
+/// What the service path returns:
+/// the transaction result for the lifecycle,
+/// and the handoff when the commit landed.
+pub struct ServiceCommit {
+    /// What the policies and the landing came to.
+    pub result: TransactionResult,
+    /// How to leave the after-commit work for the service;
+    /// absent when nothing landed.
+    pub handoff: Option<ServiceHandoff>,
+}
+
 /// The commit the service built from the request,
 /// when it did.
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;

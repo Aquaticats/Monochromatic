@@ -114,7 +114,7 @@ pub(crate) const SLOW_ITEMS_CEILING: usize = 4;
 /// ```ts
 /// const SLOW_ITEM_MEMORY = REPOSITORY_MEMORY;
 /// ```
-const SLOW_ITEM_MEMORY: u64 = crate::service_round::REPOSITORY_MEMORY;
+const SLOW_ITEM_MEMORY: u64 = crate::the_memory_one_round_keeps::REPOSITORY_MEMORY;
 
 /// What:
 ///  How many slow items of one work directory may run at once:

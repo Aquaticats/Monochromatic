@@ -21,7 +21,7 @@
 //! const owed = new Set([PENDING, CLAIMED, RECOVERING, HELD].flatMap((state) => entries(state).map(idOf)));
 //! ```
 
-use crate::work_item::{
+use crate::work_item_state_directories_and_claim_names::{
     CLAIMED,
     HELD,
     PENDING,

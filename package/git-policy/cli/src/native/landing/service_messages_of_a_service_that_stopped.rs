@@ -21,13 +21,13 @@
 //! render({ kind: 'service-not-reading', tookNothing: true })
 //! ```
 
-use crate::service_messages::{
+use crate::service_messages_the_failures_a_person_can_meet::WhatTheBranchShows;
+use crate::service_messages_what_a_failure_gives_a_person::{
     CHECK_COMMANDS,
     NOTHING_CHANGED,
     NOTHING_CHANGED_AND_THE_STAGED_WORK,
     RESTART_ONE_UNIT_COMMAND,
     STATUS_COMMAND,
-    WhatTheBranchShows,
 };
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::wait_ceilings::{

@@ -589,7 +589,7 @@ fn a_held_commit_real_git_built_is_kept_on_the_side_reference_and_survives_a_pru
     assert!(said.contains("is held"), "the commit is held: {said}");
     let record: git_policy_cli::held_commit_record::Held = held_record_of(repo.as_path());
     let held: String = record.new.clone();
-    let side: String = git_policy_cli::held_commit_settle::kept_reference(record.seq);
+    let side: String = git_policy_cli::held_commit_settle_move::kept_reference(record.seq);
     assert_eq!(
         git_text(&fixture, &repo, &["rev-parse", side.as_str()]).trim(),
         held,
