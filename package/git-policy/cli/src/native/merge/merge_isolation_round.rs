@@ -11,8 +11,8 @@
 //!  again when the branch moved;
 //! a round is a job of its own,
 //! and it is a file of its own so both stay inside the code-line limit.
-//!  Nothing here changes the repository:
-//! every check that stops the merge ends it before the first byte is written.
+//!  Every check of this round stops the merge before the first byte is written,
+//! and the writes themselves are the last step it hands on.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
