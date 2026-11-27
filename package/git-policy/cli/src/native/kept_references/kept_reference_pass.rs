@@ -42,290 +42,81 @@
 //!  the pass that listed it,
 //!  and two passes end where one of them alone would have.
 //!
+//!  The pass is split across siblings because this file is over the line
+//!  limit:
+//!  this one runs one pass and lists which references it removed,
+//!  `kept_reference_pass_bounds.rs` holds the three bounds it is held to,
+//!  `kept_reference_pass_plan.rs` makes the judgement one reading leads to,
+//!  `kept_reference_pass_removal.rs` removes one reference conditionally,
+//!  and `kept_reference_pass_after_a_commit.rs` is where the pass runs by
+//!  itself.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const pass = await runThePass(git, commonDir, { dryRun });
 //! ```
 
+/// The three bounds one pass is held to,
+/// re-exported so a reader of the pass finds them here.
+pub use super::kept_reference_pass_bounds::{
+    A_PASS_WITHIN,
+    A_RECORD_OUTLIVES_ITS_REFERENCE_FOR,
+    THE_MOST_A_PASS_PRUNES,
+};
+/// The judgement one reading makes of the limits.
+use super::kept_reference_pass_plan::{
+    ThePlan,
+    plan_the_pass,
+    why_it_stayed,
+};
+/// The conditional removal of one reference.
+use super::kept_reference_pass_removal::remove_only_while_it_names;
+/// The limits one reading is judged by,
+/// and the environment the limits are read from.
 use crate::kept_reference_limits::{
     KeptReferenceLimits,
     limits_from_the_environment,
 };
+/// The line one pruned reference leaves in the repository's log,
+/// which is written before the reference goes.
 use crate::kept_reference_log::log_one_pruning;
-use crate::kept_reference_pass_answers::{
-    ThePass,
-    age_at,
-    commits_of_survivors,
-    kept_at,
-    kept_one,
-    now_ms,
-    oldest_the_floor_allows,
-    pruned_one,
-    recorded_or_first_seen,
-};
-use crate::kept_reference_record::KeptReferenceRecord;
-use crate::kept_references_reading::{
-    OneKeptReference,
-    bytes_only_these_reach,
-    read_the_kept_references,
-};
-use crate::transaction_git::{
-    GitContext,
-    GitRequest,
-};
-use crate::transaction_git_awaiting::run_git_awaiting;
-use std::path::{
-    Path,
-    PathBuf,
-};
-use std::time::{
-    Duration,
-    Instant,
-};
-
-/// Re-exported so the listing and the log read the pass's answers from the pass.
+/// The answers one pass gives about a reference,
+/// re-exported so the listing and the log read them from the pass.
 pub use crate::kept_reference_pass_answers::{
     Kept,
     Pruned,
     WhyNotPruned,
     WhyPruned,
 };
-
-/// How many kept references one pass may remove.
-///  Sixteen:
-///  a pass runs after every commit a repository lands,
-/// so a burst larger than this is worked through
-///  by the passes that follow it,
-/// and no single pass holds the service's upkeep for long.
-///  Measured:
-/// this repository held five kept references in the 5.7 days before 2026-11-12,
-///  so no pass has had to remove any yet,
-///  and the cap costs nothing until a repository's kept references actually accumulate.
-pub const THE_MOST_A_PASS_PRUNES: usize = 16;
-
-/// How long a record whose reference is gone is kept before a pass removes it.
-///  One hour:
-///  a record names the worktree the commit was built in,
-///  and a reference another command wrote after a pass listed the repository has one written a moment ago,
-///  so the file is kept long past the moment anything could still be arriving for it.
-///  The size it costs is nothing next to the reference it describes.
-pub const A_RECORD_OUTLIVES_ITS_REFERENCE_FOR: Duration = Duration::from_secs(60 * 60);
-
-/// How long one pass may spend planning and removing.
-///  Twenty seconds:
-///  the service's after-commit work starts housekeeping for thirty seconds a round
-///  (`HOUSEKEEPING_OF_ONE_ROUND`),
-/// and a pass that ends inside that slice leaves the round's own
-///  bound intact.
-///  Measured:
-/// a pass over this repository's five kept references is four Git starts
-///  (a `for-each-ref`,
-/// a `rev-list`,
-/// a `cat-file` and one `update-ref` for each removal),
-///  each of them milliseconds on the host of 2026-11-12.
-pub const A_PASS_WITHIN: Duration = Duration::from_secs(20);
-
-/// What:
-///  Remove one kept reference only while it still names the commit the pass listed,
-///  and answer Git's words when it did not.
-/// Why:
-///  A reference another command wrote between the listing and this removal names a commit this pass
-///  never judged,
-///  and that commit may be the only one its name holds,
-///  so the old value is the condition of the removal
-///  (the owner's rule "never discard user data").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const removed = await git(['update-ref', '--no-deref', '-d', name, old]); // refused when the value moved
-/// ```
-async fn remove_only_while_it_names(
-    git: &GitContext,
-    common_dir: &Path,
-    name: &str,
-    commit: &str,
-) -> Option<String> {
-    let request: GitRequest = GitRequest::new(
-        common_dir,
-        &["update-ref", "--no-deref", "-d", name, commit],
-    );
-    return match run_git_awaiting(git, &request).await {
-        Ok(output) if output.succeeded() => None,
-        Ok(output) => Some(
-            String::from_utf8_lossy(output.stderr.as_slice())
-                .trim()
-                .to_owned(),
-        ),
-        Err(error) => Some(error.to_string()),
-    };
-}
-
-/// What:
-///  The judgement one reading makes of the limits:
-///  which references go,
-///  why each goes,
-///  what the references that stay then reach,
-///  and whether the pass stopped with work still to do.
-/// Why:
-///  The listing and the pass are the same judgement,
-///  so what a person reads is what the next pass does.
-///  The order of the rules matters:
-///  a commit a branch reaches is no loss whatever its age,
-///  and its objects stop counting against the size limit as soon as it is planned.
-///  What the pass takes first is the oldest reference the rules allow,
-///  so the cap a pass has is spent on the references that waited longest.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const plan = await planThePass(reading, records, limits, now);
-/// ```
-async fn plan_the_pass(
-    git: &GitContext,
-    common_dir: &Path,
-    reading: &[OneKeptReference],
-    records: &[Option<KeptReferenceRecord>],
-    limits: KeptReferenceLimits,
-    now: u128,
-    began: Instant,
-) -> Result<ThePlan, String> {
-    let mut plan: ThePlan = ThePlan {
-        planned: vec![false; reading.len()],
-        reasons: vec![None; reading.len()],
-        dropped: vec![false; reading.len()],
-        surviving_bytes: 0,
-        stopped_early: false,
-    };
-    // The oldest first, so the references that waited longest are the ones a pass of the cap takes.
-    let mut times: Vec<(u128, usize)> = Vec::with_capacity(reading.len());
-    for at in 0..reading.len() {
-        times.push((kept_at(records, at, now), at));
-    }
-    times.sort_by_key(the_time_of_a_pair);
-    let mut order: Vec<usize> = Vec::with_capacity(times.len());
-    for pair in &times {
-        order.push(pair.1);
-    }
-    let mut count: usize = 0;
-    for at in order {
-        let why: Option<WhyPruned> = if reading[at].reached_a_branch {
-            Some(WhyPruned::ReachedABranch)
-        } else if age_at(records, at, now) > limits.max_age.as_millis() {
-            Some(WhyPruned::TooOld)
-        } else {
-            None
-        };
-        let Some(reason) = why else {
-            continue;
-        };
-        if count >= THE_MOST_A_PASS_PRUNES {
-            // What the limits allow is left to the next pass, which runs after the next landed commit.
-            plan.dropped[at] = true;
-            plan.stopped_early = true;
-            continue;
-        }
-        plan.planned[at] = true;
-        plan.reasons[at] = Some(reason);
-        count += 1;
-    }
-    plan.surviving_bytes = bytes_only_these_reach(
-        git,
-        common_dir,
-        commits_of_survivors(reading, plan.planned.as_slice()).as_slice(),
-    )
-    .await?;
-    // Each removal of the size rule is followed by a fresh reading of what the survivors reach, so the limit is judged
-    //  from what the repository would keep and not from what it started with.
-    while plan.surviving_bytes > limits.max_bytes {
-        if count >= THE_MOST_A_PASS_PRUNES || began.elapsed() >= A_PASS_WITHIN {
-            plan.stopped_early = true;
-            break;
-        }
-        // Every reference that is left being younger than the floor is no failure: no pass may remove one for its size.
-        let Some(oldest) =
-            oldest_the_floor_allows(reading, records, plan.planned.as_slice(), limits, now)
-        else {
-            break;
-        };
-        plan.planned[oldest] = true;
-        plan.reasons[oldest] = Some(WhyPruned::TooMuchKept);
-        count += 1;
-        plan.surviving_bytes = bytes_only_these_reach(
-            git,
-            common_dir,
-            commits_of_survivors(reading, plan.planned.as_slice()).as_slice(),
-        )
-        .await?;
-    }
-    return Ok(plan);
-}
-
-/// What:
-///  What one pass decided about every kept reference of a repository.
-/// Why:
-///  The removals and the listing are two readings of one decision,
-///  so the decision is made once and carried as a value.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ThePlan = { planned: boolean[]; reasons: (WhyPruned | null)[]; dropped: boolean[]; survivingBytes: number; stoppedEarly: boolean };
-/// ```
-struct ThePlan {
-    /// Whether each reference goes.
-    planned: Vec<bool>,
-    /// Why each reference that goes does.
-    reasons: Vec<Option<WhyPruned>>,
-    /// Whether the pass's cap left each reference to a later pass.
-    dropped: Vec<bool>,
-    /// The bytes the references that stay reach.
-    surviving_bytes: u64,
-    /// Whether work the limits allowed was left to a later pass.
-    stopped_early: bool,
-}
-
-/// What:
-///  The time of one kept reference and its place in the reading,
-/// as the sort reads it.
-/// Why:
-///  A pass takes the oldest references first,
-///  and the place is what the rest of the pass asks about.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const theTimeOfAPair = ([keptAt]) => keptAt;
-/// ```
-fn the_time_of_a_pair(pair: &(u128, usize)) -> u128 {
-    return pair.0;
-}
-
-/// What:
-///  Why one reference the pass left is still there.
-/// Why:
-///  The listing names the rule that spared a reference,
-///  and a reference the plan dropped for the cap is spared by the plan and not by a limit,
-///  which a person has to be able to tell apart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const whyItStayed = (planned, dropped, age, limits) => dropped ? 'cap' : planned ? 'refused' : age <= limits.maxAge ? 'young' : 'floor';
-/// ```
-fn why_it_stayed(
-    planned: bool,
-    dropped: bool,
-    age_ms: u128,
-    limits: KeptReferenceLimits,
-) -> WhyNotPruned {
-    if dropped {
-        return WhyNotPruned::ThisPassReachedItsCap;
-    }
-    if planned {
-        // The plan said this one goes and the removal was refused, which is where a reference another command moved ends.
-        return WhyNotPruned::TheRemovalWasRefused;
-    }
-    if age_ms <= limits.max_age.as_millis() {
-        return WhyNotPruned::YoungerThanTheLimit;
-    }
-    return WhyNotPruned::UnderTheSizeLimit;
-}
+use crate::kept_reference_pass_answers::{
+    ThePass,
+    age_at,
+    commits_of_survivors,
+    kept_one,
+    now_ms,
+    pruned_one,
+    recorded_or_first_seen,
+};
+/// What was written beside one kept reference when it was written.
+use crate::kept_reference_record::KeptReferenceRecord;
+/// One reading of a repository's kept references,
+/// and the bytes the references that stay reach.
+use crate::kept_references_reading::{
+    OneKeptReference,
+    bytes_only_these_reach,
+    read_the_kept_references,
+};
+/// The Git context the pass asks its questions in.
+use crate::transaction_git::GitContext;
+/// The common Git directory every question is asked of,
+/// and the worktree directory it is found from.
+use std::path::{
+    Path,
+    PathBuf,
+};
+/// The moment the pass began,
+/// which its own time is measured from.
+use std::time::Instant;
 
 /// What:
 ///  Run one pass over a repository's kept references.
