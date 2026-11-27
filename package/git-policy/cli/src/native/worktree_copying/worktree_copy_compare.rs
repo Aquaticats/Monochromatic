@@ -1,12 +1,13 @@
 //! What:
-//!  Exact comparison of one manifest entry against the filesystem:
-//!  its kind,
-//! its retained mode,
-//! its symbolic-link target text or its regular-file bytes.
-//!  Also the final check that the source still matches the stage after staging.
+//!  The final check that the source still matches the stage after staging:
+//!  two walks taken beside each other,
+//!  and the differences they name by relative path.
 //! Why:
-//!  A destination must receive exactly what was staged from the source,
-//!  and a source that changed during the transfer must block the destination.
+//!  A source that changed during the transfer must block the destination,
+//!  and the settling loop above this one retries or leaves out exactly the entry a difference names.
+//!  The comparison of one entry is in `worktree_copy_compare_entry_match.rs`,
+//!  the two walks this check starts are in `worktree_copy_compare_walks.rs`,
+//!  and what a caller read from here is re-exported so none of them changes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,298 +20,43 @@ use crate::worktree_copy_error::{
     WorktreeCopyError,
     failure_with_cause,
     raw_failure,
-    raw_failure_of,
 };
 use crate::worktree_copy_manifest::{
-    EntryKind,
     FileStamp,
     WorktreeCopyEntry,
-    collect_entry_manifest,
-    collect_pruned_manifest,
-    retained_mode,
-    stamp_of,
 };
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::{
-    filesystem_path,
-    shown_repository_path,
-};
-use crate::worktree_copy_symlink_target::names_the_same_place;
+use crate::worktree_copy_selection::shown_repository_path;
 use std::collections::{
     BTreeMap,
     BTreeSet,
 };
-use std::io::Read;
 use std::path::{
     Path,
     PathBuf,
 };
 
-/// What:
-///  The size of one comparison read.
-/// Why:
-///   Large files are compared in bounded chunks so memory does not grow with file size.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const COMPARE_BUFFER_BYTES = 64 * 1_024;
-/// ```
-///  Exempt from a citation under `LQM` (class:
-///  buffer size):
-///  it sizes one read buffer,
-///  and the result of the comparison
-///  does not depend on it.
-///  Classed once in `doc/planning/cli-git-shipped-limits-audit.md`,
-///  "Exempt limits";
-///  the
-///  coordinator's pick under the owner's delegation,
-///  open to the owner's veto.
-pub(crate) const COMPARE_BUFFER_BYTES: usize = 64 * 1_024;
+/// The buffer size one comparison reads with,
+/// re-exported for the comparison beside the stage.
+pub(crate) use crate::worktree_copy_compare_entry_match::COMPARE_BUFFER_BYTES;
+
+/// The comparison of one entry against the filesystem,
+/// re-exported so no caller changes.
+pub use crate::worktree_copy_compare_entry_match::{
+    entry_matches,
+    entry_matches_stamped,
+};
+
+/// One walk of the source and one of the stage,
+/// as `differences_from_the_source` starts them.
+use crate::worktree_copy_compare_walks::{
+    walk_source_pruned,
+    walk_stage,
+};
 
 // The metadata question a comparison asks of both sides is the one every walk of a live checkout asks, so it has one
 //  home (`worktree_copy_vanished_entry.rs`): a missing entry is an answer, and every other failure is not.
 pub use crate::worktree_copy_vanished_entry::lstat_or_absent;
-
-/// What:
-///  One side of a byte comparison,
-///  opened without waiting and without following a link,
-/// or nothing when the path holds
-///  something a regular file cannot equal.
-/// Why:
-///   The comparison reads the source's entry after the walk recorded it,
-/// and a name a build replaced
-///  with a named pipe in between would hold the comparison on an open that waits for a writer that may never
-///  come ("nothing should ever wait forever or indefinitely").
-/// The kind is taken from the handle this opens,
-///  so a pipe,
-/// a device or a directory answers as no regular file at all,
-/// which the caller reads as the
-///  difference a settling pass retries and then drops,
-/// never as a wait and never as a failure of the add.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const openedSide = (path) => { try { return openPlainFile(path); } catch (e) { if (e.code === 'EINVAL') return undefined; throw e; } };
-/// ```
-fn opened_regular_file(path: &Path) -> Result<Option<std::fs::File>, WorktreeCopyError> {
-    return match crate::plain_file::open_plain_file(path) {
-        Ok(file) => Ok(Some(file)),
-        // The plain-file reader refuses a path that is not a plain file with `InvalidInput` and the words the person reads,
-        //  and a link it may not follow with `ELOOP`; neither holds a regular file's bytes.
-        Err(error)
-            if error.kind() == std::io::ErrorKind::InvalidInput
-                || error.raw_os_error() == Some(libc::ELOOP) =>
-        {
-            Ok(None)
-        }
-        Err(error) => Err(raw_failure(&error)),
-    };
-}
-
-/// What:
-///  Whether two regular files hold the same bytes,
-/// compared in bounded chunks.
-/// Why:
-///   Sizes are compared first,
-/// and a short read means the file changed under the comparison.
-/// A side that is no longer a regular file holds none of the other side's bytes,
-/// so the two differ.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function regularFileBytesEqual({ leftPath, rightPath }): Promise<boolean>;
-/// ```
-fn regular_file_bytes_equal(
-    left_path: &Path,
-    right_path: &Path,
-) -> Result<bool, WorktreeCopyError> {
-    let (Some(mut left), Some(mut right)) = (
-        opened_regular_file(left_path)?,
-        opened_regular_file(right_path)?,
-    ) else {
-        return Ok(false);
-    };
-    let left_size: u64 = left.metadata().map_err(raw_failure_of)?.len();
-    let right_size: u64 = right.metadata().map_err(raw_failure_of)?.len();
-    if left_size != right_size {
-        return Ok(false);
-    }
-    let mut left_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
-    let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
-    let mut remaining: u64 = left_size;
-    while remaining > 0 {
-        let length: usize = match usize::try_from(remaining) {
-            Ok(size) => size.min(COMPARE_BUFFER_BYTES),
-            Err(_too_large) => COMPARE_BUFFER_BYTES,
-        };
-        let left_chunk: &mut [u8] = &mut left_buffer[..length];
-        let right_chunk: &mut [u8] = &mut right_buffer[..length];
-        // `read_exact` reports a file that ended early as `UnexpectedEof`, which is a difference, not a failure.
-        match (left.read_exact(left_chunk), right.read_exact(right_chunk)) {
-            (Ok(()), Ok(())) => {}
-            (Err(error), _) | (_, Err(error))
-                if error.kind() == std::io::ErrorKind::UnexpectedEof =>
-            {
-                return Ok(false);
-            }
-            (Err(error), _) | (_, Err(error)) => {
-                return Err(raw_failure(&error));
-            }
-        }
-        if left_chunk != right_chunk {
-            return Ok(false);
-        }
-        remaining -= u64::try_from(length).unwrap_or(0);
-    }
-    return Ok(true);
-}
-
-/// What:
-///  The symbolic-link target text of one no-follow entry.
-/// Why:
-///   The target is read as the link holds it,
-/// never resolved,
-/// so a link whose target does not exist can still be compared.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await readlink(path)
-/// ```
-fn link_target(path: &Path) -> Result<PathBuf, WorktreeCopyError> {
-    return std::fs::read_link(path).map_err(raw_failure_of);
-}
-
-/// What:
-///  Whether one actual entry matches an expected entry exactly.
-/// Why:
-///   Kind,
-/// mode and content must all match,
-/// and an absent entry never matches.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function entryMatches({ expectedRoot, actualRoot, entry }): Promise<boolean>;
-/// ```
-pub fn entry_matches(
-    expected_root: &Path,
-    actual_root: &Path,
-    entry: &WorktreeCopyEntry,
-) -> Result<bool, WorktreeCopyError> {
-    return entry_matches_stamped(expected_root, actual_root, entry, None);
-}
-
-/// What:
-///  Whether one actual entry matches an expected entry,
-/// taking an unchanged stamp of the actual file as proof of its bytes.
-/// Why:
-///   A file the stage cloned holds the very blocks the source held at the clone;
-/// when the source's stamp is still the one
-///  recorded around the clone,
-/// no write reached it since,
-/// so reading both files again could only repeat the clone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function entryMatchesStamped({ expectedRoot, actualRoot, entry, stamp }): Promise<boolean>;
-/// ```
-pub fn entry_matches_stamped(
-    expected_root: &Path,
-    actual_root: &Path,
-    entry: &WorktreeCopyEntry,
-    stamp: Option<&FileStamp>,
-) -> Result<bool, WorktreeCopyError> {
-    let expected_path: PathBuf = filesystem_path(expected_root, entry.relative_path.as_slice())?;
-    let actual_path: PathBuf = filesystem_path(actual_root, entry.relative_path.as_slice())?;
-    let Some(actual) = lstat_or_absent(actual_path.as_path())? else {
-        return Ok(false);
-    };
-    if retained_mode(&actual) != entry.mode {
-        return Ok(false);
-    }
-    // `match` on the entry kind selects the one comparison that applies to it.
-    match entry.kind {
-        EntryKind::Directory => return Ok(actual.is_dir()),
-        EntryKind::File => {
-            if !actual.is_file() {
-                return Ok(false);
-            }
-            if let Some(recorded) = stamp {
-                return Ok(stamp_of(&actual).as_ref() == Some(recorded));
-            }
-            return regular_file_bytes_equal(expected_path.as_path(), actual_path.as_path());
-        }
-        EntryKind::Symlink => {
-            if !actual.file_type().is_symlink() {
-                return Ok(false);
-            }
-            // The two links stand in two trees at two depths, so their texts are compared by the place each names, never as
-            //  text: a copy of a link that leaves its tree had to be written as an absolute path.
-            return Ok(names_the_same_place(
-                &link_target(expected_path.as_path())?,
-                expected_path.as_path(),
-                expected_root,
-                &link_target(actual_path.as_path())?,
-                actual_path.as_path(),
-                actual_root,
-            ));
-        }
-    }
-}
-
-/// What:
-///  The manifest of the source under the leave-out rule,
-/// as the final check walks it on a job of the blocking pool beside the stage's walk.
-/// Why:
-///   Entries the walk cannot read are not reported here:
-/// the final check compares the whole manifest and fails on any difference.
-/// The walk is a wait on storage,
-/// so it belongs on the blocking pool and never on a worker that polls tasks,
-/// and a job of the pool owns what it reads,
-/// so the root and the two lists travel as owned values.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
-/// ```
-fn walk_source_pruned(
-    (source_root, selected_roots, excluded_source_roots, prune): (
-        PathBuf,
-        Vec<Vec<u8>>,
-        Vec<PathBuf>,
-        Prune,
-    )
-) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    let mut left_out: crate::worktree_copy_manifest::LeftOut =
-        crate::worktree_copy_manifest::LeftOut::default();
-    return collect_pruned_manifest(
-        source_root.as_path(),
-        selected_roots.as_slice(),
-        excluded_source_roots.as_slice(),
-        prune,
-        &mut left_out,
-        &crate::worktree_copy_ceiling::CopyCeiling::unbounded(),
-    );
-}
-
-/// What:
-///  The manifest of the stage,
-/// with no leave-out rule,
-/// as the final check walks it beside the source's walk.
-/// Why:
-///   The stage holds exactly the selected roots,
-/// so nothing is excluded or pruned,
-///  and the walk is a wait on storage,
-/// which a job of the blocking pool does with the root it owns.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// walkStage([stageRoot, selectedRoots]) // collectEntryManifest(stageRoot, selectedRoots, [])
-/// ```
-fn walk_stage(
-    (stage_root, selected_roots): (PathBuf, Vec<Vec<u8>>)
-) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    return collect_entry_manifest(stage_root.as_path(), selected_roots.as_slice(), &[]);
-}
 
 /// What:
 ///  Checks that the source still matches the initial manifest after staging,
