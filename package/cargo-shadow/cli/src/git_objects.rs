@@ -63,11 +63,17 @@ use flate2::{
     Status,
 };
 
-/// The check that a commit stored in a pack file is a commit (split out of the git objects module).
-pub(crate) use crate::git_objects_packed_commit::packed_commit;
+/// The reader of a version 2 pack index:
+/// its fan-out table and the offset of one object's entry.
+mod pack_index;
+/// The check that a commit stored in a pack file is a commit.
+mod packed_commit;
 
-/// The reader of a pack index that the packed-commit check uses (split out of the git objects module).
-pub(crate) use crate::git_objects_pack_index::{
+/// Re-exports the check that a commit stored in a pack file is a commit.
+pub(crate) use self::packed_commit::packed_commit;
+
+/// Re-exports the reader of a pack index that the packed-commit check uses.
+pub(crate) use self::pack_index::{
     big_endian,
     index_failure,
     pack_failure,

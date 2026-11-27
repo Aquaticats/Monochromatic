@@ -27,17 +27,17 @@ use std::collections::{
 /// Imports `std::io::Read` for this file.
 use std::io::Read;
 
+/// Imports the dump timestamp conversion for this file.
+use super::{
+    MAX_VERSIONS_PER_CRATE,
+    dump_timestamp,
+};
 /// Imports the CSV reader,
 /// the column check and the format error for this file.
 use crate::csv::{
     DumpFormatError,
     column_indexes,
     read_csv,
-};
-/// Imports the dump timestamp conversion for this file.
-use crate::dump::{
-    MAX_VERSIONS_PER_CRATE,
-    dump_timestamp,
 };
 /// Imports the version record that a versions row builds for this file.
 use crate::policy::VersionRecord;
