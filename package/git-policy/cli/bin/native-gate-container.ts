@@ -19,6 +19,7 @@ import {
 } from './native-gate-container-identity.ts';
 import {
   type ContainerMemoryWatch,
+  NO_MEMORY_KILL,
   containerMemoryKilledLine,
   watchContainerMemory,
 } from './native-gate-container-memory.ts';
@@ -192,27 +193,89 @@ export async function runGateContainer({
         await onStarted(id,);
     },
   },);
+  /**
+   The client's answer, which the container's own memory watch is reported beside either way.
+   */
+  // A container killed for memory ends like any other, so the reading is kept while it runs and reported here, beside
+  // whatever the check itself said: a client the deadline stopped still leaves its container's kill to be named.
+  const answered = await settleContainer({
+    running,
+    watched,
+    identity,
+  },);
+  if ('reason' in answered)
+    throw answered.reason;
+  return answered.outcome;
+}
+
+/**
+ Run one gate container's client to its answer, and report what the container's own memory watch found either way.
+
+ @param running - the client that runs the container
+
+ @param watched - the watch of the container's memory, once the client reported the container's ID
+
+ @param identity - the container's name, label and role, which the line a kill prints names
+
+ @returns the client's answer, which is either its exit state or the failure it threw
+ */
+async function settleContainer({
+  running,
+  watched,
+  identity,
+}: {
+  readonly running: Promise<CommandOutcome>;
+  readonly watched: { readonly current?: ContainerMemoryWatch; };
+  readonly identity: GateContainerIdentity;
+},): Promise<{ readonly outcome: CommandOutcome; } | { readonly reason: unknown; }> {
   try {
-    return await running;
+    /**
+     What the client answered.
+     */
+    const outcome = await running;
+    await reportMemoryKill({
+      watched,
+      identity,
+    },);
+    return { outcome, };
   }
-  finally {
-    // A container killed for memory ends like any other, so the reading is kept while it runs and reported now, beside
-    // whatever the check itself said.
-    if (watched.current !== undefined) {
-      /**
-       The watch of this container, stopped so its last read is the moment before the container ended.
-       */
-      const memory = watched.current;
-      await memory.stop();
-      /**
-       What the gate says about a kill inside the bound, absent when the bound decided nothing.
-       */
-      const killed = containerMemoryKilledLine({
-        role: identity.role,
-        sample: memory.lastRead(),
-      },);
-      if (killed !== undefined)
-        console.log(killed,);
-    }
+  catch (error) {
+    await reportMemoryKill({
+      watched,
+      identity,
+    },);
+    return { reason: error, };
   }
+}
+
+/**
+ Stop one container's memory watch and print what it says about a kill inside the container's bound, if any.
+
+ @param watched - the watch of the container's memory, once the client reported the container's ID
+
+ @param identity - the container's name, label and role, which the line a kill prints names
+ */
+async function reportMemoryKill({
+  watched,
+  identity,
+}: {
+  readonly watched: { readonly current?: ContainerMemoryWatch; };
+  readonly identity: GateContainerIdentity;
+},): Promise<void> {
+  if (watched.current === undefined)
+    return;
+  /**
+   The watch of this container, stopped so its last read is the moment before the container ended.
+   */
+  const memory = watched.current;
+  await memory.stop();
+  /**
+   What the gate says about a kill inside the bound, or {@link NO_MEMORY_KILL} when the bound decided nothing.
+   */
+  const killed = containerMemoryKilledLine({
+    role: identity.role,
+    sample: memory.lastRead(),
+  },);
+  if (killed !== NO_MEMORY_KILL)
+    console.log(killed,);
 }

@@ -1,260 +1,45 @@
 /**
- The kernel's own memory accounting of one gate container, read while the container runs, and the line the gate prints
- when one of its containers was killed inside its memory bound.
+ The watch a gate keeps of one container's own memory accounting while it runs, and the line it prints when that
+ container was killed inside its bound.
 
- A container's cgroup exists only while the container does: `podman run --rm` removes it, and with it every file below
- `memory.*`. So the figures a gate needs after the fact are read while the container runs and kept, which is what
- `watchContainerMemory` does; a reader that asks at the end asks a directory that is gone.
+ A container killed for memory reads like a failing test: the kernel ends the process the bound picked, the check reports
+ a signal, and nothing in that account names the bound. So the gate reads the container's own `memory.events` while the
+ container runs, keeps the last figures, and says what it found once the check is over, beside the check's own refusal
+ and never instead of it.
 
- The path the figures come from is the `libpod-*.scope` podman makes for the container, which is where the `--memory`
- bound becomes the cgroup's `memory.max` and where the 2026-11-27 readings of both gate containers were taken
- (`doc/planning/git-policy-cli-cachyos-test-containers.md`, "The Clippy container's own memory bound, measured
- 2026-11-27"). `memory.current` of that scope counts the container's children as well, and `memory.events` counts the
- times the bound was reached and the kills it caused there, which is exactly the question a killed check asks.
+ The figures themselves are `bin/native-gate-container-cgroup-memory.ts`'s; this module decides when to read them and
+ what to say about a kill.
  */
-import { existsSync, readFileSync, } from 'node:fs';
-import { join, } from 'node:path';
-
 import { wait as waitUntil, } from '@monochromatic-dev/async-time-core/ts';
 
 import type { GateContainerRole, } from './native-gate-container-identity.ts';
+import {
+  type ContainerMemoryRead,
+  type ContainerMemorySample,
+  CGROUP_NOT_THERE,
+  bytesPerGibibyte,
+  bytesPerMebibyte,
+  containerCgroupPathOf,
+  readContainerMemory,
+} from './native-gate-container-cgroup-memory.ts';
 
-//region Where a container's figures are
-
-/**
- Root of this host's cgroup v2 hierarchy, where podman puts a container's scope.
- */
-export const cgroupRoot = '/sys/fs/cgroup';
+//region What a container's events say
 
 /**
  Milliseconds between two reads of a container's own cgroup while it runs.
 
- A kill only raises a counter, so the interval decides one thing: how long after a kill the figure is still there to be
- read. A container that ends takes its scope with it, and the gate reads the last sample it kept, so the interval is
- short enough that a kill is seen before the container's own shutdown removes the scope, and long enough that the reads
- cost nothing beside the suite beside them.
+ A kill only raises a counter, so the interval decides one thing: whether the figure is still there to be read. A
+ container that ends takes its scope with it, and the gate reads the last sample it kept, so the interval is short
+ enough that a kill is seen before the container's own shutdown removes the scope, and long enough that the reads cost
+ nothing beside the suite running next to them.
  */
 export const gateMemoryPollMilliseconds = 100;
 
 /**
- The cgroup of one gate container, as podman makes it under the account's own slice.
-
- @param containerId - the ID the container's client wrote to its ID file, which names the scope
-
- @param root - the cgroup hierarchy's root, which a test points at a fixture tree
-
- @param userId - the account whose user manager started the container, which the scope's path carries
-
- @returns the absolute path of the container's own scope
-
- @example
- ```ts
- containerCgroupPathOf({ containerId, userId: 1000 });
- ```
+ The statement that a container met no kill inside its bound, which a sentinel carries because this repository models
+ absence without nullish unions.
  */
-export function containerCgroupPathOf({
-  containerId,
-  root = cgroupRoot,
-  userId = process.getuid?.() ?? 0,
-}: {
-  readonly containerId: string;
-  readonly root?: string;
-  readonly userId?: number;
-},): string {
-  return join(
-    root,
-    'user.slice',
-    `user-${String(userId)}.slice`,
-    `user@${String(userId)}.service`,
-    'user.slice',
-    `libpod-${containerId}.scope`,
-  );
-}
-
-//endregion Where a container's figures are
-
-//region What the kernel says about one container
-
-/**
- One container's figures, as the kernel held them at the moment they were read.
- */
-export type ContainerMemorySample = {
-  /**
-   The scope the figures came from.
-   */
-  readonly cgroupPath: string;
-  /**
-   When they were read, in ISO 8601.
-   */
-  readonly readAt: string;
-  /**
-   Memory charged to the container and its children now, which page cache and the fixture root's shared pages count in.
-   */
-  readonly currentBytes?: number;
-  /**
-   The highest charge since the container started, which is the figure a bound is compared with.
-   */
-  readonly peakBytes?: number;
-  /**
-   The bound itself: the cgroup's `memory.max`, which is the gate's `--memory` for this container.
-   */
-  readonly maxBytes?: number;
-  /**
-   Swap charged to the container now, which a host under pressure puts there rather than its bound.
-   */
-  readonly swapCurrentBytes?: number;
-  /**
-   The container's swap bound, which the gate does not set.
-   */
-  readonly swapMaxBytes?: number;
-  /**
-   Processes in the container's cgroup now.
-   */
-  readonly pidsCurrent?: number;
-  /**
-   The most processes it held since it started.
-   */
-  readonly pidsPeak?: number;
-  /**
-   Every counter of `memory.stat`, by name: `anon` is the tests' own heap and stacks, `file` the page cache of what
-   they read, and `shmem` the fixture root's tmpfs pages.
-   */
-  readonly stat: Readonly<Record<string, number>>;
-  /**
-   Every counter of `memory.events`, by name: `max` counts the times the bound was reached and `oom_kill` the kills.
-   */
-  readonly events: Readonly<Record<string, number>>;
-};
-
-/**
- Read one file of a cgroup as trimmed text.
-
- @param path - the file
-
- @returns its text, or nothing when the file is not there or cannot be read
- */
-function textOf(path: string,): string | undefined {
-  try {
-    return readFileSync(
-      path,
-      'utf8',
-    ).trim();
-  }
-  catch {
-    // A file a kernel does not write, or a scope that ended between two reads, is no reading at all and not a failure.
-    return undefined;
-  }
-}
-
-/**
- Read one file of a cgroup as a whole number.
-
- @param path - the file
-
- @returns the number it holds, or nothing when it holds anything else or is not there
- */
-function numberOf(path: string,): number | undefined {
-  /**
-   The file's text.
-   */
-  const text = textOf(path,);
-  if ((text === undefined) || (text === ''))
-    return undefined;
-  for (const character of text)
-    if ((character < '0') || (character > '9'))
-      return undefined;
-  return Number(text,);
-}
-
-/**
- Read one file of a cgroup as the counters it holds, one `name value` pair per line.
-
- @param path - the file
-
- @returns every counter, by name, empty when the file is not there
- */
-function countersOf(path: string,): Readonly<Record<string, number>> {
-  /**
-   The file's text.
-   */
-  const text = textOf(path,);
-  if (text === undefined)
-    return {};
-  /**
-   The counters read so far.
-   */
-  const counters: Record<string, number> = {};
-  for (const line of text.split('\n',)) {
-    /**
-     The two fields a counter line holds.
-     */
-    const [name, value, ...surplus] = line.trim()
-      .split(/\s+/,);
-    if ((name === undefined) || (value === undefined) || (surplus.length > 0))
-      continue;
-    if (![...value,].every(function isDigit(character,) {
-      return (character >= '0') && (character <= '9');
-    },))
-      continue;
-    counters[name] = Number(value,);
-  }
-  return counters;
-}
-
-/**
- Read one container's own memory accounting.
-
- @param cgroupPath - the container's scope, from {@link containerCgroupPathOf}
-
- @returns the figures the kernel holds for it, or nothing when that scope is not there, which a container that ended
-   leaves behind
-
- @example
- ```ts
- const sample = readContainerMemory({ cgroupPath: containerCgroupPathOf({ containerId }) });
- ```
- */
-export function readContainerMemory({ cgroupPath }: { readonly cgroupPath: string; },): ContainerMemorySample | undefined {
-  if (!existsSync(cgroupPath,))
-    return undefined;
-  /**
-   The kernel's own figures, one file each.
-   */
-  const [current, peak, max, swapCurrent, swapMax, pidsCurrent, pidsPeak] = [
-    'memory.current',
-    'memory.peak',
-    'memory.max',
-    'memory.swap.current',
-    'memory.swap.max',
-    'pids.current',
-    'pids.peak',
-  ].map(function figureOf(name,) {
-    return numberOf(join(
-      cgroupPath,
-      name,
-    ),);
-  },);
-  return {
-    cgroupPath,
-    readAt: new Date()
-      .toISOString(),
-    ...(current === undefined ? {} : { currentBytes: current, }),
-    ...(peak === undefined ? {} : { peakBytes: peak, }),
-    ...(max === undefined ? {} : { maxBytes: max, }),
-    ...(swapCurrent === undefined ? {} : { swapCurrentBytes: swapCurrent, }),
-    ...(swapMax === undefined ? {} : { swapMaxBytes: swapMax, }),
-    ...(pidsCurrent === undefined ? {} : { pidsCurrent, }),
-    ...(pidsPeak === undefined ? {} : { pidsPeak, }),
-    stat: countersOf(join(
-      cgroupPath,
-      'memory.stat',
-    ),),
-    events: countersOf(join(
-      cgroupPath,
-      'memory.events',
-    ),),
-  };
-}
+export const NO_MEMORY_KILL: unique symbol = Symbol('container that met no memory kill inside its bound',);
 
 /**
  Tells whether a container's own events count a kill for memory.
@@ -288,7 +73,7 @@ const containerNames: Readonly<Record<GateContainerRole, string>> = {
 
  @param bytes - the figure
 
- @returns the number of GiB to one decimal, with thousands separated, and `no` reading as nothing
+ @returns the number of GiB to one decimal, with thousands separated
 
  @example
  ```ts
@@ -296,11 +81,14 @@ const containerNames: Readonly<Record<GateContainerRole, string>> = {
  ```
  */
 function gibText(bytes: number,): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  },)
-    .format(bytes / 1_073_741_824,);
+  return new Intl.NumberFormat(
+    'en-US',
+    {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    },
+  )
+    .format(bytes / bytesPerGibibyte,);
 }
 
 /**
@@ -316,28 +104,59 @@ function gibText(bytes: number,): string {
  ```
  */
 function mibText(bytes: number,): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  },)
-    .format(bytes / 1_048_576,);
+  return new Intl.NumberFormat(
+    'en-US',
+    {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    },
+  )
+    .format(bytes / bytesPerMebibyte,);
+}
+
+/**
+ The bound the kernel held a container at, as the kernel itself states it.
+
+ @param sample - the figures of the container
+
+ @returns the bound, as a GiB figure when the kernel wrote one
+ */
+function boundText({ sample }: { readonly sample: ContainerMemorySample; },): string {
+  if (sample.maxBytes === undefined)
+    return 'its memory.max bound';
+  return `the ${gibText(sample.maxBytes,)} GiB memory.max bound it was given`;
+}
+
+/**
+ The peak the container reached, which says how far past the bound a run got.
+
+ @param sample - the figures of the container
+
+ @returns the peak as a trailing clause, or nothing when the kernel wrote no peak
+ */
+function peakText({ sample }: { readonly sample: ContainerMemorySample; },): string {
+  if (sample.peakBytes === undefined)
+    return '';
+  return `, with a peak of ${mibText(sample.peakBytes,)} MiB`;
 }
 
 /**
  The line the gate prints when one of its containers was killed inside its memory bound, and nothing when none was.
 
- A test that was ended by the kernel reads like any test that failed, so this line says which container's bound did it,
- how often, and what a person does about it; it is printed beside the check's own refusal and never instead of it.
+ A test that the kernel ended reads like any test that failed, so this line says which container's bound did it, how
+ often, and what a person does about it.
 
  @param role - which of the gate's containers the sample is of
 
- @param sample - the last figures read from that container's cgroup, absent when its scope was never read
+ @param sample - the last figures read from that container's cgroup, or {@link CGROUP_NOT_THERE} when its scope was never
+   read
 
- @returns one sentence, ending in a full stop, or nothing when that container met no kill
+ @returns one sentence ending in a full stop, or {@link NO_MEMORY_KILL} when that container met no kill
 
  @example
  ```ts
- console.log(containerMemoryKilledLine({ role: 'suite', sample }));
+ const killed = containerMemoryKilledLine({ role: 'suite', sample });
+ if (killed !== NO_MEMORY_KILL) console.log(killed);
  ```
  */
 export function containerMemoryKilledLine({
@@ -345,38 +164,55 @@ export function containerMemoryKilledLine({
   sample,
 }: {
   readonly role: GateContainerRole;
-  readonly sample: ContainerMemorySample | undefined;
-},): string | undefined {
-  if ((sample === undefined) || !containerMemoryKilled({ events: sample.events, },))
-    return undefined;
+  readonly sample: ContainerMemoryRead;
+},): string | typeof NO_MEMORY_KILL {
+  if (((typeof sample) === 'symbol') || (!containerMemoryKilled({ events: sample.events, },)))
+    return NO_MEMORY_KILL;
   /**
    Kills the cgroup counted, which is one or more here.
    */
-  const kills = sample.events.oom_kill ?? 0;
-  /**
-   The bound the kernel held the container at, as the kernel states it.
-   */
-  const bound = sample.maxBytes === undefined
-    ? 'its memory.max bound'
-    : `the ${gibText(sample.maxBytes,)} GiB memory.max bound it was given`;
-  /**
-   The highest charge the container reached, which says how far past the bound a run got.
-   */
-  const peak = sample.peakBytes === undefined
-    ? ''
-    : `, with a peak of ${mibText(sample.peakBytes,)} MiB`;
+  const kills = sample.events
+    .oom_kill
+    ?? 0;
   /**
    How the kills are counted, in the singular when there was one.
    */
   const counted = kills === 1
     ? '1 out-of-memory kill'
     : `${String(kills)} out-of-memory kills`;
-  return `${containerNames[role]} was killed for memory: its cgroup counted ${counted} at ${bound}${peak}. That is the bound and not a failing test: raise it with --memory after the task name, or with --container-memory when native:gate starts the run.`;
+  return `${containerNames[role]} was killed for memory: its cgroup counted ${counted} at ${boundText({ sample, })}${peakText({ sample, })}. That is the bound and not a failing test: raise it with --memory after the task name, or with --container-memory when native:gate starts the run.`;
 }
 
-//endregion What the kernel says about one container
+//endregion What a container's events say
 
 //region Watching a container while it runs
+
+/**
+ Read one container's scope once, keep what it gave, and wait one interval before the next read.
+
+ @param state - what this watch has read so far
+
+ @param cgroupPath - the container's scope
+
+ @param intervalMilliseconds - how long to wait before the next read
+ */
+async function readOnce({
+  state,
+  cgroupPath,
+  intervalMilliseconds,
+}: {
+  readonly state: MemoryWatchState;
+  readonly cgroupPath: string;
+  readonly intervalMilliseconds: number;
+},): Promise<void> {
+  /**
+   What the scope holds now, or the statement that it is gone.
+   */
+  const read = await readContainerMemory({ cgroupPath, },);
+  if (read !== CGROUP_NOT_THERE)
+    state.lastRead = read;
+  await waitUntil(intervalMilliseconds,);
+}
 
 /**
  One running container's memory watch: the last figures it read, and how to end it.
@@ -386,9 +222,9 @@ export function containerMemoryKilledLine({
  */
 export type ContainerMemoryWatch = {
   /**
-   The last figures read from the container's cgroup, absent when its scope was never there.
+   The last figures read from the container's cgroup, or {@link CGROUP_NOT_THERE} when its scope was never there.
    */
-  readonly lastRead: () => ContainerMemorySample | undefined;
+  readonly lastRead: () => ContainerMemoryRead;
   /**
    Stop reading, and answer once the last read is kept. Calling it twice is the same as calling it once.
    */
@@ -401,10 +237,23 @@ export type ContainerMemoryWatch = {
 export type DisposableContainerMemoryWatch = ContainerMemoryWatch & AsyncDisposable;
 
 /**
+ What one watch has read so far, held in an object so the reading function and its caller share it without a `let` at
+ either function's root.
+
+ @param lastRead - the last figures the container's scope gave
+
+ @param stopped - whether the caller has ended this watch
+ */
+export type MemoryWatchState = {
+  lastRead: ContainerMemoryRead;
+  stopped: boolean;
+};
+
+/**
  Watch one container's own memory accounting while it runs.
 
- Reading starts at once, so a container that is killed and gone before the gate looks again still leaves the kill in
- the counter this watch kept.
+ Reading starts at once, so a container that is killed and gone before the gate looks again still leaves the kill in the
+ counter this watch kept.
 
  @param containerId - the ID the container's client wrote to its ID file
 
@@ -423,8 +272,8 @@ export type DisposableContainerMemoryWatch = ContainerMemoryWatch & AsyncDisposa
  */
 export function watchContainerMemory({
   containerId,
-  root = cgroupRoot,
-  userId = process.getuid?.() ?? 0,
+  root,
+  userId,
   intervalMilliseconds = gateMemoryPollMilliseconds,
 }: {
   readonly containerId: string;
@@ -437,42 +286,39 @@ export function watchContainerMemory({
    */
   const cgroupPath = containerCgroupPathOf({
     containerId,
-    root,
-    userId,
+    ...(root === undefined ? {} : { root, }),
+    ...(userId === undefined ? {} : { userId, }),
   },);
   /**
-   The last figures the scope gave, which is what the caller reads once the container is gone.
+   What this watch has read, and whether its caller ended it.
    */
-  let lastRead: ContainerMemorySample | undefined;
-  /**
-   Whether the caller has ended this watch.
-   */
-  let stopped = false;
+  const state: MemoryWatchState = {
+    lastRead: CGROUP_NOT_THERE,
+    stopped: false,
+  };
   /**
    Read until the caller stops, one interval between two reads.
    */
   const reading = (async function readUntilStopped(): Promise<void> {
-    while (!stopped) {
-      /**
-       What the scope holds now, absent once the container ended.
-       */
-      const sample = readContainerMemory({ cgroupPath, },);
-      if (sample !== undefined)
-        lastRead = sample;
-      // oxlint-disable-next-line eslint/no-await-in-loop -- a watch reads once per interval until it is stopped
-      await waitUntil(intervalMilliseconds,);
+    while (!state.stopped) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- a watch reads its container's scope once per interval
+      await readOnce({
+        state,
+        cgroupPath,
+        intervalMilliseconds,
+      },);
     }
   })();
   /**
    Stop reading, once, and answer when the last read is kept.
    */
   async function stop(): Promise<void> {
-    stopped = true;
+    state.stopped = true;
     await reading;
   }
   return {
     lastRead: function read() {
-      return lastRead;
+      return state.lastRead;
     },
     stop,
     [Symbol.asyncDispose]: stop,

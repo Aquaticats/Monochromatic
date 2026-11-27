@@ -10,6 +10,8 @@
  neither its `TasksMax` nor its `CPUQuota`.
  */
 import { NativeGateError } from './native-gate-error.ts';
+import { CargoMutantsToolingError, } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/error.ts';
+
 import { memoryBytes, } from './container-limits.ts';
 
 /**
@@ -155,7 +157,7 @@ export function wholeCapProblem({
  containerMemoryProblems({ memory: '3g' });
  ```
  */
-function containerMemoryProblems({ memory }: { readonly memory: string | undefined; },): readonly string[] {
+function containerMemoryProblems({ memory }: { readonly memory?: string; },): readonly string[] {
   if (memory === undefined)
     return [];
   try {
@@ -163,7 +165,9 @@ function containerMemoryProblems({ memory }: { readonly memory: string | undefin
     memoryBytes(memory,);
     return [];
   }
-  catch {
+  catch (error) {
+    if (!(error instanceof CargoMutantsToolingError))
+      throw error;
     return [`--container-memory "${memory}" is not a memory size: a whole number of bytes with an optional unit b, k, m or g, as in 3g or 2048m.`];
   }
 }
@@ -207,7 +211,7 @@ export function gateCapsProblems({ caps }: { readonly caps: GateCaps; }): readon
         value: caps.unitIoWeight,
         name: '--unit-io-weight',
       })),
-    ...containerMemoryProblems({ memory: caps.containerMemory, }),
+    ...(caps.containerMemory === undefined ? [] : containerMemoryProblems({ memory: caps.containerMemory, })),
   ];
 }
 

@@ -16,7 +16,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { runGateContainer, } from './native-gate-container.ts';
-import type { ContainerMemorySample, ContainerMemoryWatch, } from './native-gate-container-memory.ts';
+import type { ContainerMemorySample, } from './native-gate-container-cgroup-memory.ts';
+import type { ContainerMemoryWatch, } from './native-gate-container-memory.ts';
 import {
   announceContainerId,
   containerIdWhenWritten,

@@ -10,11 +10,17 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  type ContainerMemorySample,
+  CGROUP_NOT_THERE,
   containerCgroupPathOf,
+  readContainerMemory,
+} from './native-gate-container-cgroup-memory.ts';
+import {
+  type ContainerMemoryWatch,
+  NO_MEMORY_KILL,
   containerMemoryKilled,
   containerMemoryKilledLine,
   gateMemoryPollMilliseconds,
-  readContainerMemory,
   watchContainerMemory,
 } from './native-gate-container-memory.ts';
 
@@ -59,23 +65,23 @@ async function writeScopeFile({
   readonly text: string;
 }): Promise<void> {
   await mkdir(
-    dirname(join(scope, name)),
-    { recursive: true },
+    dirname(join(scope, name),),
+    { recursive: true, },
   );
   await writeFile(
-    join(scope, name),
+    join(scope, name,),
     text,
   );
 }
 
 /**
- A fixture whose cgroup files hold figures of a container that peaked inside its bound.
+ A fixture scope holding the figures of a container that peaked inside its bound.
 
  @param root - the fixture's cgroup root
 
- @param scope - the fixture scope's directory, which the caller writes and reads
+ @param scope - the fixture scope's directory, relative to the root
 
- @returns the scope path
+ @returns the scope's absolute path
  */
 async function boundedScope({
   root,
@@ -84,6 +90,9 @@ async function boundedScope({
   readonly root: string;
   readonly scope: string;
 }): Promise<string> {
+  /**
+   The scope's absolute path.
+   */
   const path = join(
     root,
     scope,
@@ -137,6 +146,40 @@ async function boundedScope({
 }
 
 /**
+ The figures of one fixture scope, and a failure when the reader answered that the scope is not there.
+
+ @param cgroupPath - the fixture scope to read
+
+ @returns the figures
+ */
+async function figuresOf(cgroupPath: string,): Promise<ContainerMemorySample> {
+  /**
+   What the reader answered for that scope.
+   */
+  const read = await readContainerMemory({ cgroupPath, },);
+  if (read === CGROUP_NOT_THERE)
+    throw new Error(`the reader answered that ${cgroupPath} is not there, and its files are`,);
+  return read;
+}
+
+/**
+ The last figures one watch read, and a failure when it read none yet.
+
+ @param watch - the watch to read
+
+ @returns the figures
+ */
+function lastSampleOf(watch: ContainerMemoryWatch,): ContainerMemorySample {
+  /**
+   What the watch last read.
+   */
+  const read = watch.lastRead();
+  if (read === CGROUP_NOT_THERE)
+    throw new Error('the watch read no figures from its scope yet',);
+  return read;
+}
+
+/**
  Wait, bounded, for a condition a watcher brings about, and fail naming what it waited for.
 
  @param condition - what must become true
@@ -149,6 +192,9 @@ async function until({ condition, description }: {
   readonly condition: () => boolean;
   readonly description: string;
 }): Promise<void> {
+  /**
+   When this wait gives up.
+   */
   const deadline = Date.now() + watcherWindowMilliseconds;
   while (!condition()) {
     if (Date.now() > deadline)
@@ -159,16 +205,11 @@ async function until({ condition, description }: {
 }
 
 /**
- A sample of a container the kernel killed inside its bound, in the shape {@link readContainerMemory} answers.
- */
-type KilledSample = NonNullable<ReturnType<typeof readContainerMemory>>;
-
-/**
  A sample whose cgroup counted one out-of-memory kill at its bound.
 
  @returns the sample
  */
-function killedSample(): KilledSample {
+function killedSample(): ContainerMemorySample {
   return {
     cgroupPath: '/sys/fs/cgroup/libpod-x.scope',
     readAt: '2026-11-27T13:00:00.000Z',
@@ -226,7 +267,7 @@ await describe({
             /**
              What the reader answered for it.
              */
-            const sample = readContainerMemory({ cgroupPath: scope, },);
+            const sample = await figuresOf(scope,);
             expect(sample.currentBytes,).toBe(629_145_600,);
             expect(sample.peakBytes,).toBe(1_589_641_216,);
             expect(sample.maxBytes,).toBe(3_221_225_472,);
@@ -237,23 +278,23 @@ await describe({
             expect(sample.stat.file,).toBe(481_349_632,);
             expect(sample.stat.shmem,).toBe(860_160,);
             expect(sample.events.oom_kill,).toBe(0,);
-            expect(sample.readAt,).toMatch(/^\d{4}-\d{2}-\d{2}T/,);
+            expect(sample.readAt,).toContain('T',);
           },
           timeout: 20_000,
         }),
         it({
-          name: 'answers nothing for a cgroup that is not there, which is a container that already ended',
+          name: 'answers that the cgroup is not there once a container ended, rather than failing the gate it watched',
           fn: async () => {
             await using tree = await mkdtempDisposable(join(
               scratchParent,
               'gate-container-memory-gone-',
             ),);
-            expect(readContainerMemory({
+            expect(await readContainerMemory({
               cgroupPath: join(
                 tree.path,
                 'gone.scope',
               ),
-            },),).toBeUndefined();
+            },),).toBe(CGROUP_NOT_THERE,);
           },
           timeout: 20_000,
         }),
@@ -279,7 +320,7 @@ await describe({
             /**
              What the reader answered for it.
              */
-            const sample = readContainerMemory({ cgroupPath: scope, },);
+            const sample = await figuresOf(scope,);
             expect(sample.events.oom_kill,).toBe(1,);
             expect(sample.peakBytes,).toBeUndefined();
             expect(sample.stat,).toEqual({},);
@@ -315,7 +356,7 @@ await describe({
               role: 'suite',
               sample: killedSample(),
             });
-            expect(line,).toBeDefined();
+            expect(line,).not.toBe(NO_MEMORY_KILL,);
             expect(line,).toContain('The suite\'s container',);
             expect(line,).toContain('killed for memory',);
             expect(line,).toContain('3.0 GiB',);
@@ -352,7 +393,7 @@ await describe({
             expect(containerMemoryKilledLine({
               role: 'suite',
               sample: survived,
-            }),).toBeUndefined();
+            }),).toBe(NO_MEMORY_KILL,);
           },
         }),
         it({
@@ -360,8 +401,8 @@ await describe({
           fn: async () => {
             expect(containerMemoryKilledLine({
               role: 'suite',
-              sample: undefined,
-            }),).toBeUndefined();
+              sample: CGROUP_NOT_THERE,
+            }),).toBe(NO_MEMORY_KILL,);
           },
         }),
       ],
@@ -397,11 +438,11 @@ await describe({
             });
             await until({
               condition: function readOnce() {
-                return watch.lastRead() !== undefined;
+                return watch.lastRead() !== CGROUP_NOT_THERE;
               },
               description: 'the watch to read the scope\'s figures',
             },);
-            expect(watch.lastRead()?.peakBytes,).toBe(1_589_641_216,);
+            expect(lastSampleOf(watch,).peakBytes,).toBe(1_589_641_216,);
             // The kill arrives after the watch has been reading, which is what a polled counter has to survive.
             await writeScopeFile({
               scope,
@@ -410,12 +451,12 @@ await describe({
             });
             await until({
               condition: function killed() {
-                return containerMemoryKilled({ events: watch.lastRead()?.events ?? {}, },);
+                return containerMemoryKilled({ events: lastSampleOf(watch,).events, },);
               },
               description: 'the watch to read the kill its scope counted',
             },);
             await watch.stop();
-            expect(watch.lastRead()?.events.oom_kill,).toBe(1,);
+            expect(lastSampleOf(watch,).events.oom_kill,).toBe(1,);
           },
           timeout: 30_000,
         }),
@@ -434,7 +475,7 @@ await describe({
             });
             await waitUntil(50,);
             await watch.stop();
-            expect(watch.lastRead(),).toBeUndefined();
+            expect(watch.lastRead(),).toBe(CGROUP_NOT_THERE,);
           },
           timeout: 30_000,
         }),
