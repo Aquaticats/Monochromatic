@@ -1890,8 +1890,8 @@ cargo-shadow tests: not run [bounded_contain_tests::nested_transactions_keep_the
 A control that fails in about ten milliseconds has not failed at anything it measures:
 it failed at that question,
 and the words after `not run [<the test>]` say which ask of the manager answered no.
-The question is put three times,
-fifty milliseconds apart,
+The question is put five times,
+two hundred milliseconds apart,
 before an answer of no is taken for this host's answer
 (`ASKING_AGAIN_ATTEMPTS` and `ASKING_AGAIN_PAUSE` in `src/control_group_route_discovery.rs`),
 because one `systemctl` that failed to run is not a host without a control group.
@@ -1899,6 +1899,24 @@ On 2026-11-27 a whole run of this suite failed ten such controls in about ten mi
 and a `systemctl` that refuses the first ask of each control reproduces exactly that
 (`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`).
 A run of the ten beside another round's scope tests does not produce it.
+Those five attempts span 0.800 s,
+which is the longest reexec of a user manager measured across which asks fail
+(0.588 s in a container of its own,
+0.393 s in a guest,
+2026-11-27,
+Linux 7.3.5 and 6.8,
+systemd 262 and 255),
+not the second after one,
+where no ask failed and the ten of that run did.
+What that span costs where no manager answers at all:
+about 0.88 s and five asks for one `cargo-shadow install --dry-run`,
+against about 0.04 s and one ask for `0.1.5-alpha.15`,
+measured in a container with no user manager,
+nine rounds of both binaries beside byte-identical copies of each,
+12.9 to 29.7 times as long (median 20.6),
+and every call took the weaker path and exited 0.
+Where a manager answers,
+the asking again costs nothing unless an ask fails.
 The task keeps the whole output of a failing run in `target/test-runs` under this package,
 which `.gitignore` excludes,
 and its last lines name the file.
