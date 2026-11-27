@@ -2905,3 +2905,40 @@ Ranking:
 leave them out > widen,
 because the folders exist to hold work that is not being done,
 and the rule already reaches a package the moment it comes back.
+
+## Whether a name of another boot that carries no start time is ended (recorded 2026-11-27T15:23:31-05:00)
+
+The `0.2.7-alpha.15` release read found that `Owner::liveness` asked whether a
+hidden name's start time field is zero before it asked which boot the name
+belongs to.
+A run that cannot read its own `/proc/<pid>/stat` record writes that zero, so a
+name it wrote under an earlier boot was read as "the system did not say" and
+never reclaimed, although no process survives a reboot and the README says a
+name from another boot names an installer that reboot certainly ended.
+The round for `2026-11-27T14:35:51-05:00` gave the boot the first word, so the
+code and that sentence now agree.
+
+The two ways:
+
+- The boot decides first (taken):
+  a name of another boot is ended whatever its start time says, so the copy
+  under it is published or removed instead of staying for ever.
+  The cost is that a name of a boot this reader is not in is now removed on the
+  strength of the boot alone, where before a zero start time held every such
+  name back; if `/proc/sys/kernel/random/boot_id` ever answers two values for
+  two live processes of one machine (a container that bind-mounts another over
+  it, or a kernel that namespaces the file), a live installer's directory could
+  be removed. The same risk already covers every name with a start time other
+  than zero, so this widens a hazard that exists rather than making one.
+- The zero decides first (the code before this round):
+  such a name is never judged, and the README sentence needs the qualification
+  that a name which carries no start time is not placed in any boot.
+  The cost is a copy that stays for ever: nothing publishes it, nothing removes
+  it, and `prune --toolchain` prints it for a person to delete by hand.
+
+Neither way changes the two picks recorded at `2026-11-27T13:23:53-05:00`:
+a name of another boot never held the copy a kill moved aside, because it does
+not carry this boot's identifier, and it does not become a vouched finished
+copy either.
+What changes is only which `.staging` and `.replaced` directories of another
+boot with a zero start time a recovery or `prune --toolchain` removes.

@@ -1193,7 +1193,10 @@ whichever route installed them.
   and the tool's first declared bin is found in it as an executable file
   (a tool that declares no bin finishes on the marker alone).
 - An archive is unpacked into a hidden staging directory beside the version directory
-  (`.<version>.staging.<process id>.<process start time>.<process namespace>.<boot id>`),
+  (`.<version>.staging.<process id>.<process start time>.<process namespace>.<boot id>`,
+  or the shorter `.<version>.staging.<process id>.<process start time>` by a run that cannot read its own boot or
+  namespace, which no later install judges;
+  see "What a kill leaves and what the next install does about it"),
   the first bin of a release archive is looked for in it,
   the marker is written last,
   and only then is the version's name given the finished copy.
