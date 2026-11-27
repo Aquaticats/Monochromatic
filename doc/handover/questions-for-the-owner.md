@@ -2983,39 +2983,138 @@ leave them out > widen,
 because the folders exist to hold work that is not being done,
 and the rule already reaches a package the moment it comes back.
 
-## Whether a name of another boot that carries no start time is ended (recorded 2026-11-27T15:23:31-05:00)
+## Veto open: a name of another boot that carries no start time is ended (recorded 2026-11-27T15:23:31-05:00)
 
-The `0.2.7-alpha.15` release read found that `Owner::liveness` asked whether a
-hidden name's start time field is zero before it asked which boot the name
-belongs to.
-A run that cannot read its own `/proc/<pid>/stat` record writes that zero, so a
-name it wrote under an earlier boot was read as "the system did not say" and
-never reclaimed, although no process survives a reboot and the README says a
-name from another boot names an installer that reboot certainly ended.
-The round for `2026-11-27T14:35:51-05:00` gave the boot the first word, so the
-code and that sentence now agree.
-
-The two ways:
+The Claude Sonnet read of `mpm-shadow` `0.2.7-alpha.15`
+(returned 2026-11-27T14:35:51-05:00)
+found that `Owner::liveness` asked whether a hidden name's start time field is zero before it asked which boot the name belongs to.
+A run that cannot read its own `/proc/<pid>/stat` record writes that zero,
+so a name it wrote under an earlier boot was read as "the system did not say" and never reclaimed,
+although no process survives a reboot,
+and the README says a name from another boot names an installer that reboot certainly ended.
+A round answering that read gave the boot the first word
+(merged as `2c6513069b`),
+so the code and that sentence now agree.
+The round wrote this entry on its branch;
+the coordinating session re-broke its lines and named the read on 2026-11-27,
+changing nothing it says.
 
 - The boot decides first (taken):
-  a name of another boot is ended whatever its start time says, so the copy
-  under it is published or removed instead of staying for ever.
-  The cost is that a name of a boot this reader is not in is now removed on the
-  strength of the boot alone, where before a zero start time held every such
-  name back; if `/proc/sys/kernel/random/boot_id` ever answers two values for
-  two live processes of one machine (a container that bind-mounts another over
-  it, or a kernel that namespaces the file), a live installer's directory could
-  be removed. The same risk already covers every name with a start time other
-  than zero, so this widens a hazard that exists rather than making one.
-- The zero decides first (the code before this round):
-  such a name is never judged, and the README sentence needs the qualification
-  that a name which carries no start time is not placed in any boot.
-  The cost is a copy that stays for ever: nothing publishes it, nothing removes
-  it, and `prune --toolchain` prints it for a person to delete by hand.
+  a name of another boot is ended whatever its start time says,
+  so the copy under it is published or removed instead of staying for ever.
+  The cost is that a name of a boot this reader is not in is now removed on the strength of the boot alone,
+  where before a zero start time held every such name back.
+  If `/proc/sys/kernel/random/boot_id` ever answers two values for two live processes of one machine
+  (a container that bind-mounts another over it,
+  or a kernel that namespaces the file),
+  a live installer's directory could be removed.
+  The same risk already covers every name with a start time other than zero,
+  so this widens a hazard that exists rather than making one.
+- The zero decides first (the code before that round):
+  such a name is never judged,
+  and the README sentence needs the qualification that a name which carries no start time is not placed in any boot.
+  The cost is a copy that stays for ever:
+  nothing publishes it,
+  nothing removes it,
+  and `prune --toolchain` prints it for a person to delete by hand.
 
-Neither way changes the two picks recorded at `2026-11-27T13:23:53-05:00`:
-a name of another boot never held the copy a kill moved aside, because it does
-not carry this boot's identifier, and it does not become a vouched finished
-copy either.
-What changes is only which `.staging` and `.replaced` directories of another
-boot with a zero start time a recovery or `prune --toolchain` removes.
+Ranking,
+the coordinating session's on reading the round's entry:
+the boot first > the zero first,
+because a reboot ends every process whatever a name's start time field holds,
+and the hazard the boot's word carries already covers every other name.
+
+Neither way changes the picks recorded at `2026-11-27T13:23:53-05:00`:
+a name of another boot never held the copy a kill moved aside,
+because it does not carry this boot's identifier,
+and it does not become a vouched finished copy either.
+What changes is only which `.staging` and `.replaced` directories of another boot with a zero start time a recovery or `prune --toolchain` removes.
+
+## Veto open: what `mpm-shadow` tells a person about a finished copy it cannot judge (recorded 2026-11-27T15:56:07-05:00)
+
+A round answering the same read changed messages and the README and no rule
+(merged as `7a216deafc`).
+The coordinating session read its report whole and wrote this entry.
+
+An install whose download failed,
+while a finished copy of that version sits under a hidden name it cannot judge,
+used to print the download's failure alone.
+It now goes on:
+
+```text
+a finished copy of mpm-shadow 0.2.1 sits under the hidden name <toolchain root>/mpm-shadow/.0.2.1.staging.42.100, whose installer this build cannot judge, so no install of this build publishes it; the version comes back from a download with the network there, or by moving that copy to <toolchain root>/mpm-shadow/0.2.1 by hand, which checks none of its bytes against the lock
+```
+
+- Name the move by hand and what it gives up (taken):
+  a machine with no network has a way to get the version back,
+  and the sentence says the bytes are then unchecked.
+  The cost is that the tool itself tells a person how to run bytes the lock did not verify.
+- Name the copy and stop there:
+  the tool never suggests running unverified bytes.
+  The cost is that a person with no network is told a finished copy exists and not what can be done with it.
+
+Ranking,
+the coordinating session's:
+name the move and what it gives up > name the copy alone,
+because the person is the only one left who can judge that copy,
+and a sentence that hides the one way out leaves a machine with no network without the version.
+
+## Open: two `mpm-shadow` proposals nobody built, for a finished copy no rule can use today (recorded 2026-11-27T15:56:07-05:00)
+
+Both come from the round merged as `7a216deafc`.
+Neither is built,
+and each changes a rule an earlier round picked with the owner's veto open,
+so nothing starts on either without an answer.
+
+### Publish a finished copy an earlier build left, instead of only naming it
+
+The lock records the archive's SHA-256 and the copy on disk is the unpacked tree,
+so a run with no network cannot compare the copy's bytes with the lock's row.
+
+- A tree digest in the marker and in the lock:
+  every install writes a digest over the unpacked tree into the marker,
+  and `update` writes it into the lock,
+  so a copy is judged byte for byte with no network and no other build's word.
+  The cost is a change of the lock's format and of the marker's,
+  and the markers earlier builds wrote carry neither.
+- Trust the earlier build's marker:
+  one line of code.
+  The cost is that bytes edited since that build's own check are published unchecked.
+- Publish only after a person confirms:
+  the cost,
+  in the round's words,
+  is that it "defeats the offline case it is for".
+- Leave it (today):
+  the copy is named and never published,
+  and the person moves it by hand or finds a network.
+
+Ranking,
+the round's for the first three and the coordinating session's for the last:
+the tree digest > leave it > trust the earlier marker > publish after a confirmation,
+because only the digest lets a run with no network judge the bytes;
+leaving it runs no unchecked byte,
+which trusting the marker does;
+and trusting the marker at least serves the machine with no network,
+which the round says a confirmation does not.
+
+### Keep a finished copy another known lock vouches for
+
+Today a removal and a publish consult only the running tree's lock row,
+and `prune` reads every known lock's versions and never its digests,
+so one checkout's install removes a finished copy another checkout's lock vouches for.
+
+- Keep it hidden when any known lock names the marker's digest:
+  the other checkout's copy survives,
+  which is the only copy a machine with no network has of it.
+  The cost is a read of every known lock's artifact rows inside `install`,
+  and bytes that no tree's own install may ever run staying on disk with no line printed for them.
+  Two trees that pin one version with two archives still do not recover each other's copy.
+- Keep the rule and say what the removal took (what the round did):
+  a person who needs that copy knows it is gone.
+  The cost is that the copy is gone.
+
+Ranking,
+the coordinating session's:
+keep it hidden > say what the removal took,
+because a sentence does not bring a finished copy back,
+and the read of the other locks is one `prune` already makes for their versions.

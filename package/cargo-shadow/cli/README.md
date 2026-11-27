@@ -924,16 +924,46 @@ and an HTTP 429 is retried after its `Retry-After`.
   the look cannot tell a group that never held a process from one it cannot see,
   so every scoped run asks the manager once,
   and a manager that hangs costs that run up to `RETIRE_BOUND`.
-  A `pids.peak` read that fails because the group's directory went away is not that case:
-  the directory is checked,
+  A `pids.peak` read that fails because the group is gone is not that case:
   the group is the manager's to free,
   and nothing is asked.
-  The `populated` read makes that check too:
-  a group whose directory is there without its `cgroup.events` in it,
-  which the kernel shows for a moment while it makes a group
-  (`cgroup_create` creates the directory and the base files are added afterwards),
-  is reported as a scope nothing was read from,
-  and keeps its unit.
+  `ENODEV` says that by itself:
+  the kernel has already taken the group's own files away,
+  which it does only for a group that holds no task,
+  on its way to removing the group.
+  `ENOENT` needs the group's directory to be gone as well,
+  and that is where the directory check stays live:
+  a group whose parent does not enable the pids controller has no `pids.peak` at all,
+  so that read is a name that is not there inside a directory that is,
+  and the question goes to the manager.
+  The `populated` read cannot meet that second state on this host.
+  Measured 2026-11-27,
+  in a delegated scope of its own on kernel 7.3.5-2-cachyos,
+  three hundred iterations an arm:
+  of 3090 reads raced against 300 group creations,
+  none answered `ENOENT` while the directory was there,
+  and every first sight of a new directory held `cgroup.events`
+  (a listing of the directory in 88 of the 300 iterations,
+  and the successful read itself in the other 212).
+  The control group root is created deactivated
+  (`KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5,
+  the stable release this host's kernel is built from),
+  and a new group's directory and its files become visible together
+  (`kernfs_activate` at `:6157`,
+  after the base files at `:6146`).
+  A directory that is there without its `cgroup.events` is still read as a scope nothing was read from,
+  and keeps its unit:
+  that is the answer for a kernel that shows the state,
+  and this one is not seen to.
+  What the `populated` read does answer is the removal,
+  and that is the live row:
+  300 removals raced by that read answered `ENODEV` 24 times,
+  the files being taken before the directory in the same removal
+  (`css_clear_dir` at `kernel/cgroup/cgroup.c:6361`,
+  `kernfs_remove` at `:6362`),
+  and a check of the directory made right after the read found it there in 20 of the 24.
+  So that row is read as the collected unit it is,
+  and nothing is printed about a unit the manager is freeing.
   The question keeps one bound (`RETIRE_BOUND`,
   five seconds),
   and a request the bound kills is given a measured grace to be reaped before the warning is built.
