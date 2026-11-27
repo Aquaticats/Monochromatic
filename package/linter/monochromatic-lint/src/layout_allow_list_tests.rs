@@ -611,6 +611,85 @@ fn a_file_use_line_whose_folder_name_holds_other_whitespace_is_refused_by_that_c
     }
 }
 
+/// A dead `uses` or `file-uses` line spells a character a reader cannot see that the line holds in a name,
+///  because such a character prints as nothing and the name it makes is no folder of the package:
+///  a reader shown `src/a` would look for a folder the package may well hold.
+#[test]
+fn a_dead_use_line_spells_a_character_it_holds_that_a_reader_cannot_see() {
+    let base: &Path = Path::new("package");
+    // What: one line per place such a character stands, with the name as the message must spell it.
+    // Why: a name's own invisible character and the folder of a `file-uses` line are read by two arms of the finding.
+    for (line, spelled) in [
+        ("uses src/a\u{200b} -> src/b\n", "src/a\\u{200b}"),
+        ("uses src/a -> src/b\u{200b}\n", "src/b\\u{200b}"),
+        (
+            "file-uses src/a\u{200b} one.rs -> two.rs\n",
+            "src/a\\u{200b}",
+        ),
+    ] {
+        let list: AllowList = parsed(line);
+        let findings: Vec<LayoutFinding> =
+            dead_entry_findings(&list, &BTreeSet::<usize>::new(), &BTreeSet::<PathBuf>::new(), base);
+        assert_eq!(findings.len(), 1, "{line}");
+        assert!(
+            findings[0].message.contains(spelled),
+            "`{spelled}` must be spelled in the message: {}",
+            findings[0].message
+        );
+        assert!(
+            findings[0].help.as_deref().unwrap_or("").contains("take that character out"),
+            "the help must say to take it out: {:?}",
+            findings[0].help
+        );
+    }
+}
+
+/// A line whose first character is a byte order mark is read as a key and tolerates nothing,
+///  so the message names that character and where it stands, and sends its reader to take it out;
+///  deleting the line, which the old sentence said, would leave the loop the line records partly unwritten.
+#[test]
+fn a_byte_order_mark_before_a_line_is_named_where_it_stands_and_taken_out() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed("\u{feff}uses src/a -> src/b\n");
+    let findings: Vec<LayoutFinding> =
+        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &BTreeSet::<PathBuf>::new(), base);
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    let message: &str = findings[0].message.as_str();
+    for part in [
+        "\\u{feff}uses src/a -> src/b",
+        "byte order mark",
+        "character 1",
+        "Take that character out of the line",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+    assert!(
+        !message.contains("Delete the line so the list keeps shrinking"),
+        "the line records a use, so deleting it is the wrong edit: {message}"
+    );
+}
+
+/// A zero-width space where a separator belongs is not whitespace, so the reader takes the word it touches for a key,
+///  and the message names the character and its position and says to take it out and put the separator back.
+#[test]
+fn a_zero_width_space_where_a_separator_belongs_is_named_and_taken_out() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed("uses\u{200b}src/a -> src/b\n");
+    let findings: Vec<LayoutFinding> =
+        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &BTreeSet::<PathBuf>::new(), base);
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    let message: &str = findings[0].message.as_str();
+    for part in [
+        "\\u{200b}",
+        "zero-width space",
+        "character 5",
+        "Take that character out of the line",
+        "write a whitespace character where it stood",
+    ] {
+        assert!(message.contains(part), "{part} missing in {message}");
+    }
+}
+
 /// A listed path is read back against the package folder,
 ///  so a line that climbs out with `..` and comes back in names the use the plain spelling names,
 ///  on either side of the arrow and on both at once.

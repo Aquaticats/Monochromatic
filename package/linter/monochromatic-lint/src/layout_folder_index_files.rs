@@ -30,7 +30,7 @@ use crate::{
         LayoutFinding,
         key_path,
         shown,
-        spelled_whitespace,
+        spelled_unreadable,
     },
     layout_index_file_items::{
         IndexRole,
@@ -108,7 +108,7 @@ pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName
     // What: the name with every line break spelled `\u{a}`.
     // Why: the message that names the file, and the key a line would hold, must each stay on one line.
     if name.contains('\n') {
-        return Some((spelled_whitespace(name), UnlistableName::HoldsLineBreak));
+        return Some((spelled_unreadable(name), UnlistableName::HoldsLineBreak));
     }
     // What: the name's last character, or nothing when the name is empty.
     // Why: only the last character can be the one the reader trims away.
@@ -119,7 +119,7 @@ pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName
     // What: the name with its last character spelled `\u{20}`, `\u{9}` or `\u{a0}`.
     // Why: the character itself is invisible in a terminal, so the message would not name the file.
     return Some((
-        spelled_whitespace(name),
+        spelled_unreadable(name),
         UnlistableName::EndsInTrimmedWhitespace,
     ));
 }
@@ -148,10 +148,10 @@ pub(crate) fn unlistable_folder_name_part(
     arrow_words_are_refused: bool,
 ) -> Option<(String, UnlistableName)> {
     if name.contains('\\') {
-        return Some((spelled_whitespace(name), UnlistableName::HoldsBackslash));
+        return Some((spelled_unreadable(name), UnlistableName::HoldsBackslash));
     }
     if arrow_words_are_refused && arrow_word_shape(name).is_some() {
-        return Some((spelled_whitespace(name), UnlistableName::HoldsArrowWords));
+        return Some((spelled_unreadable(name), UnlistableName::HoldsArrowWords));
     }
     return unlistable_name_part(name);
 }

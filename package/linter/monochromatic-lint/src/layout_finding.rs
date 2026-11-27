@@ -72,32 +72,36 @@ pub fn shown(
 }
 
 /// What:
-///  A name with the whitespace a reader cannot see spelled as its code point.
+///  A name with the whitespace a reader cannot see spelled as its code point,
+///  and the characters that print as nothing wherever they stand.
 /// Why:
 ///  A message names a folder, a file or an entry so its reader can find it,
 ///  and a tab, a no-break space or a space at either end of a name prints as nothing a reader can see:
 ///  a message that showed `src/a` for a folder named `src/a ` would send its reader to a name the package does hold.
+///  A byte order mark, a zero-width space or a soft hyphen prints as nothing wherever it stands,
+///  and a name holding one is no name the reader can compare with the names on disk,
+///  so each is spelled too.
 ///  A space between two words stays a space, because the message already reads as words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const spelledWhitespace = (name) => [...name]
+/// const spelledUnreadable = (name) => [...name]
 ///   .map((letter, index) =>
-///     letter.isWhitespace() && (letter !== ' ' || index === 0 || index === name.length - 1)
+///     isFormat(letter) || (letter.isWhitespace() && (letter !== ' ' || index === 0 || index === name.length - 1))
 ///       ? `\\u{${letter.codePointAt(0)}}`
 ///       : letter)
 ///   .join('')
 /// ```
-pub(crate) fn spelled_whitespace(name: &str) -> String {
+pub(crate) fn spelled_unreadable(name: &str) -> String {
     // What: the position of the name's last character, which is an end like the first one is.
     // Why: a space at either end is invisible in a message, where a space between two words is not.
     let last: usize = name.chars().count().saturating_sub(1);
     let mut spelled: String = String::with_capacity(name.len());
     for (index, letter) in name.chars().enumerate() {
         // What: whether this character prints as nothing a reader could measure.
-        // Why: every whitespace character but a space between two words disappears into the line it stands in.
-        let invisible: bool =
-            letter.is_whitespace() && (letter != ' ' || index == 0 || index == last);
+        // Why: every whitespace character but a space between two words disappears into the line it stands in, and a format character disappears wherever it stands.
+        let invisible: bool = is_format_character(letter)
+            || (letter.is_whitespace() && (letter != ' ' || index == 0 || index == last));
         if !invisible {
             spelled.push(letter);
             continue;
@@ -105,6 +109,71 @@ pub(crate) fn spelled_whitespace(name: &str) -> String {
         spelled.push_str(format!("\\u{{{:x}}}", letter as u32).as_str());
     }
     return spelled;
+}
+
+/// What:
+///  Whether a character prints as nothing wherever it stands,
+///  so a name holding one is no name a reader can see.
+/// Why:
+///  A byte order mark before a line's first word makes that word `\u{feff}uses`,
+///  which is no word the reader knows, and a zero-width space inside a name is no separator it reads;
+///  both are characters a person cannot see, so a message about one must spell it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isFormat = (letter) => ['\u{ad}', '\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'].includes(letter)
+/// ```
+pub(crate) fn is_format_character(letter: char) -> bool {
+    return matches!(
+        letter,
+        '\u{ad}' | '\u{200b}'..='\u{200d}' | '\u{2060}' | '\u{feff}'
+    );
+}
+
+/// What:
+///  The plain name of a character a reader cannot see, with its code point,
+///  or nothing when the character is one a reader can see.
+/// Why:
+///  A sentence that called a byte order mark "a character a reader cannot see" would leave its reader no way to tell it from a zero-width space,
+///  and the two need different edits: a byte order mark at the start of a line is taken out, a zero-width space where a separator belongs is replaced by one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const formatName = (letter) => ({ '\u{feff}': 'a byte order mark', '\u{200b}': 'a zero-width space', ... })[letter]
+/// ```
+pub(crate) fn format_character_name(letter: char) -> Option<&'static str> {
+    return match letter {
+        '\u{feff}' => Some("a byte order mark (`\\u{feff}`)"),
+        '\u{200b}' => Some("a zero-width space (`\\u{200b}`)"),
+        '\u{200c}' => Some("a zero-width non-joiner (`\\u{200c}`)"),
+        '\u{200d}' => Some("a zero-width joiner (`\\u{200d}`)"),
+        '\u{2060}' => Some("a word joiner (`\\u{2060}`)"),
+        '\u{ad}' => Some("a soft hyphen (`\\u{ad}`)"),
+        _ => None,
+    };
+}
+
+/// What:
+///  The first character of a text that a reader cannot see, with its one-based position,
+///  or nothing when every character of the text is one a reader can see.
+/// Why:
+///  A message that names such a character must say where it stands,
+///  because the line's words look right without it and its reader has to know which character to take out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const firstFormat = (text) => {
+///   const at = [...text].findIndex(isFormat)
+///   return at === -1 ? undefined : [text[at], at + 1]
+/// }
+/// ```
+pub(crate) fn first_format_character(text: &str) -> Option<(char, usize)> {
+    for (index, letter) in text.chars().enumerate() {
+        if is_format_character(letter) {
+            return Some((letter, index + 1));
+        }
+    }
+    return None;
 }
 
 /// What:

@@ -29,7 +29,7 @@
 use crate::{
     layout_finding::{
         key_path,
-        spelled_whitespace,
+        spelled_unreadable,
     },
     markdown_lfs_target::lexical_normal,
 };
@@ -48,7 +48,7 @@ use std::{
 pub(crate) const FOLDER_USE_WORD: &str = "uses";
 
 /// The word that starts an entry tolerating one use between two files of a folder.
-const FILE_USE_WORD: &str = "file-uses";
+pub(crate) const FILE_USE_WORD: &str = "file-uses";
 
 /// The text that joins the two ends of a tolerated use.
 pub(crate) const ARROW: &str = "->";
@@ -398,7 +398,7 @@ fn entry_of(
         if let Some(folder) = spaced_file_use_folder(text, words.as_slice(), base) {
             // What: the folder's name with every character a reader cannot see spelled, so the message names the folder that is there.
             // Why: a tab or a no-break space prints as nothing, and a reader shown `src/cd` would look for a folder the package may well hold.
-            let spelled_folder: String = spelled_whitespace(folder.as_str());
+            let spelled_folder: String = spelled_unreadable(folder.as_str());
             // What: whether every whitespace character in the name is a space.
             // Why: a space is the one whitespace character a reader can see, so only another one needs its name and code point.
             let holds_only_spaces: bool = folder
