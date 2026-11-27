@@ -35,7 +35,7 @@ and each offers the step it owns:
   and hands the worktree launcher the words the run needs.
 - `start-pi-run-in-a-worktree`:
   makes the worktree,
-  links its dependencies,
+  leaves its copied `node_modules` to the wrapper's relink,
   sizes the turn cap,
   starts the driver as a capped systemd unit,
   and removes the worktree once the run has finished with it.
@@ -442,7 +442,7 @@ or start a run it would refuse.
 
 `--provider` and `--model` name the pool the run takes.
 A run naming a pool that takes no new run is refused before the worktree,
-before the dependency link and the unit,
+before the unit,
 and before any question is put to the session,
 with the status `5`:
 the refusal names the pool,
@@ -521,6 +521,56 @@ this repository's Git wrapper refuses every command whose folder is not the root
 and a command of this package runs from the package's own folder.
 On 2026-11-11 that refusal ended all ten starts of a batch before any of them made a worktree.
 
+The worktree holds what the checkout held when the add filled it:
+every tracked file at the base,
+and the checkout's ignored files copied in,
+`node_modules`, the build folders and the toolchain launchers among them
+(`package/git-policy/cli/README.md`,
+"Package-manager state in a new worktree").
+That copy keeps the checkout's own links,
+which name the folder they were made in:
+pnpm's links climb out of the tree by a fixed number of levels,
+Cargo's build state records the paths it was built at,
+and the toolchain launchers name the source's `toolchain.lock.json`.
+So the wrapper's add repairs those links in the new worktree:
+where a commit service answers,
+it hands `pnpm install --offline --frozen-lockfile` and `mpm-shadow install --frozen-lockfile` over
+in a record the service runs after the add returns,
+and where none answers it runs them itself.
+pnpm's relink runs where `pnpm-lock.yaml` and `node_modules` are both there;
+a worktree whose copy ended before it reached them is filled by the next command run in it.
+
+This launcher runs no install of its own.
+That relink is the install the worktree needs,
+so a second one started in the same window is what left two worktrees on 2026-11-21
+whose ignored-state copy could never finish,
+with a warning about each on every `git` command of every session until they were removed
+(issue 6339).
+It used to run `mise exec -- pnpm install --offline --frozen-lockfile` in the new worktree straight after the add
+and print `dependencies: status <n>`:
+the same install as the wrapper's relink,
+which it could only repeat,
+and its status stopped nothing and named nothing a reader could act on
+(issue 6418).
+It now prints one line saying where the worktree's `node_modules` comes from.
+A worktree this launch found already there took no add of its own,
+so this launch hands no relink over:
+the record the add that filled it wrote is the one the service runs.
+
+For as long as the service has not run that record,
+the worktree holds the copied links,
+which is the state the copy left.
+Nothing tells this launcher, the driver or the run when the relink has finished,
+so a run whose first commands need `node_modules` may read it while it is being rewritten;
+the wrapper's own reading of that cost is in
+`package/git-policy/cli/README.md`,
+"What the hand-over costs you".
+Whether a launcher should wait for the relink is open,
+and the signal it would wait on is part of what issue 6339 records as owed:
+this package waits for no signal it does not have.
+A run that finds something its build needs missing names it in its report
+(`doc/rules-every-pi-brief-carries.md`).
+
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
 
@@ -565,7 +615,7 @@ and thirteen runs ended `pi-exited` with no turn before anyone read what Pi had 
 A start that fails one of them prints every reason it found and exits non-zero,
 with no worktree, no run folder and no unit,
 so no provider slot is spent on a run that could not have worked.
-Before this, a launcher took a slot, made a worktree and linked its dependencies,
+Before this, a launcher took a slot, made a worktree and ran an install of its own,
 and only then did the driver find that its prompt file was not there.
 
 ### After the unit ends
@@ -698,7 +748,7 @@ because the slot count reads every `pi-*` unit as a run.
 Its caps are the batch's own:
 four processors,
 16G of memory and 4096 tasks,
-since the launchers only link dependencies and wait while the agents work in units of theirs,
+since the launchers only make worktrees and wait while the agents work in units of theirs,
 and its `RuntimeMaxSec` is two days,
 which bounds the longest run,
 a flex pool's doubled wall clock and the wakes that may resume it.
@@ -991,7 +1041,7 @@ copy-route: unit inactive, launcher 12 started 120 min ago, children 20:systemd-
 A launcher that outlived its unit makes the pool gate answer `ALREADY RUNNING` for that run's name
 and holds that run's slot,
 and it waits on a waiter that never heard the unit end.
-The age matters because a launcher makes a worktree and links dependencies before its unit exists,
+The age matters because a launcher makes a worktree before its unit exists,
 so one younger than the minimum may simply not have got there yet.
 
 `--stop` sends `SIGTERM` to each child before the launcher itself,

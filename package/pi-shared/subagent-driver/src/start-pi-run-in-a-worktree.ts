@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- `start-pi-run-in-a-worktree`: makes the worktree a run works in, links its dependencies, starts the driver as a capped systemd
- unit, and removes the worktree once the run has finished with it. See `README.md` for the options.
+ `start-pi-run-in-a-worktree`: makes the worktree a run works in, starts the driver as a capped systemd unit, and removes the
+ worktree once the run has finished with it. The wrapper's `git worktree add` fills the worktree from the checkout's ignored
+ files and relinks the copied `node_modules` it puts there, so this command installs nothing. See `README.md` for the options
+ and for what the worktree holds.
 
  A command line that names no provider takes the first open pool in the owner's order, which this command counts the way the pool
  gate counts, so the unit it starts names the pool and the gate reads the run as holding its slot.
@@ -112,11 +114,10 @@ const readOnlyInMain = options.branch === NO_WORKTREE_BRANCH;
 /**
  The provider, model and wall clock the run takes, or the refusal this start ends with.
 
- A run naming a pool that takes no new run is refused before the worktree, the dependency link and the unit, and before the
- questions this command asks the session: a closed pool is no work a start should spend anything on, and its refusal names the
- pools a run that names no model of its own may take. A command line that names no provider takes the first open pool in the
- owner's order instead, counted the way the pool gate counts so the run holds the slot it took; a run no pool has room for is
- refused naming each pool and why.
+ A run naming a pool that takes no new run is refused before the worktree and the unit, and before the questions this command
+ asks the session: a closed pool is no work a start should spend anything on, and its refusal names the pools a run that names no
+ model of its own may take. A command line that names no provider takes the first open pool in the owner's order instead, counted
+ the way the pool gate counts so the run holds the slot it took; a run no pool has room for is refused naming each pool and why.
  */
 const decided = await poolPlacementOfAWorktreeLaunch({
   provider: options.provider,
@@ -287,25 +288,13 @@ if (!readOnlyInMain) {
     branch: options.branch,
     base: options.base,
   },),);
-}
-
-if (!readOnlyInMain) {
-  /**
-   What linking the worktree's dependencies answered.
-   */
-  const linked = await runCommandWithChildProcess({
-    command: 'mise',
-    words: [
-      'exec',
-      '--',
-      'pnpm',
-      'install',
-      '--offline',
-      '--frozen-lockfile',
-    ],
-    folder: worktree,
-  },);
-  console.log(`dependencies: status ${String(linked.status,)}`,);
+  // Nothing is installed here. The wrapper's `git worktree add` copies the checkout's ignored files, `node_modules` among
+  // them, and relinks that copy: the commit service does it after the add returns, and the add itself does it where no service
+  // answers (`package/git-policy/cli/README.md`, "Package-manager state in a new worktree"). A second install started in that
+  // window is what left two worktrees on 2026-11-21 whose copy could never finish, with a warning about each on every `git`
+  // command of every session until they were removed (issue 6339), so this launcher leaves the relink to its owner and says
+  // where the worktree's `node_modules` comes from instead of reporting a status of its own.
+  console.log('dependencies: the wrapper\'s worktree add copies node_modules and relinks it; this launcher installs nothing (issue 6339)',);
 }
 
 await mkdir(

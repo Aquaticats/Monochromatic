@@ -1,7 +1,7 @@
 /**
  The worktree launcher's own preflight: a run whose session would find a git that is not this repository's policy wrapper is
  refused before the launcher asks git anything else, so a reader is told the wrong git rather than what that git answered, and
- before it links a dependency or starts a unit.
+ before it makes a worktree or starts a unit.
 
  Two orders of failure are covered: a session whose git is not the wrapper while the base is also unreadable, where the wrapper
  is the reason, and a session whose git is the wrapper while the base names no commit, where the base is.
@@ -600,7 +600,7 @@ await describe({
   name: 'start-pi-run-in-a-worktree',
   children: [
     it({
-      name: 'refuses a run whose session would find a git that is not the policy wrapper before it asks git for the base, links a dependency or starts a unit',
+      name: 'refuses a run whose session would find a git that is not the policy wrapper before it asks git for the base, makes a worktree or starts a unit',
       fn: async () => {
         await using folder = await makeFolder();
         /**
@@ -678,7 +678,8 @@ await describe({
           body: `printf '%s\\n' "$*" >> '${launcherGitLog}'\ncase "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
-         The mise the launcher itself uses, which answers the session's PATH and would record a dependency link.
+         The mise the launcher itself uses, which answers the session's PATH, and would record a question about dependencies if
+         the launcher asked one.
          */
         await writeProgram({
           folder: launcherBin,
@@ -1317,7 +1318,7 @@ await describe({
       },
     },),
     it({
-      name: 'refuses a run that names a closed pool before it makes the worktree, links a dependency or starts a unit, and names the pools to take instead',
+      name: 'refuses a run that names a closed pool before it makes the worktree or starts a unit, and names the pools to take instead',
       fn: async () => {
         /**
          The owner's reason the pool takes no new run, which the refusal carries.
