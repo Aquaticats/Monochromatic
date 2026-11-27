@@ -5,7 +5,8 @@
 //!  and both even when its standard error is a pipe nobody reads,
 //!  at each of the two places that answer a failed start.
 //! Why:
-//!  Real Git does not run, and `SPEC.md`'s "Stream and exit contract" says `2` means usage,
+//!  Real Git does not run,
+//!  and `SPEC.md`'s "Stream and exit contract" says `2` means usage,
 //!  config,
 //!  patch,
 //!  transaction,
@@ -14,11 +15,13 @@
 //!  `Command::exec` sets `SIGPIPE` back to the kernel's default before it tries,
 //!  and a start that cannot run its program returns and leaves that default in the process that goes on,
 //!  so the other half of the record is the action `exec_retrying` puts back
-//!  (`doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`, issue 6607).
+//!  (`doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`,
+//!  issue 6607).
 //!  `invocation/forwarding_tests.rs` proves the replacement and the words in a child that rewrites both;
 //!  these controls read what a person reads,
 //!  so a change to the status either place returns turns one of them red
-//!  (the alpha.49 behaviour read, answer 8).
+//!  (the alpha.49 behaviour read,
+//!  answer 8).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -301,7 +304,7 @@ fn run_the_entry_in_a_child(
         (FAILED_START_COMMAND_VARIABLE, OsStr::new(name)),
     ];
     return finished(child_request(
-        "invocation::entry::failed_start_tests::a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words",
+        "invocation::entry_run_forwarded_actions::forwarded_git_failed_start_tests::a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words",
         environment.as_slice(),
         standard_error_is_gone,
     ))
@@ -314,7 +317,7 @@ fn run_the_entry_in_a_child(
 fn run_the_coordinated_action_in_a_child(standard_error_is_gone: bool) -> Output {
     let environment: [(&str, &OsStr); 1] = [(FAILED_START_CHILD_VARIABLE, OsStr::new("1"))];
     return finished(child_request(
-        "invocation::entry::failed_start_tests::a_coordinated_forward_whose_git_cannot_start_ends_with_status_two_and_its_words",
+        "invocation::entry_run_forwarded_actions::forwarded_git_failed_start_tests::a_coordinated_forward_whose_git_cannot_start_ends_with_status_two_and_its_words",
         environment.as_slice(),
         standard_error_is_gone,
     ))
@@ -396,7 +399,8 @@ fn the_git_that_cannot_start(root: &Path) -> PathBuf {
     return git;
 }
 
-/// The directory the entry control starts in, which is outside every repository.
+/// The directory the entry control starts in,
+/// which is outside every repository.
 fn a_directory_outside_every_repository(root: &Path) -> PathBuf {
     let elsewhere: PathBuf = root.join("elsewhere");
     std::fs::create_dir_all(elsewhere.as_path()).expect("a directory outside any repository");
@@ -411,19 +415,21 @@ fn a_directory_outside_every_repository(root: &Path) -> PathBuf {
 ///  and a runtime directory with no bus.
 /// Why:
 ///  The wrapper reads its configuration from the home its invocation names and records what it learned about Git
-///  in the cache place, so a fixture that named none of them would write in the person's home.
+///  in the cache place,
+///  so a fixture that named none of them would write in the person's home.
 ///  `PATH` names one directory because the wrapper promotes the conventional `/usr/bin/git` and
 ///  `/usr/local/bin/git` to the front of its search wherever `PATH` exposes them,
 ///  so a `PATH` that also held `/usr/bin` would hand it the real Git
 ///  (the alpha.49 behaviour read's probe named this one directory for the same reason).
-///  No bus address is handed in, so no service of this account can be asked for anything.
+///  No bus address is handed in,
+///  so no service of this account can be asked for anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// theEnvironment(root) // PATH = `${root}/bin`, HOME and XDG_* under root
 /// ```
 fn the_environment(root: &Path) -> Vec<(OsString, OsString)> {
-    let named: [&str; 12] = [
+    let overwritten: [&str; 12] = [
         "PATH",
         "HOME",
         "XDG_CONFIG_HOME",
@@ -439,7 +445,7 @@ fn the_environment(root: &Path) -> Vec<(OsString, OsString)> {
     ];
     let mut environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     environment.retain(|(name, _value)| {
-        return !named.iter().any(|named| return name == named);
+        return !overwritten.iter().any(|listed| return name == listed);
     });
     let pairs: [(&str, OsString); 7] = [
         ("PATH", root.join("bin").into_os_string()),

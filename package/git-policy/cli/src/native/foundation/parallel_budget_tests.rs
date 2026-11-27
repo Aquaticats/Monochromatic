@@ -148,7 +148,9 @@ fn this_host_has_a_thread() {
 ///  No record decides which side the memory failure belongs on,
 ///  and a bound there would take the width of every batch of every caller down to one item at a time,
 ///  which is the owner's choice to make and not this file's:
-///  the question, and what each answer costs, wait in `doc/handover/questions-for-the-owner.md`.
+///  the question,
+///  and what each answer costs,
+///  wait in `doc/handover/questions-for-the-owner.md`.
 ///  This control states what the code answers today and claims nothing more.
 ///
 /// In TS you'd write (pseudocode):

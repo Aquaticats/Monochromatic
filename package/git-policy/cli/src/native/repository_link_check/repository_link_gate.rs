@@ -206,7 +206,8 @@ const UNUSABLE_IDENTITY_LEAD: &str = "the repository link identity cannot be use
 ///  The reason this process has already said the identity file cannot be used,
 ///  which is how the sentence each gate says is said once for a command.
 /// Why:
-///  A command meets the gate twice, at the entry and in the startup step,
+///  A command meets the gate twice,
+///  at the entry and in the startup step,
 ///  and each meeting reads the file on its own,
 ///  so both said the same sentence about one file that cannot be used,
 ///  and the person read one fault as two
@@ -269,7 +270,8 @@ fn say_identity_unreadable(why: &str) -> bool {
 }
 
 /// What:
-///  The sentence about an identity file that cannot be used, written to standard error.
+///  The sentence about an identity file that cannot be used,
+///  written to standard error.
 /// Why:
 ///  One place writes it,
 ///  so the words a control counts are the words both gates say.

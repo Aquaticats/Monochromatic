@@ -631,12 +631,6 @@ mod fallback_tests;
 #[path = "entry_stop_tests.rs"]
 mod stop_tests;
 
-/// The entry's own answer to a real Git it cannot start: the status, the words, and both with no reader on
-///  standard error.
-#[cfg(test)]
-#[path = "entry_failed_start_tests.rs"]
-mod failed_start_tests;
-
 /// The slot refusals read one command line behind every global option Git accepts.
 #[cfg(test)]
 #[path = "entry_slot_refusals_read_every_spelling_tests.rs"]

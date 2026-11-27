@@ -89,7 +89,8 @@ struct Scan {
 /// Why:
 ///  A replacement is judged inside the item that holds it,
 ///  and this is the boundary the text itself gives.
-///  Two methods of one `impl` share an item, which only makes the check stricter:
+///  Two methods of one `impl` share an item,
+///  which only makes the check stricter:
 ///  a replacement with no restore after it is a finding either way.
 ///
 /// In TS you'd write (pseudocode):
@@ -263,7 +264,8 @@ fn every_release_replacement_of_the_process_puts_the_signal_action_back() {
     );
 }
 
-/// The words of one finding, so a control names the same sentence for each call it plants.
+/// The words of one finding,
+/// so a control names the same sentence for each call it plants.
 fn the_finding(
     path: &str,
     line_number: usize,
@@ -332,7 +334,8 @@ fn replace(command: &mut Command) -> Error {
 /// Why:
 ///  The file-level answer this scan gave before saw one put-back and passed the whole file,
 ///  so a round could add a call beside the one that restores and every run stayed green
-///  (the alpha.49 behaviour read, answer 8).
+///  (the alpha.49 behaviour read,
+///  answer 8).
 ///  A second call in the same item and one in another item are both the shape to catch,
 ///  and a put-back before a call is not a put-back after it.
 ///

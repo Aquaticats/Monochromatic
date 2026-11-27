@@ -45,7 +45,8 @@ const THE_ONE_PLACE: &str = "foundation/session_runtime_directory_and_bus_addres
 /// An entry here that matches nothing is reported,
 /// so a file that moves or stops naming a place shrinks this list.
 ///  A file lands here only when every naming line of it is a message;
-/// a file that reads a place, even from the environment its caller handed in,
+/// a file that reads a place,
+/// even from the environment its caller handed in,
 /// is in `LINES_ALLOWED_TO_NAME_A_PLACE` with the line that makes the read.
 const NAMES_A_PLACE_IN_WORDS_ONLY: &[(&str, &str)] = &[
     (
@@ -86,7 +87,8 @@ const NAMES_A_PLACE_IN_WORDS_ONLY: &[(&str, &str)] = &[
 enum WhatALineDoesWithAPlace {
     /// Reads the place from the environment the entry handed in.
     ReadsTheEnvironmentTheCallerHandedIn,
-    /// Says its name in the words a person reads, and reads nothing.
+    /// Says its name in the words a person reads,
+    /// and reads nothing.
     OnlySaysTheName,
 }
 
@@ -181,7 +183,8 @@ fn declared_place_names(text: &str) -> Vec<String> {
 
 /// What:
 ///  One line of a source that names a place in code:
-///  the number it stands on, counted from one,
+///  the number it stands on,
+///  counted from one,
 ///  and its own text without the indentation in front of it.
 /// Why:
 ///  The number sends a reader to the line that decided,
@@ -246,7 +249,9 @@ fn naming_lines(
 ///  in the order the entries name them.
 /// Why:
 ///  Each entry allows the one line it names and nothing else of that file:
-///  a second read of the same place, even the same call, is a finding.
+///  a second read of the same place,
+///  even the same call,
+///  is a finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -331,7 +336,10 @@ fn findings_in(
         // ```
         let mut allowed: Vec<String> = allowed_lines_of(file.path.as_str());
         for line in naming_lines(text.as_str(), declared.as_slice()) {
-            let Some(at) = allowed.iter().position(|text| return *text == line.text) else {
+            let Some(at) = allowed
+                .iter()
+                .position(|allowed_line| return *allowed_line == line.text)
+            else {
                 found.push(format!("{}:{}", file.path, line.number));
                 continue;
             };

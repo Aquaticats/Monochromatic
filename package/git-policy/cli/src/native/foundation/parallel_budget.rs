@@ -189,7 +189,8 @@ impl HostResources {
 ///  which asks the kernel to kill one of them.
 ///  The batch's own reading is taken where the width is decided,
 ///  so the figure is the room the host had when the batch started.
-///  The width is decided once for a batch, and every wave of it runs on that figure:
+///  The width is decided once for a batch,
+///  and every wave of it runs on that figure:
 ///  the reading belongs to the start of a batch and to no wave after it,
 ///  which is the staleness a batch of trashes that takes minutes still carries.
 ///

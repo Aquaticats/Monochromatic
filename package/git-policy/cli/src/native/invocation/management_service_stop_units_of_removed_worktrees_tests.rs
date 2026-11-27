@@ -570,15 +570,17 @@ fn a_journal_that_names_no_worktree_and_has_no_unit_is_not_said_to_be_unmatchabl
 
 /// What:
 ///  A build made for tests takes no route to this account's manager from the environment the entry hands in:
-///  the command is handed this process's whole environment, with a runtime directory and a bus address a login
-///  session would name, and refuses because it has no session place of its own.
+///  the command is handed this process's whole environment,
+///  with a runtime directory and a bus address a login session would name,
+///  and refuses because it has no session place of its own.
 /// Why:
 ///  The two places this command acts under come through
 ///  `foundation/session_runtime_directory_and_bus_address.rs`,
 ///  which a build made for tests answers only from what a control handed in (issue 6586),
 ///  so even the environment a real session hands in names no manager here
 ///  (the alpha.49 behaviour read's Low 3 asked what such a control would reach).
-///  The body runs in a child with both switches cleared, because the switches belong to the whole process,
+///  The body runs in a child with both switches cleared,
+///  because the switches belong to the whole process,
 ///  and it adds the two places to the inherited list itself:
 ///  a control that read only the run's own environment would prove nothing in a run that has no login session.
 ///
@@ -647,8 +649,10 @@ fn the_environment_the_entry_hands_in_names_no_manager() {
 ///  it reaches the bus and refuses because nothing answers there.
 /// Why:
 ///  A control that only saw the refusal above could not tell a command reading the one file from a command that
-///  read no place at all, so this arm shows the probe able to see a route.
-///  The bus path names a plain file, which is no socket:
+///  read no place at all,
+///  so this arm shows the probe able to see a route.
+///  The bus path names a plain file,
+///  which is no socket:
 ///  the command asks to connect and learns that nothing answers,
 ///  and no manager of this account is reached.
 ///
