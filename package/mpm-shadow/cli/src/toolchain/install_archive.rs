@@ -343,17 +343,19 @@ fn unpack_into(
 
 /// Unpacks the verified download into `staging`,
 /// gives a release archive of this repository its version-independent program paths,
-/// and writes the completion marker last.
+/// and writes the completion marker last,
+/// recording the archive's SHA-256 that the download matched.
 fn unpack_and_mark(
     ctx: &Context,
     tool: &LockedTool,
     url: &str,
     download_path: &Path,
     staging: &Path,
+    archive_sha256: &str,
 ) -> Result<(), ToolchainError> {
     unpack_into(ctx, tool, url, download_path, staging)?;
     link_stable_programs(tool, staging)?;
-    return write_complete_marker(staging, &tool.declaration.id, &tool.version);
+    return write_complete_marker(staging, &tool.declaration.id, &tool.version, archive_sha256);
 }
 
 /// What:
@@ -398,7 +400,14 @@ fn install_archive_files(
             staging.display()
         )));
     }
-    if let Err(error) = unpack_and_mark(ctx, tool, &artifact.url, &download_path, &staging) {
+    if let Err(error) = unpack_and_mark(
+        ctx,
+        tool,
+        &artifact.url,
+        &download_path,
+        &staging,
+        &artifact.sha256,
+    ) {
         discard_path(&staging);
         return Err(error);
     }

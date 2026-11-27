@@ -14,9 +14,13 @@ use std::path::{
 
 use super::archive_staging::{
     COMPLETE_MARKER,
+    Owner,
+    STAGING_PURPOSE,
     has_complete_marker,
+    hidden_sibling,
     publish_staged,
     staging_dir_of,
+    start_time_of_a_process,
     write_complete_marker,
 };
 use super::fakes::{
@@ -38,6 +42,7 @@ use super::published_archive::{
     running_version_archive,
 };
 use super::published_archive_tests::{
+    A_TEST_SHA256,
     BIN,
     ID,
     context_of,
@@ -45,6 +50,7 @@ use super::published_archive_tests::{
     lock_at,
     named_lock,
     release_body,
+    release_digest,
     release_url,
     serve_releases,
     tar_lines,
@@ -226,6 +232,7 @@ fn a_directory_with_an_executable_of_the_right_name_but_no_marker_is_never_finis
             .join("0.2.1"),
         ID,
         "0.2.1",
+        A_TEST_SHA256,
     )
     .expect("mark");
     let second_pass = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
@@ -384,7 +391,7 @@ fn a_link_named_like_the_marker_does_not_mark_a_directory() {
     symlink(&real, directory.join(COMPLETE_MARKER)).expect("link");
     assert!(!has_complete_marker(&directory));
     fs::remove_file(directory.join(COMPLETE_MARKER)).expect("remove");
-    write_complete_marker(&directory, ID, "1").expect("mark");
+    write_complete_marker(&directory, ID, "1", A_TEST_SHA256).expect("mark");
     assert!(has_complete_marker(&directory));
 }
 
@@ -472,7 +479,7 @@ fn publishing_keeps_a_marked_copy_only_while_its_program_is_still_there() {
             let staged_program = staging.join("release-folder").join(BIN);
             write_executable(&staged_program);
             fs::write(&staged_program, content).expect("write");
-            write_complete_marker(&staging, ID, "0.2.1").expect("mark");
+            write_complete_marker(&staging, ID, "0.2.1", A_TEST_SHA256).expect("mark");
             return staging;
         };
 
@@ -571,7 +578,7 @@ fn a_symlinked_or_hidden_directory_is_never_a_version() {
     let elsewhere = rig.scope.toolchain_root.join("elsewhere");
     let outside_program = elsewhere.join("9.9.9").join("release-folder").join(BIN);
     write_executable(&outside_program);
-    write_complete_marker(&elsewhere.join("9.9.9"), ID, "9.9.9").expect("mark");
+    write_complete_marker(&elsewhere.join("9.9.9"), ID, "9.9.9", A_TEST_SHA256).expect("mark");
     symlink(elsewhere.join("9.9.9"), tool_dir.join("9.9.9")).expect("link");
     assert_eq!(
         newest_installed_archive(&root, ID, BIN).as_deref(),
@@ -679,5 +686,86 @@ fn the_last_lock_read_decides_which_program_shows_an_install_finished() {
                 .expect("a plain name")
                 .join("0.2.0")
         ]
+    );
+}
+
+/// What:
+/// An installer that no longer runs,
+/// in this reader's boot and namespace.
+/// Why:
+/// A prune control needs a hidden name the reader may remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function a_dead_installer(): Owner;
+/// ```
+fn a_dead_installer() -> Owner {
+    let here: Owner = Owner::here();
+    let started: u64 =
+        start_time_of_a_process(1).expect("the system reports the first process's start");
+    return Owner {
+        pid: 1,
+        started: started + 1,
+        boot: here.boot,
+        namespace: here.namespace,
+    };
+}
+
+#[test]
+fn prune_removes_hidden_installs_a_dead_installer_left_and_keeps_the_ones_it_cannot_judge() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    fs::create_dir_all(&tool_dir).expect("make the tool directory");
+    // The lock names 0.0.2, so its vouched finished hidden copy is kept for that version's own install.
+    fs::write(rig.scope.lock_file.clone(), named_lock("0.0.2")).expect("write the lock");
+    rig.runner.answer(
+        "git -C",
+        &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()),
+        0,
+    );
+
+    let named_hidden: PathBuf =
+        hidden_sibling(&tool_dir.join("0.0.2"), STAGING_PURPOSE, a_dead_installer());
+    fs::create_dir_all(named_hidden.join("release-folder")).expect("make the named copy");
+    write_executable(&named_hidden.join("release-folder").join(BIN));
+    write_complete_marker(&named_hidden, ID, "0.0.2", &release_digest("0.0.2"))
+        .expect("write its marker");
+
+    let unlocked_hidden: PathBuf =
+        hidden_sibling(&tool_dir.join("0.0.1"), STAGING_PURPOSE, a_dead_installer());
+    fs::create_dir_all(unlocked_hidden.join("release-folder"))
+        .expect("make the unlocked finished copy");
+    write_executable(&unlocked_hidden.join("release-folder").join(BIN));
+    write_complete_marker(&unlocked_hidden, ID, "0.0.1", A_TEST_SHA256).expect("write its marker");
+
+    // The shape alpha.13 wrote: it carries no start time, so the prune cannot judge it.
+    let unjudged: PathBuf = tool_dir.join(format!(".0.0.1.{STAGING_PURPOSE}.42"));
+    fs::create_dir_all(&unjudged).expect("make the unjudged copy");
+
+    let planned = prune_toolchain(&rig.scope, &rig.runner, &[], true).expect("planned");
+    assert_eq!(
+        planned,
+        vec![unlocked_hidden.clone()],
+        "the dry run lists the dead installer's unlocked copy"
+    );
+    assert!(
+        named_hidden.is_dir() && unjudged.is_dir(),
+        "and it lists nothing it keeps"
+    );
+
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert_eq!(removed, vec![unlocked_hidden.clone()]);
+    assert!(
+        !unlocked_hidden.exists(),
+        "the copy of a version no known lock names is gone"
+    );
+    assert!(
+        named_hidden.is_dir(),
+        "a vouched finished copy of a named version is kept for its install"
+    );
+    assert!(
+        unjudged.is_dir(),
+        "a name the prune cannot judge is named and left"
     );
 }
