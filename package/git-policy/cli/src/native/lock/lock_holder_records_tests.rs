@@ -35,6 +35,20 @@ use crate::test_support::{
 };
 use std::path::PathBuf;
 
+/// How long the helper of the record sweep control waits before it would end on its own.
+/// Why:
+///  The control kills the helper as soon as it has read the identity,
+///  and the test thread's fixtures end the helper's process group however the control ends,
+///  so this number only covers a thread this host wakes very late:
+///  it is the hold the crate's other identity readings take (`end_a_helper` in `abandoned_lock_proving_tests.rs`,
+///  `a_dead_holder` in `binary_killed_holder_lock_tests.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const HELPER_HOLD_SECONDS = '600';
+/// ```
+const HELPER_HOLD_SECONDS: &str = "600";
+
 /// What:
 ///  A record's own line is written in one spelling,
 ///  and that line reads back as the holder it names.
@@ -166,18 +180,20 @@ fn a_record_of_a_finished_command_is_swept_and_one_a_lock_needs_is_kept() {
     let root: PathBuf = fixture("record-sweep");
     let folder: PathBuf = folder_of(root.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the folder");
-    let mut talk: std::process::Command = std::process::Command::new("talk");
-    talk.stdin(std::process::Stdio::null());
-    // Both starts are owned, so the helper the control reads and reaps is the test thread's whichever one it gets.
-    let mut helper: std::process::Child = crate::test_support::spawn_owned(&mut talk)
-        .unwrap_or_else(|_| {
-            let mut fallback: std::process::Command = std::process::Command::new("sleep");
-            fallback.arg("0");
-            return crate::test_support::spawn_owned(&mut fallback).expect("a helper");
-        });
+    // A helper that waits for this control to end it, because the identity of a program that has already exited is
+    //  nothing to read: `talk` printed its usage and exited at once, and the read lost that race whenever the host woke
+    //  this thread late (issue 6574). Quiet, because nothing reads its output and a stream left open holds this run's own
+    //  output open after the control ended.
+    let mut helper: std::process::Child = crate::test_support::spawn_owned_quiet(
+        std::process::Command::new("sleep").arg(HELPER_HOLD_SECONDS),
+    )
+    .expect("a helper starts");
     let gone: i64 = i64::from(helper.id());
-    let identity: String = identity_of_process(gone).expect("its identity while it runs");
-    helper.wait().expect("the helper ends");
+    let identity: String = identity_of_process(gone).expect("its identity while it waits");
+    helper.kill().expect("the helper is ended");
+    helper
+        .wait()
+        .expect("the helper is collected once it ended");
     // One record of a command that ended, and one whose number a standing lock still names.
     std::fs::write(
         folder.join("finished"),

@@ -19,6 +19,17 @@
 //!   its slot,
 //!   the record of every file made,
 //!   and the step that makes and records one.
+//! - `the_clause_a_commit_no_reference_proves.rs`:
+//!   the clause a sentence about a commit ends with when no reference is proven to name it.
+//! - `the_memory_one_round_keeps.rs`:
+//!   the bytes one repository's drain holds at its peak,
+//!   and the measurement those bytes are rounded up from.
+//! - `the_names_of_the_index_lock.rs`:
+//!   the path of an index lock,
+//!   how often a holder's line is repeated,
+//!   what the wait tells the clients,
+//!   why a wait gave up,
+//!   and the code a storage error stands for.
 //! - `service_messages_the_failures_a_person_can_meet.rs`:
 //!   every failure the client can meet,
 //!   and the facts its text names.
@@ -44,9 +55,6 @@
 //!   what it goes to,
 //!   the locks that held the write off,
 //!   and when the commit was held.
-//! - `held_commit_settle_move.rs`:
-//!   the one branch write of a settlement,
-//!   and what the batch owes around it.
 //! - `held_push_commit_on_the_remote.rs`:
 //!   whether Git's own record of a branch's remote says a held push's commit has reached it.
 //! - `housekeeping_of_one_round.rs`:
@@ -136,9 +144,6 @@
 //!   the service's hold on a placed index lock:
 //!   the check that it is still the holder's,
 //!   the release and the removal.
-//! - `service_index_unheld_removal.rs`:
-//!   the removal of an index lock that no process holds and no Git lock PID file stands behind,
-//!   on a proof written to the service journal.
 //! - `service_index_watch.rs`:
 //!   the inotify watch the wait for the index lock blocks on.
 //! - `service_land_batch_import_stream_and_overlaps.rs`:
@@ -186,8 +191,6 @@
 //!   and the object the worktree holds there.
 //! - `owed_index_repair_the_commit_index_writes.rs`:
 //!   the writes the repair makes to the commit's own index.
-//! - `owed_index_repair.rs`:
-//!   the repair that repeats a landed batch's owed index update for the entries the landing left.
 //! - `service_message_the_identity.rs`:
 //!   the identities a commit the service lands records.
 //! - `service_message_the_text_steps.rs`:
@@ -226,6 +229,9 @@
 //! - `service_messages_of_a_wait_for_the_service.rs`:
 //!   what a commit says while it waits for the service,
 //!   and that the service is restarted or the commit built again.
+//! - `service_messages_of_an_interrupted_commit.rs`:
+//!   the words for a commit the person interrupted,
+//!   which the service either gave up or left unsettled.
 //! - `service_messages.rs`:
 //!   what the user is told when the commit service cannot land a commit.
 //! - `service_commit_tree_ownership.rs`:
@@ -235,9 +241,6 @@
 //! - `service_messages_of_a_work_that_was_not_handed_over.rs`:
 //!   the words for work a hand-off could not hand to the commit service,
 //!   in the words of what stopped it.
-//! - `service_messages_of_an_interrupted_commit.rs`:
-//!   the words for a commit the person interrupted,
-//!   which the service either gave up or left unsettled.
 //! - `service_native.rs`:
 //!   the commits real Git builds for the service:
 //!   an editor,
@@ -294,6 +297,10 @@
 //! - `service_scratch_ref_of_a_dropped_batch.rs`:
 //!   the face a caller on a thread asks of the removal of a batch's scratch reference,
 //!   once the commit it holds is kept.
+//! - `held_commit_settle_move.rs`:
+//!   the one branch write of a settlement,
+//!   the reference a batch's commit is kept on until that write,
+//!   and what the batch owes around it.
 //! - `service_scratch_ref_of_a_dropped_batch_awaiting.rs`:
 //!   the same removals as the face a task of the runtime awaits,
 //!   every Git child and every look at an intent a job of the pool.
@@ -362,26 +369,30 @@
 //! - `service_index_placement.rs`:
 //!   how the service's marked file becomes the index lock,
 //!   and the cleanup of staging files.
-//! - `service_index_reclaim.rs`:
-//!   the removal of a stale index lock,
-//!   by a rename and a second look.
 //! - `service_index_staging.rs`:
 //!   the staging files of the index lock.
 //! - `service_index_holder_look.rs`:
 //!   what one look at the held index lock proves,
 //!   and the words the person is told about its holder.
-//! - `service_index_attempts.rs`:
-//!   the attempts and the wait of an acquisition of the index lock.
 //! - `service_index_claim_files.rs`:
 //!   what the file at one slot of the claim chain is,
 //!   read without following a link or waiting on a pipe.
 //! - `service_index_claim.rs`:
 //!   the claim chain that keeps two reclaimers apart where the file system gives no `flock`.
-//! - `service_index_lock.rs`:
-//!   the commit service's hold on Git's index lock across a landing.
+//! - `service_index_reclaim.rs`:
+//!   the removal of a stale index lock,
+//!   by a rename and a second look,
+//!   and the pass that reclaims one whose holder is gone.
+//! - `service_index_unheld_removal.rs`:
+//!   the removal of an index lock that no process holds and no Git lock PID file stands behind,
+//!   on a proof written to the service journal.
+//! - `service_index_attempts.rs`:
+//!   the attempts and the wait of an acquisition of the index lock.
 //! - `service_index_prestage.rs`:
 //!   the marker of the next batch's index lock,
 //!   made and flushed while the service is idle.
+//! - `service_index_lock.rs`:
+//!   the commit service's hold on Git's index lock across a landing.
 //! - `service_index_wait.rs`:
 //!   the wait of a wrapped index writer for the commit service's own hold on the index.
 //! - `service_hold_retry.rs`:
@@ -425,9 +436,6 @@
 //! - `service_work_common_directory.rs`:
 //!   the common Git directory a linked worktree's Git directory names,
 //!   and whether it belongs to a repository with no main worktree.
-//! - `service_round.rs`:
-//!   the drain of several repositories of one round,
-//!   side by side and without a lock.
 //! - `service_work_push_environment.rs`:
 //!   the environment every Git child of a service push receives,
 //!   and where its program search list comes from.
@@ -464,6 +472,13 @@
 //!   maintenance) left for a resident consumer:
 //!   its fields,
 //!   its one JSON line and the reader of that line.
+//! - `the_record_of_an_owed_index_update.rs`:
+//!   the index update one landed batch still owes:
+//!   its shape,
+//!   how a batch's intent becomes one,
+//!   and the records a Git directory holds.
+//! - `owed_index_repair.rs`:
+//!   the repair that repeats a landed batch's owed index update for the entries the landing left.
 //! - `work_item_claim_taking.rs`:
 //!   the steps that take one pending record out of the queue,
 //!   and the stamp that keeps a claim's lease readable.
@@ -475,6 +490,16 @@
 //!   the verdicts written into a held record,
 //!   the promotion that makes the record runnable,
 //!   and the two ways a record leaves the queue.
+//! - `work_item_enqueue.rs`:
+//!   writing one producer's record,
+//!   or a round of them,
+//!   to the queue,
+//!   and finding what is already there.
+//! - `work_item_holding.rs`:
+//!   the steps of a work item that waits for its producer's approval.
+//! - `work_item_queued_ids.rs`:
+//!   the ids the queue still owes work for,
+//!   asked by a producer that writes a record and by a consumer that takes a name away.
 //! - `work_item.rs`:
 //!   the one name a caller uses for the record,
 //!   the steps that take and settle it,
@@ -566,10 +591,6 @@
 //! - `service_commit_looking_for_what_landed.rs`:
 //!   the look for the commit a request that was already sent made,
 //!   once its answer was lost.
-//! - `service_commit_after_a_failure.rs`:
-//!   what a commit does when the service answered without landing it:
-//!   the words for content a prune removed,
-//!   and the aftermath of a service that failed or went silent.
 //! - `service_commit_rebuild_ceiling.rs`:
 //!   how long a commit whose branch moved under its build is built again,
 //!   and the line that says so.
@@ -586,16 +607,6 @@
 //!   or the commit the service builds from captured changes.
 //! - `service_work_branch_is_gone.rs`:
 //!   the notice for a push whose branch the person deleted.
-//! - `work_item_enqueue.rs`:
-//!   writing one producer's record,
-//!   or a round of them,
-//!   to the queue,
-//!   and finding what is already there.
-//! - `work_item_holding.rs`:
-//!   the steps of a work item that waits for its producer's approval.
-//! - `work_item_queued_ids.rs`:
-//!   the ids the queue still owes work for,
-//!   asked by a producer that writes a record and by a consumer that takes a name away.
 //! - `work_item_recovery.rs`:
 //!   the answers work item recovery holds.
 //! - `service_work_kinds_and_a_wake.rs`:
@@ -637,11 +648,55 @@
 //!   a removal's subvolume,
 //!   a snapshot ahead,
 //!   and the automatic upkeep.
+//! - `service_work_drain_waves_of_one_kind.rs`:
+//!   the bodies a wave of one kind asks of its handler,
+//!   and the line one answer that is done writes.
+//! - `service_work_storage_step_awaited.rs`:
+//!   how one storage step of a drain runs as a job of the blocking pool,
+//!   and the words a step that got no place is refused with.
+//! - `service_work_storage_claims_awaited.rs`:
+//!   the storage steps that touch the queue's own records,
+//!   from the claim of a directory to the claims another instance let run out.
+//! - `service_work_storage_awaited.rs`:
+//!   the storage steps of one drain that leave a push's record for the person,
+//!   each a job of the blocking pool awaited by a task.
+//! - `service_work_drains_a_snapshot_ahead.rs`:
+//!   the drain of the snapshots the commit service makes ahead of the next add,
+//!   as one step of a round.
+//! - `service_work_settling_with_words.rs`:
+//!   how one item whose kind answers with words is settled,
+//!   with the line the person reads for it.
+//! - `service_work_items_side_by_side.rs`:
+//!   which items of one batch of that drain run at once and how many of them.
+//! - `service_work_settling_a_verdict.rs`:
+//!   what a drained push's verdict does to its records,
+//!   its retry plan and the person.
+//! - `service_work_drain_pushes_of_each_branch.rs`:
+//!   the push step of one round:
+//!   the pushes grouped by branch,
+//!   the branches run beside each other,
+//!   and each settled as its own answer comes.
+//! - `service_work_drain_deletes_subvolumes.rs`:
+//!   the drain's step that deletes the subvolumes a removal handed over.
+//! - `service_work_drain_claims_by_kind.rs`:
+//!   the claimed items of one batch of the drain,
+//!   sorted into one list per kind of work.
+//! - `service_work_drain_housekeeping_and_upkeep.rs`:
+//!   the housekeeping one round of the drain may start,
+//!   the upkeep it runs on the items it holds,
+//!   and what it leaves for a later round.
+//! - `service_work_drain_look_again.rs`:
+//!   when the caller of one drain of a work directory must look at it again.
+//! - `service_work_drains_awaiting_the_due_push_retries.rs`:
+//!   the pushes a round runs again because their retry is due,
+//!   and the programs a record's end gives up.
+//! - `service_work_drain_pending_claims.rs`:
+//!   drains the pending items of one work directory.
+//! - `service_work_drains_awaiting.rs`:
+//!   the drains of one directory and of a common directory,
+//!   awaited by a task of the runtime.
 //! - `service_work.rs`:
 //!   the service's consumer of after-commit push and upkeep work.
-//! - `push_record_of_a_moved_branch.rs`:
-//!   the push record a command that moves a branch leaves,
-//!   and the hand-off that wakes the service to run it with that command's programs.
 //! - `service_claim_watch_watched_repositories.rs`:
 //!   what the notes of one claim watch say about the repositories they name,
 //!   read without keeping anything.
@@ -662,64 +717,27 @@
 //! - `service_handoff.rs`:
 //!   the wrapper's side of after-commit work:
 //!   records and the wake.
-//! - `service_commit.rs`:
-//!   the commit command's path through the commit service.
 //! - `service_landed_aftermath.rs`:
 //!   what a landed commit leaves the command to do:
 //!   its result and the work after it.
-//! - `service_work_drain_waves_of_one_kind.rs`:
-//!   the bodies a wave of one kind asks of its handler,
-//!   and the line one answer that is done writes.
+//! - `service_commit_after_a_failure.rs`:
+//!   what a commit does when the service answered without landing it:
+//!   the words for content a prune removed,
+//!   and the aftermath of a service that failed or went silent.
+//! - `service_commit.rs`:
+//!   the commit command's path through the commit service.
+//! - `service_round.rs`:
+//!   the drain of several repositories of one round,
+//!   side by side and without a lock.
 //! - `service_work_run_round.rs`:
 //!   runs one round of the service's work over several directories.
-//! - `service_work_storage_step_awaited.rs`:
-//!   how one storage step of a drain runs as a job of the blocking pool,
-//!   and the words a step that got no place is refused with.
-//! - `service_work_storage_claims_awaited.rs`:
-//!   the storage steps that touch the queue's own records,
-//!   from the claim of a directory to the claims another instance let run out.
-//! - `service_work_storage_awaited.rs`:
-//!   the storage steps of one drain that leave a push's record for the person,
-//!   each a job of the blocking pool awaited by a task.
-//! - `service_work_drains_a_snapshot_ahead.rs`:
-//!   the drain of the snapshots the commit service makes ahead of the next add,
-//!   as one step of a round.
-//! - `service_work_drains_awaiting_the_due_push_retries.rs`:
-//!   the pushes a round runs again because their retry is due,
-//!   and the programs a record's end gives up.
-//! - `service_work_drains_awaiting.rs`:
-//!   the drains of one directory and of a common directory,
-//!   awaited by a task of the runtime.
-//! - `service_work_settling_a_verdict.rs`:
-//!   what a drained push's verdict does to its records,
-//!   its retry plan and the person.
-//! - `service_work_drain_pushes_of_each_branch.rs`:
-//!   the push step of one round:
-//!   the pushes grouped by branch,
-//!   the branches run beside each other,
-//!   and each settled as its own answer comes.
-//! - `service_work_settling_with_words.rs`:
-//!   how one item whose kind answers with words is settled,
-//!   with the line the person reads for it.
-//! - `service_work_drain_deletes_subvolumes.rs`:
-//!   the drain's step that deletes the subvolumes a removal handed over.
-//! - `service_work_drain_claims_by_kind.rs`:
-//!   the claimed items of one batch of the drain,
-//!   sorted into one list per kind of work.
-//! - `service_work_drain_housekeeping_and_upkeep.rs`:
-//!   the housekeeping one round of the drain may start,
-//!   the upkeep it runs on the items it holds,
-//!   and what it leaves for a later round.
-//! - `service_work_drain_look_again.rs`:
-//!   when the caller of one drain of a work directory must look at it again.
-//! - `service_work_drain_pending_claims.rs`:
-//!   drains the pending items of one work directory.
-//! - `service_work_items_side_by_side.rs`:
-//!   which items of one batch of that drain run at once and how many of them.
 //! - `service_work_slow_lane.rs`:
 //!   the service's work that can take minutes:
 //!   a lane of its own,
 //!   beside the round that serves the person's pushes.
+//! - `push_record_of_a_moved_branch.rs`:
+//!   the push record a command that moves a branch leaves,
+//!   and the hand-off that wakes the service to run it with that command's programs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -1035,6 +1053,11 @@ pub mod service_land_reference_lock;
 /// The copy the service keeps of the conclusion state a landed commit removes.
 pub mod conclusion_state_copy;
 
+/// The index update one landed batch still owes:
+/// its shape,
+/// and how a batch's intent becomes one.
+pub mod the_record_of_an_owed_index_update;
+
 /// The record of an index update a landed batch owes.
 pub mod owed_index_update;
 
@@ -1058,6 +1081,20 @@ pub mod service_land_start;
 /// What one look at the held index lock proves,
 /// and the words the person is told about its holder.
 pub mod service_index_holder_look;
+
+/// The clause a sentence about a commit ends with when no reference is proven to name it.
+pub mod the_clause_a_commit_no_reference_proves;
+
+/// The words and the names the index lock uses:
+/// the path of a lock,
+/// how often a holder's line is repeated,
+/// what the wait tells the clients,
+/// why a wait gave up,
+/// and the code a storage error stands for.
+/// The bytes one repository's drain holds at its peak.
+pub mod the_memory_one_round_keeps;
+
+pub mod the_names_of_the_index_lock;
 
 /// The attempts and the wait of an acquisition of the index lock.
 pub mod service_index_attempts;

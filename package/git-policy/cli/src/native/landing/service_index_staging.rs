@@ -18,7 +18,7 @@
 
 use crate::process_identity::process_birth_identity;
 use crate::random_id::random_uuid;
-use crate::service_index_marker::{
+use crate::service_index_identity::{
     HolderState,
     ReaderView,
     current_pid_scope,

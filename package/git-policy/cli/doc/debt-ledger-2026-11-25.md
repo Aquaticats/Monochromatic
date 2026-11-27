@@ -219,6 +219,7 @@ released before `reach` runs (the file's own header says so);
 `service/service_client_wake_tests.rs:28` `STARTS_ASKED` is reset and asserted by two tests;
 `testing/fixture_git_commands.rs:118` `ENDING_SEAM` is armed by one test and fired by the first bounded query that
 reaches its bound in any thread (low risk);
+(the seam sits in `testing/fixture_git_query_ending.rs` since the split of 2026-11-27);
 the service stop state is process-wide (comments at `push/bounded_push_awaiting_tests.rs:95`,
 `process/stop_of_the_service_noticed_by_its_children_tests.rs:6`, `process/signal_relay_tests.rs:692`).
 The uncapped scan finds 70 `Mutex`, `Atomic` or `OnceLock` statics in 39 test-only files

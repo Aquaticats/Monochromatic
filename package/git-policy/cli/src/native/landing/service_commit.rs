@@ -60,7 +60,6 @@ use crate::service_client::{
     ClientConfig,
     Submitted,
 };
-/// What a commit does when the service answers that the branch moved under it.
 use crate::service_commit_after_a_moved_branch::{
     MovedBranch,
     after_a_moved_branch,
@@ -94,7 +93,8 @@ use crate::service_commit_saved_message::keep_the_typed_message;
 /// Which end of the commit's scratch tree a submitted request leaves it to.
 use crate::service_commit_tree_ownership::the_service_never_took;
 use crate::service_commit_waiting_notices::submit_saying_where_it_stands;
-use crate::service_handoff::ServiceHandoff;
+/// What a commit does when the service answers that the branch moved under it.
+pub use crate::service_landed_aftermath::ServiceCommit;
 /// The result of a commit that landed,
 /// and the work after it.
 use crate::service_landed_aftermath::{
@@ -131,17 +131,6 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
-/// What the service path returns:
-/// the transaction result for the lifecycle,
-/// and the handoff when the commit landed.
-pub struct ServiceCommit {
-    /// What the policies and the landing came to.
-    pub result: TransactionResult,
-    /// How to leave the after-commit work for the service;
-    /// absent when nothing landed.
-    pub handoff: Option<ServiceHandoff>,
-}
-
 /// What:
 ///  Lands the commit through the service,
 /// for every command line.

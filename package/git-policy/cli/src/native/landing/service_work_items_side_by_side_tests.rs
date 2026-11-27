@@ -37,6 +37,7 @@ use crate::service_work::{
     work_directory,
 };
 use crate::service_work_handlers_replanning_and_acceptance::WorkHandlers;
+use crate::service_work_items_side_by_side::A_HOST_THAT_BOUNDS_NO_BATCH;
 use crate::test_support::{
     fixture,
     git,
@@ -77,12 +78,6 @@ const OTHER_BRANCH: &str = "refs/heads/topic";
 /// How long one item of these controls is inside its work,
 /// so an item that starts while it runs is measured beside it.
 const HANDOVER: Duration = Duration::from_millis(300);
-
-/// A host large enough that neither the CPUs nor the memory narrow a batch.
-const LARGE_HOST: HostResources = HostResources {
-    parallelism: 8,
-    memory_available: None,
-};
 
 /// What:
 ///  A batch of one kind run as the drain runs it,
@@ -322,6 +317,7 @@ fn two_worktrees_trash_records_run_beside_each_other() {
         &both,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
+        &A_HOST_THAT_BOUNDS_NO_BATCH,
     ));
     assert_eq!(settled(&world, DONE), 2, "both trashes were emptied");
     assert_eq!(
@@ -381,6 +377,7 @@ fn one_worktrees_two_trash_records_run_one_after_the_other() {
         &both,
         crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
+        &A_HOST_THAT_BOUNDS_NO_BATCH,
     ));
     assert_eq!(
         settled(&world, DONE),
@@ -439,7 +436,7 @@ fn two_branches_of_one_repository_are_pushed_at_once() {
         directories: assignments.as_slice(),
         handlers: Arc::clone(&both),
         now: &ClaimTime::read(),
-        host: &LARGE_HOST,
+        host: &A_HOST_THAT_BOUNDS_NO_BATCH,
     })
     .waits;
     assert_eq!(settled(&world, DONE), 2, "both branches' pushes ran");
@@ -661,7 +658,11 @@ fn trash_name_of_round(
 /// This is a measurement for the record and not a control:
 /// it asserts only what every arm must give,
 /// that the queue drained and the push landed.
-/// Run it alone,
+/// It runs in a child process of its own,
+/// because the service's caps it emulates hold facts of the whole process
+/// (`foundation/blocking_jobs_within_the_budget.rs`,
+/// issue 6477),
+/// and the child is started alone,
 /// as the service's own caps and its one process are what the figure is about:
 /// `mise run //package/git-policy/cli:native:test:host -- --run-ignored side_by_side_measure --success-output=final`
 ///
@@ -672,75 +673,82 @@ fn trash_name_of_round(
 #[ignore = "a measurement for the record, not a control"]
 #[test]
 fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind_it() {
-    // The service's own bounds, which are what its queue drains under (`service/service_main.rs`).
-    crate::lazy_runtime::cap_workers(crate::service_main::SERVICE_WORKER_CAP);
-    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(
-        crate::service_main::SERVICE_WORKER_CAP,
-    );
-    let staged: Stage = stage("side-by-side-measure");
-    let git_dir: PathBuf = staged.repo.join(".git");
-    let work: PathBuf = work_directory(git_dir.as_path());
-    let mut worktrees: Vec<PathBuf> = Vec::new();
-    for index in 0..MEASURED_WORKTREES {
-        let name: String = format!("measured-{index}");
-        // The worktree Git makes sits beside the repository it was added from, so that is where the trash is planted.
-        git(
-            staged.repo.as_path(),
-            &["worktree", "add", "--quiet", "--detach", name.as_str()],
-        );
-        worktrees.push(staged.repo.join(name.as_str()));
-    }
-    let mut round: usize = 0;
-    for &width in MEASURED_WIDTHS {
-        round += 1;
-        for (index, worktree) in worktrees.iter().enumerate() {
-            let name: String = trash_name_of_round(round, index);
-            plant_a_big_trash_item(
-                &staged,
-                worktree,
-                name.as_str(),
-                MEASURED_ENTRIES,
-                work.as_path(),
+    crate::process_wide_state_child_test_support::run_the_measurement_in_a_child_of_its_own(
+        module_path!(),
+        "side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind_it",
+        || {
+            // The service's own bounds, which are what its queue drains under (`service/service_main.rs`).
+            crate::lazy_runtime::cap_workers(crate::service_main::SERVICE_WORKER_CAP);
+            crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(
+                crate::service_main::SERVICE_WORKER_CAP,
             );
-        }
-        crate::service_work_items_side_by_side::hold_the_width_to(width);
-        let began: Instant = Instant::now();
-        let lane_dir: PathBuf = git_dir.clone();
-        let running: tokio::task::JoinHandle<Option<Duration>> =
-            crate::lazy_runtime::spawn_on_runtime(async move {
-                let handlers: GitHandlers = GitHandlers::new(git_context());
-                return crate::service_work_slow_lane::drain_the_slow_work_awaiting(
-                    lane_dir.as_path(),
-                    &handlers,
-                    crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
-                    crate::service_work::CLAIM_LEASE,
-                )
-                .await;
-            })
-            .expect("the runtime starts the lane");
-        assert!(
-            emptied_by(
-                work.as_path(),
-                trash_name_of_round(round, 0).as_str(),
-                MEASURED_WORKTREES,
-                MEASURED_DRAIN_CEILING
-            ),
-            "round {round} of width {width} emptied every trash of its queue"
-        );
-        let drained: Duration = began.elapsed();
-        assert!(
-            wait_until(&|| {
-                return running.is_finished();
-            }),
-            "the lane ended"
-        );
-        println!(
-            "measure round={round} width={width} queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={}",
-            drained.as_millis()
-        );
-    }
-    crate::service_work_items_side_by_side::take_the_hosts_width();
-    remove(staged.root.as_path());
+            let staged: Stage = stage("side-by-side-measure");
+            let git_dir: PathBuf = staged.repo.join(".git");
+            let work: PathBuf = work_directory(git_dir.as_path());
+            let mut worktrees: Vec<PathBuf> = Vec::new();
+            for index in 0..MEASURED_WORKTREES {
+                let name: String = format!("measured-{index}");
+                // The worktree Git makes sits beside the repository it was added from, so that is where the trash is planted.
+                git(
+                    staged.repo.as_path(),
+                    &["worktree", "add", "--quiet", "--detach", name.as_str()],
+                );
+                worktrees.push(staged.repo.join(name.as_str()));
+            }
+            let mut round: usize = 0;
+            for &width in MEASURED_WIDTHS {
+                round += 1;
+                for (index, worktree) in worktrees.iter().enumerate() {
+                    let name: String = trash_name_of_round(round, index);
+                    plant_a_big_trash_item(
+                        &staged,
+                        worktree,
+                        name.as_str(),
+                        MEASURED_ENTRIES,
+                        work.as_path(),
+                    );
+                }
+                crate::service_work_items_side_by_side::hold_the_width_to(width);
+                let began: Instant = Instant::now();
+                let lane_dir: PathBuf = git_dir.clone();
+                let running: tokio::task::JoinHandle<Option<Duration>> =
+                    crate::lazy_runtime::spawn_on_runtime(async move {
+                        let handlers: GitHandlers = GitHandlers::new(git_context());
+                        return crate::service_work_slow_lane::drain_the_slow_work_awaiting(
+                            lane_dir.as_path(),
+                            &handlers,
+                            crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+                            crate::service_work::CLAIM_LEASE,
+                            &HostResources::read(),
+                        )
+                        .await;
+                    })
+                    .expect("the runtime starts the lane");
+                assert!(
+                    emptied_by(
+                        work.as_path(),
+                        trash_name_of_round(round, 0).as_str(),
+                        MEASURED_WORKTREES,
+                        MEASURED_DRAIN_CEILING
+                    ),
+                    "round {round} of width {width} emptied every trash of its queue"
+                );
+                let drained: Duration = began.elapsed();
+                assert!(
+                    wait_until(&|| {
+                        return running.is_finished();
+                    }),
+                    "the lane ended"
+                );
+                println!(
+                    "measure round={round} width={width} queue_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_ENTRIES} queue_ms={}",
+                    drained.as_millis()
+                );
+            }
+            crate::service_work_items_side_by_side::take_the_hosts_width();
+            remove(staged.root.as_path());
+        },
+    );
 }
 
 /// What:
@@ -754,7 +762,8 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
 /// so an arm cannot land it before any slow work began,
 /// and the service's own line reports how much of that wait was the push itself.
 /// A measurement for the record,
-/// not a control.
+/// not a control,
+/// and it runs in a child process of its own for the reason the measure above does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -763,126 +772,133 @@ fn side_by_side_measure_a_queue_of_one_repositorys_slow_work_and_the_push_behind
 #[ignore = "a measurement for the record, not a control"]
 #[test]
 fn side_by_side_measure_the_push_behind_a_queue_that_is_already_running() {
-    crate::lazy_runtime::cap_workers(crate::service_main::SERVICE_WORKER_CAP);
-    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(
-        crate::service_main::SERVICE_WORKER_CAP,
+    crate::process_wide_state_child_test_support::run_the_measurement_in_a_child_of_its_own(
+        module_path!(),
+        "side_by_side_measure_the_push_behind_a_queue_that_is_already_running",
+        || {
+            crate::lazy_runtime::cap_workers(crate::service_main::SERVICE_WORKER_CAP);
+            crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(
+                crate::service_main::SERVICE_WORKER_CAP,
+            );
+            let staged: Stage = stage("side-by-side-measure-push");
+            let git_dir: PathBuf = staged.repo.join(".git");
+            let work: PathBuf = work_directory(git_dir.as_path());
+            for index in 0..MEASURED_WORKTREES {
+                let name: String = format!("measured-{index}");
+                git(
+                    staged.repo.as_path(),
+                    &["worktree", "add", "--quiet", "--detach", name.as_str()],
+                );
+                plant_a_trash_item(
+                    &staged,
+                    staged.repo.join(name.as_str()).as_path(),
+                    trash_name_of(index).as_str(),
+                    MEASURED_PUSH_ENTRIES,
+                    work.as_path(),
+                );
+            }
+            let (wake, running): (
+                tokio::sync::mpsc::UnboundedSender<Wake>,
+                tokio::task::JoinHandle<()>,
+            ) = start_the_loop(&staged);
+            let began: Instant = Instant::now();
+            wake.send((git_dir.clone(), None))
+                .expect("the queue's wake");
+            assert!(
+                wait_until(&|| {
+                    return claimed(&held_world(&staged, work.as_path()), WorkKind::Trash)
+                        >= MEASURED_PUSH_CLAIMED;
+                }),
+                "{MEASURED_PUSH_CLAIMED} trashes of the queue are claimed and running"
+            );
+            let asked: Instant = Instant::now();
+            let push: WorkItem = WorkItem {
+                kind: WorkKind::Push,
+                repository: staged.repo.clone(),
+                git_dir: git_dir.clone(),
+                branch_ref: String::from(BRANCH),
+                oid: staged.landed.clone(),
+                parent: String::new(),
+                created: String::from("2026-11-11T10:29:00.000Z"),
+                tries: 0,
+                transport: false,
+            };
+            enqueue(work.as_path(), &push).expect("the push is written");
+            wake.send((git_dir.clone(), None)).expect("the push's wake");
+            assert!(
+                wait_until(&|| {
+                    return remote_tip(&staged) == staged.landed;
+                }),
+                "the push landed"
+            );
+            let push_wait: Duration = asked.elapsed();
+            let claimed_then: usize =
+                claimed(&held_world(&staged, work.as_path()), WorkKind::Trash);
+            let queue_then: Duration = began.elapsed();
+            println!(
+                "measure push_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_PUSH_ENTRIES} push_wait_ms={} queue_running_ms_when_it_landed={} slow_records_claimed_when_it_landed={claimed_then}",
+                push_wait.as_millis(),
+                queue_then.as_millis()
+            );
+            assert!(
+                emptied_by(
+                    work.as_path(),
+                    trash_name_of(0).as_str(),
+                    MEASURED_WORKTREES,
+                    MEASURED_DRAIN_CEILING
+                ),
+                "every trash of the queue was emptied"
+            );
+            // The same push with no queue beside it, which is what separates the queue's cost from what this host costs a push
+            //  at the load it has.
+            std::fs::write(staged.repo.join("b.txt"), b"after the queue\n").expect("file");
+            git(staged.repo.as_path(), &["add", "--", "b.txt"]);
+            let committed = crate::test_support::git_output(
+                staged.repo.as_path(),
+                &[
+                    "commit",
+                    "--quiet",
+                    "--no-verify",
+                    "--message=after the queue",
+                ],
+            );
+            assert!(
+                committed.status.success(),
+                "git commit after the queue failed: {:?} {}",
+                committed.status.code(),
+                String::from_utf8_lossy(&committed.stderr)
+            );
+            let later: String = git_text(staged.repo.as_path(), &["rev-parse", "HEAD"])
+                .trim()
+                .to_owned();
+            let alone: WorkItem = WorkItem {
+                oid: later,
+                transport: false,
+                ..push
+            };
+            let alone_asked: Instant = Instant::now();
+            enqueue(work.as_path(), &alone).expect("the second push is written");
+            wake.send((git_dir, None)).expect("the second push's wake");
+            assert!(
+                wait_until(&|| {
+                    return remote_tip(&staged) == alone.oid;
+                }),
+                "the push with no queue landed"
+            );
+            println!(
+                "measure push_alone_ms={}",
+                alone_asked.elapsed().as_millis()
+            );
+            drop(wake);
+            assert!(
+                wait_until(&|| {
+                    return running.is_finished();
+                }),
+                "the after-commit work ends when its queue is closed"
+            );
+            remove(staged.root.as_path());
+        },
     );
-    let staged: Stage = stage("side-by-side-measure-push");
-    let git_dir: PathBuf = staged.repo.join(".git");
-    let work: PathBuf = work_directory(git_dir.as_path());
-    for index in 0..MEASURED_WORKTREES {
-        let name: String = format!("measured-{index}");
-        git(
-            staged.repo.as_path(),
-            &["worktree", "add", "--quiet", "--detach", name.as_str()],
-        );
-        plant_a_trash_item(
-            &staged,
-            staged.repo.join(name.as_str()).as_path(),
-            trash_name_of(index).as_str(),
-            MEASURED_PUSH_ENTRIES,
-            work.as_path(),
-        );
-    }
-    let (wake, running): (
-        tokio::sync::mpsc::UnboundedSender<Wake>,
-        tokio::task::JoinHandle<()>,
-    ) = start_the_loop(&staged);
-    let began: Instant = Instant::now();
-    wake.send((git_dir.clone(), None))
-        .expect("the queue's wake");
-    assert!(
-        wait_until(&|| {
-            return claimed(&held_world(&staged, work.as_path()), WorkKind::Trash)
-                >= MEASURED_PUSH_CLAIMED;
-        }),
-        "{MEASURED_PUSH_CLAIMED} trashes of the queue are claimed and running"
-    );
-    let asked: Instant = Instant::now();
-    let push: WorkItem = WorkItem {
-        kind: WorkKind::Push,
-        repository: staged.repo.clone(),
-        git_dir: git_dir.clone(),
-        branch_ref: String::from(BRANCH),
-        oid: staged.landed.clone(),
-        parent: String::new(),
-        created: String::from("2026-11-11T10:29:00.000Z"),
-        tries: 0,
-        transport: false,
-    };
-    enqueue(work.as_path(), &push).expect("the push is written");
-    wake.send((git_dir.clone(), None)).expect("the push's wake");
-    assert!(
-        wait_until(&|| {
-            return remote_tip(&staged) == staged.landed;
-        }),
-        "the push landed"
-    );
-    let push_wait: Duration = asked.elapsed();
-    let claimed_then: usize = claimed(&held_world(&staged, work.as_path()), WorkKind::Trash);
-    let queue_then: Duration = began.elapsed();
-    println!(
-        "measure push_worktrees={MEASURED_WORKTREES} entries_each={MEASURED_PUSH_ENTRIES} push_wait_ms={} queue_running_ms_when_it_landed={} slow_records_claimed_when_it_landed={claimed_then}",
-        push_wait.as_millis(),
-        queue_then.as_millis()
-    );
-    assert!(
-        emptied_by(
-            work.as_path(),
-            trash_name_of(0).as_str(),
-            MEASURED_WORKTREES,
-            MEASURED_DRAIN_CEILING
-        ),
-        "every trash of the queue was emptied"
-    );
-    // The same push with no queue beside it, which is what separates the queue's cost from what this host costs a push
-    //  at the load it has.
-    std::fs::write(staged.repo.join("b.txt"), b"after the queue\n").expect("file");
-    git(staged.repo.as_path(), &["add", "--", "b.txt"]);
-    let committed = crate::test_support::git_output(
-        staged.repo.as_path(),
-        &[
-            "commit",
-            "--quiet",
-            "--no-verify",
-            "--message=after the queue",
-        ],
-    );
-    assert!(
-        committed.status.success(),
-        "git commit after the queue failed: {:?} {}",
-        committed.status.code(),
-        String::from_utf8_lossy(&committed.stderr)
-    );
-    let later: String = git_text(staged.repo.as_path(), &["rev-parse", "HEAD"])
-        .trim()
-        .to_owned();
-    let alone: WorkItem = WorkItem {
-        oid: later,
-        transport: false,
-        ..push
-    };
-    let alone_asked: Instant = Instant::now();
-    enqueue(work.as_path(), &alone).expect("the second push is written");
-    wake.send((git_dir, None)).expect("the second push's wake");
-    assert!(
-        wait_until(&|| {
-            return remote_tip(&staged) == alone.oid;
-        }),
-        "the push with no queue landed"
-    );
-    println!(
-        "measure push_alone_ms={}",
-        alone_asked.elapsed().as_millis()
-    );
-    drop(wake);
-    assert!(
-        wait_until(&|| {
-            return running.is_finished();
-        }),
-        "the after-commit work ends when its queue is closed"
-    );
-    remove(staged.root.as_path());
 }
 
 /// How many trashes the push measurement queues,
@@ -1264,6 +1280,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
             lane_handlers.as_ref(),
             crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
             crate::service_work::CLAIM_LEASE,
+            &A_HOST_THAT_BOUNDS_NO_BATCH,
         )
         .await;
     };
@@ -1288,7 +1305,7 @@ fn a_push_goes_out_while_a_review_and_a_trash_are_held_claimed() {
         directories: assignments.as_slice(),
         handlers: Arc::clone(&stand_ins),
         now: &ClaimTime::read(),
-        host: &LARGE_HOST,
+        host: &A_HOST_THAT_BOUNDS_NO_BATCH,
     })
     .waits;
     let waited: Duration = asked.elapsed();

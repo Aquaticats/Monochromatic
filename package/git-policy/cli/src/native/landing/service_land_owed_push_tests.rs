@@ -120,6 +120,19 @@ fn a_landed_commit_holds_its_push_where_no_round_runs_it() {
         "the service wakes no work of its own: the wrapper's hand-off is what asks for the push"
     );
     let _ = &world;
+    // What:
+    //  The fixture goes, waiting within the removal's own bound for the work this landing started beside
+    //  its loop,
+    //  whose threads write into `.git` after the landing has answered.
+    // Why:
+    //  The landing starts a shadow pool's fill and a shadow drawn ahead on threads of their own,
+    //  and the blocking pool makes the markers the next batches' locks are made from;
+    //  the draw wrote the tree `monochromatic-git-policy-cli-shadow-drawn/main/drawn-<uuid>` into this fixture's
+    //  `.git` 5 ms after the landing returned (measured 2026-11-27),
+    //  and the teardown that met one of them mid-write failed with `DirectoryNotEmpty` (issue 6568).
+    //  `test_support::remove` waits the package's own removal bound for them and names whatever is still there
+    //  when it runs out,
+    //  so a writer that outlasts it is named by the failure instead of being lost behind a bare "not empty".
     remove(world.root.as_path());
 }
 
