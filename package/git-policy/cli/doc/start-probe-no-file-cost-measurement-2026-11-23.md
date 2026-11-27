@@ -16,6 +16,9 @@ The harness is a round file,
 not part of the branch:
 `~/temp/agent/zfs-start-probe-no-file-cost-2026-11-23/keep/no-file-cost-round.ts`
 (the two log readers beside it are `analyze-arms.ts` and `analyze-timeline.ts`).
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 Five arms,
 each a fresh `start-probe` of the built handler:
@@ -211,6 +214,9 @@ failed as `left: (1, 1)`,
 green restored,
 17 of 17 tests of the module passed
 (`keep/control-green-restored.log`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 A file that names the checkout alone still asks the table once,
 for the dataset
