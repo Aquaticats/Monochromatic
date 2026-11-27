@@ -91,6 +91,8 @@
 //! - `probe_record_files.rs`:
 //!   the record's directory,
 //!   its mode and its atomic write.
+//! - `first_attach_record_text.rs`:
+//!   the record's words and its text.
 //! - `first_attach_record.rs`:
 //!   this boot's first real attach,
 //!   claimed once and published by one rename.
@@ -137,6 +139,8 @@
 /// its claim,
 /// its started record and its outcome.
 pub mod first_attach_record;
+/// The record's words and its text.
+pub mod first_attach_record_text;
 /// The nine arms and every step.
 pub mod probe_arms;
 /// The exclusive attach itself.
