@@ -114,6 +114,20 @@ is one too
 `tasks_can_run` and `built_flavor` answer for the whole process,
 so a control that arms one runs its body in a child,
 and both setters refuse outside it (issue 6511).
+A descriptor a control holds open is one of those facts as well,
+because a fork copies the whole descriptor table,
+and an advisory kernel lock lasts until every copy of its open file description is closed:
+a child another test's thread starts between the control's `open` and its `close` keeps the control's `flock`
+after the control dropped its own descriptor,
+so the older-release conversion control runs its body in a child of its own
+(`worktree/worktree_convert_ownership_tests.rs`, issue 6536).
+Measured 2026-11-26 by planting that fork in the control:
+the forked child held a copy of the control's descriptor naming `cli-git-convert.lock`,
+`/proc/locks` still named the lock once the control closed its own descriptor,
+and the second call skipped with "a command of release 0.5.20 or older holds" it.
+The window is only the fork to the child's exec,
+where the standard library's close-on-exec flag closes the copy,
+and a host under load stretches it.
 The preparation's named steps are one ledger of the whole process too
 (`commit/prepare_work_spans.rs`):
 every preparation notes into it and every timing record empties it,
