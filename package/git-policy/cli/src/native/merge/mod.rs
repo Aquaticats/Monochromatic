@@ -214,11 +214,19 @@
 //!   the index records of a batch,
 //!   one file through a private name and a rename,
 //!   and the bounded wait for `index.lock`.
+//! - `merge_isolation_carry_apply_at_the_worktree_top.rs`:
+//!   what one step of the carry reads at the top of the worktree:
+//!   the object and the index entry each side of one captured path holds,
+//!   whether what stands at a path is one of the two the capture and the change explain,
+//!   and the context and the runner its Git starts with.
+//! - `merge_isolation_carry_apply_clear_and_restore.rs`:
+//!   the two writes of a carry that put a path back without merging anything:
+//!   the clear before the merge,
+//!   and the restore of a merge that did not land.
 //! - `merge_isolation_carry_apply.rs`:
 //!   writing it back:
-//!   the clear before the merge,
-//!   the carry of each layer after it,
-//!   and the restore of a merge that did not land.
+//!   the carry of each layer after the merge,
+//!   and the report the command ends with.
 //! - `merge_isolation_recovery_carry.rs`:
 //!   the person's own work a merge carries,
 //!   across the two moves a recovery can make.
@@ -666,10 +674,15 @@ pub mod merge_isolation_carry;
 /// What stands at one worktree path, as a merge reads it.
 pub mod merge_isolation_worktree_entry;
 
+/// What one step of the carry reads at the top of the worktree.
+pub mod merge_isolation_carry_apply_at_the_worktree_top;
+
+/// The clear before the merge and the restore of a merge that did not land.
+pub mod merge_isolation_carry_apply_clear_and_restore;
+
 /// Writing it back:
-/// the clear before the merge,
-/// the carry of each layer after it,
-/// and the restore of a merge that did not land.
+/// the carry of each layer after the merge,
+/// and the report the command ends with.
 pub mod merge_isolation_carry_apply;
 
 /// What a carry reads from the repository:
