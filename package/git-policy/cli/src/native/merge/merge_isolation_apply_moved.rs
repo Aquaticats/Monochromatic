@@ -35,7 +35,6 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_apply_findings::a_carry_that_stopped;
 /// The writes of the carry itself.
 use crate::merge_isolation_carry_apply::{
-    CarryFailure,
     LockWait,
     carry,
 };
@@ -49,6 +48,7 @@ use crate::merge_isolation_carry_notice::{
 };
 /// The person's work as the capture recorded it.
 use crate::merge_isolation_carry_parts::Capture;
+use crate::merge_isolation_carry_write_failures::CarryFailure;
 /// The paths the merge changes,
 /// and what Git's own update left at each of them.
 use crate::merge_isolation_changes::Change;
@@ -251,7 +251,7 @@ async fn after_the_carry_awaiting(
     }
     // A branch that is not built on this merge is one this command may not write over: the record keeps the person's bytes and the
     //  command that owns the moved checkout puts them back.
-    let answer: Result<bool, crate::merge_isolation_recovery_steps::MergeRefusal> =
+    let answer: Result<bool, crate::merge_isolation_recovery_record::MergeRefusal> =
         is_ancestor_awaiting(place, root, intent.new_oid.as_str(), tip.as_str()).await;
     let built_on_it: bool = match answer {
         Ok(found) => found,
