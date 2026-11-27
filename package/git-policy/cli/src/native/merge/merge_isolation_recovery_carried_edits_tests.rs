@@ -64,7 +64,7 @@ fn a_branch_another_program_moved_away_from_the_merge_is_not_a_refusal() {
     std::fs::write(world.repo.join("f.txt"), person).expect("the person's edit");
     let context = crate::test_support::git_context();
     let capture: crate::merge_isolation_carry_parts::Capture =
-        crate::merge_isolation_carry::keep_capture(
+        crate::merge_isolation_carry_ref::keep_capture(
             &context,
             world.repo.as_path(),
             &crate::merge_isolation_carry::capture_work(
@@ -207,7 +207,7 @@ fn a_saved_merge_over_the_persons_kept_edits_is_installed_and_carries_them() {
         .expect("the person's edit");
     let context = crate::test_support::git_context();
     let capture: crate::merge_isolation_carry_parts::Capture =
-        crate::merge_isolation_carry::keep_capture(
+        crate::merge_isolation_carry_ref::keep_capture(
             &context,
             world.repo.as_path(),
             &crate::merge_isolation_carry::capture_work(
@@ -298,7 +298,7 @@ fn a_saved_merge_whose_paths_hold_edits_newer_than_its_capture_settles_and_names
         .expect("the person's edit");
     let context = crate::test_support::git_context();
     let capture: crate::merge_isolation_carry_parts::Capture =
-        crate::merge_isolation_carry::keep_capture(
+        crate::merge_isolation_carry_ref::keep_capture(
             &context,
             world.repo.as_path(),
             &crate::merge_isolation_carry::capture_work(
@@ -484,7 +484,7 @@ fn settling_a_saved_merge_keeps_a_ref_that_names_the_merge() {
     std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n")
         .expect("the captured edit");
     let context = crate::test_support::git_context();
-    let capture = crate::merge_isolation_carry::keep_capture(
+    let capture = crate::merge_isolation_carry_ref::keep_capture(
         &context,
         world.repo.as_path(),
         &crate::merge_isolation_carry::capture_work(
