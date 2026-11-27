@@ -743,15 +743,22 @@ not a rank taken here.
    with the second road".
 6. The package's README and the troubleshooting file state the notification as a law
    ("so that run asks the manager nothing").
-   Should the sentence say the manager can lose it,
-   in whichever round holds the crate's README,
-   or is this document enough?
+   This one is taken as work and is no longer a question
+   (the coordinating session,
+   2026-11-27T12:25:07-05:00):
+   a wrong sentence in a record is corrected,
+   and the round `cargo-shadow-alpha-13-release-pass-the-retire-gates-fallback-and-its-words-are-held-by-controls`,
+   which holds the crate's README and that troubleshooting file,
+   was told to make both say that the step relies on a notification the manager can lose.
 
 ## What was measured
 
-Kept beside this round's report,
-under `/home/user/temp/agent/issue-6578-scope-that-no-retire-follows-is-found-and-closed-scratch/keep/`
-(the folder is not a repository record and expires a day after its last change):
+The first road's readings,
+taken on 2026-11-27 by the round of issue 6578.
+Their transcripts were kept in that round's scratch folder,
+`/home/user/temp/agent/issue-6578-scope-that-no-retire-follows-is-found-and-closed-scratch/keep/`,
+which expires a day after its last change and is not a repository record,
+so what each one showed is stated here in full:
 
 - `installed-shadow-arm-normal-end.log`:
   the shadow alive,
