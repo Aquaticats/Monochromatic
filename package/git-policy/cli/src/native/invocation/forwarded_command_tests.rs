@@ -713,8 +713,7 @@ fn every_byte_the_shell_does_not_pass_through_leaves_a_git_value_unread() {
     let mut left_unread: Vec<u8> = Vec::new();
     for byte in 0..=u8::MAX {
         let value: Vec<u8> = a_git_value_holding(byte);
-        let read: bool =
-            crate::alias_value::shell_git_words(value.as_slice()).is_some();
+        let read: bool = crate::alias_value::shell_git_words(value.as_slice()).is_some();
         if read && !BYTES_THE_SHELL_READS.contains(&byte) {
             read_through.push(byte);
         }

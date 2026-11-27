@@ -125,10 +125,7 @@ fn a_dirty_main_checkout_beside_a_clean_linked_worktree(name: &str) -> TwoWorktr
     let main: PathBuf = repository(root.as_path(), "main");
     std::fs::write(main.join("tracked.txt"), "one\n").expect("the tracked file");
     git(main.as_path(), &["add", "tracked.txt"]);
-    git(
-        main.as_path(),
-        &["commit", "--quiet", "--message=content"],
-    );
+    git(main.as_path(), &["commit", "--quiet", "--message=content"]);
     git(
         main.as_path(),
         &["worktree", "add", "--quiet", "-b", "topic", "../linked"],
@@ -228,8 +225,7 @@ fn behind_the_alias(
     target: &[OsString],
     command: &[&str],
 ) -> Vec<OsString> {
-    let mut words: Vec<OsString> =
-        vec![OsString::from("-C"), caller.as_os_str().to_os_string()];
+    let mut words: Vec<OsString> = vec![OsString::from("-C"), caller.as_os_str().to_os_string()];
     words.push(OsString::from("-c"));
     words.push(OsString::from("alias.fixturebare=!git"));
     words.push(OsString::from("fixturebare"));
@@ -322,7 +318,8 @@ fn a_bare_git_is_judged_for_the_worktree_its_callers_words_name() {
                 &resolution,
             ));
             assert_eq!(
-                behind, direct,
+                behind,
+                direct,
                 "the alias spelling of {command:?} toward {} is judged as the direct spelling is",
                 fixture_worktrees.main.display()
             );
@@ -330,12 +327,8 @@ fn a_bare_git_is_judged_for_the_worktree_its_callers_words_name() {
         // Toward the clean linked worktree, from the dirty main checkout.
         for target in &linked_targets {
             let behind: Verdict = verdict(plan_invocation(
-                behind_the_alias(
-                    fixture_worktrees.main.as_path(),
-                    target.as_slice(),
-                    command,
-                )
-                .as_slice(),
+                behind_the_alias(fixture_worktrees.main.as_path(), target.as_slice(), command)
+                    .as_slice(),
                 &[],
                 &resolution,
             ));
@@ -345,7 +338,8 @@ fn a_bare_git_is_judged_for_the_worktree_its_callers_words_name() {
                 &resolution,
             ));
             assert_eq!(
-                behind, direct,
+                behind,
+                direct,
                 "the alias spelling of {command:?} toward {} is judged as the direct spelling is",
                 fixture_worktrees.linked.display()
             );

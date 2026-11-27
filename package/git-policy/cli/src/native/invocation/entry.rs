@@ -48,13 +48,13 @@ use crate::entry_run_forwarded_actions::{
 };
 use crate::exit_report_written::write_exit;
 use crate::forwarding::replace_process_with_real_git;
-/// The command Git will run, and where that command acts.
-use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::global_arguments::{
     GlobalLayout,
     GlobalOutcome,
     global_layout,
 };
+/// The command Git will run, and where that command acts.
+use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::management::{
     host_filesystem_section,
     plan_management_with_section,

@@ -110,11 +110,7 @@ fn a_slot_command_the_wrapper_could_not_place_is_refused() {
     // A prune whose own words name no place reads the caller's own records, which the planning read,
     //  and a word that reads no slot is not this refusal's.
     assert!(
-        unplaced_refusal_of(
-            &command_after_globals(&[], &["worktree", "prune"]),
-            ""
-        )
-        .is_none(),
+        unplaced_refusal_of(&command_after_globals(&[], &["worktree", "prune"]), "").is_none(),
         "a prune that names no place of its own is left to the pass over the caller's records"
     );
     for values in [

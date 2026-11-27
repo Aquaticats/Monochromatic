@@ -2534,7 +2534,8 @@ fn a_prunes_refusal_is_reached_below_the_top(
     std::fs::remove_file(bound.slot.join(".git")).expect("the pointer goes");
     std::os::unix::fs::symlink(bound.root.join("elsewhere"), bound.slot.join(".git"))
         .expect("a link stands where the pointer was");
-    let words: Vec<OsString> = typed_below_the_top(sub.as_path(), rule, &["-c", ALIAS_PRUNES, "prwt"]);
+    let words: Vec<OsString> =
+        typed_below_the_top(sub.as_path(), rule, &["-c", ALIAS_PRUNES, "prwt"]);
     let (code, stderr): (i32, String) = stopped(plan_invocation(
         words.as_slice(),
         &[],
@@ -2709,8 +2710,7 @@ fn a_removal_behind_a_chain_past_the_reading_is_left_to_git() {
 ///  so the removal was forwarded and the prune restored nothing.
 #[test]
 fn a_slot_command_behind_a_shell_alias_reads_the_records_of_the_repository_its_words_name() {
-    let caller: RegisteredSlot =
-        a_registered_slot("entry-slot-alias-other-repository-caller");
+    let caller: RegisteredSlot = a_registered_slot("entry-slot-alias-other-repository-caller");
     let bound: RegisteredSlot =
         a_bound_slot_for_a_shell_alias("entry-slot-alias-other-repository-bound");
     let named: String = bound.repository.to_str().expect("utf-8").to_string();
@@ -2794,11 +2794,7 @@ fn a_slot_command_behind_a_shell_alias_reads_the_records_of_the_repository_its_w
             "prune",
         ],
     );
-    let action: Action = plan_invocation(
-        pruned.as_slice(),
-        &[],
-        &inputs(caller.root.as_path()),
-    );
+    let action: Action = plan_invocation(pruned.as_slice(), &[], &inputs(caller.root.as_path()));
     match action {
         Action::Forward {
             stderr: notices,

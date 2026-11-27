@@ -234,7 +234,9 @@ fn unread_global_of(command: &ResolvedCommand) -> Option<UnreadGlobal<'_>> {
         if token.as_encoded_bytes() != b"worktree" {
             // A repository-naming global here names one the reading stopped before, so the wrapper cannot follow it.
             if repository_named_by.is_none()
-                && crate::global_arguments::names_the_place_the_command_acts(token.as_encoded_bytes())
+                && crate::global_arguments::names_the_place_the_command_acts(
+                    token.as_encoded_bytes(),
+                )
             {
                 repository_named_by = Some(token);
             }
