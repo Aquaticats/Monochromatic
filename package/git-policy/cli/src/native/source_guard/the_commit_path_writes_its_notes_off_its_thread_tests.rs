@@ -268,8 +268,12 @@ fn the_lane_still_reads_every_file_that_says_a_note() {
 }
 
 /// What:
-///  Every spelling of a note file's ask for the shared handle: the path the standard library spells, the path of an
-///  `io` import, the import a rename is made from, and the type kept in a value.
+///  Every spelling of a note file's ask for the shared handle:
+///  the path the standard library spells,
+///  the path of an
+///  `io` import,
+///  the import a rename is made from,
+///  and the type kept in a value.
 /// Why:
 ///  The review of release 0.6.1-alpha.50 found that `use std::io; io::stderr().write_all(..)` held neither text the
 ///  ban read (issue 6613).
@@ -281,7 +285,9 @@ const SPELLINGS_OF_THE_SHARED_HANDLE: &[&str] = &[
 ];
 
 /// What:
-///  The lines a note file may still write: a stream of its own, and a variable or a field that says `stderr`.
+///  The lines a note file may still write:
+///  a stream of its own,
+///  and a variable or a field that says `stderr`.
 /// Why:
 ///  The name is read where the line spells the call,
 ///  so a local variable and a field that say the word are no ask for the shared handle.

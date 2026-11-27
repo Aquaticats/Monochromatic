@@ -864,7 +864,9 @@ a control may also read a source file while it runs
 (`std::fs::read_to_string` of a path under `src/native`),
 and the guards that read a part of the tree do it through the shared scan of
 `source_guard/source_scan_banned_lines_tests.rs`,
-or, where a guard lists the tree itself, through `source_guard/source_scan_tests.rs`.
+or,
+where a guard lists the tree itself,
+through `source_guard/source_scan_tests.rs`.
 `rg 'read_to_string' src/native --glob '*_tests.rs'` lists the ones outside `source_guard`.
 
 A call a control requires belongs to the folder that asks it and not to one file of that folder
@@ -941,7 +943,8 @@ because the line the entry names holds nothing and the new use is excused by not
 where a count would have kept the file excused.
 Each entry covers one finding,
 so a second line written exactly like an excused one needs its own entry.
-A line `rustfmt` reflows makes the entry stale, which the guard reports,
+A line `rustfmt` reflows makes the entry stale,
+which the guard reports,
 and the entry and the reflow are one commit's work.
 `entries_that_match_nothing` fails an entry no finding took,
 so the list can only shrink.

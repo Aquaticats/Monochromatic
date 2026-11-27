@@ -5,7 +5,8 @@
 //!  and the clone's `mountpoint` is judged from fixture facts for every state
 //!  the kernel's reply can hold.
 //! The ban on a property list reads the call by its name;
-//! it does not see a call a macro of another file expands to, nor a name a glob import (`use super::*;`)
+//! it does not see a call a macro of another file expands to,
+//! nor a name a glob import (`use super::*;`)
 //! brings into scope,
 //! so a reader checks each of those in a file that adds one.
 
@@ -359,8 +360,13 @@ fn the_clone_request_sends_no_property() {
 }
 
 /// What:
-///  Every spelling of a property list the route may not build: the key written out, the key held in a constant, a name
-///  the call is imported under, a turbofish, and another crate's `add_str`.
+///  Every spelling of a property list the route may not build:
+///  the key written out,
+///  the key held in a constant,
+///  a name
+///  the call is imported under,
+///  a turbofish,
+///  and another crate's `add_str`.
 /// Why:
 ///  The review of release 0.6.1-alpha.50 found that a call through a constant held none of the text the ban read
 ///  (issue 6613).
@@ -373,7 +379,9 @@ const SPELLINGS_OF_A_PROPERTY_LIST: &[&str] = &[
 ];
 
 /// What:
-///  The lines the route may still write: a read of a property, and a name that ends in the call's name.
+///  The lines the route may still write:
+///  a read of a property,
+///  and a name that ends in the call's name.
 /// Why:
 ///  The route reads a clone's `mountpoint` back out of the pool's answer,
 ///  which builds no list,

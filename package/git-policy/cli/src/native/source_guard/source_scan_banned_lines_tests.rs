@@ -133,7 +133,8 @@ pub(crate) struct HoldingLine {
 ///  An entry covers one use,
 ///  so a second line written exactly like an excused one needs an entry of its own.
 /// Gotcha:
-///  The line is the one as written, without its indentation,
+///  The line is the one as written,
+///  without its indentation,
 ///  so `rustfmt` reflowing it makes the entry stale and the ban reports it;
 ///  the reflow and the entry are one commit's work.
 pub(crate) struct MayHold {
@@ -160,7 +161,8 @@ pub(crate) struct MayHold {
 /// Gotcha:
 ///  A text is matched wherever it occurs in a line,
 ///  so a ban on a call that a longer name ends in (`link` in `hard_link`)
-///  is written through `lines_calling_one_of` instead, and a ban on a name through that or
+///  is written through `lines_calling_one_of` instead,
+///  and a ban on a name through that or
 ///  `lines_naming_one_of`.
 pub(crate) fn lines_holding_one_of(
     sources: &[(String, String)],
@@ -193,7 +195,8 @@ pub(crate) fn lines_holding_one_of(
 ///  once for each call it spells.
 ///  A call is spelled as its bare name (`symlink(`),
 ///  as the last segment of a path (`fs::symlink`),
-///  or with its types written out (`symlink::<`, `),
+///  or with its types written out (`symlink::<`,
+///  `),
 ///  and it is read only where no byte of a longer name touches the name.
 /// Why:
 ///  A ban on a call has to fail on every spelling of it in one line,
@@ -204,7 +207,8 @@ pub(crate) fn lines_holding_one_of(
 ///  So the path's last segment is a finding too:
 ///  a rename's import (`use std::os::unix::fs::symlink as make_link;`) and a function taken as a value
 ///  (`let f = std::os::unix::fs::symlink;`) spell the path,
-///  while the call they then make (`make_link(a, b)`) cannot be told from any other call.
+///  while the call they then make (`make_link(a,
+///  b)`) cannot be told from any other call.
 ///  The name alone is the tail of names a file may use freely:
 ///  `link` ends `hard_link`,
 ///  `read_link` and `unlink`,
@@ -274,7 +278,9 @@ fn calls_at(
 ///  once for each name it writes,
 ///  wherever the line writes it.
 /// Why:
-///  A ban whose subject is a name no other use shares (a socket type, a builder, a random name's function) reads it
+///  A ban whose subject is a name no other use shares (a socket type,
+///  a builder,
+///  a random name's function) reads it
 ///  everywhere,
 ///  because a type is written in a signature and in a `use` list as often as at a call:
 ///  `use std::os::unix::net::{self, UnixStream};` is a socket by the name it brings in,
@@ -282,7 +288,8 @@ fn calls_at(
 ///  The name is read only where no byte of a longer name touches it,
 ///  so `UnixStreams` is another name.
 /// Gotcha:
-///  A word that is also an ordinary name (`link`, `stderr`) is banned through `lines_calling_one_of`
+///  A word that is also an ordinary name (`link`,
+///  `stderr`) is banned through `lines_calling_one_of`
 ///  instead:
 ///  a field named `link` and a local variable named `stderr` are no link and no shared handle.
 pub(crate) fn lines_naming_one_of(
@@ -314,7 +321,8 @@ pub(crate) fn lines_naming_one_of(
 /// What:
 ///  `names_at(line, name)` says whether that line writes `name` where no byte of a longer name touches it.
 /// Why:
-///  The boundary of a name is the whole rule here, so it is written once.
+///  The boundary of a name is the whole rule here,
+///  so it is written once.
 fn names_at(
     line: &str,
     name: &str,
@@ -360,12 +368,16 @@ fn continues_a_name_byte(byte: u8) -> bool {
 
 /// What:
 ///  `writes_the_call(bytes, start, end)` says whether those bytes write the name as a path's last segment,
-///  a call with its types written out, or a call.
+///  a call with its types written out,
+///  or a call.
 /// Why:
 ///  The three spellings a line holds are the whole answer:
-///  `::name` is the path a call is made by, imported, or taken as a value from,
+///  `::name` is the path a call is made by,
+///  imported,
+///  or taken as a value from,
 ///  `name::<` is the call with its types written out,
-///  and `name (` is the call, with the whitespace Rust allows before its arguments.
+///  and `name (` is the call,
+///  with the whitespace Rust allows before its arguments.
 fn writes_the_call(
     bytes: &[u8],
     start: usize,
@@ -389,7 +401,8 @@ fn writes_the_call(
 /// What:
 ///  `lines_no_entry_excuses(found, may_hold)` is every holding line no `may_hold` entry covers,
 ///  each as `file:line (banned text) the line`.
-///  An entry covers one finding: the one whose file,
+///  An entry covers one finding:
+///  the one whose file,
 ///  text and line are the entry's,
 ///  and each entry covers one finding only.
 /// Why:
@@ -397,7 +410,8 @@ fn writes_the_call(
 ///  and it names the line and the text so a reader opens the place rather than searching for it.
 ///  The use an entry names is the line it is written on,
 ///  so a use removed and another of the same text added to the same file fails twice over:
-///  the line the entry named holds nothing, which `entries_that_match_nothing` reports,
+///  the line the entry named holds nothing,
+///  which `entries_that_match_nothing` reports,
 ///  and the new use is excused by no entry here.
 ///  An entry covers one finding,
 ///  so a second line written exactly like an excused one must be excused by an entry of its own.
@@ -452,7 +466,8 @@ pub(crate) fn entries_that_match_nothing(
 ///  the index of the entry that covers it,
 ///  and gives each entry to one finding.
 /// Why:
-///  The two questions a ban asks of its excuse list (what no entry explains, and which entry is stale) are one
+///  The two questions a ban asks of its excuse list (what no entry explains,
+///  and which entry is stale) are one
 ///  pairing,
 ///  so the pairing is made once and read twice.
 fn the_entry_of_each_finding(
@@ -508,7 +523,8 @@ pub(crate) fn anchors_the_scope_no_longer_holds(
 }
 
 /// What:
-///  `planted(file, code)` is one planted source file, as a ban's reader takes it.
+///  `planted(file, code)` is one planted source file,
+///  as a ban's reader takes it.
 /// Why:
 ///  Every control here asks the same question about one line,
 ///  so the file's identity and its text are the whole of what it makes.
@@ -525,7 +541,9 @@ fn planted(
 }
 
 /// What:
-///  One line of code, in a body, so a finding stands on the line the control names.
+///  One line of code,
+///  in a body,
+///  so a finding stands on the line the control names.
 /// Why:
 ///  The readers count the line a spelling is written on,
 ///  and a spelling outside a body reads the same to them.
@@ -542,7 +560,8 @@ fn one_line(line: &str) -> String {
 ///  Every spelling a line holds of a call to `symlink`,
 ///  and every reading of that name that makes no link.
 /// Why:
-///  The review of release 0.6.1-alpha.50 found that the guard of the commit path missed a rename, a turbofish and a
+///  The review of release 0.6.1-alpha.50 found that the guard of the commit path missed a rename,
+///  a turbofish and a
 ///  function taken as a value (issue 6613),
 ///  and the controls that should have caught them planted none of the three.
 const SPELLINGS_OF_A_CALL: &[&str] = &[
@@ -556,7 +575,8 @@ const SPELLINGS_OF_A_CALL: &[&str] = &[
 ];
 
 /// What:
-///  The names that end in a banned call's name, and the paths that end in it without calling it.
+///  The names that end in a banned call's name,
+///  and the paths that end in it without calling it.
 /// Why:
 ///  A ban that read a name wherever its text occurs would fail every file that asks what a name is,
 ///  and the guard of the commit path reads one of these on the line beside its excused link.
@@ -571,7 +591,9 @@ const READINGS_OF_THE_NAME: &[&str] = &[
 ];
 
 /// A call is a finding however one line spells it,
-/// and a name that ends in it, or a path that does, is none.
+/// and a name that ends in it,
+/// or a path that does,
+/// is none.
 #[test]
 fn a_call_is_read_however_one_line_spells_it() {
     for spelling in SPELLINGS_OF_A_CALL {
@@ -608,7 +630,8 @@ const SPELLINGS_OF_A_NAME: &[&str] = &[
     "use std::io::{self, Stderr};",
 ];
 
-/// A name is a finding wherever a line writes it, and a longer name is another name.
+/// A name is a finding wherever a line writes it,
+/// and a longer name is another name.
 #[test]
 fn a_name_is_read_wherever_a_line_writes_it() {
     for spelling in SPELLINGS_OF_A_NAME {
@@ -646,7 +669,8 @@ const ONE_EXCUSED_USE: &[MayHold] = &[MayHold {
     why: "a planted excuse, in a control that asks what an entry covers",
 }];
 
-/// The line an entry names is excused, and every other line holding that text is a finding.
+/// The line an entry names is excused,
+/// and every other line holding that text is a finding.
 #[test]
 fn an_excuse_covers_the_one_use_it_names() {
     let excused: Vec<(String, String)> = planted(

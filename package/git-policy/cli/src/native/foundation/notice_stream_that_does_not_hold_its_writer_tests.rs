@@ -3,7 +3,8 @@
 //! a reader that stopped draining,
 //! and the ceiling of the wait for the writer at the end.
 //! The ban on the commit path submitting its notices itself reads the submission by its name;
-//! it does not see a call a macro of another file expands to, nor a name a glob import (`use super::*;`)
+//! it does not see a call a macro of another file expands to,
+//! nor a name a glob import (`use super::*;`)
 //! brings into scope,
 //! so a reader checks each of those in a file that adds one.
 
@@ -334,7 +335,9 @@ const THE_COMMIT_PATH: &[&str] = &["landing/"];
 ///  A caller of it says its notices where it stands,
 ///  which is what the stream exists to stop,
 ///  and the call is read by its name wherever the line spells it:
-///  as a call, as a path's last segment, or with its types written out,
+///  as a call,
+///  as a path's last segment,
+///  or with its types written out,
 ///  so a name imported under a rename is a finding on the line that imports it.
 ///
 /// In TS you'd write (pseudocode):

@@ -31,7 +31,8 @@
 //! Two files of those folders make a link for a reason that is not a hook,
 //! and `MAY_HOLD` records each use by the line it is written on and the reason it may.
 //! A link is banned by its name where a line spells it as a call,
-//! as a path's last segment, or with its types written out,
+//! as a path's last segment,
+//! or with its types written out,
 //! so a rename's import (`use std::os::unix::fs::symlink as make_link;`) and a function taken as a value
 //! are findings too.
 //! What this ban does not see is a call a macro of another file expands to,
@@ -592,10 +593,14 @@ fn the_ban_reads_a_receiver_of_the_split_and_the_entry_names_the_line_it_excuses
 }
 
 /// What:
-///  The spellings of a start the commit path may not make: a literal name, a raw literal name, and a rename of the type
+///  The spellings of a start the commit path may not make:
+///  a literal name,
+///  a raw literal name,
+///  and a rename of the type
 ///  that spells a start.
 /// Why:
-///  A rename makes the call `Spawn::new("sh")`, which holds neither literal text,
+///  A rename makes the call `Spawn::new("sh")`,
+///  which holds neither literal text,
 ///  so the import that brings the name in is the line the ban reads.
 const SPELLINGS_OF_A_START: &[&str] = &[
     "let _ = Command::new(\"sh\");",
@@ -604,7 +609,9 @@ const SPELLINGS_OF_A_START: &[&str] = &[
 ];
 
 /// What:
-///  The spellings of a start the commit path may still make: the type imported under its own name, and a start named by
+///  The spellings of a start the commit path may still make:
+///  the type imported under its own name,
+///  and a start named by
 ///  the path its caller resolved.
 /// Why:
 ///  `invocation/hooks_off.rs` imports `std::process::Command` and starts Git by a value,
@@ -613,7 +620,8 @@ const SPELLINGS_OF_A_START: &[&str] = &[
 const STARTS_THE_PATH_MAY_MAKE: &[&str] =
     &["use std::process::Command;", "let _ = Command::new(git);"];
 
-/// Every spelling of a program start is a finding, and the two the commit path makes are none.
+/// Every spelling of a program start is a finding,
+/// and the two the commit path makes are none.
 #[test]
 fn the_ban_reads_a_start_however_the_type_is_written() {
     for spelling in SPELLINGS_OF_A_START {

@@ -241,8 +241,10 @@ const THE_MODULE: &[&str] = &[
 ///  The owner's answer put them in the `tempfile` crate,
 ///  so a file of this module that grows its own link is the finding,
 ///  and a link is read by its name where a line spells it as a call,
-///  as a path's last segment, or with its types written out.
-///  Another crate's name for the same system call is banned too (`rustix::fs::linkat`, `libc::link`),
+///  as a path's last segment,
+///  or with its types written out.
+///  Another crate's name for the same system call is banned too (`rustix::fs::linkat`,
+///  `libc::link`),
 ///  which is why the list names the calls and not one library's path.
 ///
 /// In TS you'd write (pseudocode):
@@ -345,8 +347,12 @@ fn the_exclusive_publish_is_the_tempfile_crates_and_the_module_links_nothing() {
 }
 
 /// What:
-///  Every spelling of a link a file of the module could write: the standard library's calls, the same system call
-///  through another crate, a path taken as a value, and a rename's import.
+///  Every spelling of a link a file of the module could write:
+///  the standard library's calls,
+///  the same system call
+///  through another crate,
+///  a path taken as a value,
+///  and a rename's import.
 /// Why:
 ///  The review of release 0.6.1-alpha.50 found that `rustix::fs::linkat` and `libc::link` are the same link through
 ///  another name and held none of the three texts the ban read (issue 6613).
@@ -362,9 +368,11 @@ const SPELLINGS_OF_A_LINK: &[&str] = &[
 ];
 
 /// What:
-///  The names that end in a link's name, and the publish the module makes instead.
+///  The names that end in a link's name,
+///  and the publish the module makes instead.
 /// Why:
-///  `private_storage.rs` holds `fn link_file`, which names a link and makes none,
+///  `private_storage.rs` holds `fn link_file`,
+///  which names a link and makes none,
 ///  and the crate's own publish is `persist_noclobber`.
 const READINGS_OF_A_NAME: &[&str] = &[
     "fn link_file(from: &Path, to: &Path) -> std::io::Result<()> {",

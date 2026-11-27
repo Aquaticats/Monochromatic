@@ -5,7 +5,8 @@
 //! and whole exchanges against a peer that speaks the bus's side.
 //! The ban on the client's module reads each call of the wire format by its name and refuses a rename of a
 //! builder;
-//! it does not see a call a macro of another file expands to, nor a name a glob import (`use super::*;`)
+//! it does not see a call a macro of another file expands to,
+//! nor a name a glob import (`use super::*;`)
 //! brings into scope,
 //! so a reader checks each of those in a file that adds one.
 
@@ -1194,10 +1195,12 @@ const THE_CLIENT_MODULE: &[&str] = &["service/systemd_dbus"];
 ///  so a socket,
 ///  a call builder or a reply reader of its own is the finding,
 ///  and a builder is read by its name where a line spells it as a call,
-///  as a path's last segment, or with its types written out.
+///  as a path's last segment,
+///  or with its types written out.
 ///  The client re-exports both builders under their own names,
 ///  which a `use` list writes without a call and the ban allows;
-///  a rename of one would hide the call it makes, so `THE_RENAMED_BUILDERS` refuses that.
+///  a rename of one would hide the call it makes,
+///  so `THE_RENAMED_BUILDERS` refuses that.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1326,8 +1329,12 @@ fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
 }
 
 /// What:
-///  Every spelling of the wire the client may not write: a socket's type wherever it is named, a builder called by its
-///  path or with its types written out, a read of a socket, and a rename of a builder.
+///  Every spelling of the wire the client may not write:
+///  a socket's type wherever it is named,
+///  a builder called by its
+///  path or with its types written out,
+///  a read of a socket,
+///  and a rename of a builder.
 /// Why:
 ///  The review of release 0.6.1-alpha.50 found that other guards' substring bans missed a rename and a turbofish
 ///  (issue 6613),
@@ -1343,7 +1350,9 @@ const SPELLINGS_OF_THE_WIRE: &[&str] = &[
 ];
 
 /// What:
-///  The lines the client's module may still write: the `use` list that re-exports the format under its own names, and
+///  The lines the client's module may still write:
+///  the `use` list that re-exports the format under its own names,
+///  and
 ///  the format's own two builders.
 /// Why:
 ///  The client re-exports `decode_reply` and `encode_call` so the format has one name,
