@@ -27,7 +27,8 @@ use std::collections::{
 /// Imports `std::io::Read` for this file.
 use std::io::Read;
 
-/// Imports the CSV reader, the column check and the format error for this file.
+/// Imports the CSV reader,
+/// the column check and the format error for this file.
 use crate::csv::{
     DumpFormatError,
     column_indexes,

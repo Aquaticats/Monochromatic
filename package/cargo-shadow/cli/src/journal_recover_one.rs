@@ -31,7 +31,8 @@ use crate::crates::{
     LockSnapshot,
     read_locks,
 };
-/// Imports the journal file name, the kept-file naming and the replace outcome.
+/// Imports the journal file name,
+/// the kept-file naming and the replace outcome.
 use crate::journal::{
     KeepAs,
     REFUSED_SUFFIX,

@@ -55,7 +55,8 @@ pub mod http;
 /// Runs the repository-wide catalog commands for the CLI.
 pub mod commands;
 
-/// What a catalog command prints: its findings and its install and update reports (split out of `commands.rs`).
+/// What a catalog command prints:
+/// its findings and its install and update reports (split out of `commands.rs`).
 pub mod command_report_printing;
 
 /// The restore of lockfiles after a run and the recording side of the journal that recovers a killed run.
@@ -74,7 +75,8 @@ pub mod journal_replace_preserve;
 /// split out of `journal.rs`.
 pub mod journal_recover;
 
-/// The recovery of one journal: its roots and the temporaries a killed run left (split out of `journal_recover.rs`).
+/// The recovery of one journal:
+/// its roots and the temporaries a killed run left (split out of `journal_recover.rs`).
 pub mod journal_recover_one;
 
 /// Reads of a journal directory:

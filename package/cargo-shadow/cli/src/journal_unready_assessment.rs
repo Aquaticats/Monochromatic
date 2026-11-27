@@ -40,7 +40,8 @@ use crate::control_group::{
     query,
 };
 
-/// Imports the finding, the record context and the reader of that context,
+/// Imports the finding,
+/// the record context and the reader of that context,
 /// which live in their own file (split out of this module),
 /// and re-exports them,
 /// so every caller keeps the path it had.
