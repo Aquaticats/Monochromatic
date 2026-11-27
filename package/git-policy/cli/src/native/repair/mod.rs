@@ -40,6 +40,10 @@
 //! - `package_repair_relink_job_worktree_proof.rs`:
 //!   what a delayed relink proves about the worktree its record names,
 //!   before that record's first tool and before every tool after it.
+//! - `package_repair_start_gate.rs`:
+//!   the gate a started child waits at before its own `exec`,
+//!   its report,
+//!   and the stop of the group it leads.
 //! - `package_repair_start.rs`:
 //!   the bounded start of one package-manager program for a worktree repair,
 //!   run off the runtime's workers,
@@ -154,6 +158,12 @@
 //! ```ts
 //! // repair/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// The gate a started child waits at before its own `exec`,
+/// its report,
+/// and the stop of the group it leads.
+#[cfg(target_os = "linux")]
+pub mod package_repair_start_gate;
 
 /// The bounded start of one package-manager program for a worktree repair,
 /// run off the runtime's workers,
