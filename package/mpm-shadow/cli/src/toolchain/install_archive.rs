@@ -69,6 +69,7 @@ use super::published_archive::{
     first_bin_of_tool,
     is_published_archive,
     point_current_at_newest_archive,
+    program_that_finishes_the_install,
     remove_older_archives,
 };
 /// Imports the suffix check.
@@ -271,14 +272,11 @@ pub fn install_archive(
 /// as it always was,
 /// and never fails the install).
 fn required_program(tool: &LockedTool) -> Option<&str> {
-    if !is_published_archive(tool) {
+    let program: &str = program_that_finishes_the_install(tool);
+    if program.is_empty() {
         return None;
     }
-    let first_bin: &str = first_bin_of_tool(tool);
-    if first_bin.is_empty() {
-        return None;
-    }
-    return Some(first_bin);
+    return Some(program);
 }
 
 /// What:
