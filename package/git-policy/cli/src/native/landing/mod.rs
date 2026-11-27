@@ -61,9 +61,14 @@
 //!   given to the descriptor under a ceiling.
 //! - `scan_awaited_under_a_ceiling.rs`:
 //!   a scan of the processes run on the blocking pool and awaited under a ceiling.
+//! - `earlier_service_process_look_answers.rs`:
+//!   what the look at an earlier commit service answers with,
+//!   and the words of a service's start it reads.
+//! - `earlier_service_process_start_arguments.rs`:
+//!   which earlier commit service one command line of a process names.
 //! - `earlier_service_process_look.rs`:
-//!   the look at the running processes that tells whether a commit service of an earlier release may still run for a
-//!   worktree.
+//!   the look at the running processes and the sockets that tells whether a commit service of an earlier release may
+//!   still run or may start for a worktree.
 //! - `service_captures.rs`:
 //!   the service's memory of when the bytes of the commits it landed were captured,
 //!   per worktree.
@@ -722,7 +727,15 @@ pub mod earlier_service_command_line_read;
 /// and the identity of each earlier journal that exists.
 pub mod earlier_service_look_paths;
 
-/// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
+/// What the look at an earlier commit service answers with,
+/// and the words of a service's start it reads.
+pub mod earlier_service_process_look_answers;
+
+/// Which earlier commit service one command line of a process names.
+pub mod earlier_service_process_start_arguments;
+
+/// The look at the running processes and the sockets that tells whether a commit service of an earlier release may
+/// still run or may start for a worktree.
 pub mod earlier_service_process_look;
 
 /// The description of one running program that the look for an earlier commit service could not rule out,
