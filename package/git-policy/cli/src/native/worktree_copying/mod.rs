@@ -205,6 +205,11 @@
 //!   the staging,
 //!   journaling and installation of one created worktree's ignored state,
 //!   bound to the registration real Git made.
+//! - `worktree_copy_synchronize_after_git.rs`:
+//!   what one command does around the copy once real Git returned:
+//!   whose destination the worktree is,
+//!   which registration Git made for it,
+//!   and the summary line of a copy that ran.
 //! - `worktree_copy_transaction.rs`:
 //!   one journaled installation to an end,
 //!   and resumption from the log.
@@ -464,6 +469,13 @@ pub mod worktree_copy_notices;
 /// bound to the registration real Git made.
 #[cfg(unix)]
 pub mod worktree_copy_synchronize;
+
+/// What one command does around the copy once real Git returned:
+/// whose destination the worktree is,
+/// which registration Git made for it,
+/// and the summary line of a copy that ran.
+#[cfg(unix)]
+pub mod worktree_copy_synchronize_after_git;
 
 /// What becomes of the destination a refused `git worktree add` left:
 /// the empty folder this command made is removed,
