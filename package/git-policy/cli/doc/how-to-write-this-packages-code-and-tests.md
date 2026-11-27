@@ -547,17 +547,30 @@ and the controls its brief asks for,
 red and green,
 and says in its report which checks ran and which did not.
 
-A round that writes or moves a line behind the controls' test-only switches runs
-`mise run //package/git-policy/cli:native:clippy:test-only-switches`
-(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`)
+A round that writes or moves a line behind a feature name runs that feature's
+`mise run //package/git-policy/cli:native:clippy:<feature>`
 as well as the plain `mise run //package/git-policy/cli:native:clippy`
 (`cargo clippy --locked --offline --all-targets -- -D warnings`),
 because the gate's Clippy step and every plain run compile without a feature
 (`bin/test-native-container.ts`),
 so nothing else lints a line only that build has.
-A line behind the fence's measurement routes takes
-`mise run //package/git-policy/cli:native:clippy:measurement` the same way.
+The controls' test-only switches take
+`mise run //package/git-policy/cli:native:clippy:test-only-switches`
+(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`),
+the start probe's raised deadline takes
+`mise run //package/git-policy/cli:native:clippy:start-probe-raised-deadline`
+(`cargo clippy --locked --offline --all-targets --features start-probe-raised-deadline -- -D warnings`),
+and the fence's measurement routes take
+`mise run //package/git-policy/cli:native:clippy:measurement`
+(`cargo clippy --locked --offline --all-targets --features measurement-routes -- -D warnings`).
 On 2026-11-27 the switch task failed alone on an unused re-export in `foundation/lazy_runtime.rs`,
 whose only namer,
 `testing/no_switch_is_read_without_its_feature_tests`,
-is compiled out where the feature is on (issue 6570).
+is compiled out where the feature is on (issue 6570);
+the raised-deadline task,
+added the same day,
+failed alone on a test-only import
+and a test-only constant that a build with the feature names nowhere
+(`start_probe/probe_deadline_tests.rs`,
+issue 6575),
+and the measurement task was green with nothing to fix.
