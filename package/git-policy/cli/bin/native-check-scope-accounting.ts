@@ -4,8 +4,8 @@
  A check's scope is a transient systemd scope, and the check's own children are what its control group holds: `pids.peak`
  and `pids.events` say whether the task bound refused a fork, `memory.peak` and `memory.events` say whether the memory
  bound killed something, and `cpu.stat` says whether the CPU quota held the run back. The scope goes with its work, so
- these figures are read while it runs and the last sample is kept (`bin/native-capped-scope-command.ts` reads them that
- way, as `bin/native-gate-container-memory.ts` reads a gate container's).
+ these figures are read while it runs and the last sample is kept (`bin/native-check-scope-watch-accounting.ts` watches
+ them, as `bin/native-gate-container-memory.ts` watches a gate container's).
 
  The scope's path is known without asking the manager: `bin/native-capped-scope-command.ts` starts every check with
  `--slice=app.slice`, so its scope is
@@ -13,14 +13,20 @@
  `systemd-run --user --scope` that named no slice landed in that same `app.slice`, and `pids.peak`, `pids.events`,
  `memory.peak`, `memory.events`, `memory.max`, `cpu.max` and `cpu.stat` were all there to read, beside the `.local`
  variants of the two event files that count a cgroup's own bound rather than its subtree's.
+
+ The kernel removes a control group's files one at a time, and the directory after them: `cgroup_destroy_locked` clears the
+ files with `css_clear_dir` and only then calls `kernfs_remove` on the directory (`kernel/cgroup/cgroup.c`). A reading
+ taken while a scope ends therefore answers some of the group's files and not the others, and a file the kernel is
+ removing answers `ENODEV` while it is deactivated (`fs/kernfs/file.c`). Such a reading never replaces one that answered
+ more (`{@link answersEveryPartOf}`): a figure or a counter this host's kernel wrote a moment ago is not one it omits, so
+ what a reading lost is what the group took with it, and a check judged on that reading would be told no bound of its own
+ failed it (`bin/native-check-scope-bound-lines.ts`).
  */
 import {
   readFile,
   stat,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-
-import { wait as waitUntil, } from '@monochromatic-dev/async-time-core/ts';
 import { isMissing, } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/fs-guards.ts';
 
 import { isWholeNumberText, } from './native-gate-arguments.ts';
@@ -36,18 +42,6 @@ import {
  the start so this reader's path and the scope agree rather than by luck.
  */
 export const checkScopeSlice = 'app.slice';
-
-/**
- Milliseconds between two reads of a check's scope while it runs.
-
- The figures a check is judged by are counters and peaks, which only rise, so the interval decides one thing: whether a
- reading is still there to be taken. A scope that ends takes its control group with it, and the caller keeps the last
- sample, so the interval is short enough that a check which waits for something after its first refused fork is still
- read, and fifty milliseconds of file reads cost nothing beside the check running next to them. The limit is a check
- that ends within one interval of the event: measured on 2026-11-27, a unit suite narrowed to `--unit-tasks-max 64`
- died inside that window and printed no bound line, and one narrowed to 120 printed its two refused forks.
- */
-export const checkScopePollMilliseconds = 50;
 
 /**
  A check scope whose counters were never read, which a scope that ended before the first read leaves.
@@ -168,11 +162,38 @@ export type ScopeAccountingSample = {
 export type ScopeAccountingRead = ScopeAccountingSample | typeof SCOPE_NOT_READ;
 
 /**
+ Tells whether an error is the kernel's answer for a file of a control group it is removing.
+
+ A kernfs node the kernel has deactivated and not yet unlinked answers `ENODEV` to an open and to a read of it
+ (`fs/kernfs/file.c`), which is what a control group's files do one at a time as the group goes. Such a file answers no
+ figure here, exactly as a file this host's kernel does not write does, and the reading it was read for is refused for the
+ parts it lost.
+
+ Exported so a control can hand it the shape the kernel answers, which no fixture on an ordinary filesystem can make: a
+ directory there answers `ENOENT` for a file it does not hold, and only a control group being removed answers `ENODEV`.
+
+ @param error - the caught value
+
+ @returns true when it carries the code `ENODEV`
+
+ @example
+ ```ts
+ isRemoved(Object.assign(new Error('ENODEV: no such device, read \'/sys/fs/cgroup/a.scope/pids.max\''), { code: 'ENODEV' }));
+ ```
+ */
+export function isRemoved(error: unknown,): boolean {
+  return (Error.isError(error,))
+    && ('code' in error)
+    && (error.code === 'ENODEV');
+}
+
+/**
  Read one file of a cgroup as trimmed text.
 
  @param path - the file
 
- @returns its text, or {@link FIGURE_NOT_WRITTEN} when this host's kernel writes no such file
+ @returns its text, or {@link FIGURE_NOT_WRITTEN} when this host's kernel writes no such file and when the kernel is
+ removing it
 
  @throws the error of a file that is there and cannot be read, which is a host this reader cannot account for
  */
@@ -184,7 +205,7 @@ async function fileText(path: string,): Promise<string | typeof FIGURE_NOT_WRITT
     )).trim();
   }
   catch (error) {
-    if (isMissing(error,))
+    if (isMissing(error,) || isRemoved(error,))
       return FIGURE_NOT_WRITTEN;
     throw error;
   }
@@ -356,11 +377,88 @@ function holdsACounter(counters: Readonly<Record<string, number>>,): boolean {
 }
 
 /**
+ Every part of one reading, by name: each figure it answered and each counter of each counter file.
+
+ @param sample - one reading of a scope
+
+ @returns the names of the figures and counters it answered
+
+ @example
+ ```ts
+ partsOf({ sample }); // new Set(['pidsPeak', 'pidsEvents.max', 'cpuStat.nr_periods'])
+ ```
+ */
+function partsOf({ sample }: { readonly sample: ScopeAccountingSample; },): ReadonlySet<string> {
+  /**
+   The parts answered so far.
+   */
+  const parts = new Set<string>();
+  for (const [name, part] of Object.entries(sample,)) {
+    if (part === undefined)
+      continue;
+    if ((typeof part) === 'number')
+      parts.add(name,);
+    else if ((typeof part) !== 'string') {
+      for (const counter of Object.keys(part,))
+        parts.add(`${name}.${counter}`,);
+    }
+  }
+  return parts;
+}
+
+/**
+ Tells whether one reading answers every part of the reading it would replace.
+
+ A control group gains its files as the kernel makes it and loses them as it goes, and it does not come back: what a
+ reading answers and the one before it did not is a group still being made, and what it does not answer and the one
+ before it did is a group that went. So a reading of the moment a group went is never a reading a check is judged by.
+
+ @param read - the reading just taken
+
+ @param kept - the reading it would replace, or {@link SCOPE_NOT_READ} when nothing was read before it
+
+ @returns true when this reading answers every figure and counter the kept one answered
+
+ @example
+ ```ts
+ answersEveryPartOf({ read, kept: watch.lastRead() });
+ ```
+ */
+export function answersEveryPartOf({
+  read,
+  kept,
+}: {
+  readonly read: ScopeAccountingRead;
+  readonly kept: ScopeAccountingRead;
+},): boolean {
+  if (kept === SCOPE_NOT_READ)
+    return true;
+  if (read === SCOPE_NOT_READ)
+    return false;
+  /**
+   Every part the kept reading answered.
+   */
+  const keptParts = partsOf({ sample: kept, },);
+  /**
+   Every part this reading answers.
+   */
+  const answered = partsOf({ sample: read, },);
+  for (const part of keptParts) {
+    if (!answered.has(part,))
+      return false;
+  }
+  return true;
+}
+
+/**
  Read one check scope's own accounting.
 
  @param cgroupPath - the scope's control group, from {@link checkScopeCgroupPath}
 
- @returns the figures the kernel holds for it now, or {@link SCOPE_NOT_READ} once the scope ended
+ @param replaces - the reading this one would replace, which it must answer every part of
+
+ @returns the figures the kernel holds for it now, or {@link SCOPE_NOT_READ} once the scope ended and once a reading lost
+ a part of the one it would replace
 
  @example
  ```ts
@@ -369,8 +467,10 @@ function holdsACounter(counters: Readonly<Record<string, number>>,): boolean {
  */
 export async function readScopeAccounting({
   cgroupPath,
+  replaces = SCOPE_NOT_READ,
 }: {
   readonly cgroupPath: string;
+  readonly replaces?: ScopeAccountingRead;
 },): Promise<ScopeAccountingRead> {
   /**
    Whether the scope's control group is there to read at all.
@@ -505,130 +605,12 @@ export async function readScopeAccounting({
   ].some(holdsACounter,);
   if ((!wroteAFigure) && (!wroteACounter))
     return SCOPE_NOT_READ;
+  if (!answersEveryPartOf({
+    read: sample,
+    kept: replaces,
+  },))
+    return SCOPE_NOT_READ;
   return sample;
 }
 
 //endregion What the kernel says about one check scope
-
-//region Watching one check scope while it runs
-
-/**
- One running check scope's accounting watch: the last figures it read, and how to end it.
-
- The last read is kept because a scope's control group goes with it: what a caller asks after the check ended can only
- be what was read while it ran. A control group removed between two of this reader's file reads leaves the figures read
- before it went, so the sample kept is at worst the one of the moment it went.
- */
-export type ScopeAccountingWatch = {
-  /**
-   The last figures read from the scope, or {@link SCOPE_NOT_READ} when it was never there.
-   */
-  readonly lastRead: () => ScopeAccountingRead;
-  /**
-   Stop reading, and answer once the last read is kept. Calling it twice is the same as calling it once.
-   */
-  readonly stop: () => Promise<void>;
-};
-
-/**
- An accounting watch that can be disposed of, which is what `await using` needs of one.
- */
-export type DisposableScopeAccountingWatch = ScopeAccountingWatch & AsyncDisposable;
-
-/**
- What one watch has read so far, held in an object so the reading function and its caller share it without a `let` at
- either function's root.
- */
-type WatchState = {
-  lastRead: ScopeAccountingRead;
-  stopped: boolean;
-};
-
-/**
- Read one check scope once, keep what it gave, and wait one interval before the next read.
-
- @param state - what this watch has read so far
-
- @param cgroupPath - the scope's control group
-
- @param intervalMilliseconds - how long to wait before the next read
- */
-async function readOnce({
-  state,
-  cgroupPath,
-  intervalMilliseconds,
-}: {
-  readonly state: WatchState;
-  readonly cgroupPath: string;
-  readonly intervalMilliseconds: number;
-},): Promise<void> {
-  /**
-   What the scope holds now, or the statement that it is gone.
-   */
-  const read = await readScopeAccounting({ cgroupPath, },);
-  if (read !== SCOPE_NOT_READ)
-    state.lastRead = read;
-  await waitUntil(intervalMilliseconds,);
-}
-
-/**
- Watch one check scope's own accounting while it runs.
-
- Reading starts at once, so a scope that is created and gone before the caller looks again still leaves what it counted
- in the sample this watch kept.
-
- @param cgroupPath - the scope's control group, from {@link checkScopeCgroupPath}
-
- @param intervalMilliseconds - how long between two reads, which {@link checkScopePollMilliseconds} sizes
-
- @returns the watch, whose last read is the last sample the scope gave
-
- @example
- ```ts
- await using watch = watchScopeAccounting({ cgroupPath: checkScopeCgroupPath({ name }) });
- ```
- */
-export function watchScopeAccounting({
-  cgroupPath,
-  intervalMilliseconds = checkScopePollMilliseconds,
-}: {
-  readonly cgroupPath: string;
-  readonly intervalMilliseconds?: number;
-},): DisposableScopeAccountingWatch {
-  /**
-   What this watch has read, and whether its caller ended it.
-   */
-  const state: WatchState = {
-    lastRead: SCOPE_NOT_READ,
-    stopped: false,
-  };
-  /**
-   Read until the caller stops, one interval between two reads.
-   */
-  const reading = (async function readUntilStopped(): Promise<void> {
-    while (!state.stopped) {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- a watch reads its scope once per interval
-      await readOnce({
-        state,
-        cgroupPath,
-        intervalMilliseconds,
-      },);
-    }
-  })();
-  /**
-   Stop reading, once, and answer when the last read is kept.
-   */
-  async function stop(): Promise<void> {
-    state.stopped = true;
-    await reading;
-  }
-  return {
-    lastRead: function read() {
-      return state.lastRead;
-    },
-    stop,
-    [Symbol.asyncDispose]: stop,
-  };
-}
-
-//endregion Watching one check scope while it runs
