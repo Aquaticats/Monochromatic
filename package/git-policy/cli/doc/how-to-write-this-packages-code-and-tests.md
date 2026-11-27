@@ -147,6 +147,15 @@ The four share one comparison,
 `the_figures_did_not_move` in `testing/run_progress_tests.rs`,
 which refuses a look where a task that is not the control's own moved between two looks
 and says which helper runs the body alone.
+The thread count of the process is one of those figures,
+so `renewals_running_at_once_start_no_thread_each` reads it in a child of its own
+(`testing/process_wide_state_child_test_support.rs`).
+And the same rule covers a count of the tasks a control started:
+the renewal makes the count of its one task's ending and hands the control a share of it
+(`service_claim_renewal_running.rs`,
+`ClaimRenewal::endings`),
+so a control reads the endings of the task it made and never a count the whole test process shares
+(issue 6526).
 
 A control that holds a fault point of the service
 (`service_fault_hooks_test_support.rs`)
@@ -263,6 +272,20 @@ twice the notice's own maximum,
 and failed that way in three threaded `commit::` runs;
 it waits thirty times the notice's own bound now,
 sized from a measured answer of 500.1 to 501.6 ms).
+A window a control times never holds work the release code grants no ceiling to,
+because no multiple of a ceiling can bound that work:
+a commit's landing costs what this host's disk costs,
+so a control that answers a commit times that landing unless its window starts after the commit landed.
+Measured 2026-11-26 in a threaded `landing::` run:
+the nine landings that run logged took 140 ms to 22576 ms,
+and a control that timed a commit's whole answer from its submission failed at three seconds
+beside a note ceiling of 500 ms (issue 6525).
+So a window starts where the note's write began,
+once the commit has landed,
+and holds only that ceiling and the answer after it,
+and a property that cannot be timed that way is asserted structurally instead:
+the store named no repository once both answers had come,
+so neither answer came from it.
 A state a control means to test is reached by the control and not by a sleep:
 that control offers a line into the queue the writer takes its lines from,
 where sleeping three cadences expected a starved notice thread to have offered one

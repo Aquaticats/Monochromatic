@@ -12,8 +12,8 @@ use crate::service_claim_renewal_running::{
     DrivenRenewal,
     RENEWAL_STOP_CEILING,
     RENEWALS_MADE,
-    TASKS_ENDED,
     TASKS_STARTED,
+    TaskEndings,
 };
 use crate::service_work::MAX_TRIES;
 use crate::test_support::{
@@ -308,6 +308,8 @@ fn a_running_renewal_renews_the_held_claims_until_its_stop_is_awaited() {
     let (held, renewer) = held_claims(work_dir.as_path());
     held.hold(&claimed);
     let renewal: ClaimRenewal = ClaimRenewal::start(renewer, Duration::from_millis(5));
+    // The count of the endings of this renewal's own task: nothing else in this process counts on it.
+    let endings: TaskEndings = renewal.endings();
     // The bound only ends a failing run: a passing run leaves the loop as soon as the thread has renewed the claim.
     let bound: std::time::Instant = std::time::Instant::now() + PASS_PATIENCE;
     while claimed_names(work_dir.as_path()) == vec![claimed.name.clone()]
@@ -322,7 +324,7 @@ fn a_running_renewal_renews_the_held_claims_until_its_stop_is_awaited() {
     );
     // The stop says whether it waited for the task or only for its ceiling, and the task says it returned, so no clock is
     //  asked whether anything can rename after this line.
-    let ended_before: usize = TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst);
+    let ended_before: usize = endings.count();
     let stopped = crate::service_timing::capture::entries_of(|| {
         crate::lazy_runtime::run_on_runtime(renewal.stop_awaiting())
             .expect("the runtime runs the stop");
@@ -332,7 +334,7 @@ fn a_running_renewal_renews_the_held_claims_until_its_stop_is_awaited() {
         "the renewal's task ended with the stop, so nothing can rename after it: {stopped:?}"
     );
     assert_eq!(
-        TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst),
+        endings.count(),
         ended_before.saturating_add(1),
         "the task returned before the stop did"
     );
@@ -539,32 +541,43 @@ fn wait_for_starts(
 /// where a thread each added one thread each.
 /// The tasks say when they have begun,
 /// so the count of threads is read of renewals that really run and not of renewals the runtime has not started yet.
+/// Why the body runs in a child of its own:
+/// the threads a process has are one figure for the whole test run,
+/// and a threaded run of this module adds the threads of the other tests' work between the control's two looks,
+/// so a control that read them here failed on a figure it never named.
+/// (Issue 6526 is this module's other read of a figure like this one.)
 #[test]
 fn renewals_running_at_once_start_no_thread_each() {
-    // The runtime's own workers are started by the first use, and are not the renewals' threads.
-    crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime starts");
-    let before: usize = threads_of_this_process();
-    let started_before: usize = TASKS_STARTED.load(std::sync::atomic::Ordering::SeqCst);
-    let mut running: Vec<ClaimRenewal> = Vec::new();
-    let mut roots: Vec<PathBuf> = Vec::new();
-    for number in 0..RENEWALS_RUNNING {
-        let root: PathBuf = fixture(format!("renewal-no-thread-{number}").as_str());
-        let (_held, renewer) = held_claims(root.join("work").as_path());
-        running.push(ClaimRenewal::start(renewer, LEASE));
-        roots.push(root);
-    }
-    assert!(
-        wait_for_starts(started_before, RENEWALS_RUNNING),
-        "{RENEWALS_RUNNING} renewals began"
-    );
-    let growth: usize = threads_of_this_process().saturating_sub(before);
-    drop(running);
-    for root in &roots {
-        remove(root.as_path());
-    }
-    assert!(
-        growth < RENEWALS_RUNNING / 2,
-        "{RENEWALS_RUNNING} renewals added {growth} threads: a renewal must be a task"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "renewals_running_at_once_start_no_thread_each",
+        || {
+            // The runtime's own workers are started by the first use, and are not the renewals' threads.
+            crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime starts");
+            let before: usize = threads_of_this_process();
+            let started_before: usize = TASKS_STARTED.load(std::sync::atomic::Ordering::SeqCst);
+            let mut running: Vec<ClaimRenewal> = Vec::new();
+            let mut roots: Vec<PathBuf> = Vec::new();
+            for number in 0..RENEWALS_RUNNING {
+                let root: PathBuf = fixture(format!("renewal-no-thread-{number}").as_str());
+                let (_held, renewer) = held_claims(root.join("work").as_path());
+                running.push(ClaimRenewal::start(renewer, LEASE));
+                roots.push(root);
+            }
+            assert!(
+                wait_for_starts(started_before, RENEWALS_RUNNING),
+                "{RENEWALS_RUNNING} renewals began"
+            );
+            let growth: usize = threads_of_this_process().saturating_sub(before);
+            drop(running);
+            for root in &roots {
+                remove(root.as_path());
+            }
+            assert!(
+                growth < RENEWALS_RUNNING / 2,
+                "{RENEWALS_RUNNING} renewals added {growth} threads: a renewal must be a task"
+            );
+        },
     );
 }
 
@@ -650,6 +663,8 @@ fn dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it() {
     let driver: DrivenRenewal = DrivenRenewal::default();
     let renewal: ClaimRenewal =
         ClaimRenewal::driven_with_stop_ceiling(renewer, &driver, SHORT_STOP_CEILING);
+    // The count of the endings of this renewal's own task: nothing else in this process counts on it.
+    let endings: TaskEndings = renewal.endings();
     // Every thread the blocking pool may have is kept busy, then the task is asked to renew: its job waits for a thread.
     let workers: usize = match crate::lazy_runtime::built_flavor() {
         Some(crate::lazy_runtime::BuiltFlavor::MultiThread {
@@ -670,7 +685,7 @@ fn dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it() {
     assert!(busy.is_some(), "the runtime has workers");
     std::thread::sleep(Duration::from_millis(100));
     let _asked = renewal.control.send(Control::Renew(clock(), None));
-    let ended_before: usize = TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst);
+    let ended_before: usize = endings.count();
     let began: std::time::Instant = std::time::Instant::now();
     // The drop runs inside a task, which is where a drain that is a task would drop one.
     crate::lazy_runtime::run_on_runtime(async move {
@@ -683,7 +698,7 @@ fn dropping_a_renewal_leaves_its_task_to_end_without_waiting_for_it() {
         "the drop held the thread it ran on until the ceiling: {dropped:?}"
     );
     assert_eq!(
-        TASKS_ENDED.load(std::sync::atomic::Ordering::SeqCst),
+        endings.count(),
         ended_before,
         "the drop waited for the task to end, which is what the two stop faces are for"
     );
