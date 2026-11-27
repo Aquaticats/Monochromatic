@@ -21,7 +21,11 @@ after the coordinator had again edited scratch scripts:
 I believe there is also a launcher already as a proper workspace package.
 I don't wanna see you edit pi-runs outside the workspace again.
 Please pick that up."
-So no script under `~/temp/agent/pi-runs` is created or edited any more;
+So no script under `~/temp/agent/pi-runs`
+(scratch,
+deleted on 2026-11-27;
+not kept)
+is created or edited any more;
 only data lives there (briefs,
 batch lists,
 inbox notes,
@@ -131,7 +135,10 @@ moved verbatim on 2026-11-23:
   worktree copy round 6,
   the locks round 6 if its start did not take,
   and conversion round 5.
-  Briefs are in `~/temp/agent/pi-runs/`.
+  Briefs are in `~/temp/agent/pi-runs/`
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
   Cloudflare's status page opened "Network Performance Issues in Eastern North America" at 2026-11-09T16:34:35Z,
   identified a fix at 16:56:39Z and moved to monitoring at 17:21:50Z;
   this host reaches Cloudflare through Toronto,

@@ -12,6 +12,9 @@ as its gate review put it
 (`~/temp/agent/gate-review-zfs-add-time-git-lock-and-binding-record-designs-2026-11-22/keep/review-diff-check.md`,
 section "The questions for the owner",
 Q1).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 It decides what plan step 13 builds;
 plan step 10 does not wait for it.
 

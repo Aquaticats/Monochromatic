@@ -22,8 +22,11 @@
 //! - `conflict_side_modes.rs`:
 //!   the pathspec modes and their spellings,
 //!   which decide whether a token names one file.
+//! - `conflict_side_source_finding_the_file.rs`:
+//!   finding the worktree file a command replaces,
+//!   as a name held open beside the directory that holds it.
 //! - `conflict_side_source.rs`:
-//!   finding and copying the file a command replaces.
+//!   copying the file a command replaces.
 //! - `conflict_side_state.rs`:
 //!   the operation in progress and the conflicted paths.
 //! - `conflict_side_guard.rs`:
@@ -47,6 +50,15 @@
 //!   their defaults and the reading of a size such as `256m`.
 //! - `discarded_store_records.rs`:
 //!   the plain values of the descriptor-based reader of the folder of saved copies.
+//! - `discarded_store_calls_by_descriptor.rs`:
+//!   the descriptor-relative system calls that reader makes:
+//!   open a name without following a link,
+//!   ask what it is,
+//!   list a directory,
+//!   remove a name.
+//! - `discarded_store_directory_walk.rs`:
+//!   one directory of the folder held open,
+//!   counted and emptied through its own descriptor.
 //! - `discarded_store.rs`:
 //!   the folder of saved copies opened once without following a link,
 //!   with every read and removal addressed through descriptors.
@@ -63,6 +75,15 @@
 //!   the saved copy of each file a command replaces.
 //! - `discarded_nested_repository.rs`:
 //!   the move of the nested Git repositories a clean would delete beside the audit log.
+//! - `discarded_prune_listing.rs`:
+//!   the folder of saved copies read as it stands:
+//!   every directory named like the wrapper's own,
+//!   oldest first,
+//!   with its size and identity and what could not be read.
+//! - `discarded_prune_removal.rs`:
+//!   removing one directory a pass chose,
+//!   and the audit line that says what went,
+//!   with the outcome a pass reports.
 //! - `discarded_prune.rs`:
 //!   the bound on the folder of saved copies of conflicted files:
 //!   age,
@@ -82,6 +103,9 @@
 
 /// The `checkout` and `restore` command lines that take one side of a conflicted file.
 pub mod command_conflict_side;
+
+/// Finding the worktree file a conflict-side command is about to replace.
+pub mod conflict_side_source_finding_the_file;
 
 /// Finding and copying the file a command replaces.
 pub mod conflict_side_source;
@@ -126,6 +150,16 @@ pub mod discard_audit_pins;
 /// The `discardedCopies` section of `monochromatic-git-policy-cli.config.jsonc`.
 pub mod config_discarded;
 
+/// The folder of saved copies read as it stands:
+/// every directory named like the wrapper's own,
+/// oldest first,
+/// with its size and identity and what could not be read.
+pub mod discarded_prune_listing;
+
+/// Removing one directory a pass chose,
+/// and the audit line that says what went.
+pub mod discarded_prune_removal;
+
 /// The bound on the folder of saved copies of conflicted files:
 /// age,
 /// size,
@@ -160,6 +194,15 @@ pub mod discarded_store;
 
 /// The plain values of the descriptor-based reader of the folder of saved copies.
 pub mod discarded_store_records;
+
+/// The descriptor-relative system calls the folder of saved copies is read and removed through.
+#[cfg(unix)]
+pub mod discarded_store_calls_by_descriptor;
+
+/// One directory of the folder of saved copies held open,
+/// counted and emptied through its own descriptor.
+#[cfg(unix)]
+pub mod discarded_store_directory_walk;
 
 /// The marker lines a committed file still holds,
 /// and the line about an operation a commit left open.

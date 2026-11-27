@@ -46,7 +46,10 @@ answered 2026-11-23",
 Against Git's own checkout,
 in position-balanced rounds with an identical-binary control
 (the proposal's round of `dc7b5e5624` and its recheck,
-`~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`):
+`~/temp/agent/gate-recheck-partial-clone-proposal-on-the-fenced-rung-2026-11-21/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 - the usual dirty add:
   0.73 to 0.77 of Git's time;
@@ -75,6 +78,9 @@ after the build's integration pass
 (`~/temp/agent/integration-pass-clone-rung-partial-clone-2026-11-22/keep/review.md`,
 findings H1,
 H2 and M2).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The pass measured what the whole-tree size threshold does to a clean source,
 which `main` clones whatever its size:
@@ -111,6 +117,9 @@ on the integration recheck of the build
 (`~/temp/agent/integration-recheck-clone-rung-partial-clone-2026-11-22/keep/review.md`,
 "For the owner to decide",
 decisions A to D).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Each answer is given as the option's label and its own description,
 as the project was shown them.
 
@@ -229,6 +238,9 @@ From lines 42200 to 42209 of the old handover
 moved verbatim on 2026-11-23:
 
   (brief under `~/temp/agent/gate-review-of-the-partial-clone-proposal-on-sonnet-2026-11-20/`).
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
   The owner then asked
   "Wait,
   why are we cloning every file individually when we have snapshots?":
@@ -259,3 +271,6 @@ moved verbatim on 2026-11-23:
   (`feat/git-policy-cli-zfs-start-time-compatibility-gate` in `.claude/worktrees/zfs-step-6-compatibility-gate`,
   brief
   under `~/temp/agent/zfs-step-6-compatibility-gate-and-layout-checker-2026-11-20/`) and the start probe follows on top.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).

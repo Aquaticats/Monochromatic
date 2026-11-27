@@ -36,7 +36,6 @@ use crate::worktree_copy_selection::{
     CopySelection,
     STAGE_PREFIX,
     filesystem_path,
-    is_separator_byte,
     select_roots,
     shown_repository_path,
 };
@@ -52,6 +51,12 @@ use crate::worktree_copy_stage_leaf_copying::{
     copy_worker_count,
     create_private_tree,
     try_clone,
+};
+use crate::worktree_copy_stage_left_out_paths::{
+    lies_within_any,
+    names_private_stage,
+    nested_under,
+    source_exclusions,
 };
 use std::path::{
     Path,
@@ -106,107 +111,6 @@ pub struct StagedSnapshot {
     /// Repository paths that kept changing under the copy and were left in their source;
     ///  empty for a stage rebuilt from a journal.
     pub unsettled: Vec<Vec<u8>>,
-}
-
-/// What:
-///  The registered roots strictly nested under the source,
-/// and the stage container,
-/// as exclusions.
-/// Why:
-///   A nested worktree or the stage itself must never be walked as ignored state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// sourceExclusions({ sourceRoot, registeredRoots, stageContainer })
-/// ```
-fn source_exclusions(
-    source_root: &Path,
-    registered_roots: &[PathBuf],
-    stage_container: &Path,
-) -> Vec<PathBuf> {
-    let mut exclusions: Vec<PathBuf> = registered_roots.to_vec();
-    exclusions.push(stage_container.to_path_buf());
-    return nested_under(source_root, exclusions.as_slice());
-}
-
-/// What:
-///  The roots strictly inside the source root,
-/// never the source root itself.
-/// Why:
-///   A registered worktree nested in the source is another checkout's state,
-/// so the source's own walk must skip it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// roots.filter((root) => root !== sourceRoot && isInside(sourceRoot, root))
-/// ```
-fn nested_under(
-    source_root: &Path,
-    roots: &[PathBuf],
-) -> Vec<PathBuf> {
-    let mut nested: Vec<PathBuf> = Vec::new();
-    for root in roots {
-        if root.as_path() != source_root && root.starts_with(source_root) {
-            nested.push(root.clone());
-        }
-    }
-    return nested;
-}
-
-/// What:
-///  Whether a path component begins the name of a private stage container or of a snapshot the wrapper made ahead.
-/// Why:
-///   A path that goes through one is part of another copy's stage,
-/// or a whole copy of the source that no worktree owns yet,
-/// and is
-///  never staged:
-/// a snapshot ahead that the ignored state of one new worktree carried would be a second copy of the
-///  source inside a worktree.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// component.startsWith(STAGE_PREFIX) || component.startsWith(AHEAD_PREFIX)
-/// ```
-fn starts_private_stage(component: &[u8]) -> bool {
-    return component.starts_with(STAGE_PREFIX.as_bytes())
-        || component.starts_with(crate::worktree_snapshot_ahead::AHEAD_PREFIX.as_bytes());
-}
-
-/// What:
-///  Whether a path is at or below any of the roots.
-/// Why:
-///   Registered worktrees and the stage itself inside the source are never staged.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// roots.some((root) => path.startsWith(root))
-/// ```
-fn lies_within_any(
-    path: &Path,
-    roots: &[PathBuf],
-) -> bool {
-    for root in roots {
-        if path.starts_with(root.as_path()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  Whether a repository path names a private stage at any component.
-/// Why:
-///   A private stage is never selected,
-/// even when Git lists it as ignored.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// repositoryPath.split('/').some((component) => component.startsWith(STAGE_PREFIX))
-/// ```
-fn names_private_stage(repository_path: &[u8]) -> bool {
-    return repository_path
-        .split(is_separator_byte)
-        .any(starts_private_stage);
 }
 
 /// What:

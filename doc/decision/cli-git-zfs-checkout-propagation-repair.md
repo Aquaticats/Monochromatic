@@ -13,6 +13,9 @@ as its gate review would put them
 (`~/temp/agent/gate-review-zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/review-diff-check.md`),
 about the open item "Re-applying private propagation after a replacement mount" of
 `doc/planning/cli-git-zfs-worktree-design-proposal.md`.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The project had already decided that the boot unit sets the checkout's mount private.
 A mount that replaces the checkout's mount later comes up shared again,

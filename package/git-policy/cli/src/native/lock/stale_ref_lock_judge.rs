@@ -31,11 +31,6 @@
 
 use crate::fs_mount_options::read_mount_facts;
 use crate::git_command_name::names_git_command;
-use crate::process_start::{
-    ProcessStart,
-    linux_start,
-    now_ms,
-};
 use crate::process_use::{
     ProcessUser,
     UseScan,
@@ -50,8 +45,11 @@ pub use crate::stale_ref_lock_identity::{
 use crate::stale_ref_lock_judge_environment::{
     PROC_MOUNT_POINT,
     boot_time,
-    nanoseconds_to_time,
     newest_time,
+};
+use crate::stale_ref_lock_judge_words::{
+    looks_older_than_boot,
+    process_state_words,
 };
 use crate::stale_ref_lock_walk::pid_file_beside;
 use crate::stopped_git_locks::pid_named_by;
@@ -64,68 +62,16 @@ use std::time::{
     SystemTime,
 };
 
-/// The longest step of a landing that updates a reference,
-/// in a live service:
-/// 3,438 ms,
-/// the largest `ref_ms` of 1,302 `answered`
-///  entries of the service journal (`journalctl --user SYSLOG_IDENTIFIER=cli-git-service`,
-/// 2026-11-02T09:01:38Z to
-///  2026-11-03T15:11:58Z;
-/// 1 entry above 2,000 ms and 2 at or above 1,000 ms;
-/// median 2 ms,
-/// 99th percentile 64 ms).
-/// The step starts
-///  Git,
-/// takes the reference lock,
-/// fills it and renames it,
-/// so a lock a live Git holds is gone within it.
-/// Real Git on a
-///  throwaway repository,
-/// traced with `strace`,
-/// held a lock for at most 2.8 ms (7,700 updates,
-/// load average 3 to 14),
-/// so this
-///  is the loaded tail,
-/// not the common case.
-pub const LONGEST_LIVE_REF_STEP: Duration = Duration::from_millis(3438);
-
-/// How many times the longest live reference step the margin allows:
-/// twice,
-/// because the longest of a sample understates the
-///  tail (one entry of 1,302 reached 3,438 ms,
-/// so the next sample may reach more).
-/// Option B of the question on the margin,
-/// "twice
-///  the sample maximum,
-/// seven seconds",
-/// picked by the coordinator under the owner's delegation,
-/// open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`,
-/// "Picked for these follow-ups").
-pub const MARGIN_MULTIPLE: u64 = 2;
-
-/// How old a lock must be before it is judged:
-/// long enough for a live Git to have filled and renamed a lock it just made.
-/// The
-///  whole seconds at or above `MARGIN_MULTIPLE` times the longest step measured in `LONGEST_LIVE_REF_STEP` (6.876 s,
-/// so 7 s),
-///  because a lock younger than the longest live hold may still be live.
-/// A stale lock is left that long before it is cleared,
-///  which is a few seconds of a failing update,
-/// against a live lock removed (`doc/planning/cli-git-shipped-limits-audit.md`,
-///  "Margins for removing left-behind locks").
-pub const MARGIN: Duration = Duration::from_secs(
-    (LONGEST_LIVE_REF_STEP.as_millis() as u64 * MARGIN_MULTIPLE).div_ceil(1000),
-);
-
-/// The file system types a lock may sit on:
-/// disks and memory of this machine.
-/// A network or user-space file system can be
-///  written by a Git on another machine,
-/// whose process numbers mean nothing here.
-pub(crate) const LOCAL_FILE_SYSTEMS: &[&str] = &[
-    "btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs",
-];
+/// The file system types a lock may sit on,
+/// which the abandoned-lock proof reads as well.
+pub(crate) use crate::stale_ref_lock_judge_limits::LOCAL_FILE_SYSTEMS;
+/// The shipped limits a judgement rests on,
+/// re-exported so a caller of this module names them here.
+pub use crate::stale_ref_lock_judge_limits::{
+    LONGEST_LIVE_REF_STEP,
+    MARGIN,
+    MARGIN_MULTIPLE,
+};
 
 /// Why a lock may be removed.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -255,7 +201,7 @@ impl Judge {
     /// which a descriptor of any process carries whatever mount it was reached through.
     /// A reason about a process outside the scope is dropped with the process it names:
     /// what the scan could not read of another program cannot be a holder this judgement is about.
-    fn users_of(
+    pub(crate) fn users_of(
         &self,
         identity: &Identity,
     ) -> UseScan {
@@ -300,7 +246,7 @@ impl Judge {
 
     /// Whether the file system holding `path` is on the local list;
     /// the reason when it is not or cannot be told.
-    fn local_check(
+    pub(crate) fn local_check(
         &self,
         path: &Path,
     ) -> Result<(), String> {
@@ -336,42 +282,6 @@ impl Judge {
         );
     }
 
-    /// What the pid file's number is now,
-    /// in words:
-    /// the notice says it and nothing decides on it.
-    fn process_state_words(
-        &self,
-        pid: i64,
-    ) -> String {
-        return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
-            ProcessStart::Missing => String::from("has ended"),
-            ProcessStart::Unknown(reason) => format!("could not be looked at ({reason})"),
-            ProcessStart::Running {
-                ..
-            } => String::from("is running"),
-        };
-    }
-
-    /// Whether the lock looks older than the boot by the wall clock.
-    /// Only words the notice:
-    /// a forward correction of the clock
-    ///  during the boot makes a lock that a live Git holds look older than the boot,
-    /// so no lock is removed on it.
-    fn looks_older_than_boot(
-        &self,
-        born: Option<SystemTime>,
-        identity: &Identity,
-    ) -> bool {
-        let Some(boot) = self.boot else {
-            return false;
-        };
-        let modified: SystemTime = nanoseconds_to_time(identity.modified_ns);
-        return match born {
-            Some(at) => at < boot && modified < boot,
-            None => false,
-        };
-    }
-
     /// The first process of this account that the scan could not look into and that is a Git (or whose name cannot be read
     ///  back):
     /// a program that is not Git,
@@ -396,65 +306,6 @@ impl Judge {
             }
         }
         return None;
-    }
-
-    /// Judge the staging file `packed-refs.new` at `staging`,
-    /// which has no lock beside it:
-    /// old enough,
-    /// on a local disk,
-    /// and
-    ///  open in no process.
-    /// The caller has checked that the lock is absent.
-    pub fn examine_staging(
-        &self,
-        staging: &Path,
-    ) -> Option<Examined> {
-        let identity: Identity = identity_of(staging)?;
-        let born: Option<SystemTime> = std::fs::symlink_metadata(staging).ok()?.created().ok();
-        let newest: SystemTime = newest_time(born, &identity);
-        if SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
-            return verdict_with(Verdict::TooNew, PidFile::Absent, identity, born);
-        }
-        if let Err(reason) = self.local_check(staging) {
-            return verdict_with(Verdict::Unproven(reason), PidFile::Absent, identity, born);
-        }
-        let scan: UseScan = self.users_of(&identity);
-        if let Some(reason) = scan.unavailable.as_ref() {
-            return verdict_with(
-                Verdict::Unproven(format!("the process table could not be listed: {reason}")),
-                PidFile::Absent,
-                identity,
-                born,
-            );
-        }
-        if let Some(user) = scan.users.first() {
-            return verdict_with(
-                Verdict::Held(format!(
-                    "process {} ({}) has the file open",
-                    user.pid,
-                    user.command.clone().unwrap_or_default()
-                )),
-                PidFile::Absent,
-                identity,
-                born,
-            );
-        }
-        if let Some(reason) = scan.unresolved.first() {
-            return verdict_with(
-                Verdict::Unproven(format!(
-                    "a descriptor whose record names this file could not be copied out of the process that holds it ({reason}), so it may hold the file"
-                )),
-                PidFile::Absent,
-                identity,
-                born,
-            );
-        }
-        return verdict_with(
-            Verdict::Stale(Proof::OrphanStaging),
-            PidFile::Absent,
-            identity,
-            born,
-        );
     }
 
     /// Judge the lock at `lock`;
@@ -525,21 +376,21 @@ impl Judge {
         let mut why: String = match pid_file {
             PidFile::Names(pid) => format!(
                 "a pid file beside it names process {pid}, which {}, and nothing ties that number to this lock: Git writes a number and no namespace, and only the times of the two files could tie them, which a correction of the clock turns around",
-                self.process_state_words(pid)
+                process_state_words(self.proc_root.as_path(), pid)
             ),
             PidFile::Older(pid) => format!(
                 "the pid file beside it names process {pid}, which {}, and its times are earlier than the lock's, which fits an earlier holder as well as a correction of the clock, so it proves nothing",
-                self.process_state_words(pid)
+                process_state_words(self.proc_root.as_path(), pid)
             ),
             PidFile::Unproven(pid) => format!(
                 "a pid file beside it names process {pid}, which {}, and nothing proves it was written for this lock: its own birth time and the lock's cannot be told apart, or this file system records no birth time for one of them",
-                self.process_state_words(pid)
+                process_state_words(self.proc_root.as_path(), pid)
             ),
             PidFile::Absent => String::from(
                 "no pid file beside it names a holder (Git writes one only under `core.lockfilePid`), and no process has it open",
             ),
         };
-        if self.looks_older_than_boot(born, &identity) {
+        if looks_older_than_boot(self.boot, born, &identity) {
             why.push_str("; its times are earlier than the start of this boot, which a reboot would explain, but so would a correction of the clock, so the times alone prove nothing");
         }
         return verdict_with(Verdict::Unproven(why), pid_file.clone(), identity, born);
@@ -555,7 +406,7 @@ fn pid_of_reason(reason: &str) -> Option<i64> {
 
 /// The result of judging one file:
 /// the verdict with the facts gathered on the way.
-fn verdict_with(
+pub(crate) fn verdict_with(
     verdict: Verdict,
     pid_file: PidFile,
     identity: Identity,

@@ -8,7 +8,13 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use std::fs::{
+    File,
+    Metadata,
+};
+use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::path::PathBuf;
 
 /// A change refused for lack of ownership is counted and tolerated;
