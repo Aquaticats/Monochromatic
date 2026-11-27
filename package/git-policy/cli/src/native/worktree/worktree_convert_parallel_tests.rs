@@ -27,7 +27,9 @@ use crate::test_support::{
     wait_until,
 };
 use crate::worktree_convert::CONVERTING_SUFFIX;
+use crate::worktree_convert_arguments::RISK_NOTICE;
 use crate::worktree_convert_journal::JOURNAL_NAME;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{
     AtomicBool,

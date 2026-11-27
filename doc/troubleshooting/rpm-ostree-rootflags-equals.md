@@ -131,7 +131,10 @@ The fixture directories were removed by their creating harness.
 Backups,
 the configuration harness,
 and before/after probe results are retained in
-`~/temp/agent/disable-atime-dVPlXi/`.
+`~/temp/agent/disable-atime-dVPlXi/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 `findmnt --verify --verbose --tab-file` reported zero parse errors for both fstab versions.
 Both versions produced the same existing `/home` ordering error,
 noncanonical-path warning,

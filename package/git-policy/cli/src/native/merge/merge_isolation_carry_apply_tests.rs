@@ -5,11 +5,10 @@
 //! each in a disposable repository.
 
 use super::*;
-use crate::merge_isolation_carry::{
-    capture_work,
-    keep_capture,
-};
+use crate::merge_isolation_carry::capture_work;
 use crate::merge_isolation_carry_parts::Capture;
+/// The ref of its own that keeps the capture's objects from `git gc`.
+use crate::merge_isolation_carry_ref::keep_capture;
 use crate::test_support::{
     fixture,
     git,

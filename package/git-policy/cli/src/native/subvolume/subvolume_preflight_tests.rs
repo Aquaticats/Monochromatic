@@ -9,13 +9,21 @@
 //! so no btrfs is needed.
 
 use super::*;
+use crate::fs_kind::FilesystemKind;
 use crate::fs_primitive_error::PrimitiveError;
+use crate::subvolume_journal::Journal;
+use crate::subvolume_lock::token_of;
+use crate::subvolume_platform::Platform;
 use crate::subvolume_test_support::PlainPlatform;
 use crate::test_support::{
     fixture,
     remove,
 };
 use std::fs::File;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A directory with a `.git` directory,
 /// as a bare-minimum checkout,

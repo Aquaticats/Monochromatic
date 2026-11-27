@@ -38,10 +38,10 @@ use crate::worktree_clone_removal_proof_and_plan::lineage_proof::{
     prove_the_lineage,
 };
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
     RemovalEntry,
-    TheLiveClock,
     enter_the_removal,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;

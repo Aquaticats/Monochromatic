@@ -127,11 +127,11 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[cfg_attr(not(test),expect(dead_code))]",
     ),
     (
-        "landing/service_scratch_ref_of_a_dropped_batch.rs",
+        "landing/service_scratch_ref_of_a_dropped_batch_awaiting.rs",
         "#[cfg_attr(not(test),expect(dead_code))]",
     ),
     (
-        "landing/service_scratch_ref_of_a_dropped_batch.rs",
+        "landing/service_scratch_ref_of_a_dropped_batch_awaiting.rs",
         "#[cfg_attr(not(test),expect(dead_code))]",
     ),
     (

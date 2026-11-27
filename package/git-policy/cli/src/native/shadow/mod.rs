@@ -57,6 +57,10 @@
 //!   and the starts made again after one was cut or refused.
 //! - `shadow_links.rs`:
 //!   the shadow repository links to the real shared entries.
+//! - `shadow_pool_sweeps.rs`:
+//!   where a worktree's pool folder is named from,
+//!   what proves a name on its path is this wrapper's own,
+//!   and the two sweeps of pools and half-made members nothing can claim.
 //! - `shadow_drawn.rs`:
 //!   the finished shadows the service draws out of the pool ahead of the commits that ask for one.
 //! - `shadow_pool.rs`:
@@ -73,6 +77,11 @@
 //! - `shadow_skeleton.rs`:
 //!   the entries of an empty bare repository,
 //!   created in-process instead of by `git init`.
+//! - `shadow_create_for_one_commit.rs`:
+//!   the tree one commit was handed and the hold that keeps it,
+//!   whether a finished tree may be handed to it,
+//!   whether its worktree holds a conclusion,
+//!   and the parts the commit adds to its shadow.
 //! - `shadow_create.rs`:
 //!   creation of the shadow repository of one transaction.
 //! - `shadow_pool_member.rs`:
@@ -157,6 +166,12 @@ pub mod shadow_create_template;
 /// and the starts made again after one was cut or refused.
 pub mod shadow_create_init;
 
+/// The tree one commit was handed,
+/// whether a finished tree may be handed to it,
+/// whether it concludes,
+/// and the parts the commit adds to its shadow.
+pub mod shadow_create_for_one_commit;
+
 /// Creation of the shadow repository of one transaction.
 pub mod shadow_create;
 
@@ -169,6 +184,11 @@ pub mod shadow_pool;
 
 /// What a member of that pool must be for one invocation to take it.
 pub mod shadow_pool_member;
+
+/// Where a worktree's pool folder is named from,
+/// what proves a name on its path is this wrapper's own,
+/// and the two sweeps.
+pub mod shadow_pool_sweeps;
 
 /// The finished shadows the service draws out of the pool ahead of the commits that ask for one.
 pub mod shadow_drawn;

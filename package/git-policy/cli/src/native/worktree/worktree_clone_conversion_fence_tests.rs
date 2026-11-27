@@ -8,12 +8,19 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use crate::worktree_clean::StatEntry;
+use crate::worktree_clone_conversion_fence_attributes::{
+    first_untracked_attributes,
+    is_attributes_path,
+};
 use crate::worktree_clone_conversion_rules::{
     AutoCrlf,
+    ConversionRules,
     EolAttribute,
     EolSetting,
     TextAttribute,
 };
+use std::collections::HashMap;
 
 /// A tracked entry of one path,
 /// with the stat fields a clean fixture writes.

@@ -8,6 +8,7 @@ use super::*;
 use crate::service_instance::{
     instance_of,
     socket_path,
+    socket_unit_instance,
 };
 use crate::service_provision_loaded_unit_texts::{
     record,
@@ -25,6 +26,10 @@ use crate::test_support::{
     repository,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The units of a worktree that was removed are stopped by name through the manager,
 /// the socket first so nothing starts the service again,

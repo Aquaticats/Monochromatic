@@ -216,12 +216,14 @@ A list with one entry and no trailing `?` is a plain path,
 the only form that existed before lists.
 See "Rules list" below for the grammar.
 
-The standalone command scans with read-write caching: it compiles what the cache lacks and publishes it.
+The standalone command scans with read-write caching:
+it compiles what the cache lacks and publishes it.
 An embedding host chooses per load (`Scanner::load_writing_cache`,
   `Scanner::load_entries_writing_cache`,
   `forbidden_strings::CacheAccess`),
   and `forbidden_strings::compiled_rules_artifact_exists` says beforehand whether the cache holds a file for the
-  text at all, in one `stat` rather than a second read.
+  text at all,
+in one `stat` rather than a second read.
 A load that may not write still scans with the rules it compiled in memory,
   reports the miss as its cache warning,
   and leaves the artifact to whoever publishes it.
@@ -832,6 +834,11 @@ Pathname components are matched as native bytes;
 unmatched non-UTF-8 bytes are escaped only for display,
 and matching components remain fully masked.
 Public loader/consumer controls use separate processes with disposable home/cache state.
+A control that writes a name which is not valid UTF-8 asks its fixture root first,
+and where the file system refuses that name it re-runs itself inside a private user and mount namespace
+with a tmpfs at that root,
+so the control still runs instead of failing or skipping;
+a host that can make neither fails the control and names it.
 The library catches loading and matcher unwinds without changing the process-wide panic hook.
 Embedding hosts must configure payload-free panic output before creating workers,
 and their effective Cargo profile must use `panic = "unwind"`.

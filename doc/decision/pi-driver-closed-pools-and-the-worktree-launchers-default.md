@@ -5,7 +5,10 @@
 Answered by the project in the question tool on 2026-11-23,
 after the driver's closed-pool refusal merged (`65a1dc0e78`) and its follow-ups merged (`cdc21b3661`).
 The options are the stopped pass's
-(`~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`),
+(`~/temp/agent/integration-pass-pi-driver-refuses-a-closed-pool-2026-11-23/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 copied into the follow-up round's report.
 The package is `package/pi-shared/subagent-driver`.
 

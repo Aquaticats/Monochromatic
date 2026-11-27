@@ -61,6 +61,9 @@ same.
 The source citations above were read at the host's `package/mvm` checkout on
 2026-11-23;
 the two hashes are from one run's logs in
-`/home/user/temp/agent/zfs-step-12-move-refusal-and-unmounted-report-built-ahead-2026-11-23/keep/guest-logs/`.
+`/home/user/temp/agent/zfs-step-12-move-refusal-and-unmounted-report-built-ahead-2026-11-23/keep/guest-logs/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The corrected driver's run is recorded in the same round's report;
 the line above describes the cause, and that run is its test.

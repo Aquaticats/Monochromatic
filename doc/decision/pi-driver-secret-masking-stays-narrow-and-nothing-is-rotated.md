@@ -101,7 +101,10 @@ on when the credentials are rotated now that the masking is in `main`:
   the owner then rotates all 38 once.
   The watch is the unit `wait-until-every-pi-unit-started-before-the-masking-merge-has-ended-…` (at most eighteen hours;
   the units' names are kept in
-  `~/temp/agent/rehearsal-of-the-masking-merge-2026-11-15/keep/units-that-became-active-before-the-masking-merge.txt`).
+  `~/temp/agent/rehearsal-of-the-masking-merge-2026-11-15/keep/units-that-became-active-before-the-masking-merge.txt`
+  (scratch,
+  deleted on 2026-11-27;
+  not kept)).
   Until the owner says the values are rotated,
   the sessions the scan names stay untouched and are not resumed.
 
