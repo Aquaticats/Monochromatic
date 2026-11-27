@@ -10,7 +10,8 @@
 //!  The manifest goes only while the name still holds the object whose bytes were read as that manifest:
 //!  a name can be taken between the read and the unlink,
 //!  so comparing the identity means the file that is removed is one that was examined.
-//!  `worktree_trash_dispose.rs` re-exports the step, and the emptying's two faces call it last.
+//!  `worktree_trash_dispose.rs` re-exports the step,
+//!  and the emptying's two faces call it last.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

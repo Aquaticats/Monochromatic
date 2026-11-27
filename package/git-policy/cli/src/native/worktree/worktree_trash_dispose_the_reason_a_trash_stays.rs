@@ -1,6 +1,8 @@
 //! What:
 //!  The reason a trash the emptying leaves gives for every step it would not take:
-//!  the answer every step of the emptying, and the service's own line, is worded from.
+//!  the answer every step of the emptying,
+//!  and the service's own line,
+//!  is worded from.
 //! Why:
 //!  A directory under the recorded name that the snapshot did not make,
 //!  an entry that is no longer the object the leave-out moved there,
@@ -10,7 +12,8 @@
 //!  and the reason says so.
 //!  Every reason is the same shape,
 //!  so the service's line and the records cannot disagree about one.
-//!  `worktree_trash_dispose.rs` re-exports the type, so every caller names it there.
+//!  `worktree_trash_dispose.rs` re-exports the type,
+//!  so every caller names it there.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -50,7 +53,8 @@ impl TrashLeft {
     /// so the service's line and the records cannot disagree
     ///  about one.
     /// It is visible to this folder because the steps that word a reason
-    ///  are two files, `worktree_trash_dispose_after_the_entries.rs`
+    ///  are two files,
+    /// `worktree_trash_dispose_after_the_entries.rs`
     /// and `worktree_trash_dispose.rs`.
     ///
     /// In TS you'd write (pseudocode):

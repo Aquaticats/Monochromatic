@@ -8,7 +8,8 @@
 //!  A trash that is already gone is done,
 //!  and a worktree that is gone is done too:
 //!  a removal of that worktree took the trash with it.
-//!  `worktree_trash_dispose.rs` re-exports these, so it and its own faces name them there,
+//!  `worktree_trash_dispose.rs` re-exports these,
+//!  so it and its own faces name them there,
 //!  and the step that removes what the entries left (`worktree_trash_dispose_after_the_entries.rs`)
 //!  reads the handles this file holds.
 //!
