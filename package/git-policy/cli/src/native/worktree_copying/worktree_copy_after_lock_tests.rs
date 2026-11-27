@@ -14,7 +14,8 @@ use crate::fs_beneath::{
     plain_components,
 };
 use crate::fs_beneath_walk_chain::open_directory_beneath;
-/// The switch a build made for tests takes the route's runtime directory from, which this control hands in.
+/// The switch a build made for tests takes the route's runtime directory from,
+/// which this control hands in.
 use crate::session_runtime_directory_and_bus_address::RUNTIME_DIRECTORY_SWITCH;
 use crate::test_support::{
     fixture,

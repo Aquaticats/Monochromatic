@@ -521,7 +521,8 @@ pub(crate) fn non_empty_path_variable(name: &str) -> Option<PathBuf> {
 /// Why:
 ///   The commit and the commands that hand a push over after they moved a branch reach the service the same way,
 ///  and a build made for tests reaches it only where a control handed a runtime directory in
-///  (`foundation/session_runtime_directory_and_bus_address.rs`, issue 6586).
+///  (`foundation/session_runtime_directory_and_bus_address.rs`,
+///  issue 6586).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

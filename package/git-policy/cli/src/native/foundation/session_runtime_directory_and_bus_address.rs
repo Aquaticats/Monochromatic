@@ -10,8 +10,8 @@
 //!  and a body that hands in nothing gets no place and therefore no route
 //!  (issue 6586:
 //!  a threaded run of the library's tests on the host asked this account's own manager to start commit
-//!  services for its fixtures, and pointed the program link every worktree's service is started through at
-//!  the test binary).
+//!  services for its fixtures,
+//!  and pointed the program link every worktree's service is started through at the test binary).
 //!  A build the release ships answers them from the process's own environment,
 //!  which is how a command started with another `XDG_RUNTIME_DIR` is judged.
 //!  Every read of either name in this crate comes through this file,
@@ -25,8 +25,12 @@
 //! ```
 
 /// What:
-///  `OsString` is owned operating-system text, of raw bytes on Linux,
-///  whose siblings are `String`, an owned UTF-8 buffer, and `&OsStr`, a borrowed view of one.
+///  `OsString` is owned operating-system text,
+///  of raw bytes on Linux,
+///  whose siblings are `String`,
+///  an owned UTF-8 buffer,
+///  and `&OsStr`,
+///  a borrowed view of one.
 /// Why:
 ///  A runtime directory's name is bytes,
 ///  and the environment this file reads hands it over as bytes;
@@ -34,8 +38,11 @@
 ///  which would make the person's own runtime directory invisible.
 use std::ffi::OsString;
 /// What:
-///  `PathBuf` is an owned filesystem path, its siblings being `&Path`, a borrowed view, and `OsString`, which
-///  is not a path at all.
+///  `PathBuf` is an owned filesystem path,
+///  its siblings being `&Path`,
+///  a borrowed view,
+///  and `OsString`,
+///  which is not a path at all.
 /// Why:
 ///  The route keeps the directory after the environment it came from is gone,
 ///  and every caller builds a socket path or a unit folder under it.
@@ -49,7 +56,8 @@ use std::path::PathBuf;
 ///  so the route a hand-over finds its service by never reads the account's own place,
 ///  whatever the run's environment holds
 ///  (issue 6586).
-///  The name carries the crate's test-only prefix, so the ban on a release file reading such a variable
+///  The name carries the crate's test-only prefix,
+///  so the ban on a release file reading such a variable
 ///  covers it too.
 ///
 /// In TS you'd write (pseudocode):
@@ -65,7 +73,8 @@ pub(crate) const RUNTIME_DIRECTORY_SWITCH: &str = "CLI_GIT_TEST_ONLY_SESSION_RUN
 /// Why:
 ///  The bus address is the second fact provisioning needs,
 ///  so a control that hands its body a runtime directory of its own must be able to say that no bus is
-///  reachable there, rather than inherit this account's bus from the run's environment
+///  reachable there,
+///  rather than inherit this account's bus from the run's environment
 ///  (issue 6586).
 ///
 /// In TS you'd write (pseudocode):
@@ -81,7 +90,8 @@ pub(crate) const BUS_ADDRESS_SWITCH: &str = "CLI_GIT_TEST_ONLY_SESSION_BUS_ADDRE
 /// Why:
 ///  An empty value names no place,
 ///  and both the route and the loads that read the runtime directory treat an empty one as unset;
-///  one function says that once, so no caller can decide it differently.
+///  one function says that once,
+///  so no caller can decide it differently.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

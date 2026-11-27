@@ -49,7 +49,8 @@ fn a_fixture_directory_holding_a_marker(name: &str) -> PathBuf {
 }
 
 /// The file a fixture of this file holds so its child can tell which folder answered,
-/// whose siblings are the fixtures' own names, which differ between processes.
+/// whose siblings are the fixtures' own names,
+/// which differ between processes.
 const THE_MARKER: &str = "this-is-the-folder-the-control-handed-in";
 
 /// What:

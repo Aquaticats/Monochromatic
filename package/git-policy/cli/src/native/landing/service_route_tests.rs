@@ -55,7 +55,8 @@ struct Machine {
 /// Why:
 ///   The fixture root under the build directory is far too long to hold a socket name,
 /// and a runtime directory a regular file can be written into but no socket can proves nothing about
-///  the route a person's commit takes: this directory is what an account's session has,
+///  the route a person's commit takes:
+/// this directory is what an account's session has,
 ///  and the long one has its own control (`a_runtime_directory_too_long_for_a_socket_path_is_routed_at_its_abstract_name`).
 /// A number names it rather than the test's own name,
 ///  because one of these must stay under the forty bytes a socket path leaves a session's runtime directory.
@@ -512,7 +513,8 @@ fn entries_of(folder: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-///  A runtime directory too long for a socket path, with a note naming one instance of a worktree,
+///  A runtime directory too long for a socket path,
+/// with a note naming one instance of a worktree,
 /// and a service standing at the address that instance takes.
 /// Why:
 ///   The status command without a worktree counts the services of the account at the runtime directory it is given,
@@ -616,7 +618,8 @@ fn greeting_at_an_abstract_address(
 ///  contradicts the machine.
 /// Under a long runtime directory the service has no socket file,
 /// and its name cannot be guessed without the
-///  instance, which the note provisioning writes names.
+///  instance,
+/// which the note provisioning writes names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -739,7 +742,8 @@ fn a_test_process_offers_the_manager_no_program_of_its_own() {
 ///  the folder it names holds a socket and a bus,
 ///  the folder the body inherited holds neither,
 ///  and the route answers with the socket of the first and no program offered to the manager.
-///  The two facts the body needs are handed to it, the runtime directory through the switch the
+///  The two facts the body needs are handed to it,
+///  the runtime directory through the switch the
 ///  release code reads and the worktree's Git directory through a name of this control's own,
 ///  because a child makes its own fixtures and could not name the folder another process made
 ///  (`testing/process_wide_state_child_test_support.rs`).

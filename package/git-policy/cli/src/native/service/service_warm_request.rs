@@ -138,7 +138,8 @@ pub fn service_process_runs(
 }
 
 /// What:
-///  The scan itself, and the answer a control may hold at
+///  The scan itself,
+/// and the answer a control may hold at
 ///  (`service_warm_request_control_window.rs`).
 /// Why:
 ///   A control needs an instant between the answer and the connection,

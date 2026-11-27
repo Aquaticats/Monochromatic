@@ -348,7 +348,9 @@ pub mod handler_configuration_keys;
 
 /// Reading a file only the account this program runs as may write.
 ///
-/// Linux only, like the handler whose configuration it reads: the flags and the owner check are the
+/// Linux only,
+/// like the handler whose configuration it reads:
+/// the flags and the owner check are the
 /// Linux kernel's own.
 #[cfg(target_os = "linux")]
 pub mod file_only_root_may_write;
@@ -608,7 +610,8 @@ pub mod standard_error_descriptor;
 /// so a reader that stopped draining never holds the command.
 pub mod notice_stream_that_does_not_hold_its_writer;
 /// This process's standard error as a stream whose every whole line is handed to the thread that
-/// writes it, so the thread that says a line never waits for the reader.
+/// writes it,
+/// so the thread that says a line never waits for the reader.
 pub mod standard_error_off_the_calling_thread;
 
 /// A connection to a unix socket that is made within one deadline,

@@ -5,7 +5,8 @@
 //! the summary line and exit statuses.
 
 use super::*;
-/// The switch a build made for tests takes the route's runtime directory from, which this control hands in.
+/// The switch a build made for tests takes the route's runtime directory from,
+/// which this control hands in.
 #[cfg(target_os = "linux")]
 use crate::session_runtime_directory_and_bus_address::RUNTIME_DIRECTORY_SWITCH;
 use crate::test_support::dead_copy_owner;
@@ -3356,7 +3357,9 @@ fn a_worktree_add_between_paths_that_are_not_text_copies_the_ignored_state() {
 /// so an add handed to plain
 ///  Git left nothing behind and said nothing while it ran;
 /// the review of release 0.6.1-alpha.12 measured
-///  13 seconds, and a first add of 64.8 seconds, of silence.
+///  13 seconds,
+/// and a first add of 64.8 seconds,
+/// of silence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -138,7 +138,8 @@ fn answered_beside(point: &Path) -> PathBuf {
 /// Why:
 ///  The child's fixture folders are its own,
 ///  and this is how a path the parent made reaches the child that must check it;
-///  the value the *crate* would read is the same variable, which the assertions below show it never does.
+///  the value the *crate* would read is the same variable,
+/// which the assertions below show it never does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -312,7 +313,8 @@ fn the_answers_a_build_without_the_feature_gives() {
 /// Why:
 ///  One list is what the child is started with,
 ///  so a variable this list lacks is a variable this control does not show a release ignoring;
-///  each value is one a build with the feature acts on, never one it could not.
+///  each value is one a build with the feature acts on,
+/// never one it could not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
