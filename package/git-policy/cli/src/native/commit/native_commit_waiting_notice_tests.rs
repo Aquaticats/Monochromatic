@@ -331,6 +331,19 @@ fn kept_below<'kept>(
 }
 
 /// What:
+///  The stretch a host under load put between two looks of the notice,
+///  which this control states so its figures are asked for under the schedule that failed a gate.
+/// Why:
+///  The gate run of 2026-11-27 that failed this control held `looks: 4, looks_found: 3` and credited the
+///  `sleep` with 639.46873 ms, which is two intervals of 319.734 ms each (issue 6592).
+///  A look interval the host stretched to 319.7 ms is the one this control means,
+///  and the stretch planted is longer than the 69.7 ms load added:
+///  the figures this control asserted before the fix needed a look that the 1,200 ms window held only while
+///  the notice waited exactly `LOOK_INTERVAL`, so the look is lost on every run between 350 ms and 500 ms
+///  and by which thread woke first outside that, and a control that states it is never wrong for the race.
+const A_STRETCH_A_LOADED_HOST_PUT_BETWEEN_TWO_LOOKS: Duration = Duration::from_millis(450);
+
+/// What:
 ///  The notice reports which programs ran below the step and for how long.
 /// Why:
 ///   Git starts the signing program below itself and the record held no figure for it,
@@ -360,6 +373,13 @@ fn the_notice_reports_the_programs_that_ran_below_the_step() {
         sink: Box::new(Buffer::default()),
     });
     notice.step_started(step_number(&step));
+    // What: The stretch a loaded host put between this notice's looks, planted for the step it watches.
+    // Why:  The gate's own figures show each look interval stretched to 319.7 ms (issue 6592),
+    //       and this control states that schedule instead of waiting for a load to happen.
+    the_controls_window::a_look_of_this_step_waits(
+        step_number(&step),
+        A_STRETCH_A_LOADED_HOST_PUT_BETWEEN_TWO_LOOKS,
+    );
     std::thread::sleep(Duration::from_millis(1200));
     let seen: ScratchStepFacts = notice.finish();
     step.kill().expect("cleanup");
