@@ -2,8 +2,10 @@
 //!  Integration tests for the scan-scope selection that
 //!  `.github/workflows/forbidden-strings.yml` performs on CI.
 //!  Each test
-//!  extracts the exact `run` body of the workflow's "Scan changed files"
-//!  step and executes it with `bash` against a disposable Git repository,
+//!  extracts the exact `run` bodies of the workflow's "List changed files"
+//!  and "Scan changed files" steps,
+//!  and executes them with `bash` in workflow order,
+//!  against a disposable Git repository,
 //!  a fake `gh run list`,
 //!  and the real scanner binary.
 //! Why:
@@ -42,7 +44,11 @@ use crate::fixture_inputs::{
     GIT,
     MARKER_FREE_WORKFLOW,
 };
-use crate::scan_step_command::scan_step_body;
+use crate::scan_step_command::{
+    SCAN_STEP_NAME,
+    SCOPE_STEP_NAME,
+    step_body,
+};
 
 // What:     `struct RunRow` is one workflow run listed by the stub.
 // Why:      The candidate baseline must come from a run that proved its head
@@ -119,7 +125,12 @@ impl Fixture {
             FIXTURE_RULES,
         )
         .expect("write fixture rules file");
-        fs::write(root.join("scan.sh"), scan_step_body()).expect("write extracted scan body");
+        // The workflow runs its selection and its scan as two steps; the
+        // fixture runs both bodies, in order, the way the runner does.
+        fs::write(root.join("list-changed-files.sh"), step_body(SCOPE_STEP_NAME))
+            .expect("write extracted scope body");
+        fs::write(root.join("scan-changed-files.sh"), step_body(SCAN_STEP_NAME))
+            .expect("write extracted scan body");
         let runs_tsv = root.join("runs.tsv");
         let fixture = Fixture {
             root,
@@ -313,14 +324,65 @@ impl Fixture {
     }
 
     // What:     `fn run_scan(&self, event, head_label, branch, before_label)`
-    //           executes the extracted scan body with the environment the
-    //           workflow step receives, including the push event's `before`
-    //           commit when the event carries one.
+    //           executes both extracted step bodies, in workflow order, with
+    //           the environment the workflow steps receive, including the
+    //           push event's `before` commit when the event carries one.
     // Why:      The contract under test is the workflow's own shell behavior,
-    //           so the test runs that body unmodified and captures its
-    //           streams and exit status.
+    //           so the test runs those bodies unmodified and captures their
+    //           joined streams and the exit status of the step that failed
+    //           (the runner stops the job at the first failing step). Each
+    //           step gets a fresh `bash`, as the runner gives it.
     fn run_scan(
         &self,
+        event: &str,
+        head_label: &str,
+        branch: &str,
+        before_label: &str,
+    ) -> ScanResult {
+        // A CI job starts with an empty `RUNNER_TEMP`; clearing the state the
+        // two steps pass to each other keeps a second call in one fixture
+        // from reading a previous call's decision.
+        for state_file in [
+            "forbidden-strings.comparison",
+            "forbidden-strings.changed-raw",
+            "forbidden-strings.whole-tree",
+        ] {
+            let _ = fs::remove_file(self.runner_temp.join(state_file));
+        }
+        let scope = self.run_step(
+            "list-changed-files.sh",
+            event,
+            head_label,
+            branch,
+            before_label,
+        );
+        if scope.status != 0 {
+            return scope;
+        }
+        let scan = self.run_step(
+            "scan-changed-files.sh",
+            event,
+            head_label,
+            branch,
+            before_label,
+        );
+        return ScanResult {
+            status: scan.status,
+            // `format!` builds one owned `String` (the sibling `str` is just
+            // the borrowed view of it) so the caller can read one joined
+            // stream of both steps' stdout.
+            stdout: format!("{}{}", scope.stdout, scan.stdout),
+            stderr: format!("{}{}", scope.stderr, scan.stderr),
+        };
+    }
+
+    // What:     `fn run_step(&self, script, ...)` runs one extracted step body
+    //           and captures its streams and exit status.
+    // Why:      Both steps need the same environment and PATH stubs, so the
+    //           setup lives once and the pair runs in workflow order.
+    fn run_step(
+        &self,
+        script: &str,
         event: &str,
         head_label: &str,
         branch: &str,
@@ -332,7 +394,7 @@ impl Fixture {
         }
         let mut command = ProcessCommand::new("bash");
         command.current_dir(&self.repo);
-        command.arg(self.root.join("scan.sh"));
+        command.arg(self.root.join(script));
         command.env("EVENT_NAME", event);
         command.env("HEAD_SHA", self.sha(head_label));
         command.env("PUSH_BASE_SHA", before_sha);
@@ -350,9 +412,12 @@ impl Fixture {
                 std::env::var("PATH").unwrap_or_default(),
             ),
         );
-        let output = command.output().expect("spawn extracted scan body");
+        let output = command.output().expect("spawn extracted step body");
         return ScanResult {
             status: output.status.code().unwrap_or(-1),
+            // `to_string()` allocates an owned copy (the sibling `&str` is a
+            // borrow of `output`, which goes out of scope) so the result can
+            // outlive the child process.
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
             stderr: String::from_utf8_lossy(&output.stderr).to_string(),
         };
@@ -399,13 +464,14 @@ mod push_scope_tests;
 ///  mod folder_link_entry_tests;` registers the cases for changed entries that
 ///  are tree entries a content scan cannot open as a file.
 /// Why:
-///  Issue #6632: every push since 2026-11-20 was red only because the step
+///  Issue #6632:
+///  every push since 2026-11-20 was red only because the step
 ///  handed tracked links to folders to the scanner.
 #[path = "ci_scan_scope/folder_link_entry_tests.rs"]
 mod folder_link_entry_tests;
 /// What:
 ///  `#[path = "ci_scan_scope/scan_step_command.rs"] mod scan_step_command;`
-///  registers the extraction of the workflow's own scan-step shell body.
+///  registers the extraction of the workflow's own step shell bodies.
 /// Why:
 ///  The tests must run what CI runs,
 ///  not a copy of it.
