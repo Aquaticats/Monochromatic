@@ -633,7 +633,7 @@ pub(super) fn half_carried(
     std::fs::write(world.repo.join("f.txt"), person_lines).expect("the person's edit");
     let context = crate::test_support::git_context();
     let capture: crate::merge_isolation_carry_parts::Capture =
-        crate::merge_isolation_carry::keep_capture(
+        crate::merge_isolation_carry_ref::keep_capture(
             &context,
             world.repo.as_path(),
             &crate::merge_isolation_carry::capture_work(

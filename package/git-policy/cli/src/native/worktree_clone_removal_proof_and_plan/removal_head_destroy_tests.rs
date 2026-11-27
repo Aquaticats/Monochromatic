@@ -51,13 +51,15 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
     CloneAbsence,
     HeadDestroyRequest,
-    amend_the_plan,
     destroy_the_head,
-    settle_the_recorded_names,
     the_clone_absence,
-    the_new_own_snapshots,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_inventory::LiveObject;
+use crate::worktree_clone_removal_proof_and_plan::removal_snapshot_settlement::{
+    amend_the_plan,
+    settle_the_recorded_names,
+    the_new_own_snapshots,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_removal_deferred_origin_check::fixtures::Pool;
 use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;

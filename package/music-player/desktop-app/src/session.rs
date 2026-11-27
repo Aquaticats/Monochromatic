@@ -4,17 +4,17 @@
 //! `shuffle` and `repeat_track` fields exist only in the private read model used
 //! during migration.
 //! The former `page_control_style` key is ignored on read and no longer written.
+//! The record shapes and their defaults live in the sibling file `session_record.rs`,
+//! and the atomic replacement of the file in `session_file_replacement.rs`,
+//! so that each file stays within the line budget;
+//! `Session` is re-exported here,
+//! so every caller still names `session::Session`.
 
-/// Owned filesystem path used for the source root and selected track.
+/// Borrowed and owned filesystem paths:
+/// the session file and the disposable test home.
 use std::path::{
     Path,
     PathBuf,
-};
-
-/// Serde derives used by current output and the private migration input.
-use serde::{
-    Deserialize,
-    Serialize,
 };
 
 /// Current four-state playback model.
@@ -31,116 +31,67 @@ use crate::text_size::{
     size_or_default,
 };
 
-/// Current session shape written to disk.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct Session {
-    /// Opened directory whose scan produces the queue.
-    pub source_root: Option<PathBuf>,
-    /// Selected track path,
-    ///  or no selection.
-    pub selected: Option<PathBuf>,
-    /// Resume position in seconds.
-    pub position_secs: f64,
-    /// Output gain from zero to one.
-    pub volume: f32,
-    /// Single selected completion and transport behavior.
-    pub playback_mode: PlaybackMode,
-    /// Track rows template text the user edited,
-    /// or None to use the default.
-    pub track_rows_template: Option<String>,
-    /// Playing track template text the user edited,
-    /// or None to use the default.
-    pub playing_template: Option<String>,
-    /// Auto-play on select (D129):
-    /// whether selecting a track also starts it.
-    /// On when the file has no such field.
-    pub auto_play_on_select: bool,
-    /// Text size setting:
-    /// one pixel size for each of four texts,
-    /// written as four flat keys beginning `text_size_`.
-    /// The defaults are the sizes the app drew before the setting existed.
-    #[serde(flatten)]
-    pub text_sizes: TextSizes,
-}
+/// What:
+///      `#[path = "session_file_replacement.rs"] mod file_replacement;` declares a child module
+///           whose code lives in the sibling file `session_file_replacement.rs`.
+/// Why:
+///       The atomic replacement of the session file fills a file of its own,
+///  and this file keeps the one writer `save_at` that publishes through it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as fileReplacement from "./session_file_replacement";
+/// ```
+#[path = "session_file_replacement.rs"]
+mod file_replacement;
 
-/// Private permissive input shape that recognizes current and former fields.
-#[derive(Debug, Deserialize)]
-#[serde(default)]
-struct StoredSession {
-    /// Current source root.
-    source_root: Option<PathBuf>,
-    /// Current selected track.
-    selected: Option<PathBuf>,
-    /// Current resume position.
-    position_secs: f64,
-    /// Current output gain.
-    volume: f32,
-    /// Current wire text when it is a string.
-    playback_mode: Option<String>,
-    /// Former shuffle enum text,
-    ///  used only when `playback_mode` is absent.
-    shuffle: Option<String>,
-    /// Former independent repeat flag,
-    ///  including whether the key was present.
-    repeat_track: Option<bool>,
-    /// Track rows template text,
-    /// when the user edited it.
-    track_rows_template: Option<String>,
-    /// Playing track template text,
-    /// when the user edited it.
-    playing_template: Option<String>,
-    /// Auto-play on select,
-    /// when a newer build saved it.
-    auto_play_on_select: bool,
-    /// Stored text size of each element in the order of `TextElement::ALL`,
-    /// `None` where the key is absent.
-    /// Kept as raw
-    /// JSON and filled by `parse_stored`,
-    /// not by serde,
-    /// so one corrupt value falls back to its own default and never
-    /// fails the whole file,
-    /// and an explicit null is told apart from a missing key.
-    #[serde(skip)]
-    text_sizes: [Option<serde_json::Value>; 4],
-}
+/// What:
+///      `#[path = "session_record.rs"] mod record;` declares a child module
+///           whose code lives in the sibling file `session_record.rs`.
+/// Why:
+///       The record shapes and their defaults fill a file of their own,
+///  and this file reads and writes them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as record from "./session_record";
+/// ```
+#[path = "session_record.rs"]
+mod record;
 
-/// Supplies defaults for missing fields in the permissive input shape.
-impl Default for StoredSession {
-    /// Returns missing-field defaults for current and former JSON shapes.
-    fn default() -> StoredSession {
-        return StoredSession {
-            source_root: None,
-            selected: None,
-            position_secs: 0.0,
-            volume: 1.0,
-            playback_mode: None,
-            shuffle: None,
-            repeat_track: None,
-            track_rows_template: None,
-            playing_template: None,
-            auto_play_on_select: true,
-            text_sizes: [None, None, None, None],
-        };
-    }
-}
+/// What:
+///      `pub use record::Session;` re-exports the record at the `session` path.
+/// Why:
+///       Callers say `session::Session`,
+///  unaware of the submodule split.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { Session } from "./session_record";
+/// ```
+pub use record::Session;
 
-/// Supplies first-run values for the current session shape.
-impl Default for Session {
-    /// Returns first-run desktop session values.
-    fn default() -> Session {
-        return Session {
-            source_root: None,
-            selected: None,
-            position_secs: 0.0,
-            volume: 1.0,
-            playback_mode: PlaybackMode::InOrder,
-            track_rows_template: None,
-            playing_template: None,
-            auto_play_on_select: true,
-            text_sizes: TextSizes::default(),
-        };
-    }
-}
+/// What:
+///      `use file_replacement::replace_file;` brings the atomic replacement into this file.
+/// Why:
+///       Every save publishes through that one writer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { replaceFile } from "./session_file_replacement";
+/// ```
+use file_replacement::replace_file;
+
+/// What:
+///      `use record::StoredSession;` brings the permissive read shape into this file.
+/// Why:
+///       Reading a stored file and migrating it both start from that shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { StoredSession } from "./session_record";
+/// ```
+use record::StoredSession;
 
 /// Loads,
 ///  migrates,
@@ -407,78 +358,6 @@ impl Session {
         let json = serde_json::to_string_pretty(self).map_err(std::io::Error::other)?;
         return replace_file(path, json.as_bytes());
     }
-}
-
-/// What:
-/// `SAVE_LOCK` serializes the replacements of session files inside this process.
-/// Why:
-/// the controller and the settings and template editors save from different threads,
-/// and the replacement uses one
-/// temporary file name per target,
-/// so two overlapping saves would write into the same temporary file.
-static SAVE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-/// What:
-/// `replace_file` writes `bytes` to a temporary file beside `path`,
-/// flushes it to disk and renames it over `path`.
-/// Why:
-/// `std::fs::write` truncates the target before the new bytes land,
-/// so a crash,
-/// kill or power loss during the
-/// write left a half-written session that failed to parse on the next launch.
-/// A rename inside one directory is atomic
-/// on one filesystem,
-/// so `path` is always either the previous complete file or the new complete file.
-/// The temporary
-/// file shares the directory because a rename across filesystems is not atomic.
-/// A failed save removes its temporary file and leaves `path` as it was;
-/// a temporary file left by a killed save is
-/// truncated by the next one.
-fn replace_file(
-    path: &Path,
-    bytes: &[u8],
-) -> std::io::Result<()> {
-    let Some(name) = path.file_name() else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!("the session path {} has no file name", path.display()),
-        ));
-    };
-    let mut temporary_name = name.to_os_string();
-    temporary_name.push(".tmp");
-    let temporary = path.with_file_name(temporary_name);
-    let _guard = SAVE_LOCK
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let written = match write_synced(&temporary, bytes) {
-        Ok(()) => std::fs::rename(&temporary, path),
-        Err(error) => Err(error),
-    };
-    if written.is_err()
-        && let Err(error) = std::fs::remove_file(&temporary)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!(?error, path = %temporary.display(), "failed to remove the temporary playback session file");
-    }
-    return written;
-}
-
-/// What:
-/// `write_synced` creates (or truncates) the file at `path`,
-/// writes `bytes` and flushes them to the disk.
-/// Why:
-/// the rename in `replace_file` must only publish bytes that already reached the disk,
-/// or a power loss after the
-/// rename could leave the new name on an empty file.
-fn write_synced(
-    path: &Path,
-    bytes: &[u8],
-) -> std::io::Result<()> {
-    /// Imports the write trait that the synced file write needs.
-    use std::io::Write;
-    let mut file = std::fs::File::create(path)?;
-    file.write_all(bytes)?;
-    return file.sync_all();
 }
 
 /// Resolves the app-private session JSON path.

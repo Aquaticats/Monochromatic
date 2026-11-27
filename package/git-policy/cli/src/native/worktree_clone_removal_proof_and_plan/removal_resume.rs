@@ -37,10 +37,10 @@ use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
     PreparedRemoval,
-    RemovalClock,
     RemovalEntry,
     enter_the_removal,
     facts_of,
@@ -49,7 +49,6 @@ use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
     CloneAbsence,
-    settle_the_recorded_names,
     the_clone_absence,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
@@ -57,6 +56,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
     read_the_recorded_binding,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
+use crate::worktree_clone_removal_proof_and_plan::removal_snapshot_settlement::settle_the_recorded_names;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
     ExpectedUnmount,

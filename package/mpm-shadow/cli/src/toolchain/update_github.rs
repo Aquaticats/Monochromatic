@@ -7,24 +7,24 @@
 //! so nothing is learned from a previous lock row.
 //! A repository whose asset names are ambiguous (two programs in one release) gets an `asset` hint in its plan entry,
 //! and the resolver fails naming the candidates rather than guess.
+//! The release and tag lookups are one file each,
+//! named for what each holds:
+//! the release objects asked for at api.github.com (`releases`)
+//! and the tags a request names (`tag_names`).
+//! This file holds the resolver itself and the `asset` pattern it honours.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // update-github.ts
 //! export function resolveGithub(ctx: Context, declaration: Declaration, repo: string, wanted?: string): Resolution
 //! export function globMatches(pattern: string, name: string): boolean
+//! export * from './update_github/releases.ts';
+//! export * from './update_github/tag_names.ts';
 //! ```
-
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
-/// Imports what this module uses from `crate::version`.
-use crate::version::{
-    compare_versions,
-    is_whole_version,
-};
-
-/// Imports `Context` from `super::context`.
+/// Imports the bundle of seams every resolver receives.
 use super::context::Context;
 /// Imports the model types the resolver builds.
 use super::model::{
@@ -40,9 +40,39 @@ use super::update_resolve::{
     LINUX_PLATFORMS,
     Resolution,
     ResolveError,
-    get_json,
-    hash_download,
     text_at,
+};
+
+/// The release objects,
+/// asked for at api.github.com.
+mod releases;
+/// The tags a request names.
+mod tag_names;
+
+/// Imports the release lookups this file chooses between.
+use self::releases::latest_release;
+/// Re-exports the requests for a repository's latest release,
+/// the release of one tag,
+/// one asset of a release and that asset's SHA-256.
+pub use self::releases::{
+    api_headers,
+    asset_digest,
+    find_asset,
+    release_by_tag,
+};
+/// Re-exports the bounds of the prefix search,
+/// which its tests state alone.
+#[cfg(test)]
+pub(crate) use self::tag_names::{
+    PREFIX_SEARCH_PAGES,
+    RELEASES_PER_PAGE,
+};
+/// Imports the tag rules this file chooses between.
+use self::tag_names::{
+    latest_release_with_prefix,
+    release_of_prefixed_range,
+    release_of_range,
+    version_after_prefix,
 };
 
 /// What:
@@ -76,276 +106,6 @@ pub fn glob_matches(
         }
     }
     return cursor <= name.len() - last.len();
-}
-
-/// The headers for api.github.com:
-/// JSON,
-/// the API version and the token when there is one.
-pub fn api_headers(ctx: &Context) -> Vec<(String, String)> {
-    let mut headers: Vec<(String, String)> = vec![
-        (
-            "accept".to_string(),
-            "application/vnd.github+json".to_string(),
-        ),
-        ("x-github-api-version".to_string(), "2022-11-28".to_string()),
-    ];
-    if let Some(token) = ctx.github_token() {
-        headers.push(("authorization".to_string(), format!("Bearer {token}")));
-    }
-    return headers;
-}
-
-/// The latest release object of a repository:
-/// `releases/latest`,
-/// or the first of `releases?per_page=1` when the repository publishes only prereleases.
-fn latest_release(
-    ctx: &Context,
-    repo: &str,
-) -> Result<Value, ResolveError> {
-    let headers: Vec<(String, String)> = api_headers(ctx);
-    let latest_url: String = format!("https://api.github.com/repos/{repo}/releases/latest");
-    if let Ok(release) = get_json(ctx, &latest_url, &headers) {
-        return Ok(release);
-    }
-    let list_url: String = format!("https://api.github.com/repos/{repo}/releases?per_page=1");
-    let list: Value = get_json(ctx, &list_url, &headers)?;
-    let first: Option<&Value> = match list.as_array() {
-        Some(releases) => releases.first(),
-        None => None,
-    };
-    return match first {
-        Some(release) => Ok(release.clone()),
-        None => Err(ResolveError::Failed(format!(
-            "{list_url}: the repository has no releases"
-        ))),
-    };
-}
-
-/// The asset of `release` with exactly this name,
-/// or `None`.
-pub fn find_asset<'a>(
-    release: &'a Value,
-    name: &str,
-) -> Option<&'a Value> {
-    let assets: &[Value] = release
-        .get("assets")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
-    for asset in assets {
-        if text_at(asset, &["name"]) == Some(name) {
-            return Some(asset);
-        }
-    }
-    return None;
-}
-
-/// One URL path segment:
-/// every byte outside the unreserved set is percent-encoded.
-/// Why:
-/// A git tag may hold `#`, `?`, `%` and `+`;
-/// left as they are, they end the path at a fragment,
-/// start a query or spell another character,
-/// so the request would name a different release or none.
-fn encode_path_segment(text: &str) -> String {
-    let mut encoded: String = String::new();
-    for byte in text.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            encoded.push(char::from(byte));
-        } else {
-            encoded.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    return encoded;
-}
-
-/// The release object of one tag of a repository.
-pub fn release_by_tag(
-    ctx: &Context,
-    repo: &str,
-    tag: &str,
-) -> Result<Value, ResolveError> {
-    let url: String = format!(
-        "https://api.github.com/repos/{repo}/releases/tags/{}",
-        encode_path_segment(tag)
-    );
-    return get_json(ctx, &url, &api_headers(ctx));
-}
-
-/// SHA-256 of a release asset:
-/// the `sha256:` digest GitHub reports,
-/// or the hash of the downloaded file.
-/// Why:
-/// GitHub may report a digest of another algorithm (or none),
-/// and recording that text as the SHA-256 would write a lock row that can never verify.
-pub fn asset_digest(
-    ctx: &Context,
-    asset: &Value,
-    url: &str,
-) -> Result<String, ResolveError> {
-    if let Some(sha256) = asset
-        .get("digest")
-        .and_then(Value::as_str)
-        .and_then(|digest| return digest.strip_prefix("sha256:"))
-    {
-        return Ok(sha256.to_string());
-    }
-    return hash_download(ctx, url);
-}
-
-/// How many releases one page of the release list holds.
-pub(super) const RELEASES_PER_PAGE: usize = 100;
-
-/// How many pages of releases the prefix search reads before it gives up.
-pub(super) const PREFIX_SEARCH_PAGES: u32 = 10;
-
-/// What:
-/// The highest version among the releases that are neither a draft nor a prerelease and whose tag is `prefix`
-/// followed by a version (see `version_after_prefix`).
-/// Why:
-/// One repository can tag the releases of several programs.
-/// The list is ordered by creation,
-/// not by version,
-/// so a backport release made after a newer line can sit first;
-/// the search therefore reads every page (until a short page or the cap) and keeps the highest version,
-/// the earlier one in the list when two are equal.
-/// A repository whose last 1000 releases hold none is an error that names the prefix and says the search stopped at
-/// its cap when it did.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function latestReleaseWithPrefix(ctx: Context, repo: string, prefix: string): Release
-/// ```
-fn latest_release_with_prefix(
-    ctx: &Context,
-    repo: &str,
-    prefix: &str,
-) -> Result<Value, ResolveError> {
-    let headers: Vec<(String, String)> = api_headers(ctx);
-    let mut best: Option<(String, Value)> = None;
-    let mut stopped_at_cap: bool = false;
-    for page in 1..=PREFIX_SEARCH_PAGES {
-        let url: String = format!(
-            "https://api.github.com/repos/{repo}/releases?per_page={RELEASES_PER_PAGE}&page={page}"
-        );
-        let list: Value = get_json(ctx, &url, &headers)?;
-        let Some(releases) = list.as_array() else {
-            return Err(ResolveError::Failed(format!(
-                "{url}: the answer is not a list of releases"
-            )));
-        };
-        for release in releases {
-            let skipped: bool = release
-                .get("draft")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-                || release
-                    .get("prerelease")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-            let Some(tag) = text_at(release, &["tag_name"]) else {
-                continue;
-            };
-            if skipped {
-                continue;
-            }
-            let Some(version) = version_after_prefix(tag, prefix) else {
-                continue;
-            };
-            let is_higher: bool = match &best {
-                Some((kept, _)) => compare_versions(version, kept).is_gt(),
-                None => true,
-            };
-            if is_higher {
-                best = Some((version.to_string(), release.clone()));
-            }
-        }
-        if releases.len() < RELEASES_PER_PAGE {
-            break;
-        }
-        stopped_at_cap = page == PREFIX_SEARCH_PAGES;
-    }
-    if let Some((_, release)) = best {
-        return Ok(release);
-    }
-    let mut message: String = format!(
-        "github.com/{repo} has no release (neither draft nor prerelease) whose tag starts with {prefix:?} and continues with a version"
-    );
-    if stopped_at_cap {
-        message.push_str(&format!(
-            "; the search stopped at its cap of {PREFIX_SEARCH_PAGES} pages ({} releases), so older releases were not looked at",
-            PREFIX_SEARCH_PAGES as usize * RELEASES_PER_PAGE
-        ));
-    }
-    return Err(ResolveError::Failed(message));
-}
-
-/// What:
-/// The version in `tag` after `prefix`,
-/// without a leading `v`,
-/// when everything after the prefix is one whole version (`1.2.3`,
-/// `1.2.3-rc.1`);
-/// a `v` in front of it counts only when the prefix has not spelled the `v` out itself.
-/// Why:
-/// The prefix must not match a tag of a longer program name that shares it:
-/// with the prefix `tool-`,
-/// the tag `tool-2-v1.0.0` belongs to a program called `tool-2` and its tail is not a version.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function versionAfterPrefix(tag: string, prefix: string): string | undefined
-/// ```
-fn version_after_prefix<'a>(
-    tag: &'a str,
-    prefix: &str,
-) -> Option<&'a str> {
-    let rest: &str = tag.strip_prefix(prefix)?;
-    let version: &str = if prefix.ends_with('v') {
-        rest
-    } else {
-        rest.strip_prefix('v').unwrap_or(rest)
-    };
-    if is_whole_version(version) {
-        return Some(version);
-    }
-    return None;
-}
-
-/// The release of a wanted version of the program a prefix names:
-/// the prefix and the range as written,
-/// then the prefix and `v` and the range (unless the prefix already ends in `v`).
-fn release_of_prefixed_range(
-    ctx: &Context,
-    repo: &str,
-    prefix: &str,
-    range: &str,
-) -> Result<Value, ResolveError> {
-    return match release_by_tag(ctx, repo, &format!("{prefix}{range}")) {
-        Ok(release) => Ok(release),
-        // A prefix that already ends in `v` has spelled the `v` out.
-        Err(first) if prefix.ends_with('v') => Err(first),
-        Err(first) => match release_by_tag(ctx, repo, &format!("{prefix}v{range}")) {
-            Ok(release) => Ok(release),
-            Err(_) => Err(first),
-        },
-    };
-}
-
-/// The release of a wanted tag:
-/// the range as written,
-/// then with a `v` in front (people write `0.64.3` for the tag `v0.64.3`).
-fn release_of_range(
-    ctx: &Context,
-    repo: &str,
-    range: &str,
-) -> Result<Value, ResolveError> {
-    return match release_by_tag(ctx, repo, range) {
-        Ok(release) => Ok(release),
-        Err(first) => match release_by_tag(ctx, repo, &format!("v{range}")) {
-            Ok(release) => Ok(release),
-            Err(_) => Err(first),
-        },
-    };
 }
 
 /// What:

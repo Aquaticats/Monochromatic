@@ -52,9 +52,9 @@ use crate::worktree_clone_removal_cancel::the_staged_state::{
     TheStagedFolder,
 };
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     RemovalEntry,
-    TheLiveClock,
     enter_the_removal,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
