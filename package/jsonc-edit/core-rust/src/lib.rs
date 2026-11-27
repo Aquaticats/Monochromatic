@@ -136,6 +136,22 @@ pub mod text_units;
 mod comment_merge;
 
 /// What:
+///  The container stack one parse keeps:
+///  its nesting bound,
+///  one frame per open array or record,
+///  and the
+///           steps that attach trivia to a frame and finish it.
+/// Why:
+///  The bound and the frame list are what let a 512-container document parse without a call frame per
+///           container.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: MAX_CONTAINERS, type Frame, finish(frame, beforeClose).
+/// ```
+mod parse_frames;
+
+/// What:
 ///      The iterative,
 ///  depth-bounded JSONC parser.
 /// Why:
@@ -389,7 +405,10 @@ mod edit_state;
 mod navigate;
 
 /// What:
-///      The iterative spine walk shared by every immutable edit.
+///      The iterative spine walk shared by every immutable edit:
+///  the level stack,
+///  the descent that records it,
+///  and the rebuild that folds one new value back up through it.
 /// Why:
 ///       A recursive rebuild overflows a debug test thread's stack at the accepted 512-container depth,
 ///           so descent and rebuild keep their own explicit level stack.
@@ -397,6 +416,23 @@ mod navigate;
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // private module: descend(root, path) then rebuild(levels, value).
+/// ```
+mod edit_spine_walk;
+
+/// What:
+///      The immutable edits that act on one address:
+///  replacing the addressed value,
+///  deleting it,
+///  and setting either
+///           its comment or its key's comment.
+/// Why:
+///       These four operations change one node and return a new document,
+///  and they share the walk in
+///           `edit_spine_walk`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: setValue(root, path, value), deleteValue(root, path), the comment setters.
 /// ```
 mod edit_spine;
 
