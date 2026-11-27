@@ -170,11 +170,16 @@ and an `mpm` self-upgrade goes through the same mechanism:
 `managers/uv.py` of the installed 8.3.0 wheel returns `tool upgrade --all` from `upgrade_all_cli`
 and `tool upgrade <specs>` from `upgrade_cli`.
 
+The entry point is written under a temporary name in `bin/` and renamed.
+The trace of a second `--force` install of the same wheel shows both halves:
+
 ```text
 openat(AT_FDCWD, ".../tools/mpmprobe/lib/python3.14/site-packages/../../../bin/.tmpiLCgCG", O_RDWR|O_CREAT|O_EXCL|O_CLOEXEC, 0666) = 12
 ```
 
-The entry point is written under a temporary name in `bin/` and renamed.
+```text
+rename(".../tools/mpmprobe/lib/python3.14/site-packages/../../../bin/.tmpMtsI37", ".../tools/mpmprobe/lib/python3.14/site-packages/../../../bin/mpmprobe") = 0
+```
 The environment it lives in is removed and rebuilt first,
 so a concurrent start finds the program absent rather than busy:
 
