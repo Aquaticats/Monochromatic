@@ -62,6 +62,9 @@
 //!   the file form and the stored bytes of one object,
 //!   one path's index entry,
 //!   and the raw changes between two commits.
+//! - `merge_isolation_carry_write_failures.rs`:
+//!   why a carry or a clear stopped,
+//!   and the words a write that stopped leaves about the copy it kept.
 //! - `merge_isolation_a_directory_the_merge_replaces.rs`:
 //!   a directory standing where the merge puts a file,
 //!   whether it holds only what the merge deletes,
@@ -109,6 +112,9 @@
 //! - `merge_isolation_kept_copies.rs`:
 //!   the copies of the person's own bytes a merge keeps beside a path,
 //!   and the record of each.
+//! - `merge_isolation_carry_write_batches.rs`:
+//!   which step of a carry a batch of writes is,
+//!   and the test markers each of its steps reaches.
 //! - `merge_isolation_carry_writes.rs`:
 //!   what a carry writes:
 //!   the index records of a batch,
@@ -341,13 +347,12 @@ pub mod merge_isolation_recovery_place;
 /// judged through every directory below it.
 pub mod merge_isolation_a_directory_the_branch_explains;
 
-/// The write of a merge into the index and the worktree,
-/// and what it does when the checkout changed under it.
-pub mod merge_isolation_recovery_install;
-
 /// Whether the recovery of an interrupted merge may write the index now,
 /// and the clearing of a lock a killed Git left.
 pub mod merge_isolation_recovery_index_lock;
+/// The write of a merge into the index and the worktree,
+/// and what it does when the checkout changed under it.
+pub mod merge_isolation_recovery_install;
 
 /// Finishing a merge from its record:
 /// the install and the branch move,
@@ -380,6 +385,14 @@ pub mod merge_isolation_take_asides;
 
 /// The proof that no program can write into a file whose last name is about to go.
 pub mod merge_isolation_take_asides_proof;
+
+/// Why a carry or a clear stopped,
+/// and the words a write that stopped leaves about the copy it kept.
+pub mod merge_isolation_carry_write_failures;
+
+/// Which step of a carry a batch of writes is,
+/// and the test markers each of its steps reaches.
+pub mod merge_isolation_carry_write_batches;
 
 /// The copies of the person's own bytes a merge keeps beside a path,
 /// and the record of each.
