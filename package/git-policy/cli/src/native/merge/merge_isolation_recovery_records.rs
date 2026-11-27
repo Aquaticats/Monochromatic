@@ -1,8 +1,7 @@
 //! What:
 //!  The intent records a recovery walks:
-//!  the one record of a merge whose process died,
-//!  whoever may settle it,
-//!  and what a command is told about each.
+//!  the records of the merges whose process died,
+//!  and the settling of each one nobody owns any more.
 //! Why:
 //!  A record's owner decides whether it is settled at all,
 //! and a probe the account may not make reads as alive,
@@ -25,6 +24,7 @@
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
+use crate::merge_isolation_journal::owner_liveness;
 use crate::merge_isolation_journal::{
     MergeIntent,
     list_merge_intents,
@@ -33,10 +33,9 @@ use crate::merge_isolation_journal::{
 use crate::merge_isolation_kept_copies_decisions::sweep_kept_copies_awaiting;
 use crate::merge_isolation_recovery::settle_failed_merge_awaiting;
 use crate::merge_isolation_recovery_notice::recovery_notice;
-use crate::merge_isolation_recovery_steps::{
-    MergeRecoveryAction,
-    RecoveryPlace,
-};
+use crate::merge_isolation_recovery_place::RecoveryPlace;
+use crate::merge_isolation_recovery_record::MergeRecoveryAction;
+use crate::merge_isolation_recovery_record::MergeRecoveryOutcome;
 use crate::merge_isolation_take_aside_names::merge_key_of_a_record;
 /// What:
 ///  The reader that opens a record as a plain file,
@@ -54,38 +53,12 @@ use crate::recovery_error::{
     RecoveryError,
     io_failure,
 };
-use crate::transaction_owner::{
-    OwnerLiveness,
-    OwnerLivenessError,
-    classify_transaction_owner_record,
-};
+use crate::transaction_owner::OwnerLiveness;
 use std::io::Write;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// One record recovery visited.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type MergeRecoveryOutcome = { record: string; action: MergeRecoveryAction; targetRef?: string; newOid: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MergeRecoveryOutcome {
-    /// The record's file.
-    pub record: PathBuf,
-    /// What recovery did.
-    pub action: MergeRecoveryAction,
-    /// The ref the record names,
-    /// or nothing when the merge ran on a detached `HEAD`.
-    pub target_ref: Option<String>,
-    /// The merge commit the record names.
-    pub new_oid: String,
-    /// The side ref that keeps the merge commit,
-    /// for a merge that was saved because the index was locked.
-    pub side_ref: Option<String>,
-}
 
 /// What:
 ///  Whether the worktree's Git directory holds an intent record that recovery must look at:
@@ -274,42 +247,4 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
         outcomes.push(outcome);
     }
     return Ok(outcomes);
-}
-
-/// What:
-///  Whether the record's owner still runs,
-/// treating a probe the account may not make as alive.
-/// Why:
-///   Recovery must never touch a merge that may be live.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { return await classifyTransactionOwnerRecord(owner, path); } catch (e) { if (e.code === 'EPERM') return 'alive'; throw e; }
-/// ```
-pub(crate) fn owner_liveness(
-    intent: &MergeIntent,
-    record: &Path,
-) -> Result<OwnerLiveness, RecoveryError> {
-    match classify_transaction_owner_record(&intent.owner, record) {
-        Ok(found) => return Ok(found),
-        Err(OwnerLivenessError::Probe(error)) if error.raw_os_error() == Some(libc::EPERM) => {
-            return Ok(OwnerLiveness::Alive);
-        }
-        Err(OwnerLivenessError::Probe(error)) => {
-            return Err(RecoveryError(format!(
-                "probing the owner {} of the merge record {} failed: {error}",
-                intent.owner.owner_pid,
-                record.display()
-            )));
-        }
-        // Owner, 2026-11-04, "Refuse and name it (Recommended)": the command stops, and nothing has been changed.
-        Err(OwnerLivenessError::ForeignRecordRefused(text)) => return Err(RecoveryError(text)),
-        Err(OwnerLivenessError::Identity(error)) => {
-            return Err(RecoveryError(format!(
-                "reading the identity of the owner {} of the merge record {} failed: {error}",
-                intent.owner.owner_pid,
-                record.display()
-            )));
-        }
-    }
 }

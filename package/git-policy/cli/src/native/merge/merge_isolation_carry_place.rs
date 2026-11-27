@@ -1,11 +1,12 @@
 //! What:
 //!  Put one planned worktree write in place,
 //!  or leave the path alone because what stands there is not the entry that was judged:
-//!  the private name the new bytes take first,
-//!  the take of the judged entry under a name of its own,
-//!  the check of what the take caught,
 //!  the placing of the new entry,
-//!  and putting back an entry that turned out not to be the one that was judged.
+//!  the removal of an entry the write judged,
+//!  and keeping the planned bytes beside a path whose bytes the write cannot prove.
+//!  The judgement such a write stands on is `merge_isolation_carry_place_judgement.rs`,
+//!  the private names it makes are `merge_isolation_carry_place_private_names.rs`,
+//!  and the take of the judged entry is `merge_isolation_carry_place_take.rs`.
 //! Why:
 //!  A judgement and a write are separate steps,
 //!  so a person who saves the file between them had their bytes replaced with no
@@ -38,496 +39,54 @@
 /// "Blocking files,
 /// fsync and the runtime's own shutdown").
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+/// The entry such a write makes.
 use crate::merge_isolation_carry_place_write::write_entry;
-use crate::merge_isolation_carry_writes::{
-    CarryFailure,
-    FileWrite,
-    IndexWrite,
-};
-use crate::merge_isolation_changes::{
-    FileIdentity,
-    WorktreeState,
-    file_identity,
-    worktree_path,
-};
-use crate::merge_isolation_take_aside_names::{
-    CARRY_PREFIX,
-    aside_name,
-};
-use crate::merge_isolation_take_asides::{
-    are_the_file_form_of_awaiting,
-    may_remove_the_aside_awaiting,
-};
+/// Why a carry stopped.
+use crate::merge_isolation_carry_write_failures::CarryFailure;
+/// What its worktree file becomes.
+use crate::merge_isolation_carry_write_forms::FileWrite;
+/// The worktree path of one changed path.
+use crate::merge_isolation_changes::worktree_path;
+/// The private name a take and a kept entry are given.
+use crate::merge_isolation_take_aside_names::aside_name;
+/// One rename that never replaces,
+/// and what it answered.
 use crate::rename_that_never_replaces::{
     TheAnswerOfARename,
     rename_noreplace_on_the_blocking_pool,
 };
+/// The Git context a read and a write take.
 use crate::transaction_git::GitContext;
+/// A place in the worktree,
+/// and the private name beside it.
 use std::path::{
     Path,
     PathBuf,
 };
 
-/// What:
-///  What stood at a worktree path when the write was judged.
-/// Why:
-///   The take compares both parts of it:
-/// the identity of the entry the file system hands out,
-///  and the object its bytes make,
-/// so an entry written after the judgement is never replaced.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type JudgedFile = { identity?: FileIdentity; content?: string };
-/// ```
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub(crate) struct JudgedFile {
-    /// The identity of the entry that stood there,
-    /// or nothing when nothing did.
-    pub(crate) identity: Option<FileIdentity>,
-    /// The object the bytes of that entry make,
-    /// or nothing when nothing stood there.
-    pub(crate) content: Option<String>,
-}
-
-/// What one planned write came to.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Placed = { kind: 'written' } | { kind: 'nothing' } | { kind: 'changed'; kept?: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum Placed {
-    /// The path holds what the write asked for.
-    Written,
-    /// There was nothing for the write to do.
-    Nothing,
-    /// The path holds bytes the write did not judge,
-    /// so nothing was written to it;
-    /// `kept` names the entry that was taken aside and could not go back.
-    Changed {
-        /// Where an entry of the person's waits,
-        /// when the path was taken by another write before it could go back.
-        kept: Option<PathBuf>,
-    },
-}
-
-/// What:
-///  What stood at a worktree path when the step was judged,
-/// for the placement that refuses to replace anything else.
-/// Why:
-///   The state names the object the bytes make and the identity names the entry itself,
-/// and a write needs both to
-///  prove that what it is about to replace is still the thing it judged.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const judgedOf = (state, identity) => ({ identity, content: state.kind === 'content' ? state.object : undefined });
-/// ```
-pub(crate) fn judged_of(
-    state: &WorktreeState,
-    identity: Option<FileIdentity>,
-) -> JudgedFile {
-    return match state {
-        WorktreeState::Content {
-            object,
-            ..
-        } => JudgedFile {
-            identity,
-            content: Some(object.clone()),
-        },
-        WorktreeState::Missing | WorktreeState::Other => JudgedFile {
-            identity,
-            content: None,
-        },
-    };
-}
-
-/// What:
-///  The entries an index check accepts,
-///  which are the ones already there and the one this step is about to write.
-/// Why:
-///   A step that was killed after its index records were written finds its own work in the index;
-/// reading that
-///  as someone else's dropped the layers it had not written yet.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const allowed = (known, plan) => plan.kind === 'entry' ? [...known, [plan.mode, plan.oid]] : plan.kind === 'remove' ? [...known, null] : known;
-/// ```
-pub(crate) fn explained_entries<'a>(
-    known: &[Option<(&'a str, &'a str)>],
-    plan: &'a IndexWrite,
-) -> Vec<Option<(&'a str, &'a str)>> {
-    let mut allowed: Vec<Option<(&str, &str)>> = known.to_vec();
-    match plan {
-        IndexWrite::Leave => {}
-        IndexWrite::Entry(mode, oid) => allowed.push(Some((mode.as_str(), oid.as_str()))),
-        IndexWrite::Remove => allowed.push(None),
-    }
-    return allowed;
-}
-
-/// What:
-///  The private name the new entry is written under before it takes its path,
-///  which carries the key of the merge that wrote it.
-/// Why:
-///  A kill between writing those bytes and renaming them into place leaves the name behind,
-/// and nothing outside this
-///  command knows it,
-/// so the next command must be able to tell whose name it is before it removes it:
-/// a name with no
-///  merge key could be one a merge that still runs is about to rename into place
-/// (`merge_isolation_take_aside_names.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${dirname(location)}/${CARRY_PREFIX}-${nameKey(basename)}-${nameKey(transactionId)}-${pid}-${count}-${nanos}`
-/// ```
-fn private_name(
-    location: &Path,
-    transaction_id: &str,
-) -> PathBuf {
-    static COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let count: u64 = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let nanos: u128 = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let process: u32 = std::process::id();
-    return location.with_file_name(format!(
-        "{CARRY_PREFIX}-{}-{}-{process}-{count}-{nanos:x}",
-        crate::merge_isolation_take_aside_names::name_key(
-            crate::merge_isolation_take_aside_names::name_text(location).as_str()
-        ),
-        crate::merge_isolation_take_aside_names::name_key(transaction_id)
-    ));
-}
-
-/// What:
-///  Write the new entry under a private name beside its path,
-///  so placing it is one rename.
-/// Why:
-///  A rename in the same directory is one step on whatever file system the worktree is on,
-/// so a kill leaves
-///  either what was there or the whole new entry.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function writePrivate(location, bytes, mode, bits): string; // throws on a write that failed
-/// ```
-fn write_private(
-    location: &Path,
-    bytes: &[u8],
-    mode: &str,
-    the_persons_bits: Option<u32>,
-    transaction_id: &str,
-) -> Result<PathBuf, String> {
-    if let Some(parent) = location.parent() {
-        let _made = std::fs::create_dir_all(parent);
-    }
-    let private: PathBuf = private_name(location, transaction_id);
-    write_entry(private.as_path(), bytes, mode, the_persons_bits)?;
-    return Ok(private);
-}
-
-/// What:
-///  `write_private`,
-///  made as a job of the blocking pool.
-/// Why:
-///   Making the directory and writing the entry are calls that can wait on a disk,
-/// so they never hold the worker of the runtime that
-///  polls this step,
-///  and the name and the error are the ones `write_private` gives.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function writePrivateOnThePool(location, bytes, mode, bits, transactionId): Promise<string>; // throws on a write that failed
-/// ```
-async fn write_private_awaiting(
-    location: &Path,
-    bytes: &[u8],
-    mode: &str,
-    the_persons_bits: Option<u32>,
-    transaction_id: &str,
-) -> Result<PathBuf, String> {
-    let (named, written, entry_mode): (PathBuf, Vec<u8>, String) =
-        (location.to_path_buf(), bytes.to_vec(), String::from(mode));
-    let record: String = String::from(transaction_id);
-    return match run_blocking_job_within_the_budget(move || {
-        return write_private(
-            named.as_path(),
-            written.as_slice(),
-            entry_mode.as_str(),
-            the_persons_bits,
-            record.as_str(),
-        );
-    })
-    .await
-    {
-        Ok(made) => made,
-        // The system gave the pool no thread, so the entry may not have been written at all.
-        Err(refused) => Err(refused.to_string()),
-    };
-}
-
-/// What:
-///  Remove one private name this step made,
-///  as a job of the blocking pool,
-///  with nothing said about a failure.
-/// Why:
-///   A removal is a file call that can wait on a disk;
-/// a name that does not go is not a failure of the write,
-///  because the next command's sweep of the merge's own names collects what is left
-///  (`merge_isolation_take_aside_names.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function removeAPrivateName(private: string): Promise<void>; // rm(private), a failure ignored
-/// ```
-async fn remove_a_private_name_awaiting(private: &Path) {
-    let named: PathBuf = private.to_path_buf();
-    let _removal = run_blocking_job_within_the_budget(move || {
-        return std::fs::remove_file(named.as_path());
-    })
-    .await;
-}
-
-/// What:
-///  The object the bytes of one entry make,
-/// compared with the object the judgement recorded.
-/// Why:
-///   The identity alone cannot see a write through a descriptor the file already had,
-/// so the bytes of the
-///  entry that was taken aside are read and hashed with the path's own attributes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function areTheJudgedBytes(context, root, path, location, judged): Promise<boolean | undefined>;
-/// ```
-async fn are_the_judged_bytes_awaiting(
-    context: &GitContext,
-    root: &Path,
-    path: &[u8],
-    location: &Path,
-    judged: &JudgedFile,
-) -> Option<bool> {
-    let Some(expected) = judged.content.as_deref() else {
-        return Some(false);
-    };
-    return are_the_file_form_of_awaiting(context, root, path, location, expected).await;
-}
-
-/// What:
-///  Whether the entry at `location` is the one the write judged.
-/// Why:
-///   An entry that differs is the person's,
-///  written after the write looked,
-/// so it goes back where it came from.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function isTheJudgedEntry(context, root, path, location, judged): Promise<boolean | undefined>;
-/// ```
-async fn is_the_judged_entry_awaiting(
-    context: &GitContext,
-    root: &Path,
-    path: &[u8],
-    location: &Path,
-    judged: &JudgedFile,
-) -> Option<bool> {
-    if judged.identity.is_none() {
-        return Some(false);
-    }
-    // The identity is a metadata look at a user's file, which can wait on a disk, so a job of the blocking pool makes it.
-    let looked_at: PathBuf = location.to_path_buf();
-    let identity: Option<FileIdentity> =
-        match run_blocking_job_within_the_budget(move || return file_identity(looked_at.as_path()))
-            .await
-        {
-            Ok(found) => found,
-            // A look nothing made proves nothing about the entry, so the take puts it back where it was found.
-            Err(refused) => {
-                crate::diagnostic_log::debug(
-                    "isTheJudgedEntry",
-                    format!(
-                        "{} could not be looked at, so the entry goes back: {refused}",
-                        location.display()
-                    )
-                    .as_str(),
-                );
-                return None;
-            }
-        };
-    if identity != judged.identity {
-        return Some(false);
-    }
-    return are_the_judged_bytes_awaiting(context, root, path, location, judged).await;
-}
-
-/// What:
-///  Put an entry that turned out not to be the one that was judged back where it was found,
-///  and say that the path was left alone.
-/// Why:
-///   The bytes are the person's,
-/// and a path freed by the take is the one place they belong;
-/// a path another
-///  write already took keeps both entries,
-/// and the one that was put aside is named rather than dropped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const putBack = async (location, aside) => { const moved = await renameNoReplaceOnThePool(aside, location); return moved.kind === 'name-taken' ? { kind: 'changed', kept: aside } : { kind: 'changed' }; };
-/// ```
-async fn put_back_awaiting(
-    location: &Path,
-    aside: &Path,
-) -> Result<Placed, CarryFailure> {
-    return match rename_noreplace_on_the_blocking_pool(aside, location).await {
-        TheAnswerOfARename::Renamed => Ok(Placed::Changed {
-            kept: None,
-        }),
-        // Another write took the path, so both entries stay and the one put aside is named.
-        TheAnswerOfARename::NameTaken(_taken) => Ok(Placed::Changed {
-            kept: Some(aside.to_path_buf()),
-        }),
-        TheAnswerOfARename::Failed(error) => Err(CarryFailure::Failed(format!(
-            "{} could not be put back: {error}",
-            aside.display()
-        ))),
-        TheAnswerOfARename::NoThreadToRunIt(refused) => Err(CarryFailure::Failed(format!(
-            "{} could not be put back: {refused}",
-            aside.display()
-        ))),
-    };
-}
-
-/// What:
-///  Whether the entry a take put aside may lose its private name,
-///  and the private name that stays when it may not.
-/// Why:
-///   The bytes the take holds are the merge's own,
-///  which the capture keeps,
-///  but a program that already had the file open
-///  can still write into it after the take checked it,
-///  so the private name goes only on the proof nothing can write any
-///  more,
-///  and a file the proof does not cover is kept and named
-///  (`merge_isolation_take_asides.rs`).
-///  A take that holds no identity cannot prove anything about the file,
-/// so its private name stays.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function dropTheAside({ context, root, path, aside, judged, kept }): Promise<void>; // proof ? unlink : kept.push(aside)
-/// ```
-async fn drop_the_aside_awaiting(
-    context: &GitContext,
-    root: &Path,
-    path: &[u8],
-    aside: &Path,
-    judged: &JudgedFile,
-    kept: &mut Vec<PathBuf>,
-) -> Result<(), CarryFailure> {
-    let (Some(taken), Some(expected)) = (judged.identity, judged.content.as_deref()) else {
-        kept.push(aside.to_path_buf());
-        return Ok(());
-    };
-    let Some(proof) =
-        may_remove_the_aside_awaiting(context, root, path, aside, taken, expected).await
-    else {
-        kept.push(aside.to_path_buf());
-        return Ok(());
-    };
-    return match proof.remove_on_the_blocking_pool(aside).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(CarryFailure::Failed(format!(
-            "{} could not be removed: {error}",
-            aside.display()
-        ))),
-    };
-}
-
-/// What a take of one worktree entry found.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Taken = { kind: 'aside'; aside: string } | { kind: 'changed'; kept?: string };
-/// ```
-enum Taken {
-    /// The entry that was judged waits at this private name.
-    Aside(PathBuf),
-    /// The path holds bytes the write did not judge,
-    /// and nothing was taken.
-    Changed {
-        /// Where an entry of the person's waits,
-        /// when it could not go back.
-        kept: Option<PathBuf>,
-    },
-}
-
-/// What:
-///  Take the entry at `location` aside under a private name,
-///  and check that it is the one the write judged.
-/// Why:
-///   The take is one rename that never replaces,
-/// so nothing standing at the path can be destroyed by it;
-///  the check then runs on a name nobody else writes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function takeJudged({ context, root, path, location, judged }): Promise<Taken>;
-/// ```
-async fn take_judged_awaiting(
-    context: &GitContext,
-    root: &Path,
-    path: &[u8],
-    location: &Path,
-    judged: &JudgedFile,
-    transaction_id: &str,
-) -> Result<Taken, CarryFailure> {
-    let aside: PathBuf = aside_name(location, transaction_id);
-    // The take is one rename, and a rename writes the directory it lands in, so a job of the blocking pool makes it.
-    match rename_noreplace_on_the_blocking_pool(location, aside.as_path()).await {
-        TheAnswerOfARename::Renamed => {}
-        // The path was freed between the judgement and the take, which is not this write to make.
-        TheAnswerOfARename::Failed(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(Taken::Changed {
-                kept: None,
-            });
-        }
-        // A private name another entry holds is a rename that failed, and both names stay: the path and that entry.
-        TheAnswerOfARename::Failed(error) | TheAnswerOfARename::NameTaken(error) => {
-            return Err(CarryFailure::Failed(format!(
-                "{} could not be set aside: {error}",
-                location.display()
-            )));
-        }
-        TheAnswerOfARename::NoThreadToRunIt(refused) => {
-            return Err(CarryFailure::Failed(format!(
-                "{} could not be set aside: {refused}",
-                location.display()
-            )));
-        }
-    }
-    match is_the_judged_entry_awaiting(context, root, path, aside.as_path(), judged).await {
-        Some(true) => return Ok(Taken::Aside(aside)),
-        // A read that fails cannot prove the bytes, so the entry goes back rather than be replaced.
-        Some(false) | None => {
-            return match put_back_awaiting(location, aside.as_path()).await? {
-                Placed::Changed {
-                    kept,
-                } => Ok(Taken::Changed {
-                    kept,
-                }),
-                Placed::Written | Placed::Nothing => Ok(Taken::Changed {
-                    kept: None,
-                }),
-            };
-        }
-    }
-}
+/// The judgement a write stands on and the answer it gives,
+/// named here so a caller of the placement keeps one path.
+pub(crate) use crate::merge_isolation_carry_place_judgement::{
+    JudgedFile,
+    Placed,
+    explained_entries,
+    is_still_the_judged_entry,
+    judged_of,
+};
+/// The private name the new bytes are written under,
+/// and the removal of a name the write turned out not to need.
+use crate::merge_isolation_carry_place_private_names::{
+    remove_a_private_name_awaiting,
+    write_private_awaiting,
+};
+/// The take of the judged entry,
+/// what it caught,
+/// and the putting back of an entry that was not the one that was judged.
+use crate::merge_isolation_carry_place_take::{
+    Taken,
+    drop_the_aside_awaiting,
+    take_judged_awaiting,
+};
 
 /// What:
 ///  The private names one write leaves beside a path,
@@ -860,27 +419,6 @@ pub(crate) async fn place_file_awaiting(
             .await
         }
     };
-}
-
-/// What:
-///  Whether the entry at one path is still the one a write judged,
-///  read without taking anything.
-/// Why:
-///   A step judges every path before it writes the first byte of its index records,
-/// so a path written
-///  before that point stops the whole step with nothing written;
-/// the take then covers the window that follows.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function isStillTheJudgedEntry(root, path, judged): boolean; // identityOf(location) === judged.identity
-/// ```
-pub(crate) fn is_still_the_judged_entry(
-    root: &Path,
-    path: &[u8],
-    judged: &JudgedFile,
-) -> bool {
-    return file_identity(worktree_path(root, path).as_path()) == judged.identity;
 }
 
 /// The controls of the placement stay out of the release executable.

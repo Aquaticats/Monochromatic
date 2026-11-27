@@ -218,6 +218,25 @@ pub fn add_incremental(
     return directory;
 }
 
+/// What:
+/// `pub fn length_bytes(metadata: &fs::Metadata) -> u64` counts an entry by the bytes its length says it holds.
+/// Why:
+/// A control that sizes what it wrote a moment ago needs a number no file system has to settle first.
+/// On this host's ZFS a fresh file reports one 512-byte block until the pool's transaction group commits,
+/// and once it has,
+/// the same 8192-byte file of one repeated byte reports nine blocks (4608 bytes),
+/// because the pool compresses it (measured 2026-11-27,
+/// issue 6552).
+/// So the length is the one size that is the same at both moments and on a file system that accounts blocks differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const lengthBytes = (s: Stats): number => s.size;
+/// ```
+pub fn length_bytes(metadata: &fs::Metadata) -> u64 {
+    return metadata.len();
+}
+
 /// A guard environment on the real `/proc` for a test of an idle fixture.
 pub fn real_environment() -> crate::lean_guard::GuardEnvironment {
     return crate::lean_guard::GuardEnvironment::real();

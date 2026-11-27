@@ -36,6 +36,7 @@ use crate::git_version_cache::{
     read_cached_text,
     store_cached_text,
 };
+use crate::repo_read::git_system_config_asking::ask_git_var_explaining;
 use std::ffi::OsString;
 use std::path::{
     Path,
@@ -87,67 +88,13 @@ fn ask_git_var(
     real_git: &Path,
     variable: &str,
 ) -> Option<Vec<u8>> {
-    match ask_git_var_explaining(real_git, variable) {
-        Ok(stdout) => return Some(stdout),
-        Err(_) => return None,
+    // What:     the answer, or nothing with the reason it gave nothing said in the wrapper's diagnostics.
+    // Why:      `Option` cannot carry a reason, and issue 6540's failure could name no cause at all.
+    let asked: Result<Vec<u8>, String> = ask_git_var_explaining(real_git, variable);
+    if let Err(reason) = asked.as_ref() {
+        crate::diagnostic_log::warn("ask_git_var", reason.as_str());
     }
-}
-
-/// What:
-///  Start the executable at `real_git` with `var <variable>` and the environment's overrides removed,
-/// or answer the reason it printed nothing.
-/// Why:
-///  A start the host refused and an exit that is not a success both leave the path unknown,
-/// and the reason says which (issue 6541).
-fn ask_git_var_explaining(
-    real_git: &Path,
-    variable: &str,
-) -> Result<Vec<u8>, String> {
-    let mut command = std::process::Command::new(real_git);
-    command
-        .args(["var", variable])
-        .env_clear()
-        .env("LC_ALL", "C")
-        .current_dir("/")
-        .stdin(std::process::Stdio::null());
-    // The environment was cleared, so the marker of this start is added after it (`started_as_git.rs`), and it is a start of
-    //  the wrapper's own reading: nothing of the person's runs under it.
-    crate::started_as_git::mark_real_git_start(
-        &mut command,
-        crate::started_as_git::StartMode::Query,
-    );
-    // What: `Ok` is the captured run and `Err` the refusal or the ceiling, whose text names the program and the wait.
-    // Why: `Command::output` would block a thread with no end, and its failure would say nothing about why.
-    let output = match crate::captured_child_run_to_its_end::output_of_within_bound(
-        &mut command,
-        crate::wait_ceilings::PLUMBING_STEP_CEILING,
-    ) {
-        Ok(output) => output,
-        Err(error) => {
-            return Err(format!(
-                "starting {} for `git var {variable}` gave no answer: {error}",
-                real_git.display()
-            ));
-        }
-    };
-    if output.status.success() {
-        return Ok(output.stdout);
-    }
-    // What: the child's last standard-error bytes, decoded lossily; Git's own words are what a person can act on, and an empty stream leaves only the status.
-    let stderr: std::borrow::Cow<'_, str> = String::from_utf8_lossy(output.stderr.as_slice());
-    let said: String = stderr.trim().to_owned();
-    if said.is_empty() {
-        return Err(format!(
-            "`git var {variable}` in {} ended with {}",
-            real_git.display(),
-            output.status
-        ));
-    }
-    return Err(format!(
-        "`git var {variable}` in {} ended with {} and said: {said}",
-        real_git.display(),
-        output.status
-    ));
+    return asked.ok();
 }
 
 /// What:

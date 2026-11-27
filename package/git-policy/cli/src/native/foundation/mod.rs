@@ -84,10 +84,6 @@
 //! - `common_directory_of_a_git_directory.rs`:
 //!   the common Git directory a worktree's own Git directory belongs to,
 //!   read from its `commondir` file.
-//! - `private_storage_replacing_a_record.rs`:
-//!   publishing a record over the one the same name already holds,
-//!   in one rename,
-//!   with or without making it durable.
 //! - `publishing_entries_in_one_open_folder.rs`:
 //!   entries created,
 //!   filled and published by name below one open folder.
@@ -194,9 +190,29 @@
 //! - `worst_delay_seen_on_this_host.rs`:
 //!   the longest delay measured on this host and the owner's multiple of it,
 //!   which the held-name wait and the wait before a forced stop use.
+//! - `a_record_or_folder_the_account_alone_may_read_and_write.rs`:
+//!   the permission bits that keep a file or a folder to the account that made it,
+//!   the folders the wrapper creates with them,
+//!   and the removal of a folder tree it retires.
+//! - `a_record_made_durable_with_a_sync.rs`:
+//!   making a record that was already written survive a power loss:
+//!   the flush of its file,
+//!   the sync of the folder whose entry names it,
+//!   and the switch a control makes both no-ops with.
+//! - `a_record_read_with_the_reason_it_was_refused.rs`:
+//!   reading a record as a regular file,
+//!   never through a final link and never past the caller's limit,
+//!   and the reason a refusal gives.
 //! - `private_storage.rs`:
-//!   private,
-//!   crash-safe file primitives shared by every durable record.
+//!   writing a record whole:
+//!   the staging file beside it,
+//!   the exclusive publish,
+//!   the rename that never replaces a name,
+//!   and the names the other three files' callers reach.
+//! - `private_storage_replacing_a_record.rs`:
+//!   publishing a record over the one the same name already holds,
+//!   in one rename,
+//!   with or without making it durable.
 //! - `earlier_log_lines_journal_held_and_recorded.rs`:
 //!   the journal of a log fold:
 //!   a round,
@@ -256,9 +272,33 @@
 //! // foundation/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// Private,
-///  crash-safe file primitives shared by every durable record.
+/// The permission bits that keep a file or a folder to the account that made it,
+/// the folders the wrapper creates with them,
+/// and the removal of a folder tree it retires.
+pub mod a_record_or_folder_the_account_alone_may_read_and_write;
+
+/// Making a record that was already written survive a power loss:
+/// the flush of its file,
+/// the sync of the folder whose entry names it,
+/// and the switch a control makes both no-ops with.
+pub mod a_record_made_durable_with_a_sync;
+
+/// Reading a record as a regular file,
+/// never through a final link and never past the caller's limit,
+/// and the reason a refusal gives.
+pub mod a_record_read_with_the_reason_it_was_refused;
+
+/// Writing a record whole:
+/// the staging file beside it,
+/// the exclusive publish,
+/// the rename that never replaces a name,
+/// and the names the other three files' callers reach.
 pub mod private_storage;
+
+/// Publishing a record over the one the same name already holds,
+/// in one rename,
+/// with or without making it durable.
+pub mod private_storage_replacing_a_record;
 
 /// One folder held open,
 /// and the entries below it read and listed by name.

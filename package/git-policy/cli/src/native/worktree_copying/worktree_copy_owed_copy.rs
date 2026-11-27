@@ -64,10 +64,8 @@ use crate::worktree_copy_stage_claim::{
     StageClaim,
     claim_names,
 };
-use crate::worktree_copy_stage_claim_reaping::{
-    StageVerdicts,
-    read_claim,
-};
+use crate::worktree_copy_stage_claim_owner_verdicts::StageVerdicts;
+use crate::worktree_copy_stage_claim_record::read_claim;
 use crate::worktree_copy_synchronize::synchronize_created_worktree_noting;
 use crate::worktree_copy_unfilled_record::remember_unfilled_with;
 use std::io::Write;
@@ -506,7 +504,7 @@ fn settle_unfilled(
 pub fn finish_owed_worktree_copies(
     common_dir: &Path,
     verdicts: &StageVerdicts,
-    destinations: &crate::worktree_copy_recovery::RecoveryDestinations<'_>,
+    destinations: &crate::worktree_copy_recovery_destinations::RecoveryDestinations<'_>,
     ceiling: &CopyCeiling,
     context: &GitContext,
     stderr: &mut dyn Write,
@@ -550,7 +548,7 @@ pub fn finish_owed_worktree_copies(
         }
         // The copy fills one worktree, and the command that runs in it is the one that waits: a command in another
         // worktree does not pay for the source's ignored state, and is told which worktree does.
-        if !crate::worktree_copy_recovery::finishes_destination(
+        if !crate::worktree_copy_recovery_destinations::finishes_destination(
             destinations,
             add.destination.as_path(),
         ) {

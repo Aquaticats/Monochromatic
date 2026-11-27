@@ -10,9 +10,11 @@
 //!  a `fork` by another thread of a threaded run duplicates that descriptor into a child
 //!  that holds it until its own exec,
 //!  and an exec of the same file in that window is refused with `ETXTBSY` (issues 6517 and 6541).
+//!  A question that gave nothing is also said in the wrapper's diagnostics (issue 6540).
 
 use super::*;
 use crate::captured_child_run_to_its_end::output_of_within_bound;
+use crate::diagnostic_log::take_lines_written;
 use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_layout::read_layout_with;
@@ -328,4 +330,42 @@ fn a_system_file_outside_etc_is_the_one_the_readers_check() {
     let real = git_output(repo.as_path(), &["rev-parse", "--git-dir"]);
     assert!(real.status.success());
     remove(root.as_path());
+}
+
+/// A question that gives nothing is said in the wrapper's diagnostics:
+/// the line names the program,
+/// the question and the refusal.
+#[test]
+fn a_question_that_gives_nothing_is_said_in_the_diagnostics() {
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_question_that_gives_nothing_is_said_in_the_diagnostics",
+        || {
+            let root = fixture("system-config-question-reported");
+            let not_a_program = root.join("git");
+            std::fs::write(&not_a_program, "not a program\n").expect("fixture");
+            // What: the lines this thread wrote, emptied first so the read below holds this question's alone.
+            // Why: a reason that is discarded leaves a caller's failure naming no cause (issue 6540).
+            let _ = take_lines_written();
+            assert_eq!(
+                ask_git_var(not_a_program.as_path(), "GIT_CONFIG_SYSTEM"),
+                None
+            );
+            let said: Vec<String> = take_lines_written();
+            assert_eq!(said.len(), 1, "one question says one line: {said:?}");
+            assert!(
+                said[0].contains(not_a_program.display().to_string().as_str()),
+                "the line names the program: {said:?}"
+            );
+            assert!(
+                said[0].contains("git var GIT_CONFIG_SYSTEM"),
+                "the line names the question: {said:?}"
+            );
+            assert!(
+                said[0].contains("gave no answer"),
+                "the line says what happened: {said:?}"
+            );
+            remove(root.as_path());
+        },
+    );
 }

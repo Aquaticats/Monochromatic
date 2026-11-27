@@ -60,7 +60,7 @@ use crate::work_item::{
     enqueue,
     state_directory,
 };
-use crate::worktree_trash_dispose_awaiting::INSIDE_A_SLOW_STEP;
+use crate::worktree_trash_dispose_awaiting::inside_a_slow_step_point;
 use std::sync::atomic::{
     AtomicBool,
     AtomicU32,
@@ -560,7 +560,8 @@ struct HeldTrash {
 }
 
 /// What:
-///  Hold the service inside a trash on whichever task runs it,
+///  Hold the service inside the trash `trash` names,
+/// on whichever task runs it,
 /// without holding the worker of the runtime that task sits on.
 /// Why:
 ///   The hold is a state and not a duration,
@@ -570,17 +571,21 @@ struct HeldTrash {
 /// A hold that blocked the thread it is reached on would stop a worker of the runtime,
 /// and the push this control watches for would then have nowhere to run:
 /// no step of the shipped service blocks a worker while it waits.
+///  The point is the one the record names
+/// (`inside_a_slow_step_point`),
+/// so a control of this module holding a trash of its own arms a point of its own and the two never answer for each
+///  other in a threaded run (issue 6543).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { arrived, letGo } = holdInsideATrash(); // the service is inside the trash once arrived holds
+/// const { arrived, letGo } = holdInsideATrash(trash); // the service is inside that trash once arrived holds
 /// ```
-fn hold_inside_a_trash() -> HeldTrash {
+fn hold_inside_a_trash(trash: &WorkItem) -> HeldTrash {
     let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
     let (let_go, held) = tokio::sync::oneshot::channel::<()>();
     crate::service_fault::hooks::hold_awaiting_on_any_thread(
         crate::service_fault::hooks::HoldAwaitingOnAnyThread {
-            point: String::from(INSIDE_A_SLOW_STEP),
+            point: inside_a_slow_step_point(trash),
             reached,
             let_go: held,
         },
@@ -621,12 +626,9 @@ fn a_push_is_taken_while_the_service_is_inside_a_trash() {
     let staged: Stage = stage("slow-lane-inside-a-trash");
     let git_dir: PathBuf = staged.repo.join(".git");
     let work: PathBuf = work_directory(git_dir.as_path());
-    enqueue(
-        work.as_path(),
-        &a_trash_record(&staged, "7777777777777777777777777777777777777777"),
-    )
-    .expect("the trash is written");
-    let held: HeldTrash = hold_inside_a_trash();
+    let trash: WorkItem = a_trash_record(&staged, "7777777777777777777777777777777777777777");
+    enqueue(work.as_path(), &trash).expect("the trash is written");
+    let held: HeldTrash = hold_inside_a_trash(&trash);
     let (wake, running): (
         tokio::sync::mpsc::UnboundedSender<Wake>,
         tokio::task::JoinHandle<()>,
@@ -752,11 +754,11 @@ fn a_look_that_ran_out_of_its_slice_is_looked_at_again() {
     let staged: Stage = stage("slow-lane-a-slice-then-again");
     let git_dir: PathBuf = staged.repo.join(".git");
     let work: PathBuf = work_directory(git_dir.as_path());
-    enqueue(work.as_path(), &a_trash_record(&staged, THE_HELDS_TRASH))
-        .expect("the held trash is written");
+    let held_trash: WorkItem = a_trash_record(&staged, THE_HELDS_TRASH);
+    enqueue(work.as_path(), &held_trash).expect("the held trash is written");
     enqueue(work.as_path(), &a_trash_record(&staged, THE_LEFT_TRASH))
         .expect("the left trash is written");
-    let held: HeldTrash = hold_inside_a_trash();
+    let held: HeldTrash = hold_inside_a_trash(&held_trash);
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let handlers: GitHandlers = GitHandlers::new(git_context());
     let lane: SlowLane = crate::merge_second_pass::tests::await_it(async move {
@@ -1155,7 +1157,7 @@ fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
         return Verdict::Done;
     });
     let drained = crate::merge_second_pass::tests::await_it(
-        crate::service_work::drain_planned_with_awaiting(
+        crate::service_work_drains_awaiting::drain_planned_with_awaiting(
             world.common.as_path(),
             &handlers,
             &ClaimTime::read(),

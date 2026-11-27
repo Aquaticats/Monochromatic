@@ -1,5 +1,6 @@
 //! What:
-//!  What a look at the destination's own pointer said:
+//!  The name of Git's pointer file in a worktree,
+//! and what a look at the destination's own pointer said:
 //! Git's pointer is there,
 //! it is not there,
 //! or the
@@ -16,14 +17,25 @@
 //! A refusal read as absence deleted the record and the claim of a worktree that is still
 //!  registered,
 //! and no later command named it.
+//! The name sits beside the lookup because the reader of the pointer above them asks both.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! try { lstatSync(join(destination, '.git')); return 'present'; } catch (e) { return e.code === 'ENOENT' ? 'absent' : { unknown: e.message }; }
 //! ```
 
-use super::POINTER;
 use std::path::Path;
+
+/// The name Git gives the pointer file that makes a directory a worktree.
+/// Why:
+///   The lookup and the reader of the pointer name one file,
+/// and it is the name they share rather than the settlement above them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const POINTER = '.git';
+/// ```
+pub(super) const POINTER: &str = ".git";
 
 /// What:
 ///  Whether the destination holds Git's pointer,

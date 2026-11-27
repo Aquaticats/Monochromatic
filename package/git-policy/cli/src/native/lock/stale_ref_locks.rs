@@ -37,13 +37,11 @@ pub use crate::stale_ref_lock_found::{
     Found,
     Outcome,
     PidFile,
-};
-/// How a candidate is judged and what a judgement can say.
-pub use crate::stale_ref_lock_judge::{
-    Judge,
     Proof,
     Verdict,
 };
+/// How a candidate is judged.
+pub use crate::stale_ref_lock_judge::Judge;
 /// Judging and removing one candidate.
 use crate::stale_ref_lock_retire::judge_and_clear;
 /// Candidates are found here.

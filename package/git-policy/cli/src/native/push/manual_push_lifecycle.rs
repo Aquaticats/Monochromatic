@@ -34,7 +34,6 @@ use crate::manual_push_probe::{
     probe_manual_push_and_destination,
 };
 use crate::manual_push_range::{
-    ManualPushRangeError,
     UpdateScope,
     update_scope,
 };
@@ -43,6 +42,7 @@ use crate::manual_push_range_published_tips::{
     published_tips,
     tracking_commits,
 };
+use crate::manual_push_update_and_query_limits::ManualPushRangeError;
 use crate::parallel_budget::{
     BudgetRequest,
     HostResources,

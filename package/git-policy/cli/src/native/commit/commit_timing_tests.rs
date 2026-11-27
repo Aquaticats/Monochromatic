@@ -629,11 +629,12 @@ fn the_holder_kind_follows_what_the_notice_says() {
     use super::holder_kind_of;
     use crate::service_index_attempts::COMMIT_WITHDRAWN;
     use crate::wait_ceilings::LANDING_LOCK_CEILING;
-    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd {
-        within: LANDING_LOCK_CEILING,
-        ending: COMMIT_WITHDRAWN,
-    };
-    let proven: String = crate::index_lock_evidence::proven_holder_line(
+    let end: crate::index_lock_evidence_words::WaitEnd<'_> =
+        crate::index_lock_evidence_words::WaitEnd {
+            within: LANDING_LOCK_CEILING,
+            ending: COMMIT_WITHDRAWN,
+        };
+    let proven: String = crate::index_lock_evidence_words::proven_holder_line(
         42,
         true,
         Some("git"),
@@ -643,7 +644,7 @@ fn the_holder_kind_follows_what_the_notice_says() {
     assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
     assert_eq!(
         holder_kind_of(
-            crate::index_lock_evidence::unproven_wait_line(
+            crate::index_lock_evidence_words::unproven_wait_line(
                 Path::new("/r/.git/index.lock"),
                 None,
                 end
@@ -654,11 +655,11 @@ fn the_holder_kind_follows_what_the_notice_says() {
     );
     assert_eq!(
         holder_kind_of(
-            crate::index_lock_evidence::dead_owner_diagnostic(
+            crate::index_lock_evidence_words::dead_owner_diagnostic(
                 Path::new("/r/.git/index.lock"),
                 9,
                 "this commit was not made",
-                crate::index_lock_evidence::DEAD_OWNER_LOCK_LEFT
+                crate::index_lock_evidence_words::DEAD_OWNER_LOCK_LEFT
             )
             .as_str()
         ),
@@ -785,19 +786,23 @@ fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
     use super::holder_kind_after;
     use crate::service_index_attempts::COMMIT_WITHDRAWN;
     use crate::wait_ceilings::LANDING_LOCK_CEILING;
-    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd {
-        within: LANDING_LOCK_CEILING,
-        ending: COMMIT_WITHDRAWN,
-    };
-    let proven: String = crate::index_lock_evidence::proven_holder_line(
+    let end: crate::index_lock_evidence_words::WaitEnd<'_> =
+        crate::index_lock_evidence_words::WaitEnd {
+            within: LANDING_LOCK_CEILING,
+            ending: COMMIT_WITHDRAWN,
+        };
+    let proven: String = crate::index_lock_evidence_words::proven_holder_line(
         7,
         true,
         None,
         Path::new("/r/.git/index.lock"),
         end,
     );
-    let unproven: String =
-        crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end);
+    let unproven: String = crate::index_lock_evidence_words::unproven_wait_line(
+        Path::new("/r/.git/index.lock"),
+        None,
+        end,
+    );
     assert_eq!(holder_kind_after(None, proven.as_str()), "proven-alive");
     assert_eq!(
         holder_kind_after(Some("proven-alive"), unproven.as_str()),

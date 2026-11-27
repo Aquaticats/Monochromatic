@@ -181,8 +181,10 @@ run: set it in a child of the control's own,
 which `crate::process_wide_state_child_test_support::started_within_a_child_of_its_own` starts
 ```
 
-That starter is `run_the_body_in_a_child_of_its_own` since 2026-11-26 (issue 6503): it takes the body to run in the
-child, so the refusal now names a call that runs a body rather than one a control could read as a flag.
+That starter is `run_the_body_in_a_child_of_its_own` since 2026-11-26 (issue 6503):
+it takes the body to run in the
+child,
+so the refusal now names a call that runs a body rather than one a control could read as a flag.
 
 With the `refuse_outside_the_child` call taken out of `a_control_holds_the_read`
 and the same control still running beside the others,
@@ -406,9 +408,11 @@ each module the round touched answered its own run with no failure except
 `worktree::worktree_trash_entries::tests`,
 whose `the_removals_take_places_of_the_processs_bound_on_blocking_jobs` answers
 `FAILED. 7 passed; 1 failed` on the tree before the change as well
-(issue 6477's shape, and that control guards no child either way),
+(issue 6477's shape,
+and that control guards no child either way),
 and the four changed controls run alone answered `1 passed; 0 failed` each.
-Issues 6494, 6503 and the three above are one shape:
+Issues 6494,
+6503 and the three above are one shape:
 a process-wide fact belongs to a process of the control's own,
 and the control hands over the body that sets it.
 
@@ -783,3 +787,243 @@ taking 0.04 s then 0.09 s then 0.07 s.
 - A whole `worktree::` threaded run was not made either:
   the module's own filter shows the failure and its fix,
   and four split rounds' 14 kept runs of that filter are what the issue reports from.
+
+## Fourth round, 2026-11-27T05:24:15-05:00: a control's copy of a file was held open by another thread's child (issue 6542)
+
+### Symptom
+
+`merge::merge_isolation_recovery::tests::saves_and_holders::a_copy_a_program_still_holds_open_is_not_removed`
+failed once in the first threaded run of the `merge::` filter
+on the untouched tree of the round for branch `refactor/git-policy-cli-split-wrapper-merge-files-over-the-line-budget-1`
+(`test result: FAILED. 349 passed; 1 failed; 0 ignored; 0 measured; 10403 filtered out; finished in 86.37s`),
+and passed in that round's three later runs of the same code (`350 passed; 0 failed` each).
+The container gate cannot see this shape:
+nextest runs every test in a process of its own.
+
+The line that failed was the control's last assertion,
+"the copy goes once nothing holds it open",
+and the notice it quoted said "a program still holds the copy open" without naming one,
+so the report left out which process kept the copy.
+
+### Root cause
+
+The control opens the copy with `std::fs::File::open` and hands that descriptor to the program that holds it open
+(`sleep 120`) as its standard input.
+Between that open and the holder's `exec` the descriptor is one of the test process's,
+so a `fork` of any thread of a threaded run duplicates it into the forking child,
+where it stays open until that child execs.
+The holder scan the recovery makes (`lock/proc_fd_holder_scan.rs`) reads `/proc/<pid>/fd` of every process and
+matches the copy's device and inode,
+so such a child is a program holding the copy,
+and the copy stays.
+
+The control kills its own holder and reaps it,
+which is not the whole set of holders:
+under host load another test's thread forks inside that window,
+and the child it forks still holds the descriptor when the second recovery scans.
+The descriptor is a fact the whole process shares,
+so the defect is the control's
+(`AGENTS.md`'s SUF) and not the host's.
+
+### The evidence
+
+Planted on 2026-11-27,
+uncommitted and reverted before the fix:
+
+- a five second sleep between the copy's `File::open` and the holder's `spawn`,
+  which is the window a loaded host widens when it preempts the thread that opened the descriptor;
+- a second control in the same file that forks a child every second whose `pre_exec` sleeps a second before its
+  `exec`,
+  so each such child holds every descriptor this process has open across the whole window.
+
+Two runs of one build answered the issue's failure both times:
+
+```text
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 10763 filtered out; finished in 32.16s
+... still holds the copy open: PID 3905138 (merge::merge_is), so the copy stays where it is
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 10763 filtered out; finished in 30.57s
+... still holds the copy open: PID 4024259 (merge::merge_is), so the copy stays where it is
+```
+
+A process's `comm` is the name of the thread that forked it,
+cut to fifteen bytes,
+so each named process is a child of another test's thread and not the control's own `sleep 120`,
+whose `comm` is `sleep`,
+which the control's own line names on every run.
+Without the plant the same module answered
+`test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 10763 filtered out; finished in 0.62s`.
+
+### The change
+
+1. The body runs in a child of this test binary that holds this one test
+   (`process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own`),
+   so no other test's thread forks under the descriptor the control opens.
+2. The wait for the holder's end is `test_support::wait_until`,
+   judged on the run's own progress instead of a quiet host's clock,
+   and it fails naming the process it waited for and the window it gave
+   (`STILL_WORKING_WINDOW`),
+   where `Child::wait` waited with no bound at all.
+3. The notice names every holder by process number and command (`PID 1234 (sleep)`),
+   through the lock module's `holder_name`,
+   and the control asserts the line names the program it started,
+   which is the report issue 6542 asks for first.
+
+### What the guard is worth
+
+With the plant on the tree of the fix,
+both runs pass,
+since the plant's forks land in the parent that runs no copy:
+
+```text
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 10763 filtered out; finished in 32.93s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 10763 filtered out; finished in 42.39s
+```
+
+The control the fix changed,
+nothing planted:
+`test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 10763 filtered out; finished in 0.45s`.
+
+The naming that issue 6542 asks for is a guard that fails without its code:
+with the holders taken out of `say_the_copy_stays_held_open`
+(it said "a program this command can read still holds the copy open" and named nothing),
+the control answered
+`test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10770 filtered out; finished in 0.69s`
+at its own assertion,
+`the line names the process that holds the copy, which is the one this control started (742769)`,
+and the line it quoted named no process.
+With the code back the same control passes.
+
+### Not covered
+
+- The container gate was not run for this change:
+  a branch merges without one,
+  and one gate runs on `main` for each batch of merges
+  (`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`).
+- The other controls of this crate that hand a descriptor to a program were read and left as they are:
+  `merge_isolation_carry_place_tests.rs` starts such a program and never runs a second removal after it ends,
+  so a child that inherited the descriptor cannot change its answer.
+- No measurement of a whole-library threaded run was made,
+  as no round makes one
+  (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+- This section is unapproved and non-final:
+  it records what one round read,
+  planted,
+  measured and changed,
+  and the owner declares the work complete.
+
+## Fifth round, 2026-11-27T05:32:05-05:00: the trash removal place control (issue 6534)
+
+### Symptom
+
+`worktree::worktree_trash_entries::tests::the_removals_take_places_of_the_processs_bound_on_blocking_jobs`
+failed in 12 of the 14 kept threaded runs of the whole `worktree::` filter
+that four split rounds made on 2026-11-26,
+and passed in the other two (issue 6534).
+The module's own filter alone passed,
+so the failure needed a run in which another control had already made the process's bound.
+
+Measured again on this round's tree before the change,
+with
+`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1 cargo test --locked --offline --lib --features test-only-switches worktree:: -- --skip guest --skip _arm_tests`,
+default threads:
+
+- `test result: FAILED. 1011 passed; 4 failed; 1 ignored; 0 measured; 9755 filtered out`,
+  the control failing at `src/native/worktree/worktree_trash_entries_tests.rs:340`
+  with `left: [false, false, false, false]` and `right: [true, true, true, true]`;
+  the other three failures were `worktree::add_standing_notice::tests`,
+  which issue 6533's own round owns.
+- the module alone answered `test result: ok. 8 passed; 0 failed`,
+  which is why the control's own filter never showed it.
+
+### Root cause
+
+The control calls `hold_the_only_place()` (`testing/parallel_test_support.rs`),
+which stores `ONE_PLACE` in `HELD_TO`,
+then holds its place with a job of the process's blocking pool.
+`BUDGET` is one `OnceLock` for the process,
+and it reads `HELD_TO` only where it is first made
+(`foundation/blocking_jobs_within_the_budget.rs`),
+so a hold that comes after another control's thread has made the bound changes nothing:
+the holder takes one place of seven,
+and the removals take the others and start at once.
+This is the same mechanism issue 6477 measured for `repair::package_repair_toolchain`.
+
+### The evidence
+
+A print at the budget's own creation,
+planted uncommitted and reverted before the change,
+read in the failing `worktree::` run:
+
+```text
+MEASURE the budget is made now: heldTo=18446744073709551615 allowed=7
+```
+
+`heldTo` was `usize::MAX`,
+so the budget was made before any control held it,
+and it had the seven places the CPUs allow.
+The same print in the module's own filter read
+`the budget is made now: heldTo=1 allowed=1`,
+which is the process the control was written for.
+
+### The change
+
+The control's body runs in a child of its own
+(`process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own`),
+as its four neighbours in the module do,
+and it reads `budgeted_blocking_jobs()` once the hold is taken,
+failing at its own line when the bound is not the one place it holds.
+
+No release code changed:
+`hold_blocking_jobs_to` and the budget are as they were,
+and a hold that arrives after the budget is made still changes nothing,
+which issue 6477 owns for the shared helper.
+
+### What the guard is worth
+
+With the child start taken out and the read left in place,
+the module alone still passed `test result: ok. 8 passed; 0 failed`,
+because the control's own hold made the budget first there,
+and the whole `worktree::` run failed at the new line:
+
+```text
+assertion `left == right` failed: this process's bound on blocking jobs has 7 places, and the control holds one of them, so a removal takes another and starts at once: the body needs a process of its own, whose bound is the one place it holds
+```
+
+### After the change
+
+- the module threaded:
+  `test result: ok. 8 passed; 0 failed; 0 ignored`,
+  in 0.27 s.
+- the whole `worktree::` filter threaded:
+  `test result: FAILED. 1011 passed; 4 failed; 1 ignored`,
+  with all four failures in `worktree::add_standing_notice::tests`
+  and this control passing.
+- the same filter with that module skipped:
+  `test result: ok. 1007 passed; 0 failed; 1 ignored`,
+  in 25.12 s.
+- after merging `origin/main` at `c0c4eeeb88`,
+  with that module's own fix merged in between,
+  the whole `worktree::` filter answered
+  `test result: ok. 1015 passed; 0 failed; 1 ignored`,
+  in 18.23 s.
+- `source_guard`:
+  `test result: ok. 176 passed; 0 failed`.
+- `cargo fmt --check` printed nothing.
+- `cargo check --locked --offline --all-targets` finished clean,
+  and so did `cargo clippy --locked --offline --all-targets -- -D warnings`.
+
+### Not covered
+
+- The container gate was not run,
+  and a whole-library threaded run is not run here
+  (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+- The other callers of `hold_the_only_place` are unchanged:
+  `lfs`,
+  `subvolume`,
+  `worktree_copying`,
+  `landing`,
+  `repair` and
+  `worktree`,
+  and issue 6477 owns the helper's own fix.
+- No `source_guard` ban refuses a control that holds the process's bound outside a child;
+  `hold_blocking_jobs_to` is the one setter of that fact that still has none.

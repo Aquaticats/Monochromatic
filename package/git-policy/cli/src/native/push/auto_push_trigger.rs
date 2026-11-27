@@ -47,6 +47,10 @@ pub use super::auto_push_trigger_watched_branch::{
     try_watch_tip,
     watch_tip,
 };
+use crate::push_record_of_a_moved_branch::{
+    hand_over_push,
+    write_push_record,
+};
 /// Import the push record's shape,
 /// how a hand-over ended,
 /// and the log it is written to.
@@ -66,11 +70,7 @@ use crate::service_client::{
     ClientConfig,
     manager_watch_for,
 };
-use crate::service_handoff::{
-    ServiceHandoff,
-    hand_over_push,
-    write_push_record,
-};
+use crate::service_handoff::ServiceHandoff;
 /// Import the words a person reads when the service cannot be reached.
 use crate::service_messages::platform_remedy;
 use crate::service_messages::render;

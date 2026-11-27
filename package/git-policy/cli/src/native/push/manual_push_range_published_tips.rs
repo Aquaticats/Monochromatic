@@ -13,9 +13,9 @@
 
 use crate::auto_push_single_flight::PushGit;
 use crate::manual_push_cause::ManualPushCause;
-use crate::manual_push_probe::PushUpdate;
-use crate::manual_push_range::{
+use crate::manual_push_update_and_query_limits::{
     ManualPushRangeError,
+    PushUpdate,
     lines_of,
     range_error,
     run_git_bytes,

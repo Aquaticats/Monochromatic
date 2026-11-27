@@ -64,6 +64,9 @@ pub use super::push_retry_store_plan_record::{
     PLAN_VERSION,
     StoredPlan,
 };
+/// Import the hash a plan's name is built from,
+/// which the person's own notice record is named by too.
+use crate::auto_push_branch_key::fnv_hex;
 /// Import the blocked job a plan's step runs as,
 /// and the answer it gives.
 use crate::blocking_jobs_within_the_budget::{
@@ -80,9 +83,6 @@ use crate::private_storage::{
     read_regular_file,
     write_private_file_unsynced,
 };
-/// Import the hash a plan's name is built from,
-/// which the person's own notice record is named by too.
-use crate::push_failure_notice::fnv_hex;
 /// Import the ceiling the after-commit work's state step is given,
 /// which names the plan among what it covers.
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;

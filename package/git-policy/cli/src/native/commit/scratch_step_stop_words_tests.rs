@@ -1,8 +1,10 @@
 //! Controls for the words a stopped scratch `git commit` prints.
 
 use super::*;
-use crate::scratch_step_held_by_the_kernel::HeldProgram;
-use crate::scratch_step_stall_decided_once::WhyTheStepWasWaitedFor;
+use crate::scratch_step_stall_decided_once::{
+    HeldProgram,
+    WhyTheStepWasWaitedFor,
+};
 
 /// One stop's words,
 /// with the fields a control is not asking about left at their quietest.

@@ -10,6 +10,14 @@
 //! finding 3).
 
 use super::*;
+use crate::index_lock_evidence_words::{
+    DEAD_OWNER_LOCK_LEFT,
+    WaitEnd,
+    blocker_words,
+    dead_owner_diagnostic,
+    proven_holder_line,
+    unproven_wait_line,
+};
 use crate::index_lock_holders::Holder;
 use crate::test_support::{
     fixture,

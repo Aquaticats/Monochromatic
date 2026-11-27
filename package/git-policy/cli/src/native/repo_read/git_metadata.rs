@@ -17,8 +17,8 @@ use crate::child_class::ChildClass;
 use crate::child_watch::{
     StepBound,
     WatchTerms,
-    output_watched_within,
 };
+use crate::child_watch_one_shot_run::output_watched_within;
 /// Import the shared child-command builder.
 use crate::forwarding::git_command;
 /// Who a real-Git start runs for:
@@ -38,6 +38,10 @@ use crate::step_output_read_whole_through_pipes::{
     carried_by,
     release_write_ends,
 };
+/// The answer type this runner hands back,
+/// which the hook that tries an answer first also names,
+/// and which lives in a file of its own so that those two do not use each other.
+pub use crate::the_output_a_captured_query_gives::MetadataOutput;
 /// The longest a read of a check runs.
 use crate::wait_ceilings::PLUMBING_STEP_CEILING;
 /// What:
@@ -60,37 +64,6 @@ use std::path::{
 use std::process::Stdio;
 /// The ceiling value and the sentence a failed read is reported with.
 use std::time::Duration;
-
-/// What:
-///  What one metadata query produced.
-///       `Vec<u8>` is an owned byte list (`u8` is one byte);
-///  sibling `String` would
-///       require UTF-8.
-/// Why:
-///   Git prints paths as raw bytes,
-///  and a failed query is an ordinary answer
-///       ("not a repository"),
-///  not an error.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type MetadataOutput = { success: boolean; code: number | null; stdout: Buffer; stderr: Buffer };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MetadataOutput {
-    /// Whether Git exited with status zero.
-    pub success: bool,
-    /// Git's exit code,
-    ///  or nothing when a signal ended it.
-    ///  Some queries answer through
-    /// their exit code alone (`git diff-index --quiet` exits 1 for "differs").
-    pub code: Option<i32>,
-    /// Exact bytes Git wrote to standard output,
-    ///  including what it printed before failing.
-    pub stdout: Vec<u8>,
-    /// Exact bytes Git wrote to standard error.
-    pub stderr: Vec<u8>,
-}
 
 /// The longest one read-only Git query of the check path runs,
 ///  whatever it shows,
@@ -371,7 +344,7 @@ pub fn run_metadata_git_without_within(
 ///  so the read it starts is ended at
 ///       that ceiling by the wait for the read's answer and nothing waits after it:
 ///  this is the shape the wrapper already gives a read-only query
-///       with a ceiling of its own (`push/manual_push_range.rs`,
+///       with a ceiling of its own (`push/manual_push_update_and_query_limits.rs`,
 ///  `CeilingWhy::TheQueryIsBounded`).
 ///
 /// In TS you'd write (pseudocode):
@@ -534,7 +507,7 @@ fn run_a_metadata_read(
 ///       with a kill and no request,
 ///  because it writes nothing the person has to be told about,
 ///  and that is the shape
-///       `push/manual_push_range.rs` gives a query of its own.
+///       `push/manual_push_update_and_query_limits.rs` gives a query of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

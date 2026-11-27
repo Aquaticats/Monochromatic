@@ -20,13 +20,13 @@
 //! // untrackedFilesTheTreeTracks(facts, 'rebase-merge/orig-head') => ['victim.txt']
 //! ```
 
-/// The provider whose Git,
-///  global options and environment answer the queries.
-use super::repository_facts::GitFacts;
 /// The tree reading both facts share.
 use super::repository_facts_ignored_files::tree_paths;
 /// The captured-query runner's output type.
 use crate::git_metadata::MetadataOutput;
+/// The provider whose Git,
+///  global options and environment answer the queries.
+use crate::repository_facts_git_provider::GitFacts;
 /// The readings of one `git ls-files --others` answer over the asked paths.
 use crate::rule_worktree_dirty::{
     nul_separated_paths,

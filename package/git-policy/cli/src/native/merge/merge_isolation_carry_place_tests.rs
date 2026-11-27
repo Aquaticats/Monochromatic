@@ -15,7 +15,7 @@ use super::{
     SetAsides,
     place_file_awaiting,
 };
-use crate::merge_isolation_carry_writes::FileWrite;
+use crate::merge_isolation_carry_write_forms::FileWrite;
 use crate::merge_isolation_changes::file_identity;
 use crate::merge_isolation_take_aside_names::ASIDE_PREFIX;
 use crate::test_support::{

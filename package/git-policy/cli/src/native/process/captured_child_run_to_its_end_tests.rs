@@ -198,8 +198,8 @@ fn neither_query_path_signals_by_number() {
             include_str!("captured_child_run_to_its_end.rs"),
         ),
         (
-            "push/manual_push_range.rs",
-            include_str!("../push/manual_push_range.rs"),
+            "push/manual_push_update_and_query_limits.rs",
+            include_str!("../push/manual_push_update_and_query_limits.rs"),
         ),
     ];
     for (name, source) in sources {
