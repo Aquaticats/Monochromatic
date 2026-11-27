@@ -83,16 +83,51 @@ pub fn ensure_monitor() {
 /// and entered into the registry directly,
 /// so no look of the
 ///  monitor that came before can have written it off.
+///
+/// # Panics
+///  When the child is already gone,
+///  or when it cannot be pinned.
 pub fn watch(
     pid: u32,
     limits: Limits,
 ) {
+    assert!(
+        watch_while_running(pid, limits),
+        "the child to watch is running and can be pinned"
+    );
+}
+
+/// What:
+///  Ask the monitor to watch the child `pid` with `limits`,
+///  and answer whether there was a live child to watch.
+/// Why:
+///   A control that states the limits of a command it started itself hands them over here,
+///  right after the start (`observe_under` in `binary_support_observation.rs`),
+///  while the commands the tests share are found by `discover` under the shared limits.
+///  A command that ended before these microseconds went by needs no watching whatever:
+///  its caller reads the exit status,
+///  and failing a control for that would report the host's speed as the code's defect
+///  (issue 6547,
+///  a self-exclusion start ended as a loop when a loaded host made the same reads cost ten
+///  processor-seconds).
+///
+pub fn watch_while_running(
+    pid: u32,
+    limits: Limits,
+) -> bool {
     let watched: i32 = i32::try_from(pid).expect("a process ID fits");
     ensure_monitor();
-    let started: u64 = stat_of(watched)
-        .expect("the child to watch is running")
-        .started;
-    let pin: Pin = Pin::open(watched, started).expect("the child to watch can be pinned");
+    // What: the child's start time, or nothing when its process is already gone.
+    // Why:  a process ID with its start time names one process for good, so a number the kernel
+    //       reused is not watched as this child.
+    let Some(started) = stat_of(watched).map(|stat| {
+        return stat.started;
+    }) else {
+        return false;
+    };
+    let Some(pin) = Pin::open(watched, started) else {
+        return false;
+    };
     with_registry(|registry| {
         registry.watched.insert(
             watched,
@@ -103,6 +138,7 @@ pub fn watch(
             },
         );
     });
+    return true;
 }
 
 /// The body of the monitor thread:

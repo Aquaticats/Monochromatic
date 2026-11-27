@@ -19,6 +19,24 @@
 //! const observed = observeRaw(command); // { code, stdout, stderr, signal }
 //! ```
 
+/// What:
+///  `crate::supervisor` is the hang guard:
+///  the limits it judges a command by (`Limits`),
+///  and the call that puts a command the control started itself under a control's own limits
+///  (`watch_while_running`).
+/// Why:
+///   A command is judged under limits somebody states,
+///  and a control whose own work needs more processor time than the shared figure allows
+///  states its own here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Limits, watchWhileRunning } from './binary_supervisor.ts';
+/// ```
+use crate::supervisor::{
+    Limits,
+    watch_while_running,
+};
 use crate::support_observation_bound::{
     Answer,
     LineBound,
@@ -324,7 +342,34 @@ pub fn observe_raw(
     command: &mut Command,
     input: &[u8],
 ) -> Observed {
-    return observe_with(command, input, true);
+    return observe_with(command, input, true, None);
+}
+
+/// What:
+///  Run a command to completion under limits the control states for it,
+///  and observe it without its hint fields.
+/// Why:
+///  Every other command runs under the limits the tests share (`supervisor::SHARED`),
+///  whose processor budget is sized for the work of one Git command.
+///  A control whose own command must read many times its own executable to answer makes more work
+///  than that figure allows,
+///  and a loaded host makes the same reads cost more processor time still:
+///  the self-exclusion control of `binary_resolution_tests.rs` makes one start read
+///  1,293,394,560 bytes of its own image on 2026-11-27,
+///  and issue 6547 records such a start ended at 10.0 s of processor time (a slow start read as a loop).
+///  A control that states its own limits says how much its command may use,
+///  so the shared figure never decides it,
+///  and the monitor still ends a command that really loops (`Limits`,
+///  `binary_supervisor_limits.rs`).
+///
+/// # Panics
+///  As `observe_raw`.
+pub fn observe_under(
+    command: &mut Command,
+    input: &[u8],
+    limits: Limits,
+) -> Observed {
+    return observe_with(command, input, true, Some(limits));
 }
 
 /// What:
@@ -343,17 +388,22 @@ pub fn observe_without_waiting_for_the_after_commit_work(
     command: &mut Command,
     input: &[u8],
 ) -> Observed {
-    return observe_with(command, input, false);
+    return observe_with(command, input, false, None);
 }
 
 /// What:
-///  The body both faces above share:
+///  The body the three faces above share:
 ///  one run of a command,
+///  the limits it is judged by,
 ///  and the wait for the after-commit work given or refused.
 /// Why:
-///  The faces differ only in that wait and in the descriptor they hand,
+///  The faces differ only in those two and in the descriptor they hand,
 /// so the bound,
 /// the misuse check and the reading live once.
+///  `limits` are a control's own (`observe_under`),
+///  entered for the command the moment it exists so no look of the monitor can judge it by another figure
+///  first,
+///  or `None` to leave it to the monitor's own finding of the shared bound.
 ///  The command leads a process group of its own,
 ///  which is the group the bound ends;
 ///  `timeout` makes such a group for itself a moment after it starts (`setpgid` in its own process),
@@ -379,6 +429,7 @@ fn observe_with(
     command: &mut Command,
     input: &[u8],
     waiting_for_the_after_commit_work: bool,
+    limits: Option<Limits>,
 ) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
@@ -403,6 +454,14 @@ fn observe_with(
         .spawn()
         .expect("process starts");
     let child_id: u32 = child.id();
+    // What: the control's own limits, entered for this command before any look of the monitor judges it.
+    // Why:  the monitor finds the commands the tests share by their own line and watches them under the shared
+    //       limits; a command a control states limits for is registered here first, and the entry in the registry
+    //       under those limits is the one every later look uses.
+    //       A command that ended before these microseconds went by needs no watching whatever.
+    if let Some(own_limits) = limits {
+        let _watched: bool = watch_while_running(child_id, own_limits);
+    }
     let group: libc::pid_t =
         libc::pid_t::try_from(child_id).expect("a process ID fits the pid type");
     let answer: Answer = wait_under_bound(child, Some(group), line_bound_of(command), input);
