@@ -2010,6 +2010,9 @@ It was a stopgap for one night and changes no decision recorded under "User deci
 - **What was kept**:
   the samples,
   `~/temp/agent/cpu-temperature-kept-under-80-degrees-while-the-owner-sleeps-2026-11-15/keep/samples-of-the-temperature-and-the-budget.csv`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   The controller's and the watcher's scripts were deleted with their folder's other entries;
   what the controller did is described in this section.
 
@@ -2040,6 +2043,9 @@ It was a stopgap for one night and changes no decision recorded under "User deci
     Script and samples:
     `~/temp/agent/cpu-temperature-kept-under-80-degrees-while-the-owner-sleeps-2026-11-15/`,
     samples in `keep/samples-of-the-temperature-and-the-budget.csv`.
+    (scratch,
+    deleted on 2026-11-27;
+    what this record uses from it is stated here).
   - **The power profile**,
     switched at 05:06:16 from `balanced` to `power-saver` through the desktop's own service
     (`net.hadess.PowerProfiles`,

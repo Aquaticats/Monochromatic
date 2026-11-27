@@ -65,6 +65,9 @@ or on any Windows machine.
 - Scratch folder:
   `/home/user/temp/agent/watcher-finalist-validation-directory-watcher-scratch-2026-11-25`
   (rule `ATH`), created with `mkdir --parents` and `chmod 700`.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 ## Isolation defaults for every command tree
 
@@ -1008,7 +1011,10 @@ Each line is something this run did not expect from the source record or the des
 ## Where the evidence lives
 
 Logs and measurements are kept in
-`/home/user/temp/agent/watcher-finalist-validation-directory-watcher-scratch-2026-11-25/keep/`:
+`/home/user/temp/agent/watcher-finalist-validation-directory-watcher-scratch-2026-11-25/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - `tree2-goversion.log`, `tree2-build.log`, `tree2-vet.log`, `tree2-smoke.log`;
 - `tree2-test.log` and `tree2-test-status.txt`, the first, failing test step;

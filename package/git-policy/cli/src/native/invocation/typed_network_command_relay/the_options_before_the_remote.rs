@@ -1,5 +1,7 @@
 //! What:
-//!  The first of a typed command's words that is not an option, read with Git's own option table for that command.
+//!  The four commands a typed network command covers,
+//!  and the first of one's words that is not an option,
+//!  read with Git's own option table for that command.
 //! Why:
 //!  The remote decides whether the command is relayed, so it must be read the way Git reads its arguments:
 //!  a value of `--depth` is not a remote, and a word Git's table does not know leaves the remote unknown,
@@ -8,6 +10,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
+//! // type TypedNetworkCommand = 'clone' | 'fetch' | 'pull' | 'push';
 //! // const remote = remoteOperand(command, region); // undefined when Git's table does not cover the words
 //! ```
 
@@ -34,14 +37,27 @@ use crate::command_options::{
     ParsedOptions,
     parse_options,
 };
-// What: The command word this table belongs to.
-// Why:  A clone's words and a push's words are different grammars.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// type TypedNetworkCommand = 'clone' | 'fetch' | 'pull' | 'push';
-// ```
-use super::the_remote_a_typed_command_names::TypedNetworkCommand;
+
+/// What:
+///  A typed network command whose remote may be carried by ssh.
+/// Why:
+///  These are the four the decision covers; a command outside this list keeps the process replacement it has today.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TypedNetworkCommand = 'clone' | 'fetch' | 'pull' | 'push';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TypedNetworkCommand {
+    /// `git clone`.
+    Clone,
+    /// `git fetch`.
+    Fetch,
+    /// `git pull`.
+    Pull,
+    /// `git push`.
+    Push,
+}
 
 /// What:
 ///  The remote operand the person wrote: the first token that is not an option, read with Git's own option table.

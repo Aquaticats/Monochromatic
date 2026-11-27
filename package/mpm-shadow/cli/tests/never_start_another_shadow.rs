@@ -33,6 +33,11 @@
 #[path = "never_start_another_shadow/fixtures_and_bounded_runs.rs"]
 mod fixtures_and_bounded_runs;
 
+/// The writer of the program files these tests start,
+/// shared with the crate's other test binaries.
+#[path = "written_programs/through_a_child_process.rs"]
+mod through_a_child_process;
+
 /// The runs that show a shadow never starts another shadow,
 /// whichever way it meets one.
 #[path = "never_start_another_shadow/shadows_that_must_not_start_each_other.rs"]

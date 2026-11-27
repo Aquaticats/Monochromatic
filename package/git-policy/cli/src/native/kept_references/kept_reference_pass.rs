@@ -81,7 +81,7 @@ use crate::kept_reference_limits::{
 /// which is written before the reference goes.
 use crate::kept_reference_log::log_one_pruning;
 /// The answers one pass gives about a reference,
-/// re-exported so the listing and the log read them from the pass.
+/// re-exported so a reader of the pass finds them here.
 pub use crate::kept_reference_pass_answers::{
     Kept,
     Pruned,
