@@ -27,6 +27,10 @@
 //! - `collected_elements_looked_at.rs`:
 //!   the collected elements a pass over unbounded input has looked at,
 //!   counted for the controls of the passes that must stay linear.
+//! - `shown_so_it_cannot_rewrite_the_line.rs`:
+//!   a name another program chose,
+//!   shown so that no byte of it can move a terminal's cursor,
+//!   end the line or speak as this program.
 //! - `file_only_root_may_write.rs`:
 //!   reading a file only the account this program runs as may write.
 //!   Linux only,
@@ -585,6 +589,11 @@ pub mod worst_delay_seen_on_this_host;
 /// The collected elements a pass over unbounded input has looked at,
 /// counted for the controls of the passes that must stay linear.
 pub mod collected_elements_looked_at;
+
+/// A name another program chose,
+/// shown so that no byte of it can move a terminal's cursor,
+/// end the line or speak as this program.
+pub mod shown_so_it_cannot_rewrite_the_line;
 
 /// A blocking job on a thread of its own,
 /// awaited no longer than a ceiling,

@@ -24,29 +24,46 @@ use crate::index_lock_evidence::{
 };
 /// The summary of what a scan of open descriptors could not read.
 use crate::index_lock_holder_words::partial_summary;
+/// A name another program chose, shown so no byte of it can act on the line it lands in.
+use crate::shown_so_it_cannot_rewrite_the_line::shown_so_it_cannot_rewrite_the_line;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// How long a span lasts.
 use std::time::Duration;
 
 /// What:
-///  `PID <n>` with the command in parentheses when known.
+///  `PID <n>` with the command in parentheses when known,
+///  the command shown so that no byte of it can rewrite the line.
 /// Why:
 ///   Shared by the evidence,
 /// the waiting line
 /// and the line a kept copy stays with,
 /// so one process is named one way wherever a person reads it.
+///  A program sets its own name to any bytes it likes (`/proc/<pid>/comm`),
+///  and this line is the person's only pointer to which program holds the file:
+///  an escape in the name would move the cursor or erase the line,
+///  and a line break would let the rest of the name read as this program's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `PID ${pid}${command === undefined ? '' : ` (${command})`}`
+/// `PID ${pid}${command === undefined ? '' : ` (${shownSoItCannotRewriteTheLine(command)})`}`
 /// ```
 pub(crate) fn holder_name(
     pid: i64,
     command: Option<&str>,
 ) -> String {
     match command {
-        Some(name) => return format!("PID {pid} ({name})"),
+        // What: the name the program chose, shown so no byte of it can rewrite the line,
+        //  inside the parentheses that say whose name it is.
+        // Why:  the name is the only thing that says which program holds the file.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return `PID ${pid} (${shownSoItCannotRewriteTheLine(name)})`;
+        // ```
+        Some(name) => {
+            return format!("PID {pid} ({})", shown_so_it_cannot_rewrite_the_line(name));
+        }
         None => return format!("PID {pid}"),
     }
 }
