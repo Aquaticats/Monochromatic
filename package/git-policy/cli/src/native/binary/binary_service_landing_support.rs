@@ -36,7 +36,6 @@ use super::support::{
     Observed,
     observe,
 };
-use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::path::{
     Path,
     PathBuf,
@@ -60,6 +59,14 @@ const PINNED_DATE: &str = "2026-02-03T04:05:06+0000";
 /// export * from './binary_service_landing_support_what_a_repository_holds.rs';
 /// ```
 pub(super) use crate::service_landing_support_what_a_repository_holds::*;
+
+/// The finished record a landing writes,
+/// and the wait a control makes for it,
+/// in a file of its own because this one is over the per-file line budget.
+pub(super) use crate::service_landing_support_the_record_a_landing_writes::{
+    await_the_finished_record,
+    finished,
+};
 
 /// One command line,
 /// the state it starts from,
@@ -99,7 +106,19 @@ pub(super) struct Outcome {
     pub code: Option<i32>,
     pub first_line: String,
     pub output: String,
+    /// Standard error,
+    /// which names a lost answer and the silence it was lost to.
+    pub error: String,
     pub left: Vec<(String, String)>,
+}
+
+/// What a served run left:
+/// the command's ending,
+/// and the service that served it,
+/// which the caller keeps alive until it has read the record its landing writes.
+pub(super) struct Served {
+    pub(super) observed: Observed,
+    pub(super) service: Running,
 }
 
 fn pinned(command: &mut Command) {
@@ -151,24 +170,51 @@ pub(super) fn run_native(
     return finish(fixture, repo, observe(&mut command, entry.input));
 }
 
-/// Runs the case through the wrapper and the service whose runtime directory `name` names.
+/// Runs the case through the wrapper and the service whose runtime directory `name` names,
+/// and answers with what the command came to and with the service that served it.
+/// Why the service comes back with it:
+///  A landing writes its finished record after the index it installs,
+///  so the caller keeps the service running until that record is there (issue 6572).
 pub(super) fn run_served(
     fixture: &Fixture,
     repo: &Path,
     name: &str,
     entry: &Case,
-) -> Outcome {
+) -> Served {
     let mut arguments: Vec<&str> = entry.command.to_vec();
     if entry.index_commit {
         arguments.insert(1, "--no-enforce-only");
     }
     // A copy of the repository made after the service started is a worktree of its own, with a service of its own.
-    let _service_of_this_worktree: Running =
+    let service: Running =
         start_worktree(fixture.root.as_path(), runtime_for(name).as_path(), repo);
     let mut command: Command = wrapped_commit(fixture, repo, arguments.as_slice());
     command.env("XDG_RUNTIME_DIR", runtime_for(name));
     pinned(&mut command);
-    return finish(fixture, repo, observe(&mut command, entry.input));
+    return Served {
+        observed: observe(&mut command, entry.input),
+        service,
+    };
+}
+
+/// What:
+///  Waits for the finished record of a run that landed,
+///  then reads what the repository holds.
+/// Why:
+///  The record is written after the index the landing installs,
+///  and a wrapper whose answer was lost answers the landed commit from the branch already moved,
+///  so the command can end before the record exists (issue 6572);
+///  the repository is read after that, which is the state the landing leaves.
+pub(super) fn finish_a_landing(
+    fixture: &Fixture,
+    repo: &Path,
+    before: usize,
+    entry: &Case,
+    served: Served,
+) -> Outcome {
+    await_the_finished_record(fixture, before, entry.name, &served.observed);
+    drop(served.service);
+    return finish(fixture, repo, served.observed);
 }
 
 fn finish(
@@ -177,26 +223,14 @@ fn finish(
     observed: Observed,
 ) -> Outcome {
     let stdout: String = String::from_utf8_lossy(observed.stdout.as_slice()).into_owned();
+    let stderr: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
     return Outcome {
         code: observed.code,
         first_line: stdout.lines().next().unwrap_or("").to_string(),
         output: stdout,
+        error: stderr,
         left: left_behind(fixture, repo),
     };
-}
-
-/// The number of batches the service has finished in the fixture.
-pub(super) fn finished(fixture: &Fixture) -> usize {
-    return std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
-        return entries
-            .flatten()
-            .filter(|entry| {
-                return entry.path().extension().is_some_and(|extension| {
-                    return extension == DONE_EXTENSION;
-                });
-            })
-            .count();
-    });
 }
 
 /// Runs a case in two byte copies of `base`,
@@ -215,16 +249,26 @@ pub(super) fn compare(
     let served_repo: PathBuf = copy_beside(fixture, base, "served");
     let before: usize = finished(fixture);
     let native: Outcome = run_native(fixture, native_repo.as_path(), entry);
-    let served: Outcome = run_served(fixture, served_repo.as_path(), name, entry);
+    let served_run: Served = run_served(fixture, served_repo.as_path(), name, entry);
+    // What: A commit native Git made is a landing through the service, and its record is waited for inside a bound.
+    // Why:  The record follows the index the landing installs, and a command whose answer was lost reports its commit
+    //  before that record exists, so the count is read after the wait and never at the instant the command ended.
+    let served: Outcome = if native.code == Some(0) {
+        finish_a_landing(fixture, served_repo.as_path(), before, entry, served_run)
+    } else {
+        drop(served_run.service);
+        let observed: Observed = served_run.observed;
+        finish(fixture, served_repo.as_path(), observed)
+    };
     assert_eq!(
         served.code, native.code,
-        "{}: exit status\nservice output:\n{}",
-        entry.name, served.output
+        "{}: exit status\nservice output:\n{}\nservice error:\n{}",
+        entry.name, served.output, served.error
     );
     assert_eq!(
         served.first_line, native.first_line,
-        "{}: first line of the output",
-        entry.name
+        "{}: first line of the output\nservice error:\n{}",
+        entry.name, served.error
     );
     if entry.full_output {
         assert_eq!(served.output, native.output, "{}: output", entry.name);
@@ -232,13 +276,7 @@ pub(super) fn compare(
     for ((label, expected), (_, found)) in native.left.iter().zip(&served.left) {
         assert_eq!(found, expected, "{}: {label}", entry.name);
     }
-    if native.code == Some(0) {
-        assert!(
-            finished(fixture) > before,
-            "{}: the service landed it",
-            entry.name
-        );
-    } else {
+    if native.code != Some(0) {
         assert_eq!(finished(fixture), before, "{}: nothing landed", entry.name);
     }
     std::fs::remove_dir_all(&served_repo).expect("remove the served copy");
