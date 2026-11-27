@@ -25,23 +25,32 @@
 //! It runs on the command's own path because a forwarded command
 //!  replaces the process and a thread would die with it;
 //! the cost when no name exists twice is a few `stat` calls per name.
-//!
+//! What a fold is given and what it says are two sibling files:
+//!  `what_a_fold_is_given_and_what_it_answers.rs` and `what_a_fold_says_to_a_person.rs`.//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! foldAndTell(gitDir, [DATA_FOLDER, MERGE_INTENT_FOLDER]); // silent after a fold; one line when it waits or fails
 //! ```
 
+/// The fold of a folder kept under an earlier name,
+/// and how it ended.
 use crate::earlier_folder_entries_moved_into_current_folder::{
     FolderFold,
     fold_folder,
 };
+/// The fold of a log kept under an earlier name,
+/// the steps it reports through and its numbered copies.
 use crate::earlier_log_lines_added_to_current_log::{
     FoldSteps,
     LogFold,
     fold_log,
     numbered_copies,
 };
+/// The journals an earlier commit service kept in the state folder,
+/// and their names.
 use crate::earlier_service_journal_adopted::earlier_journals_in_state;
+/// The look at an earlier program of this Git directory,
+/// and the ceiling on that look.
 use crate::earlier_service_process_look::{
     Hold,
     Holding,
@@ -49,120 +58,46 @@ use crate::earlier_service_process_look::{
     earlier_service_process_hold,
     effective_user,
 };
+/// The rename that never replaces an existing name.
 use crate::private_storage::rename_noreplace;
+/// The instance a Git directory belongs to.
 use crate::service_instance::instance_of;
+/// The ceiling on a look at the process table.
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
-use crate::wrapper_names_old_and_new::{
-    KEPT_BESIDE_SUFFIX,
-    MESSAGE_PREFIX,
-    RenamedName,
+/// What a fold is given and what it answers:
+/// the names and their kinds,
+/// the surroundings it reads,
+/// how one name's fold ended,
+/// and one Git directory's report.
+pub use crate::what_a_fold_is_given_and_what_it_answers::{
+    FoldReport,
+    FoldSurroundings,
+    KeptKind,
+    KeptName,
+    Outcome,
 };
-use std::ffi::OsString;
+/// The two lines a fold says,
+/// and the switches that say each once in a process.
+use crate::what_a_fold_says_to_a_person::{
+    FAILURE_SAID,
+    WAIT_SAID,
+    failure_line,
+    waiting_line,
+};
+/// The suffix a copy of a moving log takes when its name is taken.
+use crate::wrapper_names_old_and_new::KEPT_BESIDE_SUFFIX;
+/// The pair of spellings of each name the folds above work on.
+use crate::wrapper_names_old_and_new::RenamedName;
+/// Writing a line to standard error.
 use std::io::Write;
+/// Paths of the Git directory,
+/// its entries and the state folder.
 use std::path::{
     Path,
     PathBuf,
 };
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
-};
-
-/// What kind of thing a kept name is,
-/// which decides how it folds.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum KeptKind {
-    /// A log of lines,
-    /// which keeps numbered older copies beside the one under the current name.
-    Log,
-    /// A folder of saved copies,
-    /// records or notices.
-    Folder,
-}
-
-/// One kept name to fold.
-#[derive(Clone, Copy, Debug)]
-pub struct KeptName {
-    /// The pair of spellings.
-    pub name: RenamedName,
-    /// How it folds.
-    pub kind: KeptKind,
-}
-
-/// What the look at the earlier program needs from the process around it.
-#[derive(Clone, Debug)]
-pub struct FoldSurroundings {
-    /// The user's state folder,
-    /// where the earlier commit service kept its journals.
-    pub state_dir: Option<PathBuf>,
-    /// The process table to look at.
-    pub proc_root: PathBuf,
-}
-
-/// The path an environment variable holds,
-/// or nothing when it is unset or empty.
-fn non_empty_environment_path(name: &str) -> Option<PathBuf> {
-    let value: OsString = std::env::var_os(name)?;
-    if value.is_empty() {
-        return None;
-    }
-    return Some(PathBuf::from(value));
-}
-
-/// The state folder under the home folder,
-/// or nothing when no home is set.
-fn home_state_dir() -> Option<PathBuf> {
-    let home: PathBuf = non_empty_environment_path("HOME")?;
-    return Some(home.join(".local").join("state"));
-}
-
-impl FoldSurroundings {
-    /// The surroundings of this process:
-    /// its environment and the live process table.
-    pub fn of_this_process() -> Self {
-        let named: Option<PathBuf> = non_empty_environment_path("XDG_STATE_HOME");
-        let state_dir: Option<PathBuf> = named.or_else(home_state_dir);
-        return FoldSurroundings {
-            state_dir,
-            proc_root: PathBuf::from("/proc"),
-        };
-    }
-}
-
-/// How the fold of one kept name ended.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Outcome {
-    /// Nothing existed twice.
-    Nothing,
-    /// The earlier name is gone and its content is under the current name.
-    Folded,
-    /// A program still has the moved log open for writing:
-    /// every byte it held so far is in the current log,
-    /// nothing is said,
-    ///  and a later command adds what the program writes next and removes the moved log once the program has closed it.
-    LeftForALaterCommand,
-    /// Another process is folding it.
-    Busy,
-    /// Entries of the earlier folder stayed where they were;
-    /// each is listed.
-    Left(Vec<PathBuf>),
-    /// The file system refused;
-    /// the message names the cause.
-    /// Everything is still in place.
-    Failed(String),
-    /// A control stopped the fold.
-    Stopped(&'static str),
-}
-
-/// What happened in one Git directory.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FoldReport {
-    /// Why nothing was folded,
-    /// when an earlier program may be writing.
-    pub held: Option<Hold>,
-    /// The outcome of each name that existed twice.
-    pub outcomes: Vec<(RenamedName, Outcome)>,
-}
+/// The order a switch's swap takes.
+use std::sync::atomic::Ordering;
 
 /// Whether anything exists at a path,
 /// a final symbolic link counting as present.
@@ -373,63 +308,10 @@ pub fn fold_kept_names(
     };
 }
 
-/// Whether this process has already said that a fold waits.
-static WAIT_SAID: AtomicBool = AtomicBool::new(false);
-
-/// Whether this process has already said that a fold could not finish.
-static FAILURE_SAID: AtomicBool = AtomicBool::new(false);
-
-/// The line that says a fold waits,
-/// with what to do in plain words.
-fn waiting_line(
-    directory: &Path,
-    hold: Hold,
-) -> String {
-    let instance: String = instance_of(directory);
-    let stop: String = match hold {
-        Hold::InstanceHelperRuns => format!(
-            "stop it with `systemctl --user stop cli-git@{instance}.socket cli-git@{instance}.service`"
-        ),
-        _ => String::from(
-            "stop the commit services of the earlier release (`systemctl --user list-units 'cli-git@*'` lists them)",
-        ),
-    };
-    return format!(
-        "{}: names the earlier release gave its saved data still sit beside the new names in {}. Nothing is lost and nothing is \
-         needed from you: a later command folds them into the new names once the earlier release's program has stopped, because \
-         {}. To let it happen sooner, {stop}.\n",
-        MESSAGE_PREFIX.current,
-        directory.display(),
-        hold.words()
-    );
-}
-
-/// The line that says a fold could not finish.
-fn failure_line(
-    directory: &Path,
-    name: RenamedName,
-    outcome: &Outcome,
-) -> Option<String> {
-    let because: String = match outcome {
-        Outcome::Failed(message) => message.clone(),
-        Outcome::Left(kept) => format!(
-            "{} entries could not be moved because both names they would take are already in use; they stay where they are",
-            kept.len()
-        ),
-        _ => return None,
-    };
-    return Some(format!(
-        "{}: {} in {} could not be folded into {} ({because}). Everything is still in place, and the next command tries again.\n",
-        MESSAGE_PREFIX.current,
-        name.earlier,
-        directory.display(),
-        name.current
-    ));
-}
-
 /// What:
 ///  The fold of one Git directory's kept names,
-/// with the surroundings and steps given, and its one line to standard error.
+/// with the surroundings and steps given,
+/// and its one line to standard error.
 /// Why:
 ///   The surroundings name the process table and the state folder the look reads,
 /// and a control must give its own:

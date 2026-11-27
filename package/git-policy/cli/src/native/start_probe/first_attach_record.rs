@@ -31,6 +31,9 @@
 //!  it carries no verdict,
 //!  and `doctor` prints it under its own label once plan step 18 adds the
 //!  reader.
+//!  The record's words and its key order are in `first_attach_record_text.rs`,
+//!  beside this file,
+//!  and every caller keeps naming them through this module.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,7 +42,6 @@
 //! ```
 
 use super::probe_fingerprint::ProbeFingerprint;
-use super::probe_record::ABSENT;
 use std::fs::{
     File,
     OpenOptions,
@@ -54,33 +56,33 @@ use std::path::{
     PathBuf,
 };
 
+/// What:
+///  The record's words and its text,
+///  re-exported so the writer and the controls keep naming this module.
+/// Why:
+///  A split of a file may not move a caller's path to what it names,
+///  so the words this file's records are written with are reachable here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './first_attach_record_text';
+/// ```
+pub use super::first_attach_record_text::{
+    ATTACHED,
+    FINISHED,
+    FIRST_ATTACH_KIND,
+    FIRST_ATTACH_OPERATION,
+    FIRST_ATTACH_VERSION,
+    FirstAttachOutcome,
+    NONE,
+    REFUSED,
+    STARTED,
+    outcome_record,
+    started_record,
+};
+
 /// The file beside the probe's record that keeps this boot's first real attach.
 pub const FIRST_ATTACH_NAME: &str = "first-attach";
-
-/// The file's kind,
-/// which tells it from the probe's `probe-result`.
-pub const FIRST_ATTACH_KIND: &str = "operation-outcome";
-
-/// The file's format version.
-pub const FIRST_ATTACH_VERSION: &str = "v1";
-
-/// The operation every record of this file names.
-pub const FIRST_ATTACH_OPERATION: &str = "attach";
-
-/// The started state's word.
-pub const STARTED: &str = "started";
-
-/// The finished state's word.
-pub const FINISHED: &str = "finished";
-
-/// The attached outcome's word.
-pub const ATTACHED: &str = "attached";
-
-/// The refused outcome's word.
-pub const REFUSED: &str = "refused";
-
-/// The word a value this build has none of is written as.
-pub const NONE: &str = "none";
 
 /// The file's mode:
 /// readable by everyone,
@@ -94,164 +96,6 @@ pub const DIRECTORY_MODE: u32 = 0o755;
 /// The bound the whole record is held to,
 /// so a value of a length this route does not expect cannot fill it.
 pub const RECORD_BOUND: usize = 4_096;
-
-/// What:
-///  What one first real attach did,
-///  as the file's fixed keys hold it.
-/// Why:
-///  A reader parses one key per line and refuses free text,
-///  so the two outcomes are two shapes and neither carries a sentence.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type FirstAttachOutcome = { kind: 'attached'; mountId; flags; slot; clone; guid } | { kind: 'refused'; slot; clone; guid; step; errno };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum FirstAttachOutcome {
-    /// The verified mount is at the slot.
-    Attached {
-        /// The mount the attach made.
-        mount_id: u64,
-        /// The flags the kernel lists for that mount,
-        /// read back after the move.
-        flags: String,
-        /// The slot the clone's name gave.
-        slot: String,
-        /// The clone's dataset name.
-        clone: String,
-        /// The clone's GUID.
-        guid: String,
-    },
-    /// The attach refused from the walk onward,
-    /// and the step names the call or check that refused.
-    Refused {
-        /// The slot the clone's name gave.
-        slot: String,
-        /// The clone's dataset name.
-        clone: String,
-        /// The clone's GUID.
-        guid: String,
-        /// The handler's own step name.
-        step: String,
-        /// The errno's name,
-        /// or `none` where the refusal was a comparison.
-        errno: String,
-    },
-}
-
-impl FirstAttachOutcome {
-    /// The file's outcome block,
-    /// one fixed key per line.
-    fn lines(&self) -> Vec<String> {
-        return match self {
-            FirstAttachOutcome::Attached {
-                mount_id,
-                flags,
-                slot,
-                clone,
-                guid,
-            } => vec![
-                format!("outcome {ATTACHED}"),
-                format!("mount {mount_id}"),
-                format!("flags {flags}"),
-                format!("slot {slot}"),
-                format!("clone {clone}"),
-                format!("guid {guid}"),
-            ],
-            FirstAttachOutcome::Refused {
-                slot,
-                clone,
-                guid,
-                step,
-                errno,
-            } => vec![
-                format!("outcome {REFUSED}"),
-                format!("slot {slot}"),
-                format!("clone {clone}"),
-                format!("guid {guid}"),
-                format!("step {step}"),
-                format!("errno {errno}"),
-            ],
-        };
-    }
-}
-
-/// The fingerprint lines both records carry,
-/// in the design's fixed order.
-fn fingerprint_lines(fingerprint: &ProbeFingerprint) -> Vec<String> {
-    return vec![
-        format!("boot {}", fingerprint.boot_id),
-        format!("kernel {}", fingerprint.kernel_release),
-        format!(
-            "module {}",
-            fingerprint.module_version.as_deref().unwrap_or(ABSENT)
-        ),
-        format!(
-            "srcversion {}",
-            fingerprint.module_srcversion.as_deref().unwrap_or(ABSENT)
-        ),
-        format!(
-            "handler {}",
-            fingerprint.handler.as_deref().unwrap_or(ABSENT)
-        ),
-    ];
-}
-
-/// What:
-///  The started record,
-///  which a winner that dies before its outcome leaves behind.
-/// Why:
-///  `doctor` reports the started line as an attach begun and not finished,
-///  so a killed handler leaves a boot's first attempt visible rather than
-///  looking like a boot whose first attach never ran.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const text = startedRecord(fingerprint, time);
-/// ```
-pub fn started_record(
-    fingerprint: &ProbeFingerprint,
-    time: &str,
-) -> String {
-    let mut lines: Vec<String> = vec![
-        String::from(FIRST_ATTACH_VERSION),
-        format!("kind {FIRST_ATTACH_KIND}"),
-        format!("state {STARTED}"),
-    ];
-    lines.extend(fingerprint_lines(fingerprint));
-    lines.push(format!("time {time}"));
-    lines.push(format!("operation {FIRST_ATTACH_OPERATION}"));
-    return format!("{}\n", lines.join("\n"));
-}
-
-/// What:
-///  The finished record,
-///  the outcome the claiming process publishes over its started one.
-/// Why:
-///  Every key is fixed and no value is free text,
-///  so the reader parses the file rather than interpreting a sentence.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const text = outcomeRecord(fingerprint, time, outcome);
-/// ```
-pub fn outcome_record(
-    fingerprint: &ProbeFingerprint,
-    time: &str,
-    outcome: &FirstAttachOutcome,
-) -> String {
-    let mut lines: Vec<String> = vec![
-        String::from(FIRST_ATTACH_VERSION),
-        format!("kind {FIRST_ATTACH_KIND}"),
-        format!("state {FINISHED}"),
-    ];
-    lines.extend(fingerprint_lines(fingerprint));
-    lines.push(format!("time {time}"));
-    lines.push(format!("operation {FIRST_ATTACH_OPERATION}"));
-    lines.extend(outcome.lines());
-    return format!("{}\n", lines.join("\n"));
-}
-
 /// What:
 ///  Why the claim or the outcome could not be written.
 /// Why:

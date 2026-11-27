@@ -14,105 +14,33 @@
 //! ```ts
 //! const users = await processesUsing({ target: { inside: directory }, selfPid: process.pid });
 //! ```
+//!
+//! Files beside this one,
+//!  and why the walk is not one file:
+//!  `process_use_targets_and_answers.rs` says what a scan is asked for and what it answers,
+//!  and `descriptor_of_a_process_that_may_hold_the_file.rs` asks whether one descriptor is the file.
+//!  `rust/max-lines` splits a file by role,
+//!  and the walk of the table is the role that reads one process after another.
 
-/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
+pub use super::descriptor_of_a_process_that_may_hold_the_file::{
+    descriptor_is_file,
+    descriptor_is_file_with,
+    mount_of,
+    mounted_descriptor_is_file,
+};
+pub use super::process_use_targets_and_answers::{
+    PROC_ROOT,
+    PROCESS_SCAN_CEILING,
+    ProcessUser,
+    Unread,
+    UseScan,
+    UseTarget,
+};
 use std::path::{
     Path,
     PathBuf,
 };
-/// `Instant` is a moment on the monotonic clock,
-/// which a scan's bound names.
 use std::time::Instant;
-
-/// The root of the process table on Linux.
-pub const PROC_ROOT: &str = "/proc";
-
-/// How long one scan of this host's processes may take.
-///
-/// Measured on 2026-11-07 on this host at load average 37 to 52:
-/// one walk of every process's open descriptors (list each `/proc/<pid>/fd` and `stat` each link) over 1,000 processes
-/// and 54,500 descriptors took 313,
-/// 360 and 398 ms,
-/// and the commit service's scan carries the same bound for the same measurement (`SERVICE_SCAN_BUDGET`).
-/// A scan that reaches it returns what it found and says that it did not finish,
-/// which every caller reads as a table it may not act on:
-/// two seconds is the smallest whole number of seconds that is at least five times the longest walk.
-/// Why a whole table and not one descriptor:
-///  a read of a descriptor's record cannot be interrupted once it has begun,
-///  so what bounds a single read is the gate before it (`descriptor_record.rs`) and what bounds the scan is this.
-pub const PROCESS_SCAN_CEILING: std::time::Duration = std::time::Duration::from_secs(2);
-
-/// What:
-///  What a scan looks for.
-/// Why:
-///   A directory is matched by path because a record inside it may be opened under any name;
-///  a file is matched by device and inode because a lock has more than one name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type UseTarget = { inside: string } | { file: { device: bigint; inode: bigint } };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum UseTarget<'a> {
-    /// A working directory or open descriptor whose resolved path lies under this canonical directory.
-    Inside(&'a Path),
-    /// An open descriptor on this file,
-    /// named by the device number and the inode the file has.
-    File {
-        /// The device number of the file system that holds the file (`st_dev`).
-        device: u64,
-        /// Inode number of the file on that device.
-        inode: u64,
-    },
-    /// An open descriptor on a file reached through this mount,
-    /// named as `/proc/<pid>/fdinfo` names it.
-    /// Why:
-    ///   A pipe and another anonymous file have no device a descriptor could be read for through the gate that
-    ///   keeps a stalled server out (`open_file_of_a_descriptor.rs`),
-    ///   and the mount number and the inode in the descriptor's own record name the open file without resolving it.
-    Mounted {
-        /// The mount number the kernel gives the mount the file is reached through.
-        mount: u64,
-        /// The file's inode on that mount.
-        inode: u64,
-    },
-}
-
-/// One process found using the target.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProcessUser {
-    /// The process number.
-    pub pid: i64,
-    /// The command name when readable.
-    pub command: Option<String>,
-}
-
-/// What:
-///  The processes found using a target and the reasons the scan could not see everything.
-/// Why:
-///   A caller that cannot rely on a scan with no process table refuses when `unavailable` is set;
-///  `unreadable` lists single processes the scan could not see into,
-/// which a caller may or may not tolerate.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type UseScan = { users: ProcessUser[]; unreadable: string[]; unavailable?: string };
-/// ```
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct UseScan {
-    /// Processes using the target.
-    pub users: Vec<ProcessUser>,
-    /// Reasons some process of the scanning account could not be read at all.
-    pub unreadable: Vec<String>,
-    /// Reasons a descriptor whose record names the target could not be identified,
-    /// because the kernel refused to copy it into this process:
-    /// the process may hold the file,
-    /// which is what a scan that did not finish proves nothing means.
-    pub unresolved: Vec<String>,
-    /// Why the process table itself could not be listed,
-    /// so that no process was scanned.
-    pub unavailable: Option<String>,
-}
 
 /// What:
 ///  Whether an error means the process exited during the scan.
@@ -192,242 +120,6 @@ fn belongs_to_this_account(path: &Path) -> bool {
 #[cfg(not(unix))]
 fn belongs_to_this_account(_path: &Path) -> bool {
     return false;
-}
-
-/// What:
-///  Whether the descriptor `fd` of the process whose table directory is `process` is the file with this device number and inode.
-/// Why:
-///   A device number and an inode name one file on a machine,
-/// which is what `stat(2)` says of `st_dev` and `st_ino`.
-/// The pair the kernel writes for a descriptor,
-/// its mount number and its inode,
-/// is neither unique nor complete (audit of 2026-11-09,
-/// finding 4):
-/// two files of two btrfs subvolumes reached through one mount have the same inode number and the same mount number,
-/// so a process holding one of them read as the holder of the other,
-/// and a bind mount gives the same file another mount number,
-/// so a holder that reached it that way was not found at all.
-/// The record's inode number is the cheap test that comes first:
-/// only a descriptor whose record already names the file's inode number is resolved,
-/// and the answer comes from a copy of the descriptor itself (`opened_file_of`),
-/// never from the path of its link,
-/// because walking that path asks the file's own file system to revalidate its directory entry and a stalled one holds it
-/// for ever (cross-vendor review of 2026-11-09,
-/// finding 3;
-/// `doc/troubleshooting/fuse-descriptor-attributes.md`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { ino } = descriptorRecord({ process, fd, targeted: 'real-file' });
-/// const opened = ino === inode ? openedFileOf({ process, fd }) : undefined;
-/// opened?.device === device && opened?.inode === inode;
-/// ```
-#[cfg(unix)]
-pub fn descriptor_is_file(
-    process: &Path,
-    fd: &std::ffi::OsStr,
-    device: u64,
-    inode: u64,
-) -> Result<bool, Unread> {
-    return descriptor_is_file_with(
-        process,
-        fd,
-        device,
-        inode,
-        crate::open_file_of_a_descriptor::opened_file_of,
-    );
-}
-
-/// What:
-///  Why a descriptor could not be identified.
-/// Why:
-///   Something of the process could not be read at all (its descriptor's record,
-/// or its working directory),
-///  which a caller may tolerate as it always did;
-///  a record that named the file whose file cannot then be identified is a file that may be held,
-///  which a caller must not read as "not the file".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Unread = { kind: 'process'; reason: string } | { kind: 'file'; reason: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Unread {
-    /// Something of the process could not be read.
-    Process(String),
-    /// The record was read and named the file,
-    /// and the file itself could not be identified.
-    File(String),
-}
-
-/// What:
-///  `descriptor_is_file` with the reader of a descriptor's open file given:
-///  the kernel's copy of it in a judgement,
-///  and a control's own reader for a table the kernel does not know.
-/// Why:
-///   A control's `/proc` is a directory of links,
-///  so the file a descriptor has open there can only be read from its link,
-///  while the production read copies the descriptor and never walks the path
-///  (`src/native/process/open_file_of_a_descriptor.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// descriptorIsFileWith({ process, fd, device, inode, opened });
-/// ```
-#[cfg(unix)]
-pub fn descriptor_is_file_with(
-    process: &Path,
-    fd: &std::ffi::OsStr,
-    device: u64,
-    inode: u64,
-    opened: fn(
-        &Path,
-        &std::ffi::OsStr,
-    ) -> std::io::Result<crate::open_file_of_a_descriptor::OpenedFile>,
-) -> Result<bool, Unread> {
-    let text: String = match crate::descriptor_record::descriptor_record(
-        process,
-        fd,
-        crate::descriptor_record::Targeted::RealFile,
-    ) {
-        // A pipe, a socket or a kernel anonymous inode cannot be a file of a file system, its record is never opened, and
-        //  a descriptor that closed while the scan walked the directory is open in nothing.
-        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => {
-            return Ok(false);
-        }
-        crate::descriptor_record::Record::Text(text) => text,
-        // A record past the bound is one this scan did not read: the descriptor may hold the file, so nothing is concluded.
-        crate::descriptor_record::Record::BeyondBound => {
-            return Err(Unread::File(format!(
-                "its record is longer than the {} bytes this scan takes, so the descriptor may hold the file",
-                crate::descriptor_record::RECORD_BYTES_AT_MOST
-            )));
-        }
-        crate::descriptor_record::Record::Unreadable {
-            reason,
-            ..
-        } => return Err(Unread::Process(reason)),
-        // The kind of a descriptor whose link text cannot be read is unknown, so it may be the file.
-        crate::descriptor_record::Record::KindUnknown {
-            reason,
-            ..
-        } => {
-            return Err(Unread::File(format!(
-                "the text of its link cannot be read ({reason}), so the descriptor may hold the file"
-            )));
-        }
-    };
-    let held: Option<u64> = crate::descriptor_record::inode_in(text.as_str());
-    if held != Some(inode) {
-        return Ok(false);
-    }
-    let file: crate::open_file_of_a_descriptor::OpenedFile = match opened(process, fd) {
-        Ok(found) => found,
-        Err(error) => return Err(Unread::File(format!("{error}"))),
-    };
-    return Ok(file.device == device && file.inode == inode);
-}
-
-/// What:
-///  The mount number the kernel gives the mount a path is reached through.
-/// Why:
-///   `/proc/<pid>/fdinfo` names a descriptor's mount by that number and its file by the inode,
-/// so a descriptor of another process is recognised without resolving it on its own file system,
-/// which waits there as long as that file system does
-/// (`open_file_of_a_descriptor.rs`).
-/// Zero is "not known",
-/// and matches no descriptor.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const mount = statx(path, { mask: STATX_MNT_ID }).stx_mnt_id ?? 0;
-/// ```
-pub fn mount_of(path: &Path) -> u64 {
-    let Ok(found) = rustix::fs::statx(
-        rustix::fs::CWD,
-        path,
-        rustix::fs::AtFlags::SYMLINK_NOFOLLOW,
-        rustix::fs::StatxFlags::MNT_ID,
-    ) else {
-        return 0;
-    };
-    return found.stx_mnt_id;
-}
-
-/// What:
-///  Whether the descriptor `fd` of the process whose table directory is `process` is the file with this inode on this
-///  mount,
-///  as the descriptor's own record names it.
-/// Why:
-///   The mount number and the inode are both in the text the kernel writes for the descriptor,
-///  so this asks no file system anything,
-///  and it answers for a pipe or another anonymous file that the gate refuses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const { mnt_id, ino } = descriptorRecord({ process, fd, targeted: 'anonymous-file' }); ino === inode && mnt_id === mount;
-/// ```
-pub fn mounted_descriptor_is_file(
-    process: &Path,
-    fd: &std::ffi::OsStr,
-    mount: u64,
-    inode: u64,
-) -> Result<bool, Unread> {
-    let text: String = match crate::descriptor_record::descriptor_record(
-        process,
-        fd,
-        crate::descriptor_record::Targeted::AnonymousFile,
-    ) {
-        // A kernel anonymous inode is not a pipe or another named anonymous file, its record is never opened, and a
-        //  descriptor that closed while the scan walked the directory is open in nothing.
-        crate::descriptor_record::Record::NotTheTarget | crate::descriptor_record::Record::Gone => {
-            return Ok(false);
-        }
-        crate::descriptor_record::Record::Text(text) => text,
-        crate::descriptor_record::Record::BeyondBound => {
-            return Err(Unread::File(format!(
-                "its record is longer than the {} bytes this scan takes, so the descriptor may hold the file",
-                crate::descriptor_record::RECORD_BYTES_AT_MOST
-            )));
-        }
-        crate::descriptor_record::Record::Unreadable {
-            reason,
-            ..
-        } => return Err(Unread::Process(reason)),
-        crate::descriptor_record::Record::KindUnknown {
-            reason,
-            ..
-        } => {
-            return Err(Unread::File(format!(
-                "the text of its link cannot be read ({reason}), so the descriptor may hold the file"
-            )));
-        }
-    };
-    let reached: Option<u64> = crate::descriptor_record::mount_id_in(text.as_str());
-    let held: Option<u64> = crate::descriptor_record::inode_in(text.as_str());
-    return Ok(held == Some(inode) && reached == Some(mount) && mount != 0);
-}
-
-/// What:
-///  The same on a platform that has no `/proc` to read a descriptor's record from.
-/// Why:
-///   The scan of another process's descriptors is Linux's,
-///  and a platform without it answers "not this file" rather than promising something it cannot read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (process.platform !== 'linux') return false;
-/// ```
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-pub fn descriptor_is_file(
-    process: &Path,
-    fd: &std::ffi::OsStr,
-    device: u64,
-    inode: u64,
-) -> Result<bool, Unread> {
-    let _ = (process, fd, device, inode);
-    return Ok(false);
 }
 
 /// What:

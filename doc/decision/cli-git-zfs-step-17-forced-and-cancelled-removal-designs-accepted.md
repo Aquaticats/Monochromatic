@@ -5,11 +5,21 @@
 Decided by the owner on 2026-11-23,
 through the question tool,
 after the designs' reviewer's third read
-(`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-third-read-after-the-probe-rounds.md`),
+(`~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/review-third-read-after-the-probe-rounds.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 the designs' rounds on it (`64b52da212`,
 `63488826bc`)
 and the probe round on the arms that need no step 17 code (`2149a02e14`).
 Recorded by the session.
+That read's high finding was that the design's own example,
+a `watcher.service` with `PrivateMounts=yes` in the person's own user manager,
+falls in the class the design refuses,
+and that the lock it refused on cannot be read at all:
+`/proc/<pid>/mountinfo` prints no lock bit and `statmount` carries none.
+It proposed reading each holder's mount namespace owner with `NS_GET_USERNS` instead,
+which is the read recorded under "What the question rested on".
 
 ## The forced removal design
 

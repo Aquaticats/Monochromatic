@@ -109,6 +109,9 @@ moved verbatim on 2026-11-23:
 - Sent at 13:06 to the three runs on removal
   (`~/temp/agent/notes-to-send/2026-11-12T1306-how-far-the-protection-of-a-worktree-being-removed-reaches.md`);
   the brief of round 311 was corrected before its run read it or is corrected by that note.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 From lines 25347 to 25355 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -158,6 +161,9 @@ moved verbatim on 2026-11-23:
   `commit-fails-within-a-bound-and-says-why-when-its-service-does-not-answer-1` and `integration-pass-18-for-alpha-16-1`
   (`~/temp/agent/notes-to-send/2026-11-12T1406-the-five-second-rule-is-changed.md`);
   written into the brief of the many-changed-files run before it started.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 From lines 25720 to 25728 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -354,6 +360,9 @@ moved verbatim on 2026-11-23:
 - Brief:
   `~/temp/agent/pi-runs/push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-prompt.md`,
   round 305.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 From lines 26124 to 26189 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -440,6 +449,9 @@ Each pick is quoted as the owner gave it.
   `translation-repair-prerebase-backup`,
   `trial/depot-logger-remainder-20261016`,
   `trial/depot-pi-host-20261016`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - The push,
   never forced,
   was started at about 12:00

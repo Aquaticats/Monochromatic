@@ -8,6 +8,13 @@
 //!
 //! - `package_repair_cargo_concurrent.rs`:
 //!   the runner that does one job for every item of a list on several threads.
+//! - `package_repair_cargo_lock_names.rs`:
+//!   the names a displaced lock's bytes are kept under.
+//! - `package_repair_cargo_lock_keeping_the_bytes.rs`:
+//!   the copy that survives the clean,
+//!   and the staging of the checked-out bytes beside them.
+//! - `package_repair_cargo_lock_never_replacing.rs`:
+//!   putting the checked-out lock back without replacing a file nobody kept.
 //! - `package_repair_cargo_lock.rs`:
 //!   the reading of `Cargo.lock` before a clean and its restoring afterwards.
 //! - `package_repair_prewarm.rs`:
@@ -17,6 +24,13 @@
 //!   the names one filling of a workspace works in,
 //! - `package_repair_prewarm_job_staged_state.rs`:
 //!   the answers package repair prewarm job staged state holds.
+//! - `package_repair_relink_record.rs`:
+//!   the record one worktree's relink is queued as,
+//!   and the tools it may ask for.
+//! - `package_repair_relink_work_item.rs`:
+//!   the work item that record becomes,
+//!   its object name,
+//!   and the add's own directories a relative search path is read from.
 //! - `package_repair_relink.rs`:
 //!   the hand-over of a new worktree's copied package state to the commit service,
 //!   so the add does not wait for pnpm's relink or the toolchain install.
@@ -26,10 +40,27 @@
 //! - `package_repair_relink_job_worktree_proof.rs`:
 //!   what a delayed relink proves about the worktree its record names,
 //!   before that record's first tool and before every tool after it.
+//! - `package_repair_start_gate.rs`:
+//!   the gate a started child waits at before its own `exec`,
+//!   its report,
+//!   and the stop of the group it leads.
 //! - `package_repair_start.rs`:
 //!   the bounded start of one package-manager program for a worktree repair,
 //!   run off the runtime's workers,
 //!   and the stop of a child that appears after the bound.
+//! - `package_repair_command_answers.rs`:
+//!   the command one tool run is asked for,
+//!   the two bounds it runs under,
+//!   how it ended,
+//!   and what it left.
+//! - `package_repair_command_finding_the_program.rs`:
+//!   the first executable file the person's search path holds under a tool's name.
+//! - `package_repair_command_words.rs`:
+//!   the words a tool's run is reported in,
+//!   and the quiet gap's name.
+//! - `package_repair_command_the_childs_end.rs`:
+//!   the wait that reads a child's end,
+//!   and the reaping of a leader a stop left behind.
 //! - `package_repair_command.rs`:
 //!   starting one package-manager program for a worktree repair:
 //!   finding it,
@@ -37,8 +68,6 @@
 //!   saying how it ended.
 //! - `package_repair_cargo_workspaces.rs`:
 //!   the Cargo workspaces of a new worktree and the manifests that lead to them.
-//! - `package_repair_cargo_jobs.rs`:
-//!   the answers package repair cargo jobs holds.
 //! - `package_repair_report.rs`:
 //!   what a worktree repair prints:
 //!   one line for success,
@@ -51,6 +80,25 @@
 //! - `package_repair_cargo_hand_over.rs`:
 //!   the hand-over of the filling of a new worktree's build directories to the commit service,
 //!   and the one line the add answers for it.
+//! - `package_repair_cargo_clean_arguments.rs`:
+//!   the arguments of the clean,
+//!   and the command a person can run instead.
+//! - `package_repair_tree_clone_entries_and_places.rs`:
+//!   what a walk of the source finds,
+//!   what a clone made,
+//!   and which places its steps take.
+//! - `package_repair_tree_clone_walk.rs`:
+//!   the walk,
+//!   the destination's directories,
+//!   and the modes they take last.
+//! - `package_repair_tree_clone_placing.rs`:
+//!   placing one entry of a clone and one slice of its entries.
+//! - `package_repair_tree_clone.rs`:
+//!   cloning one directory tree with its modes,
+//!   times and links,
+//!   for the build state Cargo keeps outside a worktree.
+//! - `package_repair_prewarm_job_filling.rs`:
+//!   the answers package repair prewarm job filling holds.
 //! - `package_repair_prewarm_job.rs`:
 //!   the service's filling of those build directories:
 //!   clone into a staging directory,
@@ -76,6 +124,16 @@
 //! - `package_repair_touches_only_its_own_worktree.rs`:
 //!   whether a directory a repair deletes from or writes in is inside the worktree it serves,
 //!   once its links are followed.
+//! - `package_repair_cargo_build_state_plan.rs`:
+//!   what one workspace's build state needs in the new worktree,
+//!   decided from what the disk holds.
+//! - `package_repair_cargo_one_workspace.rs`:
+//!   the repair of one Cargo workspace:
+//!   plan,
+//!   hand the filling over,
+//!   clean what is already here.
+//! - `package_repair_cargo_jobs.rs`:
+//!   the answers package repair cargo jobs holds.
 //! - `package_repair_cargo.rs`:
 //!   the Cargo repair of a new worktree:
 //!   clone external build state,
@@ -83,6 +141,9 @@
 //! - `package_repair_pnpm.rs`:
 //!   the pnpm repair of a new worktree:
 //!   relink the copied `node_modules` offline against the frozen lockfile.
+//! - `package_repair_relink_hand_over.rs`:
+//!   the hand-over of a worktree's relink to the commit service,
+//!   and the relink the add does when no service takes it.
 //! - `package_repair.rs`:
 //!   the repair of a new worktree's package-manager state after a rung filled it and the ignored files were copied.
 //! - `package_repair_relink_job.rs`:
@@ -92,23 +153,44 @@
 //! - `package_repair_relink_notice.rs`:
 //!   the notice a relink given up on leaves for the person,
 //!   and the lines a later command in that worktree shows of it.
-//! - `package_repair_tree_clone.rs`:
-//!   cloning one directory tree with its modes,
-//!   times and links,
-//!   for the build state Cargo keeps outside a worktree.
-//! - `package_repair_prewarm_job_filling.rs`:
-//!   the answers package repair prewarm job filling holds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // repair/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// The gate a started child waits at before its own `exec`,
+/// its report,
+/// and the stop of the group it leads.
+#[cfg(target_os = "linux")]
+pub mod package_repair_start_gate;
+
 /// The bounded start of one package-manager program for a worktree repair,
 /// run off the runtime's workers,
 /// and the stop of a child that appears after the bound.
 #[cfg(target_os = "linux")]
 pub mod package_repair_start;
+
+/// The command one tool run is asked for,
+/// the two bounds it runs under,
+/// how it ended,
+/// and what it left.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_answers;
+
+/// The first executable file the person's search path holds under a tool's name.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_finding_the_program;
+
+/// The words a tool's run is reported in,
+/// and the quiet gap's name.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_words;
+
+/// The wait that reads a child's end,
+/// and the reaping of a leader a stop left behind.
+#[cfg(target_os = "linux")]
+pub mod package_repair_command_the_childs_end;
 
 /// Starting one package-manager program for a worktree repair:
 /// finding it,
@@ -123,6 +205,22 @@ pub mod package_repair_command;
 #[cfg(target_os = "linux")]
 pub mod package_repair_report;
 
+/// What a walk of the source finds,
+/// what a clone made,
+/// and which places its steps take.
+#[cfg(target_os = "linux")]
+pub mod package_repair_tree_clone_entries_and_places;
+
+/// The walk,
+/// the destination's directories,
+/// and the modes they take last.
+#[cfg(target_os = "linux")]
+pub mod package_repair_tree_clone_walk;
+
+/// Placing one entry of a clone and one slice of its entries.
+#[cfg(target_os = "linux")]
+pub mod package_repair_tree_clone_placing;
+
 /// Cloning one directory tree with its modes,
 /// times and links,
 /// for the build state Cargo keeps outside a worktree.
@@ -133,6 +231,23 @@ pub mod package_repair_tree_clone;
 /// relink the copied `node_modules` offline against the frozen lockfile.
 #[cfg(target_os = "linux")]
 pub mod package_repair_pnpm;
+
+/// What one workspace's build state needs in the new worktree,
+/// decided from what the disk holds.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo_build_state_plan;
+
+/// The arguments of the clean the Cargo repair runs,
+/// and the command a person can run instead of one that failed.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo_clean_arguments;
+
+/// The repair of one Cargo workspace:
+/// plan,
+/// hand the filling over,
+/// clean what is already here.
+#[cfg(target_os = "linux")]
+pub mod package_repair_cargo_one_workspace;
 
 /// The Cargo repair of a new worktree:
 /// clone external build state,
@@ -151,6 +266,17 @@ pub mod package_repair_prewarm;
 /// publish it unless a build got there first.
 #[cfg(target_os = "linux")]
 pub mod package_repair_prewarm_job;
+
+/// The record one worktree's relink is queued as,
+/// and the tools it may ask for.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_record;
+
+/// The work item that record becomes,
+/// its object name,
+/// and the add's own directories a relative search path is read from.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_work_item;
 
 /// The hand-over of a new worktree's copied package state to the commit service,
 /// so the add does not wait for pnpm's relink or the toolchain install.
@@ -179,6 +305,16 @@ pub mod package_repair_relink_notice;
 /// The runner that does one job for every item of a list on several threads.
 pub mod package_repair_cargo_concurrent;
 
+/// The names a displaced lock's bytes are kept under.
+pub mod package_repair_cargo_lock_names;
+
+/// The copy that survives the clean,
+/// and the staging of the checked-out bytes beside them.
+pub mod package_repair_cargo_lock_keeping_the_bytes;
+
+/// Putting the checked-out lock back without replacing a file nobody kept.
+pub mod package_repair_cargo_lock_never_replacing;
+
 /// The reading of `Cargo.lock` before a clean and its restoring afterwards.
 pub mod package_repair_cargo_lock;
 
@@ -193,6 +329,11 @@ pub mod package_repair_cargo_workspaces;
 /// rebuild the links and launchers that name another checkout's lock.
 #[cfg(target_os = "linux")]
 pub mod package_repair_toolchain;
+
+/// The hand-over of a worktree's relink to the commit service,
+/// and the relink the add does when no service takes it.
+#[cfg(target_os = "linux")]
+pub mod package_repair_relink_hand_over;
 
 /// The repair of a new worktree's package-manager state after a rung filled it and the ignored files were copied.
 #[cfg(target_os = "linux")]

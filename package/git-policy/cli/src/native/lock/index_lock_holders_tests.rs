@@ -7,6 +7,11 @@
 //! number reader that `BigInt` text follows.
 
 use super::*;
+/// The two name tests the `/proc` scan keeps to itself.
+use crate::proc_fd_holder_scan::{
+    is_digit,
+    is_pid_name,
+};
 use crate::test_support::{
     fixture,
     remove,

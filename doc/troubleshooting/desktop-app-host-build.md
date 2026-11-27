@@ -108,6 +108,33 @@ const resourceDir = clangDirs[clangDirs.length - 1]
 // returns { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}`, ... }
 ```
 
+That glob was too wide, and on 2026-11-26 it cost a round a failed build on CachyOS with clang 23.1.5:
+ the clang package also installs its analyzer driver scripts beside the version directory,
+ so `globSync('/usr/lib/clang/*')` returned the seven paths `/usr/lib/clang/23`,
+ `analyze-c++`,
+ `analyze-cc`,
+ `c++-analyzer`,
+ `ccc-analyzer`,
+ `intercept-c++`
+ and `intercept-cc`,
+ and `.sort()` made the last one the resource dir.
+ The symptom is this issue's own (`fatal error: 'stdbool.h' file not found`,
+ from `libspa-sys` 0.10.1 `build.rs:57`),
+ with `/usr/lib/clang/intercept-cc` named as the directory in use instead of `/usr/lib/clang/23`.
+
+```js
+// Only a versioned clang resource directory holds the C headers: the clang package also installs
+// its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+// and sorting the whole glob puts `intercept-cc` last, which has no `include/stdbool.h`.
+const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
+```
+
+Matching the header keeps the `-resource-dir` meaning (`stdbool.h` is the file that must resolve)
+ and still picks the highest installed major.
+ `package/music-player/desktop-app` and `package/terminal/app` carry it in `mise.toml` and in their
+ `task.ts` mirrors.
+
 Tradeoff:
  the glob picks the highest installed clang major and assumes it is ABI-compatible with the libclang
 clang-sys loads.

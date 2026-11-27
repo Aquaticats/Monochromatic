@@ -119,6 +119,9 @@ moved verbatim on 2026-11-23:
 ### The owner's answers of 2026-11-12T10:32:10-05:00, through the question tool: four decisions taken under delegation, two confirmed and two overturned
 
 The item numbers are those of `~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`.
+(scratch,
+deleted on 2026-11-27;
+not kept).
 Each had been decided by this session while the owner was away,
 with the veto open.
 
@@ -176,6 +179,9 @@ moved verbatim on 2026-11-23:
 
 Each question as asked is in the session's transcript;
 the item numbers are those of `~/temp/agent/owner-questions-2026-11-12T1000/open-questions.md`.
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 - Item 1.1,
   the hand-over of a landed worktree's removal to the commit service,
