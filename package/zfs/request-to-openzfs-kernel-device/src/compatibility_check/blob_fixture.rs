@@ -12,6 +12,14 @@
 //!  against the design's `pahole` output,
 //! so a test that refuses a changed module is not asking
 //!  the same table twice.
+//!  The writer is split across siblings because this file is over the line limit:
+//!  this one holds the numbers the format uses,
+//! the blob a test writes into with its bookkeeping,
+//!  the member a test names,
+//! the bytes a blob becomes,
+//!  and the pair of files one check reads,
+//!  `blob_fixture_type_entries.rs` holds the type entries a test asks for,
+//!  and `blob_fixture_changed_records.rs` holds the changes a test makes to an entry after it was written.
 
 /// The entry point the file-backed checks call.
 use super::check_module_layout::{
@@ -26,50 +34,23 @@ use std::path::PathBuf;
 
 /// One name offset past any string section this writer writes,
 /// so no reader can read the member it belongs to.
-const UNREADABLE_NAME: u32 = 0x7fff_fff0;
+pub(super) const UNREADABLE_NAME: u32 = 0x7fff_fff0;
 /// The bits of one entry's `info` word that hold its member count.
-const VLEN_MASK: u32 = 0x00ff_ffff;
+pub(super) const VLEN_MASK: u32 = 0x00ff_ffff;
 /// The kind number of one structure.
-const KIND_STRUCT: u32 = 4;
+pub(super) const KIND_STRUCT: u32 = 4;
 /// The kind number of one union.
-const KIND_UNION: u32 = 5;
+pub(super) const KIND_UNION: u32 = 5;
 /// The kind number of one typedef.
-const KIND_TYPEDEF: u32 = 8;
+pub(super) const KIND_TYPEDEF: u32 = 8;
 /// The kind number of one `volatile` qualifier.
-const KIND_VOLATILE: u32 = 9;
+pub(super) const KIND_VOLATILE: u32 = 9;
 /// The kind number of one `const` qualifier.
-const KIND_CONST: u32 = 10;
+pub(super) const KIND_CONST: u32 = 10;
 /// The kind number of one `restrict` qualifier.
-const KIND_RESTRICT: u32 = 11;
+pub(super) const KIND_RESTRICT: u32 = 11;
 /// The kind number of one type tag.
-const KIND_TYPE_TAG: u32 = 18;
-
-/// One little-endian 32-bit word at `at`,
-/// and nothing for a file too short to hold it.
-fn word_in(
-    bytes: &[u8],
-    at: usize,
-) -> u32 {
-    let mut field: [u8; 4] = [0; 4];
-    let Some(source): Option<&[u8]> = bytes.get(at..at + 4) else {
-        return 0;
-    };
-    field.copy_from_slice(source);
-    return u32::from_le_bytes(field);
-}
-
-/// Write one little-endian 32-bit word at `at`,
-/// which every writer of this file does through this one place.
-fn set_word(
-    bytes: &mut [u8],
-    at: usize,
-    value: u32,
-) {
-    let Some(field): Option<&mut [u8]> = bytes.get_mut(at..at + 4) else {
-        return;
-    };
-    field.copy_from_slice(&value.to_le_bytes());
-}
+pub(super) const KIND_TYPE_TAG: u32 = 18;
 
 /// The type ids the writer hands out,
 /// and the bytes it wrote for each.
@@ -87,7 +68,7 @@ pub struct Blob {
     names: Vec<(String, u32)>,
     /// Each type entry's bytes,
     /// in id order.
-    entries: Vec<Vec<u8>>,
+    pub(super) entries: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -126,7 +107,7 @@ impl Default for Blob {
 }
 
 /// The type ids one file hands out,
-/// and the bytes it wrote for each.
+/// the entries it keeps and the bytes it wrote for each.
 impl Blob {
     /// An empty file,
     /// whose first type id is one.
@@ -176,210 +157,53 @@ impl Blob {
             .map(|(_, offset)| return *offset);
     }
 
-    /// One base integer type,
-    /// whose size is stated in bytes.
-    pub fn int(
-        &mut self,
-        name: &str,
-        bytes: u32,
-    ) -> u32 {
-        let entry: Vec<u8> = self.entry(name, 1, 0, bytes, &[0, 0, 0, 0]);
-        return self.push(entry);
-    }
-
-    /// One pointer,
-    /// whose width the format states nowhere.
-    pub fn pointer(
-        &mut self,
-        name: &str,
-    ) -> u32 {
-        let entry: Vec<u8> = self.entry(name, 2, 0, 0, &[]);
-        return self.push(entry);
-    }
-
-    /// One typedef of the type the writer is about to hand it,
-    /// so the chain over it never leaves its own entry.
-    pub fn self_alias(
-        &mut self,
-        name: &str,
-    ) -> u32 {
-        let id: u32 = self.next_id();
-        return self.typedef(name, id);
-    }
-
-    /// One typedef of another type,
-    /// whose own id is the one this file hands it.
-    pub fn typedef(
-        &mut self,
-        name: &str,
-        of: u32,
-    ) -> u32 {
-        let entry: Vec<u8> = self.entry(name, KIND_TYPEDEF, 0, of, &[]);
-        return self.push(entry);
-    }
-
-    /// One `volatile` over another type.
-    pub fn volatile(
-        &mut self,
-        of: u32,
-    ) -> u32 {
-        return self.qualified(KIND_VOLATILE, of);
-    }
-
-    /// One `const` over another type.
-    pub fn constant(
-        &mut self,
-        of: u32,
-    ) -> u32 {
-        return self.qualified(KIND_CONST, of);
-    }
-
-    /// One `restrict` over another type.
-    pub fn restrict(
-        &mut self,
-        of: u32,
-    ) -> u32 {
-        return self.qualified(KIND_RESTRICT, of);
-    }
-
-    /// One type tag over another type.
-    pub fn type_tag(
-        &mut self,
-        of: u32,
-    ) -> u32 {
-        return self.qualified(KIND_TYPE_TAG, of);
-    }
-
-    /// One qualifier of the kind number given,
-    /// over another type.
-    fn qualified(
-        &mut self,
-        kind: u32,
-        of: u32,
-    ) -> u32 {
-        let entry: Vec<u8> = self.entry("", kind, 0, of, &[]);
-        return self.push(entry);
-    }
-
-    /// A copy of the file whose every record carries the kind flag,
-    /// with every member's offset and width as written.
-    pub fn with_kind_flag_on_records(mut self) -> Self {
-        for entry in &mut self.entries {
-            let info: u32 = word_in(entry, 4);
-            let kind: u32 = (info >> 24) & 0x7f;
-            if kind == KIND_STRUCT || kind == KIND_UNION {
-                let flagged: u32 = info | (1 << 31);
-                set_word(entry, 4, flagged);
-            }
-        }
-        return self;
-    }
-
-    /// One more member in an entry the writer already holds,
-    /// whose name offset points past this file's string section.
-    ///
-    /// A reader cannot read that name,
-    /// so the member is the one a reader must refuse rather than drop.
-    pub fn member_with_unreadable_name(
-        &mut self,
-        of: u32,
-        type_id: u32,
-        bit_offset: u32,
-    ) {
-        let Some(entry): Option<&mut Vec<u8>> =
-            self.entries.get_mut((of as usize).saturating_sub(1))
-        else {
-            panic!("entry {of} is not one this writer wrote");
-        };
-        let info: u32 = word_in(entry, 4);
-        let members: u32 = info & VLEN_MASK;
-        entry.extend_from_slice(&UNREADABLE_NAME.to_le_bytes());
-        entry.extend_from_slice(&type_id.to_le_bytes());
-        entry.extend_from_slice(&bit_offset.to_le_bytes());
-        set_word(entry, 4, (info & !VLEN_MASK) | (members + 1));
-    }
-
-    /// One fixed array of `count` elements of `element`.
-    pub fn array(
-        &mut self,
-        element: u32,
-        count: u32,
-    ) -> u32 {
-        let mut extra: Vec<u8> = Vec::<u8>::new();
-        extra.extend_from_slice(&element.to_le_bytes());
-        extra.extend_from_slice(&0_u32.to_le_bytes());
-        extra.extend_from_slice(&count.to_le_bytes());
-        let entry: Vec<u8> = self.entry("", 3, 0, 0, &extra);
-        return self.push(entry);
-    }
-
-    /// One fixed array whose element is its own entry,
-    /// which no reader can give a size without asking itself again.
-    pub fn array_naming_itself(
-        &mut self,
-        count: u32,
-    ) -> u32 {
-        let id: u32 = self.next_id();
-        return self.array(id, count);
-    }
-
-    /// One structure.
-    pub fn structure(
-        &mut self,
-        name: &str,
-        bytes: u32,
-        members: &[WrittenMember],
-    ) -> u32 {
-        return self.record(name, KIND_STRUCT, bytes, members);
-    }
-
-    /// One union.
-    pub fn union(
-        &mut self,
-        name: &str,
-        bytes: u32,
-        members: &[WrittenMember],
-    ) -> u32 {
-        return self.record(name, KIND_UNION, bytes, members);
-    }
-
-    /// One enumeration of 32-bit values.
-    pub fn enumeration(
-        &mut self,
-        name: &str,
-        bytes: u32,
-        values: &[(&str, i32)],
-    ) -> u32 {
-        let mut extra: Vec<u8> = Vec::<u8>::new();
-        for (value_name, value) in values {
-            let offset: u32 = self.name(value_name);
-            extra.extend_from_slice(&offset.to_le_bytes());
-            extra.extend_from_slice(&value.to_le_bytes());
-        }
-        let entry: Vec<u8> = self.entry(name, 6, values.len() as u32, bytes, &extra);
-        return self.push(entry);
-    }
-
-    /// One structure or union with its members.
-    fn record(
+    /// One type entry's bytes.
+    pub(super) fn entry(
         &mut self,
         name: &str,
         kind: u32,
-        bytes: u32,
-        members: &[WrittenMember],
+        vlen: u32,
+        size: u32,
+        extra: &[u8],
+    ) -> Vec<u8> {
+        let name_offset: u32 = self.name(name);
+        let info: u32 = (kind << 24) | (vlen & VLEN_MASK);
+        let mut entry: Vec<u8> = Vec::<u8>::new();
+        entry.extend_from_slice(&name_offset.to_le_bytes());
+        entry.extend_from_slice(&info.to_le_bytes());
+        entry.extend_from_slice(&size.to_le_bytes());
+        entry.extend_from_slice(extra);
+        return entry;
+    }
+
+    /// One name's offset in the string section.
+    pub(super) fn name(
+        &mut self,
+        name: &str,
     ) -> u32 {
-        let mut extra: Vec<u8> = Vec::<u8>::new();
-        for member in members {
-            let offset: u32 = match member.name_offset {
-                Some(written) => written,
-                None => self.name(member.name),
-            };
-            extra.extend_from_slice(&offset.to_le_bytes());
-            extra.extend_from_slice(&member.type_id.to_le_bytes());
-            extra.extend_from_slice(&member.bit_offset.to_le_bytes());
-        }
-        let entry: Vec<u8> = self.entry(name, kind, members.len() as u32, bytes, &extra);
-        return self.push(entry);
+        let offset: u32 = self.string_shift.saturating_add(self.strings.len() as u32);
+        self.strings.extend_from_slice(name.as_bytes());
+        self.strings.push(0);
+        self.names.push((name.to_string(), offset));
+        return offset;
+    }
+
+    /// The id the next entry this writer pushes takes.
+    pub(super) fn next_id(&self) -> u32 {
+        return self
+            .id_shift
+            .saturating_add(self.entries.len() as u32)
+            .saturating_add(1);
+    }
+
+    /// One entry's id.
+    pub(super) fn push(
+        &mut self,
+        entry: Vec<u8>,
+    ) -> u32 {
+        let id: u32 = self.next_id();
+        self.entries.push(entry);
+        return id;
     }
 
     /// The file with the 32-byte header a current tool writes.
@@ -410,68 +234,6 @@ impl Blob {
         file.extend_from_slice(&types);
         file.extend_from_slice(&self.strings);
         return file;
-    }
-
-    /// The same file with its bytes changed at `at`,
-    /// so a test can move one field.
-    pub fn with_byte(
-        mut file: Vec<u8>,
-        at: usize,
-        byte: u8,
-    ) -> Vec<u8> {
-        if let Some(slot) = file.get_mut(at) {
-            *slot = byte;
-        }
-        return file;
-    }
-
-    /// One type entry's bytes.
-    fn entry(
-        &mut self,
-        name: &str,
-        kind: u32,
-        vlen: u32,
-        size: u32,
-        extra: &[u8],
-    ) -> Vec<u8> {
-        let name_offset: u32 = self.name(name);
-        let info: u32 = (kind << 24) | (vlen & VLEN_MASK);
-        let mut entry: Vec<u8> = Vec::<u8>::new();
-        entry.extend_from_slice(&name_offset.to_le_bytes());
-        entry.extend_from_slice(&info.to_le_bytes());
-        entry.extend_from_slice(&size.to_le_bytes());
-        entry.extend_from_slice(extra);
-        return entry;
-    }
-
-    /// One name's offset in the string section.
-    fn name(
-        &mut self,
-        name: &str,
-    ) -> u32 {
-        let offset: u32 = self.string_shift.saturating_add(self.strings.len() as u32);
-        self.strings.extend_from_slice(name.as_bytes());
-        self.strings.push(0);
-        self.names.push((name.to_string(), offset));
-        return offset;
-    }
-
-    /// The id the next entry this writer pushes takes.
-    fn next_id(&self) -> u32 {
-        return self
-            .id_shift
-            .saturating_add(self.entries.len() as u32)
-            .saturating_add(1);
-    }
-
-    /// One entry's id.
-    fn push(
-        &mut self,
-        entry: Vec<u8>,
-    ) -> u32 {
-        let id: u32 = self.next_id();
-        self.entries.push(entry);
-        return id;
     }
 }
 
