@@ -19,6 +19,7 @@ use super::{
     tolerated,
 };
 use crate::{
+    layout_allow_entries::name_holds_an_arrow_word,
     layout_finding::LayoutFinding,
     run_test_support::write,
     test_fs::Fixture,
@@ -373,6 +374,53 @@ fn a_use_line_with_two_arrows_is_an_error() {
         error.contains("two `->` are set off by whitespace"),
         "the sentence must say what is wrong with the line that was typed: {error}"
     );
+}
+
+/// A second arrow set off with tabs is refused as one set off with spaces is,
+///  because whitespace sets an arrow off whatever character it is,
+///  and a reader that looked for the literal spelling would read a folder name that holds a tab.
+#[test]
+fn a_use_line_whose_second_arrow_is_set_off_by_tabs_is_an_error() {
+    let error: String = error_of("uses src/a -> src/b\t->\tsrc/c\n");
+    assert!(error.contains("no folder name holds"), "{error}");
+    assert!(
+        error.contains("two `->` are set off by whitespace"),
+        "{error}"
+    );
+}
+
+/// A bare `->` inside a folder name is no arrow of the line:
+///  the reader takes the first arrow that whitespace sets off on both sides,
+///  and the rule prints such a folder name in a line its own reader reads back.
+#[test]
+fn a_bare_arrow_inside_a_name_is_not_the_lines_arrow() {
+    let list: AllowList = parsed("uses src/x->y -> src/z\n");
+    assert!(
+        list.covers_use(Path::new("src/x->y"), Path::new("src/z")),
+        "the arrow after the name is the line's own"
+    );
+    assert!(
+        !list.covers_use(Path::new("src/x"), Path::new("y -> src/z")),
+        "the arrow glued inside the name is no separator"
+    );
+}
+
+/// A folder name whose `->` touches a character holds no arrow word,
+///  because only whitespace on both sides sets one off;
+///  the folder rule therefore reads a tree holding `x->` or `->x`,
+///  where a reader that took one side for enough would stop it.
+#[test]
+fn a_folder_name_that_touches_the_arrow_word_without_whitespace_holds_none() {
+    // What: the names whose arrow touches a character on one side, which a `uses` line still reads.
+    // Why: such a name is no shape the reader could mistake for its own arrow, so no line could misread it.
+    for name in ["x->", "->x", "x->y"] {
+        assert!(!name_holds_an_arrow_word(name), "`{name}` holds no arrow word");
+    }
+    // What: the control, names whose arrow whitespace sets off, which the reader really would misread.
+    // Why: a check that answers no for every name would pass the loop above and protect nothing.
+    for name in ["x -> y", "-> y", "x ->", "->"] {
+        assert!(name_holds_an_arrow_word(name), "`{name}` holds an arrow word");
+    }
 }
 
 /// A dead `uses` or `file-uses` line that names a folder no source folder of the package is called names it,

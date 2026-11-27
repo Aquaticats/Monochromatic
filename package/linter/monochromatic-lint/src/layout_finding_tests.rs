@@ -12,6 +12,7 @@
 use super::{
     key_path,
     shown,
+    spelled_whitespace,
 };
 use std::path::Path;
 
@@ -35,6 +36,17 @@ fn layout_a_path_outside_the_package_is_shown_whole() {
 fn layout_the_package_folder_itself_is_shown_whole() {
     let base: &Path = Path::new("/package");
     assert_eq!(shown(base, base), "/package");
+}
+
+/// A name that ends in a space spells that space even when an earlier character takes more than one byte,
+///  because the last character's position is counted in characters and not in bytes.
+#[test]
+fn a_name_that_ends_in_a_space_after_a_wide_character_spells_it() {
+    assert_eq!(spelled_whitespace("é "), "é\\u{20}");
+    // What: the control, a space between two words that the message can show.
+    // Why: a spelling that escaped every space would pass the line above and make every message unreadable.
+    assert_eq!(spelled_whitespace("a b"), "a b");
+    assert_eq!(spelled_whitespace("é\tx"), "é\\u{9}x");
 }
 
 /// A key writes every path with `/` between its segments,

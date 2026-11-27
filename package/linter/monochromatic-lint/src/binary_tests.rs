@@ -4007,9 +4007,44 @@ fn layout_the_file_rule_alone_reads_every_arrow_shape_of_a_folder_name() {
     }
 }
 
+/// The file rule alone reads an arrow-named folder that holds a `uses` folder,
+///  because that rule reads no `uses` line and names such a folder in a key as written,
+///  and the entries of a `uses` folder are no paths either:
+///  the entry check must not refuse the folder above them.
+#[cfg(unix)]
+#[test]
+fn layout_the_file_rule_alone_reads_a_uses_folder_under_an_arrow_named_folder() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FILE_RULES);
+    fixture.write("file.txt", "");
+    fixture.write("src/lib.rs", "#[path = \"x -> y/mod.rs\"]\nmod a;\n");
+    fixture.write(
+        "src/x -> y/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\n",
+    );
+    fixture.write("src/x -> y/one.rs", "pub struct One;\n");
+    // What: an entry of the `uses` folder the check walks, whose name no line would mind.
+    // Why: the folder above it is the one whose arrow words the file rule leaves alone, and this entry makes that walk happen.
+    uses_link(&fixture.path, "src/x -> y/uses/child", "..");
+    let read: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (read.status, read.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        read.stdout,
+        read.stderr
+    );
+}
+
 /// A folder name that would be misread on a `uses` line is refused only while the folder rule is selected:
 ///  the file rule reads no `uses` line,
 ///  so it reads such a tree as alpha.17 did rather than stop the run.
+///  That holds while the folder holds a `uses` folder too,
+///  because the entries of such a folder are no paths and their names are read as written.
 #[cfg(unix)]
 #[test]
 fn layout_the_file_rule_alone_reads_a_folder_named_the_arrow() {
