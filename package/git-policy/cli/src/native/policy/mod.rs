@@ -51,8 +51,12 @@
 //!   the fixed registry of shipped policies.
 //! - `policy_trigger.rs`:
 //!   lifecycle triggers and the trigger set of every shipped policy.
+//! - `policy_events_kinds.rs`:
+//!   the kinds of event one policy pass produces,
+//!   their fields and the hints they carry.
 //! - `policy_events.rs`:
-//!   policy events and their JSON Lines rendering.
+//!   the JSON Lines rendering of those events,
+//!   numbered in emission order.
 //! - `policy_engine.rs`:
 //!   ordered policy execution for one lifecycle point.
 //! - `policy_branch_worktree.rs`:
@@ -122,7 +126,12 @@ pub mod policy_registry;
 /// Lifecycle triggers and the trigger set of every shipped policy.
 pub mod policy_trigger;
 
-/// Policy events and their JSON Lines rendering.
+/// The kinds of event one policy pass produces,
+///  their fields and the hints they carry.
+pub mod policy_events_kinds;
+
+/// The JSON Lines rendering of those events,
+///  numbered in emission order.
 pub mod policy_events;
 
 /// A pathname as events report it:
