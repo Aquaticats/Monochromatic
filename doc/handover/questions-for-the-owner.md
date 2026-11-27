@@ -1259,6 +1259,62 @@ A beats C because a frozen run is where a CI log is read,
 and the line costs one directory read there.
 C beats B because B puts a directory walk and a line in front of commands that today hand straight over to `cargo`.
 
+What the read of `0.1.5-alpha.15` adds:
+a run on the fast path leaves the journal and says nothing too
+(shown in a second crate of the same repository),
+as does `cargo-shadow install --frozen-lockfile`.
+The journal belongs to the catalog's root,
+so a later run in any crate of the repository settles it.
+
+### A dry run settles a kept journal before it looks
+
+`cargo-shadow install --dry-run` and `update --dry-run` say they report and then restore every `Cargo.lock`.
+With a kept journal present each settles it first,
+as every run that is not frozen does,
+and that can keep or replace a lockfile
+(the read of `0.1.5-alpha.15`,
+on both releases).
+
+- A,
+  a dry run reports the kept journal and what settling it would do,
+  and changes nothing:
+  the word "dry" then holds,
+  at the price of a recovery that can describe without acting,
+  and of a report about lockfiles a real run would first change.
+- B,
+  as now,
+  with the help saying so:
+  what a dry run reports is true of the settled state,
+  and a person who ran it only to look gets a changed lockfile.
+
+Ranking:
+A > B,
+because a person reaches for a dry run exactly when they do not want anything changed.
+A round makes the help say what happens today and returns what A would take.
+
+### The steps that merge a round's branch are written down and no command does them
+
+The coordinator's merge script lived in scratch and went with the cleanup of 2026-11-27T15:26:37-05:00.
+Its steps are in `doc/handover/cli-git-rust-implementation.md`,
+with the check that a merge really landed
+(a `git merge` once returned 0 with nothing merged).
+The owner said on 2026-11-11 of the scripts for Pi runs:
+"I don't wanna see you edit pi-runs outside the workspace again."
+The coordinator read that as about the scripts that start rounds,
+and asks whether it covers this.
+
+- A,
+  a task of the driver package (`package/pi-shared/subagent-driver`) that takes branches in order and makes every check:
+  no step can be dropped by a session in a hurry,
+  at the price of one more command to keep.
+- B,
+  as now,
+  by hand from the handover.
+
+Ranking:
+A > B,
+because the check that the merge landed exists for a failure that printed success.
+
 ### A scope whose directory was never made reads as a collected scope
 
 The retire gate reads a missing directory as the manager having collected the scope,
@@ -1282,8 +1338,11 @@ The fix needs one of two facts
 Ranking:
 A > B,
 because A tells the two cases apart without bringing back the cost that was taken out.
-The coordinator means to start a round on A with the findings of the `0.1.5-alpha.15` read,
-veto open.
+The read of `0.1.5-alpha.15` reached the silent state in a release build,
+through a start the manager refuses and through a launcher that is killed,
+and did not find a unit left loaded:
+in 56 launcher kills and two stand-ins both unit names read not found afterwards.
+So no round starts on A until a unit left loaded is shown outside a stand-in's race.
 
 ### What each shadow package's copies test compares
 
@@ -1330,6 +1389,24 @@ the run says what it could not read and keeps the unit.
 No exit status changes.
 The other way is one guard to revert,
 which puts alpha.14's silence back.
+
+What the read of `0.1.5-alpha.15` adds
+(a same-vendor second pass):
+by its reading of the kernel at three versions,
+the window does not exist.
+A new group's directory and its files are made invisible and become visible together,
+so no read sees the directory without its `cgroup.events`.
+The answer the kernel can give with the directory there is "No such device",
+for a file opened before the group was removed and read after;
+there alpha.14's silence was right,
+and alpha.15 prints "may be left loaded" about a unit the manager is freeing.
+The round's reason was a reading as well,
+neither observed anything,
+and this host's kernel was not read.
+A round measures both arms on this host and makes the code answer what the measurement supports;
+where it supports the read,
+that row goes back to alpha.14's answer,
+again as a pick with the veto open.
 
 ### The driver: who makes a run's scratch folder, and who clears one a launcher never reached
 
