@@ -257,6 +257,18 @@ The binary test target's own helper names its folders the same way
 `binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
 
+A folder that has to be short,
+because a socket's path must fit one socket address,
+comes from `runtime_directory_folders.rs`'s `runtime_directory_parent`:
+it picks the longest place this account offers that leaves room for the folder's name,
+makes the folder exclusively under a random token,
+and hands it to the thread's fixtures,
+which remove it however the control ends.
+No control builds that folder under the home directory itself:
+the helper the hung-write controls used put `hw-<process id>-<name>` under the real `~/temp/agent`,
+and every control that panicked or failed left one there:
+34 of them by 2026-11-27 (issue 6561).
+
 ## Own every child, end it on every path
 
 A child a test starts is the test's to end, on success, on failure and on a panic:
@@ -368,6 +380,12 @@ and the control sizes that wait as a multiple of the notice's own bound,
 because issue 6524's control waited one ceiling away from a notice due at one second,
 and a journal read that waited on storage carried the words past the client's ceiling,
 so it counted none.
+A control whose subject is a notice a client says asserts only what holds in either order of the messages that decide it,
+and holds the answer away with a seam of its own when that notice must be said to a wait that is still on
+(`on_objects_written` in `landing/service_land_hung_write_tests.rs`):
+the line saying the service has not said where a commit stands is said by a look that found nothing already here,
+so a control that demands it asserts which message the host let arrive first,
+and it failed that way in one threaded module run of five (issue 6564).
 A window a control times never holds work the release code grants no ceiling to,
 because no multiple of a ceiling can bound that work:
 a commit's landing costs what this host's disk costs,

@@ -78,9 +78,6 @@ use std::path::{
     PathBuf,
 };
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeRemovalRescue";
-
 /// Directory under the common Git directory that holds the snapshots.
 pub const SNAPSHOT_DIRECTORY: &str = "monochromatic-git-policy-cli/removal-snapshots";
 
@@ -88,11 +85,6 @@ pub const SNAPSHOT_DIRECTORY: &str = "monochromatic-git-policy-cli/removal-snaps
 /// written last,
 /// so a snapshot that has it is whole.
 const GIT_DIR_FILE: &str = "gitdir";
-
-/// Directory in a snapshot that holds one file per command that took or retook it,
-/// named by the command's process number
-///  and holding the process's birth identity.
-const ATTEMPTS: &str = "attempts";
 
 /// How many rounds of looks a push record gets:
 /// `pending`,
@@ -103,15 +95,17 @@ const ATTEMPTS: &str = "attempts";
 ///  the first.
 const LOOK_ROUNDS: usize = 2;
 
-/// What a snapshot's Git directory,
-/// its taker and its checkout say about a removal.
-#[path = "worktree_removal_rescue_removal_state.rs"]
-mod removal_state;
-use removal_state::{
+use self::removal_state::{
+    ATTEMPTS,
     Removal,
+    TAG,
     named_git_dir,
     removal_of,
 };
+/// What a snapshot's Git directory,
+/// its taker and its checkout say about a removal,
+/// kept under this name so a control reads the state by it.
+use crate::worktree_removal_rescue_removal_state as removal_state;
 
 /// Writes a file into a snapshot unless a file of that name is already there,
 /// which an earlier snapshot of the same worktree

@@ -15,8 +15,8 @@
 //! function recoveryNotice(outcome: MergeRecoveryOutcome): string | undefined;
 //! ```
 
-use crate::merge_isolation_recovery::MergeRecoveryOutcome;
-use crate::merge_isolation_recovery_steps::MergeRecoveryAction;
+use crate::merge_isolation_recovery_record::MergeRecoveryAction;
+use crate::merge_isolation_recovery_record::MergeRecoveryOutcome;
 /// A borrowed filesystem path.
 use std::path::Path;
 

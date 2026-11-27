@@ -22,6 +22,10 @@
 use crate::held_push_release_wakes_the_service::WakeTheService;
 use crate::plain_file::read_plain_file;
 use crate::service_work::work_directory;
+use crate::the_names_and_the_manifest_of_the_trash::{
+    PendingTrash,
+    TRASH_PARENT,
+};
 use crate::work_item::{
     CLAIMED,
     FAILED,
@@ -31,11 +35,7 @@ use crate::work_item::{
     WorkKind,
     state_directory,
 };
-use crate::worktree_trash::TRASH_PARENT;
-use crate::worktree_trash_dispose::{
-    PendingTrash,
-    RECORD_LIMIT,
-};
+use crate::worktree_trash_dispose::RECORD_LIMIT;
 use crate::worktree_trash_hand_over::Recorded;
 use crate::worktree_trash_manifest::is_trash_name;
 use std::io::Write;
