@@ -72,11 +72,14 @@
 //!   the checkout's own mount,
 //!   its dataset and its propagation,
 //!   read from the kernel's table.
-//! - `sweep_configuration.rs`:
-//!   the names the sweep takes from the configuration and the mount table.
 //! - `sweep_configuration_refusal.rs`:
 //!   why the sweep has no names to act on,
-//!   and the words a person reads for each cause.
+//!   one cause per finding.
+//! - `sweep_configuration.rs`:
+//!   the names the sweep takes from the configuration and the mount table.
+//! - `sweep_configuration_refusal_words.rs`:
+//!   the words a person reads for each cause,
+//!   and the entries a configuration file can carry.
 //! - `sweep_dataset_facts.rs`:
 //!   what one dataset the sweep reached says about itself.
 //! - `sweep_clone_check.rs`:
@@ -210,12 +213,16 @@ pub mod attaching_sweep_mode;
 /// its dataset and its propagation.
 pub mod sweep_checkout_mount;
 
+/// Why the sweep has no names to act on,
+/// one cause per finding.
+pub mod sweep_configuration_refusal;
+
 /// The names the sweep takes from the configuration and the mount table.
 pub mod sweep_configuration;
 
-/// Why the sweep has no names to act on,
-/// and the words for each cause.
-pub mod sweep_configuration_refusal;
+/// The words a person reads for each cause,
+/// and the entries a configuration file can carry.
+pub mod sweep_configuration_refusal_words;
 
 /// What one dataset the sweep reached says about itself.
 pub mod sweep_dataset_facts;
