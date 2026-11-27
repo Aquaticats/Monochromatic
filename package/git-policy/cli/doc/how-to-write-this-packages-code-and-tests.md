@@ -356,3 +356,41 @@ The root `rustfmt.toml` sets the layout,
 and this crate was formatted by it in `00b6a940b4` (2026-11-26).
 Run `cargo fmt` in the crate before each commit,
 and end with `cargo fmt --check` printing nothing.
+
+## Run the whole `source_guard` module before you report
+
+A round that changes Rust under `src/native/` also runs the whole `source_guard` module before it reports
+(`cargo test --locked --offline --lib --features test-only-switches source_guard`,
+in a capped scope),
+and names its `test result` line.
+Those tests read the release code for patterns no module test sees,
+such as a thread started off the async runtime.
+On 2026-11-24 a merged branch broke `the_release_code_keeps_blocking_work_off_the_runtime`
+because only its own module's tests had run.
+
+## No test on the host opens `/dev/zfs`
+
+This machine's home is on a ZFS pool,
+and a test that opens `/dev/zfs` on the host acts on that pool.
+Before you run a module on the host,
+grep it for `OpenedDevice::open(`,
+`ZfsDevice::open(`,
+`LiveGate`,
+`GatePaths::live`,
+`before_requests(` and `preflight_the_add(`:
+a test that reaches one of them opens the device.
+Such arms run in a guest of the round's own,
+on a file-backed pool,
+and the host run's `--skip guest --skip _arm_tests` keeps the named ones out.
+
+## A round runs no whole container gate
+
+A branch merges into `main` when its round has ended and its report is read:
+no whole container gate and no review is a condition of the merge
+(`doc/decision/wrapper-merges-and-publishes-do-not-wait-for-reviews-or-mutation-runs.md`),
+and one whole gate runs on `main` for each batch of merges.
+So a round runs the modules it touched,
+its guest arms where its brief asks for them,
+and the controls its brief asks for,
+red and green,
+and says in its report which checks ran and which did not.
