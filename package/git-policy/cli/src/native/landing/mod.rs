@@ -44,9 +44,6 @@
 //!   what it goes to,
 //!   the locks that held the write off,
 //!   and when the commit was held.
-//! - `held_commit_settle_move.rs`:
-//!   the one branch write of a settlement,
-//!   and what the batch owes around it.
 //! - `held_push_commit_on_the_remote.rs`:
 //!   whether Git's own record of a branch's remote says a held push's commit has reached it.
 //! - `housekeeping_of_one_round.rs`:
@@ -294,6 +291,10 @@
 //! - `service_scratch_ref_of_a_dropped_batch.rs`:
 //!   the face a caller on a thread asks of the removal of a batch's scratch reference,
 //!   once the commit it holds is kept.
+//! - `held_commit_settle_move.rs`:
+//!   the one branch write of a settlement,
+//!   the reference a batch's commit is kept on until that write,
+//!   and what the batch owes around it.
 //! - `service_scratch_ref_of_a_dropped_batch_awaiting.rs`:
 //!   the same removals as the face a task of the runtime awaits,
 //!   every Git child and every look at an intent a job of the pool.

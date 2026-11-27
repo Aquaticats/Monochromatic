@@ -32,9 +32,6 @@ file-uses src/native/foundation diagnostic_log.rs -> diagnostic_lines_off_the_ca
 file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.rs
 file-uses src/native/foundation private_storage.rs -> private_storage_replacing_a_record.rs
 file-uses src/native/foundation private_storage_replacing_a_record.rs -> private_storage.rs
-file-uses src/native/landing held_commit_settle.rs -> held_commit_settle_move.rs
-file-uses src/native/landing held_commit_settle.rs -> service_land_finish.rs
-file-uses src/native/landing held_commit_settle_move.rs -> held_commit_settle.rs
 file-uses src/native/landing landing_state_carried_by_its_task.rs -> service_durable.rs
 file-uses src/native/landing landing_state_carried_by_its_task.rs -> service_index_prestage.rs
 file-uses src/native/landing landing_state_carried_by_its_task.rs -> service_index_refused_lock.rs
@@ -85,7 +82,6 @@ file-uses src/native/landing service_index_unheld_removal.rs -> service_index_re
 file-uses src/native/landing service_land_copy.rs -> service_index_hold.rs
 file-uses src/native/landing service_land_copy.rs -> service_index_lock.rs
 file-uses src/native/landing service_land_copy.rs -> service_land_follow.rs
-file-uses src/native/landing service_land_finish.rs -> held_commit_settle.rs
 file-uses src/native/landing service_land_follow.rs -> service_index_hold.rs
 file-uses src/native/landing service_land_follow.rs -> service_index_lock.rs
 file-uses src/native/landing service_land_follow.rs -> service_land_copy.rs
