@@ -106,3 +106,14 @@ Starts through the driver's pool gate
 still count a virtual-writer run as a slot in every member and so stop at Qwen's 5;
 the driver is being changed to count such a run once against its members' combined room
 (round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`).
+
+## The pool gate counts no virtual run (owner, 2026-11-26)
+
+Asked at about 19:10 -05:00 how the driver's pool gate counts a run on the virtual writer
+(no count, once against the members' combined room, or a slot in every member as before),
+the owner answered "No count (Recommended)":
+the gate counts only runs pinned to one pool,
+and a run on the virtual writer or the virtual reviewer holds no slot in any member,
+because the router moves a refused request on by itself.
+The driver round that was building the combined-room count was told so through its inbox the same minute,
+since that count was the coordinator's design and not the owner's.
