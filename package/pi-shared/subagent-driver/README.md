@@ -86,18 +86,22 @@ well above the 72 ms it took in this checkout on 2026-11-11,
 because a session starts unattended and nothing here waits forever.
 A program that does not answer is refused as well as one that answers wrongly.
 
-`start-pi-run-in-a-worktree` asks it first, before any other check and before anything is made,
+`start-pi-run-in-a-worktree` asks it first,
+before any other check and before anything is made,
 because the base a run starts at is read with git:
 when git is the wrong program,
 "the base `main` names no commit" would name a symptom of the wrong git and hide the cause.
 The question is asked in the checkout rather than in the run's own worktree,
 which does not exist yet and must not be made for a start that is refused.
-A refused launch has made no worktree, started no unit, written no run folder and linked nothing,
+A refused launch has made no worktree,
+started no unit,
+written no run folder and linked nothing,
 and it exits 1 saying:
 
 - the path of the `git` the session would run,
 - what that program answered,
-- and the fix: the wrapper is the `git` link in `.cache/monochromatic-git-policy-cli-bin` under the checkout,
+- and the fix:
+  the wrapper is the `git` link in `.cache/monochromatic-git-policy-cli-bin` under the checkout,
   which `mise run toolchain:install` makes,
   and that folder has to come before the system one on the session's `PATH`.
 
@@ -105,13 +109,16 @@ The launcher is the only place this is asked.
 `drive-pi-subagent` used to ask the same question of the environment it was about to hand Pi,
 and that second preflight is gone:
 the owner's decision on issue 1768 is "Launcher preflight only"
-(the answers of 2026-11-11T16:35-05:00, recorded in `doc/handover/cli-git-rust-implementation.md`).
-A run started without the launcher, by running the driver by hand,
+(the answers of 2026-11-11T16:35-05:00,
+recorded in `doc/handover/cli-git-rust-implementation.md`).
+A run started without the launcher,
+by running the driver by hand,
 therefore relies on the `PATH` it was given holding the wrapper's `git`,
 and nothing in this package checks it.
 
 What this does not decide:
-whether `git-lfs` resolves, which the same incident also needed;
+whether `git-lfs` resolves,
+which the same incident also needed;
 and the launcher's own `git worktree add` runs with the launcher's own `PATH`,
 which a protected session already sets.
 
@@ -130,8 +137,11 @@ and the order a run that names no model of its own takes the pools that accept o
   5 runs,
   a pool that a run naming no model of its own takes first since 2026-11-26.
   The owner that day answered the writers' order as
-  "Qwen, opencode-go, flex (Recommended)"
-  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order"),
+  "Qwen,
+  opencode-go,
+  flex (Recommended)"
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+  "The writers' order"),
   and kept its room of 5 until a run measures this model's.
   The writer's own member list is the reviewer's since 2026-11-27
   ("The writer's members become the reviewer's"),
@@ -159,8 +169,11 @@ and the order a run that names no model of its own takes the pools that accept o
   It stands before both Neuralwatt pools because the owner ranked it so the same day:
   "Prefer opencode-go over neuralwatt because opencode-go uses my less versatile sub."
   That reverses the ranking of 2026-11-11
-  ("In practice, opencode-go may have worse inference quality and worse speed than neuralwatt's flex, so prefer neuralwatt."),
-  whose words about its speed are why a run moved there gets twice the wall clock it asked for, as on flex,
+  ("In practice,
+  opencode-go may have worse inference quality and worse speed than neuralwatt's flex,
+  so prefer neuralwatt."),
+  whose words about its speed are why a run moved there gets twice the wall clock it asked for,
+  as on flex,
   until this pool's own runs have been timed.
   `PI_RUNS_POOL_LIMITS=opencode-go=0` closes it when its week is spent again,
   and default runs then go to `neuralwatt-flex`.
@@ -188,8 +201,10 @@ and the order a run that names no model of its own takes the pools that accept o
   2026-11-15:
   "I just checked my bills and found that Kimi K3.1 Pro is almost prohibitively expensive.
   Please use Sonnet for reviews and audits from now on.
-  Close the Kimi pool for now, but let the already running runs finish.
-  Anyway, I'll probably figure out something better in the next week."
+  Close the Kimi pool for now,
+  but let the already running runs finish.
+  Anyway,
+  I'll probably figure out something better in the next week."
   The runs already on it are still counted there and left to end,
   and a run that names its model gets no room while it is closed.
   `PI_RUNS_POOL_LIMITS=neuralwatt-kimi-flex=20` reopens it for one command.
@@ -197,11 +212,14 @@ and the order a run that names no model of its own takes the pools that accept o
   5 runs of `qwen4-max-preview`,
   taken only by a run that names that model.
   Reviews of a change run here.
-  It took 18, the owner's number of 2026-11-11, until 2026-11-13.
+  It took 18,
+  the owner's number of 2026-11-11,
+  until 2026-11-13.
   That day the plan answered eighteen reviews "429 … Allocated quota exceeded",
   its limit on tokens a minute,
   each with six to nine runs on the model going;
-  Pi never retries that answer, so each one ended its run.
+  Pi never retries that answer,
+  so each one ended its run.
   Five does not prevent it:
   the same afternoon it ended three more runs with two and three runs on the model going.
   The provider says the plan's limits move with its overall load,
@@ -238,9 +256,11 @@ so a pool reopened through it takes runs again for that one command.
 The launcher gives it to the unit the run starts as,
 because a unit inherits nothing from the shell that asked for it,
 so the driver inside the unit reads the same setting the launcher did.
-A setting one of these commands cannot read, such as a pair naming no pool of the table or a limit that is no whole number,
+A setting one of these commands cannot read,
+such as a pair naming no pool of the table or a limit that is no whole number,
 refuses the runs it could have touched and names the setting and its fault;
-the pool gate refuses every run that way, because it counts every pool,
+the pool gate refuses every run that way,
+because it counts every pool,
 while a run whose provider and model belong to no pool is left alone.
 
 ```sh
@@ -302,7 +322,9 @@ Both selections ask Synthetic's DeepSeek model second,
 which belongs to no pool of this table and so is not listed:
 
 - `rate-limit-fallback/writer`:
-  `qwen-plan-deepseek`, `opencode-go`, `neuralwatt-flex`.
+  `qwen-plan-deepseek`,
+  `opencode-go`,
+  `neuralwatt-flex`.
   The writer asks the reviewer's members since 2026-11-27,
   when the owner typed "Change writer's list to match the reviewer's list."
   (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
@@ -439,7 +461,8 @@ or start a run it would refuse.
   and no run writes over one.
   The refusal names the folder and what it found there,
   and offers three ways out:
-  a launch with no `--run`, whose folder takes the next number,
+  a launch with no `--run`,
+  whose folder takes the next number,
   a runs folder of its own,
   or moving that folder aside when nobody needs what it holds.
 - `--turn-cap`:
@@ -448,7 +471,8 @@ or start a run it would refuse.
   and a runs folder with no finished run refuses the launch rather than guess.
 - `--idle-seconds`:
   how long to wait for a new steering message after Pi settles.
-  It defaults to `0`, with no extra wait when nothing else holds the run.
+  It defaults to `0`,
+  with no extra wait when nothing else holds the run.
 - `--session`,
   `--provider`,
   `--model`,
@@ -519,7 +543,9 @@ the line the launcher prints says which of the two it did.
 A `git worktree add` killed by its own bound is cleared and tried once more,
 and when both attempts fail the branch the first one made is removed too:
 whoever makes a thing cleans it up,
-and `git branch --delete`, never the forced form, is what decides,
+and `git branch --delete`,
+never the forced form,
+is what decides,
 so a branch holding anything unmerged stays and the line that says the start failed names it.
 The checkout it works in is the repository,
 found by walking up from the folder it was started in to the folder a checkout marks and then reading which repository that
@@ -529,7 +555,9 @@ whose `commondir` names the Git directory every worktree shares.
 Every command of this package that needs the repository finds it the same way from anywhere inside it or inside a linked
 worktree,
 so a run's worktree is never made inside another worktree and a default never names two different folders.
-A checkout that keeps its Git directory elsewhere, such as a submodule, is not read that way and is named with
+A checkout that keeps its Git directory elsewhere,
+such as a submodule,
+is not read that way and is named with
 `--checkout-folder`.
 Reading folder by folder is also what works here at all:
 this repository's Git wrapper refuses every command whose folder is not the root of the repository,
@@ -539,7 +567,8 @@ On 2026-11-11 that refusal ended all ten starts of a batch before any of them ma
 The worktree holds what the checkout held when the add filled it:
 the files the branch has checked out,
 and the checkout's ignored files copied in,
-`node_modules`, the build folders and the toolchain launchers among them
+`node_modules`,
+the build folders and the toolchain launchers among them
 (`package/git-policy/cli/README.md`,
 "Package-manager state in a new worktree").
 That copy keeps the checkout's own links,
@@ -576,7 +605,8 @@ so this launch hands no relink over and installs nothing.
 For as long as the service has not run that record,
 the worktree holds the copied links,
 which is the state the copy left.
-Nothing tells this launcher, the driver or the run when the relink has finished,
+Nothing tells this launcher,
+the driver or the run when the relink has finished,
 so a run whose first commands need `node_modules` may read it while it is being rewritten;
 the wrapper's own reading of that cost is in
 `package/git-policy/cli/README.md`,
@@ -585,7 +615,8 @@ Whether a launcher should wait for the relink is open,
 and the signal it would wait on is part of what issue 6339 records as owed:
 this package waits for no signal it does not have.
 
-Three further cases are open, and no record decides them.
+Three further cases are open,
+and no record decides them.
 A checkout that held no `node_modules` when the add filled the worktree
 copies nothing for pnpm's relink to rewrite,
 so the run starts without dependencies;
@@ -614,8 +645,10 @@ It used to wait on `systemd-run --wait` alone,
 and while an impostor manager held the session bus name on 2026-11-11,
 sixteen launchers never heard their units end and waited about ten hours.
 
-The line a launcher prints as it ends names what is ending, which is the launcher,
-and what the run's unit is doing at that moment, read with `systemctl --user is-active`:
+The line a launcher prints as it ends names what is ending,
+which is the launcher,
+and what the run's unit is doing at that moment,
+read with `systemctl --user is-active`:
 a wait that gave up while the unit was still `active` says so,
 because a line that read `unit the-unit-ended with status 1`
 was taken for the run's end while the run it had started was alive and working.
@@ -627,11 +660,14 @@ the base names a commit,
 no unit of the run's name is there,
 and Pi starts in this session and loads the extensions its settings name.
 That last one is `pi --help` in the session's `PATH` and `HOME`:
-Pi loads its extensions before it prints the help, and exits without calling a model.
-It took 1.55 to 2.90 seconds in this checkout on 2026-11-11, with a 7.89 second outlier under load,
+Pi loads its extensions before it prints the help,
+and exits without calling a model.
+It took 1.55 to 2.90 seconds in this checkout on 2026-11-11,
+with a 7.89 second outlier under load,
 and 95 to 145 seconds later that evening while other agents loaded the machine.
 So the answer is kept for ten minutes beside the runs,
-for the same session, `HOME` and checkout only,
+for the same session,
+`HOME` and checkout only,
 and a batch asks it once instead of every launcher paying for it.
 The bound is two minutes,
 and what a killed question means is said in the line it prints:
@@ -644,9 +680,12 @@ A session whose extension cannot be loaded is refused with Pi's own error.
 On 2026-11-11 a rebuilt extension imported a workspace package the checkout had not linked,
 and thirteen runs ended `pi-exited` with no turn before anyone read what Pi had printed.
 A start that fails one of them prints every reason it found and exits non-zero,
-with no worktree, no run folder and no unit,
+with no worktree,
+no run folder and no unit,
 so no provider slot is spent on a run that could not have worked.
-Before this, a launcher took a slot, made a worktree and ran an install of its own,
+Before this,
+a launcher took a slot,
+made a worktree and ran an install of its own,
 and only then did the driver find that its prompt file was not there.
 
 ### After the unit ends
@@ -843,11 +882,13 @@ and for all ten starts of 2026-11-11 that was the whole of what the batch printe
 The whole of what a failed start printed is appended to `<runs-folder>/<name>-start-failure.log`,
 and the line names that file.
 The command exits 0 only when every entry started:
-when one entry's start ended non-zero, or could not be started at all,
+when one entry's start ended non-zero,
+or could not be started at all,
 it prints how many of how many failed and which they were,
 and exits 1.
 Before this it exited 0 whatever happened,
-so a unit that ran a batch, or a coordinator reading that unit's status,
+so a unit that ran a batch,
+or a coordinator reading that unit's status,
 could not tell ten started runs from ten refusals.
 
 ### `start-a-batch-in-its-own-unit`
@@ -886,10 +927,14 @@ and its findings (`review.md`).
 The reviews folder is `$HOME/temp/agent/change-reviews` unless a command is given another,
 and that name says what the folder holds and no model's name.
 
-The reviewer's provider and model are named once, in `src/reviewer-of-a-change.ts`:
+The reviewer's provider and model are named once,
+in `src/reviewer-of-a-change.ts`:
 `qwen-token-plan-individual` and `qwen4-max-preview`,
 the qwen plan's review pool.
-No command, option, run, branch or folder carries a model's name,
+No command,
+option,
+run,
+branch or folder carries a model's name,
 so a review of another model is one edit there and no new names.
 
 A review's worktree starts at the commit the review reads,
@@ -905,12 +950,15 @@ the change's name;
 `--commit`,
 the commit under review;
 `--range`,
-what changed, repeatable because a branch the integration merged more than once is read over each merge's own range;
+what changed,
+repeatable because a branch the integration merged more than once is read over each merge's own range;
 `--source`,
 the folder whose changes are reviewed;
 `--focus`,
 what the reviewer looks hardest at,
-which defaults to data loss, a failed or doubled commit or merge, an unbounded wait,
+which defaults to data loss,
+a failed or doubled commit or merge,
+an unbounded wait,
 and a race with commands running at the same time or a process killed at any instruction;
 `--reviews-folder`;
 `--runs-folder`,
@@ -923,7 +971,8 @@ It writes the diff of the ranges under the source folder,
 the brief that names the code files among them,
 an empty `reproductions/` folder,
 and `what-the-review-read.json`,
-which records the commit, the ranges and the source folder a fix that answers this review starts from,
+which records the commit,
+the ranges and the source folder a fix that answers this review starts from,
 and prints one line:
 
 ```text
@@ -1002,7 +1051,8 @@ repeatable;
 the name the fix run of that review gets,
 given once per `--review` and in the same order;
 `--branch-prefix`,
-the namespace a fix's branch lives under, such as `fix/git-policy-cli-`;
+the namespace a fix's branch lives under,
+such as `fix/git-policy-cli-`;
 `--package`,
 the package the fix changes;
 `--reviews-folder`;
@@ -1010,18 +1060,22 @@ the package the fix changes;
 `--wall-seconds`,
 six hours by default;
 and `--batch-file`,
-which, when given, is written as the list that starts those agents.
+which,
+when given,
+is written as the list that starts those agents.
 
 No commit is an option:
 each review writes `what-the-review-read.json` beside its brief,
-which names the commit, the ranges and the source folder it read,
+which names the commit,
+the ranges and the source folder it read,
 and a fix starts at that commit.
 A branch moves on as soon as anyone commits to it,
 so a fix that started at the branch would answer a change nobody reviewed.
 A review that recorded nothing gets no brief,
 and the line says which file is missing.
 
-The name is the caller's, never the review's:
+The name is the caller's,
+never the review's:
 on 2026-11-12 five reviews named after the runs that made the branches they read
 sent the fix briefs to those runs' own brief paths,
 which replaced five of them without a word,
@@ -1051,7 +1105,8 @@ which says the same thing twice.
 Name the fix run for what it fixes instead.
 
 A fix run is `fix-of-<the review's own name>`,
-so it shares neither a name, a worktree nor a unit with the review it answers,
+so it shares neither a name,
+a worktree nor a unit with the review it answers,
 and its branch is the prefix and that name.
 Its brief names what the review read,
 as the review's own ranges and commit,
@@ -1060,8 +1115,10 @@ Each brief is written to `<runs folder>/<fix name>-prompt.md`,
 names the rules file first,
 quotes the ban on synthetic host load,
 states the requirements as the project's own,
-and names no owner, no hurry and no due date.
-A review whose `review.md`, `change.diff` or record is not there gets no brief:
+and names no owner,
+no hurry and no due date.
+A review whose `review.md`,
+`change.diff` or record is not there gets no brief:
 the line names the missing file and the rest go on,
 and the command exits `1` when any review was left without one.
 
@@ -1185,7 +1242,8 @@ optique-scaling-and-attribution-1: up 14m 56s, no run folder yet; pi-optique-sca
 25 Pi runs going now
 ```
 
-The turns are the driver's own: every `turn_start` record a run's feed holds.
+The turns are the driver's own:
+every `turn_start` record a run's feed holds.
 The quiet is how long ago the feed was last written,
 so a run that started and never took a turn shows beside one that is working,
 and a feed nobody has written to for an hour shows as that hour.
@@ -1195,7 +1253,8 @@ and it ends and signals nothing.
 ### `list-runs-that-ended-since`
 
 `--since`,
-a time `Date.parse` reads, such as `2026-11-12T10:00:00-05:00`,
+a time `Date.parse` reads,
+such as `2026-11-12T10:00:00-05:00`,
 and `--runs-folder`,
 `~/temp/agent/pi-runs` by default.
 
@@ -1234,7 +1293,8 @@ saying what the unit was doing then,
 which is the state a coordinator needs before watching a batch it has just asked for.
 Every wait is the shorter of the period and what the deadline leaves,
 so the command ends on its own,
-and it asks the manager only for the unit's state: it ends nothing.
+and it asks the manager only for the unit's state:
+it ends nothing.
 
 ### `list-running-units-whose-worktree-is-gone`
 
@@ -1315,8 +1375,10 @@ each written as `--name=value`:
   because a deadline of `Infinity` is no deadline.
 - `--idle-seconds`:
   how long the driver stays up for a new steering message after Pi comes to rest.
-  It is optional and defaults to `0`, so a settled run ends without waiting for a new message.
-  A message already in `inbox/` still goes first, and work the run left running or a pending retry still keeps it up.
+  It is optional and defaults to `0`,
+  so a settled run ends without waiting for a new message.
+  A message already in `inbox/` still goes first,
+  and work the run left running or a pending retry still keeps it up.
   A failure Pi settled on still determines the ending if it is not recovered.
   Use a positive value to leave time for a new message.
 - `--turn-cap`:
@@ -1336,24 +1398,33 @@ each written as `--name=value`:
   a run with no attempts ends on its first error,
   as the driver did before it retried anything.
   It bounds no 429 at all:
-  a rate limit, a concurrency limit and a quota are Pi's own retry's to answer.
+  a rate limit,
+  a concurrency limit and a quota are Pi's own retry's to answer.
 - `--retry-base-seconds`:
   the wait before the first attempt after a model error,
   two seconds by default,
   which is the `retry.baseDelayMs` default Pi's own automatic retry uses.
   The wait doubles with each attempt and never passes a minute.
-  It shapes only the errors the driver owns, which a 429 is not.
+  It shapes only the errors the driver owns,
+  which a 429 is not.
 - `--start-pause-seconds`:
   the wait before Pi is started again after a start ended before its Pi took the prompt,
   ten seconds by default.
   It bounds only that pause:
-  how many starts a run makes, and the time they share, are the driver's own constants,
+  how many starts a run makes,
+  and the time they share,
+  are the driver's own constants,
   and the section "A Pi that exits before it takes the prompt" names both with their reasons.
 - `--pi-argument`:
   one more word for Pi's command line.
   Repeat it for more words.
 
-`--run-folder`, `--working-folder`, `--prompt-file`, `--provider`, `--model`, `--wall-seconds` and `--turn-cap` are required,
+`--run-folder`,
+`--working-folder`,
+`--prompt-file`,
+`--provider`,
+`--model`,
+`--wall-seconds` and `--turn-cap` are required,
 so a run is always bounded.
 A run that ends on its own terms exits `0`,
 a run refused because its pool takes no new run exits `5`,
@@ -1368,7 +1439,9 @@ so a run ends even when Pi answers nothing at the end.
 `pi` must be on `PATH`,
 and the `git` this session would run must be this repository's policy wrapper.
 The driver does not ask that itself:
-the launcher that builds the session's environment asks it, once, before it makes anything
+the launcher that builds the session's environment asks it,
+once,
+before it makes anything
 (see the section "The git a session would run").
 
 
@@ -1400,10 +1473,14 @@ the launcher that builds the session's environment asks it, once, before it make
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
   `piStartAttempts` says how many times Pi was started,
   `piStartFailures` holds every start that ended before its Pi took the prompt,
-  each with its exit, the pause that followed it and the last lines Pi printed,
+  each with its exit,
+  the pause that followed it and the last lines Pi printed,
   `piStartStoppedBy` names the bound that stopped the starts when none of them took the prompt,
   `startThatEndedWithoutARun` holds the waits that ended a start before the prompt was taken,
-  each with its bound, how long it had waited, why no run happened, and what to do next
+  each with its bound,
+  how long it had waited,
+  why no run happened,
+  and what to do next
   (the section "A start that ended without a run"),
   and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
@@ -1411,7 +1488,10 @@ the launcher that builds the session's environment asks it, once, before it make
   the line a start that ended without a run leaves,
   which is the same line the driver prints and the launcher prints,
   and the only record a start that ended before the driver could write a summary leaves.
-  It names the wait that ended the start, the bound that wait is given, how long it had waited, why no run happened,
+  It names the wait that ended the start,
+  the bound that wait is given,
+  how long it had waited,
+  why no run happened,
   and what to do next.
   It is written under its own name and never over one an earlier attempt left.
 - `stderr.log`:
@@ -1427,7 +1507,8 @@ the launcher that builds the session's environment asks it, once, before it make
   and rule `ATH` keeps scratch out of `/tmp`.
   The driver makes this folder after it has checked that the run folder holds nothing of an earlier attempt,
   gives it mode `0700`,
-  and starts Pi with `TMPDIR`, `TMP` and `TEMP` naming it,
+  and starts Pi with `TMPDIR`,
+  `TMP` and `TEMP` naming it,
   so no caller passes `TMPDIR` by hand.
   A run folder that is not there yet is made by this `mkdir` too,
   at `0700` for the same reason,
@@ -1435,11 +1516,14 @@ the launcher that builds the session's environment asks it, once, before it make
   a launcher makes the run folder first at the default mode,
   so this reaches a driver started by hand.
   A link planted under the folder's name is refused rather than followed:
-  the driver makes the folder, reads the name without following anything,
+  the driver makes the folder,
+  reads the name without following anything,
   and refuses a link or anything else that is not a folder before it sets any mode through that name.
   An entry traded for a link between that reading and the mode set is not covered:
-  the call that would set the mode on an opened folder, `FileHandle.chmod`,
-  is refused by this machine's Node, which runs with the permission model,
+  the call that would set the mode on an opened folder,
+  `FileHandle.chmod`,
+  is refused by this machine's Node,
+  which runs with the permission model,
   so a folder outside the run folder can become Pi's only if somebody swaps the entry in that moment.
   A run that cannot make the folder stops before it starts Pi,
   with `TemporaryFolderNotMadeError` naming the folder and what the operating system answered.
@@ -1466,9 +1550,11 @@ the launcher that builds the session's environment asks it, once, before it make
   a steer command starts nothing,
   so a resting Pi reads it only when another run comes.
   The feed's `sentAs` says which of the two the driver's own read expected.
-  Because every message is a prompt, a message that starts with `/` is run as an extension or skill command
+  Because every message is a prompt,
+  a message that starts with `/` is run as an extension or skill command
   whether Pi works or rests (`prompt()` in `dist/core/agent-session.js`);
-  before this, a `steer` sent while Pi worked refused such a message and kept it aside.
+  before this,
+  a `steer` sent while Pi worked refused such a message and kept it aside.
   A message is read only while the driver is up:
   with the default idle window of `0` a settled run ends within one look of the folder,
   so a run that must be steered after it settles needs a positive `--idle-seconds`.
@@ -1477,14 +1563,16 @@ the launcher that builds the session's environment asks it, once, before it make
   A message Pi refused stays as `.failed-<name>`,
   and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
   so no kept message replaces another.
-  Pi's answer that its agent is already processing is busy, never a refusal,
+  Pi's answer that its agent is already processing is busy,
+  never a refusal,
   and so is its answer that a manual compaction or a branch summary is running,
   which it gives before it even prepares a prompt:
   the message goes back to the inbox and the next look sends it again.
   The claim that look makes replaces the one the look before it left,
   so a busy answer on every look adds no entry to the folder per look.
   A newer message that takes the name is the one delivered,
-  and an older one whose name a newer message took stays readable under its dot name, never sent again.
+  and an older one whose name a newer message took stays readable under its dot name,
+  never sent again.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
   A message Pi reports it took is Pi's from then on:
@@ -1552,8 +1640,10 @@ in the environment that carried 38 credential-shaped variables,
 neither carrier held any of those values,
 compared rather than printed.
 
-Three variables Pi's environment gains are the driver's own, never inherited:
-`TMPDIR`, `TMP` and `TEMP` name the folder this run's temporary files go in,
+Three variables Pi's environment gains are the driver's own,
+never inherited:
+`TMPDIR`,
+`TMP` and `TEMP` name the folder this run's temporary files go in,
 `temporary-files-pi-wrote/` under the run folder,
 so what Pi's tools spill lands there rather than in `/tmp`.
 All three are set because `os.tmpdir()` reads them in that order on this platform
@@ -1621,7 +1711,10 @@ which fires before every model request with the whole transcript,
 so a value an earlier session already held is masked on its way out when a run resumes one;
 and `message_end`,
 which fires before Pi keeps a message in its session,
-so the first prompt, a steer, an inbox note, an assistant message with its tool calls and every other message are masked
+so the first prompt,
+a steer,
+an inbox note,
+an assistant message with its tool calls and every other message are masked
 before the session file holds them.
 That last hook is also what keeps Pi's compaction and branch-summary requests free of values:
 both build their own text from the session and run no context hook.
@@ -1657,9 +1750,13 @@ and goes on without it.
 The masking covers the value itself,
 the value as JSON escapes it,
 as a URL percent-encodes it,
-and as base64 encodes it (both alphabets, padded and unpadded).
+and as base64 encodes it (both alphabets,
+padded and unpadded).
 It does not cover a container the value was encoded inside
-(base64 of a whole file, hex, gzip, base64 wrapped at column 76)
+(base64 of a whole file,
+hex,
+gzip,
+base64 wrapped at column 76)
 nor a value shorter than eight characters,
 and Pi's compaction and branch summarization build their request from the session without running
 `context_with_system`
@@ -1667,7 +1764,8 @@ and Pi's compaction and branch summarization build their request from the sessio
 so a value that an old session already held could travel inside one.
 
 A file a run replaces is replaced only when the caller can say the file's writer is gone:
-a session a run resumes is never replaced at all, but masked into a copy Pi resumes,
+a session a run resumes is never replaced at all,
+but masked into a copy Pi resumes,
 and a session at rest is replaced only after Pi's leaving was confirmed.
 Every place a value is kept has three answers:
 covered,
@@ -1726,7 +1824,8 @@ or in the provider's own store.
 
 `idle` means the agent ended its turn with nothing of its own still running.
 An agent that ends its turn while a build it started still compiles has not finished its task,
-and before 2026-11-12 the driver closed such a session as `idle`: two runs that night lost the work of an hour
+and before 2026-11-12 the driver closed such a session as `idle`:
+two runs that night lost the work of an hour
 because their agent waited for a build and nobody brought them back.
 So the driver asks what the run left running before it ends as `idle`,
 and keeps the session open while any of it runs.
@@ -1743,7 +1842,8 @@ which is the same moment the driver stops waiting.
 Pi refuses a prompt that meets a running agent when the prompt names no streaming behaviour,
 and queues it into that turn when one is named
 (`prompt()` in `dist/core/agent-session.js` of Pi 1.5.2):
-that answer is about the agent being busy, not about the message,
+that answer is about the agent being busy,
+not about the message,
 and a driver that read it as a refusal ended the run of 2026-11-19 `prompt-rejected`
 while the agent was in a turn of its own,
 cutting that turn off.
@@ -1776,10 +1876,12 @@ and its feed gains a `problem` line naming the work it waited for,
 so the two ends are never one word.
 
 What the driver asks is in `work-the-run-left-running.ts`:
-the run's own `process` tool, whose every answer that names processes is a `processes` line of the feed,
+the run's own `process` tool,
+whose every answer that names processes is a `processes` line of the feed,
 carrying the process number,
 the folder it started in and the command it runs;
-the machine's process table, for a process working in the run's worktree or run folder,
+the machine's process table,
+for a process working in the run's worktree or run folder,
 whose control group is not the run's own unit,
 and which descends from the run's own process;
 and the unit a recorded command names with `--unit=`,
@@ -1788,7 +1890,8 @@ for work whose process that answer holds but whose number has gone.
 Descent is how the driver tells the work the run started from the work of everyone else:
 a command the run's own `process` tool starts is a child of the run's Pi,
 and a `systemd-run --scope` the agent runs in the foreground keeps the parent that started it,
-while a process another session, another run or the person started descends from that and never from this run.
+while a process another session,
+another run or the person started descends from that and never from this run.
 A process whose folder or parent chain cannot be read counts for nothing.
 A process that ended while one of its records was being read counts as one whose record is already gone:
 Linux answers a read inside `/proc/<pid>` with `ESRCH` once the task is released,
@@ -1800,10 +1903,12 @@ Each answers what a missing record already answers:
 the program of a process whose `comm` is gone is unknown,
 while a process whose `cgroup` or `stat` is gone is not counted as the run's work.
 The `cwd` link a process works through is no such read:
-the kernel answers `ENOENT` for a task it released, which the scan already counts as gone.
+the kernel answers `ENOENT` for a task it released,
+which the scan already counts as gone.
 The scan also leaves out an entry whose link read answers `ESRCH`,
 so a kernel answering the link that way would end no run.
-On 2026-11-19 the driver read `comm` for a run's process, got `ESRCH`,
+On 2026-11-19 the driver read `comm` for a run's process,
+got `ESRCH`,
 and ended the run `idle` instead of waiting for the work that process still ran;
 the unit then stopped and killed the run's own watcher with it.
 Every other failure is unchanged on the driver's own watch:
@@ -1814,14 +1919,19 @@ The launcher's wake read through `finishTheRun` has no such guard:
 so a read that truly fails there ends the launcher as an uncaught error
 and no `workProblem` is written.
 
-Each answer keeps the run for what it can see, and nothing more:
-a process the run's own process tree holds, in one of the run's folders and outside the run's own unit;
-a process the `process` tool recorded, while its number is a process;
-and a unit a recorded command names with `--unit=`, only while that answer still calls the command itself running,
+Each answer keeps the run for what it can see,
+and nothing more:
+a process the run's own process tree holds,
+in one of the run's folders and outside the run's own unit;
+a process the `process` tool recorded,
+while its number is a process;
+and a unit a recorded command names with `--unit=`,
+only while that answer still calls the command itself running,
 because a record the tool has called ended is not asked about.
 Work that leaves the run's own process tree is the price of the descent rule:
 a `systemd-run --scope` an agent puts in the background,
-a `setsid`, or a double fork hands its process to the service manager when its parent exits,
+a `setsid`,
+or a double fork hands its process to the service manager when its parent exits,
 so the chain ends at the manager instead of at the run,
 and the process table names nothing even though the work still runs in the run's folder.
 A `systemd-run --unit=` service leaves that tree the moment the manager starts it,
@@ -1838,7 +1948,8 @@ Before 2026-11-19 the folder and the control group were the whole test,
 which counted every other session's process in the main checkout as the run's work:
 two runs started with `--working-folder` there waited out their whole wall clock
 on another session's `codex` and `claude`,
-on other runs' `pi`, and on the scopes of both.
+on other runs' `pi`,
+and on the scopes of both.
 The process table is replaceable for a test of the whole driver:
 `PI_RUNS_PROCESS_FOLDER` names the folder it is read from,
 so no test that starts the driver reads this machine's process table.
@@ -1906,38 +2017,59 @@ a run that ended at its wall clock or on a model error after a compaction Pi cou
 
 ### A start that ended without a run
 
-Every ending before the prompt is taken names what ended it, because an ending that does not is a start nobody can act on.
+Every ending before the prompt is taken names what ended it,
+because an ending that does not is a start nobody can act on.
 Three places carry the same facts:
 
-- `start-ended-without-a-run.txt` in the run folder, written for every such ending, including the ones that end before a
+- `start-ended-without-a-run.txt` in the run folder,
+  written for every such ending,
+  including the ones that end before a
   summary can be written;
-- the line the driver prints as it ends, which appends the same sentence to the end reason when a summary exists;
-- the launcher's own output, which prints the file's line after a unit that failed, because a start that wrote no summary
+- the line the driver prints as it ends,
+  which appends the same sentence to the end reason when a summary exists;
+- the launcher's own output,
+  which prints the file's line after a unit that failed,
+  because a start that wrote no summary
   has nothing else to tell a caller how it ended.
 
-The facts are the wait in words a reader can follow (`get_state`, `get_commands`, the run's first prompt, the sops decrypt of
-the checkout's store, the bound that refuses another start), the bound that wait is given, how long it had waited, and what to
-do next. A wait Pi left or a run's deadline ended has no bound of its own to name, and the line says which of the two ended it
+The facts are the wait in words a reader can follow (`get_state`,
+`get_commands`,
+the run's first prompt,
+the sops decrypt of
+the checkout's store,
+the bound that refuses another start),
+the bound that wait is given,
+how long it had waited,
+and what to
+do next.
+A wait Pi left or a run's deadline ended has no bound of its own to name,
+and the line says which of the two ended it
 instead.
 
-The ways a start can end this way, each with its own test:
+The ways a start can end this way,
+each with its own test:
 
-- the sops read of the checkout's store reaches `SOPS_TIMEOUT_MS`, so no value of this machine's secret environment can be masked
+- the sops read of the checkout's store reaches `SOPS_TIMEOUT_MS`,
+  so no value of this machine's secret environment can be masked
   and Pi is never started;
 - the folder a run gives Pi for its temporary files cannot be made;
 - the session a run was told to resume cannot be masked into this run's copy of it;
-- Pi never answers `get_state`, the first of the three answers;
-- Pi answers its state and never answers `get_commands`, so the masking cannot be confirmed and no prompt is sent;
+- Pi never answers `get_state`,
+  the first of the three answers;
+- Pi answers its state and never answers `get_commands`,
+  so the masking cannot be confirmed and no prompt is sent;
 - Pi answers both and never takes the first prompt;
 - Pi answers its command list without the command that arms the masking;
-- Pi leaves before it takes the prompt, on every start the driver makes.
+- Pi leaves before it takes the prompt,
+  on every start the driver makes.
 
 ### A Pi that exits before it takes the prompt
 
 Pi writes why it will not start to its standard error and nowhere else,
 and it exits there before the prompt is read,
 so such a run did no work at all.
-Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended that way:
+Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14,
+18 ended that way:
 13 on an extension that could not load a module,
 each start failing in 2,096 to 20,491 ms,
 one on a logger with no space left on the device (6,097 ms),
@@ -1962,7 +2094,9 @@ When the starts are used up the run ends as `pi-exited-before-prompt`,
 which is a different reason from `pi-exited`,
 the ending of a run that had taken its prompt.
 `piStartFailures` holds every start that failed,
-each with its exit, the pause that followed it, and the last lines Pi wrote to its standard error,
+each with its exit,
+the pause that followed it,
+and the last lines Pi wrote to its standard error,
 and the line the driver prints carries the reason among those lines in words,
 so nobody has to open a log to learn why the run did nothing.
 `piStartStoppedBy` says which bound stopped the starts:
@@ -2037,7 +2171,9 @@ and four runs were still waiting 90 to 91 seconds after Pi started when the old 
 `prompt-rejected`.
 Each of the three still stops counting silence while Pi reports a compaction,
 and the run's wall clock still ends them.
-A start that ends on one of them says which one, at what bound, and for how long it had waited,
+A start that ends on one of them says which one,
+at what bound,
+and for how long it had waited,
 in the run folder and in what the launcher prints (the section "A start that ended without a run").
 
 ## Which layer retries what
@@ -2047,7 +2183,9 @@ and a 429 is Pi's.
 A start that ended before its Pi took the prompt is a third kind of retry,
 and it answers no model error at all:
 the section "A Pi that exits before it takes the prompt" states its bounds.
-The owner, 2026-11-11: "It's Pi's native retry's responsibility to deal with 429s."
+The owner,
+2026-11-11:
+"It's Pi's native retry's responsibility to deal with 429s."
 
 ### Pi's own automatic retry, inside one turn
 
@@ -2058,22 +2196,33 @@ and how long it waits is `retryDelayMs`,
 both in `@earendil-works/pi-ai/dist/utils/retry.js` in Pi 1.5.2:
 
 - a `429` is retried,
-  with the rate-limit, "rate.?limit" and "too many requests" wording that carries it:
-  a rate limit, a concurrency or flex-request limit, and a provider asking for a slower caller all count.
-  Those words and statuses are the retried pattern's own: `RETRYABLE_PROVIDER_ERROR_PATTERN` in `retry.js`,
+  with the rate-limit,
+  "rate.?limit" and "too many requests" wording that carries it:
+  a rate limit,
+  a concurrency or flex-request limit,
+  and a provider asking for a slower caller all count.
+  Those words and statuses are the retried pattern's own:
+  `RETRYABLE_PROVIDER_ERROR_PATTERN` in `retry.js`,
   `"rate.?limit"` at line 36,
   `"too many requests"` at line 37,
   and `429|500|502|503|504|520|524` at line 39,
   each status counted only where no letter or digit touches it;
-  this list therefore rests on Pi's source, not on one captured refusal;
-- the overload, `5xx`, timeout, dropped-connection and interrupted-stream texts are retried beside it;
-- a quota, a plan and a billing limit are not,
+  this list therefore rests on Pi's source,
+  not on one captured refusal;
+- the overload,
+  `5xx`,
+  timeout,
+  dropped-connection and interrupted-stream texts are retried beside it;
+- a quota,
+  a plan and a billing limit are not,
   even when a provider sends one as a `429`:
-  nothing refills those inside a turn, so Pi leaves them to the run;
+  nothing refills those inside a turn,
+  so Pi leaves them to the run;
 - a context overflow is not,
   because Pi compacts the session instead.
 
-The settings that bound Pi's retry are Pi's own, and the driver reads none of them:
+The settings that bound Pi's retry are Pi's own,
+and the driver reads none of them:
 `retry.enabled` (true by default),
 `retry.maxRetries` (3),
 `retry.baseDelayMs` (2000) and
@@ -2081,13 +2230,16 @@ The settings that bound Pi's retry are Pi's own, and the driver reads none of th
 with each delay doubling from the base and never passing the largest delay
 (`docs/settings.md` in Pi 1.5.2).
 What a machine's runs really do is what its own settings say:
-the run of 2026-11-11 reported `maxAttempts` 3 and delays of 1 s, 2 s and 4 s,
+the run of 2026-11-11 reported `maxAttempts` 3 and delays of 1 s,
+2 s and 4 s,
 which is a base of one second,
 and the same file held `retry.maxRetries` 8 and `retry.baseDelayMs` 1000 when it was read that evening.
-So Pi's budget here is wider than its defaults, and wider than it was for that run,
+So Pi's budget here is wider than its defaults,
+and wider than it was for that run,
 and the driver neither reads it nor keeps a copy of it.
 
-The provider-level `retry.provider.*` group is a third layer, off by default (`retry.provider.maxRetries` 0),
+The provider-level `retry.provider.*` group is a third layer,
+off by default (`retry.provider.maxRetries` 0),
 and this machine disables its delay limit;
 nothing in the driver depends on it either.
 
@@ -2108,19 +2260,25 @@ before the error Pi's retry gave up on can settle.
 ### A 429, in any form, is left to Pi
 
 The driver neither re-prompts a 429 nor waits one out,
-whether the provider sent a rate limit, a concurrency limit or a quota.
+whether the provider sent a rate limit,
+a concurrency limit or a quota.
 A 429 counts wherever the text names it whole,
 not only where the text starts with it:
 the prefix Pi's own composer writes leaves the digits whole
-(`OpenAI API error (429): ...`, built by `formatProviderError` in `@earendil-works/pi-ai/dist/utils/error-body.js:139-146`),
-while the same digits inside a longer number are a count, a request number or a stated limit, and no status.
-Once Pi settles on one, the run ends `model-error` on the next look,
+(`OpenAI API error (429): ...`,
+built by `formatProviderError` in `@earendil-works/pi-ai/dist/utils/error-body.js:139-146`),
+while the same digits inside a longer number are a count,
+a request number or a stated limit,
+and no status.
+Once Pi settles on one,
+the run ends `model-error` on the next look,
 with that error's own text standing:
 
 - `modelError` in `summary.json` carries what the 429 said,
   word for word and cut to no length;
 - `piRetryGaveUp` carries what Pi itself reported when it stopped retrying:
-  how many attempts it made, and its `finalError` text;
+  how many attempts it made,
+  and its `finalError` text;
 - `rateLimitErrors` counts every failed attempt Pi made at it,
   because the coordinator measures those apart from other failures;
 - `feed.jsonl` holds Pi's `auto_retry_end` line,
@@ -2130,18 +2288,21 @@ with that error's own text standing:
 
 The 429 stands rather than being retried inside the run
 because the limit it names resets outside the run:
-a concurrency limit at another caller leaving, a quota at the start of a day or a week.
+a concurrency limit at another caller leaving,
+a quota at the start of a day or a week.
 A run left standing is what the coordinator resumes later,
 which no attempt made seconds later would do.
 
 A run whose 429 Pi's own retry recovered ends as it did before:
-`idle`, with the reply that worked,
+`idle`,
+with the reply that worked,
 no `retry` line,
 and `rateLimitErrors` counting the failed attempts it took.
 
 ### The driver's own retry, for what Pi leaves alone
 
-A model error that is not a 429 is the driver's, and it reads it from the error Pi reports,
+A model error that is not a 429 is the driver's,
+and it reads it from the error Pi reports,
 in the shape the providers write it:
 
 - another attempt is made for a provider server error (a `5xx` status or overload wording),
@@ -2155,7 +2316,8 @@ in the shape the providers write it:
   a context overflow,
   and an abort the coordinator asked for.
 
-One case stays as it was, and costs a retry of Pi's as well as one of the driver's:
+One case stays as it was,
+and costs a retry of Pi's as well as one of the driver's:
 an error that names no 429 keeps the attempt it had,
 even when its own words name a rate limit.
 The tests put that boundary in a made-up input,
@@ -2208,11 +2370,13 @@ A turn Pi starts of its own between that look and the prompt answers it with its
 which refuses nothing:
 the text names the streaming behaviour a prompt needs to join a running turn,
 and says only that the agent is already processing.
-The read matches the session's text alone, continuation included:
+The read matches the session's text alone,
+continuation included:
 `@earendil-works/pi-agent-core` throws errors that open with the same three words
 and name no streaming behaviour (`agent.js` in that package),
 so a prompt answered with one of those ends the run `prompt-rejected` as any refusal does.
-The driver reads that answer as the agent being busy, never as a refusal of the message,
+The driver reads that answer as the agent being busy,
+never as a refusal of the message,
 so no attempt is counted for the prompt Pi did not take:
 the failure stays where it stood,
 the run waits for that turn to settle,
@@ -2292,8 +2456,10 @@ The owner's rule:
 "Regularly,
 check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
 
-Asked where that check lives, in the question tool on 2026-11-08T23:24:03-05:00,
-the owner answered "Move into the driver (Recommended)", so it lives in this package.
+Asked where that check lives,
+in the question tool on 2026-11-08T23:24:03-05:00,
+the owner answered "Move into the driver (Recommended)",
+so it lives in this package.
 
 `watch-overdue-pi-runs` is that check.
 It is one command in the shape rule `MWK` asks for:
@@ -2450,9 +2616,14 @@ the driver README says why a call that cannot be cancelled also cannot be waited
 
 ### What the tests reach
 
-`PI_RUNS_START_UP_ANSWER_MILLISECONDS` gives the three start-up answers a bound of the test's own, in milliseconds. The shipped
-bound is two minutes and no unit test can spend that on each of the three answers, so a test that needs a Pi which never answers
-sets this. A launcher never sets it, so no run of this machine is bounded by anything but `START_UP_ANSWER_MILLISECONDS`.
+`PI_RUNS_START_UP_ANSWER_MILLISECONDS` gives the three start-up answers a bound of the test's own,
+in milliseconds.
+The shipped
+bound is two minutes and no unit test can spend that on each of the three answers,
+so a test that needs a Pi which never answers
+sets this.
+A launcher never sets it,
+so no run of this machine is bounded by anything but `START_UP_ANSWER_MILLISECONDS`.
 
 `systemctl` and `ps` sit behind one seam,
 a function that runs a command and answers with what it printed,
@@ -2491,9 +2662,15 @@ because it is the diagnostic record and not the record the caller reads.
 
 ## Owner answers of 2026-11-10
 
-- Asked whether interactive Pi sessions should get the driver's rule against credential-named variables, the
-  owner answered at 2026-11-10T08:23:02-05:00: "Leave them as they are (Recommended)". So the rule stays on
+- Asked whether interactive Pi sessions should get the driver's rule against credential-named variables,
+  the
+  owner answered at 2026-11-10T08:23:02-05:00:
+  "Leave them as they are (Recommended)".
+  So the rule stays on
   the runs this driver starts and interactive sessions keep their environment.
-- Asked how to run Pi for real coding work, the owner answered at 2026-11-08T12:43:36-05:00:
-  "Forget about --print on a real coding task." So a real coding task runs through this driver, never a
+- Asked how to run Pi for real coding work,
+  the owner answered at 2026-11-08T12:43:36-05:00:
+  "Forget about --print on a real coding task."
+  So a real coding task runs through this driver,
+  never a
   one-shot `--print` call.

@@ -80,7 +80,7 @@ pub const REFUSAL_STATUS: i32 = REFUSED_EXIT_CODE;
 /// ```ts
 /// const word = worktreeSubcommand('worktree', ['prune', '--verbose']); // 'prune'
 /// ```
-fn worktree_subcommand(command: &ResolvedCommand) -> Option<&[u8]> {
+pub(super) fn worktree_subcommand(command: &ResolvedCommand) -> Option<&[u8]> {
     if command.word() != b"worktree" {
         return None;
     }
@@ -198,22 +198,6 @@ struct UnreadGlobal<'a> {
 ///  and the set is the separated spellings `global_arguments::VALUE_OPTIONS`
 ///  holds plus their attached `=` forms.
 ///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namesTheRepository = (token) => ['-C', '--git-dir', '--work-tree'].includes(token) || token.startsWith('--git-dir=') || token.startsWith('--work-tree=');
-/// ```
-fn names_the_repository(token: &OsString) -> bool {
-    /// The globals Git reads with their value in the next token.
-    const SEPARATED: &[&[u8]] = &[b"-C", b"--git-dir", b"--work-tree"];
-    /// The same globals spelled with their value in the same token.
-    const ATTACHED: &[&[u8]] = &[b"--git-dir=", b"--work-tree="];
-    let bytes: &[u8] = token.as_encoded_bytes();
-    return SEPARATED.contains(&bytes)
-        || ATTACHED
-            .iter()
-            .any(|prefix| return bytes.starts_with(prefix));
-}
-
 /// What:
 ///  The command one line would run behind a global option this build does not
 ///  read,
@@ -249,7 +233,11 @@ fn unread_global_of(command: &ResolvedCommand) -> Option<UnreadGlobal<'_>> {
     {
         if token.as_encoded_bytes() != b"worktree" {
             // A repository-naming global here names one the reading stopped before, so the wrapper cannot follow it.
-            if repository_named_by.is_none() && names_the_repository(token) {
+            if repository_named_by.is_none()
+                && crate::global_arguments::names_the_place_the_command_acts(
+                    token.as_encoded_bytes(),
+                )
+            {
                 repository_named_by = Some(token);
             }
             continue;
@@ -329,22 +317,32 @@ fn unknown_repository_sentence(
 }
 
 /// What:
-///  The action one refusal of a slot command behind an unread global option ends
-///  in:
-///  its sentence on standard error and the wrapper's refusal status.
+///  The action one refusal of a slot command ends in:
+///  the words printed before it,
+///  then its sentence,
+///  on standard error,
+///  and the wrapper's refusal status.
 /// Why:
+///  A person who turned a policy down to `warn` in order to be told reads what that policy said before any
+///  refusal of this file,
+///  exactly as a removal's refusal prints the policy stage's lines ahead of its own (#6624);
+///  a refusal built from its sentence alone dropped them.
 ///  Both arms are the same shape,
 ///  and a second copy of it could report one arm's status as a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const action = refusalAction(sentence);
+/// const action = refusalAction(sentence, printedSoFar);
 /// ```
-fn refusal_action(sentence: String) -> Action {
+pub(super) fn refusal_action(
+    sentence: String,
+    printed_so_far: &str,
+) -> Action {
     return Action::Exit {
         code: REFUSAL_STATUS,
         stdout: String::new(),
-        stderr: format!("{sentence}\n"),
+        // What the policy stage printed leads the refusal, in the order a removal prints it.
+        stderr: format!("{printed_so_far}{sentence}\n"),
     };
 }
 
@@ -367,21 +365,21 @@ fn refusal_action(sentence: String) -> Action {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = unreadGlobalRefusalOf(command, commonDir); // undefined leaves the command to Git
+/// const ending = unreadGlobalRefusalOf(command, commonDir, printedSoFar); // undefined leaves the command to Git
 /// ```
 pub fn unread_global_refusal_of(
     command: &ResolvedCommand,
     common_dir: Option<&Path>,
+    printed_so_far: &str,
 ) -> Option<Action> {
     let unread: UnreadGlobal<'_> = unread_global_of(command)?;
     // A repository named after the option the reading stopped at is one the wrapper never read, so no record of it can
     //  prove the command safe, whatever repository this process stands in.
     if let Some(naming) = unread.repository_named_by {
-        return Some(refusal_action(unknown_repository_sentence(
-            unread.option,
-            naming,
-            unread.word,
-        )));
+        return Some(refusal_action(
+            unknown_repository_sentence(unread.option, naming, unread.word),
+            printed_so_far,
+        ));
     }
     let common: &Path = common_dir?;
     // A repository whose record folder holds no record holds no bound slot, so the command costs no refusal and
@@ -389,10 +387,10 @@ pub fn unread_global_refusal_of(
     if !holds_a_record(common) {
         return None;
     }
-    return Some(refusal_action(unread_global_sentence(
-        unread.option,
-        unread.word,
-    )));
+    return Some(refusal_action(
+        unread_global_sentence(unread.option, unread.word),
+        printed_so_far,
+    ));
 }
 
 /// What:
@@ -413,12 +411,13 @@ pub fn unread_global_refusal_of(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ending = moveRefusalOf(command, commonDir); // undefined leaves the move to Git
+/// const ending = moveRefusalOf(command, commonDir, current, printedSoFar); // undefined leaves the move to Git
 /// ```
 pub fn move_refusal_of(
     command: &ResolvedCommand,
     common_dir: Option<&Path>,
     current: Option<&Path>,
+    printed_so_far: &str,
 ) -> Option<Action> {
     // Every forwarded command asks, so the move word is read before the working directory is.
     if worktree_subcommand(command) != Some(b"move") {
@@ -434,11 +433,7 @@ pub fn move_refusal_of(
         Some(common),
     )?;
     let refusal: ManagedMoveRefusal = refuse_move_of_a_bound_slot(common, source.source.as_path())?;
-    return Some(Action::Exit {
-        code: REFUSAL_STATUS,
-        stdout: String::new(),
-        stderr: format!("{}\n", refusal.sentence),
-    });
+    return Some(refusal_action(refusal.sentence, printed_so_far));
 }
 
 /// What:
@@ -494,10 +489,13 @@ pub fn before_a_prune(
         "nothing was pruned: Git would drop the registration of a managed clone and the clone dataset would then be reachable by nobody. Restore the pointer from the record, then run the prune again; {}.\n",
         crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
     ));
+    // `stderr` holds what the policy stage printed and the lines the guard wrote, so the refusal is appended to them
+    //  rather than built beside them (#6624).
+    stderr.push_str(refusal.as_str());
     return Some(Action::Exit {
         code: REFUSAL_STATUS,
         stdout: String::new(),
-        stderr: refusal,
+        stderr: std::mem::take(stderr),
     });
 }
 
@@ -582,7 +580,7 @@ pub fn the_slot_endings(
     stderr: &mut String,
     current: Option<&Path>,
 ) -> Option<Action> {
-    if let Some(ending) = move_refusal_of(command, Some(common_dir), current) {
+    if let Some(ending) = move_refusal_of(command, Some(common_dir), current, stderr.as_str()) {
         return Some(ending);
     }
     before_a_repair(command, Some(common_dir), stderr, current);

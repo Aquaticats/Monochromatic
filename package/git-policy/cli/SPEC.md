@@ -5514,18 +5514,28 @@ and the wrapper's own `--no-enforce-require-root`
 each leave a removal or a move typed below the top behind a shell alias to the
 slot refusal,
 which then names the slot the spelling at the top names.
+The records the refusal reads are those of the repository the command names:
+caller's words that carry `-C`,
+`--git-dir` or `--work-tree` make the refusal read that repository's records,
+not the ones beside the caller,
+because that is the repository Git's own command works in.
+A slot command behind a `!` alias whose shell's directory Git could not be asked
+for is one nothing placed,
+so it is refused with words saying what could not be read,
+and never forwarded in silence.
 When the rule is off or escaped it says nothing about the command;
 at `warn` its finding and the line saying the policy is warn-unsafe are printed
-before a removal's refusal,
-while a move's refusal carries its own sentence alone.
+before a refusal of any of the three slot commands,
+a removal's,
+a move's and a prune's alike,
+in the order a removal prints them.
 The spellings that reach that reading are the guard's own,
 stated in the passage "git by the word Git will run":
-a value whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
 whose own words name no global option,
 and whose first word after the `!` and after any blanks is `git`,
 so `!git <words>`,
@@ -24349,12 +24359,11 @@ which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
 not the wrapper first on `PATH`).
 One plain form of it is read,
 only so the guard can decide:
-a value whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
 whose own words name no global option,
 and whose first word after the `!` and after any blanks is `git`.
 A blank there is a space or a TAB,
@@ -24368,7 +24377,13 @@ so the command followed is the value's words and then the caller's:
 a value of exactly `!git` starts that command with the caller's first word,
 and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
 Those caller's words may begin with a global option,
-because that same Git reads them there and the reading keeps them;
+because that same Git reads them there and the reading keeps them,
+and the worktree or repository such an option names is the one the guard
+judges:
+`-C`,
+`--git-dir` and `--work-tree` are read from the directory Git runs the shell in,
+and every repository fact the decision reads is asked through them,
+so the worktree a command changes is the one measured and the one refused;
 a global option among the value's own words is left unread,
 as the boundary below says.
 A value whose own words name a `!` alias starts a second shell,
