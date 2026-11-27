@@ -91,6 +91,13 @@ thread_local! {
     static CONTAINMENT_INSPECTION: Cell<bool> = const { Cell::new(false) };
     /// Whether the next listing a stop's report makes on this thread finds the scope's own directory gone.
     static CONTAINMENT_SCOPE_GONE_AT_LISTING: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next look at a run's scope on this thread answers the leftover state of issue 6578,
+    /// an empty group that no process was ever counted in,
+    /// which a run of a real program cannot leave.
+    static RETIRE_SEES_STUCK_SCOPE: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next check of an absent scope's absence on this thread fails,
+    /// as it does when this process sees another cgroup namespace or mount than the one the scope was planned in.
+    static ABSENCE_UNVERIFIABLE: Cell<bool> = const { Cell::new(false) };
     /// Whether the next publication of a journal's durable completion marker on this thread fails.
     static FINISH_COMPLETION: Cell<bool> = const { Cell::new(false) };
     /// The one output file whose next data barrier on this thread fails,
@@ -183,6 +190,14 @@ pub enum Point {
     /// a window too short to produce from outside,
     /// because a removal before that read makes the stop report the scope empty at once.
     ContainmentScopeGoneAtListing,
+    /// The look at a run's scope answers the leftover state of issue 6578:
+    /// an empty group that no process was ever counted in,
+    /// which cannot be produced from outside,
+    /// because a scope whose control group has held a process keeps that count for its life.
+    RetireSeesStuckScope,
+    /// The check that makes an absent scope's absence readable as emptiness fails,
+    /// as it does when this process sees another cgroup namespace or mount than the scope was planned in.
+    AbsenceUnverifiable,
     /// The publication of a journal's durable completion marker (the rename to its done name and the sync of the directory that lists it).
     FinishCompletion,
 }
@@ -449,6 +464,12 @@ pub fn arm(point: Point) {
         Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(|slot| {
             slot.set(true);
         }),
+        Point::RetireSeesStuckScope => RETIRE_SEES_STUCK_SCOPE.with(|slot| {
+            slot.set(true);
+        }),
+        Point::AbsenceUnverifiable => ABSENCE_UNVERIFIABLE.with(|slot| {
+            slot.set(true);
+        }),
         Point::FinishCompletion => FINISH_COMPLETION.with(|slot| {
             slot.set(true);
         }),
@@ -498,6 +519,8 @@ pub fn fires(point: Point) -> bool {
         Point::ContainmentStopError => CONTAINMENT_STOP_ERROR.with(Cell::take),
         Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(Cell::take),
         Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(Cell::take),
+        Point::RetireSeesStuckScope => RETIRE_SEES_STUCK_SCOPE.with(Cell::take),
+        Point::AbsenceUnverifiable => ABSENCE_UNVERIFIABLE.with(Cell::take),
         Point::FinishCompletion => FINISH_COMPLETION.with(Cell::take),
     };
 }

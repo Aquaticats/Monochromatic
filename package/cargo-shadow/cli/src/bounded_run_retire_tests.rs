@@ -159,6 +159,20 @@ use crate::round_sixteen_tests::launched_scope;
 /// import { scratch } from 'crate/test_scratch';
 /// ```
 use crate::test_scratch::scratch;
+/// What:
+/// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
+/// Why:
+/// A run of a real program cannot leave the stuck scope of issue 6578 (a scope that held a process keeps `pids.peak`),
+/// so the last look is made to read that state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Point, arm } from 'crate/failpoints';
+/// ```
+use crate::failpoints::{
+    Point,
+    arm,
+};
 
 /// What:
 /// `fn bound(limit: Duration) -> Bound` is the bound of a run in these controls.
@@ -267,22 +281,27 @@ struct Observed {
 }
 
 /// What:
-/// `fn run_recording(directory: &Path, command: &mut Command, limit: Duration) -> Observed` runs one bounded run whose route asks
-/// the recording program,
+/// `fn run_recording(directory: &Path, command: &mut Command, limit: Duration, stuck_scope: bool) -> Observed` runs one bounded
+/// run whose route asks the recording program,
 /// and answers the run,
 /// its unit and its call log.
 /// Why:
 /// All four path controls differ only in the command and the hook,
 /// so this is the one place a run is made.
+/// `stuck_scope` makes the last look at the run's scope read the leftover state of issue 6578 (`pids.peak` 0),
+/// which a real run of a program cannot produce:
+/// a scope whose program ran has held a process,
+/// and the control that runs without it shows what an ordinary run asks instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function runRecording(directory: string, command: Command, limit: number): Observed
+/// function runRecording(dir: string, command: Command, limit: number, stuckScope: boolean): Observed
 /// ```
 fn run_recording(
     directory: &Path,
     command: &mut Command,
     limit: Duration,
+    stuck_scope: bool,
 ) -> Observed {
     let (program, log) = recording_systemctl(directory);
     let settings: RouteSettings = RouteSettings {
@@ -291,6 +310,9 @@ fn run_recording(
     };
     use_route_settings_for_test(Some(settings));
     let _ = take_trace_for_test();
+    if stuck_scope {
+        arm(Point::RetireSeesStuckScope);
+    }
     let result: Result<Output, RunError> = output_within(command, None, &bound(limit));
     let trace: Vec<String> = take_trace_for_test();
     use_route_settings_for_test(None);
@@ -316,12 +338,15 @@ fn run_recording(
 fn assert_stopped_and_gone(observed: &Observed) {
     let calls: String = fs::read_to_string(&observed.log).unwrap_or_default();
     let wanted: String = format!("--user --no-ask-password stop {}", observed.unit);
+    let stops: Vec<&str> = stop_requests(&calls);
+    assert_eq!(
+        stops,
+        vec![wanted.as_str()],
+        "the run's stop requests were not the one request this step makes: {calls:?}"
+    );
     assert!(
-        calls.lines().any(|line| {
-            return line == wanted;
-        }),
-        "the run did not ask the manager to stop {}; its calls were {calls:?}",
-        observed.unit
+        !calls.contains("LoadState"),
+        "the run asked whether the unit is still loaded as well as stopping it: {calls:?}"
     );
     assert!(
         wait_up_to(GONE_BOUND, &|| {
@@ -333,13 +358,32 @@ fn assert_stopped_and_gone(observed: &Observed) {
     );
 }
 
+/// What:
+/// `fn stop_requests(log: &str) -> Vec<&str>` is the lines of a call log that are stop requests.
+/// Why:
+/// The route discovery asks the manager its own questions through the same program,
+/// so a control that counts questions has to count the stop requests and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stopRequests(log: string): string[]
+/// ```
+fn stop_requests(log: &str) -> Vec<&str> {
+    return log
+        .lines()
+        .filter(|line| {
+            return line.contains(" stop ");
+        })
+        .collect();
+}
+
 /// A normal end:
 /// the program exits by itself,
 /// and its scope unit is stopped and collected.
 #[test]
 fn a_run_that_ends_by_itself_retires_its_scope_unit() {
     let directory = scratch();
-    let observed = run_recording(directory.path(), &mut Command::new("true"), RUN_BOUND);
+    let observed = run_recording(directory.path(), &mut Command::new("true"), RUN_BOUND, true);
     observed.result.as_ref().expect("the program runs");
     assert_stopped_and_gone(&observed);
 }
@@ -354,6 +398,7 @@ fn a_run_whose_bound_passes_retires_its_scope_unit() {
         directory.path(),
         Command::new("sleep").arg("600"),
         Duration::from_millis(300),
+        true,
     );
     assert!(
         matches!(observed.result, Err(RunError::TimedOut { .. })),
@@ -372,7 +417,7 @@ fn a_refused_run_retires_its_scope_unit() {
     on_startup_for_test(Some(Rc::new(|| {
         return true;
     })));
-    let observed = run_recording(directory.path(), &mut Command::new("true"), RUN_BOUND);
+    let observed = run_recording(directory.path(), &mut Command::new("true"), RUN_BOUND, true);
     on_startup_for_test(None);
     let refused: &RunError = observed
         .result
@@ -401,7 +446,43 @@ fn a_run_whose_launcher_is_gone_retires_its_scope_unit() {
         directory.path(),
         Command::new("sleep").arg("600"),
         RUN_BOUND,
+        true,
     );
     after_launch_for_test(None);
     assert_stopped_and_gone(&observed);
+}
+
+/// The control of the cost:
+/// a run whose program really ran asks the manager nothing,
+/// because the manager was told by the kernel that the scope emptied and collects the unit by itself.
+/// This is what makes the retirement free on the ordinary path:
+/// the look reads two files and starts no program.
+#[test]
+fn an_ordinary_run_asks_the_manager_nothing() {
+    let directory = scratch();
+    let observed = run_recording(
+        directory.path(),
+        &mut Command::new("true"),
+        RUN_BOUND,
+        false,
+    );
+    observed.result.as_ref().expect("the program runs");
+    let calls: String = fs::read_to_string(&observed.log).unwrap_or_default();
+    assert_eq!(
+        stop_requests(&calls),
+        Vec::<&str>::new(),
+        "the run asked the manager to stop a unit the manager was already told about: {calls:?}"
+    );
+    assert!(
+        !calls.contains("LoadState"),
+        "the run asked whether the unit is still loaded: {calls:?}"
+    );
+    assert!(
+        wait_up_to(GONE_BOUND, &|| {
+            return load_state(&observed.unit) == "not-found";
+        }),
+        "the manager did not collect {} by itself: it reads {}",
+        observed.unit,
+        load_state(&observed.unit)
+    );
 }
