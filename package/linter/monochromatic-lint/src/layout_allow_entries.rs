@@ -9,6 +9,11 @@
 //!  because a silently ignored line would let a finding through.
 //!  The list that holds the entries is `layout_allow_list.rs`;
 //!  it reads them from here and never walks a line itself.
+//!  A `uses` line is read back exactly as the rule prints its key:
+//!  the four words the shape is written with,
+//!  or, when a folder name holds a space,
+//!  the two sides of the arrow the line holds,
+//!  so a name the rule prints is a name the reader reads.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,6 +39,10 @@ const FILE_USE_WORD: &str = "file-uses";
 
 /// The text that joins the two ends of a tolerated use.
 const ARROW: &str = "->";
+
+/// The arrow as a line writes it,
+///  with the spaces that set it off from the folders.
+pub(crate) const SET_OFF_ARROW: &str = " -> ";
 
 /// What:
 ///  What one entry of a list tolerates.
@@ -135,10 +144,14 @@ impl AllowEntry {
 ///  or nothing when it may.
 /// Why:
 ///  A finding shows paths relative to the package,
-///  and an absolute path or a `..` would mean a different file on every machine.
+///  and an absolute path would mean a different file on every machine.
+///  A relative path may climb out of the package with `..`,
+///  because a module a `#[path]` names elsewhere is a folder of the package's tree
+///  and every key about it writes that walk from the package folder;
+///  a key the rule prints and the reader refuses would be the rule contradicting itself.
 ///  Keys hold `/` between segments on every platform,
 ///  so an entry written with a backslash would name a path no key matches,
-///  and a file named with a backslash cannot be listed at all:
+///  and a name that holds a backslash cannot be listed at all:
 ///  saying so is better than a line that tolerates nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -152,21 +165,15 @@ fn unusable_reason(path: &str) -> Option<&'static str> {
     if path.contains('\\') {
         return Some("holds a backslash, and every path is written with `/` on every machine");
     }
-    let parsed: &Path = Path::new(path);
-    if parsed.is_absolute() {
+    if Path::new(path).is_absolute() {
         return Some("is absolute");
-    }
-    for part in parsed.components() {
-        if part.as_os_str() == ".." {
-            return Some("climbs out of the package with `..`");
-        }
     }
     return None;
 }
 
 /// What:
 ///  One path as an entry names it:
-///  with `.` segments and a trailing separator gone,
+///  with `.` segments, a trailing separator and the folders a `..` reads back over gone,
 ///  so `./src/a` and `src/a/` name the folder a finding names.
 /// Why:
 ///  A use is counted from the path the code makes,
@@ -175,22 +182,46 @@ fn unusable_reason(path: &str) -> Option<&'static str> {
 ///  A `.` on its own names the package folder itself,
 ///  which is how a key writes it,
 ///  and `./` is the same folder.
+///  A `..` that names nothing before it stays,
+///  because a folder a `#[path]` names outside the package is written by that walk from the package folder:
+///  `../outside` is the folder of a module declared `#[path = "../../outside/mod.rs"]`,
+///  and reading it away would name a folder inside the package instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const listedPath = (text) => {
-///   const normal = lexicalNormal(text)
+///   const normal = lexicalNormalKeepingARisingDotDot(text)
 ///   return normal === '' && text !== '' ? '.' : normal
 /// }
 /// ```
 fn listed_path(text: &str) -> PathBuf {
-    let normal: PathBuf = crate::markdown_lfs_target::lexical_normal(Path::new(text));
+    let mut path: PathBuf = PathBuf::new();
+    for part in text.split('/') {
+        if part.is_empty() || part == "." {
+            continue;
+        }
+        if part == ".." {
+            // What: whether this `..` reads back over the folder before it, or names one above the package.
+            // Why: a `..` with no folder before it is the walk out of the package, and reading it away would rename the folder.
+            let over_a_folder: bool = matches!(
+                path.components().next_back(),
+                Some(std::path::Component::Normal(_))
+            );
+            if over_a_folder {
+                path.pop();
+            } else {
+                path.push(part);
+            }
+            continue;
+        }
+        path.push(part);
+    }
     // What: the spelling a key uses for the package folder, kept instead of being read away.
     // Why: an entry about the package folder must compare equal to the key that names it.
-    if normal.as_os_str().is_empty() && !text.is_empty() {
+    if path.as_os_str().is_empty() && !text.is_empty() {
         return PathBuf::from(".");
     }
-    return normal;
+    return path;
 }
 
 /// What:
@@ -210,12 +241,8 @@ fn entry_of(
 ) -> Result<AllowEntry, String> {
     let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
     let kind: AllowKind = if words.first() == Some(&FOLDER_USE_WORD) {
-        if words.len() != 4 || words[2] != ARROW {
-            return Err(format!(
-                "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
-            ));
-        }
-        for path in [words[1], words[3]] {
+        let (from, to): (&str, &str) = use_ends(line, text)?;
+        for path in [from, to] {
             if let Some(reason) = unusable_reason(path) {
                 return Err(format!(
                     "Line {line} names a folder that {reason}. A path is relative to the package folder, as findings show it."
@@ -223,8 +250,8 @@ fn entry_of(
             }
         }
         AllowKind::FolderUse {
-            from: listed_path(words[1]),
-            to: listed_path(words[3]),
+            from: listed_path(from),
+            to: listed_path(to),
         }
     } else if words.first() == Some(&FILE_USE_WORD) {
         if words.len() != 5 || words[3] != ARROW {
@@ -250,6 +277,57 @@ fn entry_of(
         text: String::from(text),
         kind,
     });
+}
+
+/// What:
+///  The two folders one `uses` line names.
+/// Why:
+///  The shape is four words,
+///  and a folder name may hold a space,
+///  so the words alone cannot say where one name ends:
+///  the arrow the line holds is the one word a name in front of it cannot be mistaken for,
+///  and the rule prints a key in exactly this shape,
+///  so what a run prints is what the next run reads.
+///  A name that holds the arrow itself is refused before any check,
+///  because the line would not say which folder the one used is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function useEnds(line: number, text: string): [string, string];
+/// ```
+fn use_ends(
+    line: usize,
+    text: &str,
+) -> Result<(&str, &str), String> {
+    let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
+    if words.len() == 4 && words[2] == ARROW {
+        return Ok((words[1], words[3]));
+    }
+    // What: the two sides of the arrow, when the line holds exactly one of them.
+    // Why: a second arrow is no name the tree may hold, so the line is a misspelling rather than a folder name.
+    let Some((from_side, to)) = text.split_once(SET_OFF_ARROW) else {
+        return Err(format!(
+            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
+        ));
+    };
+    if text.matches(SET_OFF_ARROW).count() != 1 {
+        return Err(format!(
+            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`, and no folder name holds `{SET_OFF_ARROW}`."
+        ));
+    }
+    let Some(from) = from_side.strip_prefix(FOLDER_USE_WORD) else {
+        return Err(format!(
+            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
+        ));
+    };
+    let from: &str = from.trim();
+    let to: &str = to.trim();
+    if from.is_empty() || to.is_empty() {
+        return Err(format!(
+            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
+        ));
+    }
+    return Ok((from, to));
 }
 
 /// What:

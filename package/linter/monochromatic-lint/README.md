@@ -1264,6 +1264,9 @@ and a line that reads as none of them fails the run:
   A loop is made of uses,
   so a loop is tolerated only while every use inside it is listed,
   and a round writes one line for each use it leaves alone.
+  A folder name may hold a space,
+  so the line is read from the two sides of the arrow it holds: the folder before the arrow, and the folder after it.
+  A line holds one arrow only, because no folder name holds the words it is set off with.
   A line stays alive while its two folders still make that use and still sit in one loop together,
   in the folders' own graph or in the graph of the entries:
   a folder inside a group can be in a loop of its own folders and in the loop of its group at once,
@@ -1274,8 +1277,13 @@ and a line that reads as none of them fails the run:
 A path in an entry is relative to the package folder,
 the way findings show it,
 written with `/` on every platform,
-never absolute and never climbing out with `..`,
+never absolute,
 and no line may repeat another.
+A folder outside the package, which a `#[path]` can declare,
+is written by the walk from the package folder,
+`../outside`,
+exactly as a key writes it,
+so a loop through such a folder is recorded like any other loop.
 A `.` segment and a trailing separator are read away,
 so `uses ./src/a/ -> src/b` is the same entry as `uses src/a -> src/b` and the second line for it is refused.
 A `.` on its own names the package folder itself,
@@ -1328,7 +1336,7 @@ Every key names exactly one finding:
     such as `extern-crate-alloc`,
     and `extern-crate-<name>-<the rename as written>`,
     such as `extern-crate-alloc-as al`,
-    and `extern-block-<the ABI string as written, quotes kept>`,
+    and `extern-block-<the ABI string, quotes kept, with every run of whitespace squeezed to one space>`,
     such as `extern-block-"C"`,
     or `extern-block-unstated` for a block that names none.
   - `<kind>-<name>` for every other item,
@@ -1378,6 +1386,12 @@ Every key names exactly one finding:
   or that holds a line break,
   is therefore refused before any check,
   with one `core/processing-failure` that spells that character and names the path.
+  A folder name that holds a backslash,
+  which every key writes as the separator `/`,
+  or the words ` -> ` that a `uses` line sets its arrow off with,
+  is refused for the same reason,
+  while a file name keeps its backslash as the source writes it,
+  because a file name is no path and a `file-uses` line names it as written.
   The refusal is a rule about the tree's names,
   not a condition on the findings one run reports:
   it covers every file and folder the walk reads,
@@ -1406,9 +1420,8 @@ Every key names exactly one finding:
   so its `..` count is the distance between the two folders:
   the same in every checkout of one repository,
   and different when the same outside file is named from a package at another depth.
-  A `uses` line cannot name such a folder either,
-  because an entry never climbs out of the package with `..`,
-  so a loop through a folder outside the repository is reported and cannot be tolerated.
+  A `uses` line names such a folder the same way,
+  so a loop through a folder outside the repository is recorded and tolerated like any other loop.
 - Two findings a rule still cannot tell apart,
   such as two blocks of one type that declare the same members
   or two glob re-exports of one module,
@@ -1456,6 +1469,11 @@ and the list's own record of today's findings is the only thing that does:
   A use that joins the loop after that has no line,
   and the finding for it carries no key,
   so the loop is untangled before new code can join it.
+  A use added in the same change as a new own-file use of that loop is printed with it,
+  because the loop is reported then,
+  and the review sees both lines in one diff.
+  A `uses` line typed in by hand for a use that joined a recorded loop tolerates it,
+  as any hand-written line tolerates the finding it names.
 - A loop finding of folders,
   entries or files carries no key,
   and neither does the use added inside a tolerated loop,
@@ -1663,6 +1681,11 @@ and every other line stays as it is.
   A tree whose own files close such a loop gains those lines from one `--debug` run,
   and every one of them stays alive,
   so the loop is recorded rather than untangled.
+  That holds for a list that holds none of the loop's own-file lines.
+  A list written by alpha.15 holds them and none of the loop's uses,
+  so the loop counts as tolerated and the run prints no line for its uses:
+  the run fails with findings that carry no key until those `own-file-loop` lines of that loop are deleted,
+  and the next `--debug` run then prints every line of the loop.
 - An entry of a `uses` folder whose name ends in a trimmed character or holds a line break
   is refused with one `core/processing-failure`,
   where alpha.15 printed a two-line key that no list line could hold,
@@ -1681,6 +1704,24 @@ and every other line stays as it is.
   byte-identical streams,
   2026-11-26).
 
+#### How a list written before alpha.17 maps
+
+A tree that holds one of these shapes needs one regeneration,
+and every other line stays as it is.
+
+- A `uses` line is read from the two sides of its arrow,
+  so a line naming a folder whose name holds a space,
+  a tab or a no-break space reads back,
+  where alpha.16 could not read such a line at all.
+  No alpha.16 list can hold one, because alpha.16 refused those lines,
+  so no line of a list written then changes meaning.
+- A `uses` or `file-uses` line may name a folder outside the package,
+  written by the walk from the package folder,
+  where alpha.16 refused the line although its own keys printed it.
+- A folder name that holds a backslash or the words ` -> `
+  is refused with one `core/processing-failure`,
+  where alpha.16 printed a key that named another folder,
+  so the name is changed rather than recorded.
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,
@@ -1715,13 +1756,14 @@ and every other line stays as it is.
 - A module that a macro declares is not seen.
 - The rules cannot see a use through a trait method or a type alias that never names the module.
 - `/*! ... */` top docs are not read.
-- A folder whose name holds a space can be reported but not tolerated:
+- A folder whose name holds a space is reported and tolerated:
   `missing-link src/a b -> src/c` is a key line,
-  while `uses src/a b -> src/c` cannot be read as four words.
+  and `uses src/a b -> src/c` is read from the two sides of its arrow.
   Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
   a tab or a no-break space inside a module file name is keyed as written,
-  and no `file-uses` line can name that file either.
+  and no `file-uses` line can name that file either,
+  because the two file names of that shape are single words.
   A root file,
   such as `src/bin/my tool.rs`,
   is no module file of a folder,
@@ -1732,7 +1774,9 @@ and every other line stays as it is.
   a tab or another character the list reader trims is refused before any check,
   because no key could end in that character,
   and so is a name that holds a line break,
-  because a list line ends at one.
+  because a list line ends at one,
+  and a folder name that holds a backslash or the words ` -> `,
+  because no line could name the folder such a name belongs to.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.
