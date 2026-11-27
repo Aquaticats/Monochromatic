@@ -1103,9 +1103,22 @@ and its round runs.
   option D there,
   a recovery that stops the unit its journal recorded,
   may not reach a run that ended normally.
-  A round shows the state in a guest and adds it to the proposal,
-  with the ranking gone through again;
-  the choice stays the owner's and stays open.
+  A round showed the state in a guest and added it to the proposal
+  (merged as `17a5efdf9a`,
+  recorded 2026-11-27T12:25:24-05:00):
+  with the account's inotify watches used up,
+  the released `0.1.5-alpha.13` left its four scopes loaded and empty and exited 0;
+  a re-execution of the manager collects such units and,
+  in one of two timed attempts,
+  lost two of forty.
+  Option D cannot reach a run that finished,
+  the two sweeps can,
+  and the round keeps the ranking D > A > E > C > B with its first pair closer than before.
+  It adds one question:
+  whether a run's own last step should ask the manager about the unit it just started,
+  which reaches this road before the run ends
+  and brings back the question per scoped run that alpha.13 removed.
+  The choice stays the owner's and stays open.
 
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 

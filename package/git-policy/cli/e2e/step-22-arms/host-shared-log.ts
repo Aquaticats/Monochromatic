@@ -1,0 +1,192 @@
+/**
+ Read and pull the logs one detached step 22 script leaves in a guest's shared
+ folder.
+
+ This driver reads the guest's shared folder from the host's own file system
+ rather than asking the guest agent, which is what the round that measured step
+ 22 needed: the shared folder is a host folder `mvm` mounts in the guest, so the
+ host reads a finished script's log without an agent answer, and a guest whose
+ agent is busy still hands its log over
+ (`doc/troubleshooting/mvm-push-writes-the-shared-folder-not-the-guest-path.md`).
+
+ @example
+ ```ts
+ const answer = await lastLineOfSharedFile({ name: chosen.name, file: armLog });
+ ```
+ */
+
+import {
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
+import { homedir, } from 'node:os';
+import { join, } from 'node:path';
+
+/**
+ The host folder a guest's shared folder is mounted from, which needs no guest
+ agent to read.
+
+ @param name - the guest's name
+
+ @param file - the file inside the shared folder
+
+ @returns the host path of that file
+
+ @example
+ ```ts
+ sharedFile({ name: 'zfs-step-22-measurements', file: 'step-22-measurements-arm.log' });
+ ```
+ */
+export function sharedFile({
+  name,
+  file,
+}: {
+  readonly name: string;
+  readonly file: string;
+},): string {
+  return join(
+    homedir(),
+    '.local',
+    'share',
+    'mvm',
+    'vms',
+    name,
+    'shared',
+    file,
+  );
+}
+
+/**
+ The last line of a file that has any text in it, or empty text.
+
+ A log that ends with its own newline has an empty last element, which is not a
+ line, so the answer is the last line with text in it. A file that is not there
+ yet, or that the host cannot read while the guest writes it, is no answer
+ either: the caller is waiting for a `DONE=` line that has not arrived.
+
+ @param path - the file to read
+
+ @returns its last line with text in it, or empty text
+
+ @example
+ ```ts
+ await lastLineWithText({ path: sharedFile({ name: 'guest-one', file: 'arm.log' }) });
+ ```
+ */
+export async function lastLineWithText({
+  path,
+}: {
+  readonly path: string;
+},): Promise<string> {
+  try {
+    /**
+     The whole file, which a detached script appends one line at a time.
+     */
+    const text = await readFile(
+      path,
+      'utf8',
+    );
+    /**
+     The lines that hold text, in the order the file holds them.
+     */
+    const lines = text
+      .split('\n')
+      .map(function trimmed(line,) {
+        return line.trim();
+      },)
+      .filter(function hasText(line,) {
+        return line.length > 0;
+      },);
+    return lines.at(-1,) ?? '';
+  }
+  catch (caught) {
+    // A file the guest has not created yet and one it is still writing are the
+    // same answer to a host waiting for a `DONE=` line: nothing yet, so the
+    // caught value is not read here.
+    return '';
+  }
+}
+/**
+ Pull one guest log into the run's own folder, and refuse a file that is not
+ there rather than reading it as an empty log.
+
+ @param name - the guest's name
+
+ @param file - the file's name inside the guest's shared folder
+
+ @param logDir - the run's log folder, where the copy lands
+
+ @returns the log's whole text, as the copy holds it
+
+ @throws Error when the shared folder does not hold the file
+
+ @example
+ ```ts
+ const pulled = await pullSharedLog({ name: 'guest-one', file: 'arm.log', logDir: 'target/logs' });
+ ```
+ */
+export async function pullSharedLog({
+  name,
+  file,
+  logDir,
+}: {
+  readonly name: string;
+  readonly file: string;
+  readonly logDir: string;
+},): Promise<string> {
+  /**
+   The file's own path inside the guest's shared folder.
+   */
+  const path = sharedFile({
+    name,
+    file,
+  },);
+  /**
+   The log as the guest wrote it, which a run that never got that far does not
+   have.
+   */
+  const pulled = await readIfThere({ path, },);
+  await writeFile(
+    join(
+      logDir,
+      file,
+    ),
+    pulled,
+    { mode: 0o600, },
+  );
+  return pulled;
+}
+
+/**
+ Read a file that may not be there yet.
+
+ A detached guest script writes its log while the host waits, so a read can meet
+ a file that has not been created or one the guest is still writing. Either is
+ answered with the text read so far, and never with a refusal.
+
+ @param path - the file to read
+
+ @returns its whole text, or empty text when it is not there
+
+ @example
+ ```ts
+ await readIfThere({ path: '/home/somebody/.local/share/mvm/vms/guest-one/shared/arm.log' });
+ ```
+ */
+async function readIfThere({
+  path,
+}: {
+  readonly path: string;
+},): Promise<string> {
+  try {
+    return await readFile(
+      path,
+      'utf8',
+    );
+  }
+  catch (caught) {
+    // A shared folder that holds no such file yet is the answer this waits
+    // past, so the caught value is not read here.
+    return '';
+  }
+}
