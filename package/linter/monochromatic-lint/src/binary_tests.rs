@@ -3872,7 +3872,7 @@ fn layout_a_folder_name_that_holds_the_arrow_words_is_refused() {
         "would read as another pair of folders",
         // What: the half that says what renaming must give, which has to cover a name holding the arrow words inside it.
         // Why: a name told to hold no arrow word at its beginning or its end would keep the one in the middle and stop again.
-        "so rename the folder so its name holds no `->` set off by whitespace on both sides,",
+        "so rename the folder so its name holds no ` -> `,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
@@ -3914,6 +3914,11 @@ fn layout_a_folder_name_that_sets_its_arrow_off_with_a_tab_is_refused() {
                 "its name sets off an arrow word with a whitespace character other than a space,",
             ),
             String::from("would read as another pair of folders"),
+            // What: the fix for this shape, which must not send its reader to a space it does not hold.
+            // Why: the name sets its arrow off with a tab or a no-break space, so the fix has to cover any whitespace character.
+            String::from(
+                "so rename the folder so its name holds no `->` set off by a whitespace character,",
+            ),
         ] {
             assert!(
                 message.contains(part.as_str()),
@@ -4125,6 +4130,9 @@ fn layout_a_folder_name_that_ends_in_the_arrow_is_refused() {
         "The layout rules stop at the folder src/a ->,",
         "its name ends with ` ->`,",
         "would read as another pair of folders",
+        // What: the fix for a name that ends with the arrow, which a sentence about both sides would not fit.
+        // Why: inside this name the arrow is set off on one side only, so it already satisfies a sentence about both.
+        "so rename the folder so its name does not end with ` ->`,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
@@ -4154,6 +4162,7 @@ fn layout_a_folder_name_that_begins_with_the_arrow_is_refused() {
         "The layout rules stop at the folder src/-> a,",
         "its name begins with `-> `,",
         "would read as another pair of folders",
+        "so rename the folder so its name does not begin with `-> `,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
@@ -4183,6 +4192,7 @@ fn layout_a_folder_name_that_is_the_arrow_is_refused() {
         "The layout rules stop at the folder src/->,",
         "its name is `->`,",
         "would read as another pair of folders",
+        "so rename the folder so its name is not `->`,",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }

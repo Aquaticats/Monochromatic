@@ -157,7 +157,7 @@ pub(crate) fn unlistable_folder_name_part(
 }
 
 /// What:
-///  The one shape of the arrow words a folder name has,
+///  The one shape of the arrow words a folder name has and what renaming must give,
 ///  or nothing when its name holds none of them.
 /// Why:
 ///  The rule prints `uses <folder> -> <folder>`,
@@ -168,41 +168,45 @@ pub(crate) fn unlistable_folder_name_part(
 ///  really does hold a second arrow,
 ///  so the check cannot drift from what the printer writes and the reader reads,
 ///  and a tab or a no-break space beside the arrow is refused as a space there is.
-///  The sentence that shape earns names exactly one cause, never a list of four,
-///  because a reader who is told four reasons has to check which one is theirs.
+///  The sentence that shape earns names exactly one cause and the one rename it needs, never a list of four,
+///  because a reader who is told four reasons has to check which one is theirs,
+///  and a fix written for the middle shape reads as if a name with the arrow at its end already complied.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const arrowWordShape = (name: string) => {
 ///   if (!nameHoldsAnArrowWord(name)) return undefined
-///   if (name === '->') return 'is `->`'
-///   if (name.startsWith('-> ')) return 'begins with `-> `'
-///   if (name.endsWith(' ->')) return 'ends with ` ->`'
-///   if (name.includes(' -> ')) return 'holds ` -> `'
-///   return 'sets off an arrow word with a whitespace character other than a space'
+///   if (name === '->') return ['is `->`', 'its name is not `->`']
+///   if (name.startsWith('-> ')) return ['begins with `-> `', 'its name does not begin with `-> `']
+///   if (name.endsWith(' ->')) return ['ends with ` ->`', 'its name does not end with ` ->`']
+///   if (name.includes(' -> ')) return ['holds ` -> `', 'its name holds no ` -> `']
+///   return ['sets off an arrow word with a whitespace character other than a space', 'its name holds no `->` set off by a whitespace character']
 /// }
 /// ```
-pub(crate) fn arrow_word_shape(name: &str) -> Option<&'static str> {
+pub(crate) fn arrow_word_shape(name: &str) -> Option<(&'static str, &'static str)> {
     // What: whether the line naming this folder before its arrow would hold a second arrow.
     // Why: every shape below is a way a name does that, and this is the one test they must all satisfy.
     if !name_holds_an_arrow_word(name) {
         return None;
     }
     if name == ARROW {
-        return Some("is `->`");
+        return Some(("is `->`", "its name is not `->`"));
     }
     if name.starts_with("-> ") {
-        return Some("begins with `-> `");
+        return Some(("begins with `-> `", "its name does not begin with `-> `"));
     }
     if name.ends_with(" ->") {
-        return Some("ends with ` ->`");
+        return Some(("ends with ` ->`", "its name does not end with ` ->`"));
     }
     if name.contains(SET_OFF_ARROW) {
-        return Some("holds ` -> `");
+        return Some(("holds ` -> `", "its name holds no ` -> `"));
     }
-    // What: a name whose arrow word is set off by a tab, a no-break space or another whitespace character.
-    // Why: the guard above already refused it, and the four shapes above spell a space, so the sentence names the difference.
-    return Some("sets off an arrow word with a whitespace character other than a space");
+    // What: a name whose arrow word is set off by a tab, a no-break space or another whitespace character, and its fix.
+    // Why: the guard above already refused it, and the four shapes above spell a space, so the sentence names the difference and the fix covers any whitespace character.
+    return Some((
+        "sets off an arrow word with a whitespace character other than a space",
+        "its name holds no `->` set off by a whitespace character",
+    ));
 }
 
 /// What:
