@@ -196,6 +196,63 @@ The control also says the transfer really was slow,
 by asserting that its bytes arrived over more seconds than one window holds,
 which a host that is late can only lengthen.
 
+## Why this answer, and not the other two the issue names
+
+The issue puts three answers on the table:
+bytes offered ahead of the window,
+a clock handed in,
+and a floor and window sized from the sender's measured rate.
+
+- Bytes offered ahead of the window:
+  the control keeps a block of bytes queued in front of every window,
+  so a sender the host starved still has traffic in flight.
+  Pro:
+  no seam in the release at all.
+  Con:
+  it cannot outlast the second window,
+  for a reason the release's own tally gives:
+  every sign of progress clears the tally,
+  so bytes queued before a window count only in the window they arrive in,
+  and the kernel hands over what its buffers hold at once.
+  A block offered ahead is counted once,
+  and the window after it is silent again,
+  so keeping the connection above the floor still needs a process to run inside every window,
+  which is the host's scheduling again.
+- A clock handed in:
+  the control states the time its transfer took,
+  one slice of the window for every slice's worth of bytes the connection carried.
+  Pro:
+  the judgement stays the release's own and is made on real bytes the socket carried,
+  and no scheduling can make a window look empty.
+  Con:
+  one seam in the release's source,
+  `Clock::judged_after`,
+  compiled out of every shipped build;
+  and the control no longer reads a real-time window.
+- A floor and window sized from the sender's measured rate:
+  the control measures what its sender achieves,
+  then states a floor below that figure.
+  Pro:
+  no seam in the release.
+  Con:
+  the measurement is taken before the windows it sizes and is decided by the same host's scheduling,
+  so a dip after the measurement fails the control again;
+  and a slow measurement makes the window longer,
+  so the control gets slower exactly when the host is busy.
+
+Ranking:
+the clock handed in,
+then the floor sized from the measured rate,
+then the bytes offered ahead,
+because the first is decided by bytes that really arrived,
+the second by a rate measured once and hoped for after that,
+and the third cannot hold past one window.
+
+No planning proposal comes with this round,
+because nothing here is the release's:
+the floor and the connected window kept the bound a person reads in `SPEC.md`,
+and the number the stop carried was the traffic the connection really moved.
+
 ## Open
 
 - The arm at the sender's intended pace offered 16 chunks over 4.009 s,
