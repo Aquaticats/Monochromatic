@@ -155,12 +155,12 @@ fn nameable_declarations(text: &str) -> Vec<(String, String)> {
             continue;
         }
         if exported {
-            let name: Option<&str> = line.strip_prefix("macro_rules! ").and_then(|rest| {
+            let exported_name: Option<&str> = line.strip_prefix("macro_rules! ").and_then(|rest| {
                 return rest
                     .split(|character: char| return character == ' ' || character == '{')
                     .next();
             });
-            if let Some(name) = name {
+            if let Some(name) = exported_name {
                 found.push((String::from("macro_rules"), name.to_owned()));
             }
             continue;

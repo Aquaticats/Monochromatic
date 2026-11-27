@@ -189,9 +189,9 @@ pub(crate) fn chain_the_target_reaches(
                 .map(|(chain, _)| return chain.clone()),
             None => None,
         };
-        let Some(child) = found else {
-            return None;
-        };
+        // What: `?` hands back `None` when the step found no module, which makes the whole path unreachable.
+        // Why: clippy refuses the `let ... else` spelling that does the same thing.
+        let child: String = found?;
         current = child;
         first = false;
         index += 1;
