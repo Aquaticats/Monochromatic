@@ -288,10 +288,7 @@ file-uses src/native/push push_wait_until_done.rs -> auto_push_single_flight.rs
 file-uses src/native/push push_wait_until_done.rs -> push_progress.rs
 file-uses src/native/push stacked_merge_push.rs -> push_stacking.rs
 file-uses src/native/repair package_repair_cargo.rs -> package_repair_cargo_jobs.rs
-file-uses src/native/repair package_repair_cargo.rs -> package_repair_prewarm_job.rs
 file-uses src/native/repair package_repair_cargo_jobs.rs -> package_repair_cargo.rs
-file-uses src/native/repair package_repair_prewarm_job.rs -> package_repair_prewarm_job_filling.rs
-file-uses src/native/repair package_repair_prewarm_job_filling.rs -> package_repair_cargo.rs
 file-uses src/native/repair package_repair_relink_notice.rs -> package_repair_toolchain.rs
 file-uses src/native/repair package_repair_toolchain.rs -> package_repair_toolchain_install.rs
 file-uses src/native/repair package_repair_toolchain_copy_removal.rs -> package_repair_relink_notice.rs

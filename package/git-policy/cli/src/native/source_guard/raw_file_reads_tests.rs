@@ -139,7 +139,12 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("process/process_use.rs", 1, "system"),
     ("process/thread_quiet.rs", 2, "system"),
     ("push/push_progress_meter.rs", 3, "system"),
-    ("repair/package_repair_cargo_lock.rs", 5, "person-path"),
+    ("repair/package_repair_cargo_lock.rs", 2, "person-path"),
+    (
+        "repair/package_repair_cargo_lock_never_replacing.rs",
+        3,
+        "person-path",
+    ),
     (
         "repair/package_repair_prewarm_job_staged_state.rs",
         1,
