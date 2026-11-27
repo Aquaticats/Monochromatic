@@ -141,12 +141,14 @@ pub(crate) fn work_not_handed_over(
     else {
         return None;
     };
-    return Some(crate::service_messages_the_failures_a_person_can_meet::ClientFailure::WorkNotHandedOver(
-        format!(
-            "the commit service did not start: {}",
-            did_not_start(unit.as_deref(), answer, *asked)
+    return Some(
+        crate::service_messages_the_failures_a_person_can_meet::ClientFailure::WorkNotHandedOver(
+            format!(
+                "the commit service did not start: {}",
+                did_not_start(unit.as_deref(), answer, *asked)
+            ),
         ),
-    ));
+    );
 }
 
 /// Controls stay out of the release executable.
