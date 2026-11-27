@@ -10,6 +10,7 @@
 
 import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { reportAStartThatEndedWithoutARun, } from './a-start-that-ended-without-a-run.ts';
 import {
   endReasonIn,
   onABranchNow,
@@ -276,6 +277,15 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
    Why the run ended, or nothing when it wrote no summary.
    */
   const { endReason, } = await endReasonIn({ folder: request.runFolder, },);
+
+  // A run whose unit failed says how its start ended, in the line the start left: a driver that stopped before it could write a
+  // summary leaves nothing else, and the launcher's own output is where a caller of a start looks.
+  if (request.unitStatus !== 0) {
+    await reportAStartThatEndedWithoutARun({
+      runFolder: request.runFolder,
+      report: request.report,
+    },);
+  }
 
   /**
    What the step after the unit ended found and did, which is nothing at all for a run that ended for any reason but finishing

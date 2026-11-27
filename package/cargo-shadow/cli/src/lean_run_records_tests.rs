@@ -39,6 +39,7 @@ use crate::lean_test_support::{
     HOUR,
     NOW,
     age_everything,
+    length_bytes,
     real_environment,
 };
 use crate::test_scratch::scratch;
@@ -91,6 +92,7 @@ fn sweep(
         NOW,
         false,
         &Deadline::after(Duration::from_secs(60)),
+        length_bytes,
         &mut log,
     );
 }
@@ -340,6 +342,7 @@ fn a_dry_run_reports_and_removes_nothing() {
         NOW,
         true,
         &Deadline::after(Duration::from_secs(60)),
+        length_bytes,
         &mut log,
     );
     assert_eq!(outcome.removed, 1);

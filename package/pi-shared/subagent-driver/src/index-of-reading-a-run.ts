@@ -32,3 +32,19 @@ export {
   type ReadsAProcessRecord,
   type ReadsOfAProcessFolder,
 } from './reads-of-a-process-folder.ts';
+
+/**
+ The line a start that ended without a run leaves: the wait that ended it, the bound that wait is given, how long it had waited, why
+ no run happened, and what to do next, in the words the summary, the run folder and the launcher all carry. A launcher prints it from
+ the folder, which is what makes a start that wrote no summary say how it ended.
+ */
+export {
+  lineOfAStartThatEndedWithoutARun,
+  linesOfAStartThatEndedWithoutARun,
+  reportAStartThatEndedWithoutARun,
+  sentenceOfAStartThatEndedWithoutARun,
+  START_WITHOUT_A_RUN_FILE_NAME,
+  type StartThatEndedWithoutARun,
+  type WaitThatEndedAStart,
+  writeAStartThatEndedWithoutARun,
+} from './a-start-that-ended-without-a-run.ts';
