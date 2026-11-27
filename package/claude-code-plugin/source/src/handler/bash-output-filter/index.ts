@@ -8,11 +8,13 @@ import type {
 import type { ReadonlyDeep, } from 'type-fest';
 
 import {
-  BLOCKING_TIMEOUT_MS,
+  canMoveToBackground,
+  clampedTimeout,
   DISABLE_BACKGROUND_TASKS_ENV,
   disabledBackgroundTasksWarning,
   isBlockingTimeoutEnabled,
-  shouldApplyBlockingTimeout,
+  isTimeoutPolicyCall,
+  withSleepPrefix,
 } from './blocking-timeout.ts';
 import {
   isAllowed,
@@ -52,8 +54,13 @@ type BashOutputFilterInput = PreToolUseInput | SessionStartInput;
 
  SessionStart returns one warning when native background tasks are disabled while the timeout policy is enabled.
  PreToolUse composes two independent behaviors:
- the existing output-filter rewrite and the default foreground timeout.
- Native subagents retain output filtering but never receive execution-field changes.
+ the output-filter rewrite and the timeout policy.
+ For a main-agent foreground call the policy clamps the timeout to at most one second
+ and,
+ when the command runs unwrapped,
+ adds a no-op prefix to a leading `sleep` so a timeout moves it instead of stopping it;
+ a filter-wrapped command already starts with `set -o pipefail`.
+ Native subagents and explicit background calls retain output filtering but never receive execution or prefix changes.
 
  @param event - parsed {@link BashOutputFilterInput} event from Claude Code
 
@@ -84,20 +91,34 @@ function bashOutputFilterHandler(event: ReadonlyDeep<BashOutputFilterInput>,): B
   const bashInput = event.tool_input;
 
   /**
-   Whether this main-agent call needs the default foreground timeout.
+   Whether the timeout policy changes this call: a main-agent foreground call with the policy enabled.
    */
-  const applyBlockingTimeout = shouldApplyBlockingTimeout({
+  const policyCall = isTimeoutPolicyCall({
     ...(event.agent_id === undefined ? {} : { agentId: event.agent_id, }),
     ...(bashInput.run_in_background === undefined
       ? {}
       : { runInBackground: bashInput.run_in_background, }),
-    ...(bashInput.timeout === undefined ? {} : { timeout: bashInput.timeout, }),
-    command: bashInput.command,
     env: process.env,
   },);
 
   if ((!isAllowed(bashInput.command,)) || shouldSkip(bashInput.command,)) {
-    if (!applyBlockingTimeout)
+    if (!policyCall)
+      return {};
+
+    /**
+     Unwrapped command text, prefixed when Claude Code would see a leading `sleep`.
+     */
+    const command = canMoveToBackground(process.env,)
+      ? withSleepPrefix(bashInput.command,)
+      : bashInput.command;
+    /**
+     Timeout after the clamp.
+     */
+    const timeout = clampedTimeout({
+      ...(bashInput.timeout === undefined ? {} : { timeout: bashInput.timeout, }),
+      env: process.env,
+    },);
+    if ((command === bashInput.command) && (timeout === bashInput.timeout))
       return {};
 
     return {
@@ -105,7 +126,8 @@ function bashOutputFilterHandler(event: ReadonlyDeep<BashOutputFilterInput>,): B
         hookEventName: 'PreToolUse',
         updatedInput: {
           ...bashInput,
-          timeout: BLOCKING_TIMEOUT_MS,
+          command,
+          timeout,
         },
       },
     };
@@ -135,7 +157,14 @@ function bashOutputFilterHandler(event: ReadonlyDeep<BashOutputFilterInput>,): B
       updatedInput: {
         ...bashInput,
         command: wrappedCommand,
-        ...(applyBlockingTimeout ? { timeout: BLOCKING_TIMEOUT_MS, } : {}),
+        ...(policyCall
+          ? {
+            timeout: clampedTimeout({
+              ...(bashInput.timeout === undefined ? {} : { timeout: bashInput.timeout, }),
+              env: process.env,
+            },),
+          }
+          : {}),
       },
     },
   };
