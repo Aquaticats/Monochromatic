@@ -1061,7 +1061,8 @@ fn a_link_move_that_fails_once_ends_one_and_keeps_the_older_version() {
 /// A put-back gives the version's name a copy,
 /// so the rule that points `current` at the newest finished version runs for it too,
 /// and the newest finished version may be an older one than the lock names;
-/// nothing said so before, and whether it stays is the owner's to decide,
+/// nothing said so before,
+/// and whether it stays is the owner's to decide,
 /// so this control holds what the code does today.
 ///
 /// In TS you'd write (pseudocode):

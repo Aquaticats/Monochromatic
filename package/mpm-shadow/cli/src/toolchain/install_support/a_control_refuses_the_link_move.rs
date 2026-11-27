@@ -33,7 +33,8 @@ use std::cell::Cell;
 /// Why:
 /// A control of the rule that nothing is removed under a link that cannot be moved needs the link to stay where it is,
 /// while a control of what a later step of the same run does needs the first move alone refused;
-/// a shipped build plants neither, so the type only says what a control may ask for.
+/// a shipped build plants neither,
+/// so the type only says what a control may ask for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,7 +51,8 @@ pub(crate) enum HowOften {
 
 /// What:
 /// The refusal one control planted:
-/// the operating system's number for the error, and how many moves it answers.
+/// the operating system's number for the error,
+/// and how many moves it answers.
 /// Why:
 /// A control names a failure no disposable fixture can make on demand,
 /// and the two counts are what tell a rule from the step that repairs it.
