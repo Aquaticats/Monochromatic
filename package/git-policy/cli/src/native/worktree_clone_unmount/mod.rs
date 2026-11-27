@@ -40,12 +40,17 @@
 //! - `staged_folder_record.rs`:
 //!   the record's shape,
 //!   its atomic write and its bounded read.
+//! - `staging_call_words.rs`:
+//!   the call names a receipt carries and one refusal's words.
+//! - `staging_calls_contract.rs`:
+//!   the trait every staging call and its control keeps.
 //! - `staging_calls.rs`:
+//!   the kernel calls:
 //!   the bind,
 //!   propagation change,
 //!   move,
-//!   unmount and handle calls,
-//!   and the reads that decide whether they may run.
+//!   unmount and handle reads,
+//!   with the two kernel files they read.
 //! - `slot_walk_calls.rs`:
 //!   the checkout's root,
 //!   the two final hops and the fresh lookup.
@@ -112,6 +117,13 @@ pub mod user_cache_pin;
 /// The kernel calls the unmount route makes,
 /// behind one trait.
 pub mod staging_calls;
+
+/// The call names a refusal carries,
+/// and its errno.
+pub mod staging_call_words;
+
+/// The trait every staging call and its control keeps.
+pub mod staging_calls_contract;
 
 /// The order the staged-folder record is judged in.
 pub mod staged_record_reading;
