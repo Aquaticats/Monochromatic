@@ -32,10 +32,18 @@ import {
 } from './daily-update-notification-recorder-fixture.ts';
 import {
   directoryOf,
+  run,
+} from './daily-update-whole-path-programs-fixture.ts';
+import {
+  readCommits,
+  readDependencyFileTexts,
+  readTextOrEmpty,
+  type RecordedCommit,
+} from './daily-update-whole-path-recorded-state-fixture.ts';
+import {
   layOutRepository,
   put,
   putExecutable,
-  run,
 } from './daily-update-whole-path-repository-fixture.ts';
 import {
   FAKE_CARGO_SHADOW,
@@ -58,20 +66,6 @@ const SOURCE_REPOSITORY = join(
   '..',
   '..',
 );
-
-/**
- Every file the update's dependency group may change in the fixture repository, so a test can read what the group left
- behind and tell a landed group from a restored one.
- */
-const DEPENDENCY_FILES: readonly string[] = [
-  'rust-catalog.toml',
-  'package/a/broken-crate/Cargo.toml',
-  'package/a/broken-crate/Cargo.lock',
-  'package/c/red-crate/Cargo.toml',
-  'package/c/red-crate/Cargo.lock',
-  'pnpm-lock.yaml',
-  'pnpm-workspace.yaml',
-];
 
 /**
  A call the stand-in `gh` received.
@@ -131,20 +125,6 @@ export type WholePathResult = {
 };
 
 /**
- One commit of the disposable repository.
- */
-export type RecordedCommit = {
-  /**
-   Subject line.
-   */
-  readonly subject: string;
-  /**
-   Repository-relative paths the commit landed, in the order `git log --name-only` lists them.
-   */
-  readonly files: readonly string[];
-};
-
-/**
  Options of the whole-path run.
  */
 export type WholePathOptions = {
@@ -164,35 +144,6 @@ export type WholePathOptions = {
    */
   readonly cargoShadowSkipsLockWrite: boolean;
 };
-
-/**
- Reads a text file, answering the empty string when it does not exist.
-
- @param path - absolute path
-
- @returns the text, or the empty string when the file is absent
-
- @throws Error when the file exists but cannot be read
-
- @example
- ```ts
- const text = await readTextOrEmpty('/r/.cache/pending.json',);
- ```
- */
-export async function readTextOrEmpty(path: string,): Promise<string> {
-  try {
-    return await readFile(
-      path,
-      'utf8',
-    );
-  }
-  catch (error) {
-    if ((Error.isError(error,)) && ('code' in error)
-      && (error.code === 'ENOENT'))
-      return '';
-    throw error;
-  }
-}
 
 /**
  Reads one line the stand-in `gh` recorded.
@@ -457,39 +408,12 @@ export async function runWholePath({
     environment,
   },);
   /**
-   The repository's commits, each subject followed by the paths it landed.
-   */
-  const log = await run({
-    program: 'git',
-    args: [
-      'log',
-      '--format=@@%s',
-      '--name-only',
-    ],
-    directory: root,
-    environment,
-  },);
-  /**
    Every commit with the paths it landed, newest first.
    */
-  const commits: RecordedCommit[] = log.stdout
-    .split('@@',)
-    .filter(function nonEmpty(block,) {
-      return block.trim() !== '';
-    },)
-    .map(function parseCommit(block,) {
-      /**
-       The block's lines, without the empty ones around the file list.
-       */
-      const lines = block.split('\n',)
-        .filter(function nonEmptyLine(line,) {
-          return line !== '';
-        },);
-      return {
-        subject: lines[0] ?? '',
-        files: lines.slice(1,),
-      };
-    },);
+  const commits = await readCommits({
+    root,
+    environment,
+  },);
   /**
    Text of the pending file, empty when absent.
    */
@@ -498,16 +422,10 @@ export async function runWholePath({
     '.cache',
     'toolchain-daily-update-pending-issues.json',
   ),);
-  // The files the dependency group may change, read after the run so a restored group can be told from a landed one.
   /**
-   Path to the text each dependency file holds now.
+   Text every dependency file holds after the run, so a restored group can be told from a landed one.
    */
-  const dependencyFileTexts = Object.fromEntries(await Promise.all(DEPENDENCY_FILES.map(async function readOne(path,) {
-    return [path, await readTextOrEmpty(join(
-      root,
-      path,
-    ),),] as const;
-  },),),);
+  const dependencyFileTexts = await readDependencyFileTexts(root,);
   return {
     exitCode: update.exitCode,
     journal: update.stderr,
