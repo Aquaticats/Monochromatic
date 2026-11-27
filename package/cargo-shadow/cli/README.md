@@ -1421,6 +1421,13 @@ recorded in the log line of every removal:
   and refusing every removal while another user's system daemon exists would stop the sweep wherever the build base is
   world-searchable (the host base here is on a `0777` mount with a `uid 70` daemon running,
   measured 2026-11-08).
+  On this host that count is always zero:
+  the account's home folder is mode `700`,
+  so every build base below it denies another user the way in,
+  whatever the base's own mode is
+  (measured 2026-11-27 with `/home/user` at `700` and `/home/user/.cargo/build` at `755`,
+  issue 6551;
+  the reading is `other_uids_can_reach` in `src/lean_proc_scan.rs`).
   The limit is therefore narrowed and named,
   not closed:
   the proof line says how many processes it could not judge and which kind,
@@ -1602,6 +1609,19 @@ exit status 0,
 67 names listed,
 and no per-test line naming any of them.
 Before this change that host reported `872 tests run: 872 passed` with the same 67 tests never executed.
+
+Two controls of the `/proc` scan (`lean_proc_scan_tests`) build a tree that a process of another user must be able to
+walk to,
+and the answer they check is read from every folder between `/` and that tree.
+On this host the account's home folder is mode `700`
+(measured 2026-11-27,
+issue 6551),
+so no tree below the build folder can be reached by another user whatever the fixture does to its own bits.
+The fixtures therefore stand in a temporary folder of their own below a folder every user can walk to
+(`/dev/shm` first,
+then `/var/tmp`),
+and where the host has neither,
+each control prints the `not run` line above with its reason and the `test` task leaves it out of its totals.
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store
