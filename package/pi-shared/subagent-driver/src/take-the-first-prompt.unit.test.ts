@@ -33,7 +33,10 @@ import {
   startRecordOfPiRun,
   START_PAUSE_MILLISECONDS,
   START_UP_ANSWER_MILLISECONDS,
+  MASKING_ARMED_COMMAND,
   MASKING_NOTHING,
+  maskingArmedDescription,
+  type StartThatEndedWithoutARun,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -72,6 +75,71 @@ async function makeFolder(): Promise<DisposableFolder> {
         { recursive: true, force: true, },
       );
     },
+  };
+}
+
+/**
+ Pi's own state, answered.
+ */
+const ANSWERED_STATE: CommandAnswer = {
+  ending: 'answered',
+  record: {
+    success: true,
+    data: {
+      model: { id: 'stand-in-model', },
+      thinkingLevel: 'xhigh',
+    },
+  },
+};
+
+/**
+ Pi's command list, answered with the commands Pi starts with.
+ */
+const ANSWERED_COMMANDS: CommandAnswer = {
+  ending: 'answered',
+  record: {
+    success: true,
+    data: { commands: [{ name: 'bash', },], },
+  },
+};
+
+/**
+ Pi's command list, answered with the masking command one value arms, which is what a run needs before it may send a prompt.
+ */
+const ANSWERED_COMMANDS_WITH_MASKING: CommandAnswer = {
+  ending: 'answered',
+  record: {
+    success: true,
+    data: {
+      commands: [
+        { name: 'bash', },
+        {
+          name: MASKING_ARMED_COMMAND,
+          description: maskingArmedDescription({ count: 1, },),
+        },
+      ],
+    },
+  },
+};
+
+/**
+ A command list Pi answered without the masking command, which is a start that sends no prompt.
+ */
+const COMMANDS_WITHOUT_MASKING: CommandAnswer = {
+  ending: 'answered',
+  record: {
+    success: true,
+    data: { commands: [{ name: 'bash', },], },
+  },
+};
+
+/**
+ A wait whose silence ran out, as the driver settles it.
+ */
+function silenceAt({ answerMilliseconds, }: { readonly answerMilliseconds: number },): CommandAnswer {
+  return {
+    ending: 'silence',
+    problem: `no answer in ${String(answerMilliseconds,)} ms`,
   };
 }
 
@@ -120,9 +188,15 @@ async function feedOf(feedFile: string,): Promise<readonly PiRecord[]> {
 }
 
 /**
- Builds a stand-in Pi that answers every command, and the prompt the way a test asks.
+ Builds a stand-in Pi that answers each command the way a test asks: with an answer, with the bound running out, or by having gone.
+
+ @param stateAnswer - what Pi makes of the state ask
+
+ @param commandsAnswer - what Pi makes of the command-list ask
 
  @param promptAnswer - what Pi makes of the first prompt
+
+ @param exit - how Pi had gone, which a wait that ended because Pi left reports
 
  @returns the connection, and what it was asked
 
@@ -131,7 +205,17 @@ async function feedOf(feedFile: string,): Promise<readonly PiRecord[]> {
  const standIn = standInPi({ promptAnswer: { ending: 'answered', record: { success: true, }, }, });
  ```
  */
-function standInPi({ promptAnswer, }: { readonly promptAnswer: CommandAnswer },): StandInPi {
+function standInPi({
+  stateAnswer = ANSWERED_STATE,
+  commandsAnswer = ANSWERED_COMMANDS,
+  promptAnswer,
+  exit = {},
+}: {
+  readonly stateAnswer?: CommandAnswer;
+  readonly commandsAnswer?: CommandAnswer;
+  readonly promptAnswer: CommandAnswer;
+  readonly exit?: { readonly code?: number; readonly signal?: string };
+},): StandInPi {
   /**
    What Pi was asked, which the connection below appends to.
    */
@@ -143,7 +227,7 @@ function standInPi({ promptAnswer, }: { readonly promptAnswer: CommandAnswer },)
         return false;
       },
       exitDetails: function exitDetails() {
-        return {};
+        return exit;
       },
       write: function write() {
         // A dialog is declined through this, and no test here meets one.
@@ -151,25 +235,10 @@ function standInPi({ promptAnswer, }: { readonly promptAnswer: CommandAnswer },)
       send: async function send(request: CommandRequest,): Promise<CommandAnswer> {
         requests.push(request,);
         if (request.command.type === 'get_state') {
-          return {
-            ending: 'answered',
-            record: {
-              success: true,
-              data: {
-                model: { id: 'stand-in-model', },
-                thinkingLevel: 'xhigh',
-              },
-            },
-          };
+          return stateAnswer;
         }
         if (request.command.type === 'get_commands') {
-          return {
-            ending: 'answered',
-            record: {
-              success: true,
-              data: { commands: [{ name: 'bash', },], },
-            },
-          };
+          return commandsAnswer;
         }
         return (request.command.type === 'prompt')
           ? promptAnswer
@@ -224,14 +293,25 @@ const REFUSAL: CommandAnswer = {
 async function firstPromptOf({
   promptAnswer,
   millisecondsOfRun,
+  stateAnswer = ANSWERED_STATE,
+  commandsAnswer = ANSWERED_COMMANDS,
+  exit,
+  startUpAnswerMilliseconds,
+  handedOver,
 }: {
   readonly promptAnswer: CommandAnswer;
   readonly millisecondsOfRun: number;
+  readonly stateAnswer?: CommandAnswer;
+  readonly commandsAnswer?: CommandAnswer;
+  readonly exit?: { readonly code?: number; readonly signal?: string };
+  readonly startUpAnswerMilliseconds?: number;
+  readonly handedOver?: number;
 }): Promise<{
   readonly endReason: EndReason;
   readonly standIn: StandInPi;
   readonly record: RecordOfPiRun;
   readonly feed: readonly PiRecord[];
+  readonly startThatEndedWithoutARun?: StartThatEndedWithoutARun;
 }> {
   await using folder = await makeFolder();
   /**
@@ -279,16 +359,23 @@ async function firstPromptOf({
   /**
    What Pi answers.
    */
-  const standIn = standInPi({ promptAnswer, },);
+  const standIn = standInPi({
+    stateAnswer,
+    commandsAnswer,
+    promptAnswer,
+    ...(exit === undefined ? {} : { exit }),
+  },);
   /**
-   Why the run ended.
+   Why the run ended, and what a start that ended without a run has to say.
    */
-  const { endReason, } = await endReasonOfRun({
+  const { endReason, startThatEndedWithoutARun, } = await endReasonOfRun({
     connection: standIn.connection,
     record,
     options,
     inbox,
     deadline: Date.now() + millisecondsOfRun,
+    ...(startUpAnswerMilliseconds === undefined ? {} : { startUpAnswerMilliseconds }),
+    ...(handedOver === undefined ? {} : { secretValuesHandedOver: handedOver }),
   },);
   await record.close();
   return {
@@ -296,6 +383,7 @@ async function firstPromptOf({
     standIn,
     record,
     feed: await feedOf(feedFile,),
+    ...(startThatEndedWithoutARun === undefined ? {} : { startThatEndedWithoutARun }),
   };
 }
 
@@ -455,6 +543,139 @@ await describe({
         expect((await feedOf(feedFile,)).find(function isFailure(line,) {
           return line.kind === 'driver-failed';
         },)?.failure,).toContain('no-prompt.md',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: 'a start that ended without a run',
+  children: [
+    it({
+      name: 'names the two asks that went unanswered when Pi answered nothing, with each bound and how long each had waited',
+      fn: async () => {
+        /**
+         The bound each ask is given in this test, short because the stand-in answers at once.
+         */
+        const BOUND_MILLISECONDS = 40;
+        /**
+         What a run whose Pi answered nothing has to say of its start.
+         */
+        const { endReason, startThatEndedWithoutARun, } = await firstPromptOf({
+          stateAnswer: silenceAt({ answerMilliseconds: BOUND_MILLISECONDS, },),
+          commandsAnswer: silenceAt({ answerMilliseconds: BOUND_MILLISECONDS, },),
+          promptAnswer: silenceAt({ answerMilliseconds: BOUND_MILLISECONDS, },),
+          millisecondsOfRun: 5_000,
+          startUpAnswerMilliseconds: BOUND_MILLISECONDS,
+          handedOver: 1,
+        },);
+        expect(endReason,).toBe('prompt-rejected',);
+        /**
+         The waits the note names, which are the two asks that went unanswered.
+         */
+        const waits = startThatEndedWithoutARun?.waits ?? [];
+        expect(waits,).toHaveLength(2,);
+        expect(waits[0]?.wait,).toContain('get_state',);
+        expect(waits[1]?.wait,).toContain('get_commands',);
+        expect(waits.map((wait,) => wait.bound,),).toEqual([
+          `${String(BOUND_MILLISECONDS,)} ms`,
+          `${String(BOUND_MILLISECONDS,)} ms`,
+        ],);
+        for (const wait of waits) {
+          expect(wait.waitedMilliseconds,).toBeGreaterThanOrEqual(0,);
+        }
+        expect(startThatEndedWithoutARun?.what,).toContain('sent no prompt',);
+      },
+    },),
+    it({
+      name: 'names only the command list when Pi answered its state and then nothing',
+      fn: async () => {
+        const { endReason, startThatEndedWithoutARun, } = await firstPromptOf({
+          commandsAnswer: silenceAt({ answerMilliseconds: 40, },),
+          promptAnswer: silenceAt({ answerMilliseconds: 40, },),
+          millisecondsOfRun: 5_000,
+          startUpAnswerMilliseconds: 40,
+          handedOver: 1,
+        },);
+        expect(endReason,).toBe('prompt-rejected',);
+        const waits = startThatEndedWithoutARun?.waits ?? [];
+        expect(waits,).toHaveLength(1,);
+        expect(waits[0]?.wait,).toContain('get_commands',);
+        expect(startThatEndedWithoutARun?.what,).toContain('masks this machine\'s secret values',);
+      },
+    },),
+    it({
+      name: 'names the first prompt when Pi answered its state and its commands with the masking in place, and then nothing',
+      fn: async () => {
+        const { endReason, startThatEndedWithoutARun, } = await firstPromptOf({
+          commandsAnswer: ANSWERED_COMMANDS_WITH_MASKING,
+          promptAnswer: silenceAt({ answerMilliseconds: 40, },),
+          millisecondsOfRun: 5_000,
+          startUpAnswerMilliseconds: 40,
+          handedOver: 1,
+        },);
+        expect(endReason,).toBe('prompt-rejected',);
+        const waits = startThatEndedWithoutARun?.waits ?? [];
+        expect(waits,).toHaveLength(1,);
+        expect(waits[0]?.wait,).toContain('first prompt',);
+        expect(waits[0]?.bound,).toBe('40 ms',);
+        expect(startThatEndedWithoutARun?.what,).toContain('took no prompt',);
+      },
+    },),
+    it({
+      name: 'names the command list with no bound of its own when Pi answered it without the masking',
+      fn: async () => {
+        const { endReason, startThatEndedWithoutARun, } = await firstPromptOf({
+          commandsAnswer: COMMANDS_WITHOUT_MASKING,
+          promptAnswer: ACCEPTED,
+          millisecondsOfRun: 100,
+          handedOver: 1,
+        },);
+        expect(endReason,).toBe('masking-not-armed',);
+        const waits = startThatEndedWithoutARun?.waits ?? [];
+        expect(waits,).toHaveLength(1,);
+        expect(waits[0]?.wait,).toContain('command list',);
+        // Pi answered, so no bound ran out: the note says there is none rather than naming one.
+        expect(waits[0]?.bound,).toBeUndefined();
+        expect(startThatEndedWithoutARun?.what,).toContain('armed the masking',);
+        expect(startThatEndedWithoutARun?.next,).toContain('stderr.log',);
+      },
+    },),
+    it({
+      name: 'names the prompt ask that ended when Pi went, and says which status Pi left with',
+      fn: async () => {
+        /**
+         What Pi's waits answer once it has gone, which is what the connection settles them with.
+         */
+        const GONE: CommandAnswer = {
+          ending: 'pi-exited',
+          problem: 'pi exited',
+        };
+        const { endReason, startThatEndedWithoutARun, } = await firstPromptOf({
+          stateAnswer: GONE,
+          commandsAnswer: GONE,
+          promptAnswer: GONE,
+          exit: { code: 1, },
+          millisecondsOfRun: 5_000,
+          handedOver: 1,
+        },);
+        expect(endReason,).toBe('pi-exited',);
+        const waits = startThatEndedWithoutARun?.waits ?? [];
+        expect(waits[0]?.wait,).toContain('which ended when Pi went',);
+        expect(waits[0]?.bound,).toBeUndefined();
+        expect(startThatEndedWithoutARun?.what,).toContain('Pi exited with status 1',);
+      },
+    },),
+    it({
+      name: 'says nothing for a start whose prompt Pi took, which is a run that went on',
+      fn: async () => {
+        // A run started by hand hands Pi no values, so the question of the masking is not asked of it.
+        const { endReason, startThatEndedWithoutARun, } = await firstPromptOf({
+          promptAnswer: ACCEPTED,
+          millisecondsOfRun: 100,
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect(startThatEndedWithoutARun,).toBeUndefined();
       },
     },),
   ],

@@ -13,6 +13,11 @@
 //! Two spellings are checked as well:
 //! a root reached through a symbolic link holds what the kernel names without the link,
 //! and a program run inside another mount namespace is a held file like an open one.
+//! The reachability controls build their fixture below a folder every user can walk to
+//! (`a_seat_other_users_may_pass`),
+//! never under the build folder,
+//! because this host's home folder is mode 700 and would deny another user whatever the fixture does to its own bits
+//! (issue 6551).
 
 /// Files,
 /// permissions and paths.
@@ -29,6 +34,9 @@ use std::{
     },
 };
 
+/// The prefix of the line a test this host cannot run prints,
+/// which the package's `test` task reads by name.
+use crate::cgroup_test_support::NOT_RUN_PREFIX;
 /// Device and inode of a fixture entry.
 use crate::lean_identity::{
     Identity,
@@ -111,16 +119,172 @@ fn add_process(
 }
 
 /// What:
-/// `fn make_root(directory: &Path, others_may_pass: bool) -> PathBuf` makes a scanned root and a directory above it that denies
-/// other users every access when asked,
-/// so the reachability question has both answers in a fixture.
+/// `const OTHERS_MAY_PASS: u32` is a folder mode that grants its group and every other user reading and searching.
 /// Why:
-/// The repository this machine runs in is behind a directory only its owner may enter,
-/// and a checkout in a world-readable place is not.
+/// It is the mode the reachability fixture gives its own two folders,
+/// so that only the one folder above a scanned root decides whether another user can walk to that root,
+/// and it is also the mode the temporary seat below a shared folder is widened to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const makeRoot = (directory: string, othersMayPass: boolean): string => { const above = join(directory, 'above'); const root = join(above, 'verification'); mkdirSync(root, { recursive: true }); chmodSync(above, othersMayPass ? 0o755 : 0o700); return root; };
+/// const OTHERS_MAY_PASS = 0o755;
+/// ```
+const OTHERS_MAY_PASS: u32 = 0o755;
+
+/// What:
+/// `const OTHERS_MAY_NOT_PASS: u32` is a folder mode that grants its group and every other user nothing at all.
+/// Why:
+/// It is the one thing the reachability control varies between its two roots:
+/// a root behind it must be read as unreachable,
+/// and the same root behind `OTHERS_MAY_PASS` as reachable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const OTHERS_MAY_NOT_PASS = 0o700;
+/// ```
+const OTHERS_MAY_NOT_PASS: u32 = 0o700;
+
+/// What:
+/// `const PLACES_OTHER_USERS_MAY_PASS: [&str; 2]` names the folders a Unix host usually keeps searchable and writable by
+/// every user,
+/// in the order the reachability controls try them.
+/// Why:
+/// A fixture that asks whether another user can reach a root has to stand below a folder that user can walk to,
+/// and this account can create one only inside a folder it may write that already lets every user search.
+/// `/dev/shm` is the memory-backed one and `/var/tmp` the disk-backed one that survives a reboot;
+/// neither is the system temporary directory this repository keeps its scratch out of.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PLACES_OTHER_USERS_MAY_PASS = ['/dev/shm', '/var/tmp'];
+/// ```
+const PLACES_OTHER_USERS_MAY_PASS: [&str; 2] = ["/dev/shm", "/var/tmp"];
+
+/// What:
+/// `fn other_users_can_pass_every_folder_above(path: &Path) -> bool` answers,
+/// from the permission bits alone,
+/// whether a process of another user could walk from `/` down to `path`.
+/// Why:
+/// The reachability controls choose where they build their fixture with this question and not with
+/// `other_uids_can_reach`,
+/// so a fault in the function they are checking cannot also decide whether they run at all:
+/// a seat chosen by the answer under test would turn a wrong "no" into a control that reports itself not run,
+/// and that wrong answer would then never be seen as a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const otherUsersCanPassEveryFolderAbove = (path: string): boolean => path.split('/').every((one) => (statSync(one).mode & 0o077) !== 0);
+/// ```
+fn other_users_can_pass_every_folder_above(path: &Path) -> bool {
+    for ancestor in path.ancestors() {
+        // `let Ok(metadata) = ... else` takes the value out of a `Result` and runs the `else` block when it is an error:
+        // here a folder whose mode cannot be read is not one this helper can promise another user may pass.
+        let Ok(metadata) = fs::metadata(ancestor) else {
+            return false;
+        };
+        if metadata.permissions().mode() & 0o077 == 0 {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+/// `fn a_seat_other_users_may_pass(candidates: &[&str]) -> Option<tempfile::TempDir>` makes a temporary folder of this
+/// control's own below the first candidate that another user can walk to,
+/// and widens that folder to `OTHERS_MAY_PASS`,
+/// so a fixture below it is judged by its own folders alone.
+/// `Option<tempfile::TempDir>` is a temporary folder or nothing:
+/// its siblings are `Result<T, E>`,
+/// which carries an error,
+/// and a bare `TempDir`,
+/// which cannot say "this host has no such place".
+/// Why:
+/// A root built under the build folder can never be reached by another user on a host whose home folder denies them
+/// (mode 700 on this host,
+/// measured 2026-11-27),
+/// so the fixture has to stand where the path lets that user in.
+/// The folder is made with `tempdir_in` and never with `tempfile::tempdir`,
+/// which this repository's clippy configuration refuses because it places scratch under `/tmp`:
+/// here the place is the whole question the control asks,
+/// and it is one of the folders every user may enter,
+/// not the system temporary directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aSeatOtherUsersMayPass = (candidates: string[]): TempDir | undefined => { for (const parent of candidates) { if (!otherUsersCanPassEveryFolderAbove(parent)) continue; const seat = mkdtempSync(join(parent, 'cargo-shadow-reachability-')); chmodSync(seat, 0o755); return seat; } return undefined; };
+/// ```
+fn a_seat_other_users_may_pass(candidates: &[&str]) -> Option<tempfile::TempDir> {
+    for candidate in candidates {
+        let parent: &Path = Path::new(candidate);
+        if !other_users_can_pass_every_folder_above(parent) {
+            continue;
+        }
+        // `let Ok(seat) = ... else` keeps going with the next candidate when this folder refuses the temporary one.
+        let Ok(seat) = tempfile::Builder::new()
+            .prefix("cargo-shadow-reachability-")
+            .tempdir_in(parent)
+        else {
+            continue;
+        };
+        if fs::set_permissions(seat.path(), fs::Permissions::from_mode(OTHERS_MAY_PASS)).is_err() {
+            continue;
+        }
+        // `Some(seat)` constructs the present variant of `Option`: this candidate worked, and the temporary folder owns
+        // its own removal when it drops.
+        return Some(seat);
+    }
+    // `None` is the absent variant of `Option`: no candidate on this host is a folder every user can walk to.
+    return None;
+}
+
+/// What:
+/// `fn seat_for_a_reachability_control(candidates: &[&str]) -> tempfile::TempDir` is the folder a reachability control
+/// builds its fixture in,
+/// or the end of that test with the line the package's `test` task reads by name.
+/// Why:
+/// Where the host has no folder every user can walk to,
+/// the control cannot answer its question,
+/// and a test that returned early would be counted as passed.
+/// `NOT_RUN_PREFIX` names the test between brackets in the task's own convention,
+/// so the task leaves it out of its totals and reports the run as degraded instead of green.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seatForAReachabilityControl = (candidates: string[]): TempDir => { const seat = aSeatOtherUsersMayPass(candidates); if (seat !== undefined) return seat; throw new Error(`cargo-shadow tests: not run [${testName()}]: ...`); };
+/// ```
+fn seat_for_a_reachability_control(candidates: &[&str]) -> tempfile::TempDir {
+    let found: Option<tempfile::TempDir> = a_seat_other_users_may_pass(candidates);
+    // `let Some(seat) = found else` binds the folder when there is one and runs the `else` block when there is not.
+    let Some(seat) = found else {
+        let test: String = std::thread::current()
+            .name()
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                return "<a test the runner did not name>".to_string();
+            });
+        panic!(
+            "{NOT_RUN_PREFIX}{test}]: this host has no folder that every user can walk to and this account may create one in (tried {}), so the fixture this control asks its reachability question about cannot be built here; it runs where one of those folders exists",
+            candidates.join(", ")
+        );
+    };
+    return seat;
+}
+
+/// What:
+/// `fn make_root(directory: &Path, others_may_pass: bool) -> PathBuf` makes a scanned root below `directory`,
+/// with one folder above the root whose mode is the question a control asks,
+/// and every folder of the fixture searchable.
+/// Why:
+/// `other_uids_can_reach` reads every folder between `/` and the root,
+/// so a fixture can only decide that question when nothing else above it does:
+/// the fixture's own folders are made searchable and the one above the root is left to the caller,
+/// and whether the place itself lets another user in is the caller's choice of seat
+/// (`a_seat_other_users_may_pass`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const makeRoot = (directory: string, othersMayPass: boolean): string => { const above = join(directory, 'above'); const root = join(above, 'verification'); mkdirSync(root, { recursive: true }); chmodSync(directory, 0o755); chmodSync(above, othersMayPass ? 0o755 : 0o700); chmodSync(root, 0o755); return root; };
 /// ```
 fn make_root(
     directory: &Path,
@@ -129,8 +293,14 @@ fn make_root(
     let above: PathBuf = directory.join("above");
     let root: PathBuf = above.join("verification");
     fs::create_dir_all(&root).expect("a root");
-    let mode: u32 = if others_may_pass { 0o755 } else { 0o700 };
+    fs::set_permissions(directory, fs::Permissions::from_mode(OTHERS_MAY_PASS)).expect("a mode");
+    let mode: u32 = if others_may_pass {
+        OTHERS_MAY_PASS
+    } else {
+        OTHERS_MAY_NOT_PASS
+    };
     fs::set_permissions(&above, fs::Permissions::from_mode(mode)).expect("a mode");
+    fs::set_permissions(&root, fs::Permissions::from_mode(OTHERS_MAY_PASS)).expect("a mode");
     return root;
 }
 
@@ -155,11 +325,15 @@ fn a_kernel_thread_and_an_ended_process_cannot_hold_an_entry() {
 
 /// A live process of this user that the kernel hides from every user is the one residue the scan cannot judge,
 /// and it is reported as such.
+/// Why the fixture is a closed place:
+/// this control's subject is a process of this user,
+/// whose descriptors the kernel hides whoever may walk to the root,
+/// so it asks for no reachability here and says so with the folder mode.
 #[test]
 fn a_process_of_this_user_that_cannot_be_read_is_the_residue_the_proof_names() {
     let scratch_root = scratch();
     let proc_root: PathBuf = scratch_root.path().join("proc");
-    let root: PathBuf = make_root(scratch_root.path(), true);
+    let root: PathBuf = make_root(scratch_root.path(), false);
     add_process(
         &proc_root,
         21,
@@ -187,11 +361,15 @@ fn a_process_of_this_user_that_cannot_be_read_is_the_residue_the_proof_names() {
 /// A process of another user that the path lets in is counted as such,
 /// and is still not a use the scan saw,
 /// so the removal does not stop for it.
+/// Why the fixture stands where it does:
+/// the answer this control reads is the path's,
+/// so the root stands below a folder every user can walk to and not below a home folder that would deny them
+/// (issue 6551).
 #[test]
 fn a_process_of_another_user_that_can_reach_the_entry_is_counted_and_named() {
-    let scratch_root = scratch();
-    let proc_root: PathBuf = scratch_root.path().join("proc");
-    let root: PathBuf = make_root(scratch_root.path(), true);
+    let seat: tempfile::TempDir = seat_for_a_reachability_control(&PLACES_OTHER_USERS_MAY_PASS);
+    let proc_root: PathBuf = seat.path().join("proc");
+    let root: PathBuf = make_root(&seat.path().join("open"), true);
     add_process(
         &proc_root,
         31,
@@ -276,15 +454,85 @@ fn a_process_working_under_the_entry_still_blocks_it() {
 }
 
 /// A root behind a directory no other user may enter is not reachable,
-/// and one in a world-searchable place is.
+/// and the same fixture in a place every user can walk to is.
+/// Why the fixture stands where it does:
+/// the question is read from every folder between `/` and the root,
+/// and this account's home folder is mode 700 on this host,
+/// so a fixture built under the build folder could never answer the second half
+/// (measured 2026-11-27,
+/// issue 6551).
 #[test]
 fn reachability_is_read_from_the_permission_bits_above_the_root() {
-    let scratch_root = scratch();
-    let closed: PathBuf = make_root(&scratch_root.path().join("closed"), false);
-    let open: PathBuf = make_root(&scratch_root.path().join("open"), true);
+    let seat: tempfile::TempDir = seat_for_a_reachability_control(&PLACES_OTHER_USERS_MAY_PASS);
+    let closed: PathBuf = make_root(&seat.path().join("closed"), false);
+    let open: PathBuf = make_root(&seat.path().join("open"), true);
 
-    assert!(!other_uids_can_reach(&closed));
-    assert!(other_uids_can_reach(&open));
+    // Both roots are searchable themselves, so the mode of the folder above each is the only difference between them.
+    let closed_own: u32 = fs::metadata(&closed)
+        .expect("the closed root")
+        .permissions()
+        .mode()
+        & 0o077;
+    let open_own: u32 = fs::metadata(&open)
+        .expect("the open root")
+        .permissions()
+        .mode()
+        & 0o077;
+    assert_ne!(
+        closed_own, 0,
+        "the fixture's own root denies another user by itself, so the folder above it decides nothing: {closed:?}"
+    );
+    assert_eq!(
+        closed_own, open_own,
+        "the two roots differ in their own mode and not only in the folder above them"
+    );
+    assert!(
+        !other_uids_can_reach(&closed),
+        "a root behind a folder no other user may enter was read as reachable: {closed:?}"
+    );
+    assert!(
+        other_uids_can_reach(&open),
+        "a root in a place every user can walk to was read as unreachable: {open:?}"
+    );
+}
+
+/// A place no other user may enter is never taken as the seat of a reachability fixture,
+/// so a control learns from the seat itself that it cannot build its fixture here.
+#[test]
+fn a_seat_is_not_taken_in_a_place_no_other_user_may_pass() {
+    let scratch_root: tempfile::TempDir = scratch();
+    let closed: PathBuf = scratch_root.path().join("closed");
+    fs::create_dir_all(&closed).expect("a closed place");
+    fs::set_permissions(&closed, fs::Permissions::from_mode(OTHERS_MAY_NOT_PASS)).expect("a mode");
+    let only_closed: [&str; 1] = [closed.to_str().expect("a UTF-8 path")];
+
+    let seat: Option<tempfile::TempDir> = a_seat_other_users_may_pass(&only_closed);
+
+    assert!(
+        seat.is_none(),
+        "a folder no other user may enter was taken as the place a fixture is built in: {only_closed:?}"
+    );
+}
+
+/// What:
+/// A control whose host has no folder every user can walk to ends with the line the package's `test` task reads,
+/// not with a failure and not with a quiet pass.
+/// Why:
+/// That task finds the line by the test's own name,
+/// leaves the test out of its totals,
+/// and prints the run as degraded,
+/// which is how a host without such a folder reports these controls as not run instead of failing them
+/// (issue 6551).
+#[test]
+#[should_panic(expected = "cargo-shadow tests: not run [")]
+fn a_control_whose_host_has_no_place_other_users_may_pass_reports_itself_not_run() {
+    let scratch_root: tempfile::TempDir = scratch();
+    let closed: PathBuf = scratch_root.path().join("closed");
+    fs::create_dir_all(&closed).expect("a closed place");
+    fs::set_permissions(&closed, fs::Permissions::from_mode(OTHERS_MAY_NOT_PASS)).expect("a mode");
+    let nowhere: [&str; 1] = [closed.to_str().expect("a UTF-8 path")];
+
+    let _seat: tempfile::TempDir = seat_for_a_reachability_control(&nowhere);
 }
 
 /// What:

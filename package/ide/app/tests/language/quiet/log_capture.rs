@@ -170,7 +170,8 @@ pub fn log_of_a_clean_lifetime(root: &Path) -> String {
     support::children_until_none();
     let received = support::received(&support::report(root));
     assert!(
-        received.contains(&"shutdown".to_string()) && received.contains(&"exit".to_string()),
+        received.iter().any(|method| return method == "shutdown")
+            && received.iter().any(|method| return method == "exit"),
         "the server was not asked to shut down: {received:?}"
     );
     let text = capture.text();

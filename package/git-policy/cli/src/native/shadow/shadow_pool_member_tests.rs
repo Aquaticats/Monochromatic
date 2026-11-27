@@ -4,10 +4,8 @@
 
 use super::*;
 use crate::commit_build_part_durations::BuildPartClock;
-use crate::shadow_create::{
-    ShadowTemplate,
-    create_shadow_template,
-};
+use crate::shadow_create_template::ShadowTemplate;
+use crate::shadow_create_the_commit_free_parts::create_shadow_template;
 use crate::test_support::{
     fixture,
     git,

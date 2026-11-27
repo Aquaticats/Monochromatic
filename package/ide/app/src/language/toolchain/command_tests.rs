@@ -112,7 +112,7 @@ fn the_lookup_runs_in_the_servers_sandbox_without_network_and_with_a_cleared_env
         "--clearenv",
     ] {
         assert!(
-            args.contains(&flag.to_string()),
+            args.iter().any(|argument| return argument == flag),
             "{flag} is missing from {args:?}"
         );
     }
