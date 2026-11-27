@@ -767,7 +767,7 @@ require-rustdoc):
   inside one horizontal+vertical outer `ScrolledWindow`;
    per-column vertical `ScrolledWindow`s were
   removed.
-   `layout/lane.rs` owns lane sticky offsets driven by the outer vertical adjustment,
+   `layout/lane/` (declared by `layout/lane.rs`, split on 2026-11-26) owns lane sticky offsets driven by the outer vertical adjustment,
   hierarchical offset application,
    vertical reveal,
    and rounded green `Y6L` overlays.

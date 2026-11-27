@@ -135,11 +135,11 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[cfg_attr(not(test),expect(dead_code))]",
     ),
     (
-        "landing/service_work.rs",
+        "landing/service_work_git_handlers.rs",
         "#[cfg_attr(not(test),expect(unused_mut))]",
     ),
     (
-        "landing/service_work.rs",
+        "landing/service_work_git_handlers.rs",
         "#[cfg_attr(not(test),expect(unused_mut))]",
     ),
     ("main.rs", "#[allow(clippy::disallowed_methods)]"),
@@ -160,11 +160,11 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[allow(clippy::disallowed_methods)]",
     ),
     (
-        "worktree_clone_unmount/staged_folder_record.rs",
+        "worktree_clone_unmount/staged_folder_record_text.rs",
         "#[allow(clippy::disallowed_methods)]",
     ),
     (
-        "worktree_clone_unmount/staged_unmount.rs",
+        "worktree_clone_unmount/staged_unmount_held.rs",
         "#[allow(clippy::large_enum_variant)]",
     ),
     (
@@ -184,7 +184,7 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[allow(clippy::result_large_err)]",
     ),
     (
-        "worktree_clone_unmount/user_cache_pin.rs",
+        "worktree_clone_unmount/user_cache_pin_record.rs",
         "#[allow(clippy::disallowed_methods)]",
     ),
 ];

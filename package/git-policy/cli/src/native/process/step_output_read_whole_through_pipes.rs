@@ -26,7 +26,37 @@
 //! const child = spawn(program, args, { stdio: ['pipe', pipes.stdoutWriter, pipes.stderrWriter] });
 //! const [stdout, stderr, status] = await Promise.all([readAll(pipes.stdout), readAll(pipes.stderr), child.exited]);
 //! ```
+//!
+//! Files beside this one,
+//!  and why the read is not one file:
+//!  `step_output_pipes_attached_before_the_child_starts.rs` makes the two pipes and hands them to the command,
+//!  `step_output_held_open_by_a_program_the_step_started.rs` writes what a person reads,
+//!  when a program the step started still holds a stream open,
+//!  and `step_output_ceiling_carried_by_the_wait.rs` carries the ceiling and says which enforcer ends the step at it.
+//!  `rust/max-lines` splits a file by role,
+//!  and these are the roles around the read itself.
 
+pub use super::step_output_ceiling_carried_by_the_wait::{
+    CarriedCeiling,
+    CeilingWhy,
+    TheWatchOfAStep,
+    carried_by,
+    carried_for,
+};
+pub use super::step_output_held_open_by_a_program_the_step_started::{
+    OUTPUT_DRAIN_AFTER_EXIT,
+    is_output_held_open,
+};
+use super::step_output_held_open_by_a_program_the_step_started::{
+    OutputHeldOpen,
+    error_cut_short_text,
+};
+pub use super::step_output_pipes_attached_before_the_child_starts::{
+    StepPipes,
+    attach_pipes,
+    attach_pipes_awaiting,
+    release_write_ends,
+};
 use crate::child_awaited_through_a_pidfd::adopt;
 use crate::lazy_runtime::run_on_runtime;
 use crate::process_use::{
@@ -34,226 +64,15 @@ use crate::process_use::{
     UseScan,
     UseTarget,
 };
-use std::os::fd::{
-    AsFd as _,
-    OwnedFd,
-};
+use std::os::fd::AsFd as _;
 use std::process::{
     Child,
-    Command,
     ExitStatus,
     Output,
-    Stdio,
 };
-use std::time::{
-    Duration,
-    Instant,
-};
+use std::time::Instant;
 use tokio::io::AsyncReadExt as _;
 use tokio::net::unix::pipe::Receiver;
-
-/// The read ends of a child's standard output and standard error,
-/// registered with the runtime's reactor.
-pub struct StepPipes {
-    /// What the child writes to its standard output.
-    standard_output: Receiver,
-    /// What the child writes to its standard error.
-    standard_error: Receiver,
-}
-
-/// What:
-///  Makes the two pipes,
-/// registers their read ends with the runtime (building it on the first need) and hands their write ends to
-///  `command` as its standard output and standard error.
-/// Why:
-///  Nothing here starts a child,
-/// so a failure is plain and leaves nothing running.
-/// A call from inside the runtime is refused,
-///  because the later wait enters the runtime and would never end from within it.
-/// After the start the caller must call
-///  `release_write_ends`,
-/// or the readers never see the end of the output.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const pipes = await attachPipes(command); // throws before any child exists
-/// ```
-pub fn attach_pipes(command: &mut Command) -> std::io::Result<StepPipes> {
-    return match run_on_runtime(attach_pipes_awaiting(command)) {
-        Ok(opened) => opened,
-        Err(refusal) => Err(std::io::Error::other(refusal.to_string())),
-    };
-}
-
-/// What:
-///  `attach_pipes` as the future a task of the runtime awaits.
-/// Why:
-///   The read ends must be registered with the reactor of the runtime the wait will run on,
-/// and a caller that is already a task has one;
-///  entering the runtime from inside it would never end.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const pipes = await attachPipes(command);
-/// ```
-pub async fn attach_pipes_awaiting(command: &mut Command) -> std::io::Result<StepPipes> {
-    let (output_reader, output_writer) = std::io::pipe()?;
-    let (error_reader, error_writer) = std::io::pipe()?;
-    let pipes: StepPipes = StepPipes {
-        standard_output: Receiver::from_owned_fd(OwnedFd::from(output_reader))?,
-        standard_error: Receiver::from_owned_fd(OwnedFd::from(error_reader))?,
-    };
-    command
-        .stdout(Stdio::from(output_writer))
-        .stderr(Stdio::from(error_writer));
-    return Ok(pipes);
-}
-
-/// What:
-///  Drops the write ends that `attach_pipes` gave `command`,
-/// by replacing its standard output and standard error.
-/// Why:
-///  The command holds them until it is changed or dropped;
-/// while this process holds a write end,
-/// the readers wait for an end of
-///  output that never comes.
-/// Call it after the start,
-/// whether or not the start worked.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// releaseWriteEnds(command);
-/// ```
-pub fn release_write_ends(command: &mut Command) {
-    command.stdout(Stdio::null()).stderr(Stdio::null());
-}
-
-/// How long the read of a step's output may go on after the step itself has ended.
-///  A pipe holds at most 64 KiB (`pipe-max-size`'s default),
-/// which this process reads in one go,
-/// so a second is thousands of times what draining a pipe nothing more is written to costs.
-///  A program the step started that still holds the write end a second after the step ended is holding it,
-///  not writing the step's output,
-/// and the wait for the step must not last as long as that program lives.
-/// Labelled unmeasured as a quiet window is (`SPEC.md`,
-/// "The quiet windows are labelled unmeasured"):
-/// no log holds how long a surviving writer takes to close a step's streams.
-pub const OUTPUT_DRAIN_AFTER_EXIT: Duration = Duration::from_secs(1);
-
-/// What:
-///  The sentence for a step whose output a program it started still held open after the step ended.
-/// Why:
-///  The step is over and its output is what was read;
-/// the person has to know that the step is not what holds the command,
-///  and which program does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${waitingFor} ended, but a program it started still holds its output open (${holders}); ...`
-/// ```
-fn output_held_open_text(
-    waiting_for: &str,
-    holders: &[ProcessUser],
-) -> String {
-    let named: String = holder_named(holders);
-    return format!(
-        "{waiting_for} ended, but {named} still holds the step's output open, so the output this command read may be incomplete and \
-         the wait for it ended after {} seconds of it. Check with `ps` what that program is and whether it is still needed, end it if \
-         it is stuck, and run the command again; the step's own end is what the repository state shows.",
-        OUTPUT_DRAIN_AFTER_EXIT.as_secs()
-    );
-}
-
-/// What:
-///  The sentence for a step that ended with its standard error cut short:
-/// its exit status and its standard output were read whole,
-///  and a program it started still holds its standard error open.
-/// Why:
-///  What the step printed to standard output is its answer,
-/// so the answer is returned and the person is told that the standard error
-///  read here stops where the program still holds it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${waitingFor} ended and its exit status and standard output were read whole, but ${named} still holds its standard error open ...`
-/// ```
-fn error_cut_short_text(
-    waiting_for: &str,
-    holders: &[ProcessUser],
-) -> String {
-    let named: String = holder_named(holders);
-    return format!(
-        "{waiting_for} ended and its exit status and standard output were read whole, but {named} still holds its standard error open, so \
-         the standard error read here stops {} seconds after the step ended. Check with `ps` what that program is and whether it is \
-         still needed; the step's own end is what the repository state shows.",
-        OUTPUT_DRAIN_AFTER_EXIT.as_secs()
-    );
-}
-
-/// What:
-///  The program that still holds a stream of the step,
-/// named as the person knows it.
-/// Why:
-///  Both sentences about a held-open stream name the same program,
-/// and a number alone tells the person nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// holders.length === 0 ? 'a program it started, which no longer shows in the process table' : `process ${holders[0].pid} (${holders[0].command})`;
-/// ```
-fn holder_named(holders: &[ProcessUser]) -> String {
-    return match holders.first() {
-        Some(holder) => match holder.command.as_ref() {
-            Some(command) => format!("process {} ({command})", holder.pid),
-            None => format!("process {}", holder.pid),
-        },
-        None => String::from("a program it started, which no longer shows in the process table"),
-    };
-}
-
-/// What:
-///  The error of a read whose stream a program the step started still held open,
-/// with the bytes read before the drain ended and the programs that held it.
-/// Why:
-///   The caller decides what the loss costs:
-/// a step whose standard output was cut short has no answer,
-///  while one whose standard error was cut short still has its exit status and its standard output,
-/// so the bytes
-///  taken before the drain ended have to reach that decision.
-#[derive(Debug)]
-struct OutputHeldOpen {
-    /// The sentence that names the step,
-    /// the program and what to do.
-    waiting_for: String,
-    /// The programs that held the stream open when the drain ended.
-    holders: Vec<ProcessUser>,
-    /// The bytes read of the stream before the drain ended.
-    read: Vec<u8>,
-}
-
-impl std::fmt::Display for OutputHeldOpen {
-    fn fmt(
-        &self,
-        formatter: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        return formatter.write_str(
-            output_held_open_text(self.waiting_for.as_str(), self.holders.as_slice()).as_str(),
-        );
-    }
-}
-
-impl std::error::Error for OutputHeldOpen {}
-
-/// Whether `error` is the error of a step whose output a program it started still held open.
-pub fn is_output_held_open(error: &std::io::Error) -> bool {
-    return error.get_ref().is_some_and(is_the_held_open_error);
-}
-
-/// Whether `inner` is this module's held-open error,
-/// for `is_output_held_open`.
-fn is_the_held_open_error(inner: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
-    return inner.is::<OutputHeldOpen>();
-}
 
 impl StepPipes {
     /// What:
@@ -629,256 +448,6 @@ fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
         inode,
     });
     return scan.users;
-}
-
-/// What:
-///  The step's own ceiling,
-/// carried by the wait for its output,
-/// and why no watch ended the step before it.
-/// Why:
-///   A watch announces a wait and ends the child at its ceiling,
-/// but the thread it needs can be refused,
-///  and a
-/// watch that runs is not allowed to end every step it waits for.
-/// Whatever it could not do,
-/// the wait for the output keeps the
-///  ceiling,
-/// so no step outlives it
-/// (the third review's finding 2).
-///  A watch that can end the step has the ending,
-/// and this wait is then the backstop behind it,
-/// which is why the
-///  moment it fires is its own and not the ceiling's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CarriedCeiling = { ceiling: Duration; backstop: Duration; why?: 'no-watcher' | 'the-watch-could-not-end-it' | 'the-query-is-bounded' };
-/// ```
-pub struct CarriedCeiling {
-    /// The longest the step may run:
-    /// the ceiling the watch gives it,
-    /// and the number every sentence about the ending states.
-    pub ceiling: Duration,
-    /// How long this wait waits for the step before it ends the step itself:
-    /// the ceiling,
-    /// or later by the ending a watch that can end the step needs.
-    pub backstop: Duration,
-    /// Why this wait,
-    /// and not a watch,
-    /// ends the step at that ceiling,
-    /// or nothing when a watch that can end it has the ending and this wait is only the backstop.
-    pub why: Option<CeilingWhy>,
-}
-
-/// Why the wait for a step's output carries the step's own ceiling.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CeilingWhy {
-    /// No watch could run at all:
-    /// the system refused the thread it needs.
-    NoWatcher,
-    /// A watch runs,
-    /// and it could not end the step:
-    /// nothing proved which process to stop,
-    /// so this wait is what ends it at the ceiling.
-    TheWatchCouldNotEndIt,
-    /// Nothing watches this read and nothing else bounds it:
-    /// it is a read-only query,
-    /// and its ceiling is the longest one of those waits
-    /// (`src/native/push/manual_push_range.rs`),
-    /// or the whole bound a caller set on a fact it can do without
-    /// (`src/native/repo_read/git_metadata.rs`).
-    TheQueryIsBounded,
-}
-
-/// What:
-///  Whether a watch runs for a step,
-/// and whether it can end the step at its ceiling.
-/// Why:
-///   The watch and the wait for a step's output are given the same ceiling,
-/// and which of them ends the step there
-///  decides both how much later than the ceiling the wait may fire and what its answer is:
-/// a watch whose pin proves the
-///  process ends the step itself,
-/// one that can prove nothing signals nothing and leaves the ending to the wait
-///  at the ceiling itself,
-/// and one that never started leaves it there too.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type TheWatchOfAStep = 'not-watched' | 'watched-and-proven' | 'watched-and-unproven';
-/// ```
-pub enum TheWatchOfAStep {
-    /// No watch could run at all:
-    /// the system refused the thread one needs.
-    NotWatched,
-    /// A watch runs,
-    /// and the descriptor it took when the child started proves which process to stop.
-    WatchedAndProven,
-    /// A watch runs,
-    /// and nothing proved which process the child's number names,
-    /// so it can signal nothing.
-    WatchedAndUnproven,
-}
-
-/// What:
-///  The ceiling a wait carries,
-/// and why it is the wait that ends what it waits for.
-/// Why:
-///   A step with a ceiling may have no watch (a refused thread),
-/// a watch that could not end it,
-/// or no watch of
-///  its own at all (a read-only query,
-/// whose ceiling is the longest one of those waits);
-/// or a watch that ends
-///  the step itself,
-/// which this wait then backs up rather than replaces.
-/// The reason is the watch's to tell and is
-///  known before the wait begins,
-/// except for a watch that runs and can end the step:
-/// there the wait is only the backstop,
-/// later by
-///  `THE_WATCH_HAS_ITS_ENDING`,
-/// and the answer it gives is the ceiling's own.
-/// `None` in,
-///  `None` out:
-/// a step with no ceiling is waited for as before.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// carriedFor(ceiling, theWatchOfTheStep)
-/// ```
-pub fn carried_for(
-    ceiling: Option<Duration>,
-    watch: TheWatchOfAStep,
-) -> Option<CarriedCeiling> {
-    let the_ceiling: Duration = ceiling?;
-    return Some(match watch {
-        TheWatchOfAStep::NotWatched => CarriedCeiling {
-            ceiling: the_ceiling,
-            backstop: the_ceiling,
-            why: Some(CeilingWhy::NoWatcher),
-        },
-        // A watch that can prove nothing signals nothing, so this wait is what ends the step, at the ceiling itself.
-        TheWatchOfAStep::WatchedAndUnproven => CarriedCeiling {
-            ceiling: the_ceiling,
-            backstop: the_ceiling,
-            why: Some(CeilingWhy::TheWatchCouldNotEndIt),
-        },
-        // The watch ends the step, so this wait gives it the ending it needs before taking the ending away from it.
-        TheWatchOfAStep::WatchedAndProven => CarriedCeiling {
-            ceiling: the_ceiling,
-            backstop: the_ceiling
-                .saturating_add(crate::child_watch_running_task::THE_WATCH_HAS_ITS_ENDING),
-            why: None,
-        },
-    });
-}
-
-/// The ceiling `limit` carried for the reason `why`,
-/// by a wait that nothing else ends the step for.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// carriedBy(limit, why)
-/// ```
-pub fn carried_by(
-    limit: Duration,
-    why: CeilingWhy,
-) -> CarriedCeiling {
-    return CarriedCeiling {
-        ceiling: limit,
-        backstop: limit,
-        why: Some(why),
-    };
-}
-
-impl CarriedCeiling {
-    /// What:
-    ///  The error of a step this wait ended at the ceiling it carried.
-    /// Why:
-    ///   Only this wait knows whether the kernel let the step go,
-    /// and only it knows whether the ceiling was the ending at
-    ///  all:
-    /// a watch that could end the step may have ended it a moment after this wait fired,
-    /// and the ceiling's
-    ///  answer is then the same one the watch would have given,
-    /// while a step no watch could end keeps the sentence that says so.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// (carried) => carried.why ? atTheCeiling(carried, leftRunning) : ceilingReached(carried.ceiling, leftRunning);
-    /// ```
-    fn ending(
-        &self,
-        waiting_for: &str,
-        left_running: bool,
-    ) -> std::io::Error {
-        let inner: Box<dyn std::error::Error + Send + Sync> = match self.why {
-            Some(why) => Box::new(crate::child_waited_for_within_a_ceiling::AtTheCeiling {
-                left_running,
-                sentence: Some(waiting_carried_the_ceiling(
-                    waiting_for,
-                    self.ceiling,
-                    why,
-                    left_running,
-                )),
-            }),
-            None => Box::new(crate::child_watch_step_bounds_and_errors::CeilingReached(
-                crate::child_watch_step_bounds_and_errors::step_ended_at_its_ceiling_text(
-                    waiting_for,
-                    self.ceiling,
-                    left_running,
-                ),
-            )),
-        };
-        return std::io::Error::new(std::io::ErrorKind::TimedOut, inner);
-    }
-}
-
-/// What:
-///  The sentence for a wait that carried the step's own ceiling because no watch could.
-/// Why:
-///   The watch is what ends a step,
-/// and the system refused the thread that would have run it;
-/// this wait then gives the step the
-///  ceiling the watch would have given it and says why,
-/// so nothing waits for a step for ever without a word
-///  (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-/// finding 8).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${waitingFor} ran for ${limit} seconds and was ${leftRunning ? 'left running' : 'ended'}; no watch could announce it: ${why}`
-/// ```
-fn waiting_carried_the_ceiling(
-    waiting_for: &str,
-    ceiling: Duration,
-    why: CeilingWhy,
-    left_running: bool,
-) -> String {
-    let reason: &str = match why {
-        CeilingWhy::NoWatcher => {
-            "Nothing could watch it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit -u`) \
-             and the control group's `pids.max`, free some, and run the command again."
-        }
-        CeilingWhy::TheWatchCouldNotEndIt => {
-            "Its watch could not end it: nothing proved which process to stop. Hint: check with `ps` what the step waits for, \
-             and run the command again."
-        }
-        CeilingWhy::TheQueryIsBounded => {
-            "Such a query changes nothing of the repository. Hint: check with `ps` what that program waits for, and run the \
-             command again."
-        }
-    };
-    let ending: &str = if left_running {
-        "and could not be ended, so it was left running, and the system collects it when its call returns"
-    } else {
-        "and was ended"
-    };
-    return format!(
-        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, {ending}. {reason}",
-        ceiling.as_secs()
-    );
 }
 
 /// Controls for the read of a step's output stay out of the release executable.

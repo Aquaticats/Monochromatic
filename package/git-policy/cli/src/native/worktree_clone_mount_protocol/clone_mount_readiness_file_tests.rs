@@ -19,7 +19,6 @@
 use super::{
     READINESS_DIRECTORY,
     READINESS_DIRECTORY_MODE,
-    READINESS_MODE,
     READINESS_NAME,
     READINESS_STAGING_NAME,
     ReadinessFile,
@@ -29,6 +28,7 @@ use super::{
 use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::NONCE_HEX_DIGITS;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
+    READINESS_MODE,
     ReadinessRecord,
     ReadyState,
     SweepState,

@@ -39,11 +39,7 @@ use super::probe_fingerprint::{
     FingerprintPaths,
     ProbeFingerprint,
 };
-use super::probe_holder_control::{
-    Arrival,
-    Holder,
-    reports_of,
-};
+use super::probe_mode_holder_answers::HolderAnswers;
 use super::probe_mode_words::{
     namespace_of,
     refusal_sentence,
@@ -54,10 +50,7 @@ use super::probe_mode_words::{
     unstarted,
     verdict_line,
 };
-use super::probe_pipe_lines::{
-    set_nonblocking,
-    write_all,
-};
+use super::probe_pipe_lines::set_nonblocking;
 use super::probe_processes::{
     Exit,
     fork,
@@ -90,20 +83,8 @@ use super::probe_test_switch::{
     keep_descriptor_from_environment,
     test_switch_from_environment,
 };
-use std::os::fd::OwnedFd;
 use std::path::Path;
 use std::time::Instant;
-
-/// The byte the worker sends to ask for the holder to start.
-pub const START_HOLDER: u8 = b'H';
-/// The byte the worker sends to ask for the holder to stop.
-pub const STOP_HOLDER: u8 = b'S';
-/// The reply that says the holder performed the request.
-/// A start carries the holder's namespace after a space,
-/// so the worker's first pass compares the exact set.
-pub const HOLDER_DONE: &str = "P";
-/// The reply that says the holder could not perform the request.
-pub const HOLDER_FAILED: &str = "F";
 
 /// What:
 ///  The mode's one run:
@@ -213,13 +194,9 @@ impl<'a> ProbeMode<'a> {
         drop(request.write);
         drop(reply.read);
         drop(status.write);
-        let reply_fd: OwnedFd = reply.write;
-        let mut holder: Option<Holder> = None;
-        let mut holder_namespace: Option<String> = None;
-        let mut awaiting: Option<u8> = None;
+        let mut answers: HolderAnswers = HolderAnswers::new(reply.write);
         let mut report: ProbeReport = ProbeReport::new();
         let mut feed: LineFeed = LineFeed::new();
-        let mut holder_feed: LineFeed = LineFeed::new();
         let _ = set_nonblocking(raw(&status.read));
         let _ = set_nonblocking(raw(&request.read));
         let pidfd = pid_descriptor(worker)
@@ -247,9 +224,9 @@ impl<'a> ProbeMode<'a> {
                     revents: 0,
                 },
             ];
-            if let Some(held) = holder.as_ref() {
+            if let Some(holder_reports) = answers.watched_descriptor() {
                 watched.push(libc::pollfd {
-                    fd: reports_of(held),
+                    fd: holder_reports,
                     events: libc::POLLIN,
                     revents: 0,
                 });
@@ -279,73 +256,13 @@ impl<'a> ProbeMode<'a> {
             if watched
                 .get(1)
                 .is_some_and(|entry| return entry.revents != 0)
-                && awaiting.is_none()
             {
-                let mut byte: [u8; 1] = [0];
-                if let Ok(super::probe_pipe_lines::ReadSome::Bytes(_)) =
-                    super::probe_pipe_lines::read_available(raw(&request.read), byte.as_mut_slice())
-                {
-                    awaiting = Some(byte[0]);
-                }
+                answers.take_request(raw(&request.read));
             }
-            if watched
+            let holder_ready: bool = watched
                 .get(3)
-                .is_some_and(|entry| return entry.revents != 0)
-                && let Some(held) = holder.as_mut()
-            {
-                {
-                    match held.drain(&mut holder_feed, &mut report) {
-                        Arrival::Attach {
-                            passed,
-                        } => {
-                            holder_namespace = held.namespace();
-                            if awaiting == Some(START_HOLDER) {
-                                let answer: String = match (passed, holder_namespace.as_deref()) {
-                                    (true, Some(namespace)) => {
-                                        format!("{HOLDER_DONE} {namespace}\n")
-                                    }
-                                    _ => format!("{HOLDER_FAILED}\n"),
-                                };
-                                let _ = write_all(raw(&reply_fd), answer.as_bytes());
-                                awaiting = None;
-                            }
-                        }
-                        Arrival::Gone => {
-                            if awaiting == Some(START_HOLDER) {
-                                let _ = write_all(
-                                    raw(&reply_fd),
-                                    format!("{HOLDER_FAILED}\n").as_bytes(),
-                                );
-                                awaiting = None;
-                            }
-                            holder = None;
-                        }
-                        Arrival::Nothing => {}
-                    }
-                }
-            }
-            if awaiting == Some(START_HOLDER) && holder.is_none() {
-                let source: String = source_of(&report).unwrap_or_default();
-                holder = Holder::start(self.place, source.as_str());
-                if holder.is_none() {
-                    let _ = write_all(raw(&reply_fd), format!("{HOLDER_FAILED}\n").as_bytes());
-                    awaiting = None;
-                }
-            }
-            if awaiting == Some(STOP_HOLDER) {
-                if let Some(held) = holder.as_mut() {
-                    held.stop();
-                    if held.reap() != Exit::StillRunning {
-                        let _ = held.drain(&mut holder_feed, &mut report);
-                        let _ = write_all(raw(&reply_fd), format!("{HOLDER_DONE}\n").as_bytes());
-                        awaiting = None;
-                        holder = None;
-                    }
-                } else {
-                    let _ = write_all(raw(&reply_fd), format!("{HOLDER_DONE}\n").as_bytes());
-                    awaiting = None;
-                }
-            }
+                .is_some_and(|entry| return entry.revents != 0);
+            answers.answer(holder_ready, self.place, &mut report);
             if watched
                 .get(2)
                 .is_some_and(|entry| return entry.revents != 0)
@@ -358,9 +275,7 @@ impl<'a> ProbeMode<'a> {
             let _ = kill_process_group(worker);
             let _ = kill_process(worker);
         }
-        if let Some(held) = holder.as_mut() {
-            held.end();
-        }
+        answers.end();
         let _ = drain_status(raw(&status.read), &mut feed, &mut report);
         let verdict: ProbeVerdict = if timed_out {
             ProbeVerdict::TimedOut {
@@ -394,7 +309,7 @@ impl<'a> ProbeMode<'a> {
             report: &report,
             verdict,
             worker_namespace: worker_namespace.as_deref(),
-            holder_namespace: holder_namespace.as_deref(),
+            holder_namespace: answers.namespace(),
             skip_reason: None,
         };
         self.place

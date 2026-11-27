@@ -44,6 +44,10 @@
 //!   with the bound and the notice grace of each.
 //! - `child_watch_step_bounds_and_errors.rs`:
 //!   how a watched step may be ended and the errors that say it was.
+//! - `child_watch_signalling_only_the_child_that_was_started.rs`:
+//!   how a stop reaches the child it started and never another command:
+//!   the pin of a step's root taken while that child is this process's own unreaped child,
+//!   the signals sent through it and the processes below the root read through it.
 //! - `child_watch.rs`:
 //!   a watcher for waits that block on a child process:
 //!   notices at the cadence and the child stopped at the bound.
@@ -66,6 +70,18 @@
 //!   what a remote has already published:
 //!   the commits a prior destination value names,
 //!   and the tracking refs Git keeps.
+//! - `push_failure_notice_record_text.rs`:
+//!   what a record's text is:
+//!   its first line,
+//!   the field lines that name its branch and its commit,
+//!   the name it is kept under,
+//!   the words it carries,
+//!   and their cleaning.
+//! - `push_failure_notice_worktrees.rs`:
+//!   which worktree a record belongs to:
+//!   the branch each worktree has checked out,
+//!   the rule that says a record is the asking worktree's,
+//!   and the way a commit is named for the person.
 //! - `push_failure_notice_claimed_by_one_command.rs`:
 //!   the name a command holds a notice's record under while it shows it,
 //!   and who may take one over.
@@ -75,9 +91,18 @@
 //! - `push_failure_notice_reports.rs`:
 //!   the record of what a push that succeeded did,
 //!   and the name it is kept under.
+//! - `push_failure_notice_record_parsed.rs`:
+//!   a record read back:
+//!   the kind its first line names,
+//!   the branch,
+//!   the commit,
+//!   and the words after them.
 //! - `push_failure_notice_shown_then_removed.rs`:
 //!   one record of a failed push as a command holds it,
 //!   with the step that shows it and removes it.
+//! - `push_failure_notice_cleared_after_a_push.rs`:
+//!   the records a push of a branch makes no longer true,
+//!   and the step that removes them once such a push succeeded.
 //! - `push_failure_notice.rs`:
 //!   the record of a failed backup push and the rule for when a wrapper command shows it.
 //! - `push_failure_notice_words.rs`:
@@ -91,10 +116,26 @@
 //! - `push_minimum_rate.rs`:
 //!   the least traffic a push's connection must carry in one window and still count as progress,
 //!   the variable that sets it and its measured default.
+//! - `push_retry_store_plan_record.rs`:
+//!   the record a retry plan is kept as:
+//!   its version and the JSON that reads back as the plan.
+//! - `push_retry_store_loaded.rs`:
+//!   reading every plan a service instance's journal holds,
+//!   one plan per branch and whether something could not be read.
+//! - `push_retry_pauses.rs`:
+//!   the pause before each new try of a push the service stopped or that failed.
+//! - `push_retry_waiting_branches.rs`:
+//!   the shapes one round of retries is handed:
+//!   a branch waiting,
+//!   the tries due again,
+//!   and the change a worker asks of the plan.
 //! - `push_retry.rs`:
 //!   the service's own retry of a push it stopped or that failed:
-//!   the pauses,
-//!   and the waiting branches.
+//!   the list of branches waiting for a new try,
+//!   and what a start rebuilds it from.
+//! - `push_retry_changes_applied.rs`:
+//!   what the workers of a round asked,
+//!   applied to the list the service loop reads.
 //! - `push_retry_cause_line.rs`:
 //!   the first of Git's own lines that gives a reason for a push's failure.
 //! - `push_retry_failure.rs`:
@@ -113,6 +154,13 @@
 //!   the record of each decision of the push trigger:
 //!   handed over,
 //!   or declined with its reason.
+//! - `auto_push_trigger_watched_branch.rs`:
+//!   the branch a command started on,
+//!   watched before it runs:
+//!   where it pointed and the tip it held.
+//! - `auto_push_trigger_ahead_of_upstream.rs`:
+//!   the checks that say whether the moved branch grew ahead of its upstream,
+//!   with the walk over the commit parents and the decline a check answers with.
 //! - `auto_push_trigger.rs`:
 //!   the push a merge,
 //!   pull,
@@ -144,6 +192,15 @@
 //! - `bounded_query.rs`:
 //!   read-only Git queries of the auto-push,
 //!   each with a deadline and separate output streams.
+//! - `auto_push_destination_settings.rs`:
+//!   the settings that decide where one branch is pushed,
+//!   read from one listing of the configuration.
+//! - `auto_push_destination_by_push_default.rs`:
+//!   the ref `push.default` sends one branch to,
+//!   or the note that says why Git sends it nowhere.
+//! - `auto_push_destination_by_refspecs.rs`:
+//!   where the configured push refspecs send one branch,
+//!   judged from one answer about the local refs.
 //! - `auto_push_destination.rs`:
 //!   where a plain `git push` of one named branch goes,
 //!   from the configuration and the local refs.
@@ -166,9 +223,13 @@
 //!   the line prefixes,
 //!   the attempt limit,
 //!   the stale-rejection test and the small Git queries.
+//! - `auto_push_reconcile_branch_move.rs`:
+//!   the step that moves the branch to the published merge,
+//!   with the window a command's own `git switch` opens in it
+//!   and the refusal Git answers with.
 //! - `auto_push_reconcile_branch_advance.rs`:
-//!   the move of the local branch after the merge was pushed,
-//!   and the checks that guard it.
+//!   when the local branch may move after the merge was pushed,
+//!   and the record that settles a move left half done.
 //! - `auto_push_reconcile_plan.rs`:
 //!   what one reconcile run integrates,
 //!   where it publishes,
@@ -183,6 +244,9 @@
 //! - `push_held_back_by_a_blocked_commit.rs`:
 //!   where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 //!   and the decision a verdict makes.
+//! - `push_held_back_by_a_blocked_commit_awaiting.rs`:
+//!   where the push of one branch stops when its questions go to a Git awaited on the runtime,
+//!   which is the decision of `push_held_back_by_a_blocked_commit.rs` with its waits as tasks of the runtime.
 //! - `auto_push.rs`:
 //!   post-commit auto-push of a landed commit:
 //!   the push argv,
@@ -265,10 +329,23 @@ pub mod stacked_merge_push;
 /// brought up to date when Git could not write it.
 pub mod push_tracking_ref_repair;
 
+/// The pause before each new try of a push the service stopped or that failed.
+pub mod push_retry_pauses;
+
+/// The shapes one round of retries is handed:
+/// a branch waiting,
+/// the tries due again,
+/// and the change a worker asks of the plan.
+pub mod push_retry_waiting_branches;
+
 /// The service's own retry of a push it stopped or that failed:
-/// the pauses,
-/// and the waiting branches.
+/// the list of branches waiting for a new try,
+/// and what a start rebuilds it from.
 pub mod push_retry;
+
+/// What the workers of a round asked,
+/// applied to the list the service loop reads.
+pub mod push_retry_changes_applied;
 
 /// What a failed push's own words mean for that retry:
 /// whether the failure is final,
@@ -286,6 +363,14 @@ pub mod push_server_naming;
 
 /// The first of Git's own lines that gives a reason for a push's failure.
 pub mod push_retry_cause_line;
+
+/// The record a retry plan is kept as:
+/// its version and the JSON that reads back as the plan.
+pub mod push_retry_store_plan_record;
+
+/// Reading every plan a service instance's journal holds,
+/// one plan per branch and whether something could not be read.
+pub mod push_retry_store_loaded;
 
 /// The retry plan on disk,
 /// in the service instance's journal,
@@ -369,9 +454,32 @@ pub mod tcp_sockets;
 /// its query runner and the failure types of a push.
 pub mod auto_push_single_flight;
 
+/// The settings that decide where one branch is pushed,
+/// read from one listing of the configuration.
+pub mod auto_push_destination_settings;
+
+/// The ref `push.default` sends one branch to,
+/// or the note that says why Git sends it nowhere.
+pub mod auto_push_destination_by_push_default;
+
+/// Where the configured push refspecs send one branch,
+/// judged from one answer about the local refs.
+pub mod auto_push_destination_by_refspecs;
+
 /// Where a plain `git push` of one named branch goes,
 /// from the configuration and the local refs.
 pub mod auto_push_destination;
+
+/// The branch a command started on,
+/// watched before it runs:
+/// where it pointed and the tip it held.
+#[cfg(unix)]
+pub mod auto_push_trigger_watched_branch;
+
+/// The checks that say whether the moved branch grew ahead of its upstream,
+/// with the walk over the commit parents and the decline a check answers with.
+#[cfg(unix)]
+pub mod auto_push_trigger_ahead_of_upstream;
 
 /// The push a merge,
 /// pull,
@@ -410,8 +518,13 @@ pub mod auto_push_reconcile_basics_and_limits;
 /// built in the object store without a worktree or an index.
 pub mod auto_push_reconcile_merge_commit;
 
-/// The move of the local branch after the merge was pushed,
-/// and the checks that guard it.
+/// The step that moves the branch to the published merge,
+/// with the window a command's own `git switch` opens in it
+/// and the refusal Git answers with.
+pub mod auto_push_reconcile_branch_move;
+
+/// When the local branch may move after the merge was pushed,
+/// and the record that settles a move left half done.
 pub mod auto_push_reconcile_branch_advance;
 
 /// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
@@ -423,6 +536,11 @@ pub mod push_deadline_and_patience_settings;
 
 /// The public update of one pushed reference and the limits on the probe's side-by-side queries.
 pub mod manual_push_update_and_query_limits;
+
+/// How a stop reaches the child it started and never another command:
+/// the pin of a step's root taken while that child is this process's own unreaped child,
+/// the signals sent through it and the processes below the root read through it.
+pub mod child_watch_signalling_only_the_child_that_was_started;
 
 /// What a child watch is made of below its public face:
 /// terms,
@@ -464,6 +582,10 @@ pub mod matching_push_delivered_the_recorded_branch;
 /// Where the automatic push stops when a post-commit gate kept one of a branch's commits local,
 /// and the decision a verdict makes.
 pub mod push_held_back_by_a_blocked_commit;
+
+/// Where the push of one branch stops when its questions go to a Git awaited on the runtime,
+/// which is the decision of the synchronous face with its waits as tasks of the runtime.
+pub mod push_held_back_by_a_blocked_commit_awaiting;
 
 /// The lines a command prints about a branch the automatic push stops short of.
 pub mod blocked_commit_lines;
@@ -520,9 +642,34 @@ pub mod push_failure_notice_machine_output;
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
 
+/// A record read back:
+/// the kind its first line names,
+/// the branch,
+/// the commit,
+/// and the words after them.
+pub mod push_failure_notice_record_parsed;
+
 /// One record of a failed push as a command holds it,
 /// with the step that shows it and removes it.
 pub mod push_failure_notice_shown_then_removed;
+
+/// What a record's text is:
+/// its first line,
+/// the field lines that name its branch and its commit,
+/// the name it is kept under,
+/// the words it carries,
+/// and their cleaning.
+pub mod push_failure_notice_record_text;
+
+/// Which worktree a record belongs to:
+/// the branch each worktree has checked out,
+/// the rule that says a record is the asking worktree's,
+/// and the way a commit is named for the person.
+pub mod push_failure_notice_worktrees;
+
+/// The records a push of a branch makes no longer true,
+/// and the step that removes them once such a push succeeded.
+pub mod push_failure_notice_cleared_after_a_push;
 
 /// The name a command holds a notice's record under while it shows it,
 /// and who may take one over.

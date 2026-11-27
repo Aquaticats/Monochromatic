@@ -5,6 +5,8 @@
 //!  one file's bytes through a private name and a rename,
 //!  a symbolic link,
 //!  and the bounded wait for `index.lock` that begins the batch.
+//!  Which step of a carry a batch is and the markers it reaches are `merge_isolation_carry_write_batches.rs`,
+//!  and the failure that stops a write with the words it leaves are `merge_isolation_carry_write_failures.rs`.
 //! Why:
 //!   Every write of one step lands as one step of the file system or of the index,
 //!  so a kill leaves either what was there or the whole result;
@@ -27,11 +29,19 @@ use crate::merge_isolation_carry_place::{
     place_file_awaiting,
 };
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
+/// Which step of a carry these writes are,
+/// named here so a caller of the write keeps one path.
+pub(crate) use crate::merge_isolation_carry_write_batches::Batch;
+/// Why a carry or a clear stopped,
+/// named here so a caller of the write keeps one path.
+pub use crate::merge_isolation_carry_write_failures::CarryFailure;
+/// The words a write that stopped leaves about the copy it kept.
+use crate::merge_isolation_carry_write_failures::{
+    commands_that_end_the_copy,
+    failure_detail,
+};
 use crate::merge_isolation_changes::worktree_path;
 use crate::merge_isolation_kept_copies::keep_the_copy;
-/// The one owner of a path spelled for a shell,
-/// so a command the line prints takes the path as one word.
-use crate::shell_quote::shell_quote;
 use crate::transaction_git::{
     GitContext,
     GitOutput,
@@ -122,27 +132,6 @@ pub enum LockWait {
     WhileFinishing,
 }
 
-/// Why a carry or a clear stopped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CarryFailure = { kind: 'index-held'; detail: string } | { kind: 'failed'; detail: string } | { kind: 'foreign'; path: Uint8Array } | { kind: 'changed'; path: Uint8Array };
-/// ```
-#[derive(Debug)]
-pub enum CarryFailure {
-    /// Another program held `index.lock` until the wait's bound,
-    /// so nothing was written.
-    IndexHeld(String),
-    /// A read or a write failed;
-    /// the capture still holds the bytes.
-    Failed(String),
-    /// One path holds bytes neither the capture nor the change explains.
-    Foreign(Vec<u8>),
-    /// One path was written after this step judged it,
-    /// so nothing was written to it and its bytes are the person's.
-    Changed(Vec<u8>),
-}
-
 /// What:
 ///  The index records that write these entries and remove these paths.
 /// Why:
@@ -185,59 +174,6 @@ fn entry_width(step: &Step) -> Option<usize> {
         IndexWrite::Remove | IndexWrite::Leave => None,
     };
 }
-
-/// What:
-///  The test-only markers one write step reaches.
-/// Why:
-///   A step writes its index records in one call and its worktree files one at a time after it,
-/// so a control needs the instant
-///  between those parts and between two files;
-///  `transaction_phase` kills or pauses the process there.
-pub(crate) struct StepMarks {
-    /// Reached once every index record of this step is written.
-    index: Phase,
-    /// Reached after each worktree file of this step,
-    /// numbered by occurrence.
-    file: Phase,
-}
-
-/// The markers of the clear's writes.
-const CLEAR_MARKS: StepMarks = StepMarks {
-    index: Phase::MergeClearIndex,
-    file: Phase::MergeClearFile,
-};
-
-/// The markers of the carry back's writes.
-const CARRY_MARKS: StepMarks = StepMarks {
-    index: Phase::MergeCarryIndex,
-    file: Phase::MergeCarryFile,
-};
-
-/// What:
-///  Which step of a carry these writes are,
-///  and what that step does when a path moved after it was judged.
-/// Why:
-///   The clear hands the paths to Git's own two-way update,
-/// so a path that moved after the judgement must stop it with
-///  nothing written and the round made again;
-/// the carry back and a putting back write each path on its own,
-///  so one that moved keeps its bytes and the others still go.
-///  The test-only markers follow the same three steps.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Batch = 'clear' | 'carry' | 'restore';
-/// ```
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub(crate) enum Batch {
-    /// The clear before the branch moves.
-    Clear,
-    /// The merge of each layer with the merge.
-    Carry,
-    /// The putting back of a merge that did not land.
-    Restore,
-}
-
 /// What:
 ///  Reach one test marker,
 /// or refuse the step when the marker variable is malformed.
@@ -253,25 +189,6 @@ fn reach_mark(
         Err(error) => Err(CarryFailure::Failed(format!("{error}"))),
     };
 }
-
-impl Batch {
-    /// The markers this batch reaches,
-    /// when a control watches them.
-    fn marks(self) -> Option<&'static StepMarks> {
-        return match self {
-            Batch::Clear => Some(&CLEAR_MARKS),
-            Batch::Carry => Some(&CARRY_MARKS),
-            Batch::Restore => None,
-        };
-    }
-
-    /// Whether a path that moved after the judgement stops the whole batch,
-    /// rather than keeping its own bytes while the rest go on.
-    fn stops_when_a_path_moved(self) -> bool {
-        return self == Batch::Clear;
-    }
-}
-
 /// What:
 ///  Refuse the whole step when any path it is about to write holds something other than what it judged.
 /// Why:
@@ -299,48 +216,6 @@ fn every_path_is_the_one_judged(
         }
     }
     return Ok(());
-}
-
-/// The words of a failure that stopped one step's write.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const failureDetail = (failure) => failure.kind === 'failed' ? failure.detail : 'it could not be written';
-/// ```
-fn failure_detail(failure: &CarryFailure) -> String {
-    return match failure {
-        CarryFailure::Failed(detail) | CarryFailure::IndexHeld(detail) => {
-            String::from(detail.as_str())
-        }
-        CarryFailure::Foreign(path) | CarryFailure::Changed(path) => {
-            crate::path_bytes::path_message_text(path.as_slice())
-        }
-    };
-}
-
-/// What:
-///  The words of the two commands that put a copy this merge kept back over its path,
-/// and drop it.
-/// Why:
-///   Both paths are copied out of the line and run,
-/// and a name with a space reaches `mv` as several arguments otherwise,
-///  so each is quoted for the shell
-/// (`crate::shell_quote`,
-/// the one owner of that spelling).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const commands = (aside, path) => `mv -- ${shellQuote(aside)} ${shellQuote(path)} puts the copy back over what is there, rm -- ${shellQuote(aside)} drops the copy`;
-/// ```
-fn commands_that_end_the_copy(
-    aside: &Path,
-    path: &[u8],
-) -> String {
-    let shown_aside: String = shell_quote(aside.as_os_str().as_encoded_bytes());
-    let shown_path: String = shell_quote(path);
-    return format!(
-        "`mv -- {shown_aside} {shown_path}` puts the copy back over what is there, `rm -- {shown_aside}` drops the copy"
-    );
 }
 
 /// What:

@@ -1,41 +1,38 @@
 //! What:
-//!  The route's pool calls: the device opened behind the start-time gate, the
-//!  identities of the datasets and the pool, the snapshot, the clone, the two
-//!  inventories, and the mount request.
+//!  The route's pool requests: the device opened behind the start-time gate, the
+//!  identity read, the snapshot, the clone, the origin and the delegations, and
+//!  the mount request.
 //! Why:
 //!  Every call is the binding's own typed request, and no `zfs` program starts
 //!  (`package/zfs/request-to-openzfs-kernel-device`;
 //!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Binding crate and compatibility").
-//!  A write's outcome is unknown the moment the kernel refuses it, so none is
-//!  sent twice and each answer is read back before its identity is recorded
-//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`, A8 and A9).
-//!  The mount request is the protocol's own property write, with the clone's
-//!  dataset name and nothing a caller composes.
+//!  A refused gate disables every raw request, and the device is opened once
+//!  behind it, so a control hands in the gate's answer instead of this machine's
+//!  `/dev/zfs`.
+//!  `add_zfs_pool_answers.rs` reads what the pool answered and
+//!  `add_zfs_inventories.rs` lists what an origin and a clone hold,
+//!  so this file is the device and the requests it sends.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const read = identityOf(device, dataset);
-//! const origin = snapshotTheCheckout(device, pool, name, dataset);
-//! const clone = cloneTheOrigin(device, target, origin, guid);
+//! const device = OpenedDevice.open(); // the gate, then /dev/zfs
+//! const origin = device.snapshotTheCheckout(pool, name);
+//! const clone = device.cloneTheOrigin(target, origin);
 //! ```
 
-use crate::doctor_zfs_route::zfs_checks::LEGACY_MOUNTPOINT;
+use super::add_zfs_pool_answers::{
+    read_identity,
+    read_the_clone,
+    refuse_any_element,
+};
 use crate::doctor_zfs_route::{
     Grant,
     grants_of,
 };
-use crate::worktree_clone_binding_record::binding_inventory::{
-    EntryKind,
-    InventoryEntry,
-    InventoryKind,
-    InventoryRecord,
-};
 use crate::worktree_clone_managed_lock::dataset_guid_reads::DatasetGuidReads;
 use crate::worktree_clone_mount_handler::sweep_dataset_facts::{
     CloneObjectFacts,
-    MOUNTPOINT_PROPERTY,
-    PropertyValue,
     facts_of as facts_from_the_reply,
 };
 use crate::worktree_clone_mount_protocol::clone_mount_intent::{
@@ -44,10 +41,6 @@ use crate::worktree_clone_mount_protocol::clone_mount_intent::{
 };
 use crate::worktree_clone_mount_protocol::clone_mount_intent_write::CloneIntentWriter;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
-use crate::worktree_clone_mount_protocol::local_user_property::{
-    PropertyReading,
-    read_local_property,
-};
 use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
 use crate::zfs_compatibility_gate::{
     BeforeRequests,
@@ -59,48 +52,32 @@ use monochromatic_zfs_request_to_openzfs_kernel_device::{
     DatasetIdentity,
     NvList,
     ZfsDevice,
-    requests,
 };
+
+// The pool's GUID check, which the controls of `add_zfs_tests.rs` read through
+// this file; the release reads it through `read_identity` in the answers' own file.
+#[cfg(test)]
+use super::add_zfs_pool_answers::guid_of;
 
 /// What:
 ///  One dataset or snapshot's identity,
 ///  the two numbers the record writes.
 /// Why:
-///  A name alone proves nothing about which object the pool holds,
-///  so every read-back gives the GUID and the transaction group together.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ObjectIdentity = { guid: DatasetGuid; createtxg: number };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ObjectIdentity {
-    /// The object's GUID.
-    pub guid: DatasetGuid,
-    /// The transaction group that created it.
-    pub createtxg: u64,
-}
+///  Every read-back answers the same two numbers, so the record and its readers
+///  name them once.
+pub use super::add_zfs_pool_answers::ObjectIdentity;
 
 /// What:
 ///  What one clone request answered:
 ///  the identity the record keeps,
 ///  and the properties the add reads to report a clone it cannot use.
 /// Why:
-///  The kernel's own reply for the clone carries every property with its value
-///  and its source,
-///  so the add judges the clone without asking the pool a second question
-///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CloneMade = { identity: ObjectIdentity; facts: CloneObjectFacts };
-/// ```
-pub struct CloneMade {
-    /// The clone's own identity, which the record writes.
-    pub identity: ObjectIdentity,
-    /// The clone's properties, read from the same reply.
-    pub facts: CloneObjectFacts,
-}
+///  The kernel's own reply for the clone carries both, so one request answers
+///  what the record and the add's report need.
+pub use super::add_zfs_pool_answers::CloneMade;
+
+/// The sentence for a clone whose mountpoint did not stay the container's.
+pub use super::add_zfs_pool_answers::the_clones_mountpoint_failure;
 
 /// What:
 ///  The device the route makes its requests through, opened after the gate.
@@ -247,119 +224,6 @@ impl OpenedDevice {
         return read_the_clone(&self.device, target);
     }
 
-    /// The origin dataset's snapshots at or below `bounds_createtxg`, and its
-    /// bookmarks, as the origin inventory's set.
-    ///
-    /// # Errors
-    /// A listing step failed,
-    /// or a bookmark carries no GUID or creation transaction group.
-    pub fn origin_inventory(
-        &self,
-        dataset: &str,
-        pool_guid: DatasetGuid,
-        dataset_guid: DatasetGuid,
-        bounds: &str,
-        bounds_identity: ObjectIdentity,
-    ) -> Result<InventoryRecord, String> {
-        let mut entries: Vec<InventoryEntry> = Vec::new();
-        let mut cursor: u64 = 0;
-        while let Some(object) =
-            self.device
-                .snapshot_list_next(dataset, cursor)
-                .map_err(|error| {
-                    return format!("the snapshots of {dataset} could not be listed ({error})");
-                })?
-        {
-            cursor = object.cursor;
-            let createtxg: u64 = object.stats.dds_creation_txg;
-            if createtxg > bounds_identity.createtxg {
-                continue;
-            }
-            let name: String = short_name(object.name.as_str(), dataset);
-            entries.push(InventoryEntry {
-                kind: EntryKind::Snapshot,
-                guid: guid_of(object.stats.dds_guid, object.name.as_str())?,
-                createtxg,
-                name,
-            });
-        }
-        let bookmarks: NvList = self.device.get_bookmarks(dataset, &[]).map_err(|error| {
-            return format!("the bookmarks of {dataset} could not be listed ({error})");
-        })?;
-        for pair in bookmarks.iter() {
-            let monochromatic_zfs_request_to_openzfs_kernel_device::NvData::List {
-                value,
-            } = &pair.data
-            else {
-                continue;
-            };
-            let guid: u64 = nested_u64(value, "guid")
-                .ok_or_else(|| return format!("the bookmark {} carries no GUID", pair.name))?;
-            let createtxg: u64 = nested_u64(value, "createtxg").ok_or_else(|| {
-                return format!(
-                    "the bookmark {} carries no creation transaction group",
-                    pair.name
-                );
-            })?;
-            entries.push(InventoryEntry {
-                kind: EntryKind::Bookmark,
-                guid: guid_of(guid, pair.name.as_str())?,
-                createtxg,
-                name: pair.name.clone(),
-            });
-        }
-        return Ok(InventoryRecord {
-            kind: InventoryKind::Origin,
-            pool_guid,
-            dataset: String::from(dataset),
-            dataset_guid,
-            bounds: String::from(bounds),
-            bounds_guid: bounds_identity.guid,
-            bounds_createtxg: bounds_identity.createtxg,
-            entries,
-        });
-    }
-
-    /// The clone's own snapshots and bookmarks immediately after it was made.
-    ///
-    /// # Errors
-    /// A listing step failed,
-    /// or a bookmark carries no GUID or creation transaction group.
-    pub fn clone_inventory(
-        &self,
-        clone: &str,
-        pool_guid: DatasetGuid,
-        identity: ObjectIdentity,
-    ) -> Result<InventoryRecord, String> {
-        let mut entries: Vec<InventoryEntry> = Vec::new();
-        let mut cursor: u64 = 0;
-        while let Some(object) = self
-            .device
-            .snapshot_list_next(clone, cursor)
-            .map_err(|error| {
-                return format!("the clone's snapshots could not be listed ({error})");
-            })?
-        {
-            cursor = object.cursor;
-            entries.push(InventoryEntry {
-                kind: EntryKind::Snapshot,
-                guid: guid_of(object.stats.dds_guid, object.name.as_str())?,
-                createtxg: object.stats.dds_creation_txg,
-                name: short_name(object.name.as_str(), clone),
-            });
-        }
-        return Ok(InventoryRecord {
-            kind: InventoryKind::Clone,
-            pool_guid,
-            dataset: String::from(clone),
-            dataset_guid: identity.guid,
-            bounds: String::from(clone),
-            bounds_guid: identity.guid,
-            bounds_createtxg: identity.createtxg,
-            entries,
-        });
-    }
-
     /// The origin snapshot a clone dataset came from,
     /// when it is a clone.
     ///
@@ -429,170 +293,6 @@ impl DatasetGuidReads for OpenedDevice {
             .identity_of(dataset)
             .map(|identity| return identity.guid);
     }
-}
-
-/// One dataset's identity from the pool's statistics.
-fn read_identity(
-    device: &ZfsDevice,
-    name: &str,
-) -> Result<ObjectIdentity, String> {
-    let identity: DatasetIdentity = device
-        .objset_stats(name)
-        .map_err(|error| return format!("{name} does not answer the pool ({error})"))?;
-    return Ok(ObjectIdentity {
-        guid: guid_of(identity.stats.dds_guid, name)?,
-        createtxg: identity.stats.dds_creation_txg,
-    });
-}
-
-/// What:
-///  A clone's identity and its properties from the one reply that follows the
-///  clone request.
-/// Why:
-///  The record needs the identity and the add's report needs the properties,
-///  and the kernel gave both in this reply,
-///  so the clone costs one read rather than two.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const made: CloneMade = { identity: identityOf(reply), facts: factsOf(name, reply) };
-/// ```
-fn read_the_clone(
-    device: &ZfsDevice,
-    name: &str,
-) -> Result<CloneMade, String> {
-    let identity: DatasetIdentity = device
-        .objset_stats(name)
-        .map_err(|error| return format!("{name} does not answer the pool ({error})"))?;
-    let object: ObjectIdentity = ObjectIdentity {
-        guid: guid_of(identity.stats.dds_guid, name)?,
-        createtxg: identity.stats.dds_creation_txg,
-    };
-    return Ok(CloneMade {
-        identity: object,
-        facts: facts_from_the_reply(name, &identity),
-    });
-}
-
-/// What:
-///  The sentence for a clone whose `mountpoint` is not `legacy` inherited from
-///  the container,
-///  or nothing when it is.
-/// Why:
-///  The design has the add report such a clone and destroy nothing
-///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`),
-///  and a clone whose property moved is not one this route may mount.
-///  The value and the source are read from the reply the pool already gave,
-///  so a person learns which dataset set the value.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const failure = theClonesMountpointFailure(facts, container); // string | undefined
-/// ```
-pub fn the_clones_mountpoint_failure(
-    facts: &CloneObjectFacts,
-    container: &str,
-) -> Option<String> {
-    let value: PropertyValue = facts.mountpoint.clone();
-    let source: PropertyReading<'_> = read_local_property(
-        Some(&facts.properties),
-        facts.name.as_str(),
-        MOUNTPOINT_PROPERTY,
-    );
-    let required: String = format!(
-        "a clone must read `{MOUNTPOINT_PROPERTY}` `{LEGACY_MOUNTPOINT}` inherited from its container `{container}`"
-    );
-    return match &source {
-        PropertyReading::Inherited {
-            from,
-        } if from == container && value.text() == Some(LEGACY_MOUNTPOINT) => None,
-        PropertyReading::Inherited {
-            from,
-        } => Some(format!(
-            "the clone `{}`: {}, inherited from `{from}`, and {required}",
-            facts.name,
-            value.describe(MOUNTPOINT_PROPERTY)
-        )),
-        PropertyReading::Local {
-            ..
-        } => Some(format!(
-            "the clone `{}`: {}, set on the clone itself, and {required}",
-            facts.name,
-            value.describe(MOUNTPOINT_PROPERTY)
-        )),
-        PropertyReading::Absent => Some(format!(
-            "the clone `{}` answers no `{MOUNTPOINT_PROPERTY}` property, and {required}",
-            facts.name
-        )),
-        PropertyReading::Malformed(refusal) => Some(refusal.message(MOUNTPOINT_PROPERTY)),
-    };
-}
-
-/// A GUID the kernel reported, refused when it is zero,
-/// which no live object answers.
-fn guid_of(
-    value: u64,
-    name: &str,
-) -> Result<DatasetGuid, String> {
-    if value == 0 {
-        return Err(format!(
-            "the pool reported GUID 0 for {name}, and no live object has that identity"
-        ));
-    }
-    return DatasetGuid::parse(value.to_string().as_str()).map_err(|refusal| {
-        return format!("the pool's GUID for {name} is not canonical ({refusal:?})");
-    });
-}
-
-/// The name one listing reports without its dataset prefix.
-fn short_name(
-    full: &str,
-    dataset: &str,
-) -> String {
-    if let Some((prefix, rest)) = full.split_once('@')
-        && prefix == dataset
-    {
-        return String::from(rest);
-    }
-    if let Some((prefix, rest)) = full.split_once('#')
-        && prefix == dataset
-    {
-        return String::from(rest);
-    }
-    return String::from(full);
-}
-
-/// A property nested as `{value}` in a bookmark's reply.
-fn nested_u64(
-    entry: &NvList,
-    key: &str,
-) -> Option<u64> {
-    return entry
-        .get_list(key)
-        .and_then(|value| return value.get_u64("value"));
-}
-
-/// Refuse when a write's reply carries a per-name failure,
-/// naming each failed name and the kernel's error.
-fn refuse_any_element(
-    reply: Option<&NvList>,
-    what: &str,
-) -> Result<(), String> {
-    let Some(found_reply) = reply else {
-        return Ok(());
-    };
-    let failures: Vec<requests::ElementError> = requests::element_errors(found_reply);
-    if failures.is_empty() {
-        return Ok(());
-    }
-    let shown: Vec<String> = failures
-        .iter()
-        .map(|failure| return failure.to_string())
-        .collect();
-    return Err(format!(
-        "{what} was refused for {}; nothing was retried. Ways forward: free space in the pool or inspect the objects, then run the add again",
-        shown.join(", ")
-    ));
 }
 
 /// Controls stay out of the release executable.
