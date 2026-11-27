@@ -18,34 +18,48 @@
 //! the bound,
 //!  the stopping rule and the timing mark cannot drift between the faces,
 //!  which is what the debt ledger of 2026-11-25 measured them doing.
+//! The child command, the input file it may read and the sentence a failed step is named with are made here too,
+//! and `transaction_git.rs` re-exports them under the paths they had there.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const step = stepAboutToStart({ context, request, terms }); // { command, subject, ledgerStep, bound, ... }
 //! ```
 
+/// The kind of step a request's subcommand names,
+/// for the sentence that names the step.
+use crate::child_class::class_of;
 /// The bound of one step,
 /// and the terms of the watch that holds the step to it.
 use crate::child_watch::{
     StepBound,
     WatchTerms,
 };
+/// Building a Git child from an argument array and an overlay.
+use crate::forwarding::git_command;
+/// Who a real-Git start runs for:
+/// the wrapper's own work,
+/// not the person's command.
+use crate::hooks_off::StartOwner;
+/// Private exclusive files for standard input.
+use crate::private_storage::write_exclusive_scratch;
+/// Unique temporary names.
+use crate::random_id::random_uuid;
+/// The repository scratch directory the input file is made in.
+use crate::scratch_location::prepare_repository_scratch;
 /// The record a step that is never ended keeps for the clients that queue behind it,
 /// and the function that takes it.
 use crate::service_busy_step_record_on_this_thread::{
     StepGuard,
     enter_step,
 };
-/// The Git child, its input file and the words a notice names it with,
-/// and the test of a run the system refused.
-use crate::transaction_git::{
+/// The Git child's request and answer,
+/// and the text of a command line.
+use crate::transaction_git_request_and_reply_types::{
     GitContext,
     GitOutput,
     GitRequest,
-    build_command,
-    input_file,
-    refused_by_the_system,
-    step_subject,
+    command_text,
 };
 /// How long the step is waited for and what happens at the bound.
 use crate::transaction_git_step_bounds::step_bound;
@@ -54,9 +68,16 @@ use crate::transaction_git_step_rerun_and_end_rules::{
     is_branch_write,
     may_be_rerun,
 };
+/// `OsString` is owned operating-system text of raw bytes.
+use std::ffi::OsString;
 /// The child's streams,
 /// and the write of a redo's notice to standard error.
 use std::io::Write;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::{
     Command,
     Stdio,
@@ -205,7 +226,7 @@ pub(crate) fn step_about_to_start(
     let record: Option<StepGuard> = if matches!(bound, StepBound::Unbounded) {
         enter_step(format!(
             "{} in {}",
-            crate::transaction_git::command_text(&request.arguments),
+            command_text(&request.arguments),
             request.cwd.display()
         ))
     } else {
@@ -247,6 +268,163 @@ pub(crate) fn step_about_to_start(
         began,
         _record: record,
     });
+}
+
+/// What:
+///  An already unlinked private file holding `bytes`,
+///  opened for reading.
+///  The file is made in the repository scratch directory of `common_dir`,
+///  never in the system temporary directory.
+/// Why:
+///   Git may write output before it reads all its input;
+///  feeding input from a file instead
+///       of a pipe can never deadlock and needs no writer thread.
+///  The name is removed at once,
+///       so nothing is left behind even after a crash,
+///  and a crash inside that moment leaves a file that the next preparation of the directory
+///       sweeps once it is a day old.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // child.stdin.end(input);
+/// ```
+pub(crate) fn input_file(
+    bytes: &[u8],
+    common_dir: Option<&Path>,
+) -> std::io::Result<std::fs::File> {
+    let Some(common) = common_dir else {
+        return Err(std::io::Error::other(
+            "monochromatic-git-policy-cli has no repository scratch directory for the input of this Git command: the command was started \
+             before the repository was known, which is a defect in monochromatic-git-policy-cli",
+        ));
+    };
+    let directory: PathBuf = prepare_repository_scratch(common)?;
+    let unique: String = match random_uuid() {
+        Ok(id) => id,
+        Err(error) => return Err(std::io::Error::other(error.0)),
+    };
+    let path: PathBuf = directory.join(format!("cli-git-input-{unique}"));
+    write_exclusive_scratch(path.as_path(), bytes)?;
+    let file: std::io::Result<std::fs::File> = std::fs::File::open(&path);
+    // The open handle keeps the bytes readable after the name is gone. If the platform refuses
+    // to remove an open file, the private file stays behind and the error is ignored.
+    let _ = std::fs::remove_file(&path);
+    let opened: std::fs::File = file?;
+    return Ok(opened);
+}
+
+/// What:
+///  Build the child command for one request.
+/// Why:
+///   The prefix,
+///  the overlay,
+///  the removals and the additions apply in a fixed order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawn(gitPath, args, { cwd, env: { ...withoutUnset(process.env), ...environment, GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY } })
+/// ```
+pub(crate) fn build_command(
+    context: &GitContext,
+    request: &GitRequest,
+) -> Command {
+    // `full_arguments` decides which of the caller's global options reach this start, so a request whose
+    // pathspecs are the wrapper's own runs without the caller's pathspec modes.
+    let arguments: Vec<OsString> = request.full_arguments(context.global_prefix.as_slice());
+    let mut command: Command = git_command(
+        context.real_git.as_path(),
+        arguments.as_slice(),
+        context.overlay.as_slice(),
+        StartOwner::Wrapper,
+    );
+    command.current_dir(request.cwd.as_path());
+    for name in &request.unset {
+        command.env_remove(name);
+    }
+    for (name, value) in &request.environment {
+        command.env(name, value);
+    }
+    if let Some(index) = &request.index {
+        command.env("GIT_INDEX_FILE", index);
+    }
+    if let Some(objects) = &request.object_directory {
+        command.env("GIT_OBJECT_DIRECTORY", objects);
+    }
+    if request.end_with_the_starting_thread {
+        end_with_the_starting_thread(&mut command);
+    }
+    return command;
+}
+
+/// What:
+///  Ask the kernel to end this child when the thread that starts it ends,
+/// which is the thread that ends with this process.
+/// Why:
+///  A Git child an add leaves unjoined has nobody waiting for it;
+///  without this it would outlive the command until it next writes to a pipe no reader holds,
+///  and a read that never writes again would outlive it for the whole step ceiling.
+///  `PR_SET_PDEATHSIG` is set in the child between `fork` and `exec`,
+///  so it is there before Git runs and is not inherited by Git's own children.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// command.beforeExec(() => prctl(PR_SET_PDEATHSIG, SIGKILL));
+/// ```
+#[cfg(unix)]
+fn end_with_the_starting_thread(command: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: the closure runs in the child between `fork` and `exec`, where only async-signal-safe
+    // calls are allowed; `prctl` is one, and it reads no memory the child shares with this process.
+    let _ = unsafe {
+        command.pre_exec(|| {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        })
+    };
+}
+
+/// What:
+///  The parent-death signal has no counterpart here,
+/// so nothing is asked for.
+/// Why:
+///  The field is set only by the ladder's early size read,
+///  and this build never runs that read where the signal is unavailable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // no equivalent outside Unix
+/// ```
+#[cfg(not(unix))]
+fn end_with_the_starting_thread(_command: &mut Command) {}
+
+/// What:
+///  Whether Git failed because the system would not give it a process or a thread.
+/// Why:
+///   Git words these failures with the system's own text (`unable to create thread: Resource temporarily
+///  unavailable`,
+/// `cannot fork() for ...`),
+/// and no other failure of a rerunnable command carries it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// output.exitCode !== 0 && output.stderr.includes('Resource temporarily unavailable')
+/// ```
+pub(crate) fn refused_by_the_system(output: &GitOutput) -> bool {
+    return output.code != Some(0)
+        && String::from_utf8_lossy(output.stderr.as_slice())
+            .contains("Resource temporarily unavailable");
+}
+
+/// How a request names itself in notices and in the sentence of a step that was ended:
+/// the command and the kind of step.
+pub(crate) fn step_subject(request: &GitRequest) -> String {
+    return format!(
+        "{}, {}",
+        command_text(&request.arguments),
+        class_of(request.arguments.as_slice()).label()
+    );
 }
 
 /// What:
