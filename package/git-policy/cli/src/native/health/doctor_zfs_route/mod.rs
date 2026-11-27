@@ -85,12 +85,34 @@
 //!   the required and forbidden permissions,
 //!   the effective delegation including ancestor grants,
 //!   and the commands that settle each finding.
+//! - `handler_checks_paths_and_modes.rs`:
+//!   the paths,
+//!   owners and modes every handler check compares against,
+//!   and what one look at a path answered.
+//! - `handler_checks_installation.rs`:
+//!   the installed executable and zedlet,
+//!   and the root modes the one executable must answer.
+//! - `handler_checks_configuration.rs`:
+//!   the handler's configuration file:
+//!   its owner,
+//!   its mode and whether its text parsed.
+//! - `handler_checks_folder_modes.rs`:
+//!   the readiness and results folders against root ownership and the modes
+//!   the design fixes.
+//! - `handler_checks_zed_wiring.rs`:
+//!   ZED's unit,
+//!   its enablement and the other zedlets an enablement runs.
+//! - `handler_checks_readiness.rs`:
+//!   the latest readiness record and whether it admits an attach.
+//! - `handler_checks_unresolved_requests.rs`:
+//!   the clone requests no receipt of this boot answers.
 //! - `handler_checks.rs`:
 //!   the handler's installation,
 //!   configuration,
 //!   root-owned folders,
 //!   ZED and service wiring,
-//!   the latest readiness and the unresolved requests.
+//!   the latest readiness and the unresolved requests,
+//!   named here.
 //! - `staging_folder_checks.rs`:
 //!   the staging folder under the account's cache and the propagation of its
 //!   live bind.
@@ -169,6 +191,30 @@ pub mod delegation_reply;
 
 /// The effective delegation and the lineage-changing grants' absence.
 pub mod delegation_checks;
+
+/// What one look at a path answered,
+/// and the paths,
+/// owners and modes every handler check compares against.
+pub mod handler_checks_paths_and_modes;
+
+/// The installed halves and the root modes the one executable must answer.
+pub mod handler_checks_installation;
+
+/// The handler's configuration file.
+pub mod handler_checks_configuration;
+
+/// The two root-owned folders.
+pub mod handler_checks_folder_modes;
+
+/// ZED's unit,
+/// its enablement and the other zedlets.
+pub mod handler_checks_zed_wiring;
+
+/// The latest readiness record.
+pub mod handler_checks_readiness;
+
+/// The clone requests no receipt of this boot answers.
+pub mod handler_checks_unresolved_requests;
 
 /// The handler's installation,
 /// folders,
