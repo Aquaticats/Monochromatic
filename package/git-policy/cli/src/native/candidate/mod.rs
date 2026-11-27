@@ -48,6 +48,10 @@
 //! - `candidate_store.rs`:
 //!   per-invocation listing,
 //!   lazy bytes and invalidation of candidate versions.
+//! - `candidate_prediction_listings.rs`:
+//!   the listings one prediction makes:
+//!   the changed paths `git add` would stage,
+//!   the selected worktree files and the staged index entries.
 //! - `candidate_prediction.rs`:
 //!   what `git add` would stage,
 //!   and the worktree files a direct command selects.
@@ -131,6 +135,11 @@ pub mod candidate_prediction_git_runs;
 /// What `git add` would stage,
 ///  and the worktree files a direct command selects.
 pub mod candidate_prediction;
+
+/// The listings one prediction makes:
+///  the changed paths,
+///  the selected worktree files and the staged index entries.
+pub mod candidate_prediction_listings;
 
 /// Which candidates hold content that a parent commit's tree already holds,
 ///  found by exact object name.
