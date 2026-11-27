@@ -79,7 +79,8 @@ pub struct IndexStamp {
 impl IndexStamp {
     /// A stamp no entry can be as new as,
     /// for a caller that has no index file time.
-    pub const NONE: IndexStamp = IndexStamp {
+    /// It is read by the controls beside this file, so `pub(super)` is the reach it needs.
+    pub(super) const NONE: IndexStamp = IndexStamp {
         seconds: u32::MAX,
         nanoseconds: 0,
     };

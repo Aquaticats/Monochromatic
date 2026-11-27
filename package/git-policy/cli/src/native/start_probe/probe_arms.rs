@@ -71,7 +71,8 @@ pub enum ProbeArm {
 impl ProbeArm {
     /// Every arm,
     /// in the design's own order.
-    pub const ALL: &[ProbeArm] = &[
+    /// It is read by the report beside this file, so `pub(super)` is the reach it needs.
+    pub(super) const ALL: &[ProbeArm] = &[
         ProbeArm::Namespace,
         ProbeArm::Walk,
         ProbeArm::Source,
@@ -172,7 +173,8 @@ impl ProbeStep {
     /// The steps the worker runs,
     /// in order,
     /// with the scan in its two passes around the holder.
-    pub const WORKER_ORDER: &[ProbeStep] = &[
+    /// It is read by the report beside this file, so `pub(super)` is the reach it needs.
+    pub(super) const WORKER_ORDER: &[ProbeStep] = &[
         ProbeStep::Unshare,
         ProbeStep::PrivatePropagation,
         ProbeStep::ScratchTmpfs,
@@ -198,7 +200,7 @@ impl ProbeStep {
 
     /// The steps the holder runs,
     /// in order.
-    pub const HOLDER_ORDER: &[ProbeStep] = &[ProbeStep::HolderAttach, ProbeStep::HolderWait];
+    pub(super) const HOLDER_ORDER: &[ProbeStep] = &[ProbeStep::HolderAttach, ProbeStep::HolderWait];
 
     /// The step in the words a record line carries.
     pub fn name(self) -> &'static str {
@@ -232,7 +234,8 @@ impl ProbeStep {
     /// Every step of both children,
     /// the worker's and the holder's,
     /// in one list for parsing and folding.
-    pub const ALL: &[ProbeStep] = &[
+    /// It is read by the report beside this file, so `pub(super)` is the reach it needs.
+    pub(super) const ALL: &[ProbeStep] = &[
         ProbeStep::Unshare,
         ProbeStep::PrivatePropagation,
         ProbeStep::ScratchTmpfs,

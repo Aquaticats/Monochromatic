@@ -116,12 +116,13 @@ pub struct RealAttachStep<
     Mount: CloneMountCall = RealCloneMountCall,
 > {
     /// The rollback's two calls.
-    pub calls: Calls,
+    /// This file and its controls read it, so it stays private to the module.
+    calls: Calls,
     /// The one mount call.
-    pub mount_call: Mount,
+    mount_call: Mount,
     /// The proof that the slot's mount is this clone's own,
     /// which is the reader the sweep answers a standing clone from.
-    pub standing: &'standing dyn StandingMounts,
+    standing: &'standing dyn StandingMounts,
 }
 
 impl<'standing> RealAttachStep<'standing, RealRollbackCalls, RealCloneMountCall> {

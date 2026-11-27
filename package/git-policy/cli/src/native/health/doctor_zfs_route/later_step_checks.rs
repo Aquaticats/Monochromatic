@@ -56,7 +56,8 @@ pub enum LaterStep {
 
 impl LaterStep {
     /// Every later-step check the report answers.
-    pub const ALL: &[LaterStep] = &[
+    /// It is read by the checks beside this file, so `pub(super)` is the reach it needs.
+    pub(super) const ALL: &[LaterStep] = &[
         LaterStep::CancelCommand,
         LaterStep::BootProtection,
         LaterStep::ServiceUnit,
