@@ -129,6 +129,13 @@ mod support_fixture_service_log;
 #[path = "binary_support_fixture_directories.rs"]
 mod support_fixture_directories;
 
+/// The wait for the after-commit work a landed commit leaves to the commit service:
+/// the folders a record of its queue is in flight in,
+/// the step a control installs to move one between two reads,
+/// and the listing a failure names.
+#[path = "binary_support_observation_waiting_for_the_after_commit_work.rs"]
+mod support_observation_waiting_for_the_after_commit_work;
+
 /// Running a wrapped command with a time bound and reading what it did.
 #[path = "binary_support_observation.rs"]
 mod support_observation;
