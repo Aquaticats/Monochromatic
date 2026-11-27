@@ -149,10 +149,12 @@ shim                   4 passed, 9 failed                  13 passed, 0 failed
 The failures were all `Os { code: 26, kind: ExecutableFileBusy, message: "Text file busy" }`,
 raised where the test starts the program.
 
-`tests/copied_checkout_record.rs` (1 test),
-`tests/toolchain.rs` (24 tests) and `tests/shadow_identity_copies.rs` wrote no program they start and
+`tests/copied_checkout_record.rs` (1 test) and `tests/toolchain.rs` (24 tests) wrote no program they start and
 passed in the shape before the change,
 so nothing in them changed.
+`tests/shadow_identity_copies.rs` compares files and starts nothing,
+so the red shape was not run against it;
+it passes in that crate's own suite and in a threaded `cargo test` of its binary.
 
 ## What a future test of either crate must do
 
