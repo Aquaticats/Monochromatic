@@ -69,8 +69,8 @@ const NAMESPACE_HELD: &str = "namespace-held";
 /// so the reader passes over them one at a time.
 /// Measured on 2026-11-27 (issue 6599):
 /// eight runs of this control passed over none or one,
-/// and the numbers the failing runs before the fix were handed stood 44 and 60 below the writer's,
-/// so this bound is far above both and still ends a host that never hands the number back.
+/// and the three runs before the reader passed over them were handed numbers 44, 4 and 2 below the writer's,
+/// so this bound is far above every one of those and still ends a host that never hands the number back.
 const READER_ASSIGNMENTS: u32 = 4096;
 
 /// What:
