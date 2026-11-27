@@ -96,10 +96,18 @@
 //! - `object_abbreviation_pack_index.rs`:
 //!   one pack index and one multi-pack-index of an object directory,
 //!   read for the count and the sorted names they hold.
+//! - `applying_a_git_delta.rs`:
+//!   what a Git delta means:
+//!   the two sizes it states,
+//!   the copies and the inserts,
+//!   and where a pack finds a base named by object.
 //! - `repo_read_pack.rs`:
 //!   in-process repository reads:
-//!   one pack,
-//!   its index lookup and delta resolution.
+//!   one pack and its index lookup by object name.
+//! - `the_entries_of_one_pack.rs`:
+//!   in-process repository reads:
+//!   the entry at one pack offset,
+//!   its delta chain and the window it is inflated from.
 //! - `repo_read_odb.rs`:
 //!   in-process repository reads:
 //!   the object database of a repository,
@@ -370,11 +378,23 @@ pub mod repo_read_adapter;
 /// names and the zlib step shared by loose objects and packs.
 pub mod repo_read_object;
 
+/// What a Git delta means:
+/// the two sizes it states,
+/// the copies and the inserts,
+/// and where a pack finds a base named by object.
+#[cfg(unix)]
+pub mod applying_a_git_delta;
+
 /// In-process repository reads:
-/// one pack,
-/// its index lookup and delta resolution.
+/// one pack and its index lookup by object name.
 #[cfg(unix)]
 pub mod repo_read_pack;
+
+/// In-process repository reads:
+/// the entry at one pack offset,
+/// its delta chain and the window it is inflated from.
+#[cfg(unix)]
+pub mod the_entries_of_one_pack;
 
 /// In-process repository reads:
 /// the object database of a repository,
