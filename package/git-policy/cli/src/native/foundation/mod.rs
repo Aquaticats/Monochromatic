@@ -84,10 +84,6 @@
 //! - `common_directory_of_a_git_directory.rs`:
 //!   the common Git directory a worktree's own Git directory belongs to,
 //!   read from its `commondir` file.
-//! - `private_storage_replacing_a_record.rs`:
-//!   publishing a record over the one the same name already holds,
-//!   in one rename,
-//!   with or without making it durable.
 //! - `publishing_entries_in_one_open_folder.rs`:
 //!   entries created,
 //!   filled and published by name below one open folder.
@@ -197,6 +193,10 @@
 //! - `private_storage.rs`:
 //!   private,
 //!   crash-safe file primitives shared by every durable record.
+//! - `private_storage_replacing_a_record.rs`:
+//!   publishing a record over the one the same name already holds,
+//!   in one rename,
+//!   with or without making it durable.
 //! - `earlier_log_lines_journal_held_and_recorded.rs`:
 //!   the journal of a log fold:
 //!   a round,
@@ -259,6 +259,11 @@
 /// Private,
 ///  crash-safe file primitives shared by every durable record.
 pub mod private_storage;
+
+/// Publishing a record over the one the same name already holds,
+/// in one rename,
+/// with or without making it durable.
+pub mod private_storage_replacing_a_record;
 
 /// One folder held open,
 /// and the entries below it read and listed by name.

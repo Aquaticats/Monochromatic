@@ -30,8 +30,6 @@ file-uses src/native/dependent_version dependent_version_yaml_lines_scalar.rs ->
 file-uses src/native/foundation diagnostic_lines_off_the_calling_thread.rs -> lines_written_by_a_thread.rs
 file-uses src/native/foundation diagnostic_log.rs -> diagnostic_lines_off_the_calling_thread.rs
 file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.rs
-file-uses src/native/foundation private_storage.rs -> private_storage_replacing_a_record.rs
-file-uses src/native/foundation private_storage_replacing_a_record.rs -> private_storage.rs
 file-uses src/native/landing held_commit_settle.rs -> held_commit_settle_move.rs
 file-uses src/native/landing held_commit_settle.rs -> service_land_finish.rs
 file-uses src/native/landing held_commit_settle_move.rs -> held_commit_settle.rs
