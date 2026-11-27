@@ -1118,7 +1118,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   so such a manifest was skipped as absent (or another file under the spellable name was synced in its place)
   and the journal was removed while the live manifest had never been made durable.
   The control is
-  `journal_recover_tests::an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable`:
+  `journal_recover::journal_recover_tests::an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable`:
   it arms the manifest's own data barrier and holds a file under the spellable name beside it,
   and on alpha.10's code it fails here:
 
@@ -1804,7 +1804,15 @@ mise run //package/cargo-shadow/cli:test
 mise run //package/cargo-shadow/cli:lint:clippy
 ```
 
-Unit tests sit beside the modules as `*_tests.rs`;
+Unit tests sit beside the modules as `*_tests.rs`,
+declared by the module they test:
+`#[cfg(test)] #[path = "<name>_tests.rs"] mod <name>_tests;`.
+So `src/lib.rs` lists subjects,
+not controls,
+and a module that brings its own tests costs it one line rather than three.
+A test file that belongs to no single module (a round's suite,
+the fixtures several test files share)
+is declared in `src/lib.rs`.
 `tests/shim.rs` starts the built binary as `cargo` against a fake cargo.
 One install case runs the real cargo against a path-only workspace and skips with a message when no cargo is on PATH.
 
@@ -2017,7 +2025,7 @@ so there is nothing cheaper than the first run,
 and the cost is one more pass over the suite on a host that cannot delegate.
 
 The same line is used by a control that needs more than a scope.
-`journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
+`journal::journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
 and the test fixture root (three levels above the test binary,
 so `test-scratch` in the crate's build folder) may sit on a dataset that refuses such a name under `utf8only=on`,
 answering `EILSEQ`;
