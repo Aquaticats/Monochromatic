@@ -405,6 +405,53 @@ and a control that hands the writing code no place of its own writes the person'
 `testing/test_support_tests.rs`'s `the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture`
 starts that code and refuses a place outside the fixture root.
 
+## A fixture commits through the standing Git, in an environment that names no session place
+
+On this machine the `git` a run's own `PATH` finds is the wrapper,
+which hands a commit to the commit service of the checkout it runs in,
+has this account's user manager start one for that checkout,
+and points the shared program link at itself as it does.
+Measured 2026-11-27 (issue 6620):
+`mise run //package/git-policy/cli:native:ts-checks` committed in four fixture checkouts,
+each at `~/temp/agent/git-policy-gate-main-tip-<random>/repo`,
+through that wrapper;
+the manager started four `monochromatic-git-policy-cli@<instance>` services for them at 14:31:32,
+and the link named release `0.6.1-alpha.44` until another wrapper command pointed it back at 14:33:15.
+The TypeScript unit tests are not a test build:
+they start a released wrapper,
+so the test-only switches the Rust controls read
+(`foundation/session_runtime_directory_and_bus_address.rs`) are in no TypeScript fixture's reach.
+
+The issue's first suggestion,
+a fixture handing its child a runtime directory of its own and no bus address,
+does not carry a commit on its own:
+a released wrapper given those two refuses the commit outright,
+with "This computer cannot start the commit service on demand,
+so this commit was not made"
+(measured the same day with release `0.6.1-alpha.44`),
+because the service is the only writer of a commit.
+So a fixture that commits starts the standing Git and never the wrapper,
+in an environment that names neither `DBUS_SESSION_BUS_ADDRESS` nor `XDG_RUNTIME_DIR`,
+and that gives a runtime directory of the fixture's own where the fixture has one to name.
+`bin/fixture-git-environment-for-tests.ts` is the one place that answers it,
+as `foundation/session_runtime_directory_and_bus_address.rs` is for the controls.
+A wrapper that found its way back onto a fixture's `PATH` then has no route to this account's manager,
+and refuses the commit in the open instead of handing it to a service the manager started for the fixture.
+
+`bin/stand-in-git-that-records-its-environment-for-tests.ts` holds it:
+it records whether a bus address reached it and which runtime directory it was given,
+and then runs the standing Git,
+so the fixture still makes the commits it asked for.
+`bin/native-gate-main-tip.unit.test.ts` gives its fixture and the command it relaunches that environment,
+puts the stand-in first on the fixture's search path,
+and reads that no bus address reached the fixture's `git`,
+that every call was given the fixture's own runtime directory,
+and that a `git --version` of the fixture names no wrapper.
+The stand-in programs of the gate,
+the scope and the install fixtures hand their children
+`environmentAFixtureChildMayInherit()` rather than `process.env`,
+so no child of those fixtures inherits either place.
+
 ## A plan a control plants comes from the removal's writer
 
 A control that needs a removal's destruction plan plants it through

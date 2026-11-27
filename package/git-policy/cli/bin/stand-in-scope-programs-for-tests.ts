@@ -20,6 +20,7 @@ import {
   join,
 } from 'node:path';
 
+import { environmentAFixtureChildMayInherit } from './fixture-git-environment-for-tests.ts';
 import { isMissingPathError } from './native-gate-paths.ts';
 
 /**
@@ -186,7 +187,7 @@ export async function createScopeStandIn(): Promise<ScopeStandIn> {
   return {
     directory,
     environment: {
-      ...process.env,
+      ...environmentAFixtureChildMayInherit(),
       // The stand-ins, the running Node, and the system tools: never this repository's PATH, whose `git` is the wrapper.
       PATH: `${programs}:${dirname(process.execPath)}:/usr/bin:/bin`,
       GIT_CONFIG_NOSYSTEM: '1',
