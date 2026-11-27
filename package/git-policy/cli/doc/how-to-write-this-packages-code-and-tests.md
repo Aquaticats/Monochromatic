@@ -546,3 +546,18 @@ its guest arms where its brief asks for them,
 and the controls its brief asks for,
 red and green,
 and says in its report which checks ran and which did not.
+
+A round that writes or moves a line behind the controls' test-only switches runs
+`mise run //package/git-policy/cli:native:clippy:test-only-switches`
+(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`)
+as well as the plain `mise run //package/git-policy/cli:native:clippy`
+(`cargo clippy --locked --offline --all-targets -- -D warnings`),
+because the gate's Clippy step and every plain run compile without a feature
+(`bin/test-native-container.ts`),
+so nothing else lints a line only that build has.
+A line behind the fence's measurement routes takes
+`mise run //package/git-policy/cli:native:clippy:measurement` the same way.
+On 2026-11-27 the switch task failed alone on an unused re-export in `foundation/lazy_runtime.rs`,
+whose only namer,
+`testing/no_switch_is_read_without_its_feature_tests`,
+is compiled out where the feature is on (issue 6570).
