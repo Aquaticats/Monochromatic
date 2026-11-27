@@ -162,6 +162,7 @@ fn known_in_head(work: &Path) {
             path: Some(EventPath::from_git_bytes("dir/[REDACTED]".as_bytes())),
             location: None,
             fix_available: false,
+            commit_correction: None,
         }])
     );
 }

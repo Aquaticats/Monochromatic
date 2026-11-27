@@ -137,6 +137,7 @@ pub(crate) fn match_finding(
         path: Some(EventPath::display(display_path)),
         location: None,
         fix_available: false,
+        commit_correction: None,
     });
 }
 

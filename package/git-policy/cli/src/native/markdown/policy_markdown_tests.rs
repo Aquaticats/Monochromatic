@@ -232,6 +232,7 @@ fn autofix(
         path: Some(event),
         location: None,
         fix_available,
+        commit_correction: None,
     };
 }
 
@@ -373,6 +374,7 @@ fn remaining_findings_are_violations_after_the_rewrite() {
         path: Some(EventPath::from_git_bytes(b"a.md")),
         location: None,
         fix_available: false,
+        commit_correction: None,
     };
     assert_eq!(
         single(rewrite_and_report, Trigger::PreForward),

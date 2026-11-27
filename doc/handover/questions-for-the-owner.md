@@ -3682,3 +3682,38 @@ Ranking,
 the round's and the coordinating session's:
 declare the component > drop the bins,
 because the repository's own tasks run both programs.
+
+## Veto open: two things the round on the `final-newline` hint left as they are (recorded 2026-11-27T17:48:05-05:00)
+
+The round of issue 6627 merged as `0f69dbfe93`.
+The coordinating session read its report whole and wrote this entry.
+None holds a release.
+
+### `finding_hint` takes a fourth positional parameter
+
+The repository's rule asks a function of two or more parameters to take one object.
+
+- A fourth positional parameter (taken):
+  it follows the neighbouring functions of the crate,
+  and publishes three names.
+- One object:
+  the rule is kept.
+  The cost is five more published names,
+  by the round's count.
+
+Ranking,
+the round's:
+the positional parameter > the object,
+because the crate's own functions around it are positional.
+The coordinating session adds no ranking:
+the rule is written for TypeScript,
+and this is Rust.
+
+### A landed commit and a manual push still say to edit the file and stage it again
+
+That is a true next step and not the only one:
+the `fix` command corrects the worktree copy,
+and the person still commits it.
+The issue asked that the sentence stay only where nothing corrects the bytes,
+which is what the round did;
+saying more there was not built.

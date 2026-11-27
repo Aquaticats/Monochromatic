@@ -539,6 +539,7 @@ fn every_ending_reports_what_the_installed_wrapper_reports() {
             path: Some(EventPath::from_git_bytes("a.txt".as_bytes())),
             location: None,
             fix_available: false,
+            commit_correction: None,
         })],
         StageEnd::Stopped,
     );
