@@ -14,6 +14,7 @@
 //! export type QueryEnding = 'itself' | 'at-the-bound';
 //! // armTheEndingSeam((query) => { ... });   // a control only, in a build with controls
 //! ```
+
 /// What:
 ///  The seam a control of the ending uses:
 ///  it runs between the last look at the query and the signal that ends it.

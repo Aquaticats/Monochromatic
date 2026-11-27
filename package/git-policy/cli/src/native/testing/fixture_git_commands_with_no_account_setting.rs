@@ -27,6 +27,7 @@ use std::process::{
     Command,
     Output,
 };
+
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
 pub(crate) fn git_output<S: AsRef<OsStr>>(
     directory: &Path,

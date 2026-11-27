@@ -54,7 +54,7 @@ use std::path::Path;
 /// ```ts
 /// const { bytes, ended, theKernelsHand } = drain(child.stdout); // ended: a message when the pipe reaches its end
 /// ```
-fn draining<R: Read + Send + AsRawFd + 'static>(
+pub(super) fn draining<R: Read + Send + AsRawFd + 'static>(
     mut reader: R
 ) -> (
     std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
@@ -129,7 +129,7 @@ fn draining<R: Read + Send + AsRawFd + 'static>(
 /// ```ts
 /// const ended = hasEndedWithin(pipe.theKernelsHand, 250); // false while something holds a writing end
 /// ```
-fn has_ended_within(
+pub(super) fn has_ended_within(
     pipe: &OwnedFd,
     bound: std::time::Duration,
 ) -> bool {
@@ -191,7 +191,7 @@ fn has_ended_within(
 /// ```ts
 /// const ended = await theReaderHandedOverWhatItRead("standard output", "git", pipeEnded, readerWord);
 /// ```
-fn the_reader_handed_over_what_it_read(
+pub(super) fn the_reader_handed_over_what_it_read(
     what: &str,
     program: &Path,
     the_pipe_has_ended: bool,

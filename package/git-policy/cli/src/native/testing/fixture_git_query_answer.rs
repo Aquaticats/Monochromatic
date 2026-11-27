@@ -18,6 +18,8 @@
 use super::query_ending::QueryEnding;
 /// The status the wait returned,
 /// and the bytes the two pipes had given.
+use std::process::Output;
+
 /// What one bounded query of real Git answered.
 #[derive(Debug)]
 pub(crate) struct QueryAnswer {
