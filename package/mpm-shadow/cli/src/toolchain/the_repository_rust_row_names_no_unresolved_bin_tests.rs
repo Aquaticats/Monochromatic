@@ -364,7 +364,10 @@ fn an_install_of_the_repository_rust_row_names_no_unresolved_bin() {
     // ```ts
     // expect(text).not.toContain('unresolved bins');
     // ```
-    let last: &str = text.lines().last().expect("the report prints at least one line");
+    let last: &str = text
+        .lines()
+        .last()
+        .expect("the report prints at least one line");
     assert!(
         !last.contains("unresolved bins") && !text.contains("unresolved bins"),
         "{text}"
