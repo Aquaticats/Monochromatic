@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:40:07-05:00
+## The state at 2026-11-27T17:48:05-05:00
 
-`main` was `d46572181c`.
+`main` was `0f69dbfe93`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 277 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 278 more by this time.
 
 ### Rounds running
 
@@ -208,9 +208,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The branch added controls and no release code.
   That hint tells a person to edit a file the next commit corrects,
   which is issue 6627;
-  its round,
-  `issue-6627-the-final-newline-hint-at-git-add-says-what-the-next-commit-does`,
-  started 2026-11-27T17:04:25-05:00.
+  its round is merged (`0f69dbfe93`) and the issue is closed.
+  At an `add` and at a direct check the hint now says a commit that takes the file corrects the ending,
+  and names the `fix` command for correcting it now;
+  the sentence that says to edit the file stays for a commit whose selection is read-only,
+  a landed commit and a manual push,
+  where nothing corrects the bytes.
+  The round measured both steps on fixtures,
+  and found no `add` at which nothing corrects the file,
+  which the brief had asked a control for.
+  The push of that merge was refused by GitHub with `GH009` and cleared by one push by hand,
+  as `doc/troubleshooting/github-lfs-integrity-rejection.md` records with the others.
   Every round of the list of 2026-11-27T14:54:37-05:00 is merged:
   issue 6620 (`bc24b2e688`),
   issue 6619 (`1ef6287246`),
@@ -2492,6 +2500,12 @@ and the two `truepeak` files wait on their branch.
   Clippy and whole test task run there:
   on 2026-11-27 three `mpm-shadow` rounds merged with no textual conflict,
   and the merged tree did not compile.
+  After a merge,
+  origin holds the tip before the next step:
+  when the commit service's push of `main` is refused with `GH009`,
+  it does not try again,
+  and one `git push origin main` clears it
+  (`doc/troubleshooting/github-lfs-integrity-rejection.md`).
   A release commit of the linter counts as such a change for the wrapper:
   it writes the new version into `Cargo.toml` and `Cargo.lock` of `package/git-policy/cli` and of its fuzz sidecar,
   so a wrapper branch that took `main` in before it is checked again with it.

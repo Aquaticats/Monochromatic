@@ -211,6 +211,37 @@ and what it could do instead,
 is measured and proposed in
 [the GH009 proposal](../planning/cli-git-push-refused-by-the-server-with-gh009.md).
 
+## A refused push of `main` on 2026-11-27T17:43:56-05:00, cleared by a push by hand
+
+Written 2026-11-27T17:48:05-05:00 from the commit service's journal and the coordinating session's own commands.
+
+The automatic push of a merge commit on `main`,
+`0f69dbfe93`,
+was refused:
+
+```text
+# the commit service's journal, 2026-11-27T17:43:56-05:00
+pushed branch="refs/heads/main" oid=0f69dbfe932f8c95605e5f523538ee80253b7e2b items=1 outcome=failed push_ms=3513: monochromatic-git-policy-cli: the server refused this push: a hook on the server (a check the server runs before it accepts a push) declined it, with the message shown below. The commit service stops pushing this branch until your next commit.
+remote: error: GH009: Git LFS object integrity could not be checked. Please contact GitHub support.
+remote: pre-receive hook declined
+ ! [remote rejected]       0f69dbfe932f8c95605e5f523538ee80253b7e2b -> main (pre-receive hook declined)
+```
+
+The push carried six commits and 35 changed files,
+none under a pattern `.gitattributes` marks for Git LFS
+(`git diff --name-only 0997c27674 0f69dbfe93` through `git check-attr filter --stdin`).
+The branch those commits came from had been pushed under its own name minutes earlier with no refusal.
+`git ls-remote origin refs/heads/main` still named `0997c27674`,
+and the commit service did not try again,
+as its line says.
+One `git push origin main` at 2026-11-27T17:47:20-05:00,
+with nothing changed,
+moved the remote to `0f69dbfe93`,
+3.4 minutes after the refusal.
+This sighting has the `remote:` line in the journal,
+where the three of 2026-11-26 had none.
+It adds no cause.
+
 ## Separate protected-branch rejection on 2026-10-15
 
 A later automatic push of `6973251c8342005567353fad9e1c7b3cb4ebdb51`
