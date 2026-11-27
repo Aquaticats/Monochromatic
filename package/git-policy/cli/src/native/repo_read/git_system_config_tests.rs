@@ -2,19 +2,23 @@
 //!  the learned path equals what the Git executable prints for itself,
 //! one start per executable identity,
 //!  a replaced executable is asked again,
-//! and a path outside `/etc` is the file the readers look at.
+//! a path outside `/etc` is the file the readers look at,
+//! and a question that got no answer says what ended it.
 
 use super::*;
+use crate::diagnostic_log::take_lines_written;
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_layout::read_layout_with;
 use crate::test_support::{
     REAL_GIT,
+    executable,
     fixture,
     git_output,
     remove,
     repository,
 };
 use std::cell::Cell;
+use std::time::Duration;
 
 /// Copy the host's Git to `root/name` so the copy is a real ELF executable named as asked.
 fn copy_git(
@@ -210,5 +214,55 @@ fn a_system_file_outside_etc_is_the_one_the_readers_check() {
     );
     let real = git_output(repo.as_path(), &["rev-parse", "--git-dir"]);
     assert!(real.status.success());
+    remove(root.as_path());
+}
+
+/// A question the system refused to start says so:
+/// the line names the executable,
+/// the question and the refusal.
+#[test]
+fn a_refused_start_is_named_with_the_executable_and_the_question() {
+    let _ = take_lines_written();
+    assert_eq!(
+        ask_git_var(Path::new("/nonexistent-directory/git"), "GIT_CONFIG_SYSTEM"),
+        None
+    );
+    let said: Vec<String> = take_lines_written();
+    assert_eq!(said.len(), 1, "one question says one line: {said:?}");
+    assert!(said[0].contains("/nonexistent-directory/git"), "{said:?}");
+    assert!(said[0].contains("var GIT_CONFIG_SYSTEM"), "{said:?}");
+    assert!(
+        said[0].contains("No such file or directory"),
+        "the refusal's own words are in the line: {said:?}"
+    );
+}
+
+/// A question the ceiling ended says so:
+/// the line names what was waited for and how long.
+#[test]
+fn a_reached_ceiling_is_named_with_what_was_waited_for_and_its_length() {
+    let root = fixture("system-config-ceiling");
+    let stand_in = root.join("git");
+    // What:     a stand-in for a Git that never answers `var`; `exec` makes the child the wait owns the sleeper itself.
+    // Why:      the ceiling's own sentence is part of the line, and only a program that does not answer reaches it.
+    executable(stand_in.as_path(), b"#!/bin/sh\nexec /usr/bin/sleep 30\n");
+    let mut command = std::process::Command::new(stand_in.as_path());
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    let ceiling = Duration::from_secs(2);
+    let reached: std::io::Error =
+        crate::captured_child_run_to_its_end::output_of_within_bound(&mut command, ceiling)
+            .expect_err("the stand-in does not answer");
+    let said: String = no_answer_text(stand_in.as_path(), "GIT_CONFIG_SYSTEM", &reached);
+    assert!(
+        said.contains(stand_in.to_str().expect("UTF-8")),
+        "the line names the program it asked: {said}"
+    );
+    assert!(
+        said.contains("did not answer within 2 seconds"),
+        "the line names the wait's length: {said}"
+    );
     remove(root.as_path());
 }

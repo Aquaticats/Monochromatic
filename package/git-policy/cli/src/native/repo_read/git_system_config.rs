@@ -101,16 +101,51 @@ fn ask_git_var(
         &mut command,
         crate::started_as_git::StartMode::Query,
     );
-    let output = crate::captured_child_run_to_its_end::output_of_within_bound(
-        &mut command,
-        crate::wait_ceilings::PLUMBING_STEP_CEILING,
-    )
-    .ok()?;
+    let ceiling: std::time::Duration = crate::wait_ceilings::PLUMBING_STEP_CEILING;
+    // What:     the finished answer, or the failure that says why the question got none.
+    // Why:      `.ok()?` here erased what ended the wait, so a caller's failure said only that no answer came
+    //           (issue 6540); the two causes it names are a start the system refused and a reached ceiling.
+    let output: std::process::Output =
+        match crate::captured_child_run_to_its_end::output_of_within_bound(&mut command, ceiling) {
+            Ok(finished) => finished,
+            Err(error) => {
+                crate::diagnostic_log::warn(
+                    "ask_git_var",
+                    no_answer_text(real_git, variable, &error).as_str(),
+                );
+                return None;
+            }
+        };
     return if output.status.success() {
         Some(output.stdout)
     } else {
         None
     };
+}
+
+/// What:
+///  The words for a question the real Git did not answer:
+///  the executable,
+///  the question,
+///  and what ended the wait.
+/// Why:
+///  The question answers `None` and every in-process reader then declines,
+/// so without this line a caller reports only that no answer came,
+/// and the person cannot tell a refused start from a wait the ceiling ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `the answer of ${realGit} to "var ${variable}" was not read, so the in-process readers leave this request to Git: ${error}`;
+/// ```
+fn no_answer_text(
+    real_git: &Path,
+    variable: &str,
+    error: &std::io::Error,
+) -> String {
+    return format!(
+        "the answer of {} to `var {variable}` was not read, so the in-process readers leave this request to Git: {error}",
+        real_git.display()
+    );
 }
 
 /// What:
