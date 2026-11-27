@@ -36,7 +36,11 @@ use crate::worktree_snapshot_ahead_claim::{
 };
 use crate::worktree_snapshot_source::choose_snapshot_source;
 use std::cell::RefCell;
-use std::time::Instant;
+use std::time::{
+    Duration,
+    Instant,
+    SystemTime,
+};
 
 /// What:
 ///  The fixture of these controls:
@@ -556,16 +560,19 @@ fn a_snapshots_name_carries_its_source_and_the_millisecond_it_was_made_in() {
     );
     assert_eq!(made_at(older.as_os_str()), Some(1_000));
     assert_eq!(made_at(newer.as_os_str()), Some(2_000));
-    assert!(is_of_this_source(
+    assert!(crate::worktree_snapshot_ahead_names::is_of_this_source(
         older.as_os_str(),
         ahead_key(first.as_path()).as_str()
     ));
     assert!(
-        !is_of_this_source(older.as_os_str(), "0000000000000000"),
+        !crate::worktree_snapshot_ahead_names::is_of_this_source(
+            older.as_os_str(),
+            "0000000000000000"
+        ),
         "another source's key is no candidate"
     );
     let second: PathBuf = first.join("another");
-    assert!(!is_of_this_source(
+    assert!(!crate::worktree_snapshot_ahead_names::is_of_this_source(
         older.as_os_str(),
         ahead_key(second.as_path()).as_str()
     ));

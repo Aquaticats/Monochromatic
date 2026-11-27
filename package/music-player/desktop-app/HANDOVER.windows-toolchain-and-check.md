@@ -74,8 +74,8 @@ taskbar bar can only be confirmed on the real logged-in desktop.
   `CMAKE_POLICY_VERSION_MINIMUM` override was needed (libopus 1.6.1's
   `cmake_minimum_required` is 3.16).
    The build needs
-  `SLINT_ENABLE_EXPERIMENTAL_FEATURES=1` (the page-tab bar uses the experimental
-  `FlexboxLayout`);
+  `SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types` (the theme reads
+  `SlintInternal.accent-color`);
    every mise task sets it,
    so use
   `mise run //package/music-player/desktop-app:build`,

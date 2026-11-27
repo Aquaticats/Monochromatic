@@ -575,9 +575,12 @@ fn every_step_an_add_enters_has_its_own_sentence() {
     assert!(!entered.is_empty(), "the scan read the steps an add enters");
     let mut missing: Vec<&str> = Vec::new();
     for name in &entered {
-        if !STEP_SENTENCES.iter().any(|(step, _sentence)| {
-            return step == name;
-        }) {
+        if !crate::add_standing_notice_step_words::STEP_SENTENCES
+            .iter()
+            .any(|(step, _sentence)| {
+                return step == name;
+            })
+        {
             missing.push(name.as_str());
         }
     }
@@ -585,7 +588,7 @@ fn every_step_an_add_enters_has_its_own_sentence() {
         missing.is_empty(),
         "a step an add enters has no sentence of its own: {missing:?}"
     );
-    let stale: Vec<&str> = STEP_SENTENCES
+    let stale: Vec<&str> = crate::add_standing_notice_step_words::STEP_SENTENCES
         .iter()
         .map(|(step, _sentence)| {
             return *step;

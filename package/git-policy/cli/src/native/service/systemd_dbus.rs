@@ -46,7 +46,40 @@
 //! ```ts
 //! const bus = await connect(address, 5000); await bus.startUnit('cli-git.socket', 'replace'); // throws with the error name
 //! ```
+//!
+//! The names it calls them by are `systemd_dbus_manager_calls_and_error_names.rs`,
+//! what a failed exchange means is `systemd_dbus_failures.rs`,
+//! and where the bus listens is `systemd_dbus_session_address.rs`.
+//!
 
+use super::systemd_dbus_failures::{
+    malformed,
+    remaining,
+    zbus_failure,
+};
+pub use super::systemd_dbus_manager_calls_and_error_names::{
+    EXCHANGE_WAIT,
+    GET_UNIT,
+    HELLO,
+    MANAGER_INTERFACE,
+    MANAGER_NAME,
+    MANAGER_PATH,
+    NO_MANAGER_ON_THE_BUS,
+    NO_SUCH_UNIT,
+    RESET_FAILED_UNIT,
+    RESTART_UNIT,
+    START_UNIT,
+    STOP_ALONE_MODE,
+    STOP_UNIT,
+    manager_is_absent,
+};
+use super::systemd_dbus_manager_calls_and_error_names::{
+    PROPERTIES_INTERFACE,
+    SOCKET_INTERFACE,
+    UNIT_INTERFACE,
+    UNKNOWN_OBJECT,
+};
+pub use super::systemd_dbus_session_address::session_bus_path;
 pub use crate::systemd_dbus_wire_format::{
     CallError,
     Reply,
@@ -60,197 +93,6 @@ use std::time::{
     Instant,
 };
 
-/// The manager's object path.
-pub const MANAGER_PATH: &str = "/org/freedesktop/systemd1";
-
-/// The manager's interface.
-pub const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
-
-/// How long the whole exchange (connect,
-/// authenticate,
-/// say hello,
-/// make the calls) may take;
-/// a stuck bus never holds a
-///  commit longer.
-pub const EXCHANGE_WAIT: Duration = Duration::from_secs(20);
-
-/// The bus daemon's name,
-/// object and interface,
-/// for `Hello`.
-const BUS_NAME: &str = "org.freedesktop.DBus";
-const BUS_PATH: &str = "/org/freedesktop/DBus";
-
-/// The manager's bus name.
-pub const MANAGER_NAME: &str = "org.freedesktop.systemd1";
-
-/// `Hello` on the bus daemon,
-/// the first call of every connection.
-pub const HELLO: Target<'static> = Target {
-    destination: BUS_NAME,
-    path: BUS_PATH,
-    interface: BUS_NAME,
-    member: "Hello",
-};
-
-/// `StartUnit` on the user manager.
-pub const START_UNIT: Target<'static> = Target {
-    destination: MANAGER_NAME,
-    path: MANAGER_PATH,
-    interface: MANAGER_INTERFACE,
-    member: "StartUnit",
-};
-
-/// `RestartUnit` on the user manager.
-pub const RESTART_UNIT: Target<'static> = Target {
-    destination: MANAGER_NAME,
-    path: MANAGER_PATH,
-    interface: MANAGER_INTERFACE,
-    member: "RestartUnit",
-};
-
-/// `StopUnit` on the user manager.
-pub const STOP_UNIT: Target<'static> = Target {
-    destination: MANAGER_NAME,
-    path: MANAGER_PATH,
-    interface: MANAGER_INTERFACE,
-    member: "StopUnit",
-};
-
-/// `ResetFailedUnit` on the user manager.
-pub const RESET_FAILED_UNIT: Target<'static> = Target {
-    destination: MANAGER_NAME,
-    path: MANAGER_PATH,
-    interface: MANAGER_INTERFACE,
-    member: "ResetFailedUnit",
-};
-
-/// `GetUnit` on the user manager:
-/// the object path of a loaded unit.
-pub const GET_UNIT: Target<'static> = Target {
-    destination: MANAGER_NAME,
-    path: MANAGER_PATH,
-    interface: MANAGER_INTERFACE,
-    member: "GetUnit",
-};
-
-/// The job mode that applies a stop to the named unit only,
-/// leaving the units that require it running.
-pub const STOP_ALONE_MODE: &str = "ignore-dependencies";
-
-/// The interface whose `Get` reads one property of an object.
-const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
-
-/// The interface that holds a socket unit's addresses.
-const SOCKET_INTERFACE: &str = "org.freedesktop.systemd1.Socket";
-
-/// The interface that holds a unit's `ActiveState`.
-const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
-
-/// The error name of a unit the manager does not hold (never loaded,
-/// or unloaded after it stopped).
-pub const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
-
-/// What:
-///  The error names a bus answers a call of the user manager with when the bus carries no user service manager.
-/// Why:
-///   A session bus without `systemd --user` is the one case where nothing about the units matters:
-/// the bus itself says no manager owns the name,
-/// and the person needs the remedy for an account without user services (`loginctl enable-linger`),
-/// not the bus's own words.
-/// `ServiceUnknown` is what a bus says when no unit and no program owns the name;
-/// `NameHasNoOwner` is what it says when the name was owned and has gone.
-pub const NO_MANAGER_ON_THE_BUS: &[&str] = &[
-    "org.freedesktop.DBus.Error.ServiceUnknown",
-    "org.freedesktop.DBus.Error.NameHasNoOwner",
-];
-
-/// Whether an error name says the bus that answered carries no user service manager.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const managerIsAbsent = (name: string) => NO_MANAGER_ON_THE_BUS.includes(name);
-/// ```
-pub fn manager_is_absent(error_name: &str) -> bool {
-    return NO_MANAGER_ON_THE_BUS.contains(&error_name);
-}
-
-/// The error name of an object that is gone by the time a property is read.
-const UNKNOWN_OBJECT: &str = "org.freedesktop.DBus.Error.UnknownObject";
-
-/// The time left of the exchange,
-/// or an error when it ran out.
-fn remaining(deadline: Instant) -> Result<Duration, CallError> {
-    let left: Duration = deadline.saturating_duration_since(Instant::now());
-    return if left.is_zero() {
-        Err(CallError::TimedOut)
-    } else {
-        Ok(left)
-    };
-}
-
-/// A socket failure as the call's error:
-/// running out of the read or write time is a timeout,
-/// anything else a broken connection.
-fn socket_failure(error: &std::io::Error) -> CallError {
-    return match error.kind() {
-        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => CallError::TimedOut,
-        _ => CallError::Connection(error.to_string()),
-    };
-}
-
-/// What:
-///  The default session bus socket inside a runtime directory:
-/// `bus` there.
-/// Why:
-///  `session_bus_path` falls back to it when the address variable names no usable path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const busInDirectory = (directory: string) => path.join(directory, 'bus');
-/// ```
-fn bus_in_directory(directory: &Path) -> std::path::PathBuf {
-    return directory.join("bus");
-}
-
-/// The path of the session bus socket:
-/// the `unix:path=` entry of the address variable,
-/// else `$XDG_RUNTIME_DIR/bus`.
-pub fn session_bus_path(
-    address: Option<&str>,
-    runtime_dir: Option<&Path>,
-) -> Option<std::path::PathBuf> {
-    // The first `unix:` entry that names a usable `path=` option wins; an entry that does not is skipped.
-    let mut from_address: Option<std::path::PathBuf> = None;
-    if let Some(list) = address {
-        for entry in list.split(';') {
-            let Some(rest) = entry.strip_prefix("unix:") else {
-                continue;
-            };
-            let mut named: Option<&str> = None;
-            for option in rest.split(',') {
-                if let Some(found) = option.strip_prefix("path=") {
-                    named = Some(found);
-                    break;
-                }
-            }
-            let Some(path) = named else {
-                continue;
-            };
-            // Escapes (`%xx`) in a path are not read; a path that uses them falls back to the default location.
-            if path.contains('%') || path.is_empty() {
-                continue;
-            }
-            from_address = Some(std::path::PathBuf::from(path));
-            break;
-        }
-    }
-    if from_address.is_some() {
-        return from_address;
-    }
-    return runtime_dir.map(bus_in_directory);
-}
-
-/// An authenticated connection to the session bus,
 /// past `Hello`.
 pub struct Bus {
     /// The connection;
@@ -258,43 +100,6 @@ pub struct Bus {
     connection: zbus::Connection,
     /// When the calls that follow must have ended.
     deadline: Instant,
-}
-
-/// A reply that did not have the expected shape,
-/// as the call's `Malformed` error.
-fn malformed(error: impl std::fmt::Display) -> CallError {
-    return CallError::Malformed(error.to_string());
-}
-
-/// What:
-///  A `zbus` failure as the call's error:
-/// a method error keeps its name and text,
-/// a handshake error is an authentication error,
-/// and
-///  running out of time on the socket is a timeout.
-/// Why:
-///  The callers tell a refusal of the manager,
-/// a failed login,
-/// a missing bus and a timeout apart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const callError = (error: ZbusError): CallError => ...
-/// ```
-fn zbus_failure(error: zbus::Error) -> CallError {
-    return match error {
-        zbus::Error::MethodError(name, text, _message) => CallError::Manager {
-            name: name.to_string(),
-            text: text.unwrap_or_default(),
-        },
-        zbus::Error::InputOutput(io) => socket_failure(&io),
-        zbus::Error::Handshake(text) => CallError::Authentication(text),
-        zbus::Error::Address(text) => CallError::Connection(text),
-        other if other.to_string().starts_with("failed to connect") => {
-            CallError::Connection(other.to_string())
-        }
-        other => CallError::Malformed(other.to_string()),
-    };
 }
 
 /// What:
@@ -330,7 +135,6 @@ where
     };
 }
 
-/// Methods over a connection.
 impl Bus {
     /// What:
     ///  Connects to the bus socket,

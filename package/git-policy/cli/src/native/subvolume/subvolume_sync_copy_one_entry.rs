@@ -3,11 +3,12 @@
 //! a symbolic link or a named pipe) into the destination,
 //! as methods of `Pass`.
 //! Why:
-//!  The walk in `subvolume_sync.rs` decides what to copy;
+//!  The walk in `subvolume_sync_directory_visit.rs` decides what to copy;
 //! this file does the copying of one entry,
 //! with the recopy loop for
-//!  a file that changes under the copy and the link bookkeeping for files with several names.
-//! It depends on the shared pieces
+//!  a file that changes under the copy.
+//! The bookkeeping for files with several names is `subvolume_sync_copy_link_record.rs`,
+//! and this file depends on the shared pieces
 //!  in `subvolume_sync_pass_state_and_checks.rs` and nothing from the walk's file.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +17,6 @@
 //! ```
 
 use crate::fs_primitive_error::PrimitiveError;
-use crate::subvolume_anchor::Anchor;
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_sync_attrs::{
     carried_attributes_equal,
@@ -164,79 +164,6 @@ impl Pass<'_> {
         self.publish(directory, relative, existing.as_ref())?;
         self.stats.fifos += 1;
         return Ok(());
-    }
-
-    /// Whether the destination file is one of the recorded copies of this source file,
-    /// or none is recorded yet.
-    pub(crate) fn is_linked_as_recorded(
-        &self,
-        key: (u64, u64),
-        found: &Metadata,
-    ) -> bool {
-        let Some(copies) = self.links.get(&key) else {
-            return true;
-        };
-        for copy in copies {
-            if let Ok(copy_meta) = std::fs::symlink_metadata(self.destination.join(copy))
-                && copy_meta.ino() == found.ino()
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /// Record a destination file as a copy of a source file with several names.
-    pub(crate) fn record_link(
-        &mut self,
-        key: (u64, u64),
-        relative: &Path,
-    ) {
-        let copies: &mut Vec<PathBuf> = self.links.entry(key).or_default();
-        let mut recorded: bool = false;
-        for copy in copies.iter() {
-            if copy == relative {
-                recorded = true;
-                break;
-            }
-        }
-        if !recorded {
-            copies.push(relative.to_path_buf());
-        }
-    }
-
-    /// Try to make the destination another name of an earlier copy.
-    /// True when it was done.
-    pub(crate) fn link_to_earlier_copy(
-        &mut self,
-        directory: &Directory,
-        relative: &Path,
-        key: (u64, u64),
-        existing: Option<&Metadata>,
-    ) -> Result<bool, MigrateError> {
-        for copy in self.links.get(&key).cloned().unwrap_or_default() {
-            let Ok(earlier) =
-                Anchor::open_below(self.destination, copy.parent().unwrap_or(Path::new("")))
-            else {
-                continue;
-            };
-            let first: PathBuf = earlier.child(copy.file_name().unwrap_or_default());
-            remove_if_present(
-                directory.partial().as_path(),
-                self.shown(relative).as_path(),
-            )?;
-            if self
-                .platform
-                .hard_link(first.as_path(), directory.partial().as_path())
-                .is_err()
-            {
-                continue;
-            }
-            self.publish(directory, relative, existing)?;
-            self.stats.hard_linked += 1;
-            return Ok(true);
-        }
-        return Ok(false);
     }
 
     /// Copy a regular file.

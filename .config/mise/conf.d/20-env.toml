@@ -49,15 +49,20 @@ _.path = [
   "node_modules/.bin",
 ]
 
-# Enables Slint's experimental builtins (e.g. FlexboxLayout) in slint-lsp when it
+# Names the Slint experimental language features to compile, for slint-lsp when it
 # is launched through mise (e.g. the JetBrains plugin's external LSP set to run
 # "mise exec -- slint-lsp"). slint-lsp exposes no CLI flag for this; the compiler
 # reads this env var at runtime (internal/compiler/lib.rs) and the LSP relies on
-# that path (tools/lsp/main.rs). The two desktop-app packages already set it for
+# that path (tools/lsp/main.rs). The desktop-app packages set their own value for
 # their builds; setting it at the repo root also covers the editor LSP whose cwd
 # is the monorepo root. mise [env] is directory-activated, so it only reaches the
 # LSP process when mise launches it.
-SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"
+# Slint 1.19.0 reads a comma-separated list of kebab-case names and rejects any
+# other value ('1' was the boolean switch through 1.18.1). `internal-types` is
+# what the music player's `SlintInternal.accent-color` needs; the other desktop
+# apps compile with it enabled and ask for nothing else
+# (doc/troubleshooting/slint-lsp-experimental-features.md).
+SLINT_ENABLE_EXPERIMENTAL_FEATURES = "internal-types"
 
 # Emits Slint element debug info (ids, source positions) into compiled UIs at
 # build time. Required for the ElementHandle/MCP introspection APIs

@@ -9,6 +9,10 @@
 
 use super::*;
 use crate::subvolume_error::Interrupt;
+use crate::subvolume_index::{
+    StatFields,
+    StoredStat,
+};
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_sync::{
     SyncOptions,
@@ -26,6 +30,10 @@ use crate::test_support::{
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
 use std::ffi::OsStr;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A checkout with two linked worktrees inside it and one outside,
 /// and the three administrative directories.

@@ -19,6 +19,11 @@
 //! - `transaction_git_request_and_reply_types.rs`:
 //!   the request,
 //!   reply and failure types of the Git runner and the text of a command line.
+//! - `transaction_git_step_words.rs`:
+//!   the subcommand of a Git step,
+//!   the words after it,
+//!   and their split into options,
+//!   names and paths.
 //! - `transaction_git_step_rerun_and_end_rules.rs`:
 //!   which Git steps may be run again after a refused process and which may be ended at a ceiling.
 //! - `transaction_git.rs`:
@@ -72,6 +77,12 @@ pub mod transaction_git_step_about_to_start;
 /// The request,
 /// reply and failure types of the Git runner and the text of a command line.
 pub mod transaction_git_request_and_reply_types;
+
+/// The subcommand of a Git step,
+/// the words after it,
+/// and their split into options,
+/// names and paths.
+pub mod transaction_git_step_words;
 
 /// Which Git steps may be run again after a refused process and which may be ended at a ceiling.
 pub mod transaction_git_step_rerun_and_end_rules;

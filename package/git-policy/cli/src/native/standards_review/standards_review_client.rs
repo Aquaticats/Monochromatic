@@ -48,6 +48,14 @@
 //! const response = await fetch(url, { method: 'POST', headers, body, dispatcher: new Agent({ bodyTimeout: 30000, headersTimeout: 30000 }) });
 //! ```
 
+/// The words a failed call is named with,
+/// which the call and its configuration both use.
+use super::standards_review_client_failure_words::{
+    authority_unreadable,
+    fetch_failed,
+    fetch_failed_with_causes,
+    text_of,
+};
 /// The measuring of a call's quiet gap,
 /// beside the call.
 use crate::standards_review_client_name_lookup_on_the_blocking_pool::PoolResolver;
@@ -362,44 +370,6 @@ fn client_config(trusted_pem: Option<&[u8]>) -> Result<rustls::ClientConfig, Str
         .with_root_certificates(roots)
         .with_no_client_auth();
     return Ok(config);
-}
-
-/// An error as its text,
-/// for the places that turn a failure into the call's message.
-fn text_of(error: impl std::fmt::Display) -> String {
-    return error.to_string();
-}
-
-/// A failure to read the trusted authority,
-/// in the call's words.
-fn authority_unreadable(error: impl std::fmt::Display) -> String {
-    return format!("the trusted authority is unreadable: {error}");
-}
-
-/// A failure of the call,
-/// in the words the log line prints.
-fn fetch_failed(error: impl std::fmt::Display) -> String {
-    return format!("fetch failed: {error}");
-}
-
-/// A failure of the call with every cause below it,
-/// in the words the log line prints.
-fn fetch_failed_with_causes(error: impl std::error::Error) -> String {
-    return format!("fetch failed: {}", error_chain(&error));
-}
-
-/// An error with every cause below it,
-/// as `a: b: c`,
-/// because the first line of a transport error hides what a person needs.
-fn error_chain(error: &dyn std::error::Error) -> String {
-    let mut text: String = error.to_string();
-    let mut below = error.source();
-    while let Some(cause) = below {
-        text.push_str(": ");
-        text.push_str(cause.to_string().as_str());
-        below = cause.source();
-    }
-    return text;
 }
 
 /// What:

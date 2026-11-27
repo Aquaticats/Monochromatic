@@ -10,6 +10,20 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `service_durable_the_background_sync_thread.rs`:
+//!   the task that makes a landing's syncs after the landing answered,
+//!   and the wait a control makes until its queue is empty.
+//! - `service_index_prestage_the_markers_made_ahead.rs`:
+//!   the marker this service keeps made ahead:
+//!   the marked file,
+//!   its slot,
+//!   the record of every file made,
+//!   and the step that makes and records one.
+//! - `service_messages_the_failures_a_person_can_meet.rs`:
+//!   every failure the client can meet,
+//!   and the facts its text names.
+//! - `service_messages_what_a_failure_gives_a_person.rs`:
+//!   the commands and words a failure hands a person to act on.
 //! - `conclusion_state_copy.rs`:
 //!   the copy the service keeps of the conclusion state a landed commit removes.
 //! - `earlier_service_look_paths.rs`:
@@ -80,6 +94,11 @@
 //!   and the store's write under the first free name.
 //! - `service_commit_args_editor_opening.rs`:
 //!   whether a `commit` command line opens an editor.
+//! - `service_commit_args_message.rs`:
+//!   the commit message Git makes of the `-m` texts when no editor opens.
+//! - `service_commit_args_fixed_message.rs`:
+//!   the arguments of a commit Git built,
+//!   rewritten so that the message the person already typed is used as it is and no editor opens.
 //! - `service_commit_args.rs`:
 //!   which commit command lines the commit service covers,
 //!   and the message they stand for.
@@ -131,6 +150,15 @@
 //!   index entries and conclusion state.
 //! - `service_land_finish_branch_questions.rs`:
 //!   the answers service land finish branch questions holds.
+//! - `service_land_follow_index_reset_git_questions.rs`:
+//!   how one step of the index reset asks Git,
+//!   on a thread and on the runtime,
+//!   and what answer it stands for.
+//! - `service_land_follow_index_reset_paths.rs`:
+//!   the paths a reset installs, as the bytes `git reset` reads them:
+//!   a pathspec that names one path from the top of the worktree,
+//!   a NUL-separated list of them,
+//!   and the names that differ between two commits.
 //! - `service_land_follow_index_reset.rs`:
 //!   the answers service land follow index reset holds.
 //! - `service_land_follow.rs`:
@@ -223,6 +251,10 @@
 //! - `service_prepare_own_git_steps.rs`:
 //!   the two Git steps a service preparation starts itself,
 //!   with the face a task of the runtime asks.
+//! - `service_pruned_tree_closures.rs`:
+//!   whether a tree, a tree below it or a blob in any of them is gone from the object store,
+//!   for every root of a batch,
+//!   and what that walk cost.
 //! - `service_pruned.rs`:
 //!   how a commit headed for the service notices that its prepared content was removed before it landed.
 //! - `service_replay_conclusion.rs`:
@@ -231,6 +263,9 @@
 //!   the small text steps of the replay of captured changes.
 //! - `service_retry.rs`:
 //!   the repositories the service looks at again when a claim another instance holds may have run out.
+//! - `service_route_what_the_status_answers.rs`:
+//!   what the status of a worktree's service answers,
+//!   and the words it answers with.
 //! - `service_route.rs`:
 //!   which way a commit goes:
 //!   through the service,
@@ -285,6 +320,11 @@
 //! - `held_push_holder_and_verdict.rs`:
 //!   which command will decide a held commit's post-commit checks,
 //!   and the verdict that command left.
+//! - `service_amend_replayed_the_commit_made_again.rs`:
+//!   the commit an amend makes on the branch as it is now:
+//!   where it is written,
+//!   how it is signed,
+//!   and the request that lands it.
 //! - `service_amend_replayed.rs`:
 //!   the commit an amend makes when the branch moved under it:
 //!   the amended commit's own author,
@@ -316,6 +356,9 @@
 //!   the staging files of the index lock.
 //! - `service_index_attempts.rs`:
 //!   the attempts and the wait of an acquisition of the index lock.
+//! - `service_index_claim_files.rs`:
+//!   what the file at one slot of the claim chain is,
+//!   read without following a link or waiting on a pipe.
 //! - `service_index_claim.rs`:
 //!   the claim chain that keeps two reclaimers apart where the file system gives no `flock`.
 //! - `service_index_lock.rs`:
@@ -399,6 +442,10 @@
 //!   the state folders of the work queue,
 //!   the names of claim files,
 //!   and the listing of a folder oldest first.
+//! - `work_item_holding_the_verdicts_and_the_promotion.rs`:
+//!   the verdicts written into a held record,
+//!   the promotion that makes the record runnable,
+//!   and the two ways a record leaves the queue.
 //! - `work_item.rs`:
 //!   the durable work-item record for asynchronous work (review,
 //!   push,
@@ -526,6 +573,11 @@
 //! - `service_claim_watch_watched_repositories.rs`:
 //!   what the notes of one claim watch say about the repositories they name,
 //!   read without keeping anything.
+//! - `service_claim_watch_reading_the_store.rs`:
+//!   the reading of the claim watch's store:
+//!   which notes are kept,
+//!   which are removed as certainly of no use,
+//!   and what could not be read at all.
 //! - `service_claim_watch.rs`:
 //!   the Git directories the service looks at by itself when it starts.
 //! - `service_claim_watch_note_within_a_ceiling.rs`:
@@ -552,6 +604,9 @@
 //! - `service_work_drains_a_snapshot_ahead.rs`:
 //!   the drain of the snapshots the commit service makes ahead of the next add,
 //!   as one step of a round.
+//! - `service_work_drains_awaiting_the_due_push_retries.rs`:
+//!   the pushes a round runs again because their retry is due,
+//!   and the programs a record's end gives up.
 //! - `service_work_drains_awaiting.rs`:
 //!   the drains of one directory and of a common directory,
 //!   awaited by a task of the runtime.
@@ -568,6 +623,15 @@
 //!   with the line the person reads for it.
 //! - `service_work_drain_deletes_subvolumes.rs`:
 //!   the drain's step that deletes the subvolumes a removal handed over.
+//! - `service_work_drain_claims_by_kind.rs`:
+//!   the claimed items of one batch of the drain,
+//!   sorted into one list per kind of work.
+//! - `service_work_drain_housekeeping_and_upkeep.rs`:
+//!   the housekeeping one round of the drain may start,
+//!   the upkeep it runs on the items it holds,
+//!   and what it leaves for a later round.
+//! - `service_work_drain_look_again.rs`:
+//!   when the caller of one drain of a work directory must look at it again.
 //! - `service_work_drain_pending_claims.rs`:
 //!   drains the pending items of one work directory.
 //! - `service_work_items_side_by_side.rs`:
@@ -581,6 +645,13 @@
 //! ```ts
 //! // landing/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// Every failure the client can meet,
+/// and the facts its text names.
+pub mod service_messages_the_failures_a_person_can_meet;
+
+/// The commands and words a failure hands a person to act on.
+pub mod service_messages_what_a_failure_gives_a_person;
 
 /// The landing location a forwarded index writer coordinates with:
 ///  the real index and the registry.
@@ -621,6 +692,11 @@ pub mod work_item_recovery;
 /// and finding what is already there.
 pub mod work_item_enqueue;
 
+/// The verdicts written into a held record,
+/// the promotion that makes the record runnable,
+/// and the two ways a record leaves the queue.
+pub mod work_item_holding_the_verdicts_and_the_promotion;
+
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
 
@@ -648,6 +724,12 @@ pub mod service_claim_watch_watched_repositories;
 /// the landing's own write,
 /// and the store's write under the first free name.
 pub mod service_claim_watch_writing_a_note;
+
+/// The reading of the claim watch's store:
+/// which notes are kept,
+/// which are removed as certainly of no use,
+/// and what could not be read at all.
+pub mod service_claim_watch_reading_the_store;
 
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
@@ -800,6 +882,17 @@ pub mod service_land_copy;
 
 pub mod service_land_follow;
 
+/// How one step of the index reset asks Git,
+/// on a thread and on the runtime,
+/// and what answer it stands for.
+pub mod service_land_follow_index_reset_git_questions;
+
+/// The paths a reset installs, as the bytes `git reset` reads them:
+/// a pathspec that names one path from the top of the worktree,
+/// a NUL-separated list of them,
+/// and the names that differ between two commits.
+pub mod service_land_follow_index_reset_paths;
+
 /// What a landing does when its branch write is refused while the branch is still where the batch found it:
 /// the reference locks that stand,
 /// the bounded wait for a live holder,
@@ -852,6 +945,12 @@ pub mod service_index_marker;
 
 /// The marker of the next batch's index lock,
 /// made and flushed while the service is idle.
+/// The marker this service keeps made ahead:
+/// its slot,
+/// the record of every file made,
+/// and the step that makes and records one.
+pub mod service_index_prestage_the_markers_made_ahead;
+
 pub mod service_index_prestage;
 
 /// What an acquisition of the index lock found when it had to wait,
@@ -942,6 +1041,13 @@ pub mod service_prepare_own_git_steps;
 /// The smaller steps of a service preparation.
 pub mod service_prepare_changes_config_and_pathspec_steps;
 
+/// The commit message Git makes of the `-m` texts when no editor opens.
+pub mod service_commit_args_message;
+
+/// The arguments of a commit Git built,
+/// rewritten so that the message the person already typed is used as it is and no editor opens.
+pub mod service_commit_args_fixed_message;
+
 /// Which commit command lines the commit service covers,
 /// and the message they stand for.
 pub mod service_commit_args;
@@ -1030,6 +1136,10 @@ pub mod service_replay_line_text;
 /// through the service,
 /// set up first,
 /// or the earlier path.
+/// What the status of a worktree's service answers,
+/// and the words it answers with.
+pub mod service_route_what_the_status_answers;
+
 pub mod service_route;
 
 /// The message and identities of a service commit,
@@ -1060,6 +1170,11 @@ pub mod service_replay_conclusion;
 /// message and signature,
 /// on the replayed tree,
 /// on top of the branch as it is now.
+/// The commit an amend makes on the branch as it is now,
+/// its fields,
+/// and the request that lands it.
+pub mod service_amend_replayed_the_commit_made_again;
+
 pub mod service_amend_replayed;
 
 /// The commits real Git builds for the service:
@@ -1154,6 +1269,18 @@ pub mod service_work_drain_waves_of_one_kind;
 /// and each settled as its own answer comes.
 pub mod service_work_drain_pushes_of_each_branch;
 
+/// The claimed items of one batch of the drain,
+/// sorted into one list per kind of work.
+pub mod service_work_drain_claims_by_kind;
+
+/// The housekeeping one round of the drain may start,
+/// the upkeep it runs on the items it holds,
+/// and what it leaves for a later round.
+pub mod service_work_drain_housekeeping_and_upkeep;
+
+/// When the caller of one drain of a work directory must look at it again.
+pub mod service_work_drain_look_again;
+
 /// Drains the pending items of one work directory.
 pub mod service_work_drain_pending_claims;
 
@@ -1189,6 +1316,10 @@ pub mod service_work_storage_awaited;
 
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
+/// The pushes a round runs again because their retry is due,
+/// and the programs a record's end gives up.
+pub mod service_work_drains_awaiting_the_due_push_retries;
+
 pub mod service_work_drains_awaiting;
 
 /// The service's work that can take minutes:
@@ -1235,6 +1366,11 @@ pub mod service_head;
 /// answered from the object store without starting Git.
 pub mod service_built_checks;
 
+/// Whether a tree, a tree below it or a blob in any of them is gone from the object store,
+/// for every root of a batch,
+/// and what that walk cost.
+pub mod service_pruned_tree_closures;
+
 /// How a commit headed for the service notices that its prepared content was removed before it landed.
 pub mod service_pruned;
 
@@ -1245,6 +1381,10 @@ pub mod service_object_questions_left_to_git;
 /// Where the landing's own syncs wait:
 /// queued for a background thread when the landing publishes,
 /// made before return otherwise.
+/// The task that makes a landing's syncs after the landing answered,
+/// and the wait a control makes until its queue is empty.
+pub mod service_durable_the_background_sync_thread;
+
 pub mod service_durable;
 
 /// The syncs one landing made,
@@ -1268,6 +1408,10 @@ pub mod service_commit_waiting_notices;
 /// The removal of an index lock that no process holds and no Git lock PID file stands behind,
 /// on a proof written to the service journal.
 pub mod service_index_unheld_removal;
+
+/// What the file at one slot of the claim chain is,
+/// read without following a link or waiting on a pipe.
+pub mod service_index_claim_files;
 
 /// The claim chain that keeps two reclaimers apart where the file system gives no `flock`.
 pub mod service_index_claim;

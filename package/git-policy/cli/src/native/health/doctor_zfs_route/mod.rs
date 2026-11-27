@@ -51,12 +51,28 @@
 //! - `check_outcome.rs`:
 //!   what one check answered,
 //!   the checks' stable names and the line each report prints.
+//! - `zfs_checks_limits.rs`:
+//!   the numbers and words the kernel and the design fix.
+//! - `zfs_checks_reading.rs`:
+//!   what a read of one dataset answered,
+//!   and the rule that reads a failed read.
+//! - `zfs_checks_machine_prerequisites.rs`:
+//!   the device,
+//!   the ABI verdict and the pool.
+//! - `zfs_checks_dataset_roles.rs`:
+//!   a dataset's role and the facts a read of it answered.
+//! - `zfs_checks_dataset_properties.rs`:
+//!   one dataset against the properties its role requires.
+//! - `zfs_checks_key_and_clones.rs`:
+//!   the encryption key of each dataset,
+//!   and every clone's attach properties.
 //! - `zfs_checks.rs`:
 //!   the device,
 //!   the ABI verdict,
 //!   the pool,
 //!   the checkout and container datasets,
-//!   their keys and the clones' properties.
+//!   their keys and the clones' properties,
+//!   one report per dataset.
 //! - `snapshot_directory_checks.rs`:
 //!   the `snapdir` of the checkout dataset and of the clone container,
 //!   and the command that sets it where it is not `disabled`.
@@ -81,16 +97,51 @@
 //!   who a grant names,
 //!   how widely it reaches,
 //!   and the dataset that carries it.
+//! - `delegation_checks_permissions.rs`:
+//!   the permissions the route's account needs,
+//!   where the design grants each of them,
+//!   and the permissions the route must not have.
+//! - `delegation_checks_grant_commands.rs`:
+//!   how a required permission was met,
+//!   and the `zfs allow` and `zfs unallow` commands that move a grant.
+//! - `delegation_checks_narrowing.rs`:
+//!   the wider grants a person narrows,
+//!   and the lines that name them.
+//! - `delegation_checks_forbidden_grants.rs`:
+//!   the lineage-changing grants the account holds or would come to hold.
 //! - `delegation_checks.rs`:
 //!   the required and forbidden permissions,
 //!   the effective delegation including ancestor grants,
-//!   and the commands that settle each finding.
+//!   and the commands that settle each finding,
+//!   judged here.
+//! - `handler_checks_paths_and_modes.rs`:
+//!   the paths,
+//!   owners and modes every handler check compares against,
+//!   and what one look at a path answered.
+//! - `handler_checks_installation.rs`:
+//!   the installed executable and zedlet,
+//!   and the root modes the one executable must answer.
+//! - `handler_checks_configuration.rs`:
+//!   the handler's configuration file:
+//!   its owner,
+//!   its mode and whether its text parsed.
+//! - `handler_checks_folder_modes.rs`:
+//!   the readiness and results folders against root ownership and the modes
+//!   the design fixes.
+//! - `handler_checks_zed_wiring.rs`:
+//!   ZED's unit,
+//!   its enablement and the other zedlets an enablement runs.
+//! - `handler_checks_readiness.rs`:
+//!   the latest readiness record and whether it admits an attach.
+//! - `handler_checks_unresolved_requests.rs`:
+//!   the clone requests no receipt of this boot answers.
 //! - `handler_checks.rs`:
 //!   the handler's installation,
 //!   configuration,
 //!   root-owned folders,
 //!   ZED and service wiring,
-//!   the latest readiness and the unresolved requests.
+//!   the latest readiness and the unresolved requests,
+//!   named here.
 //! - `staging_folder_checks.rs`:
 //!   the staging folder under the account's cache and the propagation of its
 //!   live bind.
@@ -141,11 +192,31 @@
 /// the checks' stable names and the printed line.
 pub mod check_outcome;
 
+/// The numbers and words the kernel and the design fix.
+pub mod zfs_checks_limits;
+
+/// What a read of one dataset answered.
+pub mod zfs_checks_reading;
+
+/// The device,
+/// the ABI verdict and the pool.
+pub mod zfs_checks_machine_prerequisites;
+
+/// A dataset's role and the facts a read of it answered.
+pub mod zfs_checks_dataset_roles;
+
+/// One dataset against the properties its role requires.
+pub mod zfs_checks_dataset_properties;
+
+/// The encryption key of each dataset and every clone's properties.
+pub mod zfs_checks_key_and_clones;
+
 /// The device,
 /// ABI,
 /// pool,
 /// dataset,
-/// key and property checks.
+/// key and property checks,
+/// one report per dataset.
 pub mod zfs_checks;
 
 /// The `snapdir` of the checkout dataset and of the clone container.
@@ -167,8 +238,45 @@ pub mod identity_checks;
 /// The kernel's delegation reply and the grant model it becomes.
 pub mod delegation_reply;
 
+/// The permissions the design requires and forbids.
+pub mod delegation_checks_permissions;
+
+/// How a required permission was met,
+/// and the commands that move a grant.
+pub mod delegation_checks_grant_commands;
+
+/// The wider grants a person narrows.
+pub mod delegation_checks_narrowing;
+
+/// The lineage-changing grants the account holds or would come to hold.
+pub mod delegation_checks_forbidden_grants;
+
 /// The effective delegation and the lineage-changing grants' absence.
 pub mod delegation_checks;
+
+/// What one look at a path answered,
+/// and the paths,
+/// owners and modes every handler check compares against.
+pub mod handler_checks_paths_and_modes;
+
+/// The installed halves and the root modes the one executable must answer.
+pub mod handler_checks_installation;
+
+/// The handler's configuration file.
+pub mod handler_checks_configuration;
+
+/// The two root-owned folders.
+pub mod handler_checks_folder_modes;
+
+/// ZED's unit,
+/// its enablement and the other zedlets.
+pub mod handler_checks_zed_wiring;
+
+/// The latest readiness record.
+pub mod handler_checks_readiness;
+
+/// The clone requests no receipt of this boot answers.
+pub mod handler_checks_unresolved_requests;
 
 /// The handler's installation,
 /// folders,

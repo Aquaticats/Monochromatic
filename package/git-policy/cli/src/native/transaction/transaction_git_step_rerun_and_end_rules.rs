@@ -2,8 +2,9 @@
 //!  Which Git steps may be run again after the system refused a process,
 //! and which may be ended at a ceiling:
 //!  the allow-lists,
-//! the parse of a step's words into options and paths,
-//! and the proven forms.
+//! and the proven forms,
+//! over the words `transaction_git_step_words.rs` parses,
+//! the options and paths of one step.
 //! Why:
 //!  The runner (`transaction_git.rs`) asks these questions of a `GitRequest` before it reruns or ends a step,
 //!  and the step bounds (`transaction_git_step_bounds.rs`) ask the second;
@@ -14,11 +15,16 @@
 //! // mayBeRerun(request): boolean; mayBeEnded(request): boolean; isSideRefWrite(request): boolean; subcommandOf(args)
 //! ```
 
+/// The subcommand and the words after it,
+/// which every rule here reads,
+/// re-exported under the path they had in this file.
+pub(crate) use super::transaction_git_step_words::subcommand_of;
+use super::transaction_git_step_words::{
+    Words,
+    words_after,
+};
 /// The request whose command line is judged.
 use crate::transaction_git_request_and_reply_types::GitRequest;
-/// `OsString` is owned operating-system text,
-/// the type of a command-line argument.
-use std::ffi::OsString;
 
 /// Commands whose second run after a refusal is harmless:
 /// they read,
@@ -45,36 +51,6 @@ const RERUNNABLE: &[&str] = &[
     "index-pack",
     "version",
 ];
-
-/// What:
-///  The subcommand a request runs and where it sits among the arguments,
-///  past the global options (`-c <pair>`,
-/// `-C <directory>` and the `--option` forms).
-/// Why:
-///   The rerun allow-list is decided by the subcommand and,
-/// for a few,
-/// by its options.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const index = args.findIndex(...); // first token that is not a global option or its value
-/// ```
-pub(crate) fn subcommand_of(arguments: &[OsString]) -> Option<(usize, String)> {
-    let mut index: usize = 0;
-    while index < arguments.len() {
-        let text: String = arguments[index].to_string_lossy().into_owned();
-        if text == "-c" || text == "-C" {
-            index += 2;
-            continue;
-        }
-        if text.starts_with('-') {
-            index += 1;
-            continue;
-        }
-        return Some((index, text));
-    }
-    return None;
-}
 
 /// What:
 ///  Whether an `--object-format=<name>` option names a hash the wrapper creates shadows with:
@@ -211,29 +187,6 @@ fn merge_file_reads_only(words: &Words<'_>) -> bool {
 }
 
 /// What:
-///  The arguments after the subcommand,
-/// as text.
-/// Why:
-///  The rerun and ending rules judge the words of a step,
-/// and arguments that are not valid text are read lossily so a
-///  odd byte never makes a rule panic.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// request.args.slice(position + 1).map(String)
-/// ```
-fn words_after(
-    request: &GitRequest,
-    position: usize,
-) -> Vec<String> {
-    let mut words: Vec<String> = Vec::new();
-    for argument in &request.arguments[position + 1..] {
-        words.push(argument.to_string_lossy().into_owned());
-    }
-    return words;
-}
-
-/// What:
 ///  Whether a `config` option is one that only reads:
 /// `--get`,
 /// `--get-all`,
@@ -322,88 +275,6 @@ const READS_AND_OBJECT_WRITERS: &[&str] = &[
     "commit-tree",
     "mktree",
 ];
-
-/// The words of a request after its subcommand,
-/// sorted into the options before a `--`,
-/// the other words before it,
-/// and the words
-///  after it.
-/// Only options that a proven form lists are accepted,
-/// so no option here takes a value the next word could be mistaken
-///  for.
-struct Words<'a> {
-    /// The words that start with a hyphen,
-    /// before any `--`.
-    options: Vec<&'a str>,
-    /// The other words before any `--`.
-    before: Vec<&'a str>,
-    /// The words after a `--`,
-    /// when there was one.
-    after: Option<Vec<&'a str>>,
-}
-
-impl<'a> Words<'a> {
-    /// Sort `words`.
-    fn of(words: &'a [String]) -> Self {
-        let mut sorted: Words<'a> = Words {
-            options: Vec::new(),
-            before: Vec::new(),
-            after: None,
-        };
-        for word in words.iter().map(String::as_str) {
-            match sorted.after.as_mut() {
-                Some(after) => after.push(word),
-                None if word == "--" => sorted.after = Some(Vec::new()),
-                None if word.starts_with('-') && word.len() > 1 => sorted.options.push(word),
-                None => sorted.before.push(word),
-            }
-        }
-        return sorted;
-    }
-
-    /// Whether every option is one of `allowed`.
-    fn only_options(
-        &self,
-        allowed: &[&str],
-    ) -> bool {
-        for option in &self.options {
-            if !allowed.contains(option) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /// Whether any word came after a `--` and there is at least one of them.
-    fn names_paths(&self) -> bool {
-        return match &self.after {
-            Some(paths) => !paths.is_empty(),
-            None => false,
-        };
-    }
-
-    /// How many of `wanted` are among the options.
-    fn count_present(
-        &self,
-        wanted: &[&str],
-    ) -> usize {
-        let mut present: usize = 0;
-        for option in wanted {
-            if self.has(option) {
-                present += 1;
-            }
-        }
-        return present;
-    }
-
-    /// Whether the option `wanted` is there.
-    fn has(
-        &self,
-        wanted: &str,
-    ) -> bool {
-        return self.options.contains(&wanted);
-    }
-}
 
 /// The setting the wrapper puts on the command line of every write of a side ref,
 /// with `--no-deref`:

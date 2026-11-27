@@ -296,8 +296,9 @@ export type VirtualPool = {
   readonly model: string;
 
   /**
-   The pools the router may send its requests to, in the order it tries them, which is every pool those members belong to. A
-   member outside every pool of {@link PROVIDER_POOLS}, such as Synthetic, holds no slot and is not listed.
+   The pools the router may send its requests to, in the order it tries them, which is every pool those members belong to. A run
+   on the selection holds no slot in any of them, so the list says what a refusal moves the request on to, and what the launcher
+   names on its line; a member outside every pool of {@link PROVIDER_POOLS}, such as Synthetic, is not listed.
    */
   readonly memberPools: readonly ProviderPool[];
 };
@@ -339,7 +340,7 @@ export const VIRTUAL_REVIEWER: VirtualPool = {
 };
 
 /**
- Every virtual selection this driver counts, so a run started on one holds the room of the pools its router may take.
+ Every virtual selection this driver knows, so a run started on one keeps the pair it named and is counted in no pool.
  */
 export const VIRTUAL_POOLS: readonly VirtualPool[] = [
   VIRTUAL_WRITER,
@@ -553,18 +554,26 @@ export const AUDIT_RUN_PREFIX = 'sol-';
 export const KIMI_RUN_PREFIX = 'kimi-';
 
 /**
- What a run's pool membership is: the pool it holds a slot in, every pool it could be running on when nothing could be read
- about it, or the fact that no shared pool holds it.
+ What a run's pool membership is: the pool it holds a slot in, the virtual selection whose router it names, every pool it could
+ be running on when nothing could be read about it, or the fact that no shared pool holds it.
 
- A run whose pool is unknown holds a slot in each pool it could be running on, never in one guessed pool: the scratch launcher
- answered `opencode-go` for every unit whose launcher had gone, which is how runs sat on standard Neuralwatt while its count read
- empty until 2026-11-11.
+ A run on a virtual selection holds no slot at all: its router starts every request at the first member and moves the request on
+ when a member refuses before any output, so the run takes no member's room and the gate counts it in no pool. The owner,
+ 2026-11-26, asked how the pool gate counts such a run: "No count (Recommended)", because the router moves a refused request on
+ by itself. A run whose pool is unknown holds a slot in each pool it could be running on, never in one guessed pool: the scratch
+ launcher answered `opencode-go` for every unit whose launcher had gone, which is how runs sat on standard Neuralwatt while its
+ count read empty until 2026-11-11.
  */
 export type PoolMembership =
   | {
     readonly holds: 'a-pool';
     readonly pool: ProviderPool;
   }
+    | {
+      readonly holds: 'a-virtual-selection';
+      readonly virtual: VirtualPool;
+      readonly pools: readonly ProviderPool[];
+    }
     | {
       readonly holds: 'some-pools';
       readonly pools: readonly ProviderPool[];
@@ -770,12 +779,12 @@ export function virtualPoolNamed({
 }
 
 /**
- Reads what a run's own provider and model hold: one pool, every pool a virtual selection's router may send it to, or nothing at
- all when the pair belongs to no pool.
+ Reads what a run's own provider and model hold: one pool, the virtual selection its router names, or nothing at all when the
+ pair belongs to no pool.
 
- This is the reading every counter takes, because a run on a virtual selection has no single pool to hold: its router starts from
- the first member on every request and moves on when a member refuses, so the run may be taking any of those pools' room at the
- next request. Holding a slot in each of them is what keeps a pool from taking more runs than its room after such a move.
+ This is the reading every counter takes, because a run on a virtual selection holds no slot in any pool: its router starts every
+ request at the first member and moves the request on when a member refuses, so nothing about the members' room decides whether
+ the run may start. The owner, 2026-11-26, asked how the pool gate counts such a run: "No count (Recommended)".
 
  @param provider - the provider the run names
 
@@ -807,19 +816,64 @@ export function membershipOfSelection({
     model,
   },);
   if (virtual !== NO_VIRTUAL_POOL) {
-    return {
-      holds: 'some-pools',
-      pools: virtual.memberPools
-        .map(function asTheTableHoldsIt(pool,) {
-          return poolOfThatNameIn({
-            pool,
-            pools,
-          },);
-        },),
-    };
+    return membershipOfAVirtualSelection({
+      virtual,
+      pools,
+    },);
   }
   return poolNamed({
     provider,
     model,
   },);
+}
+
+/**
+ Reads the membership of a run on a virtual selection: the selection and the members its router may take, with those members read
+ from the table being counted so a caller's limits reach whatever names them, and no slot in any of them.
+
+ @param virtual - the selection the run names
+
+ @param pools - the pools its members are read from, which carry any limit a caller set
+
+ @returns the membership, which holds no pool
+
+ @example
+ ```ts
+ const holds = membershipOfAVirtualSelection({ virtual: VIRTUAL_WRITER, },);
+ ```
+ */
+export function membershipOfAVirtualSelection({
+  virtual,
+  pools = PROVIDER_POOLS,
+}: {
+  readonly virtual: VirtualPool;
+  readonly pools?: readonly ProviderPool[];
+},): PoolMembership {
+  return {
+    holds: 'a-virtual-selection',
+    virtual,
+    pools: virtual.memberPools
+      .map(function asTheTableHoldsIt(pool,) {
+        return poolOfThatNameIn({
+          pool,
+          pools,
+        },);
+      },),
+  };
+}
+
+/**
+ Reads the text a virtual selection is named by on a line or in a refusal: the provider and model a run names to take it.
+
+ @param virtual - the selection to name
+
+ @returns its provider and model, joined by a slash as a run writes them
+
+ @example
+ ```ts
+ const named = virtualTextOf({ virtual: VIRTUAL_WRITER, },);
+ ```
+ */
+export function virtualTextOf({ virtual, }: { readonly virtual: VirtualPool },): string {
+  return `${virtual.provider}/${virtual.model}`;
 }

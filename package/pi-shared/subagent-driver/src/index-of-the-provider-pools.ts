@@ -30,6 +30,7 @@ export {
   NO_VIRTUAL_POOL,
   limitsIn,
   membershipOf,
+  membershipOfAVirtualSelection,
   membershipOfSelection,
   poolNamed,
   poolOfThatNameIn,
@@ -37,6 +38,7 @@ export {
   poolsWithTheseLimits,
   poolTakesNoNewRun,
   virtualPoolNamed,
+  virtualTextOf,
 } from './pool-limits.ts';
 export {
   NO_POOL_HAS_ROOM,
@@ -44,7 +46,6 @@ export {
   firstDefaultPoolWithRoom,
   poolHasRoom,
   poolsHeldBy,
-  poolsWithoutRoom,
   roomIn,
   summaryTextOf,
   talliesOf,
