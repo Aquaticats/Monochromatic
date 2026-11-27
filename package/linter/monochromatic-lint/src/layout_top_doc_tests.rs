@@ -278,12 +278,17 @@ fn a_marker_in_a_different_case_is_a_near_miss() {
 }
 
 /// A text two words away from the marker is a different sentence,
-///  so no finding asks its author to change it.
+///  so no finding asks its author to change it,
+///  and that holds at the marker's own length too,
+///  where one word put in place of another would still be a near miss.
 #[test]
 fn a_marker_two_words_off_is_no_near_miss() {
     for text in [
         "//! Files in this module,\n//! each using only the files listed before it:\n",
         "//! Files in this folder,\n//! each using only files listed before it: and more\n",
+        // What: the marker's own length with two of its words put in place of two others, `after one` for `before it`.
+        // Why: an equal-length text one word away is a near miss, so the length alone must not decide this one.
+        "//! Files in this folder,\n//! each using only files listed after one:\n",
         "//! Words about the folder.\n",
     ] {
         let doc = read_top_doc(text);

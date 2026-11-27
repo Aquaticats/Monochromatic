@@ -448,10 +448,12 @@ fn the_read_stops_one_byte_past_the_cap() {
 }
 
 /// A key is answered from the index the list read once,
-///  so tolerating one finding of a long list walks no entry at all,
-///  where a scan over every entry would walk each of them.
+///  so tolerating one finding reads the one entry that holds its key and no entry before it,
+///  where a scan over the entries would read each of them.
+/// The control fails when the index is replaced by a scan:
+///  the same list holds 64 keys and a scan of it reads 64 entries.
 #[test]
-fn a_key_lookup_walks_no_entry_of_the_list() {
+fn a_key_lookup_reads_one_entry_of_the_list() {
     // What: the number of keys the fixture list holds, named so the last one is no magic number.
     // Why: the list must be long enough that a scan before the last key is unmistakable in the count.
     const KEYS: usize = 64;
@@ -488,8 +490,8 @@ fn a_key_lookup_walks_no_entry_of_the_list() {
     );
     assert_eq!(
         counted_work::entries_walked(),
-        0,
-        "the index answers a key without walking the entries"
+        1,
+        "the index names the one entry that holds the key, and the question reads that one"
     );
 }
 
