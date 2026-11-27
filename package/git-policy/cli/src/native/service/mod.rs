@@ -135,6 +135,13 @@
 //!   the D-Bus wire format of the user manager client:
 //!   calls written,
 //!   replies read.
+//! - `systemd_dbus_manager_calls_and_error_names.rs`:
+//!   the names the user manager is reached by on the session bus,
+//!   and the error names a bus or the manager answers with.
+//! - `systemd_dbus_failures.rs`:
+//!   the failures of a bus exchange as the call's own error.
+//! - `systemd_dbus_session_address.rs`:
+//!   where the session bus of this user listens.
 //! - `systemd_dbus.rs`:
 //!   a minimal D-Bus client for the user session bus,
 //!   for the provisioning's two calls.
@@ -593,6 +600,16 @@ pub mod service_provision_slow_manager_notice;
 
 /// Checks and writes on the unit files of the commit service.
 pub mod service_provision_unit_file_ownership_and_writes;
+
+/// The names the user manager is reached by on the session bus,
+/// and the error names a bus or the manager answers with.
+pub mod systemd_dbus_manager_calls_and_error_names;
+
+/// The failures of a bus exchange as the call's own error.
+pub mod systemd_dbus_failures;
+
+/// Where the session bus of this user listens.
+pub mod systemd_dbus_session_address;
 
 /// A minimal D-Bus client for the user session bus,
 /// for the provisioning's two calls.
