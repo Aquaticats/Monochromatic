@@ -14,7 +14,8 @@
 //!   the per-branch file name of the push failure notice:
 //!   a reversible,
 //!   flat,
-//!   case-safe key.
+//!   case-safe key,
+//!   and the hash that shortens a key too long for a file name.
 //! - `auto_push_dirty_paths.rs`:
 //!   the paths of a dirty worktree and of a fast-forward,
 //!   and their overlap.
@@ -88,13 +89,6 @@
 //! - `push_failure_notice_cleared_after_a_push.rs`:
 //!   the records a push of a branch makes no longer true,
 //!   and the step that removes them once such a push succeeded.
-//! - `push_failure_notice.rs`:
-//!   the record of a failed backup push and the rule for when a wrapper command shows it.
-//! - `push_failure_notice_words.rs`:
-//!   the words a found record becomes:
-//!   the text of a failed push,
-//!   of a push the service did not make,
-//!   and of one lost with its worktree.
 //! - `push_limit_held_for_an_ordering.rs`:
 //!   where a control holds a run's limit until the ordering it needs has happened,
 //!   so a stop is never decided by elapsed time alone.
@@ -114,13 +108,6 @@
 //!   a branch waiting,
 //!   the tries due again,
 //!   and the change a worker asks of the plan.
-//! - `push_retry.rs`:
-//!   the service's own retry of a push it stopped or that failed:
-//!   the list of branches waiting for a new try,
-//!   and what a start rebuilds it from.
-//! - `push_retry_changes_applied.rs`:
-//!   what the workers of a round asked,
-//!   applied to the list the service loop reads.
 //! - `push_retry_cause_line.rs`:
 //!   the first of Git's own lines that gives a reason for a push's failure.
 //! - `push_retry_store.rs`:
@@ -215,11 +202,6 @@
 //!   what a remote has already published:
 //!   the commits a prior destination value names,
 //!   and the tracking refs Git keeps.
-//! - `push_retry_failure.rs`:
-//!   what a failed push's own words mean for that retry:
-//!   whether the failure is final,
-//!   how many tries the one counted cause gets,
-//!   and the words the person reads.
 //! - `push_server_naming.rs`:
 //!   the server a push waits for,
 //!   named from the command's own destination.
@@ -272,14 +254,24 @@
 //! - `push_held_back_by_a_blocked_commit_awaiting.rs`:
 //!   where the push of one branch stops when its questions go to a Git awaited on the runtime,
 //!   which is the decision of `push_held_back_by_a_blocked_commit.rs` with its waits as tasks of the runtime.
-//! - `auto_push_awaiting.rs`:
-//!   the same automatic push as a task of the runtime.
 //! - `blocked_commit_questions.rs`:
 //!   the questions about a repository's history that decide where the automatic push stops,
 //!   in the faces that ask them.
 //! - `auto_push_reconcile_merge_commit.rs`:
 //!   the merge commit of a reconcile,
 //!   built in the object store without a worktree or an index.
+//! - `push_retry.rs`:
+//!   the service's own retry of a push it stopped or that failed:
+//!   the list of branches waiting for a new try,
+//!   and what a start rebuilds it from.
+//! - `push_retry_changes_applied.rs`:
+//!   what the workers of a round asked,
+//!   applied to the list the service loop reads.
+//! - `push_retry_failure.rs`:
+//!   what a failed push's own words mean for that retry:
+//!   whether the failure is final,
+//!   how many tries the one counted cause gets,
+//!   and the words the person reads.
 //! - `auto_push_reconcile_awaiting.rs`:
 //!   the reconcile loop and its merge push,
 //!   awaited by a task of the runtime,
@@ -292,15 +284,25 @@
 //!   run as a child,
 //!   merge in what landed on the remote and publish the merge.
 //! - `auto_push.rs`:
-//!   post-commit auto-push of a landed commit:
+//!   the plan and the words of a post-commit auto-push:
 //!   the push argv,
 //!   the surfaced output and the failure reporting.
 //! - `push_tracking_ref_repair.rs`:
 //!   the remote-tracking reference a successful push delivered,
 //!   brought up to date when Git could not write it.
+//! - `push_failure_notice_words.rs`:
+//!   the words a found record becomes:
+//!   the text of a failed push,
+//!   of a push the service did not make,
+//!   and of one lost with its worktree.
+//! - `auto_push_awaiting.rs`:
+//!   the same automatic push as a task of the runtime,
+//!   and the plain-thread face that enters the runtime for it.
 //! - `push_without_its_transport.rs`:
 //!   the words a service push stops with when the transport settings of the command that asked for it are gone,
 //!   with the one command that pushes the branch instead.
+//! - `push_failure_notice.rs`:
+//!   the record of a failed backup push and the rule for when a wrapper command shows it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

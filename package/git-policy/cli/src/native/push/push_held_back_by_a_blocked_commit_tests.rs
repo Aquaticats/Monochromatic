@@ -16,8 +16,8 @@ use super::*;
 use crate::auto_push::{
     AutoPushOutcome,
     AutoPushResult,
-    push_once,
 };
+use crate::auto_push_awaiting::push_once;
 use crate::auto_push_single_flight::PushGit;
 use crate::blocked_commit_lines::{
     UNRECORDED_REASON,
@@ -244,7 +244,7 @@ fn await_push(
 ) -> AutoPushResult {
     let mut err: Vec<u8> = Vec::new();
     let result: Result<AutoPushResult, crate::auto_push_single_flight::SingleFlightError> =
-        crate::lazy_runtime::run_on_runtime(crate::auto_push::push_once_awaiting(
+        crate::lazy_runtime::run_on_runtime(crate::auto_push_awaiting::push_once_awaiting(
             &queue_git(world.repo.as_path()),
             BRANCH,
             landed,
