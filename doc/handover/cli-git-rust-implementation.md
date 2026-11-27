@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T10:42:23-05:00
+## The state at 2026-11-27T10:46:13-05:00
 
-`main` was `0e7297a9fd`.
+`main` was `316c54b72a`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 206 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 209 more by this time.
 
 ### Rounds running
 
@@ -144,16 +144,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which the reader has refused since 2026-11-25;
   every assertion after `SLOT-STATE pending-add` in that arm is unverified until it is fixed.
   The container gate does not run that arm;
-- `issue-6602-moved-log-control-owns-the-claim-it-reads`,
-  `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
+- `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
   and `issue-6607-the-wrapper-after-a-failed-exec-ends-as-it-means-to`
   ("What the rounds found");
-- three rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
+- two rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
   each named `wrapper-alpha-48-release-pass-<what>`:
-  `four-small-points-outside-the-slot-route`,
-  `splits-keep-the-reach-and-the-platform-gates-items-had`
+  `four-small-points-outside-the-slot-route`
   and `list-guards-name-the-files-the-splits-made`.
   Merged from those passes:
+  the items a split had made bare `pub` are narrowed,
+  28 platform gates are back,
+  and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
   the slot refusals read every shell alias the guard can follow (`cd62517318`);
   the merge pass reaches a last line with no line end (`f583a0d9bf`),
   where a generated control also found and fixed a correct merge that was refused;
@@ -161,8 +162,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
   the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
 - in `cargo-shadow`,
-  `issue-6599-recycled-time-namespace-control-builds-its-own-schedule`
-  and two rounds for its alpha.12 release pass ("Releases of 2026-11-27"):
+  two rounds for its alpha.12 release pass ("Releases of 2026-11-27"):
   `cargo-shadow-alpha-12-release-pass-the-retire-costs-an-ordinary-run-nothing-and-stops-no-live-scope`
   and `cargo-shadow-alpha-12-release-pass-the-refusals-branches-and-the-listing-bound-are-held-by-controls`.
   Issue 6578's second round is merged (`6de3eee877`):
@@ -818,6 +818,13 @@ and the two `truepeak` files wait on their branch.
   piped,
   prints the comments alone and nothing for an issue without any;
   `doc/agent/issue-tracker.md` now gives the `--json` form.
+- Three more controls that failed only in wide or loaded runs are fixed by what each owns,
+  none through a fault of release code:
+  issue 6599 (`0a2b5b0176`,
+  a recycled time-namespace number another process took first),
+  issue 6602 (the moved-log control met a journal lock a fork of another test's thread had copied)
+  and issue 6603 (`286f9d6dfc`,
+  a deadline control armed its hold after the read had started).
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
