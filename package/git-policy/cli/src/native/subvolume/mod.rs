@@ -109,6 +109,19 @@
 //!   the lines a tree pass says about what it could not carry into the destination.
 //! - `subvolume_run.rs`:
 //!   the state a migration command carries between its steps.
+//! - `subvolume_migrate_options.rs`:
+//!   what a person asked a migration to do,
+//!   and how one ended.
+//! - `subvolume_migrate_steps.rs`:
+//!   the steps that change the checkout:
+//!   create,
+//!   the index locks,
+//!   the exchange,
+//!   and the finish.
+//! - `subvolume_migrate_words.rs`:
+//!   the lines a migration says:
+//!   the facts the run begins with,
+//!   and the closing text with everything left to do.
 //! - `subvolume_migrate.rs`:
 //!   converting a main checkout into a btrfs subvolume,
 //!   resumably.
@@ -319,6 +332,25 @@ pub mod subvolume_preflight;
 /// The state a migration command carries between its steps.
 #[cfg(target_os = "linux")]
 pub mod subvolume_run;
+
+/// What a person asked a migration to do,
+/// and how one ended.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate_options;
+
+/// The steps that change the checkout:
+/// create,
+/// the index locks,
+/// the exchange,
+/// and the finish.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate_steps;
+
+/// The lines a migration says:
+/// the facts the run begins with,
+/// and the closing text with everything left to do.
+#[cfg(target_os = "linux")]
+pub mod subvolume_migrate_words;
 
 /// Converting a main checkout into a btrfs subvolume,
 /// resumably.
