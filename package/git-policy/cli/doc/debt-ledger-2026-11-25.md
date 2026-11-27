@@ -1037,16 +1037,17 @@ Four `SPEC.md` citations name files that do not exist:
 Two more in `doc/` are historical (`doc/step-5-second-executable-2026-11-20.md:27`,
 `doc/planted-control-and-durable-survivors-resume.md:14`).
 
-Note of 2026-11-27T10:07:58-05:00:
+Note of 2026-11-27T10:23:54-05:00:
 all four passages are corrected in `SPEC.md` by `52f55a54db`
 (2026-11-25T16:57:53-05:00),
 which rewrote the nested-volume bullet to point at
-`worktree/worktree_removal_goes_around_a_foreign_volume.rs`
-(`volumes_below` and `remove_around_what_is_not_this_removals`),
-so the refusal text this item placed in `worktree/worktree_remove_hand_over.rs` moved there in
-`05c202a266` (2026-11-27);
-the boundary's own refusal words are in `subvolume/subvolume_remove_walk_boundary_and_refusal.rs`
-since `f76de23f0e` (2026-11-26).
+`worktree/worktree_removal_goes_around_a_foreign_volume.rs` and its `volumes_below`;
+the words this item placed in `worktree/worktree_remove_hand_over.rs` moved in
+`05c202a266` (2026-11-27) to
+`worktree/worktree_remove_hand_over_around_a_foreign_volume.rs`
+(`remove_around_what_is_not_this_removals` and its sentence about a volume that is not the removal's);
+the boundary's own refusal words are in
+`subvolume/subvolume_remove_walk_boundary_and_refusal.rs` since `f76de23f0e` (2026-11-26).
 Cost: the first passage invites the exact mistake the incident recorded.
 Fix: delete or rewrite the bullet; correct the four paths.
 Caution for the round: `Cargo.toml` says `service::service_instance_tests` and
