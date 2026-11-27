@@ -3191,3 +3191,53 @@ the coordinating session's:
 keep it hidden > say what the removal took,
 because a sentence does not bring a finished copy back,
 and the read of the other locks is one `prune` already makes for their versions.
+
+## Open: two words in `mpm-shadow`'s install report that say more than the run read (recorded 2026-11-27T16:19:06-05:00)
+
+The round that made the report's sentences about a leftover say only what the run read
+(merged as `a49bf155cd`)
+left these as they were and returned them,
+because each trades exactness against something a person learns from the word.
+Neither holds a release.
+
+### "another install published that version meanwhile"
+
+Printed when this run drops a copy because the version's name already holds a finished one.
+What the run read is that a finished copy stood at the name which this run did not put there.
+
+- Say what was read:
+  "because a finished copy of that version appeared at its name meanwhile".
+  The sentence then claims nothing about who did it;
+  the cost is that a person is no longer told the usual writer of that name,
+  another install.
+- As now:
+  the sentence names the one writer the scheme has;
+  the cost is that a copy a person put there by hand is called an install's.
+
+Ranking,
+the coordinating session's:
+say what was read > as now,
+because the release read's finding was that these sentences name causes the tool does not know,
+and the exact words lose only a guess.
+
+### "the older version that was installed before this run"
+
+Printed when the newest-only rule removes an older version directory this run did not put there.
+The rule removes unfinished directories too,
+so "installed" is one step past what the run read.
+
+- Say which it was:
+  the run reads whether that directory held a finished copy,
+  says "installed" when it did,
+  and "an unfinished copy that was there before this run" when it did not.
+  The cost is one more read of a directory that is about to be removed.
+- Say "that was there before this run" for both:
+  exact,
+  at the cost of the word that tells a person the older version had been working.
+- As now.
+
+Ranking,
+the coordinating session's:
+say which it was > "that was there" > as now,
+because the first is exact and keeps the word where it is true,
+and the second is exact where today's sentence is not.
