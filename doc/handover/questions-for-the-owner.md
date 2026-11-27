@@ -1411,6 +1411,24 @@ an earlier-shape name holds the put-back for ever,
 since nothing removes such a name,
 and the version's name stays empty after every run until a person deletes the hidden name by hand.
 
+What the read of `0.2.7-alpha.15` adds
+(2026-11-27T14:35:51-05:00,
+a same-vendor second pass):
+"Holding costs no copy" is true only while the holder lives.
+For an installer that died in another process namespace the hold never ends:
+the version's name stays empty on every offline run,
+and the deletion `prune --toolchain` advises loses the only finished copy
+(shown with a hand-made name;
+a real second namespace was not built).
+A name in the earlier build's shape is never judged at all,
+so after a kill under `0.2.7-alpha.14` its finished copy is neither published nor removed by any command.
+A round changes the sentences and the README,
+and the rules stay as picked.
+The reader's own suggestion,
+untested:
+hold the put-back while an earlier-shape name's process id and start time name a process running here,
+a hold that ends when that process does.
+
 ### What becomes of a finished copy of an older version
 
 A recovery never publishes an older version beside a newer installed one.
@@ -1423,6 +1441,18 @@ and a run that holds no row for the archive removes nothing.
 The other way,
 one arm of `a_finished_copy_nothing_here_publishes`:
 keep every such copy.
+
+What the read of `0.2.7-alpha.15` adds:
+the removal asks only the running checkout's lock,
+where `prune --toolchain` asks every known lock.
+So one checkout's install removes a finished copy that another checkout's lock vouches for
+(two checkouts that pin one version with two digests),
+and the other checkout,
+offline,
+then cannot install.
+A third way follows from it:
+keep a copy that any known lock vouches for.
+A round returns that as a proposal and changes only the sentence printed.
 
 The round also split two files over the line budget and named the new ones
 `the_completion_marker.rs` and `what_a_recovery_answers.rs`;

@@ -15,6 +15,7 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { environmentAFixtureChildMayInherit } from './fixture-git-environment-for-tests.ts';
 import { NativeGateError } from './native-gate-error.ts';
 import { isMissingPathError } from './native-gate-paths.ts';
 
@@ -82,7 +83,12 @@ export type GateStandIn = AsyncDisposable & {
    */
   readonly directory: string;
   /**
-   The environment a gate command runs with when it should use the stand-in.
+   The directory holding the stand-in programs, which a caller puts first on the `PATH` of an environment it builds.
+   */
+  readonly programsDirectory: string;
+  /**
+   The environment a gate command runs with when it should use the stand-in, with no session place of this account among
+   its variables: a child that found its way to this machine's wrapper has no route to this account's manager from it.
    */
   readonly environment: Readonly<Record<string, string>>;
 };
@@ -145,8 +151,9 @@ export async function createGateStandIn({ unitState }: { readonly unitState?: st
     );
   return {
     directory,
+    programsDirectory: programs,
     environment: {
-      ...process.env,
+      ...environmentAFixtureChildMayInherit(),
       PATH: `${programs}:${process.env
         .PATH
         ?? ''}`,
