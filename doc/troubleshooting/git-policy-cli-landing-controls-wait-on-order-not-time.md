@@ -206,7 +206,9 @@ because the window decided the verdict:
   Planted a renewal that refreshes every claim in the directory:
   the control fails in 0.033 s with `an unheld claim keeps its name`.
 - the same file said a dropped renewal renames nothing after a fifty millisecond sleep;
-  the task counts its own end (`TASKS_ENDED`) and the drop's own report,
+  the task counts its own end (`TASKS_ENDED`;
+  the count of that renewal's own task since issue 6526, 2026-11-27)
+  and the drop's own report,
   read through the service log capture,
   says whether it waited for the task or only for its ceiling.
   Planted a drop that never tells the task to stop:

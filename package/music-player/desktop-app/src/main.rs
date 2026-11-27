@@ -709,153 +709,60 @@ use i_slint_backend_winit::Backend;
 use slint::ComponentHandle;
 
 /// What:
-///      `fn format_time(secs: f64) -> String`.
-///  Format seconds as "m:ss".
-///           `f64` is a 64-bit float (sibling:
-///  `f32`);
-///  `String` is an owned heap
-///           string (sibling:
-///  `&str`,
-///  a borrowed view we could not return here
-///           because it would point at this function's freed locals).
+///      `mod main_format_time;` loads the sibling `src/main_format_time.rs`,
+///  the one function that writes a duration as text.
 /// Why:
-///       Slint number-to-string is awkward,
-///  so we format here and pass strings;
-///           the result is `String` (owned) so the caller can keep it past this call.
+///       The seek bar and the duration label show the same text,
+///  and the entry point itself has no formatting to do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function formatTime(secs: number): string { ... }
+/// import * as mainFormatTime from "./main_format_time";
 /// ```
-pub(crate) fn format_time(secs: f64) -> String {
-    // What:     `let whole = if secs > 0.0 { secs as u64 } else { 0 };`. `if/else`
-    //           used as an EXPRESSION (both arms yield a value). `secs as u64` is a
-    //           numeric CAST that truncates the float toward zero into a 64-bit
-    //           unsigned integer (`u64`; siblings: `u32`, `usize`). The else arm
-    //           clamps negatives and NaN to 0.
-    // Why:      Avoid negative or garbage times; `u64` because a track length never
-    //           needs a sign and easily fits a 64-bit count of seconds.
-    // Gotcha:   `as u64` is a SATURATING/truncating cast, not TS's `Number` coercion:
-    //           NaN becomes 0 and the fraction is dropped, with no exception.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const whole = secs > 0 ? Math.floor(secs) : 0;
-    // ```
-    let whole = if secs > 0.0 { secs as u64 } else { 0 };
-    // What:     `format!("{}:{:02}", whole / 60, whole % 60)`. The `format!` MACRO
-    //           builds an owned `String` from a template: `{}` interpolates minutes
-    //           (`whole / 60`, integer division) and `{:02}` interpolates seconds
-    //           (`whole % 60`) zero-padded to 2 digits. No trailing `;`, so this is
-    //           the function's tail expression and is returned.
-    // Why:      "3:07" style display.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
-    // ```
-    return format!("{}:{:02}", whole / 60, whole % 60);
-}
+#[path = "main_format_time.rs"]
+mod main_format_time;
 
 /// What:
-///      `fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError>`.
-///  In a Windows debug build,
-/// fails `step` on purpose when `MUSIC_PLAYER_FORCE_STARTUP_FAILURE` names it.
+///      `pub(crate) use main_format_time::format_time;` re-exports the formatter at this
+///           module's path.
 /// Why:
-///       The Windows runner proves the failure report by forcing each step and reading the message box back
-///           (`.github/workflows/music-player-release.yml`,
-/// job `test-windows`).
-/// The error goes through the same
-///           path as a real one.
-#[cfg(all(windows, debug_assertions))]
-fn forced_failure(step: StartupStep) -> Result<(), slint::PlatformError> {
-    /// Imports the startup failure injection variable and the helpers that read it.
-    use music_player::startup_failure::{
-        FORCE_STARTUP_FAILURE_ENV,
-        forced_failure_detail,
-        forced_startup_failure,
-    };
-    let value = std::env::var(FORCE_STARTUP_FAILURE_ENV).ok();
-    if forced_startup_failure(value.as_deref()) == Some(step) {
-        tracing::warn!(
-            ?step,
-            "failing a startup step on purpose ({FORCE_STARTUP_FAILURE_ENV})"
-        );
-        return Err(slint::PlatformError::from(forced_failure_detail(step)));
-    }
-    return Ok(());
-}
-
-/// What:
-///      `fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError>`.
-///  Release builds and non-Windows builds:
-/// never fails.
-/// Why:
-///       The test hook is compiled out of the release;
-/// the call sites stay the same on every build.
-#[cfg(not(all(windows, debug_assertions)))]
-fn forced_failure(_step: StartupStep) -> Result<(), slint::PlatformError> {
-    return Ok(());
-}
-
-/// What:
-///      `fn startup_failed(step: StartupStep, error: slint::PlatformError) -> anyhow::Error`.
-///  Windows:
-/// reports the failed step (a message box when stderr reaches nobody,
-/// the text on stderr otherwise),
-/// then
-///  hands the error on to `main`.
-/// Why:
-///       A double-click start has no console,
-/// so the error `main` returns would be written nowhere.
-#[cfg(windows)]
-fn startup_failed(
-    step: StartupStep,
-    error: slint::PlatformError,
-) -> anyhow::Error {
-    music_player::startup_failure_win32::report_startup_failure(step, &error.to_string());
-    tracing::debug!(
-        ?step,
-        "the startup failure was reported; main returns the error and drops its state"
-    );
-    return anyhow::Error::from(error);
-}
-
-/// What:
-///      `fn startup_failed(_step: StartupStep, error: slint::PlatformError) -> anyhow::Error`.
-///  Linux and macOS:
-/// hands the error on to `main` unchanged,
-/// which prints it as before.
-/// Why:
-///       Those builds always have a terminal or a session log for stderr.
-#[cfg(not(windows))]
-fn startup_failed(
-    _step: StartupStep,
-    error: slint::PlatformError,
-) -> anyhow::Error {
-    return anyhow::Error::from(error);
-}
-
-/// What:
-/// `finish_step` gives the value of a startup step,
-/// or the startup failure for that step.
-/// Why:
-/// each step that can fail names itself in the failure the user sees.
+///       The screen projection and the update path call `crate::format_time`,
+///  and only where it is declared moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function finishStep<T>(step: StartupStep, outcome: T | PlatformError): T { if (outcome instanceof PlatformError) throw startupFailed(step, outcome); return outcome; }
+/// export { format_time } from "./main_format_time";
 /// ```
-fn finish_step<T>(
-    step: StartupStep,
-    outcome: Result<T, slint::PlatformError>,
-) -> Result<T> {
-    return match outcome {
-        Ok(value) => Ok(value),
-        Err(error) => Err(startup_failed(step, error)),
-    };
-}
+pub(crate) use main_format_time::format_time;
 
+/// What:
+///      `mod main_startup_failure;` loads the sibling `src/main_startup_failure.rs`,
+///  which reports a failed startup step.
+/// Why:
+///       The failure report has to reach a person with no terminal,
+///  and it is the same path for a real failure and a forced one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as mainStartupFailure from "./main_startup_failure";
+/// ```
+#[path = "main_startup_failure.rs"]
+mod main_startup_failure;
+
+/// What:
+///      `use main_startup_failure::{...}` brings the two helpers `main` calls.
+/// Why:
+///       Each fallible step asks `forced_failure` first,
+///  and `finish_step` then turns the outcome into a result.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { finish_step, forced_failure } from "./main_startup_failure";
+/// ```
+use main_startup_failure::{
+    finish_step,
+    forced_failure,
+};
 /// What:
 ///      `fn main() -> Result<()>`.
 ///  The entry point.

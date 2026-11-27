@@ -9,6 +9,10 @@
 //! `binding_matching` finds the row a key press hits;
 //! `shortcut_text` writes a row the way a tooltip or a menu row
 //! shows it.
+//! The table itself lives in `src/keymap_bindings_table.rs`,
+//! the lookups in `src/keymap_bindings_lookup.rs` and the text writers in
+//! `src/keymap_bindings_chord_text.rs`;
+//! this file holds the row types and their builders.
 //! Why:
 //! the classifier,
 //! the key hint badges,
@@ -16,14 +20,26 @@
 //! so they all
 //! read this one table and nothing else spells a chord out.
 
-/// Imports the platform,
-/// action and request types and the scope test that the table rows use.
+/// Imports the platform and action types that the row type and its builders name.
 use crate::keymap::{
     KeyboardPlatform,
     ShortcutAction,
-    ShortcutRequest,
-    scope_allows,
 };
+
+/// What:
+///      `use crate::keymap::ShortcutRequest;` brings the key press type the unit
+///           tests build.
+/// Why:
+///       Only `keymap_bindings_tests.rs` names it,
+///  through its `use super::*`,
+///  so the import exists in the test build alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { ShortcutRequest } from "./keymap";
+/// ```
+#[cfg(test)]
+use crate::keymap::ShortcutRequest;
 
 /// What:
 ///      `pub enum Modifier` names a modifier a chord requires.
@@ -324,450 +340,99 @@ impl HeldModifiers {
         return !(self.ctrl || self.meta || self.alt || self.shift);
     }
 }
-
 /// What:
-///      `BINDINGS` is the whole D106 table in matching order.
+///      `mod keymap_bindings_table;` loads the sibling
+///           `src/keymap_bindings_table.rs`,
+///  the D106 table itself.
 /// Why:
-///      The first row that matches a key press and whose scope applies decides,
-///  so a more specific row sits above a general one.
+///       The table is one row per chord and is read against D106 line by line,
+///           so it keeps a file of its own while this module holds the row types
+///           and their builders.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const BINDINGS: readonly Binding[] = [ /* one row per chord */ ];
+/// import * as keymapBindingsTable from "./keymap_bindings_table";
 /// ```
-pub static BINDINGS: &[Binding] = &[
-    // Popup rows come first: with the track menu open these decide before any other row.
-    row(ShortcutAction::MenuUp, NONE, &["ArrowUp"], Scope::Popup)
-        .repeating()
-        .in_menu(),
-    row(ShortcutAction::MenuDown, NONE, &["ArrowDown"], Scope::Popup)
-        .repeating()
-        .in_menu(),
-    row(ShortcutAction::MenuChoose, NONE, &["Enter"], Scope::Popup).in_menu(),
-    // Escape, from the innermost thing outward: the picker overlay, the editor line, the Settings list, Search, Licenses.
-    row(
-        ShortcutAction::ClosePicker,
-        NONE,
-        &["Escape"],
-        Scope::PickerOverlay,
-    ),
-    row(
-        ShortcutAction::SettingsFocusList,
-        NONE,
-        &["Escape"],
-        Scope::SettingsField,
-    ),
-    row(ShortcutAction::Back, NONE, &["Escape"], Scope::SettingsIdle),
-    row(
-        ShortcutAction::EditorLeave,
-        NONE,
-        &["Escape"],
-        Scope::EditorPage,
-    ),
-    row(ShortcutAction::Back, NONE, &["Escape"], Scope::SearchPage),
-    row(ShortcutAction::Back, NONE, &["Escape"], Scope::LicensesPage),
-    // Editor pages: Control+Enter applies and leaves, Control+Shift+Backspace resets the template.
-    row(
-        ShortcutAction::EditorApply,
-        P,
-        &["Enter"],
-        Scope::EditorOrSettings,
-    ),
-    row(
-        ShortcutAction::EditorReset,
-        PS,
-        &["Backspace"],
-        Scope::EditorOrSettings,
-    ),
-    // Search: Up and Down move through the results even while the query field has focus; Enter opens the result.
-    row(
-        ShortcutAction::SearchUp,
-        NONE,
-        &["ArrowUp"],
-        Scope::SearchPage,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::SearchDown,
-        NONE,
-        &["ArrowDown"],
-        Scope::SearchPage,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::SearchOpen,
-        NONE,
-        &["Enter"],
-        Scope::SearchField,
-    ),
-    // Kept from D102.
-    row(ShortcutAction::Search, P, &["f"], Scope::PlayerPage),
-    row(ShortcutAction::Picker, P, &["o"], Scope::PlayerPage),
-    row(ShortcutAction::Settings, PA, &["s"], Scope::PlayerPage).on(KeyboardPlatform::WindowsLinux),
-    row(ShortcutAction::Settings, P, &[","], Scope::PlayerPage).on(KeyboardPlatform::Mac),
-    row(ShortcutAction::Reveal, P, &["g"], Scope::PlayerPage).on(KeyboardPlatform::WindowsLinux),
-    row(ShortcutAction::Reveal, P, &["l"], Scope::PlayerPage).on(KeyboardPlatform::Mac),
-    row(ShortcutAction::Toggle, NONE, &[" "], Scope::SpaceZones),
-    row(ShortcutAction::Mode, C, &["m"], Scope::PlaybackArea),
-    row(
-        ShortcutAction::Previous,
-        C,
-        &["ArrowLeft"],
-        Scope::PlaybackArea,
-    )
-    .on(KeyboardPlatform::WindowsLinux),
-    row(
-        ShortcutAction::Next,
-        C,
-        &["ArrowRight"],
-        Scope::PlaybackArea,
-    )
-    .on(KeyboardPlatform::WindowsLinux),
-    row(
-        ShortcutAction::Previous,
-        PS,
-        &["[", "{"],
-        Scope::PlaybackArea,
-    )
-    .on(KeyboardPlatform::Mac),
-    row(ShortcutAction::Next, PS, &["]", "}"], Scope::PlaybackArea).on(KeyboardPlatform::Mac),
-    // Playback (D106): seek 10 s and 60 s, pick a mode, restart the track.
-    row(
-        ShortcutAction::SeekBack,
-        A,
-        &["ArrowLeft"],
-        Scope::PlayerPage,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::SeekForward,
-        A,
-        &["ArrowRight"],
-        Scope::PlayerPage,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::SeekBackLong,
-        AS,
-        &["ArrowLeft"],
-        Scope::PlayerPage,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::SeekForwardLong,
-        AS,
-        &["ArrowRight"],
-        Scope::PlayerPage,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::ModeRepeat,
-        PS,
-        &["1", "!"],
-        Scope::PlayerPage,
-    ),
-    row(
-        ShortcutAction::ModeInOrder,
-        PS,
-        &["2", "@"],
-        Scope::PlayerPage,
-    ),
-    row(
-        ShortcutAction::ModeShuffleFolder,
-        PS,
-        &["3", "#"],
-        Scope::PlayerPage,
-    ),
-    row(
-        ShortcutAction::ModeShuffleAll,
-        PS,
-        &["4", "$"],
-        Scope::PlayerPage,
-    ),
-    row(ShortcutAction::Restart, P, &["Home"], Scope::PlaybackArea),
-    // Browsing (D106).
-    row(
-        ShortcutAction::PreviousFolder,
-        A,
-        &["ArrowUp"],
-        Scope::PlayerPage,
-    ),
-    row(
-        ShortcutAction::NextFolder,
-        A,
-        &["ArrowDown"],
-        Scope::PlayerPage,
-    ),
-    row(ShortcutAction::RevealFolder, PS, &["g"], Scope::PlayerPage),
-    row(ShortcutAction::FocusFolders, A, &["1"], Scope::PlayerPage),
-    row(ShortcutAction::FocusTracks, A, &["2"], Scope::PlayerPage),
-    row(
-        ShortcutAction::OpenFolderDialog,
-        PS,
-        &["o"],
-        Scope::PlayerPage,
-    ),
-    row(ShortcutAction::Quit, P, &["q"], Scope::Anywhere),
-    // Inside a focused list: the arrows, Home, End, the page keys, Enter. A letter has its own rule in the classifier.
-    row(ShortcutAction::ListUp, NONE, &["ArrowUp"], Scope::ListZone).repeating(),
-    row(
-        ShortcutAction::ListDown,
-        NONE,
-        &["ArrowDown"],
-        Scope::ListZone,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::ListUp,
-        NONE,
-        &["ArrowLeft"],
-        Scope::FolderList,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::ListDown,
-        NONE,
-        &["ArrowRight"],
-        Scope::FolderList,
-    )
-    .repeating(),
-    row(ShortcutAction::ListHome, NONE, &["Home"], Scope::ListZone),
-    row(ShortcutAction::ListEnd, NONE, &["End"], Scope::ListZone),
-    row(
-        ShortcutAction::ListPageUp,
-        NONE,
-        &["PageUp"],
-        Scope::ListZone,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::ListPageDown,
-        NONE,
-        &["PageDown"],
-        Scope::ListZone,
-    )
-    .repeating(),
-    row(
-        ShortcutAction::ListActivate,
-        NONE,
-        &["Enter"],
-        Scope::ListZone,
-    ),
-    // The focused track row: its menu (Menu key or Alt+Enter), trash, copy and show.
-    row(
-        ShortcutAction::RowMenu,
-        NONE,
-        &["ContextMenu"],
-        Scope::TrackList,
-    ),
-    row(ShortcutAction::RowMenu, A, &["Enter"], Scope::TrackList),
-    row(
-        ShortcutAction::RowTrash,
-        NONE,
-        &["Delete"],
-        Scope::TrackList,
-    )
-    .in_menu(),
-    row(ShortcutAction::RowCopy, PS, &["c"], Scope::TrackList).in_menu(),
-    row(ShortcutAction::RowShow, PS, &["e"], Scope::TrackList).in_menu(),
-];
+#[path = "keymap_bindings_table.rs"]
+mod keymap_bindings_table;
 
 /// What:
-///      `request_held` reads the four modifier flags of a key press.
+///      `pub use keymap_bindings_table::BINDINGS;` re-exports the table at this
+///           module's path.
 /// Why:
-///      A row matches only when the held flags equal the flags it requires,
-///  so Control+Shift+F is not Control+F.
-fn request_held(request: &ShortcutRequest) -> HeldModifiers {
-    return HeldModifiers {
-        ctrl: request.ctrl,
-        meta: request.meta,
-        alt: request.alt,
-        shift: request.shift,
-    };
-}
-
-/// What:
-///      `binding_matching` finds the first row that the key press hits,
-///  skipping rows that exist only while the track menu is open.
-/// Why:
-///      The first matching row decides,
-///  and a row applies only on its map,
-///  with its exact modifiers,
-///  in its scope.
+///       Callers name `keymap_bindings::BINDINGS`,
+///  and only where the static is declared moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bindingMatching = (r: ShortcutRequest) => BINDINGS.find(b => matches(b, r) && b.scope !== "popup");
+/// export { BINDINGS } from "./keymap_bindings_table";
 /// ```
-pub fn binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
-    for binding in BINDINGS.iter() {
-        if binding.scope != Scope::Popup
-            && row_hits(binding, request)
-            && scope_allows(binding.scope, request)
-        {
-            return Some(binding);
-        }
-    }
-    return None;
-}
+pub use keymap_bindings_table::BINDINGS;
 
 /// What:
-///      `popup_binding_matching` finds the first row that applies while the track menu is open.
+///      `mod keymap_bindings_lookup;` loads the sibling
+///           `src/keymap_bindings_lookup.rs`,
+///  which finds the row a key press or an action uses.
 /// Why:
-///      With the menu open only the rows marked for it apply,
-///  and their own scope (the focused list) is replaced by the open menu.
+///       The lookups are the table's only readers,
+///           so they sit in their own file instead of at the foot of this one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const popupBindingMatching = (r: ShortcutRequest) => BINDINGS.find(b => b.menu && matches(b, r));
+/// import * as keymapBindingsLookup from "./keymap_bindings_lookup";
 /// ```
-pub fn popup_binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
-    for binding in BINDINGS.iter() {
-        if binding.menu
-            && row_hits(binding, request)
-            && request.route == crate::keymap::KeyRoute::Player
-        {
-            return Some(binding);
-        }
-    }
-    return None;
-}
+#[path = "keymap_bindings_lookup.rs"]
+mod keymap_bindings_lookup;
 
 /// What:
-///      `row_hits` tells whether a row's platform,
-///  modifiers and key match the key press.
+///      `pub use keymap_bindings_lookup::{...}` re-exports the three lookups at
+///           this module's path.
 /// Why:
-///      Both lookups share the same three tests and differ only in the scope test.
-fn row_hits(
-    binding: &Binding,
-    request: &ShortcutRequest,
-) -> bool {
-    return binding.applies_on(request.platform)
-        && binding.required(request.platform) == request_held(request)
-        && binding.matches_key(&request.key);
-}
-
-/// What:
-///      `binding_for` finds the first row of an action on a map.
-/// Why:
-///      Tooltips,
-///  menu rows and badges show the chord of an action,
-///  and an action with two rows shows its first.
+///       Callers name `keymap_bindings::binding_matching` and its siblings,
+///  and only where they are declared moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bindingFor = (a: ShortcutAction, p: KeyboardPlatform) => BINDINGS.find(b => b.action === a && appliesOn(b, p));
+/// export { binding_matching, popup_binding_matching, binding_for } from "./keymap_bindings_lookup";
 /// ```
-pub fn binding_for(
-    action: ShortcutAction,
-    platform: KeyboardPlatform,
-) -> Option<&'static Binding> {
-    for binding in BINDINGS.iter() {
-        if binding.action == action && binding.applies_on(platform) {
-            return Some(binding);
-        }
-    }
-    return None;
-}
+pub use keymap_bindings_lookup::{
+    binding_for,
+    binding_matching,
+    popup_binding_matching,
+};
 
 /// What:
-///      `key_label` writes a key name the way a person reads it.
+///      `mod keymap_bindings_chord_text;` loads the sibling
+///           `src/keymap_bindings_chord_text.rs`,
+///  which writes a row or an action as the text a person reads.
 /// Why:
-///      Badges and tooltips show `Left`,
-///  `Space` and `F`,
-///  not the DOM names `ArrowLeft`,
-///  ` ` and `f`.
+///       Badges,
+///  tooltips and menu rows all draw that text,
+///  and it is a spelling table of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const keyLabel = (key: string) => ({ ArrowLeft: "Left", " ": "Space", ContextMenu: "Menu" })[key] ?? key.toUpperCase();
+/// import * as keymapBindingsChordText from "./keymap_bindings_chord_text";
 /// ```
-pub fn key_label(key: &str) -> String {
-    return match key {
-        "ArrowLeft" => "Left".to_owned(),
-        "ArrowRight" => "Right".to_owned(),
-        "ArrowUp" => "Up".to_owned(),
-        "ArrowDown" => "Down".to_owned(),
-        " " => "Space".to_owned(),
-        "ContextMenu" => "Menu".to_owned(),
-        named if named.chars().count() > 1 => named.to_owned(),
-        single => single.to_uppercase(),
-    };
-}
+#[path = "keymap_bindings_chord_text.rs"]
+mod keymap_bindings_chord_text;
 
 /// What:
-///      `modifier_label` writes one modifier for a map.
+///      `pub use keymap_bindings_chord_text::{...}` re-exports the chord text
+///           writers at this module's path.
 /// Why:
-///      Windows and Linux spell Ctrl,
-///  Alt and Shift,
-///  and macOS shows the Command,
-///  Option,
-///  Shift and Control glyphs.
-fn modifier_label(
-    modifier: Modifier,
-    platform: KeyboardPlatform,
-) -> &'static str {
-    return match (modifier, platform) {
-        (Modifier::Primary, KeyboardPlatform::WindowsLinux)
-        | (Modifier::Ctrl, KeyboardPlatform::WindowsLinux) => "Ctrl",
-        (Modifier::Primary, KeyboardPlatform::Mac) => "\u{2318}",
-        (Modifier::Ctrl, KeyboardPlatform::Mac) => "\u{2303}",
-        (Modifier::Alt, KeyboardPlatform::WindowsLinux) => "Alt",
-        (Modifier::Alt, KeyboardPlatform::Mac) => "\u{2325}",
-        (Modifier::Shift, KeyboardPlatform::WindowsLinux) => "Shift",
-        (Modifier::Shift, KeyboardPlatform::Mac) => "\u{21E7}",
-    };
-}
-
-/// What:
-///      `chord_text` writes a row as the chord a person presses,
-///  such as `Ctrl+Shift+O` or the macOS glyphs followed by the key.
-/// Why:
-///      Tooltips and menu rows show the same text for the same row.
+///       Callers name `keymap_bindings::shortcut_text` and its siblings,
+///  and only where they are declared moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const chordText = (b: Binding, p: KeyboardPlatform) => [...b.modifiers.map(label), keyLabel(b.keys[0])].join(p === "mac" ? "" : "+");
+/// export { key_label, chord_text, shortcut_text } from "./keymap_bindings_chord_text";
 /// ```
-pub fn chord_text(
-    binding: &Binding,
-    platform: KeyboardPlatform,
-) -> String {
-    let key = match binding.keys.first() {
-        Some(name) => key_label(name),
-        None => String::new(),
-    };
-    let mut parts: Vec<String> = Vec::new();
-    for modifier in binding.modifiers.iter() {
-        parts.push(modifier_label(*modifier, platform).to_owned());
-    }
-    parts.push(key);
-    return match platform {
-        KeyboardPlatform::WindowsLinux => parts.join("+"),
-        KeyboardPlatform::Mac => parts.concat(),
-    };
-}
-
-/// What:
-///      `shortcut_text` writes the chord of an action on a map,
-///  or an empty string when the action has none there.
-/// Why:
-///      Tooltips and menu rows ask by action,
-///  and an empty text means nothing is drawn.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const shortcutText = (a: ShortcutAction, p: KeyboardPlatform) => { const b = bindingFor(a, p); return b ? chordText(b, p) : ""; };
-/// ```
-pub fn shortcut_text(
-    action: ShortcutAction,
-    platform: KeyboardPlatform,
-) -> String {
-    return match binding_for(action, platform) {
-        Some(binding) => chord_text(binding, platform),
-        None => String::new(),
-    };
-}
+pub use keymap_bindings_chord_text::{
+    chord_text,
+    key_label,
+    shortcut_text,
+};
 
 /// Unit tests in `keymap_bindings_tests.rs`,
 ///  pulled in at this point.

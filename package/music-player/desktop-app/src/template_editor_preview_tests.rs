@@ -6,6 +6,13 @@
 // a track whose length is NaN makes the stored default template refuse.
 
 use super::*;
+use crate::template_editor::{
+    TEMPLATE_KEPT_NOTE,
+    TEMPLATE_LIBRARY_NOTE,
+    TEMPLATE_SAMPLE_NOTE,
+    TemplateEditorFieldEntry,
+    TemplatePreviewRow,
+};
 use crate::template_fixtures::{
     another_xronixle,
     bare_playing,
