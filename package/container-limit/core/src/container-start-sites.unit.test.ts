@@ -33,8 +33,8 @@ import {
 import { definedTextByName, } from './defined-text-in-source-text.ts';
 import { importedModuleByName, } from './imported-module-by-name.ts';
 import {
+  SOURCE_LANGUAGE_BY_EXTENSION,
   stripSourceComments,
-  type SourceLanguage,
 } from './source-text-without-comments.ts';
 import {
   DISK_WEIGHT_OFF,
@@ -91,17 +91,6 @@ const PASSES_MARKERS: readonly string[] = [
   'Limits',
   'container-arguments',
 ];
-
-/**
- The comment syntax each scanned extension holds.
- */
-const LANGUAGES_BY_EXTENSION: ReadonlyMap<string, SourceLanguage> = new Map([
-  ['.ts', 'typescript',],
-  ['.mjs', 'typescript',],
-  ['.toml', 'toml',],
-  ['.yml', 'yaml',],
-  ['.yaml', 'yaml',],
-],);
 
 /**
  Paths whose start still has no bound, each waiting on a size decision the owner has not made.
@@ -229,18 +218,21 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
   // calls, image names, stand-ins for tests, the generic runner whose callers build the arguments, and the gate's own
   // identity, ID file, fixture-root and evidence helpers, which name `podman` in prose only. The gate's syscall profile
   // and its image retention read what `podman info` and `podman images` printed, and its replaced-image removal runs
-  // `podman image rm`; none of them starts a container.
+  // `podman image rm`; none of them starts a container. Its cgroup-memory reader says which files a `podman run --rm`
+  // leaves behind and reads the kernel's own accounting of a container its launcher started.
   ...[
     'package/claude-code-plugin/bash-output-filter/bundle/node/index.mjs',
     'package/container-limit/core/src/argument-text-of-a-container-start.ts',
     'package/container-limit/core/src/container-start-vocabulary.ts',
     'package/container-limit/core/src/container-starts-in-source-text.ts',
     'package/container-limit/core/src/positions-in-source-text.ts',
+    'package/container-limit/core/src/rust-comments-in-source-text.ts',
     'package/claude-code-plugin/source/src/handler/bash-output-filter/validation.ts',
     'package/forbidden-strings/cli/bin/scanner-run.ts',
     'package/forbidden-strings/cli/data/betterleaks-default-config.toml',
     'package/git-policy/cli/bin/command-deadline.ts',
     'package/git-policy/cli/bin/native-gate-checks.ts',
+    'package/git-policy/cli/bin/native-gate-container-cgroup-memory.ts',
     'package/git-policy/cli/bin/native-gate-container-id-file.ts',
     'package/git-policy/cli/bin/native-gate-container-identity.ts',
     'package/git-policy/cli/bin/native-gate-fixture-root.ts',
@@ -272,6 +264,17 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/test-harness/core-matrix/src/pnpm-store-mount.ts',
     'package/test-harness/core-matrix/src/locked-tool-build-arguments.ts',
     'package/vm-builder/cli/src/image-signing.ts',
+  ].map((path,) => ({ path, role: 'reads' as const, }),),
+  // The Rust sources that name the tool. `cargo-shadow`'s real Podman is the one place a Rust program runs it: it runs
+  // `images`, `ps`, `rmi`, `volume ls` and `volume rm` through `Command::new("podman").args(...)`, whose arguments its
+  // callers build, and starts nothing. The step that reaches it names the tool in prose, the cleanup's tests drive a
+  // fake Podman and hold a sample source line whose `podman build` is text, and the gate's process-look control names a
+  // `podman run` line only in a doc comment, as the length an ordinary command line reaches.
+  ...[
+    'package/cargo-shadow/cli/src/lean_podman_cleanup_tests.rs',
+    'package/cargo-shadow/cli/src/lean_podman_real.rs',
+    'package/cargo-shadow/cli/src/lean_run_steps.rs',
+    'package/git-policy/cli/src/native/landing/earlier_service_process_look_tests.rs',
   ].map((path,) => ({ path, role: 'reads' as const, }),),
 ];
 
@@ -331,11 +334,15 @@ const repositoryRoot = join(
 );
 
 /**
- Folders the scan skips: documents and paused packages.
+ Folders the scan skips: documents, paused packages, and this package's own fixtures for the readers it tests.
+
+The fixture folder holds Rust sources that state one answer each for the reader (`rust-sources-in-the-scan.unit.test.ts`);
+a fixture is not a program of this repository, so the ledger lists none of them.
  */
 const SKIPPED_FOLDERS: readonly string[] = [
   'doc/',
   'package-paused/',
+  'package/container-limit/core/src/rust-source-fixtures/',
 ];
 
 /**
@@ -348,15 +355,9 @@ const SKIPPED_FRAGMENTS: readonly string[] = [
 ];
 
 /**
- Extensions of files that can hold a command.
+ Extensions of files that can hold a command: those whose comment syntax the scan knows.
  */
-const SCANNED_EXTENSIONS: readonly string[] = [
-  '.ts',
-  '.mjs',
-  '.toml',
-  '.yml',
-  '.yaml',
-];
+const SCANNED_EXTENSIONS: readonly string[] = [...SOURCE_LANGUAGE_BY_EXTENSION.keys(),];
 
 /**
  Quote characters that can wrap a program name.
@@ -470,7 +471,7 @@ function definitionsOf({ path, }: {
   /**
    The language whose comment syntax the file holds, when its extension holds one.
    */
-  const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+  const language = SOURCE_LANGUAGE_BY_EXTENSION.get(extensionOf(path,),);
   /**
    The index itself, which stays empty for a path no start can be written in.
    */
@@ -655,7 +656,7 @@ function importedDefinitionsOf({ path, }: {
   /**
    The importing file's own language, when its extension holds one.
    */
-  const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+  const language = SOURCE_LANGUAGE_BY_EXTENSION.get(extensionOf(path,),);
   if (language === undefined)
     return imported;
   /**
@@ -672,7 +673,7 @@ function importedDefinitionsOf({ path, }: {
     /**
      Whether the module is a file of this repository that a start can be written in.
      */
-    const readable = LANGUAGES_BY_EXTENSION.has(extensionOf(modulePath,),)
+    const readable = SOURCE_LANGUAGE_BY_EXTENSION.has(extensionOf(modulePath,),)
       && existsSync(join(repositoryRoot, modulePath,),);
     if (!readable)
       continue;
@@ -702,7 +703,7 @@ function uncoveredStarts(): readonly UncoveredStart[] {
     /**
      The language whose comment syntax the file holds, when its extension holds one.
      */
-    const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+    const language = SOURCE_LANGUAGE_BY_EXTENSION.get(extensionOf(path,),);
     if (language === undefined)
       continue;
     /**

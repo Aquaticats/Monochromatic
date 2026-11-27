@@ -107,24 +107,30 @@ and a control that changes what it names runs its body through
 `run_the_body_with_an_environment_of_its_own`
 in the same file,
 which adds the variables the control states and removes the ones it names.
-The route a hand-over finds the commit service by reads two of them:
-`XDG_RUNTIME_DIR` names the socket and the bus,
-and `DBUS_SESSION_BUS_ADDRESS` names the session bus a service is provisioned through.
-So a control whose body hands a trash over through the release path reaches this account's own manager as soon
-as another control of the same process has resolved the real Git,
-because resolving it remembers the running executable
-(`service_route.rs`,
-`OWN_EXECUTABLE`),
-which in a test process is the test binary:
-the hand-over wrote that fixture worktree's units into `/run/user/<n>/systemd/user/`,
+The route a hand-over finds the commit service by reads two facts of the session,
+and a test build reads them from one place only,
+`foundation/session_runtime_directory_and_bus_address.rs`:
+an inherited `XDG_RUNTIME_DIR` or `DBUS_SESSION_BUS_ADDRESS` is not read at all,
+and the control hands its own in through
+`CLI_GIT_TEST_ONLY_SESSION_RUNTIME_DIRECTORY` and `CLI_GIT_TEST_ONLY_SESSION_BUS_ADDRESS`,
+which that file reads in place of the inherited pair.
+So a body whose control hands in nothing has no route,
+and `source_guard/no_release_read_of_the_session_places_tests.rs` refuses any other read of either name.
+A build made for tests also offers the manager no program of its own:
+the executable a process remembers is not compiled there,
+because in a test process it is the test binary
+(issue 6586:
+before that,
+a control that handed a trash over wrote its fixture's units into `/run/user/<n>/systemd/user/`,
 pointed the account-wide program link at the test binary,
-and asked the manager to start a unit for the fixture,
-which failed five times on libtest's `error: Unrecognized option: 'journal'` until the start limit hit,
-while the add printed its own starting notice into the control's captured standard error (issue 6582).
-Such a control names a fixture `XDG_RUNTIME_DIR` and clears `DBUS_SESSION_BUS_ADDRESS`,
-so the route answers nothing and the hand-over fails with "no commit service can be started from this
-session",
+and had the manager run libtest for the fixture five times until the start limit hit,
+which is what issue 6582's two controls first met).
+So a control whose body routes a hand-over hands in a fixture runtime directory and no bus,
+as `worktree_copying`'s two hand-over controls do,
+and the hand-over fails with "no commit service can be started from this session",
 which is the world those controls are about.
+A control whose subject is a route with a program in it passes one to `choose_route` itself,
+and `landing/service_route_tests.rs` holds both kinds.
 A child also inherits the records its parent holds,
 so a control whose body reads the chain record closes the record it inherited before it makes its own
 (`invocation/started_as_git_tests.rs`,
@@ -465,6 +471,39 @@ sixty seconds,
 which only stops a hang.
 A control's own bound then rests on a promise the test's own threads do not have to keep.
 
+A control of a step the kernel holds states both of the facts such a hold gives the wait.
+One is the kernel's answer about the process's state,
+which `the_kernel_holds` states
+(`commit/scratch_step_look_below_control_window.rs`).
+The other is the step's end not collected until the control lets it go,
+which `hold_the_reap` states
+(`process/wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs`).
+One without the other tests a wait that never lasts:
+the step acts on the `SIGKILL` at once,
+the wait after the stop returns before its first look,
+and the control passes on a wait it never made.
+On 2026-11-27 the never-released control of `commit/commit_preparation_tests.rs` stated only the state,
+passed alone in 1.41 s,
+and then failed a gate run in 31.9 s,
+because a loaded host's own disk wait held the real step and the control allowed the command twenty seconds
+(issue 6589).
+The gate's log is what measured it:
+the line naming process `12876` is the step,
+which that control never stated,
+so `/proc` itself reported the step in state `D` until the kernel let it go,
+about thirty seconds after the `SIGKILL` at 1.3 s.
+
+No control bounds the kernel's release of a step.
+The release waits for it with no bound after the stop
+(`SPEC.md`,
+the owner's answer of 2026-11-10,
+"Keep waiting and say so"),
+so a control asserts what the release does promise:
+the step was ended at the bound the control planted,
+its words say the step was waited for,
+and the command answers once the control let the reap go,
+within a multiple of the wait's own `AFTER_THE_STOP` pause.
+
 A control whose subject is a notice said to a waiting client reads what the client has said while it still waits,
 and reads it before the client ends
 (`Told` in `landing/service_land_hung_write_tests.rs`):
@@ -525,6 +564,52 @@ and that clock advances once per 1 ms tick,
 so the write left the stamp exactly as it was and the final check rightly passed in 6 runs of 6).
 `stamped_pair` gives its source a modification time `RECENT_CHANGE_NANOS` before now for that reason,
 and the measurement is in `doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`.
+The controls of this crate whose assertion needs two file times to differ,
+and what each rests on
+(2026-11-27,
+issue 6593):
+
+- `worktree_copying::worktree_copy_compare::tests::a_source_written_after_the_stamp_fails_the_final_check`
+  rests on `settle_the_modification_time`,
+  which gives the fixture's source the modification time `RECENT_CHANGE_NANOS` before now.
+- Every control that pins the clock with `clock_reads`
+  (the `settled_clock` fixture of `index::index_reset_worktree_stat::tests`,
+  `index::index_reset_file::tests`'s attributes control,
+  the three at `worktree_copying::worktree_copy_stage::tests`,
+  and the ones in `worktree::worktree_clean_content_attributes::tests`)
+  rests on the instant it hands the code,
+  never on the clock moving.
+- `worktree::worktree_snapshot_index_step::tests::the_index_a_source_with_changes_installs_keeps_the_fields_that_prove_an_edit`
+  and the controls of `worktree::worktree_dirty_restore::tests` that hide an edit
+  rest on `hide_an_edit`'s two stated nanosecond parts of the modification time
+  (`HIDDEN_EDIT_RECORDED_NANOS`
+  and `HIDDEN_EDIT_EDITED_NANOS`),
+  which is what issue 6593 changed.
+- `lock::index_lock_evidence::tests::the_change_time_rounds_nanoseconds_down_to_milliseconds`
+  is the one left that rests on the file system's own clock:
+  it changes a file's permissions up to fifty times and asserts that one change time has a nonzero
+  millisecond part,
+  which the clock's offset decides and nothing of the control does.
+  It is unchanged,
+  and issue 6593 names it.
+
+A control whose subject is the time the record credits to the programs below the step
+waits for the looks that credit it
+and derives its bound from the record's own counts,
+never from a clock:
+the credit is the span between the looks that found the program,
+one interval for each look after the first,
+and a window of wall clock holds fewer of them on a host whose threads wake late.
+`until_looks_find_the_step` (`commit/native_commit_waiting_notice_control_window.rs`)
+waits for a count of looks that found the step,
+and `a_look_of_this_step_waits` in the same file plants the stretch a loaded host put between two of them.
+Measured on 2026-11-27:
+the control asserted 750 ms of credit inside a 1,200 ms sleep,
+which is three intervals of `LOOK_INTERVAL` and is what only a punctual host proves,
+and the gate run whose each proved interval was 319.73 ms held four looks in that window instead of five,
+three of them finding the step,
+so the record proved 639.47 ms and the control failed (issue 6592;
+`doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`).
 
 ## Write less code
 
