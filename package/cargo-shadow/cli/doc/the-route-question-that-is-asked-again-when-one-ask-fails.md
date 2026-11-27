@@ -441,8 +441,11 @@ the asking again costs nothing unless an ask fails.
 This is the change issue 6629 asked for,
 and it is `src/control_group_route_manager_reach.rs`:
 a read in the discovery's own process,
-at the first failed ask and before any wait,
+at a failed ask and before the wait that would come next,
 of the transports an ask could be carried over.
+A host where nothing can be reached ends the asking at its first failure;
+where a manager can be reached the read runs again at each of the five,
+which is a handful of `stat` calls each time.
 It reads:
 
 - `$XDG_RUNTIME_DIR` and `$DBUS_SESSION_BUS_ADDRESS` as the program an ask starts would see them,
@@ -499,7 +502,7 @@ while the read above was made in one loop of 553,220 samples over 7 s,
 and a manager ask was made in a second loop over the same 7 s:
 
 - the manager's own socket was absent in two of those samples,
-  for 0.283 ms and 0.167 ms,
+  for 0.283 ms and 0.172 ms,
   both at the tail of a reexec of 0.369 s and one of 0.286 s;
 - `$XDG_RUNTIME_DIR/bus` was there in every sample,
   and so was the manager's own directory `$XDG_RUNTIME_DIR/systemd`;
