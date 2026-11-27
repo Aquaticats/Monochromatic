@@ -19,7 +19,7 @@
 //! type FinishedCopy = 'nothing-to-publish' | { publishedHere: string } | 'published-by-another-install' | { newer: string };
 //! type HoldingInstaller = { path: string; running: boolean; finishedCopy: boolean };
 //! type RemovedLeftover = { path: string; finishedCopy: RemovedFinishedCopy };
-//! type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
+//! type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string; programFound: boolean } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
 //! type WhyNotPublished = 'the-lock-does-not-record-its-archive' | { anOlderRepositoryToolIsNeverKept: string };
 //! type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall?: HoldingInstaller; removed: RemovedLeftover[] };
 //! function holdsOf(purpose: string): Holds | undefined;
@@ -202,16 +202,17 @@ pub(crate) enum WhyNotPublished {
 /// What:
 /// What this run read about the finished copy that went with a hidden sibling it removed:
 /// nothing at all,
-/// a copy whose version is finished at its name,
+/// a copy whose version's own name held a completion marker (and the program this run looks for),
 /// or a copy whose version holds no finished copy at its name and that this run did not publish.
 /// Why:
 /// A removed finished copy may be a second one the version can spare or the one copy it had here,
 /// and the run answers that by reading the version's own name,
-/// never by calling the copy's version lost.
+/// never by calling the copy's version lost;
+/// the words say which of those reads it made, because a marker and a program found are not a working tool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
+/// type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string; programFound: boolean } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum RemovedFinishedCopy {
@@ -223,6 +224,10 @@ pub(crate) enum RemovedFinishedCopy {
     SecondCopy {
         /// The version the removed copy belonged to.
         version: String,
+        /// Whether the run found the program it looks for at the version's name,
+        /// rather than reading the completion marker alone,
+        /// which is what it does for a tool that declares no bin.
+        program_found: bool,
     },
     /// It held a finished copy of `version`,
     /// and no finished copy of that version is at its name.

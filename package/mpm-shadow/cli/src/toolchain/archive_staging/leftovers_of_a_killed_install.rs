@@ -278,7 +278,7 @@ pub(crate) fn hidden_siblings(directory: &Path) -> Result<Vec<Leftover>, Toolcha
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
             return Err(ToolchainError::failure(format!(
-                "cannot list {} for the leftovers of a killed install: {error}",
+                "cannot list {} for the hidden names an earlier install left: {error}",
                 directory.display()
             )));
         }
@@ -619,7 +619,7 @@ pub(crate) fn recover_leftovers(
         // ```ts
         // const finishedCopy = isFinished(sibling.path, firstBin)
         //   ? isFinished(versionDir, firstBin)
-        //     ? { secondCopy: version }
+        //     ? { secondCopy: version, programFound: firstBin !== '' }
         //     : { notAtItsName: version, whyNotPublished: theRuleThatKeptItOut() }
         //   : 'no-finished-copy';
         // ```
@@ -633,8 +633,17 @@ pub(crate) fn recover_leftovers(
             // ```
             let version_is_finished: bool = is_finished(version_dir, first_bin);
             if version_is_finished {
+                // What: `isFinished` reads the marker, and the program only when a name for it is known.
+                // Why: the sentence says which of those two reads it made, and a tool that declares no bin has none.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // const programFound = firstBin !== '';
+                // ```
+                let program_found: bool = !first_bin.is_empty();
                 RemovedFinishedCopy::SecondCopy {
                     version: version.clone(),
+                    program_found,
                 }
             } else {
                 RemovedFinishedCopy::NotAtItsName {

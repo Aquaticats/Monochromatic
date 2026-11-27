@@ -872,7 +872,6 @@ fn a_download_that_does_not_match_the_lock_says_what_brings_the_version_back() {
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
-    let version_dir = tool_dir.join("0.2.1");
     let earlier: std::path::PathBuf = write_the_earlier_builds_copy(&tool_dir, "0.2.1");
     // The network is there and serves bytes the lock does not name, so the download cannot bring the version back
     // until the bytes and the lock agree.

@@ -164,21 +164,24 @@ fn removed_part(
 }
 
 /// What:
-/// `, 1 of which held a second finished copy of 0.2.1; 0.2.1 is finished at its name, so nothing was lost with that copy`,
+/// `, 1 of which held a second finished copy of 0.2.1; 0.2.1 holds its completion marker and its program at its name, so that copy was a second one`,
 /// `, 1 of which held a finished copy of 0.2.1 that this run did not publish, because ...; no finished copy of 0.2.1 is at its name, so that copy is gone`,
 /// or nothing when the directory held no finished copy.
 /// Why:
 /// A removed finished copy is either a second one or the one the version had here,
-/// and only the second case is a loss:
-/// the wording that said every such copy was gone told a person of a loss that did not happen.
+/// and only the second case is the copy a person loses;
+/// the first says which reads made the run call the version finished,
+/// because `is_finished` asks for a completion marker and a program found under the name,
+/// and nothing of the bytes either one holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function whatWentWithIt(leftover: RemovedLeftover): string {
 ///   if (leftover.finishedCopy === 'no-finished-copy') return '';
 ///   if ('secondCopy' in leftover.finishedCopy) {
-///     const version = leftover.finishedCopy.secondCopy;
-///     return `, 1 of which held a second finished copy of ${version}; ${version} is finished at its name, so nothing was lost with that copy`;
+///     const { secondCopy: version, programFound } = leftover.finishedCopy;
+///     const read = programFound ? 'holds its completion marker and its program' : 'holds its completion marker';
+///     return `, 1 of which held a second finished copy of ${version}; ${version} ${read} at its name, so that copy was a second one`;
 ///   }
 ///   const { version, whyNotPublished } = leftover.finishedCopy.notAtItsName;
 ///   return `, 1 of which held a finished copy of ${version} that this run did not publish, because ${whyNotPublishedText(whyNotPublished)}; no finished copy of ${version} is at its name, so that copy is gone`;
@@ -196,11 +199,35 @@ fn what_went_with_it(leftover: &RemovedLeftover) -> String {
     // ```
     return match &leftover.finished_copy {
         RemovedFinishedCopy::NoFinishedCopy => String::new(),
+        // What: the clause names the two reads the run made at the version's own name, and nothing about its bytes.
+        // Why: the marker and a program found are what `is_finished` asks, so a program cut short under its marker
+        //  reads as finished here, and a sentence that said nothing was lost would claim more than the run read.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const read = programFound ? 'holds its completion marker and its program' : 'holds its completion marker';
+        // return `, 1 of which held a second finished copy of ${version}; ${version} ${read} at its name, so that copy was a second one`;
+        // ```
         RemovedFinishedCopy::SecondCopy {
             version,
-        } => format!(
-            ", 1 of which held a second finished copy of {version}; {version} is finished at its name, so nothing was lost with that copy"
-        ),
+            program_found,
+        } => {
+            // What: which of the two reads the sentence may name, since a program is looked for only when its name is known.
+            // Why: `is_finished` reads the marker alone for a tool that declares no bin, and the sentence has to match.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const read = programFound ? 'holds its completion marker and its program' : 'holds its completion marker';
+            // ```
+            let read: &str = if *program_found {
+                "holds its completion marker and its program"
+            } else {
+                "holds its completion marker"
+            };
+            format!(
+                ", 1 of which held a second finished copy of {version}; {version} {read} at its name, so that copy was a second one"
+            )
+        }
         RemovedFinishedCopy::NotAtItsName {
             version,
             why_not_published,
