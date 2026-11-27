@@ -191,6 +191,10 @@
 //! - `worktree_copy_settling.rs`:
 //!   settling a staged copy against its source:
 //!   the passes that copy a changed entry again and leave a vanished one out.
+//! - `worktree_copy_stage_left_out_paths.rs`:
+//!   which roots and paths a stage leaves out:
+//!   the registered worktrees nested under the source,
+//!   and any path through a private stage.
 //! - `worktree_copy_stage.rs`:
 //!   the private,
 //!   validated stage of one source's ignored state beside a destination worktree.
@@ -304,6 +308,9 @@ pub mod worktree_copy_manifest;
 /// Exact comparison of manifest entries against the filesystem,
 /// and the source stability check after staging.
 pub mod worktree_copy_compare;
+
+/// Which roots and paths a stage leaves out.
+pub mod worktree_copy_stage_left_out_paths;
 
 /// The private,
 /// validated stage of one source's ignored state beside a destination worktree.
