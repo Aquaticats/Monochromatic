@@ -951,6 +951,67 @@ the planted unit stayed `loaded`).
 The scope's own `populated` read is what allows the retirement after a stop that failed,
 and the controls that keep a live writer still see their writer in the scope and leave its unit alone.
 
+#### The test that left one, found and closed (2026-11-27)
+
+The reopen of issue 6578 owed the name of a test:
+its round's last run of the whole suite,
+threaded,
+left one unit,
+and no single module and no single test reproduced it.
+The description says which command made the scope.
+`systemd-run` builds `Description` from its own name and the command line it was given
+(`src/run/run.c` at `v262.1`,
+the `strjoin` at line 3012),
+and the program is the one `find_executable` resolved,
+so `[systemd-run] /usr/bin/true` is a launcher whose program was the bare name `true`.
+No ordinary run of the shadow starts `true`:
+the user's command is `cargo`,
+the install step's calls are `cargo update` and `cargo metadata`,
+and the `cargo-shadow-` prefix of a unit name is made only by `ControlGroup::plan`.
+`true` is what the package's own tests start.
+
+The test is
+`round_thirteen_tests::a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conservatively`
+(`package/cargo-shadow/cli/src/round_thirteen_tests.rs`).
+Its fixture runs `output_within(Command::new("true"))` and is held in `after_launch_for_test`,
+so the journal holds the scope record and no launcher record.
+The test then kills the wrapper,
+so no process of the run is left to call `stop_everything`,
+and it kills the launcher itself.
+When that kill lands before the manager writes the launcher's id into `cgroup.procs`,
+the manager attaches a process that is already exiting,
+and the unit is the state this file is about.
+It lands often:
+two runs of that one test on 2026-11-27 each left
+`cargo-shadow-*.scope loaded active running [systemd-run] /usr/bin/true`,
+`TasksCurrent=0`,
+`populated 0`,
+an empty `cgroup.procs`,
+and one journal line,
+`Started [systemd-run] /usr/bin/true.`
+
+The test no longer kills the launcher.
+A wrapper killed in that window leaves its launcher running,
+which is what a signal to a wrapper leaves,
+so the launcher is alive when the manager attaches it,
+its control group is populated,
+and the program's exit is the empty transition the manager ends and collects the unit on.
+The test waits,
+bounded,
+until the recorded launcher process is gone,
+so the recovery is still asked only after no member is left,
+and it lists the `cargo-shadow-*.scope` units before and after,
+failing naming the unit its own journal recorded where one is left.
+Measured:
+two runs of that test with the kill still in place each left one such unit,
+the second of them caught by that control,
+and three runs after the change passed and left none.
+
+What a killed wrapper still leaves when the launcher dies with it,
+no process of the run can end;
+the options for that are
+`doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`.
+
 #### What was tried and did not work, or was not chosen
 
 - Leaving the scope to the manager:
