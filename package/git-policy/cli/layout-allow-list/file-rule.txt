@@ -188,8 +188,6 @@ file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_git_lines.r
 file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_report.rs
 file-uses src/native/merge merge_second_pass_git_lines.rs -> merge_second_pass.rs
 file-uses src/native/merge merge_second_pass_report.rs -> merge_second_pass.rs
-file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
-file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
 file-uses src/native/push auto_push.rs -> auto_push_awaiting.rs
 file-uses src/native/push auto_push.rs -> auto_push_reconcile.rs
 file-uses src/native/push auto_push.rs -> push_retry_failure.rs
