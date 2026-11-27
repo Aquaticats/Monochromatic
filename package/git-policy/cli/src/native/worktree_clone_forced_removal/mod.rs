@@ -84,10 +84,14 @@
 //!   creates,
 //!   directory calls and the rename,
 //!   which the act and the progress file both make.
+//! - `the_childs_report.rs`:
+//!   how one child's piece of the act ended,
+//!   the mount table it read afterwards,
+//!   the bounded text that carries them,
+//!   and why no report came back.
 //! - `mount_namespace_child.rs`:
 //!   the single-threaded child that enters one holder namespace and runs one
-//!   piece of the act there,
-//!   and the bounded report it hands back.
+//!   piece of the act there.
 //! - `the_mount_table_the_act_reads.rs`:
 //!   the kernel's mount table as the act reads it inside a holder's namespace,
 //!   one row per mount and the topmost mount at a path.
@@ -176,6 +180,9 @@ pub mod recorded_handle;
 
 /// The descriptor-relative calls the act and the progress file make.
 pub mod descriptor_calls;
+
+/// The report one child hands back.
+pub mod the_childs_report;
 
 /// The child that enters one holder namespace and runs one piece of the act.
 pub mod mount_namespace_child;
@@ -328,13 +335,7 @@ pub use holder_scan_file::{
     ScanFileRefusal,
 };
 /// The child that enters one holder namespace and runs one piece of the act.
-pub use mount_namespace_child::{
-    ActOutcome,
-    ActReport,
-    ChildRefusal,
-    MAXIMUM_HEADER_BYTES,
-    run_in,
-};
+pub use mount_namespace_child::run_in;
 /// The user namespace that owns a mount namespace.
 pub use namespace_owner::{
     NamespaceOwner,
@@ -415,6 +416,13 @@ pub use the_acts_journal_lines::{
     as_a_block,
     dataset_word,
     quoted,
+};
+/// The report one child hands back.
+pub use the_childs_report::{
+    ActOutcome,
+    ActReport,
+    ChildRefusal,
+    MAXIMUM_HEADER_BYTES,
 };
 /// The shapes the act speaks in and the word a failed child's report becomes.
 pub use the_copy_taken_out_of_a_namespace::{
