@@ -115,8 +115,12 @@
 //! - `sweep_first_attach.rs`:
 //!   this boot's first attach,
 //!   claimed after the key check and written before the receipt.
+//! - `sweep_probe_record.rs`:
+//!   this boot's identifier,
+//!   the start probe's record for it and the fingerprint it must agree with.
 //! - `sweep_preconditions.rs`:
-//!   what a run checks before any attach.
+//!   what a run checks before any attach:
+//!   the pool and the checkout.
 //! - `sweep_standing_mount_source.rs`:
 //!   one mount's source,
 //!   asked of the kernel by the mount's unique number.
@@ -280,6 +284,9 @@ pub mod sweep_one_clone;
 
 /// One whole sweep run and the lines it reports.
 pub mod sweep_run;
+
+/// The start probe's record for this boot and the words it answers with.
+pub mod sweep_probe_record;
 
 /// What a run checks before any attach.
 pub mod sweep_preconditions;
