@@ -62,7 +62,8 @@ const HOLD_HOOK: &str = "#!/bin/sh\nif [ \"$1\" = prepared ] && [ -n \"$STALE_LO
 /// ended when the control ends however it ends.
 struct Held {
     /// The Git itself,
-    /// and never the `timeout` bound of `direct`: a `timeout` killed here leaves the Git behind it
+    /// and never the `timeout` bound of `direct`:
+    /// a `timeout` killed here leaves the Git behind it
     ///  holding its locks,
     /// and the Git then aborts the transaction when its hook is killed and removes every lock it took,
     /// so the lock this control means to leave is gone (measured in the gate image of 2026-11-23).

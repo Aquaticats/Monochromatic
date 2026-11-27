@@ -35,7 +35,8 @@ pub enum RecordRefusal {
     },
     /// One line is longer than the widest form its grammar allows.
     LineTooLarge {
-        /// The line number, counting the header as one.
+        /// The line number,
+        /// counting the header as one.
         line: usize,
         /// The bytes found.
         found: u64,
@@ -44,7 +45,8 @@ pub enum RecordRefusal {
     },
     /// The bytes are not UTF-8.
     NotUtf8 {
-        /// The line whose bytes failed, counting the header as one.
+        /// The line whose bytes failed,
+        /// counting the header as one.
         line: usize,
     },
     /// The first line is not this grammar's header.
@@ -56,10 +58,12 @@ pub enum RecordRefusal {
     NotAField {
         /// The line number.
         line: usize,
-        /// The line as it was found, bounded to what a person can read.
+        /// The line as it was found,
+        /// bounded to what a person can read.
         found: String,
     },
-    /// A key a later grammar may write, or damage.
+    /// A key a later grammar may write,
+    /// or damage.
     UnknownKey {
         /// The line number.
         line: usize,

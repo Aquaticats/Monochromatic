@@ -6,7 +6,9 @@
 //!  A helper a control started in a group of its own takes its children into that group,
 //!  and a child keeps its group even when it is reparented to the manager,
 //!  so the group is where a stand-in that outlived its test is still visible
-//!  (integration pass 31, 2026-11-14, its report's first finding).
+//!  (integration pass 31,
+//! 2026-11-14,
+//! its report's first finding).
 //!  These reads live beside the fixture file rather than inside it,
 //!  because the fixture file is over the repository's per-file line budget and they describe the process table,
 //!  not the fixture's lifecycle.
@@ -82,11 +84,13 @@ pub fn processes_in_group(group: libc::pid_t) -> Vec<(u32, String)> {
 }
 
 /// What:
-///  This process and the programs that started it, by process number,
+///  This process and the programs that started it,
+/// by process number,
 ///  up to the first one whose parent is outside them.
 /// Why:
 ///   A helper started outside a group of its own shares the group of this process,
-///  and a check that listed that group's members would answer with the test binary, the test runner and the shell.
+///  and a check that listed that group's members would answer with the test binary,
+/// the test runner and the shell.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

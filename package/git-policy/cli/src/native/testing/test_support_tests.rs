@@ -778,12 +778,15 @@ fn running(pid: i32) -> bool {
 ///  which no guard of that process can arrange.
 /// Why:
 ///   `ThreadFixtures::drop` is a guard,
-///  and `SIGKILL`, or `run_progress`'s `abort` when the run stops moving, runs no guard at all;
+///  and `SIGKILL`,
+/// or `run_progress`'s `abort` when the run stops moving,
+/// runs no guard at all;
 ///  the child then outlives the run it was started for,
 ///  which is the leak the gate reported for the forced-removal fixtures (issue 6471 and the debt audit of 2026-11-25).
 ///  The kernel's parent-death signal is the one thing that still runs,
 ///  so this control ends the middle process with `SIGKILL` and requires its child to be gone.
-///  The child leads a process group of its own, so nothing but that signal can end it here,
+///  The child leads a process group of its own,
+/// so nothing but that signal can end it here,
 ///  and a control that only worked through the group kill would fail this.
 ///
 /// In TS you'd write (pseudocode):

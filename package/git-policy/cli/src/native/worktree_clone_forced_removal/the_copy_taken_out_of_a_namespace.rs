@@ -156,16 +156,21 @@ pub struct WayOut {
 pub struct CopyRefusal {
     /// The word the report and the receipt carry.
     pub word: RefusalWord,
-    /// Which call refused, or which read.
+    /// Which call refused,
+    /// or which read.
     pub calling: &'static str,
-    /// The errno it answered, where it answered one.
+    /// The errno it answered,
+    /// where it answered one.
     pub errno: Option<i32>,
-    /// What it said, in plain words.
+    /// What it said,
+    /// in plain words.
     pub said: String,
 }
 
 impl std::fmt::Display for CopyRefusal {
-    /// One sentence naming the word, the call, the errno and what it said.
+    /// One sentence naming the word,
+    /// the call,
+    /// the errno and what it said.
     fn fmt(
         &self,
         formatter: &mut std::fmt::Formatter<'_>,

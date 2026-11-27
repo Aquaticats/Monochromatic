@@ -146,7 +146,8 @@ fn dead_holder() -> (i64, String) {
 ///  which exits before a reader can look.
 ///  A program that waits for its own end keeps the identity readable until this control ends it,
 ///  and the bounds below say how long the wait for that identity may take.
-///  The helper leads a process group of its own, which the test thread's fixtures kill when the thread ends,
+///  The helper leads a process group of its own,
+/// which the test thread's fixtures kill when the thread ends,
 ///  so an assertion that unwinds past the kill below leaves no helper behind.
 ///
 /// In TS you'd write (pseudocode):

@@ -22,7 +22,8 @@
 
 /// The one reader of a Git directory's `commondir` file.
 use crate::common_directory_of_a_git_directory::common_directory_named_by;
-/// The reader that cannot wait on a named pipe, and the bound it reads a configuration file to.
+/// The reader that cannot wait on a named pipe,
+/// and the bound it reads a configuration file to.
 use crate::plain_file::{
     SMALL_FILE_LIMIT,
     read_plain_file,

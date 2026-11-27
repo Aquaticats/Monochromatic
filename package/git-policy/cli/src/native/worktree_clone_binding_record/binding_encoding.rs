@@ -38,7 +38,8 @@ pub fn path_as_hexadecimal(path: &Path) -> String {
     return bytes_as_hexadecimal(path.as_os_str().as_encoded_bytes());
 }
 
-/// Bytes as lowercase hexadecimal, two digits a byte.
+/// Bytes as lowercase hexadecimal,
+/// two digits a byte.
 pub fn bytes_as_hexadecimal(bytes: &[u8]) -> String {
     let mut digits: String = String::with_capacity(bytes.len() * 2);
     for byte in bytes {

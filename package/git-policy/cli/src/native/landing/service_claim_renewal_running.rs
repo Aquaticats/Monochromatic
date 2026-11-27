@@ -159,7 +159,8 @@ pub static RENEWALS_MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::At
 #[cfg(test)]
 #[derive(Clone, Debug, Default)]
 pub struct TaskEndings(
-    /// The shared count: the task adds one as it ends,
+    /// The shared count:
+    /// the task adds one as it ends,
     /// and the control that started the renewal reads it.
     std::sync::Arc<std::sync::atomic::AtomicUsize>,
 );

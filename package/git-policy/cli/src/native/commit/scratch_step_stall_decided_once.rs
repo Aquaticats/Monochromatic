@@ -6,8 +6,10 @@
 //!  and the process the kernel is holding.
 //! Why:
 //!  The scratch `git commit` has two enforcers of one ceiling:
-//!  the notice's thread, which prints the lines and can end the step through the descriptor it took at its start,
-//!  and the wait that owns the child, which needs no thread and no number a reuse can reach.
+//!  the notice's thread,
+//! which prints the lines and can end the step through the descriptor it took at its start,
+//!  and the wait that owns the child,
+//! which needs no thread and no number a reuse can reach.
 //!  A step inside an uninterruptible call is slow and not stuck,
 //!  and a signal cannot shorten that call,
 //!  so both enforcers stand aside for it instead of ending it
@@ -30,8 +32,12 @@
 //!  which is the same answer `process/wait_after_the_stop_saying_the_kernel_holds_it.rs` gives
 //!  and the one the notice's blind looks already gave.
 //!  The same shape is used for the bound of every other Git step
-//!  (`push/child_watch.rs`, `process/step_output_read_whole_through_pipes.rs`, `TheWatchOfAStep`):
-//!  one value, read once, that says who may end the step and how much later.
+//!  (`push/child_watch.rs`,
+//! `process/step_output_read_whole_through_pipes.rs`,
+//! `TheWatchOfAStep`):
+//!  one value,
+//! read once,
+//! that says who may end the step and how much later.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -116,8 +122,10 @@ pub struct TheStallItWaitsThrough {
 ///  What is decided about one step's ceiling.
 /// Why:
 ///  Three states stay apart:
-/// nothing is decided yet, so an enforcer may still stand aside;
-/// the ceiling stood aside, and the step is waited for to the bound it names;
+/// nothing is decided yet,
+/// so an enforcer may still stand aside;
+/// the ceiling stood aside,
+/// and the step is waited for to the bound it names;
 /// and the usual ceiling ends the step,
 /// so no enforcer may stand aside for it afterwards and no words may claim a wait.
 ///

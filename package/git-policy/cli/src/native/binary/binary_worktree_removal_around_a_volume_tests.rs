@@ -12,7 +12,8 @@
 //!  so a worktree holding what a person put there had no removal at all,
 //!  and the path stayed taken with nothing said.
 //!  Every control here compares what stands in the volume before and after the removal,
-//!  so a step that changed a mode, an owner or a byte fails it.
+//!  so a step that changed a mode,
+//! an owner or a byte fails it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -58,7 +59,8 @@ use std::process::Command;
 /// the host runs every one of these controls.
 const NO_USER_NAMESPACE_VARIABLE: &str = "CLI_GIT_NO_USER_NAMESPACE_ACKNOWLEDGED";
 
-/// A repository whose first commit carries the ignore rules, so that a volume a control puts inside a worktree is
+/// A repository whose first commit carries the ignore rules,
+/// so that a volume a control puts inside a worktree is
 /// either covered by them or listed by Git as untracked.
 fn a_repository_with_rules(
     fixture: &Fixture,
@@ -79,8 +81,13 @@ fn a_repository_with_rules(
     return repo;
 }
 
-/// What one directory holds, as text:
-///  every path below it, its kind, its mode, its owner, and a digest of a file's bytes,
+/// What one directory holds,
+/// as text:
+///  every path below it,
+/// its kind,
+/// its mode,
+/// its owner,
+/// and a digest of a file's bytes,
 ///  sorted so two readings compare whatever order the kernel lists them in.
 fn tree_of(root: &Path) -> Vec<String> {
     let mut shown: Vec<String> = Vec::new();
@@ -144,7 +151,8 @@ fn tree_of(root: &Path) -> Vec<String> {
     return shown;
 }
 
-/// The registration directories the repository holds now, by name.
+/// The registration directories the repository holds now,
+/// by name.
 fn registrations_of_the_repository(repo: &Path) -> Vec<String> {
     let Ok(listed) = std::fs::read_dir(repo.join(".git/worktrees")) else {
         return Vec::new();
@@ -169,7 +177,8 @@ fn listing(
 }
 
 /// What:
-///  A subvolume the wrapper did not make, inside a worktree,
+///  A subvolume the wrapper did not make,
+/// inside a worktree,
 ///  with a file a person put there.
 /// Why:
 ///  Every control needs the same volume,
@@ -252,7 +261,8 @@ fn assert_the_report_of_a_removal_that_went_around(
     );
 }
 
-/// Whether an unprivileged mount can be made in a namespace of this run, or the reason the control did not run.
+/// Whether an unprivileged mount can be made in a namespace of this run,
+/// or the reason the control did not run.
 fn a_private_mount_namespace_is_available(control: &str) -> bool {
     let mut probe: Command = Command::new("/usr/bin/unshare");
     probe.args([
@@ -518,7 +528,8 @@ fn a_volume_several_directories_deep_and_a_second_one_are_both_left_with_their_m
 /// Why:
 ///  A typed removal never does more than real Git does without `--force`,
 ///  and the decision spares an untracked file that is not ignored.
-///  The volume is not a file that would go: `--force` keeps it,
+///  The volume is not a file that would go:
+/// `--force` keeps it,
 ///  which is what the refusal says.
 #[test]
 fn a_volume_the_ignore_rules_do_not_cover_refuses_without_force_and_is_left_with_it() {
@@ -801,7 +812,8 @@ fn a_read_only_mount_point_is_left_standingly_untouched() {
 /// Why:
 ///  Git's own sentence for the occupied path says only that it is there,
 ///  and the person who removed the worktree was told what stayed:
-///  the two have to meet, or the path looks broken rather than taken.
+///  the two have to meet,
+/// or the path looks broken rather than taken.
 #[test]
 fn a_later_add_at_the_path_names_the_volume_a_removal_left() {
     let fixture: Fixture = fixture("removal-around-later-add");
@@ -854,7 +866,9 @@ fn a_later_add_at_the_path_names_the_volume_a_removal_left() {
 
 /// What:
 ///  A clean worktree that holds no volume is removed exactly as it was before this change:
-///  the one-call destroy, its notice, no registration and no directory.
+///  the one-call destroy,
+/// its notice,
+/// no registration and no directory.
 /// Why:
 ///  Every control above would pass just as well if the removal had stopped removing ordinary worktrees.
 #[test]
@@ -1152,7 +1166,9 @@ fn a_removal_over_missing_entries_without_a_record_says_what_is_true() {
 ///  The documented way is that an unforced removal goes around the volume,
 /// so this control ages nothing and rewrites
 ///  no index:
-///  it adds, puts the volume in, and removes.
+///  it adds,
+/// puts the volume in,
+/// and removes.
 #[test]
 fn a_worktree_removed_in_the_second_it_was_added_goes_around_its_volume() {
     let fixture: Fixture = fixture("removal-around-the-same-second");

@@ -5,9 +5,11 @@
 //!  and no object is read.
 //! Why:
 //!  A plan missing a field is a refusal rather than a check with a missing expectation,
-//!  because nothing proves which object the removal planned, and nothing is deleted
+//!  because nothing proves which object the removal planned,
+//! and nothing is deleted
 //!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-//!  "Where the planned identities come from", control 9).
+//!  "Where the planned identities come from",
+//! control 9).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

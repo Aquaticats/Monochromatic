@@ -16,7 +16,8 @@
 //! and both come to this file:
 //! the `Child` the standard library made (`reap_soon`),
 //!  and the number of a child this process forked itself
-//! (`reap_soon_pid`), which is every handle a raw `fork` leaves behind
+//! (`reap_soon_pid`),
+//! which is every handle a raw `fork` leaves behind
 //!  (`open_file_of_a_descriptor_in_a_child.rs`,
 //! and the account companion's own fork).
 //!  The wait for such a child may never end,

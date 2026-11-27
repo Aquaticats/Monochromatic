@@ -11,7 +11,8 @@
 //!  so each case is held here rather than trusted to a reading of the code
 //!  (`doc/decision/cli-git-zfs-the-zed-hook-name-selects-a-root-mode-and-oomd-reads-cgroups.md`;
 //!  `doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
-//!  "What the answer decides, case by case").
+//!  "What the answer decides,
+//! case by case").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,7 +32,8 @@ use std::ffi::{
 };
 
 /// The one start name,
-/// as ZED passes it: the bare file name with no directory.
+/// as ZED passes it:
+/// the bare file name with no directory.
 const ZEDLET: &str = ZEDLET_START_NAME;
 
 /// The installed path root's units start.
@@ -85,7 +87,8 @@ fn the_zedlets_own_name_with_no_argument_is_the_sweep() {
 }
 
 /// The words select a mode on any file,
-/// which is what a unit's `ExecStart`, an adoption and a person use.
+/// which is what a unit's `ExecStart`,
+/// an adoption and a person use.
 #[test]
 fn the_words_select_a_mode_on_any_file() {
     assert_eq!(

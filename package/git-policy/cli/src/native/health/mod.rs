@@ -112,7 +112,8 @@ pub mod doctor_filesystem;
 #[cfg(target_os = "linux")]
 pub mod doctor_zfs_route;
 
-/// Plan step 20's Sanoid coverage, built ahead and unwired:
+/// Plan step 20's Sanoid coverage,
+/// built ahead and unwired:
 /// the generated `sanoid.conf` sections,
 /// the `com.sun:auto-snapshot=false` markers,
 /// `doctor`'s comparison of the measured dataset tree and store against

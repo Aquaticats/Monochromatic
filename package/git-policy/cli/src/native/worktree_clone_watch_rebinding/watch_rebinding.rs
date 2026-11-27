@@ -3,19 +3,24 @@
 //!  and the sentence that names the watches a person must reopen.
 //! Why:
 //!  An inotify watch belongs to the directory object it was set on and not to
-//!  the path, so a mount over the slot leaves every watch opened before it on
-//!  the covered directory, where no write of the clone's own tree arrives
+//!  the path,
+//! so a mount over the slot leaves every watch opened before it on
+//!  the covered directory,
+//! where no write of the clone's own tree arrives
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Dependency repair and watchers").
 //!  The comparison is by object and not by name:
-//!  the device, the inode and the birth time together say which directory a
-//!  path names, and an inode number alone is reused once its object goes.
+//!  the device,
+//! the inode and the birth time together say which directory a
+//!  path names,
+//! and an inode number alone is reused once its object goes.
 //!  The sentence is the wrapper's whole part of the repair:
 //!  an editor's watcher and Git's fsmonitor daemon are theirs to restart,
 //!  and the owner decided on 2026-11-03 that the wrapper neither starts nor
 //!  stops the monitor (`package/git-policy/cli/README.md`,
 //!  "The wrapper's own Git and fsmonitor").
-//!  No watch of the wrapper's own can be stale this way, because each wait sets
+//!  No watch of the wrapper's own can be stale this way,
+//! because each wait sets
 //!  its watch when it starts waiting (`landing/service_index_watch.rs`).
 //!
 //! In TS you'd write (pseudocode):
@@ -78,7 +83,8 @@ pub struct AfterTheMount {
 ///  and nothing else about the slot is read:
 ///  a mount is proved by what the path names,
 ///  not by what the mount table or the handler says about it.
-///  The path must be absolute, because the open refuses to guess a directory
+///  The path must be absolute,
+/// because the open refuses to guess a directory
 ///  from this process's own.
 ///
 /// # Errors
@@ -98,7 +104,8 @@ pub fn the_object_the_path_shows(slot: &Path) -> std::io::Result<ObjectId> {
 ///  What a watch set on the recorded object still sees once the path names
 ///  another.
 /// Why:
-///  The two readings are of one directory object when device, inode and birth
+///  The two readings are of one directory object when device,
+/// inode and birth
 ///  time all agree,
 ///  and only then may a watch from before the mount still see the tree.
 ///  Every other pair is blind,

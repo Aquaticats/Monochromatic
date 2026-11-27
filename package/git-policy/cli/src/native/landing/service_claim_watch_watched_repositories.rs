@@ -35,16 +35,20 @@ use std::path::{
 /// What:
 ///  What the notes of one instance's claim watch say about the repositories they name.
 /// Why:
-///   A note is a pointer, and the work it leads a look to is the named repository's own:
+///   A note is a pointer,
+/// and the work it leads a look to is the named repository's own:
 /// a look lists `<Git directory>/monochromatic-git-policy-cli/work/pending` (`a_record_waits`),
-/// so a note whose repository, or whose work directory, is gone leads a service to nothing.
+/// so a note whose repository,
+/// or whose work directory,
+/// is gone leads a service to nothing.
 /// The cleanup of a stopped instance's journal asks this before it takes the claim watch with the journal,
 /// because after a worktree is removed the only service that read its notes is gone too.
 /// A note that names a repository that still holds a work directory is kept and named:
 /// the store keeps such a note itself and a service of that repository still looks at what waits there.
 /// A name the store does not explain,
 /// and a note it could not read,
-/// is kept as well: nothing is discarded on a guess.
+/// is kept as well:
+/// nothing is discarded on a guess.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

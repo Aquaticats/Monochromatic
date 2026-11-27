@@ -175,9 +175,11 @@ pub fn ceiling_reached_text(
 ///  and the sentence says which program was left
 /// (the third review's finding 3).
 /// The owner answered what a *commit* should do
-///  there, "Keep waiting and say so"
+///  there,
+/// "Keep waiting and say so"
 /// (`package/git-policy/cli/SPEC.md`,
-/// "Git steps, tools and checks end only on no progress"),
+/// "Git steps,
+/// tools and checks end only on no progress"),
 /// and this is a read-only query,
 /// which says what it left and
 ///  changes nothing.

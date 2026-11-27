@@ -47,14 +47,21 @@ mod fixtures;
 /// and the line number.
 type Finding = (String, &'static str, usize);
 
-/// The squeezed text of each line of a source that holds anything at all, with its line number.
+/// The squeezed text of each line of a source that holds anything at all,
+/// with its line number.
 /// Why nothing is cut from a line first:
-///  a forbidden read is usually a string, as `"/proc/self/cmdline"` is, so cutting literals would
+///  a forbidden read is usually a string,
+/// as `"/proc/self/cmdline"` is,
+/// so cutting literals would
 ///  hide exactly what this scan looks for;
-///  and cutting comments would let a reader that disagrees with rustc hide a line, which is what the
+///  and cutting comments would let a reader that disagrees with rustc hide a line,
+/// which is what the
 ///  sixth revision's lexer did.
-///  A comment that spells a needle is therefore a finding, and each such line is a declared `ALLOWED`
-///  row: release code holds one today, and it is in `main.rs`.
+///  A comment that spells a needle is therefore a finding,
+/// and each such line is a declared `ALLOWED`
+///  row:
+/// release code holds one today,
+/// and it is in `main.rs`.
 fn code_lines(source: &str) -> Vec<(usize, String)> {
     let mut code: Vec<(usize, String)> = Vec::new();
     for (index, line) in source.lines().enumerate() {

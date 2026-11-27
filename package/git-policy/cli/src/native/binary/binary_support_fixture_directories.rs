@@ -11,7 +11,8 @@
 //!  are written once for this target and the library's unit tests in
 //!  `../testing/fixture_support_shared_by_both_test_targets.rs`,
 //!  which both include by `#[path]`
-//!  (`doc/debt-ledger-2026-11-25.md`, item 11).
+//!  (`doc/debt-ledger-2026-11-25.md`,
+//! item 11).
 //!  This file keeps what only the binary controls need:
 //!  the wrapper link a fixture's `bin/git` points at,
 //!  the fixture type itself,
@@ -101,7 +102,8 @@ pub fn warm_wrapper(linked: &Path) {
 ///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
 ///  The fallback follows the link's own failure and not a comparison of device numbers,
 /// which bind mounts defeat.
-///  The store of a run stands in the run's shared fixture root, so every test process of one run links the one copy
+///  The store of a run stands in the run's shared fixture root,
+/// so every test process of one run links the one copy
 ///  (`fixture_in`).
 ///  169 fixtures that each copied wrote about 3.7 GB (169 times 21.9 MB) in one wave
 ///  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
@@ -131,8 +133,11 @@ pub fn link_built_wrapper(
 }
 
 /// Create a fixture in the fixture root:
-///  `<root>/wrapper/monochromatic-git-policy-cli` (hard link of the built executable, of the run's one stored copy of
-///  it, or a copy of its bytes, as `fixture_in` says) and `<root>/bin/git` (symbolic link to it).
+///  `<root>/wrapper/monochromatic-git-policy-cli` (hard link of the built executable,
+/// of the run's one stored copy of
+///  it,
+/// or a copy of its bytes,
+/// as `fixture_in` says) and `<root>/bin/git` (symbolic link to it).
 pub fn fixture(name: &str) -> Fixture {
     return fixture_in(fixture_root().as_path(), run_fixture_root().as_path(), name);
 }
@@ -192,11 +197,13 @@ pub fn in_a_fixture_root_taking_any_name_within(
 /// Why:
 ///   The wrapper is a hard link of the built executable where `directory`'s file system is the build's,
 ///  and otherwise a hard link of the one stored copy of the build in `store_root`
-///  (`wrapper_store`, which publishes the copy without a lock and prunes another build's idle ones).
+///  (`wrapper_store`,
+/// which publishes the copy without a lock and prunes another build's idle ones).
 ///  The store of a run stands in the run's shared fixture root,
 ///  so every process of the run links the one copy instead of writing a copy of the whole executable into a folder of
 ///  its own:
-///  the gate's root is a 768 MiB tmpfs, and a copy per process filled it (issue 6488).
+///  the gate's root is a 768 MiB tmpfs,
+/// and a copy per process filled it (issue 6488).
 ///  A control that puts its fixtures on a file system of its own passes that file system as both,
 ///  because a store on the build's file system cannot be linked there either.
 ///  Every call names a folder of its own,

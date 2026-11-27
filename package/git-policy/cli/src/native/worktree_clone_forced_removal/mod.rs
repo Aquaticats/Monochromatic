@@ -6,9 +6,12 @@
 //!  what it reads before it ends anything,
 //!  and every word it answers with.
 //! Why:
-//!  Plan step 17 builds, with `--force`,
-//!  "the ending of the holders other than the caller and its session, once the owed measurement shows it
-//!  works; the identification of the caller and its session among the holders"
+//!  Plan step 17 builds,
+//! with `--force`,
+//!  "the ending of the holders other than the caller and its session,
+//! once the owed measurement shows it
+//!  works;
+//! the identification of the caller and its session among the holders"
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17").
 //!  The design is
@@ -27,7 +30,8 @@
 //!  (`holder_endings.rs`),
 //!  and by the constant that sizes its wait,
 //!  which ships with no value (`forced_arm_numbers.rs`).
-//!  A kind the evidence does not show is identified and refused, never ended.
+//!  A kind the evidence does not show is identified and refused,
+//! never ended.
 //!
 //! Files in this folder,
 //! each using only files listed before it:
@@ -127,7 +131,8 @@
 //! - `forced_receipt.rs`:
 //!   the receipt the act files for its own answer.
 //! - `the_acts_journal_lines.rs`:
-//!   the handler's journal lines, which the records record makes the record of
+//!   the handler's journal lines,
+//!   which the records record makes the record of
 //!   who a forced removal ended.
 //! - `the_refusal_sentences.rs`:
 //!   the sentences a forced removal prints,
@@ -142,7 +147,8 @@
 /// Every word this arm writes or answers.
 pub mod forced_removal_words;
 
-/// The waits and the heartbeat, each a constant with no value.
+/// The waits and the heartbeat,
+/// each a constant with no value.
 pub mod forced_arm_numbers;
 
 /// One process record and what a read failure proves.
@@ -166,7 +172,8 @@ pub mod receiver_closure;
 /// What this arm may do to each kind of holder.
 pub mod holder_endings;
 
-/// The reads before the first act, and their refusals.
+/// The reads before the first act,
+/// and their refusals.
 pub mod holder_preflight;
 
 /// The signal stage.
@@ -190,19 +197,23 @@ pub mod mount_namespace_child;
 /// The kernel's mount table as the act reads it.
 pub mod the_mount_table_the_act_reads;
 
-/// The shapes the act speaks in, and the word a failed child's report becomes.
+/// The shapes the act speaks in,
+/// and the word a failed child's report becomes.
 pub mod the_copy_taken_out_of_a_namespace;
 
-/// The act's first stage, in both halves.
+/// The act's first stage,
+/// in both halves.
 pub mod the_structural_stage;
 
-/// The act's second stage, in both halves.
+/// The act's second stage,
+/// in both halves.
 pub mod the_unmount_stage;
 
 /// The five lines one progress file holds and the two halves of their grammar.
 pub mod the_progress_file_lines;
 
-/// One progress file, and the proof of the folder every read and write makes first.
+/// One progress file,
+/// and the proof of the folder every read and write makes first.
 pub mod removal_progress_file;
 
 /// What the wrapper reads out of a progress file.
@@ -321,7 +332,8 @@ pub use holder_endings::{
     ending_of,
     ends_blockers,
 };
-/// The reads before the first act, and their refusals.
+/// The reads before the first act,
+/// and their refusals.
 pub use holder_preflight::{
     ForcedPlan,
     ForcedRefusal,

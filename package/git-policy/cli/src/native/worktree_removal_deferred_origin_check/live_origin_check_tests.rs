@@ -8,7 +8,8 @@
 //!  The mark is the kernel's own field and only a real module answers it,
 //!  so the arm runs inside the throwaway `mvm` guest the package's e2e recipe drives
 //!  (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-//!  "Measurements owed", M1 and control 28).
+//!  "Measurements owed",
+//! M1 and control 28).
 //!  The reap is the arm's positive control:
 //!  a harness that cannot see the loss cannot show that the refusal avoids it
 //!  (rule `QPC`).
@@ -16,7 +17,8 @@
 //!  which the recipe reads as a failure when it meant the arm to run.
 //!  The tuple is read from the live objects here because step 1's lineage proof is step 14's and
 //!  no removal of this route exists yet;
-//!  the arm judges the check, never the proof.
+//!  the arm judges the check,
+//! never the proof.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -64,7 +66,8 @@ const DEFAULT_ROOT: &str = "/home/zfs-step-15-fixture";
 const DEFAULT_PREFIX: &str = "/opt/openzfs-2.4.4";
 /// The pool the arm builds when the recipe names none.
 const DEFAULT_POOL: &str = "zfsstep15";
-/// The image the pool stands on, in gibibytes.
+/// The image the pool stands on,
+/// in gibibytes.
 const POOL_IMAGE_SIZE: &str = "1G";
 /// The slot the arm's clone takes.
 const SLOT: &str = "fix-flaky-test";
@@ -198,7 +201,9 @@ impl Fixture {
         return format!("{}/{below}", self.pool);
     }
 
-    /// Build the pool, the checkout, the clone container and one clone,
+    /// Build the pool,
+    /// the checkout,
+    /// the clone container and one clone,
     /// with the origin snapshot the check judges.
     fn build(
         &self,

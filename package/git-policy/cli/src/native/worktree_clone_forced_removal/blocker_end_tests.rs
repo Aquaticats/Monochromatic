@@ -53,7 +53,8 @@ fn wait_until_ready(
 
 /// Start one child that runs `body` under `sh -c` and answer its blocker and the child itself,
 /// after the child has installed the dispositions the body sets.
-///  The child leads a process group of its own, which the test thread's fixtures kill when the thread ends,
+///  The child leads a process group of its own,
+/// which the test thread's fixtures kill when the thread ends,
 ///  so the `sleep` a body starts behind its shell goes with the test instead of outliving it (issue 6471).
 fn start_child(body: &str) -> (Blocker, std::process::Child) {
     let mut command: std::process::Command = std::process::Command::new("sh");

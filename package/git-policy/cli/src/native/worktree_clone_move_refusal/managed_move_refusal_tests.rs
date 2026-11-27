@@ -219,7 +219,8 @@ fn a_path_no_record_can_be_keyed_by_is_left_to_git() {
 
 /// The refusal reads only the record,
 /// so the mounted and unmounted arms are the same call:
-/// one fixture, two answers from the same code because only the mount differs.
+/// one fixture,
+/// two answers from the same code because only the mount differs.
 #[test]
 fn the_refusal_never_reads_a_mount() {
     let common: PathBuf = with_record("move-refusal-same-code", Phase::Filled);

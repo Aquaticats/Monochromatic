@@ -1,5 +1,7 @@
 //! Controls for the shared walk of tracked paths:
-//!  a file, a link, an absent path and a folder,
+//!  a file,
+//! a link,
+//! an absent path and a folder,
 //!  each read below one held root,
 //!  and the refusal a folder on the way earns.
 
@@ -17,7 +19,10 @@ use std::path::{
     PathBuf,
 };
 
-/// One fixture tree: a file, a link, a folder and no `gone.txt`.
+/// One fixture tree:
+/// a file,
+/// a link,
+/// a folder and no `gone.txt`.
 fn a_tree(name: &str) -> PathBuf {
     let root: PathBuf = fixture(name);
     std::fs::write(root.join("a.txt"), b"a\n").expect("the file");

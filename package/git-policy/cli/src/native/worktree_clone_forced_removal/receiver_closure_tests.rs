@@ -3,7 +3,8 @@
 //!  a parent that shares with a group of its own keeps the host's own copy out,
 //!  a peer shape names the host and leaves way 8 unusable,
 //!  a member with no mount at the slot is not a receiver,
-//!  a covered member is named, and a parent that shares with nothing takes way 7.
+//!  a covered member is named,
+//! and a parent that shares with nothing takes way 7.
 
 use crate::worktree_clone_forced_removal::receiver_closure::*;
 
@@ -52,7 +53,9 @@ fn the_copy(
     };
 }
 
-/// One namespace: its name, its rows and the topmost mount at the slot.
+/// One namespace:
+/// its name,
+/// its rows and the topmost mount at the slot.
 fn table(
     namespace: &str,
     rows: Vec<MountRow>,
@@ -101,7 +104,8 @@ fn a_nested_in_nested_receiver_is_in_the_closure() {
     assert!(plan.way_eight);
 }
 
-/// A peer shape names the host: the host's copy is a receiver outside the act,
+/// A peer shape names the host:
+/// the host's copy is a receiver outside the act,
 /// so way 8 is not used there.
 #[test]
 fn a_peer_shape_leaves_way_eight_unusable() {

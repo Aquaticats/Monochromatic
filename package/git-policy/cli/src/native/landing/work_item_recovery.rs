@@ -308,7 +308,8 @@ pub(crate) fn requeue_with(
 ///  push is not settled while its notice could not be written.
 ///  A word kept for a later telling outlives the words themselves,
 ///  because a pass killed between the notice and the move is told again by the next one;
-///  it is taken back only here, after the record is in `failed`,
+///  it is taken back only here,
+/// after the record is in `failed`,
 ///  so a kill at that instruction costs one file nothing reads.
 ///
 /// In TS you'd write (pseudocode):
@@ -326,7 +327,8 @@ pub(crate) trait GivenUpNotice {
 
     /// Take back whatever was kept only for that telling,
     /// after `given_up` reached `failed` and no later pass will tell again.
-    ///  Most notices keep nothing, so the nothing here is the whole answer for them.
+    ///  Most notices keep nothing,
+    /// so the nothing here is the whole answer for them.
     fn settled(
         &self,
         _given_up: &WorkItem,
@@ -353,7 +355,8 @@ impl GivenUpNotice for NoNotice {
 //  moving leaves the same files, because nothing after that line runs. Only a control build has it.
 #[cfg(test)]
 thread_local! {
-    /// Whether this thread's recovery stops after the words, which no release build can do.
+    /// Whether this thread's recovery stops after the words,
+    /// which no release build can do.
     pub(crate) static KILLED_AFTER_THE_WORDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 

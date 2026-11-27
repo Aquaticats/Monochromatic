@@ -52,7 +52,8 @@ use super::{
     guest,
 };
 
-/// The account the design delegates the route to, which the guest's image creates.
+/// The account the design delegates the route to,
+/// which the guest's image creates.
 const ACCOUNT_NAME: &str = "ubuntu";
 
 /// That account's user id,
@@ -76,9 +77,11 @@ enum Place {
 /// What the add does when one decided permission is missing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Verdict {
-    /// Called by a step of this add, so the preflight refuses before the claim.
+    /// Called by a step of this add,
+    /// so the preflight refuses before the claim.
     Refuses,
-    /// Called only by a removal, so the add prints the `zfs allow` line and goes on.
+    /// Called only by a removal,
+    /// so the add prints the `zfs allow` line and goes on.
     Warns,
 }
 
@@ -87,7 +90,9 @@ enum Verdict {
 struct DecidedGrant {
     /// Where the design grants it.
     place: Place,
-    /// The `zfs allow` scope: `-l` for the dataset, `-d` for its descendants.
+    /// The `zfs allow` scope:
+    /// `-l` for the dataset,
+    /// `-d` for its descendants.
     scope: &'static str,
     /// The kernel's permission name.
     permission: &'static str,
@@ -756,7 +761,8 @@ fn the_adds_writes_succeed_for_the_account_with_each_removal_permission_withheld
 ///  refuses to read that as a pass.
 const ACCOUNT_ARM_VARIABLE: &str = "CLI_GIT_ZFS_ADD_ACCOUNT_ARM";
 
-/// The account's home, where its `HOME` and runtime folder sit.
+/// The account's home,
+/// where its `HOME` and runtime folder sit.
 const ACCOUNT_HOME: &str = "/home/ubuntu";
 
 /// The folder the account reaches the wrapper through,
@@ -767,7 +773,8 @@ const ACCOUNT_BIN: &str = "/opt/zfs-add-bin";
 /// which is not `legacy`.
 const ANOTHER_MOUNTPOINT: &str = "/srv/not-legacy";
 
-/// The companion's own test-only switch, which this arm uses to take its
+/// The companion's own test-only switch,
+/// which this arm uses to take its
 /// separate check out of the way,
 /// because this guest refuses the managed add at that check's `setgroups` step
 /// and the companion has its own arm beside its own module.
@@ -1006,12 +1013,17 @@ fn a_claim_stands_for(
 ///  the property and the value it needs.
 /// Why:
 ///  The add's clone request is the one request the design's delegation decides:
-///  as the account, the kernel refuses a `mountpoint` property and accepts a
+///  as the account,
+/// the kernel refuses a `mountpoint` property and accepts a
 ///  propertyless clone
 ///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`),
 ///  so only an add that runs as the account can prove the clone it makes.
 ///  The refusal's half proves the preflight reads the container the clone
-///  inherits from, before a claim, a slot, a registration, a snapshot or a clone
+///  inherits from,
+/// before a claim,
+/// a slot,
+/// a registration,
+/// a snapshot or a clone
 ///  is written.
 #[test]
 fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {

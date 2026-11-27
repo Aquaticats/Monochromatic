@@ -41,7 +41,10 @@ use std::path::{
     PathBuf,
 };
 
-/// A repository's common directory, its home, a slot, and the nonce one add
+/// A repository's common directory,
+/// its home,
+/// a slot,
+/// and the nonce one add
 /// wrote its lock with.
 struct World {
     /// The fixture root.
@@ -96,8 +99,11 @@ impl World {
         return self.common.join("worktrees").join("topic");
     }
 
-    /// A complete registration with this add's lock, its back-link, the slot's
-    /// pointer, a `commondir` and a `HEAD`.
+    /// A complete registration with this add's lock,
+    /// its back-link,
+    /// the slot's
+    /// pointer,
+    /// a `commondir` and a `HEAD`.
     fn a_complete_registration(&self) {
         let registration: PathBuf = self.registration();
         std::fs::create_dir_all(registration.as_path()).expect("the registration");

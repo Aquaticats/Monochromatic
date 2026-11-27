@@ -63,9 +63,11 @@ pub(super) struct CopyOfAnEarlierLayout {
     /// The record.
     pub(super) record: PathBuf,
     /// The object the record was when the pass judged it:
-    /// another command that writes its own record at that name writes another object, which this pass may not take.
+    /// another command that writes its own record at that name writes another object,
+    /// which this pass may not take.
     pub(super) record_identity: Option<Identity>,
-    /// The launcher beside it, whether or not there was one.
+    /// The launcher beside it,
+    /// whether or not there was one.
     pub(super) launcher: PathBuf,
     /// The launcher's name the lock is asked about.
     pub(super) name: Option<String>,
@@ -82,10 +84,12 @@ pub(super) struct CopyOfAnEarlierLayout {
 ///  so a record for any other name is a copy of a layout an earlier release had and no install answers for it.
 ///   A lock this release cannot read leaves every record something an install answers,
 ///  which keeps the check as strict as it was before the names were read at all.
-///  The lock is read the way the record beside it is: only a plain file is opened and only so many bytes of it are read,
+///  The lock is read the way the record beside it is:
+/// only a plain file is opened and only so many bytes of it are read,
 ///  so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
 ///  and a runaway file cannot be read into memory whole.
-///  A lock behind a link of the person's own is read, because that is the lock the worktree means.
+///  A lock behind a link of the person's own is read,
+/// because that is the lock the worktree means.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +150,8 @@ fn launcher_name(record: &Path) -> Option<String> {
 pub(super) struct Launchers {
     /// Records naming another lock that the worktree's own lock declares a launcher for.
     pub(super) stale: Vec<PathBuf>,
-    /// Records naming another lock for a name the worktree's own lock declares nowhere, and what they were read beside.
+    /// Records naming another lock for a name the worktree's own lock declares nowhere,
+    /// and what they were read beside.
     pub(super) unrewritable: Vec<CopyOfAnEarlierLayout>,
 }
 

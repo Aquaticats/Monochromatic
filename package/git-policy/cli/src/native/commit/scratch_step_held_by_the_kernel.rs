@@ -148,7 +148,8 @@ pub struct AStall {
     /// Why the ceiling stood aside:
     /// the process the kernel is holding,
     /// which is the step itself or a program it started,
-    /// or nothing, when nothing could be learned about the step.
+    /// or nothing,
+    /// when nothing could be learned about the step.
     pub why: WhyTheStepWasWaitedFor,
 }
 

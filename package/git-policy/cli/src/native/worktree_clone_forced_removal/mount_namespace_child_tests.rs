@@ -10,7 +10,8 @@
 //!  and the `setns` refusal an unprivileged handler meets is exactly what the
 //!  report has to carry,
 //!  so both are shown here without a mount and without a guest.
-//!  A privileged run on this machine answers entry, which the same control
+//!  A privileged run on this machine answers entry,
+//! which the same control
 //!  accepts and names.
 //!
 //! In TS you'd write (pseudocode):

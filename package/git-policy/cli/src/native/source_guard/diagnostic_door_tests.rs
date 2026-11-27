@@ -8,12 +8,15 @@
 //!  inside a landing that holds the index lock or a push that holds its claim included,
 //!  so a write that waits for the reader there holds what the command holds,
 //!  and every command waiting for that thing waits with it
-//!  (`doc/planning/cli-git-no-unbounded-waits.md`, "Writes to the caller's own streams").
+//!  (`doc/planning/cli-git-no-unbounded-waits.md`,
+//! "Writes to the caller's own streams").
 //!  A source guard cannot see what a line is said under:
 //! holding a lock is not a shape of the text,
 //!  so what this guard holds is the shape that makes the question go away:
-//!  one door, which never waits for the reader on the caller's thread,
-//!  and one writer, which never takes the lock every other writer of this process shares.
+//!  one door,
+//! which never waits for the reader on the caller's thread,
+//!  and one writer,
+//! which never takes the lock every other writer of this process shares.
 //!  `std::io::stderr()` is one handle behind one lock for the whole process
 //! (`standard_error_descriptor.rs`),
 //! so a writer that took it would make a reader that stopped draining hold every later line of the process,
@@ -49,10 +52,12 @@ const DOOR: &str = "foundation/diagnostic_log.rs";
 /// The file of the thread that writes the lines.
 const WRITER: &str = "foundation/diagnostic_lines_off_the_calling_thread.rs";
 
-/// The words the door must carry, which is its call to the writer.
+/// The words the door must carry,
+/// which is its call to the writer.
 const THE_HAND_OVER: &str = "diagnostic_lines_off_the_calling_thread::write";
 
-/// The words the writer must carry, which is the descriptor it writes rather than the shared handle.
+/// The words the writer must carry,
+/// which is the descriptor it writes rather than the shared handle.
 const THE_DESCRIPTOR: &str = "StandardErrorDescriptor";
 
 /// What:
@@ -298,7 +303,8 @@ fn the_writer_check_fails_on_a_writer_that_takes_the_shared_standard_error() {
     );
 }
 
-/// The `eprintln!` check fails on a planted line, and answers nothing for no file at all.
+/// The `eprintln!` check fails on a planted line,
+/// and answers nothing for no file at all.
 #[test]
 fn the_eprintln_check_fails_on_a_planted_line_and_ignores_test_support() {
     let planted: Vec<(String, String)> = vec![(

@@ -432,7 +432,8 @@ fn the_usage_names_the_modes_the_paths_and_the_device() {
 }
 
 /// What:
-///  The usage names the sweep by ZED's own spelling, and no row under the
+///  The usage names the sweep by ZED's own spelling,
+/// and no row under the
 ///  words names it.
 /// Why:
 ///   Every row below the first line hangs under `... zfs-root <mode>`,

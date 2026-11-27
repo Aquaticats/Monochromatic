@@ -1,11 +1,16 @@
 //! What:
-//!  The pseudo-terminal a typed network command's standard error is written to, when the wrapper's own standard error is one.
+//!  The pseudo-terminal a typed network command's standard error is written to,
+//! when the wrapper's own standard error is one.
 //! Why:
-//!  Git, OpenSSH and `git-lfs` draw only when `isatty(2)` is true, and a pipe answers no;
+//!  Git,
+//! OpenSSH and `git-lfs` draw only when `isatty(2)` is true,
+//! and a pipe answers no;
 //!  the terminal is opened without becoming this process's controlling terminal and without a new session,
 //!  its output processing is cleared so a captured transcript is plain Git's byte for byte,
 //!  and it is given the person's window size for the programs that ask their own standard error's terminal
-//!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, "What a shipped K, K2 or C must get
+//!  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
+//! "What a shipped K,
+//! K2 or C must get
 //!  right").
 //!
 //! In TS you'd write (pseudocode):
@@ -41,13 +46,17 @@ use std::os::fd::OwnedFd;
 use std::io;
 
 /// What:
-///  Open the two ends of a pseudo-terminal: the master this process reads and the slave the child writes.
+///  Open the two ends of a pseudo-terminal:
+/// the master this process reads and the slave the child writes.
 /// Why:
 ///   K2 gives the child a terminal on standard error only when the wrapper's own standard error is one.
 ///   The slave is opened without becoming this process's controlling terminal (`NOCTTY`),
 ///   so the person's terminal keeps signalling Git,
-///   and no session is started: the child stays in this process's foreground group
-///   (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`, K2, and the proposal's "No `setsid`").
+///   and no session is started:
+/// the child stays in this process's foreground group
+///   (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`,
+/// K2,
+/// and the proposal's "No `setsid`").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -108,12 +117,17 @@ pub(super) fn open_a_terminal_pair() -> io::Result<(OwnedFd, OwnedFd)> {
 /// What:
 ///  Clear the terminal's output processing (`OPOST`) on the child's side.
 /// Why:
-///   Without this, every line feed the child writes becomes a carriage return and a line feed,
+///   Without this,
+/// every line feed the child writes becomes a carriage return and a line feed,
 ///   so a captured transcript gains a byte on every line;
-///   with it, a refusal's transcript is plain Git's byte for byte
-///   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`, "What a shipped K, K2 or C must get
+///   with it,
+/// a refusal's transcript is plain Git's byte for byte
+///   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`,
+/// "What a shipped K,
+/// K2 or C must get
 ///   right").
-///   A terminal whose settings cannot be read or written keeps them: the child's stream is worth more than this byte.
+///   A terminal whose settings cannot be read or written keeps them:
+/// the child's stream is worth more than this byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,7 +169,8 @@ fn clear_output_processing(slave: &OwnedFd) {
 ///  Give the child's terminal the size the person's own terminal has.
 /// Why:
 ///   A program that asks its own standard error's terminal how wide it is gets an answer instead of nothing;
-///   Git's progress width comes from its standard output, which this leaves alone,
+///   Git's progress width comes from its standard output,
+/// which this leaves alone,
 ///   so the size changes no progress line and serves only those programs.
 ///
 /// In TS you'd write (pseudocode):

@@ -74,7 +74,8 @@ pub struct MountRow {
 ///  The closure is over groups,
 ///  which are global,
 ///  but whether a member keeps a receiver is a question about that member's own
-///  namespace: only a member with a mount at the slot's dentry receives the
+///  namespace:
+/// only a member with a mount at the slot's dentry receives the
 ///  unmount.
 ///
 /// In TS you'd write (pseudocode):
@@ -134,7 +135,8 @@ pub struct Receiver {
 pub struct ReceiverSet {
     /// The groups the closure started from.
     pub seed: Vec<u32>,
-    /// Every namespace the unmount reaches, in the order the tables were given.
+    /// Every namespace the unmount reaches,
+    /// in the order the tables were given.
     pub receivers: Vec<Receiver>,
     /// The kept receivers that are not namespaces the act handles.
     pub outside: Vec<String>,

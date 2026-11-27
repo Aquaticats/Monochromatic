@@ -12,7 +12,8 @@
 //!  the file named for them,
 //!  and this file holds the form,
 //!  the record rule and the sentence a person reads,
-//!  because those three answer one question: what a refusal leaves and says.
+//!  because those three answer one question:
+//! what a refusal leaves and says.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

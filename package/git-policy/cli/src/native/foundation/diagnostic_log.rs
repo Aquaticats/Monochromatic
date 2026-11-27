@@ -146,7 +146,8 @@ fn write_line(line: &str) {
 
 #[cfg(test)]
 thread_local! {
-    /// The lines this thread wrote, for a control whose subject is the words a command says.
+    /// The lines this thread wrote,
+    /// for a control whose subject is the words a command says.
     static LINES_WRITTEN: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 

@@ -97,7 +97,8 @@ fn state_of(fixture: &Fixture) -> ManagedLockState {
     .state;
 }
 
-/// S1: the sentence the record's nonce recomposes is the wrapper's managed lock,
+/// S1:
+/// the sentence the record's nonce recomposes is the wrapper's managed lock,
 /// wherever the pointer stands or not.
 #[test]
 fn the_verified_lock_is_the_wrappers_managed_class() {
@@ -118,7 +119,8 @@ fn the_verified_lock_is_the_wrappers_managed_class() {
     assert_eq!(ownership_of(&fixture), LockOwnership::TheWrappersManaged);
 }
 
-/// S2: a covering prefix of the sentence is still the wrapper's own lock,
+/// S2:
+/// a covering prefix of the sentence is still the wrapper's own lock,
 /// and the removal may complete it.
 #[test]
 fn the_cut_short_lock_is_still_the_wrappers() {
@@ -220,7 +222,8 @@ fn a_slot_with_no_record_cannot_verify_any_lock() {
     assert_eq!(ownership_of(&fixture), LockOwnership::AnOperatorsLock);
 }
 
-/// S4: a standing registration with no lock is the state the put-back answers,
+/// S4:
+/// a standing registration with no lock is the state the put-back answers,
 /// and the pointer may still stand.
 #[test]
 fn a_standing_registration_with_no_lock_is_the_unlocked_state() {
@@ -236,7 +239,8 @@ fn a_standing_registration_with_no_lock_is_the_unlocked_state() {
     assert_eq!(ownership_of(&fixture), LockOwnership::NoLockStands);
 }
 
-/// S5: with the clone unmounted and its pointer deleted,
+/// S5:
+/// with the clone unmounted and its pointer deleted,
 /// the lock still reads as the wrapper's own through the two-fact proof,
 /// and the missing pointer is a second sentence.
 #[test]
@@ -274,8 +278,10 @@ fn the_lock_survives_the_lost_pointer() {
     );
 }
 
-/// S6: a record that names a registration which is gone,
-/// with no entry the finder can attribute, is the state nothing can restore.
+/// S6:
+/// a record that names a registration which is gone,
+/// with no entry the finder can attribute,
+/// is the state nothing can restore.
 #[test]
 fn a_registration_the_record_names_and_nothing_holds_is_gone() {
     let fixture: Fixture = Fixture::new("classify-gone");
@@ -295,7 +301,8 @@ fn a_registration_the_record_names_and_nothing_holds_is_gone() {
     assert_eq!(ownership_of(&fixture), LockOwnership::NoRegistrationStands);
 }
 
-/// S7: a registration whose folder is not the recorded one explains nothing,
+/// S7:
+/// a registration whose folder is not the recorded one explains nothing,
 /// and neither do two entries carrying one sentence.
 #[test]
 fn a_registration_the_record_cannot_explain_is_unexplained() {
@@ -325,7 +332,8 @@ fn a_registration_the_record_cannot_explain_is_unexplained() {
     ));
 }
 
-/// S8: a bare registration at the slot's name is the residue the add's own resume clears.
+/// S8:
+/// a bare registration at the slot's name is the residue the add's own resume clears.
 #[test]
 fn a_half_made_registration_is_its_own_state() {
     let fixture: Fixture = Fixture::new("classify-half-made");
@@ -346,7 +354,8 @@ fn a_half_made_registration_is_its_own_state() {
     assert_eq!(ownership_of(&fixture), LockOwnership::Unexplained);
 }
 
-/// S9: a registration whose `gitdir` names another worktree is somebody else's,
+/// S9:
+/// a registration whose `gitdir` names another worktree is somebody else's,
 /// and its lock is none of this slot's business.
 #[test]
 fn another_worktrees_registration_is_its_own_state() {

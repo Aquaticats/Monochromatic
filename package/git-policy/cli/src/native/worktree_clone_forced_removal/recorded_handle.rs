@@ -92,7 +92,8 @@ pub struct RecordedHandle {
 }
 
 /// What:
-///  Why a handle could not be taken, reopened or described.
+///  Why a handle could not be taken,
+/// reopened or described.
 /// Why:
 ///  Each call refuses for its own reason,
 ///  and the report names which one the act stopped at rather than "the handle
@@ -116,7 +117,8 @@ pub struct HandleRefusal {
 }
 
 impl std::fmt::Display for HandleRefusal {
-    /// One sentence naming the call, the errno and what it said.
+    /// One sentence naming the call,
+    /// the errno and what it said.
     fn fmt(
         &self,
         formatter: &mut std::fmt::Formatter<'_>,
@@ -219,7 +221,8 @@ impl RecordedHandle {
 ///  so the handle names the underlay and never the copy.
 ///
 /// # Errors
-/// `name_to_handle_at` refused, which a file system without handles answers
+/// `name_to_handle_at` refused,
+/// which a file system without handles answers
 /// with `EOPNOTSUPP`.
 pub fn name_the_handle(folder: &std::fs::File) -> Result<RecordedHandle, HandleRefusal> {
     let mut handle: FileHandle = FileHandle {

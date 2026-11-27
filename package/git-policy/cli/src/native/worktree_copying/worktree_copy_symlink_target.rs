@@ -1,6 +1,7 @@
 //! What:
 //!  The target a copied symbolic link must hold so that it names,
-//!  at the new place the copy is installed at, what it named where it was read,
+//!  at the new place the copy is installed at,
+//! what it named where it was read,
 //!  and the rule that tells two links naming one place from two that do not.
 //! Why:
 //!  A link's text is a path read from the directory the link sits in,
@@ -44,7 +45,8 @@ use std::path::{
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Place {
-    /// A path inside the tree, relative to its root.
+    /// A path inside the tree,
+    /// relative to its root.
     Inside(PathBuf),
     /// The absolute path a text that leaves the tree resolved to.
     Outside(PathBuf),
@@ -223,7 +225,8 @@ pub fn names_the_same_place(
 }
 
 /// Target controls stay out of the release executable;
-/// they build links, which only a unix filesystem has here.
+/// they build links,
+/// which only a unix filesystem has here.
 #[cfg(all(test, unix))]
 #[path = "worktree_copy_symlink_target_tests.rs"]
 mod tests;

@@ -95,7 +95,8 @@ pub(crate) struct RequestOf<'a> {
     /// which the commit asks for a finished shadow before it builds anything.
     pub service: &'a crate::service_server_socket_binding::Bind,
     /// Where the drawn shadow this attempt was handed is kept:
-    /// the arm that answers the service releases it, or leaves its removal to the service.
+    /// the arm that answers the service releases it,
+    /// or leaves its removal to the service.
     pub handed: &'a mut Option<crate::shadow_drawn::HandedShadow>,
 }
 

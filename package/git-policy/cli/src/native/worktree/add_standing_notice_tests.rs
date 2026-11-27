@@ -348,7 +348,8 @@ impl Drop for RestoredStandardError {
     }
 }
 
-/// The pipe's own capacity, in bytes.
+/// The pipe's own capacity,
+/// in bytes.
 fn pipe_capacity(descriptor: std::os::fd::RawFd) -> usize {
     // SAFETY: `F_GETPIPE_SZ` reads the pipe's capacity and writes nothing into this process.
     let size: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETPIPE_SZ) };
@@ -572,7 +573,8 @@ fn a_notice_stuck_in_its_write_holds_no_lock_the_add_needs() {
     );
 }
 
-/// Every step name one source text enters, in the order the text enters it.
+/// Every step name one source text enters,
+/// in the order the text enters it.
 /// Why:
 ///  A scan of the crate's own text is what keeps the table of sentences true,
 /// so the reading of
