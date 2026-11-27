@@ -28,6 +28,7 @@ import {
   doneStatusOf,
   detachedScriptFiles,
   endedLineHolds,
+  type GuestNameCheck,
 } from './mvm-guest-command-line.ts';
 import {
   HOST_COMMAND_TIMEOUT_MS,
@@ -36,9 +37,9 @@ import {
 } from './mvm-guest-bounds.ts';
 import { GuestDriverError, } from './mvm-guest-error.ts';
 import type { GuestFacts, } from './mvm-guest-guest-facts.ts';
+import { runGateCommand, } from './native-gate-run.ts';
 import {
   readLog,
-  runGateCommand,
   runQuietStepCommand,
   runRequiredStepCommand,
   runStepCommand,
@@ -108,7 +109,7 @@ async function pushIntoSharedFolder({
 
  @param timeoutMilliseconds - milliseconds the script may take inside the guest
 
- @param hostnameCheckInLaunch - whether the launcher carries the guest's name check rather than the step file
+ @param nameCheck - which of the two files carries the guest's name check, if either
 
  @throws GuestDriverError when the guest could not be asked to start the script
 
@@ -119,7 +120,7 @@ async function pushIntoSharedFolder({
    script: 'cargo build --release --tests',
    log: 'build.log',
    timeoutMilliseconds: 2_400_000,
-   hostnameCheckInLaunch: false,
+   nameCheck: 'none',
  });
  ```
  */
@@ -128,13 +129,13 @@ export async function startDetachedGuestScript({
   script,
   log,
   timeoutMilliseconds,
-  hostnameCheckInLaunch,
+  nameCheck,
 }: {
   readonly chosen: GuestFacts;
   readonly script: string;
   readonly log: string;
   readonly timeoutMilliseconds: number;
-  readonly hostnameCheckInLaunch: boolean;
+  readonly nameCheck: GuestNameCheck;
 },): Promise<void> {
   /**
    The step and launcher files this script runs from, one of which carries the guest's name check.
@@ -144,7 +145,7 @@ export async function startDetachedGuestScript({
     script,
     log,
     timeoutMilliseconds,
-    hostnameCheckInLaunch,
+    nameCheck,
   },);
   /**
    The file holding the script, its bound and the status line it ends with.

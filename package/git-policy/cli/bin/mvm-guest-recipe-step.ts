@@ -16,6 +16,7 @@ import {
 } from 'node:path';
 
 import { GuestDriverError, } from './mvm-guest-error.ts';
+import type { GuestFacts, } from './mvm-guest-guest-facts.ts';
 import { runVisibleStepCommand, } from './mvm-guest-step-command.ts';
 import { RECIPE_STEP_TIMEOUT_MS, } from './mvm-guest-bounds.ts';
 
@@ -96,4 +97,38 @@ export async function runGuestRecipeStep({
   },);
   if (status !== 0)
     throw new GuestDriverError(`the guest recipe's ${step} step exited ${String(status,)}`,);
+}
+
+/**
+ One step of the recipe, as a step of a guest driver's own command line.
+
+ A driver's `all` step is a table of four steps, and three of every driver's entries are the recipe's. This makes one of
+ those entries without repeating the words the recipe needs.
+
+ @param step - the recipe's own step
+
+ @param extraArgumentWords - further words the recipe's step takes, such as the custom template `prepare` reads
+
+ @returns a step that hands the recipe the guest's name, its log directory and those extra words
+
+ @example
+ ```ts
+ const steps = { create: recipeStepOf({ step: 'create' }) };
+ ```
+ */
+export function recipeStepOf({
+  step,
+  extraArgumentWords = [],
+}: {
+  readonly step: string;
+  readonly extraArgumentWords?: readonly string[];
+},): (run: { readonly chosen: GuestFacts; }) => Promise<void> {
+  return async function recipeStep({ chosen: { name, logDir }, }) {
+    await runGuestRecipeStep({
+      name,
+      logDirectory: logDir,
+      step,
+      extraArgumentWords,
+    },);
+  };
 }

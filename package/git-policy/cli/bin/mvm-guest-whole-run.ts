@@ -87,27 +87,24 @@ async function keepFailure({ step }: { readonly step: () => Promise<void> },): P
 /**
  Destroy the guest a refused work step left behind, keeping a destruction that refused beside the work's own refusal.
 
+ A destruction that refuses here is said in the log and never thrown: the work's own refusal is what the run reports,
+ because that is the failure a person acts on.
+
  @param destroy - the step that takes the guest away
 
  @param chosen - the facts the guest is named and logged by
 
- @param refusal - what the work refused with, which a failed destruction never hides
-
- @throws whatever the destruction refused with, when the work itself refused nothing
-
  @example
  ```ts
- await destroyAfterRefusal({ destroy: steps.destroy, chosen, refusal });
+ await destroyAfterRefusal({ destroy: steps.destroy, chosen });
  ```
  */
 async function destroyAfterRefusal({
   destroy,
   chosen,
-  refusal,
 }: {
   readonly destroy: GuestRunStep;
   readonly chosen: GuestFacts;
-  readonly refusal: RunFailure;
 },): Promise<void> {
   try {
     await destroy({ chosen, },);
@@ -172,7 +169,6 @@ export async function runWholeGuestRun({
     await destroyAfterRefusal({
       destroy: steps.destroy,
       chosen,
-      refusal: failure,
     },);
     throw failure.error;
   }

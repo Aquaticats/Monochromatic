@@ -10,7 +10,7 @@
 
  A detached script is the one place the three did not agree, and the difference is kept: one driver's scripts carry the
  guest's name check in the step file and the other two carry it in the launcher, and the two scripts are identical only
- with that distinction (`{@link detachedScriptFiles}`'s `hostnameCheckInLaunch`).
+ with that distinction (`{@link detachedScriptFiles}`'s `nameCheck`).
  */
 
 import {
@@ -129,6 +129,18 @@ export function guestSecondsOf({ timeoutMilliseconds, }: { readonly timeoutMilli
 }
 
 /**
+ Which of a detached script's two files carries the check that the command reached the guest it names.
+
+ - `launcher` puts `test "$(hostname)" = NAME || exit 1` first in the launcher, which refuses a command that reached
+   another machine before the step file is started at all (the adoption driver's scripts);
+ - `step` puts `test "$(hostname)" = NAME` first in the step file, so the detached script refuses itself (the step 22
+   driver's);
+ - `none` carries no check, as the removal-lineage and settling drivers' scripts always did, because the host names the
+   guest in `mvm exec` and `mvm` itself picks the domain.
+ */
+export type GuestNameCheck = 'launcher' | 'step' | 'none';
+
+/**
  The two files one detached guest script runs from.
  */
 export type DetachedScriptFiles = {
@@ -153,12 +165,9 @@ export type DetachedScriptFiles = {
  would end with the `mvm exec` that started it, and the guest's own job control would take its output with it, so
  `setsid nohup` leaves it holding neither the command's terminal nor its pipes.
 
- The guest-name check is carried by one of the two files and not by both, and which one it is is the distinction the
- drivers already made:
-
- - `hostnameCheckInLaunch` true puts `test "$(hostname)" = NAME || exit 1` first in the launcher, which refuses a
-   command that reached another machine before the step file is started at all;
- - false puts `test "$(hostname)" = NAME` first in the step file, so the script refuses itself.
+ The guest-name check is carried by one of the two files, or by neither, and which one it is, is the distinction the
+ drivers already made: the three sets of helpers did not agree, and each driver's scripts are byte-identical only with
+ its own answer kept (`{@link GuestNameCheck}`).
 
  @param name - the guest's name, which its own hostname must answer
 
@@ -168,15 +177,13 @@ export type DetachedScriptFiles = {
 
  @param timeoutMilliseconds - the bound the host gives the script, which the guest's `timeout` is sized from
 
- @param hostnameCheckInLaunch - whether the launcher carries the guest's name check rather than the step file
+ @param nameCheck - which of the two files carries the guest's name check, if either
 
  @returns the two files' whole text, each ending in a newline
 
- @throws never: the text is built from the inputs alone
-
  @example
  ```ts
- const files = detachedScriptFiles({ name: 'guest-a', script: 'id', log: 'build.log', timeoutMilliseconds: 900_000, hostnameCheckInLaunch: false });
+ const files = detachedScriptFiles({ name: 'guest-a', script: 'id', log: 'build.log', timeoutMilliseconds: 900_000, nameCheck: 'step' });
  ```
  */
 export function detachedScriptFiles({
@@ -184,13 +191,13 @@ export function detachedScriptFiles({
   script,
   log,
   timeoutMilliseconds,
-  hostnameCheckInLaunch,
+  nameCheck,
 }: {
   readonly name: string;
   readonly script: string;
   readonly log: string;
   readonly timeoutMilliseconds: number;
-  readonly hostnameCheckInLaunch: boolean;
+  readonly nameCheck: GuestNameCheck;
 },): DetachedScriptFiles {
   /**
    The check that the command reached the guest it names, in whichever file carries it.
@@ -200,7 +207,7 @@ export function detachedScriptFiles({
    The bounded script, which is what runs detached.
    */
   const stepLines = [
-    ...(hostnameCheckInLaunch ? [] : [hostnameCheck,]),
+    ...(nameCheck === 'step' ? [hostnameCheck,] : []),
     `timeout ${String(guestSecondsOf({ timeoutMilliseconds, },),)} sh -ec ${shellQuote(script,)} > /mnt/shared/${log} 2>&1`,
     'status=$?',
     `echo "${ENDED_MARK}$status" >> /mnt/shared/${log}`,
@@ -210,7 +217,7 @@ export function detachedScriptFiles({
    The launcher, which is what the host starts and which returns at once.
    */
   const launchLines = [
-    ...(hostnameCheckInLaunch ? [`${hostnameCheck} || exit 1`,] : []),
+    ...(nameCheck === 'launcher' ? [`${hostnameCheck} || exit 1`,] : []),
     `setsid nohup sh /mnt/shared/${log}.step.sh < /dev/null > /dev/null 2>&1 &`,
     'exit 0',
     '',

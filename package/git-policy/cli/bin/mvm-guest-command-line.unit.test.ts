@@ -229,7 +229,7 @@ await describe({
               script: 'echo one',
               log: 'arm.log',
               timeoutMilliseconds: 900_000,
-              hostnameCheckInLaunch: true,
+              nameCheck: 'launcher',
             },);
             expect(files.launch.startsWith(`test "$(hostname)" = ${GUEST} || exit 1\n`,),).toBe(true,);
             expect(files.step.includes('hostname',),).toBe(false,);
@@ -243,7 +243,7 @@ await describe({
               script: 'echo one',
               log: 'arm.log',
               timeoutMilliseconds: 900_000,
-              hostnameCheckInLaunch: false,
+              nameCheck: 'step',
             },);
             expect(files.step.startsWith(`test "$(hostname)" = ${GUEST}\n`,),).toBe(true,);
             expect(files.launch.includes('hostname',),).toBe(false,);
@@ -257,7 +257,7 @@ await describe({
               script: 'true',
               log: 'build.log',
               timeoutMilliseconds: 70_000,
-              hostnameCheckInLaunch: false,
+              nameCheck: 'step',
             },).step,).toBe(
               `test "$(hostname)" = ${GUEST}\n`
                 + `timeout 10 sh -ec 'true' > /mnt/shared/build.log 2>&1\n`
@@ -274,7 +274,7 @@ await describe({
               script: 'true',
               log: 'build.log',
               timeoutMilliseconds: 70_000,
-              hostnameCheckInLaunch: false,
+              nameCheck: 'step',
             },).launch,).toBe(
               'setsid nohup sh /mnt/shared/build.log.step.sh < /dev/null > /dev/null 2>&1 &\n'
                 + 'exit 0\n',
@@ -289,10 +289,25 @@ await describe({
               script: 'echo one',
               log: 'arm.log',
               timeoutMilliseconds: 900_000,
-              hostnameCheckInLaunch: true,
+              nameCheck: 'launcher',
             },);
             const expected = guestSecondsOf({ timeoutMilliseconds: 900_000, },);
             expect(files.step.includes(`timeout ${String(expected,)} sh -ec `,),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'carries no name check at all for a driver whose host names the guest it runs in',
+          fn: async () => {
+            const files = detachedScriptFiles({
+              name: GUEST,
+              script: 'echo one',
+              log: 'arm.log',
+              timeoutMilliseconds: 900_000,
+              nameCheck: 'none',
+            },);
+            expect(files.step.includes('hostname',),).toBe(false,);
+            expect(files.launch.includes('hostname',),).toBe(false,);
+            expect(files.step.startsWith(`timeout `,),).toBe(true,);
           },
         },),
         it({
@@ -303,7 +318,7 @@ await describe({
               script: `grep --quiet --fixed-strings 'ARM done' /root/arm.log`,
               log: 'arm.log',
               timeoutMilliseconds: 900_000,
-              hostnameCheckInLaunch: true,
+              nameCheck: 'launcher',
             },);
             expect(files.step.includes(`sh -ec 'grep --quiet --fixed-strings '\\''ARM done'\\'' /root/arm.log' > /mnt/shared/arm.log 2>&1`,),).toBe(true,);
           },
