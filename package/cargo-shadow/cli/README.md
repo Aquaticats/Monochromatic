@@ -1589,6 +1589,24 @@ A run that fails that check exits non-zero rather than reporting a pass nobody e
 `cargo nextest list` cannot be asked which tests need a scope,
 so there is nothing cheaper than the first run,
 and the cost is one more pass over the suite on a host that cannot delegate.
+
+The same line is used by a control that needs more than a scope.
+`journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
+and the test fixture root (three levels above the test binary,
+so `test-scratch` in the crate's build folder) may sit on a dataset that refuses such a name under `utf8only=on`,
+answering `EILSEQ`;
+this host's `zpcachyos/nosnap/cargo-build` does,
+which is where cargo writes artifacts here (`~/.cargo/config.toml`).
+`src/test_scratch/fixture_root_taking_any_name.rs` asks that root whether it takes the name and,
+where it does not,
+runs the same test again for that one test inside a user and mount namespace of its own with a tmpfs at the root,
+so the control runs here instead of failing for the file system's refusal.
+Where a host refuses both the name and an unprivileged user namespace,
+the control prints `cargo-shadow tests: not run [<name>]: ...` and a degraded run leaves it out rather than counting it as passed.
+Why it is not simply skipped is the same reason as above:
+a control that returns green without making the name proves nothing about the recovery it guards.
+The record is `doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md` (issue 6550).
+
 The tests run where this account has a user manager on a cgroup v2 mount:
 
 ```sh
@@ -1611,6 +1629,10 @@ Before this change that host reported `872 tests run: 872 passed` with the same 
 
 ## Owner answers of 2026-11-10
 
-- Asked whether `cargo-shadow lean` may remove a run record another user's process might hold, when that
-  process cannot be inspected, the owner answered at 2026-11-10T08:24:33-05:00: "Keep removing and
-  logging (Recommended)". So the sweep keeps removing and logs each record it removes.
+- Asked whether `cargo-shadow lean` may remove a run record another user's process might hold,
+  when that
+  process cannot be inspected,
+  the owner answered at 2026-11-10T08:24:33-05:00:
+  "Keep removing and
+  logging (Recommended)".
+  So the sweep keeps removing and logs each record it removes.
