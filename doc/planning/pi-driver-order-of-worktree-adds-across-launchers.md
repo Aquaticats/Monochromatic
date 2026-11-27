@@ -3,7 +3,7 @@
 ## Status
 
 Proposal,
-written 2026-11-27T04:05:00-05:00 by the coordinating Claude Code session,
+written 2026-11-27T04:14:00-05:00 by the coordinating Claude Code session,
 for [issue 6563](https://github.com/Aquaticats/Monochromatic/issues/6563).
 Unapproved and non-final:
 nothing here is built,
@@ -11,17 +11,21 @@ no code and no test changed,
 and the owner decides whether a rule about starts exists at all.
 This round measured and proposed only.
 
-Two reviews of the first version were taken,
-and their findings are folded in:
-an independent one from another vendor (`neuralwatt/nw-large`,
+Two reviews were taken of an earlier version.
+The independent one,
+from another vendor (`neuralwatt/nw-large`,
 through the repository's advisor),
-which corrected six claims of overreach in the measured section,
-among them that no attempt returns beside twenty-four adds in flight,
+is folded in:
+its findings corrected claims of overreach in the measured section,
+that no attempt returns beside twenty-four adds in flight,
 that the count of adds alone sets an add's cost,
-and that a group of adds lived at a steady level;
-and a Claude Sonnet gate read,
+that a group of adds lived at a steady level,
+and that a killed add's wait is known to be in one half of the copy.
+The other is a Claude Sonnet gate read,
 a same-vendor second pass rather than an independent one,
-which this record states here whether or not it returns before the proposal is put down.
+which was still running when this version was written;
+what it returns is folded in before the owner is asked,
+or named as unreturned if it does not.
 
 Whether a new rule about starts is the owner's to give,
 and the project holds both halves of it:
