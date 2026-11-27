@@ -1,17 +1,18 @@
 //! What:
-//!  Trees and commits read in process:
+//!  Trees read in process:
 //! the entries of a tree,
 //! the flat list of a whole tree,
-//! and the header fields
-//!  and subject of a commit.
+//!  and the entries that differ between two trees.
 //! Why:
 //!  The diff and listing readers compare a commit's tree with an index or another tree path by path,
-//! and `show` prints a
-//!  commit's subject;
-//! both need only these parses,
-//! and a commit with a header the parser does not know
-//!  (a different message encoding,
-//! a signature it must not interpret) returns `None` so Git answers.
+//! and both need only these parses;
+//!  a tree whose walk goes deeper than the limit,
+//! or that would hold more entries than one list may,
+//!  returns `None` so Git answers.
+//!  A commit's own header fields and subject are
+//!  `the_fields_and_subject_of_a_commit.rs`,
+//!  which this file re-exports,
+//!  so every caller keeps the path it writes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,6 +30,12 @@ use crate::repo_read_object::{
 use crate::repo_read_odb::ObjectDatabase;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+pub use crate::the_fields_and_subject_of_a_commit::{
+    CommitFields,
+    parse_commit,
+    subject_of,
+};
 
 /// The deepest tree nesting the flattener follows.
 const TREE_DEPTH_LIMIT: usize = 256;
@@ -193,11 +200,6 @@ fn tree_entries_named(
         return None;
     }
     return parse_tree(object.bytes.as_slice(), name_length(format));
-}
-
-/// Whether `byte` is a newline.
-fn is_newline(byte: &u8) -> bool {
-    return *byte == b'\n';
 }
 
 /// What:
@@ -399,102 +401,6 @@ fn walk_pair(
         }
     }
     return Some(());
-}
-
-/// The fields of a commit the readers use.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CommitFields {
-    /// The root tree.
-    pub tree: Vec<u8>,
-    /// The parents in order.
-    pub parents: Vec<Vec<u8>>,
-    /// The message:
-    /// everything after the blank line that ends the header.
-    pub message: Vec<u8>,
-}
-
-/// What:
-///  The tree,
-/// parents and message of a commit object's content;
-///  `None` for a header with an `encoding` line (Git would re-encode the message) or a malformed one.
-/// Why:
-///   `show --format=%s` prints the message converted to UTF-8;
-/// only a commit that needs no conversion is read here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function parseCommit(bytes: Uint8Array, format): CommitFields | undefined;
-/// ```
-pub fn parse_commit(
-    bytes: &[u8],
-    format: ObjectFormat,
-) -> Option<CommitFields> {
-    let mut blank_line_at: Option<usize> = None;
-    for (position, pair) in bytes.windows(2).enumerate() {
-        if pair == b"\n\n" {
-            blank_line_at = Some(position);
-            break;
-        }
-    }
-    let split: usize = blank_line_at?;
-    let header: &[u8] = &bytes[..split];
-    let mut tree: Option<Vec<u8>> = None;
-    let mut parents: Vec<Vec<u8>> = Vec::new();
-    for (index, line) in header.split(is_newline).enumerate() {
-        if let Some(text) = line.strip_prefix(b"tree ") {
-            if index != 0 {
-                return None;
-            }
-            tree = Some(crate::repo_read_object::from_hex(text, format)?);
-        } else if let Some(text) = line.strip_prefix(b"parent ") {
-            parents.push(crate::repo_read_object::from_hex(text, format)?);
-        } else if line.starts_with(b"encoding ") {
-            return None;
-        }
-    }
-    return Some(CommitFields {
-        tree: tree?,
-        parents,
-        message: bytes[split + 2..].to_vec(),
-    });
-}
-
-/// What:
-///  The subject `%s` prints for a message:
-/// the first paragraph with its lines joined by spaces.
-/// Why:
-///   Git skips leading blank lines,
-/// stops at the first blank line,
-/// trims each line's trailing white space and joins
-///  with a single space;
-/// any message the plain rule does not cover (a carriage return) returns `None`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const subject = message.replace(/^\n+/, '').split(/\n\s*\n/)[0].split('\n').map((l) => l.trimEnd()).join(' ');
-/// ```
-pub fn subject_of(message: &[u8]) -> Option<Vec<u8>> {
-    if message.contains(&b'\r') || message.contains(&0) {
-        return None;
-    }
-    let mut subject: Vec<u8> = Vec::new();
-    let mut started: bool = false;
-    for line in message.split(is_newline) {
-        let trimmed: &[u8] = line.trim_ascii_end();
-        let blank: bool = trimmed.is_empty();
-        if blank && !started {
-            continue;
-        }
-        if blank {
-            break;
-        }
-        if started {
-            subject.push(b' ');
-        }
-        started = true;
-        subject.extend_from_slice(line.trim_ascii_end());
-    }
-    return Some(subject);
 }
 
 #[cfg(test)]

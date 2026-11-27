@@ -122,10 +122,14 @@
 //!   the files ref storage,
 //!   one ref by name,
 //!   a symbolic chain and the list of all refs.
+//! - `the_fields_and_subject_of_a_commit.rs`:
+//!   the tree,
+//!   the parents and the message a commit states,
+//!   and the subject `%s` prints for it.
 //! - `repo_read_tree.rs`:
 //!   in-process repository reads:
 //!   trees,
-//!   flattened trees and commit fields.
+//!   the flat list of a tree and the entries that differ between two trees.
 //! - `repo_read_diff.rs`:
 //!   in-process repository reads:
 //!   the difference between two sorted entry lists and the output spellings.
@@ -420,9 +424,15 @@ pub mod object_abbreviation;
 /// a shared prefix length.
 pub mod object_abbreviation_byte_and_prefix_checks;
 
+/// The tree,
+/// the parents and the message a commit states,
+/// and the subject `%s` prints for it.
+#[cfg(unix)]
+pub mod the_fields_and_subject_of_a_commit;
+
 /// In-process repository reads:
 /// trees,
-/// flattened trees and commit fields.
+/// the flat list of a tree and the entries that differ between two trees.
 #[cfg(unix)]
 pub mod repo_read_tree;
 
