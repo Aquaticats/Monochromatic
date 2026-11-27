@@ -19,6 +19,8 @@
 //!   its slot,
 //!   the record of every file made,
 //!   and the step that makes and records one.
+//! - `the_clause_a_commit_no_reference_proves.rs`:
+//!   the clause a sentence about a commit ends with when no reference is proven to name it.
 //! - `the_names_of_the_index_lock.rs`:
 //!   the path of an index lock,
 //!   how often a holder's line is repeated,
@@ -1011,6 +1013,9 @@ pub mod service_land_start;
 /// What one look at the held index lock proves,
 /// and the words the person is told about its holder.
 pub mod service_index_holder_look;
+
+/// The clause a sentence about a commit ends with when no reference is proven to name it.
+pub mod the_clause_a_commit_no_reference_proves;
 
 /// The words and the names the index lock uses:
 /// the path of a lock,
