@@ -35,7 +35,6 @@ use crate::service_journal_folder_of_an_instance::{
     state_dir_of_journal,
 };
 use crate::service_provision_host_and_manager::Manager;
-use crate::service_route::non_empty_path_variable;
 use crate::service_unit_folders_and_the_worktree_of_an_instance::{
     UnitFolders,
     UnitWorktree,
@@ -117,7 +116,16 @@ pub fn own_worktree_state(
     instance: &str,
     journal: &Path,
 ) -> OwnWorktree {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+    // What:     the runtime directory this session names, read in the one place this crate reads it.
+    // Why:      a build made for tests answers only a runtime directory a control handed in, so a test process
+    //           reads no note or unit of this account's (issue 6586).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = session.runtimeDirectory(); if (!runtime) return 'unmapped';
+    // ```
+    let Some(runtime_dir) = crate::session_runtime_directory_and_bus_address::runtime_directory()
+    else {
         return OwnWorktree::Unmapped;
     };
     let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
@@ -305,7 +313,16 @@ pub fn stop_own_socket_when_the_worktree_is_gone(
     instance: &str,
     journal: &Path,
 ) -> bool {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+    // What:     the two facts a manager is reached by, read in the one place this crate reads them.
+    // Why:      a build made for tests answers only what a control handed in, so a test process stops no socket of
+    //           this account's (issue 6586).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = session.runtimeDirectory(); if (!runtime) return false;
+    // ```
+    let Some(runtime_dir) = crate::session_runtime_directory_and_bus_address::runtime_directory()
+    else {
         return false;
     };
     let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
@@ -317,7 +334,7 @@ pub fn stop_own_socket_when_the_worktree_is_gone(
     let OwnWorktree::Gone(gone) = own_worktree_state(instance, journal) else {
         return false;
     };
-    let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    let address: Option<String> = crate::session_runtime_directory_and_bus_address::bus_address();
     let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
         crate::service_warn!(
             "the worktree of this commit service is gone ({}), so it serves nothing, but no session bus was found to stop its socket; `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",

@@ -31,7 +31,6 @@
 
 use crate::service_instance::socket_unit_instance;
 use crate::service_provision_host_and_manager::Manager;
-use crate::service_route::non_empty_path_variable;
 use crate::systemd_dbus::{
     Bus,
     CallError,
@@ -53,10 +52,19 @@ use crate::systemd_dbus::{
 /// stopOwnSocketBeforeServingAnything(instance)
 /// ```
 pub fn stop_own_socket_before_serving_anything(instance: &str) -> bool {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else {
+    // What:     the two facts a manager is reached by, read in the one place this crate reads them.
+    // Why:      a build made for tests answers only what a control handed in, so a test process stops no socket of
+    //           this account's (issue 6586).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = session.runtimeDirectory(); if (!runtime) return false;
+    // ```
+    let Some(runtime_dir) = crate::session_runtime_directory_and_bus_address::runtime_directory()
+    else {
         return false;
     };
-    let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    let address: Option<String> = crate::session_runtime_directory_and_bus_address::bus_address();
     let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
         crate::service_warn!(
             "this commit service of {instance} was retired before it served anything, but no session bus was found to stop its socket, so a connection starts it again"

@@ -107,24 +107,30 @@ and a control that changes what it names runs its body through
 `run_the_body_with_an_environment_of_its_own`
 in the same file,
 which adds the variables the control states and removes the ones it names.
-The route a hand-over finds the commit service by reads two of them:
-`XDG_RUNTIME_DIR` names the socket and the bus,
-and `DBUS_SESSION_BUS_ADDRESS` names the session bus a service is provisioned through.
-So a control whose body hands a trash over through the release path reaches this account's own manager as soon
-as another control of the same process has resolved the real Git,
-because resolving it remembers the running executable
-(`service_route.rs`,
-`OWN_EXECUTABLE`),
-which in a test process is the test binary:
-the hand-over wrote that fixture worktree's units into `/run/user/<n>/systemd/user/`,
+The route a hand-over finds the commit service by reads two facts of the session,
+and a test build reads them from one place only,
+`foundation/session_runtime_directory_and_bus_address.rs`:
+an inherited `XDG_RUNTIME_DIR` or `DBUS_SESSION_BUS_ADDRESS` is not read at all,
+and the control hands its own in through
+`CLI_GIT_TEST_ONLY_SESSION_RUNTIME_DIRECTORY` and `CLI_GIT_TEST_ONLY_SESSION_BUS_ADDRESS`,
+which that file reads in place of the inherited pair.
+So a body whose control hands in nothing has no route,
+and `source_guard/no_release_read_of_the_session_places_tests.rs` refuses any other read of either name.
+A build made for tests also offers the manager no program of its own:
+the executable a process remembers is not compiled there,
+because in a test process it is the test binary
+(issue 6586:
+before that,
+a control that handed a trash over wrote its fixture's units into `/run/user/<n>/systemd/user/`,
 pointed the account-wide program link at the test binary,
-and asked the manager to start a unit for the fixture,
-which failed five times on libtest's `error: Unrecognized option: 'journal'` until the start limit hit,
-while the add printed its own starting notice into the control's captured standard error (issue 6582).
-Such a control names a fixture `XDG_RUNTIME_DIR` and clears `DBUS_SESSION_BUS_ADDRESS`,
-so the route answers nothing and the hand-over fails with "no commit service can be started from this
-session",
+and had the manager run libtest for the fixture five times until the start limit hit,
+which is what issue 6582's two controls first met).
+So a control whose body routes a hand-over hands in a fixture runtime directory and no bus,
+as `worktree_copying`'s two hand-over controls do,
+and the hand-over fails with "no commit service can be started from this session",
 which is the world those controls are about.
+A control whose subject is a route with a program in it passes one to `choose_route` itself,
+and `landing/service_route_tests.rs` holds both kinds.
 A child also inherits the records its parent holds,
 so a control whose body reads the chain record closes the record it inherited before it makes its own
 (`invocation/started_as_git_tests.rs`,
