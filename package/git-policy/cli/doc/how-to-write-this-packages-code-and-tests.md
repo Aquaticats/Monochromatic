@@ -597,7 +597,12 @@ which enters each folder once,
 never descends a link,
 and gives the files in code unit order.
 A fixture folder a script makes itself is not the source tree,
-so a reader of one may list it directly and say what it does about a link it meets there.
+so a reader of one may list it directly:
+two readers of this package list a folder recursively and each follows a link it meets,
+`e2e/observation-fixture.ts` (a fixture repository's common directory) and
+`perf/fence-size-read-beside-the-check-2026-11-21-control-identical-fence.ts` (the fixture trees it compares),
+and neither fixture holds a link as of 2026-11-27,
+because no script of the package makes one there.
 
 A planted control names one file and one needle in it,
 and a needle goes stale without anything renaming it:
