@@ -68,8 +68,10 @@ There are two ways the file comes to be open for writing:
 
 ## What this tool starts, and how each writer publishes
 
-Every program this tool starts is named here,
+Every program this tool starts that writes a file is named here,
 with how it puts the file it writes into place.
+The read-only runs (`uv tool list`, `rustup which`, `rustc --version`, `bin list`, `gh auth token`)
+write no program that a start resolves, and are not listed again.
 Each entry says whether that was traced in a throwaway root on this machine
 (`strace --follow-forks`,
 an absolute timestamp on every line,
@@ -169,7 +171,10 @@ The fallback is Go's, not this route's:
 `moveOrCopyFile` tries `os.Rename` and then `CopyFile`
 (`/usr/lib/go/src/cmd/go/internal/work/shell.go`),
 and `CopyFile` opens the destination `O_WRONLY|O_CREATE|O_TRUNC`.
-Two runs of the same arm on the same file system renamed instead and copied nothing.
+Two more runs of the same arm show what the fallback depends on:
+with Go's work directory on the same file system it renamed instead
+(`renameat(...) = 0`),
+and with the target already up to date it wrote nothing at all.
 
 ### `pnpm add --global`
 
@@ -399,13 +404,13 @@ A `fork` copies the descriptor table,
 so a child another thread forks while a descriptor is open for writing
 holds that copy from the fork to its own `execve`,
 and the published file is refused to any start in that interval.
-This repository measured that interval twice before this round:
+This repository measured that interval before this round:
 
 - `doc/troubleshooting/shadow-tests-that-write-a-program-and-start-it-are-refused-with-etxtbsy.md`
   (this crate, 2026-11-27):
   the hold is "from that `fork` to its own `execve` (about 1 to 3 ms)",
   a threaded probe was refused in 4 of 20 and 1 of 20 attempts,
-  and before the fix every test binary that wrote a program it started met it.
+  and before the fix the test binaries that write a program they start failed on it.
 - `doc/troubleshooting/git-policy-cli-a-fixture-git-is-refused-with-etxtbsy.md`
   (2026-11-26): the holder "released its descriptor 554 us after the refused start",
   and a scan of every process's descriptors at the moment of the error found none.
@@ -418,7 +423,7 @@ This repository measured that interval twice before this round:
   "Limits that stay" lists an `ETXTBSY` refusal while a writer holds the file
   as not covered.
 
-A threaded arm was added to the prober, because the question could not be left at "no arm looked":
+A threaded arm was added to the prober:
 
 ```sh
 # one write of the program, held open, then closed and started; a second thread forks throughout
@@ -430,21 +435,27 @@ start_probe writer-only <program> <attempts> [hold-microseconds]
 The writer is the prober's own main thread,
 so no descriptor of it outlives the write,
 and the forking thread starts `/bin/true` in a loop,
-which is the `posix_spawn` a Rust `Command` uses.
-Two runs of the arm, and one of its control:
+so each of its children holds a copy of that descriptor from its own fork to its own start.
+Two runs of the arm, and two of its control:
 
 ```text
-START_PROBE mode=forked-holder path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=67 elapsed_us=49915 ran=12 refused=8 absent=0 other=[] first_refusal_us=4901 last_refusal_us=41731
-START_PROBE mode=forked-holder path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=51 elapsed_us=51913 ran=8 refused=12 absent=0 other=[] first_refusal_us=2394 last_refusal_us=42714
-START_PROBE mode=writer-only path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=0 elapsed_us=55573 ran=20 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+START_PROBE mode=forked-holder path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=37 elapsed_us=92034 ran=15 refused=5 absent=0 other=[] first_refusal_us=2433 last_refusal_us=69857
+START_PROBE mode=forked-holder path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=38 elapsed_us=95862 ran=10 refused=10 absent=0 other=[] first_refusal_us=21687 last_refusal_us=90170
+START_PROBE mode=writer-only path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=0 elapsed_us=104159 ran=20 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+START_PROBE mode=writer-only path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=0 elapsed_us=100771 ran=20 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
 ```
 
-Eight and twelve of twenty starts were refused with the forking thread,
-and none of twenty without it,
+Five and ten of twenty starts were refused with the forking thread,
+and none of twenty in either control run,
 on the same file,
 in the same loop,
 with the same 2 ms hold.
-A second `writer-only` run also refused none.
+The counts move with how many forks the host lets the forking thread make in the same span
+(37 and 38 here, 51 and 67 in two earlier runs of the same arm,
+which were refused 8 and 12 of 20),
+so the figure to keep is the shape and not the count:
+the cause needs a fork while the descriptor is open,
+and it refuses a start when one lands.
 
 What this does and does not show:
 
@@ -619,7 +630,7 @@ and nothing is started twice.
 
 Pros:
 
-- No added latency for any of the three holders:
+- No added latency for either kind of holder:
   an outside writer that holds the file for a second gives its message in the same second.
 - The code path stays the one the tests pin,
   and `is_refusal` keeps one meaning for one cause.
@@ -629,7 +640,7 @@ Pros:
 Cons:
 
 - The measured fork-held window,
-  1 to 3 ms in two sibling records and 8 and 12 of 20 attempts here,
+  1 to 3 ms in two sibling records and 5 to 10 of 20 attempts here,
   reaches a person as a hard failure with advice to run the command again,
   when a few milliseconds of waiting would have started the program.
   That is the transient a busy session meets,
@@ -642,7 +653,7 @@ Cons:
 The start is tried again,
 pausing between tries,
 for a budget sized from the measured hold (1 to 3 ms,
-two orders of magnitude below `START_RETRY_BUDGET`'s 5 s),
+three orders of magnitude below `START_RETRY_BUDGET`'s 5 s),
 and the alpha.13 message is printed if the budget runs out.
 
 Pros:

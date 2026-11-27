@@ -104,8 +104,10 @@ impl Starts {
             self.refused,
             self.absent,
             self.other,
-            self.first_refusal_us.map_or("-".to_string(), |value| return value.to_string()),
-            self.last_refusal_us.map_or("-".to_string(), |value| return value.to_string())
+            self.first_refusal_us
+                .map_or("-".to_string(), |value| return value.to_string()),
+            self.last_refusal_us
+                .map_or("-".to_string(), |value| return value.to_string())
         );
     }
 }
@@ -261,7 +263,10 @@ fn main() -> Result<(), String> {
                 arguments
                     .get(5)
                     .map_or(Ok(200), |text| return text.parse())
-                    .map_err(|_| return "a number of microseconds for the forking thread to pause".to_string())?,
+                    .map_err(|_| {
+                        return "a number of microseconds for the forking thread to pause"
+                            .to_string();
+                    })?,
             )
         } else {
             None
@@ -270,7 +275,9 @@ fn main() -> Result<(), String> {
     }
     let program: String = arguments
         .get(1)
-        .ok_or_else(|| return "usage: start_probe <program> <milliseconds> [pause-microseconds]".to_string())?
+        .ok_or_else(|| {
+            return "usage: start_probe <program> <milliseconds> [pause-microseconds]".to_string();
+        })?
         .clone();
     let millis: u64 = arguments
         .get(2)
