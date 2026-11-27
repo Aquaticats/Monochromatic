@@ -156,7 +156,7 @@ use std::time::{
 /// which asks `try_wait` once every `DISCOVERY_POLL` (5 ms),
 /// so a killed program is noticed at most one poll after it ends,
 /// and this grace is twenty of those polls.
-/// Measured 2026-11-28 on this host through that wait,
+/// Measured 2026-11-27 on this host through that wait,
 /// five kills of `sleep 30` in a scope capped like the machine's rules require:
 /// the median wait was 5.069852 ms and the longest 5.079702 ms;
 /// with the same scope throttled to a `CPUQuota` of 2% the median was 5.079712 ms and the longest 5.145821 ms.

@@ -968,7 +968,7 @@ five seconds),
 and a request the bound kills is given a measured grace (100 ms) to be reaped before the note is built:
 the wait asks `try_wait` once every `DISCOVERY_POLL` (5 ms),
 so a killed `systemctl` was reaped 5.069852 ms after the kill at the median and 5.079702 ms at the longest over five kills
-in a scope capped at one core on 2026-11-28,
+in a scope capped at one core on 2026-11-27,
 and 5.079712 ms and 5.145821 ms with the same scope throttled to a `CPUQuota` of 2%,
 which is twenty polls in 100 ms.
 
@@ -989,7 +989,7 @@ after it:            ratio to alpha.11 0.874 (0.518 to 2.115)
 That is four stop questions and up to one `LoadState` question per trivial call before,
 and none after
 (counted through a `systemctl` that logs every call and then runs the real one).
-A waited `systemctl --user stop` of a collected unit cost 5.4 ms median (twelve calls on 2026-11-28,
+A waited `systemctl --user stop` of a collected unit cost 5.4 ms median (twelve calls on 2026-11-27,
 started and waited for with nothing in front of the real `systemctl`;
 range 4.4 to 11.1 ms)
 and a spawned one 2.1 ms median (range 1.5 to 2.8 ms,
@@ -1050,7 +1050,7 @@ and `the_one_question_is_bounded_and_its_killed_program_is_reaped`.
 The stop itself removed leaves the planted unit `loaded`.
 The controls that keep a live writer still see their writer in the scope and leave its unit alone.
 
-On 2026-11-28 the seven edits a release read of `0.1.5-alpha.13` listed as ones no control would catch
+On 2026-11-27 the seven edits a release read of `0.1.5-alpha.13` listed as ones no control would catch
 were each applied once,
 run,
 and restored
