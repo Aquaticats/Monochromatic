@@ -65,20 +65,26 @@ the virtual writer's members are the owner's order with standard Neuralwatt remo
 (`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`, guarded by `src/writer-order.unit.test.ts`);
 the README's open check runs as the task `verify:quota-deadline`,
 whose record is `package/pi-plugin/rate-limit-fallback/doc/quota-read-latency-records/`;
-and the driver counted a run on the virtual writer in every pool its router may take
-(`package/pi-shared/subagent-driver/src/pool-limits.ts`, `VIRTUAL_POOLS`),
+and the driver counts a run on the virtual writer in no pool at all
+(`package/pi-shared/subagent-driver/src/pool-limits.ts`, `VIRTUAL_POOLS`).
+The owner,
+2026-11-26,
+asked how the driver's pool gate counts such a run,
+answered "No count (Recommended)",
 because the router has no single pool to report and moves a request on by itself.
-So a virtual writer run then took a slot in each member at once,
-and the smallest member's room (Qwen's 5) bounded how many ran together.
-Since 2026-11-26T18:06:16-05:00 the driver counts such a run once against the room its open members have together
-(commit `c512a9f9f4`,
-unapproved and non-final;
-the section "The virtual writer is not capped at its smallest member" records the change):
-the owner,
-reading that five rounds ran at once,
-said "Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself.",
-so that room together (45 with the limits recorded here) bounds these runs,
-and a member's own room bounds only the runs pinned to it.
+So a run on `rate-limit-fallback/writer`,
+and on the reviewer selection the same way,
+holds no slot in any member pool,
+nothing about the members' room bounds how many run together,
+and the gate counts only the runs pinned to one pool.
+That is commit `7acfa7e5b8`
+(2026-11-26T19:16:14-05:00,
+unapproved and non-final).
+Before it,
+this record's merge `7c82b27ad0` had the driver count such a run in every member pool,
+which a change of 2026-11-26T18:06:16-05:00 (commit `c512a9f9f4`) replaced
+with a count once against the room the open members have together.
+The section "The virtual writer is not capped at its smallest member" records all three states.
 The plugin's built `dist/` in the main checkout,
 which Pi loads,
 was rebuilt after the merge.
@@ -117,20 +123,22 @@ counted a virtual-writer run as a slot in every member and so stopped at Qwen's 
 until commit `c512a9f9f4`
 (2026-11-26T18:06:16-05:00,
 unapproved and non-final),
-which counts such a run once against the room its open members have together
+which counted such a run once against the room its open members have together.
+The owner then answered the count itself,
+asked how the driver's pool gate counts a run on the virtual writer:
+"No count (Recommended)".
+Since commit `7acfa7e5b8`
+(2026-11-26T19:16:14-05:00,
+unapproved and non-final)
+the gate counts only the runs pinned to one pool:
+a run on the virtual writer,
+and on the reviewer selection the same way,
+holds no slot in any member pool,
+so no pool's room decides whether such a run may start.
+A pool's own room bounds only the runs pinned to it,
+and a run on a virtual selection neither fills a pool nor keeps one from taking a pinned run.
+The tallies the driver prints count the runs pinned to each pool and name no selection,
+and the launcher's line for a run on a selection names its members and says it holds no slot in any pool.
+A member a caller closes with `PI_RUNS_POOL_LIMITS` adds no room to any count and does not by itself stop such a run:
+the provider's refusal at that member is what moves the request on.
 (round `~/temp/agent/subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room-2026-11-26/`).
-The count that decides now is the runs on a selection's members,
-which are the runs on the selection itself and the runs pinned to one member,
-against that room together:
-45 with the limits recorded here (5 + 20 + 20),
-while a closed member adds no room and the runs already on it still count.
-A member's own room bounds only the runs pinned to it,
-and a run pinned to one pool both needs that room and leaves the members' room together a slot,
-so a run that names no model of its own may be refused once the members together are full,
-although its own pool has room left.
-The reviewer selection follows the same rule.
-The tallies the driver prints carry one entry per pool,
-counting the runs pinned to it,
-and one per selection,
-as `rate-limit-fallback/writer 2/45 together`,
-and a refusal says how full the members are together as well as what each member reads.

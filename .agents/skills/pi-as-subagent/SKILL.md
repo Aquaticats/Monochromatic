@@ -266,13 +266,13 @@ the audit found no correctness difference either way.
   so a launcher names the virtual writer rather than one pool.
   A `429` before any output moves the request on to the next member with the same transcript
   (`package/pi-plugin/rate-limit-fallback/README.md`, "Order and refusal policy").
-  The driver counts such a run once against the room those members have together,
-  `VIRTUAL_POOLS` in `package/pi-shared/subagent-driver/src/pool-limits.ts`,
-  and starts it while the runs on them are fewer than that room:
+  The driver counts such a run in no pool,
+  `VIRTUAL_POOLS` in `package/pi-shared/subagent-driver/src/pool-limits.ts`:
   the owner,
   2026-11-26,
-  after five rounds ran at once because Qwen's room is 5,
-  "Just because the 1st pool is 5 at a time doesn't mean you gotta limit yourself."
+  asked how the driver's pool gate counts a run on the virtual writer,
+  "No count (Recommended)",
+  so the gate counts only the runs pinned to one pool and no member's room bounds such a run.
 - **Standard Neuralwatt DeepSeek** (`--provider=neuralwatt --model=deepseek-v4.1-flash`) is closed,
   and no run names it.
   The owner,
