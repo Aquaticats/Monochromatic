@@ -203,7 +203,8 @@ and a control that read it asserted on the cap the run happened to carry rather 
 (issue 6537;
 the quota's effect on `available_parallelism` is measured in
 `doc/troubleshooting/container-nproc-ignores-cpu-quota.md`).
-A round's widths are that same answer, and its memory figure is the one a control trips over:
+A round's widths are that same answer,
+and its memory figure is the one a control trips over:
 `HostResources::read` takes the free bytes of this process's control group,
 and the page cache a build wrote inside that group is charged to it,
 so a run in a capped scope reads no headroom at all and every batch runs one item at a time
@@ -222,7 +223,8 @@ as a control whose subject is a batch that keeps its turn states one that puts a
 (`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`),
 both in `landing/service_work_items_side_by_side.rs`.
 A width a control states for the whole process
-(`hold_the_width_to`, `landing/service_work_items_side_by_side.rs`)
+(`hold_the_width_to`,
+`landing/service_work_items_side_by_side.rs`)
 is a measurement's alone,
 because every other test of the run reads it too:
 that value was held at one by `a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent`

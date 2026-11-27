@@ -161,7 +161,8 @@ pub(crate) fn slow_items_side_by_side(
 /// the host read no bytes free and both side-by-side controls saw one item inside the handler).
 /// A control that asserts two items run beside each other states this host,
 /// as a control that asserts how many workers a budget allows names the host that budget is derived from
-/// (`A_HOST_THAT_BOUNDS_NO_WORKER` in `worktree/worktree_clone_slices.rs`, issue 6537).
+/// (`A_HOST_THAT_BOUNDS_NO_WORKER` in `worktree/worktree_clone_slices.rs`,
+/// issue 6537).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -207,7 +208,8 @@ static WIDTH_FOR_A_CONTROL: std::sync::atomic::AtomicUsize = std::sync::atomic::
 
 /// State the width of the batches that follow,
 /// for a measurement of one binary against itself.
-///  Only a measurement names these two calls, and a measurement runs alone with `--run-ignored`:
+///  Only a measurement names these two calls,
+/// and a measurement runs alone with `--run-ignored`:
 /// a control that stated a width this way changed what every other test of a threaded run got
 /// (issue 6567:
 /// `a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent` held the width at one while the
