@@ -234,7 +234,7 @@ pub(crate) fn recover_manifests(
             Ok(Some(found)) => found.text,
             Ok(None) => {
                 messages.push(format!(
-                    "{shown} is missing; the manifest of a killed run was not put back"
+                    "{shown} is missing; the manifest of an earlier run was not put back"
                 ));
                 continue;
             }
@@ -258,7 +258,7 @@ pub(crate) fn recover_manifests(
                     None => "nothing (it had vanished)".to_string(),
                 }
             )),
-            Ok(ReplaceOutcome::LeftAlone) => messages.push(format!("{shown} was changed by another process while a killed run was being recovered; it was left as that process wrote it")),
+            Ok(ReplaceOutcome::LeftAlone) => messages.push(format!("{shown} was changed by another process while the journal of an earlier run was being recovered; it was left as that process wrote it")),
             // `Ok(...)`: builds the success or the failure variant of a `Result`.
             // Macro `format!`: builds or prints text (or a list) from a template.
             Ok(ReplaceOutcome::Displaced(kept)) => messages.push(format!("{shown} was put back to its text before the run; the file the exchange displaced is kept as {}", kept.display())),
@@ -267,7 +267,7 @@ pub(crate) fn recover_manifests(
             Ok(ReplaceOutcome::Undone(kept)) => messages.push(format!("{shown} was changed again during the recovery; the undo put the file it first displaced back, and the file the undo displaced is kept as {}", kept.display())),
             Err(error) => {
                 all_settled = false;
-                messages.push(format!("{shown}: could not recover a killed run: {error}; its journal was kept"));
+                messages.push(format!("{shown}: could not recover the journal of an earlier run: {error}; its journal was kept"));
             }
         }
     }

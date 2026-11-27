@@ -1266,6 +1266,18 @@ as does `cargo-shadow install --frozen-lockfile`.
 The journal belongs to the catalog's root,
 so a later run in any crate of the repository settles it.
 
+What the round on the refusal's words added
+(merged as `7eb08ea6b9`):
+it staged a real refusal and made each kind of later run,
+and the refusal now states the rule and names the kinds.
+A later run of the catalog that checks or updates a lockfile settles the journal,
+both dry runs included;
+a frozen run,
+a run on the fast path,
+a run that resolves nothing and a run outside the catalog's repository leave it and print nothing.
+The choice between A,
+B and C stands as it was.
+
 ### A dry run settles a kept journal before it looks
 
 `cargo-shadow install --dry-run` and `update --dry-run` say they report and then restore every `Cargo.lock`.
@@ -1290,7 +1302,23 @@ on both releases).
 Ranking:
 A > B,
 because a person reaches for a dry run exactly when they do not want anything changed.
-A round makes the help say what happens today and returns what A would take.
+The round did both
+(merged as `7eb08ea6b9`).
+Each dry run's help now says that a kept journal is settled first.
+What A would take,
+as the round returned it:
+a branch beside the frozen one that reads the journals only to report them,
+with a recovery that can decide without applying,
+no transaction,
+and no lockfile touched.
+What A would cost a person whose journal waits:
+the dry run would name the journal and leave it,
+so the habit of running a dry run first to clear it stops working,
+and the uncertainty lasts until a run that is not dry.
+The round recommends leaving it as it is in this pass,
+now that the help says what happens.
+The coordinating session's ranking stays A > B for the reason given,
+and nothing is built on A without an answer.
 
 ### The steps that merge a round's branch are written down and no command does them
 
@@ -1403,10 +1431,55 @@ and alpha.15 prints "may be left loaded" about a unit the manager is freeing.
 The round's reason was a reading as well,
 neither observed anything,
 and this host's kernel was not read.
-A round measures both arms on this host and makes the code answer what the measurement supports;
-where it supports the read,
-that row goes back to alpha.14's answer,
-again as a pick with the veto open.
+What the measurement found
+(the round merged as `92a10aa7dc`,
+on this host's kernel `7.3.5-2-cachyos`,
+2026-11-27):
+the read was right.
+Of 3,090 reads made while a group was being created,
+none answered "No such file" with the group's directory there,
+while the same harness counted 1,640 such answers on a plain directory whose file is written after it.
+Of 300 removals,
+24 put the step's own read at "No such device",
+and the directory was still there in 20 of those.
+The method and the counts are in `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`,
+in the section on which absence means what.
+Three picks follow from it,
+each with the veto open and each beside its other way.
+
+- "No such device" with the directory there answers as a collected scope (taken),
+  as alpha.14 did:
+  the kernel removes a group only when it holds no task,
+  so no warning is printed about a unit the manager is freeing.
+  The cost is that an answer of "No such device" from anything other than a removal,
+  which nobody has seen,
+  would be read as silence too.
+  The other way keeps alpha.15's warning in the one state the kernel was shown to produce.
+- "No such file" with the directory there keeps its warning (taken),
+  and the records say this kernel is not seen to produce it:
+  the same check is the live one at the `pids.peak` read,
+  where a group without that file must go to the manager.
+  The cost is one branch on the `populated` read that nothing reaches today.
+  The other way drops the check,
+  and a kernel that did show the state would leave the unit loaded with nothing printed.
+- The control of the bound at a run's end allows one second over the promise (taken),
+  where it allowed five:
+  measured,
+  the helper took 5068,
+  5073 and 5079 ms,
+  and the control now fails when the call site's bound is raised by three seconds.
+  The cost is a margin of one second on a busy host.
+  The other way lets any raise under five seconds pass.
+
+Ranking,
+the round's and the coordinating session's on reading its report whole:
+for each of the three,
+the way taken > its other way.
+The first because it is what the measurement shows;
+the second because one check serves both reads and the other read needs it;
+the third because a control that passes under the edit it guards protects nothing.
+Not measured:
+how often a real run's read meets a removal.
 
 ### The driver: who makes a run's scratch folder, and who clears one a launcher never reached
 
@@ -3118,3 +3191,130 @@ the coordinating session's:
 keep it hidden > say what the removal took,
 because a sentence does not bring a finished copy back,
 and the read of the other locks is one `prune` already makes for their versions.
+
+## Open: two words in `mpm-shadow`'s install report that say more than the run read (recorded 2026-11-27T16:19:06-05:00)
+
+The round that made the report's sentences about a leftover say only what the run read
+(merged as `a49bf155cd`)
+left these as they were and returned them,
+because each trades exactness against something a person learns from the word.
+Neither holds a release.
+
+### "another install published that version meanwhile"
+
+Printed when this run drops a copy because the version's name already holds a finished one.
+What the run read is that a finished copy stood at the name which this run did not put there.
+
+- Say what was read:
+  "because a finished copy of that version appeared at its name meanwhile".
+  The sentence then claims nothing about who did it;
+  the cost is that a person is no longer told the usual writer of that name,
+  another install.
+- As now:
+  the sentence names the one writer the scheme has;
+  the cost is that a copy a person put there by hand is called an install's.
+
+Ranking,
+the coordinating session's:
+say what was read > as now,
+because the release read's finding was that these sentences name causes the tool does not know,
+and the exact words lose only a guess.
+
+### "the older version that was installed before this run"
+
+Printed when the newest-only rule removes an older version directory this run did not put there.
+The rule removes unfinished directories too,
+so "installed" is one step past what the run read.
+
+- Say which it was:
+  the run reads whether that directory held a finished copy,
+  says "installed" when it did,
+  and "an unfinished copy that was there before this run" when it did not.
+  The cost is one more read of a directory that is about to be removed.
+- Say "that was there before this run" for both:
+  exact,
+  at the cost of the word that tells a person the older version had been working.
+- As now.
+
+Ranking,
+the coordinating session's:
+say which it was > "that was there" > as now,
+because the first is exact and keeps the word where it is true,
+and the second is exact where today's sentence is not.
+
+## Veto open: three picks of the wrapper round on a process's name in two sentences nothing calls yet (recorded 2026-11-27T16:36:52-05:00)
+
+The round answering the behaviour read of `0.6.1-alpha.50` made its picks and returned each with its other way.
+The coordinating session read its report whole and wrote this entry;
+the round merged as `e772d8ad66`.
+None holds a release.
+
+### A process's recorded name is kept as the kernel gave it, and the sentence escapes it
+
+`CommandWord::of` used to escape control characters itself,
+by a rule weaker than the one every other sentence uses,
+and the two refusal sentences printed its text raw inside parentheses.
+
+- One escape and at the sentence (taken):
+  the record keeps the kernel's bytes,
+  cut to the kernel's own length,
+  and each sentence shows the name through the one function every other sentence uses.
+  The cost is a changed behaviour of a name another crate can reach:
+  a caller that relied on the record's text being escaped now gets the bytes.
+- Escape in the record as well:
+  the record's text stays safe to print as it is.
+  The cost is a name escaped twice once a sentence shows it,
+  so a line feed reads as an escaped backslash and letters,
+  or a record with two texts and two escapers again.
+
+Ranking,
+the round's and the coordinating session's:
+one escape at the sentence > an escape in the record as well,
+because the repository's rule is to encode at the final interpolation,
+and two escapers were the finding.
+The crate is not on crates.io at this version,
+so the changed behaviour is a design change and breaks no published contract.
+
+### A record written as JSON leaves a bidirectional control and U+2028 as the name's bytes
+
+`SPEC.md` said every line that names a process escapes everything outside printable ASCII.
+A JSON record is escaped by JSON's own rule,
+which leaves those characters as bytes.
+
+- Say so in `SPEC.md` and leave the record (taken):
+  the record is data a program reads,
+  and its bytes compare equal with the kernel's.
+  The cost is that a person who prints such a record in a terminal sees those characters act.
+- Escape them in the record too:
+  the record is safe to print.
+  The cost is a change of the bytes of every record that holds a name outside ASCII,
+  and of every reader that compares them.
+
+Ranking,
+the round's and the coordinating session's:
+leave the record > escape in the record,
+because the reader of a record is a program,
+and the line rule already covers every sentence a person is shown.
+
+### The sentence about an unusable identity file is remembered for the process and never reset
+
+It is said once for a command because a process is one command.
+The round showed from the source,
+and from one run of a serving process,
+that the commit service and the clone mount handler's modes never read the identity file:
+`main.rs` chooses each before the wrapper's entry runs.
+That run served its socket and no commit went through it,
+because a fixture has no service manager.
+
+- Leave it (taken):
+  the memory cannot outlive a command today.
+  The cost is that a later change which makes a serving process read the file would say the sentence once for ever,
+  and no test can show that yet.
+- Reset it per request now:
+  safe against that later change.
+  The cost is code nothing can exercise.
+
+Ranking,
+the round's and the coordinating session's:
+leave it > reset it now,
+because a reset no run reaches is held by no control.

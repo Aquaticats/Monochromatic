@@ -22,10 +22,62 @@ use super::{
     caller_holds_in_its_working_directory,
     the_callers_namespace_holds,
 };
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 
 /// A slot with a space in it,
 /// so the quoting is shown rather than assumed.
 const A_SLOT: &str = "/home/user/work/.claude/worktrees/a slot";
+
+/// What:
+///  A command name that would rewrite the sentence showing it,
+///  one shape for each thing a name can do to a line:
+///  the parenthesis that closes the wrapping,
+///  a backslash,
+///  an escape that moves the cursor and erases the line,
+///  a line feed that starts a line this program never wrote,
+///  a right-to-left override that reorders the words,
+///  and a Unicode line separator.
+/// Why:
+///  A process names itself with these bytes,
+///  so a sentence that prints the name as the kernel holds it is a sentence that
+///  program wrote part of.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_NAME_THAT_WOULD_REWRITE_THE_LINE = 'x) \\ \u001b[2K\n\u202e\u2028';
+/// ```
+const A_NAME_THAT_WOULD_REWRITE_THE_LINE: &str = "x) \\ \u{1b}[2K\n\u{202e}\u{2028}";
+
+/// What:
+///  A name this program's own text is,
+///  with no shape a line would act on.
+/// Why:
+///  The control compares the hostile name's sentence with this one's,
+///  so each thing it asserts on is the difference the name makes and not a figure
+///  the control wrote down.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_PLAIN_NAME = 'zsh';
+/// ```
+const A_PLAIN_NAME: &str = "zsh";
+
+/// What:
+///  The process number and session the two sentences below name.
+/// Why:
+///  A number the sentence prints is the same with either name,
+///  so the expected line is built from these and from the shown name alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_PID = 4321;
+/// const A_SESSION = 4300;
+/// ```
+const A_PID: i32 = 4321;
+const A_SESSION: i32 = 4300;
 
 #[test]
 fn a_protected_working_directory_sentence_names_the_process_and_the_one_way_out() {
@@ -55,6 +107,187 @@ fn the_namespace_sentence_says_leaving_the_folder_is_not_enough() {
         "and it reads {text}"
     );
     assert!(text.contains("Nothing was moved, unmounted or destroyed"));
+}
+
+/// What:
+///  How many parentheses `text` writes as its own,
+///  which is every `)` an escape does not carry.
+/// Why:
+///  A count of `)` counts the ones inside the escape too,
+///  so a name holding `)` would look like the sentence wrote one more;
+///  this walks the escapes and counts only the parentheses the sentence wrote.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parenthesesTheTextWrites(text: string): number {
+///   let count = 0;
+///   for (let at = 0; at < text.length; at += 1) {
+///     if (text[at] !== '\\') { if (text[at] === ')') count += 1; continue; }
+///     at += text[at + 1] === 'u' ? text.indexOf('}', at) - at : 1;
+///   }
+///   return count;
+/// }
+/// ```
+fn parentheses_the_text_writes(text: &str) -> usize {
+    let characters: Vec<char> = text.chars().collect();
+    let mut count: usize = 0;
+    let mut at: usize = 0;
+    while at < characters.len() {
+        let character: char = characters[at];
+        if character != '\\' {
+            if character == ')' {
+                count += 1;
+            }
+            at += 1;
+            continue;
+        }
+        // What: where this escape ends, which is past its brace for `\u{..}` and two characters otherwise.
+        // Why:  the characters inside an escape are the name's, not the sentence's own punctuation.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // at += characters[at + 1] === 'u' ? characters.indexOf('}', at) - at + 1 : 2;
+        // ```
+        let escape_ends: usize = if characters.get(at + 1) == Some(&'u') {
+            let closing: Option<usize> = characters
+                .iter()
+                .enumerate()
+                .skip(at)
+                .find(|(_, found)| return **found == '}')
+                .map(|(found_at, _)| return found_at);
+            closing.map_or(characters.len(), |found_at| return found_at + 1)
+        } else {
+            at + 2
+        };
+        at = escape_ends;
+    }
+    return count;
+}
+
+/// What:
+///  Whether `hostile` shows `name` through the escape,
+///  and holds nothing else the name brought:
+///  no line of its own,
+///  no control character,
+///  no bidirectional control,
+///  no raw line separator,
+///  and no parenthesis that closes the wrapping early.
+/// Why:
+///  Every assertion is the difference from `plain`,
+///  the same sentence with a name of this
+///  program's own text,
+///  so a control that passes says the hostile name changed nothing a person could act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function onlyTheShownNameDiffers(plain: string, hostile: string, shown: string): void {
+///   expect(hostile).toContain(`(${shown})`);
+///   expect(hostile.split('\n').length).toBe(plain.split('\n').length);
+///   expect(controlCharacters(hostile)).toBe(controlCharacters(plain));
+///   expect(hostile).not.toContain('\u202e');
+///   expect(hostile).not.toContain('\u2028');
+///   expect(parenthesesTheTextWrites(hostile)).toBe(parenthesesTheTextWrites(plain));
+/// }
+/// ```
+fn only_the_shown_name_differs(
+    plain: &str,
+    hostile: &str,
+    shown: &str,
+) {
+    assert!(
+        hostile.contains(format!("({shown})").as_str()),
+        "the name is shown through the escape the sentence uses: {shown:?} in {hostile:?}"
+    );
+    assert_eq!(
+        hostile.lines().count(),
+        plain.lines().count(),
+        "a line feed inside the name starts no line of the sentence: {hostile:?}"
+    );
+    assert_eq!(
+        hostile
+            .chars()
+            .filter(|character| return character.is_control())
+            .count(),
+        plain
+            .chars()
+            .filter(|character| return character.is_control())
+            .count(),
+        "the only control characters are the sentence's own line ends: {hostile:?}"
+    );
+    assert!(
+        !hostile.contains('\u{202e}') && !hostile.contains('\u{2028}'),
+        "a bidirectional control and a line separator come back spelled out: {hostile:?}"
+    );
+    assert_eq!(
+        parentheses_the_text_writes(hostile),
+        parentheses_the_text_writes(plain),
+        "a parenthesis inside the name cannot close the parentheses around it: {hostile:?}"
+    );
+}
+
+/// The name in the sentence about a holder in the caller's working directory is escaped,
+/// so it cannot close the sentence's parenthesis,
+/// start a line,
+/// or reorder or erase what a person reads.
+#[test]
+fn a_name_in_the_protected_set_sentence_cannot_rewrite_its_line() {
+    let plain: String =
+        caller_holds_in_its_working_directory(A_SLOT, A_PID, A_PLAIN_NAME, A_SESSION);
+    let hostile: String = caller_holds_in_its_working_directory(
+        A_SLOT,
+        A_PID,
+        A_NAME_THAT_WOULD_REWRITE_THE_LINE,
+        A_SESSION,
+    );
+    let shown: String = shown_so_it_cannot_rewrite_the_line(
+        A_NAME_THAT_WOULD_REWRITE_THE_LINE,
+        TheWrappingAroundTheName::Parentheses,
+    );
+    assert!(
+        hostile.contains(
+            format!(
+                "process {A_PID} ({shown}) holds it in its working directory, in session {A_SESSION}"
+            )
+            .as_str()
+        ),
+        "the sentence names the process and shows its name escaped, and it reads {hostile}"
+    );
+    only_the_shown_name_differs(plain.as_str(), hostile.as_str(), shown.as_str());
+}
+
+/// The name in the sentence about the caller's namespace is escaped for the same reason,
+/// and the line that holds it is the sentence's own line.
+#[test]
+fn a_name_in_the_namespace_sentence_cannot_rewrite_its_line() {
+    let plain: String = the_callers_namespace_holds(
+        A_SLOT,
+        "mnt:[4026532001]",
+        "/home/user/work/one",
+        77,
+        A_PID,
+        A_PLAIN_NAME,
+        A_SESSION,
+    );
+    let hostile: String = the_callers_namespace_holds(
+        A_SLOT,
+        "mnt:[4026532001]",
+        "/home/user/work/one",
+        77,
+        A_PID,
+        A_NAME_THAT_WOULD_REWRITE_THE_LINE,
+        A_SESSION,
+    );
+    let shown: String = shown_so_it_cannot_rewrite_the_line(
+        A_NAME_THAT_WOULD_REWRITE_THE_LINE,
+        TheWrappingAroundTheName::Parentheses,
+    );
+    assert!(
+        hostile.contains(
+            format!("process {A_PID} ({shown}) in session {A_SESSION} is the caller").as_str()
+        ),
+        "the sentence names the process and shows its name escaped, and it reads {hostile}"
+    );
+    only_the_shown_name_differs(plain.as_str(), hostile.as_str(), shown.as_str());
 }
 
 #[test]

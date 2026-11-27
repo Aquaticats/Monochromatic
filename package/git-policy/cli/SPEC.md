@@ -15362,15 +15362,35 @@ A process's name is not this program's text either:
 another program sets it (`/proc/<pid>/comm`,
 and the `comm` field of `/proc/<pid>/stat`),
 and so is a command line.
-Every line that names one shows it as text that can act on nothing:
+Every line this program writes for a person,
+on standard output or on standard error,
+that names one shows it as text that can act on nothing:
 the parentheses or the backticks that line puts around the name are escaped inside it,
 the backslash is escaped,
 and every control character,
 every character outside printable ASCII and every line separator
-is written as an escape.
-So one name is shown the same way wherever a person meets it,
+is written as an escape
+(`foundation/shown_so_it_cannot_rewrite_the_line.rs`,
+the one function that writes such a name into a line,
+and `source_guard/every_sentence_that_names_a_process_shows_it_tests.rs`
+holds every sentence of this program that shows a name to it).
+So one name is shown the same way wherever a person meets it in a line,
 and no name can end the sentence's own punctuation,
 erase the line or start a second one.
+A record this program writes as data is not such a line:
+a name in a record written as JSON,
+such as the commit timing record's `below[].name`,
+is escaped by JSON's own rule
+(`foundation/json_record.rs`'s `quote`,
+which is `serde_json`'s):
+the string's quote,
+the backslash and the control characters below U+0020 are escaped,
+so no name ends the string or starts a line of the record,
+while a bidirectional control,
+U+2028 and every character outside ASCII stay the bytes the name holds,
+because JSON asks for no escape of them.
+A person who reads that record in a terminal reads those bytes as the name spelled them;
+the line rule above is what the sentences a person is shown keep.
 
 ```text
 # A lock whose pid file names a process that has ended: said, and nothing removed.
