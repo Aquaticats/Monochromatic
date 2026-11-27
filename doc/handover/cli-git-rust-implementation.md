@@ -406,16 +406,34 @@ and the linter's `layout_folder_links.rs`,
   and,
   for the wrapper,
   its guide.
-- A round starts through the driver package's launcher,
-  whose fix merged as `b194726011`:
-  `mise run //package/pi-shared/subagent-driver:start-pi-run-in-a-worktree -- --name=<round> --branch=<branch> --prompt=<brief> --cpu=<threads> --memory=<cap> --tasks=<count> --wall=<seconds> --turn-cap=<turns> --provider=rate-limit-fallback --model=writer`.
-  It removes the worktree of a run that ended idle with nothing uncommitted,
-  and the package's `list-runs-that-ended-since` and `print-the-final-report-of-the-newest-run-of-each-agent`
-  read its runs folder (`~/temp/agent/pi-runs`).
-  The rounds started before 2026-11-27T01:55-05:00 went through the coordinator's scratch launcher,
-  which the cleanup of 2026-11-27T15:26:37-05:00 deletes with its merge script;
-  after that a merge is `git merge --no-ff <branch>` in the main checkout,
-  once `git merge-tree` shows no conflict.
+- A round starts through the driver package,
+  one batch list for all the rounds started together:
+  `mise run //package/pi-shared/subagent-driver:start-a-batch-in-its-own-unit -- --batch-file=<list> --deadline-seconds=7200 --output-file=<list's name>.out`,
+  the list a JSON array of entries with `name`,
+  `branch`,
+  `prompt`,
+  `cpu`,
+  `memory`,
+  `tasks`,
+  `wall`,
+  `provider` (`rate-limit-fallback`) and `model` (`writer`),
+  the briefs beside it in `~/temp/agent/pi-runs`.
+  Never several lists side by side:
+  three at once on 2026-11-27 overlapped 27 worktree adds,
+  each passed its fifteen-minute bound twice,
+  and sixteen of thirty starts failed (issue 6563,
+  `doc/planning/pi-round-start-failures-and-what-would-stop-them.md`).
+  A start that failed that way leaves its worktree,
+  and starting its entry again needs no add.
+  The launcher removes the worktree of a run that ended idle with nothing uncommitted,
+  and a run's whole report is in `~/temp/agent/<round>-scratch/keep/report.md`,
+  which each brief asks for.
+  A merge is `git merge --no-ff <branch>` in the main checkout once `git merge-tree` shows no conflict;
+  the coordinator's scratch merge script does both until the cleanup of 2026-11-27T15:26:37-05:00 deletes it.
+- The wrapper's gate has tasks of its own,
+  which the coordinator's gate of 2026-11-27 did not use and the next one does:
+  `mise run //package/git-policy/cli:native:gate:main-tip` starts it on `main`'s tip in a capped unit,
+  and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
 - Owner questions wait in `doc/handover/questions-for-the-owner.md`,
   among them the next step a typed network command names at a new host key
   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).
