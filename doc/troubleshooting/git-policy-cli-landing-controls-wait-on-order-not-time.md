@@ -317,6 +317,107 @@ because the window is a backstop around a real witness:
   the interval is thirty seconds against a wait of about twenty milliseconds,
   a separation of three orders of magnitude.
 
+## A landing control read the finished record before the landing wrote it
+
+`service_landing_state::awkward_change_lists_land_as_native_git_commits_them` failed once in a loaded run of
+2026-11-27 at a load average of about 185 (issue 6572) with
+`everything staged, with a message from a file: the service landed it`,
+while that commit's push was in the service's log and no `answered request` line was.
+
+### Why the record comes after the branch
+
+A batch's branch moves before its index is installed
+(`SPEC.md`,
+"What a landed batch leaves behind").
+The landing marks the batch done only after that index update and the release of the lock settled,
+which is `finish_after_move` followed by `mark_done` in
+`src/native/landing/service_land_attempt_after_the_move.rs`.
+The index update is granted no ceiling:
+it reads every path the commit changed,
+which took 17.5 s and 25.8 s for this control's 4,097 paths at a load average of 36 to 48,
+and 30.3 s and 32.1 s at 120 to 186
+(`git-policy-cli-landing-index-reset-reads-every-changed-path.md`).
+
+A client that hears nothing for `HEARTBEAT_SILENCE` sends its request again,
+up to `RECONNECTS` of those,
+and then looks for the commit it made:
+a finished batch names it,
+and an open batch's commit that the branch already holds is a landed commit,
+which the command reports with exit 0 through the function a received answer uses
+(`SPEC.md`,
+"Before that read, and for every failure that means an answer was lost after the request was sent").
+On a loaded host that fallback is reachable without any defect:
+the beats come from a task of the service's runtime,
+and one that loses five seconds makes the client call the service stopped
+(`git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+
+A push is no witness that the landing finished.
+A command that answered from the fallback does the after-commit work itself,
+and the service's work loop pushes the branch that command names,
+before the landing's own held push is reached,
+which the probe below caught 25.7 s before the record.
+
+### What was measured in this control's own run
+
+Each arm ran the one control in the `native_binary` target,
+built and run as
+`cargo nextest run --locked --offline --test native_binary --features test-only-switches`,
+and each plant was reverted before the next arm.
+The control alone passed in 49.9 s,
+and the service's answered lines for its two landings carried `index_update_ms=25796` and `index_update_ms=17505`.
+
+- A 30 s delay before the finished record: `1 passed`, 116.4 s,
+  and the command printed no silence notice,
+  so a command that receives its answer cannot answer before that record.
+- A 30 s delay before the answer: `1 passed`, 120.8 s,
+  with `answer_ms=30008` and `answer_ms=30001` in the two answered lines,
+  so the record is written before the answer and counted.
+- Every word a waiting client hears held six seconds, past its silence bound:
+  `1 passed`, 71.3 s,
+  and the five copies it sent again were answered `already` in one burst when the landing ended,
+  so a lost answer alone does not fail this control while the record is already there.
+- That hold and the 30 s delay before the record together:
+  `1 failed` at 35.0 s with
+  `everything staged: the service landed it`,
+  and its service printed this,
+  which is the shape of the run of 2026-11-27 down to the push and the missing answered line:
+
+  ```text
+  the background sync of 1 records of a landing took 0 ms      (three times)
+  pushed branch="refs/heads/main" oid=f87f64899e70d33a4bda4e2dd0053aab06e19aaf items=1 outcome=skipped push_ms=9
+  kept references: 0 pruned of 0, 0 bytes held before and 0 after
+  automatic maintenance ran maintenance_ms=16
+  ```
+
+- The same two plants with the landing logging its own state:
+  `settled=true` and `index_update=26.420486712s` 26.4 s into the landing,
+  and the push 5.3 s after that line and 25.3 s before the record.
+  The client's fallback had answered the commit already,
+  the control then read the journal while the landing was still installing its index,
+  and the test's own end killed the service before `mark_done` ran.
+
+### The control now
+
+`run_served` answers with the service beside the command's ending,
+and a service that serves one worktree leaves no runtime directory of its own to remove,
+so the service stays alive while the control waits.
+`finish_a_landing` then waits within `FINISHED_RECORD_WAIT` for a record the journal did not hold before:
+2 minutes,
+which is 3.7 times the longest landing measured above,
+twice `NATIVE_GIT_BOUND_SECONDS`,
+and inside the four minutes this control's child is given
+(`src/native/binary/binary_service_landing_support_the_record_a_landing_writes.rs`).
+The repository is read after that wait,
+so what the control compares is the state a finished landing leaves.
+A wait that ends at its bound names the journal's `intent` and `done` records
+and both streams of the wrapper,
+of which `finish` keeps standard error as `Outcome::error`:
+a landing that never settled reads as an open intent,
+and a lost answer reads as the wrapper's silence notices.
+
+Shown failing without the wait and passing with it:
+the two plants above failed the control in 35.0 s and passed it in 111.3 s.
+
 ## What is not claimed
 
 - One full-suite failure of `landing::service_index_lock::tests` was reported as a wait that said nothing
@@ -343,3 +444,21 @@ because the window is a backstop around a real witness:
   "The fold sweeps pay a filesystem commit for every step".
   The other controls of the two fold modules still sync,
   and each walks one or two folds.
+- The run of 2026-11-27 lost its answer to six silences or to six broken connections,
+  and the record does not say which:
+  the client prints `silent_notice` for the first and nothing for the second,
+  and nothing read the wrapper's standard error then.
+  A failed run prints it now.
+- A missing `answered request` line is no proof on its own that a service said nothing,
+  because a line that finds no room on the journal's stream is dropped and counted
+  (`SPEC.md`,
+  "A line that finds no room is dropped and counted").
+  What the failure adds is the wrapper's own words,
+  which are not a service log line.
+- Whether the landing of that run would have written its record is not known,
+  and the control no longer depends on it:
+  an open intent in a failure's own list says a landing did not settle.
+- A landing that never writes its record was not reproduced by a run:
+  the plant that makes one (`follow_up` returning `false`) left its child without output
+  and was ended at the child's 240 s window,
+  so the bound's own message is written and unexercised.
