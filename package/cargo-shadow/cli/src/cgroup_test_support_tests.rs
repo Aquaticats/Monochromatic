@@ -1,6 +1,8 @@
 //! What:
-//! Tests of the support the control-group tests share, over the text `/proc/<pid>/cgroup` gives for a process:
-//! the version 2 line of that file and the path it names, whatever lines the host writes beside it.
+//! Tests of the support the control-group tests share:
+//! the text `/proc/<pid>/cgroup` gives for a process,
+//! the version 2 line of that file and the path it names,
+//! whatever lines the host writes beside it.
 //! Why:
 //! Issue 6549:
 //! nine controls read the whole file as one cgroup v2 line and failed on this host,
@@ -23,7 +25,8 @@ use crate::cgroup_test_support::{
 };
 
 /// The hybrid text:
-/// a version 1 `net_cls` line, then the version 2 line.
+/// a version 1 `net_cls` line,
+/// then the version 2 line.
 /// Captured from `/proc/self/cgroup` on this host on 2026-11-27,
 /// and the same two lines are quoted in issue 6549.
 ///
@@ -36,8 +39,10 @@ const HYBRID_CAPTURE: &str =
 
 /// The unified text:
 /// the one line a host with no version 1 controller writes.
-/// A stand-in: no unified host was captured for this test,
-/// and its shape is the file's own, `0::` and the path below the cgroup root.
+/// A stand-in.
+/// No unified host was captured for this test.
+/// Its shape is the file's own:
+/// `0::` and the path below the cgroup root.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

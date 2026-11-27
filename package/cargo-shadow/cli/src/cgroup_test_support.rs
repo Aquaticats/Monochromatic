@@ -298,9 +298,11 @@ pub(crate) fn scope_directory_of(groups_file: &str) -> PathBuf {
 /// the one line that starts with `0::`,
 /// with the line's ending removed.
 /// Why:
-/// A host that mounts a version 1 controller beside the version 2 hierarchy writes the controller's line first
-/// (this one's is `1:net_cls:/`, measured 2026-11-27 and quoted in issue 6549),
-/// so the whole file is not a control group path and only its `0::` line names a group of the version 2 hierarchy.
+/// A host that mounts a version 1 controller beside the version 2 hierarchy writes the controller's line first;
+/// this host's own version 1 line is `1:net_cls:/`,
+/// measured 2026-11-27 and quoted in issue 6549.
+/// So the whole file is not a control group path.
+/// Only its `0::` line names a group of the version 2 hierarchy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -351,8 +353,9 @@ pub(crate) fn v2_path_of_cgroup_file(text: &str) -> String {
 /// `pub(crate) fn group_of(pid: &str) -> String` is the version 2 line of a process's control group file,
 /// `self` naming this process.
 /// Why:
-/// Every control that reads a process's group reads the same line, whatever else the host writes into the file,
-/// and a process whose group cannot be read stops the test:
+/// Every control that reads a process's group reads the same line,
+/// whatever else the host writes into the file.
+/// A process whose group cannot be read stops the test:
 /// two failed reads that both came back empty would otherwise pass for equal groups.
 ///
 /// In TS you'd write (pseudocode):
