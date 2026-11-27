@@ -103,9 +103,15 @@
 //! - `mount_path_descendant_mode_properties.rs`:
 //!   the properties an explicit mount is refused by,
 //!   and the attributes a dataset's own properties resolve to.
+//! - `mount_path_descendant_mode_plan.rs`:
+//!   every proof the explicit mount makes before it acts,
+//!   and the two answers a proved state gives.
+//! - `mount_path_descendant_mount_placement.rs`:
+//!   the walk to the mountpoint through descriptors,
+//!   and the mount placed on the folder that walk opened.
 //! - `mount_path_descendant_mode.rs`:
-//!   one nested dataset mounted at its own mountpoint beneath the recorded
-//!   checkout.
+//!   the mode's own entry:
+//!   where a run reads and the lines it answers.
 //! - `sweep_first_attach.rs`:
 //!   this boot's first attach,
 //!   claimed after the key check and written before the receipt.
@@ -311,6 +317,12 @@ pub mod mount_path_descendant_mode_refusals;
 /// The properties an explicit mount is refused by,
 /// and the attributes a dataset's own properties resolve to.
 pub mod mount_path_descendant_mode_properties;
+
+/// Every proof the explicit mount makes before it acts.
+pub mod mount_path_descendant_mode_plan;
+
+/// The walk to the mountpoint and the mount placed on it.
+pub mod mount_path_descendant_mount_placement;
 
 /// One nested dataset mounted beneath the recorded checkout.
 pub mod mount_path_descendant_mode;
