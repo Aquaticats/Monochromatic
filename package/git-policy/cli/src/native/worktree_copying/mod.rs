@@ -70,6 +70,9 @@
 //!   kept beside the reaping so that file stays under the line limit.
 //! - `worktree_copy_stage_claim_pointer_presence.rs`:
 //!   the answers worktree copy stage claim pointer presence holds.
+//! - `worktree_copy_stage_claim_owner_verdicts.rs`:
+//!   which claim owners were found dead,
+//!   decided before anything is removed.
 //! - `worktree_copy_stage_claim_swept_files.rs`:
 //!   the two sweeps of the journal root that remove files rather than stages,
 //!   kept beside the reaping so that file stays under the line limit.
@@ -151,6 +154,12 @@
 //! - `worktree_copy_rollback.rs`:
 //!   removal of the paths a failed installation created,
 //!   only where their identity and content still prove them monochromatic-git-policy-cli's own.
+//! - `worktree_copy_stage_claim_record.rs`:
+//!   the words one stage claim file holds:
+//!   the container it names,
+//!   its bytes,
+//!   and the owner,
+//!   read back as the fields the sweeps act on.
 //! - `worktree_copy_stage_claim.rs`:
 //!   the durable claim on a stage container's name,
 //!   and the removal of stages an interrupted copy left behind.
@@ -323,6 +332,10 @@ pub mod worktree_copy_journal_encoding_and_validation;
 #[cfg(unix)]
 pub mod worktree_copy_journal_removal;
 
+/// The words one stage claim file holds, written and read back.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_record;
+
 /// The durable claim on a stage container's name,
 /// and the removal of stages an interrupted copy left behind.
 #[cfg(unix)]
@@ -331,6 +344,11 @@ pub mod worktree_copy_stage_claim;
 /// The judging of stage claims and the removal of the stages that interrupted copies left behind.
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
+
+/// Which claim owners were found dead,
+/// decided before anything is removed.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_owner_verdicts;
 
 /// The two sweeps of the journal root that remove files rather than stages,
 /// kept beside the reaping so that file stays under the line limit.
