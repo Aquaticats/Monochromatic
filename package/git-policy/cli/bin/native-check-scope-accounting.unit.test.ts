@@ -5,6 +5,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { wait as waitUntil } from '@monochromatic-dev/async-time-core/ts';
 import {
   describe,
   expect,
@@ -18,16 +19,12 @@ import {
   watchScopeAccounting,
 } from './native-check-scope-accounting.ts';
 import { createGateScratchDirectory } from './stand-in-gate-programs-for-tests.ts';
+import { until } from './until-a-test-condition-holds.ts';
 
 /**
  Milliseconds a fixture's watch reads with, which is short so a test ends quickly.
  */
 const fixturePollMilliseconds = 20;
-
-/**
- Milliseconds a wait for a fixture's watch gives it, which is far more than the reads need.
- */
-const watchWaitMilliseconds = 5_000;
 
 /**
  Bytes a fixture's `memory.peak` holds, which is the peak a check at its largest was measured at.
@@ -57,14 +54,16 @@ async function writeCgroup({
     cgroupPath,
     { recursive: true, },
   );
-  for (const [name, text] of Object.entries(figures))
-    await writeFile(
-      join(
-        cgroupPath,
-        name
-      ),
-      `${text}\n`
-    );
+  await Promise.all(Object.entries(figures,)
+    .map(async function writeOne([name, text]) {
+      await writeFile(
+        join(
+          cgroupPath,
+          name
+        ),
+        `${text}\n`
+      );
+    },),);
 }
 
 /**
@@ -78,11 +77,13 @@ const fixtureFigures: Readonly<Record<string, string>> = {
   'pids.current': '30',
   'pids.peak': '434',
   'pids.max': '1024',
-  'pids.events': 'max 6',
+  'pids.events': 'max 9',
+  'pids.events.local': 'max 6',
   'memory.current': '893263872',
   'memory.peak': String(fixtureMemoryPeakBytes,),
   'memory.max': String(fixtureMemoryMaxBytes,),
-  'memory.events': 'low 0\nhigh 0\nmax 0\noom 2\noom_kill 2\noom_group_kill 0',
+  'memory.events': 'low 0\nhigh 0\nmax 1\noom 5\noom_kill 5\noom_group_kill 0',
+  'memory.events.local': 'low 0\nhigh 0\nmax 0\noom 2\noom_kill 2\noom_group_kill 0',
   'cpu.max': '800000 100000',
   'cpu.stat': 'usage_usec 76928181\nuser_usec 54543767\nsystem_usec 22384414\nnr_periods 160\nnr_throttled 68\nthrottled_usec 97294323',
 };
@@ -110,7 +111,7 @@ await describe({
       fn: async () => {
         expect(checkScopeCgroupPath({
           name: 'gpc-check-a-20261127T152200-0500',
-          userId: 1000,
+          userId: 1_000,
         }),).toBe('/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/gpc-check-a-20261127T152200-0500.scope',);
       },
     }),
@@ -137,7 +138,7 @@ await describe({
         if (read === SCOPE_NOT_READ)
           throw new Error('the reader found no control group where the fixture wrote one');
         expect(read.pidsPeak,).toBe(434,);
-        expect(read.pidsMax,).toBe(1024,);
+        expect(read.pidsMax,).toBe(1_024,);
         expect(read.pidsEvents.max,).toBe(6,);
         expect(read.memoryPeakBytes,).toBe(fixtureMemoryPeakBytes,);
         expect(read.memoryMaxBytes,).toBe(fixtureMemoryMaxBytes,);
@@ -147,6 +148,54 @@ await describe({
         expect(read.cpuStat.nr_periods,).toBe(160,);
         expect(read.cpuStat.nr_throttled,).toBe(68,);
         expect(read.cpuStat.usage_usec,).toBe(76_928_181,);
+      },
+    }),
+    it({
+      name: 'takes the counters of the scope\'s own bound, and the subtree counters only where the kernel writes no local ones',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'check-scope-accounting-', });
+        /**
+         A control group whose own bound refused six forks and killed two, beside a nested cgroup's nine and five.
+         */
+        const withLocal = join(
+          scratch.path,
+          'app.slice',
+          'gpc-check-local.scope',
+        );
+        await writeCgroup({
+          cgroupPath: withLocal,
+          figures: fixtureFigures,
+        });
+        /**
+         A control group of a kernel that writes only the subtree counters.
+         */
+        const subtreeOnly = join(
+          scratch.path,
+          'app.slice',
+          'gpc-check-subtree.scope',
+        );
+        await writeCgroup({
+          cgroupPath: subtreeOnly,
+          figures: {
+            'pids.events': 'max 9',
+            'memory.events': 'oom_kill 5',
+          },
+        });
+        /**
+         What the reader answered for each of the two.
+         */
+        const local = await readScopeAccounting({ cgroupPath: withLocal, });
+        /**
+         What the reader answered where the kernel wrote no local counters.
+         */
+        const subtree = await readScopeAccounting({ cgroupPath: subtreeOnly, });
+        if ((local === SCOPE_NOT_READ) || (subtree === SCOPE_NOT_READ))
+          throw new Error('the reader found no control group where the fixture wrote one');
+        // The nested cgroup's refusals and kills are not this scope's bound, so the local counters are what it reports.
+        expect(local.pidsEvents.max,).toBe(6,);
+        expect(local.memoryEvents.oom_kill,).toBe(2,);
+        expect(subtree.pidsEvents.max,).toBe(9,);
+        expect(subtree.memoryEvents.oom_kill,).toBe(5,);
       },
     }),
     it({
@@ -179,15 +228,16 @@ await describe({
           cgroupPath,
           intervalMilliseconds: fixturePollMilliseconds,
         });
-        /**
-         How long this test waited for the watch's first sample.
-         */
-        const started = Date.now();
-        while ((watch.lastRead() === SCOPE_NOT_READ) && ((Date.now() - started) < watchWaitMilliseconds))
-          await new Promise(function waitOneInterval(resolve) { setTimeout(resolve, fixturePollMilliseconds); });
+        await until({
+          condition: function read() {
+            return watch.lastRead() !== SCOPE_NOT_READ;
+          },
+          description: 'the watch to read the fixture\'s control group',
+          pollMilliseconds: fixturePollMilliseconds,
+        },);
         // The scope ends when its work does, which takes its control group with it; what was read must survive that.
         await removeCgroup({ cgroupPath, });
-        await new Promise(function waitTwoIntervals(resolve) { setTimeout(resolve, fixturePollMilliseconds * 2); });
+        await waitUntil(fixturePollMilliseconds * 2,);
         /**
          What the watch kept once the control group was gone.
          */

@@ -7644,18 +7644,43 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   so two runs of one check started in the same second ask the manager for two names:
   one shared name would make the manager refuse the second run's scope while the first was active,
   which ended that check with status 2 without running it.
-  The caps the scopes carry are the ones the scratch script used
-  (`CPUQuota=200%`,
+  The caps the scopes carry are sized from readings of these checks' own control groups
+  (`bin/native-capped-scope-command.ts`),
+  taken on 2026-11-27 on this host:
+  `CPUQuota=800%`,
   `MemoryMax=4G`,
-  `TasksMax=400`)
-  except the disk weight,
-  which is 1 rather than that script's 30,
-  because a per-command control group never carries more than 10 (rule `RXS`);
+  `TasksMax=1024`
+  and `IOWeight=1`.
+  `TasksMax` was 400 until this round,
+  below the 400 to 463 tasks the unit suite peaks at,
+  so a loaded host turned that bound into six test failures (issue 6605);
+  1024 is 2.2 times the highest peak measured.
+  `MemoryMax=4G` is 1.8 times the highest charge those runs reached (2,218.8 MiB).
+  At the 200% every earlier run carried,
+  the same round took 2.66 to 2.79 times the wall time for the unit suite
+  (37.81 to 39.06 s against 13.72 to 14.46 s at 800%),
+  2.6 to 3.3 times for the type check and 1.5 to 2.4 times for the lint,
+  and the suite's tasks waited 8.77 to 9.19 times as long for the quota as they ran;
+  at 800% they waited 1.35 to 1.59 times.
+  The disk weight is 1 rather than the scratch script's 30,
+  because a per-command control group never carries more than 10 (rule `RXS`).
   `--unit-cpu-quota`,
   `--unit-memory-max`,
   `--unit-tasks-max`
   and `--unit-io-weight`
   override them.
+  A check whose scope met one of its bounds says so under its own result and never instead of it
+  (`bin/native-check-scope-bound-lines.ts`),
+  naming the reading:
+  a refused fork at `TasksMax`,
+  a kill for memory at `MemoryMax`,
+  and,
+  for a check that did not pass,
+  a CPU quota its tasks waited more than twice as long for as they ran.
+  Each line names the option that raises that bound and that the bound and not a test is what failed.
+  The counters are read every 100 ms while the check runs
+  (`bin/native-check-scope-accounting.ts`),
+  because a scope takes its control group with it.
   The exit status is 0 when every check passed and 2 when one failed or ran past its deadline,
   so a coordinator can branch on it;
   a command line or a cap that is refused exits 1 and prints the reason.

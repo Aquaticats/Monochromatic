@@ -11,7 +11,8 @@
  `--slice=app.slice`, so its scope is
  `<root>/user.slice/user-<uid>.slice/user@<uid>.service/app.slice/<name>.scope`. Measured on this host on 2026-11-27: a
  `systemd-run --user --scope` that named no slice landed in that same `app.slice`, and `pids.peak`, `pids.events`,
- `memory.peak`, `memory.events`, `memory.max`, `cpu.max` and `cpu.stat` were all there to read.
+ `memory.peak`, `memory.events`, `memory.max`, `cpu.max` and `cpu.stat` were all there to read, beside the `.local`
+ variants of the two event files that count a cgroup's own bound rather than its subtree's.
  */
 import {
   readFile,
@@ -123,7 +124,7 @@ export type ScopeAccountingSample = {
    */
   readonly pidsMax?: number;
   /**
-   Every counter of `pids.events`, by name: `max` counts the forks the task bound refused.
+   Every counter of this scope's own task bound, by name: `max` counts the forks it refused.
    */
   readonly pidsEvents: Readonly<Record<string, number>>;
   /**
@@ -139,7 +140,8 @@ export type ScopeAccountingSample = {
    */
   readonly memoryMaxBytes?: number;
   /**
-   Every counter of `memory.events`, by name: `max` counts the times the bound was reached and `oom_kill` the kills.
+   Every counter of this scope's own memory bound, by name: `max` counts the times it was reached and `oom_kill` the
+   kills.
    */
   readonly memoryEvents: Readonly<Record<string, number>>;
   /**
@@ -244,24 +246,70 @@ async function countersOf(path: string,): Promise<Readonly<Record<string, number
 
  @returns the quota and period, absent when the file is not there or holds no quota this reader can use
  */
-async function cpuMaxOf(path: string,): Promise<{ readonly quota?: number; readonly period?: number; }> {
+async function cpuMaxOf(path: string,): Promise<{
+  readonly quota?: number;
+  readonly period?: number
+}> {
   /**
    The file's text.
    */
   const text = await fileText(path,);
-  if (typeof text === 'symbol')
+  if ((typeof text) === 'symbol')
     return {};
   /**
    The two fields the file holds.
    */
   const [quota, period, ...surplus] = fieldsOf(text,);
-  if ((quota === undefined) || (period === undefined) || (surplus.length > 0)
+  if ((quota === undefined) || (period === undefined)
+    || (surplus.length > 0)
     || (!isWholeNumberText(period,)))
     return {};
   return {
     ...(isWholeNumberText(quota,) ? { quota: Number(quota,) } : {}),
     period: Number(period,),
   };
+}
+
+/**
+ Read the counters of one bound as the cgroup itself counted it.
+
+ `pids.events` and `memory.events` count their subtree, so a cgroup nested inside the check could read as this scope's
+ bound; the `.local` files count only this cgroup's own enforcement, which is the bound these figures name. A kernel that
+ writes no `.local` file leaves the subtree counters, which is what it offers.
+
+ @param cgroupPath - the scope's control group
+
+ @param name - the bound's event file, `pids.events` or `memory.events`
+
+ @returns every counter, by name, empty when neither file is there
+
+ @example
+ ```ts
+ await boundEventsOf({ cgroupPath, name: 'pids.events' });
+ ```
+ */
+async function boundEventsOf({
+  cgroupPath,
+  name,
+}: {
+  readonly cgroupPath: string;
+  readonly name: string;
+},): Promise<Readonly<Record<string, number>>> {
+  /**
+   What this cgroup's own bound counted, when the kernel writes it.
+   */
+  const local = await countersOf(join(
+    cgroupPath,
+    `${name}.local`,
+  ),);
+  if (Object.keys(local,)
+    .length
+    > 0)
+    return local;
+  return countersOf(join(
+    cgroupPath,
+    name,
+  ),);
 }
 
 /**
@@ -340,10 +388,10 @@ export async function readScopeAccounting({
       cgroupPath,
       'pids.max',
     ),),
-    countersOf(join(
+    boundEventsOf({
       cgroupPath,
-      'pids.events',
-    ),),
+      name: 'pids.events',
+    },),
     figureOf(join(
       cgroupPath,
       'memory.current',
@@ -356,10 +404,10 @@ export async function readScopeAccounting({
       cgroupPath,
       'memory.max',
     ),),
-    countersOf(join(
+    boundEventsOf({
       cgroupPath,
-      'memory.events',
-    ),),
+      name: 'memory.events',
+    },),
     cpuMaxOf(join(
       cgroupPath,
       'cpu.max',
@@ -448,6 +496,33 @@ type WatchState = {
 };
 
 /**
+ Read one check scope once, keep what it gave, and wait one interval before the next read.
+
+ @param state - what this watch has read so far
+
+ @param cgroupPath - the scope's control group
+
+ @param intervalMilliseconds - how long to wait before the next read
+ */
+async function readOnce({
+  state,
+  cgroupPath,
+  intervalMilliseconds,
+}: {
+  readonly state: WatchState;
+  readonly cgroupPath: string;
+  readonly intervalMilliseconds: number;
+},): Promise<void> {
+  /**
+   What the scope holds now, or the statement that it is gone.
+   */
+  const read = await readScopeAccounting({ cgroupPath, },);
+  if (read !== SCOPE_NOT_READ)
+    state.lastRead = read;
+  await waitUntil(intervalMilliseconds,);
+}
+
+/**
  Watch one check scope's own accounting while it runs.
 
  Reading starts at once, so a scope that is created and gone before the caller looks again still leaves what it counted
@@ -483,14 +558,12 @@ export function watchScopeAccounting({
    */
   const reading = (async function readUntilStopped(): Promise<void> {
     while (!state.stopped) {
-      /**
-       What the scope holds now, or the statement that it is gone.
-       */
-      const read = await readScopeAccounting({ cgroupPath, },);
-      if (read !== SCOPE_NOT_READ)
-        state.lastRead = read;
       // oxlint-disable-next-line eslint/no-await-in-loop -- a watch reads its scope once per interval
-      await waitUntil(intervalMilliseconds,);
+      await readOnce({
+        state,
+        cgroupPath,
+        intervalMilliseconds,
+      },);
     }
   })();
   /**
