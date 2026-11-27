@@ -31,6 +31,17 @@
 /// ```
 use std::fs;
 /// What:
+/// `use std::io;` imports the standard library's input/output module so this file can name a read failure unqualified.
+/// Why:
+/// A group that is gone is read through the error the kernel answers,
+/// and two of the controls build that error themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // an I/O failure is an ordinary thrown Error in TS
+/// ```
+use std::io;
+/// What:
 /// `use std::os::unix::fs::PermissionsExt;` imports the trait that sets a file's mode.
 /// Why:
 /// A stand-in program has to be executable.
@@ -98,6 +109,22 @@ use std::time::{
     Instant,
 };
 
+/// What:
+/// `use super::{group_gone_at_the_peak, is_the_group_being_gone};` imports the two decisions this file's fixtures drive:
+/// what a failed `pids.peak` read means,
+/// and which errors say the group is gone.
+/// Why:
+/// They are private to the module under test,
+/// so the controls reach them as the child module they are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { groupGoneAtThePeak, isTheGroupBeingGone } from './retire'
+/// ```
+use super::{
+    group_gone_at_the_peak,
+    is_the_group_being_gone,
+};
 /// The shared fixtures of a delegated scope (the route,
 /// the waits and the not-run line).
 use crate::cgroup_test_support::{
@@ -120,6 +147,7 @@ use crate::cgroup_test_support::{
 /// import { RETIRE_BOUND, retire, retireUnit } from 'crate/control_group/retire';
 /// ```
 use crate::control_group::retire::{
+    Emptiness,
     RETIRE_BOUND,
     retire,
     retire_unit,
@@ -587,6 +615,16 @@ fn a_scope_that_holds_a_member_keeps_its_unit_and_the_run_says_so() {
     let said: String = word.expect("a unit left loaded is reported");
     assert!(said.contains(&unit), "{said}");
     assert!(said.contains("still has a member"), "{said}");
+    assert!(
+        said.contains("was left loaded"),
+        "the unit is certainly loaded with a member in it, and the run does not say so: {said}"
+    );
+    assert!(
+        said.contains(
+            "a member that joins after this look is killed by that stop with nothing printed"
+        ),
+        "the sentence about a stop does not say what becomes of a member that joins after the look: {said}"
+    );
     assert_eq!(
         calls(&log),
         "",
@@ -624,6 +662,10 @@ fn an_absence_that_cannot_be_verified_keeps_the_unit_and_the_run_says_so() {
         said.contains("absence could not be read as emptiness"),
         "{said}"
     );
+    assert!(
+        said.contains("may be left loaded"),
+        "the unit was never read as loaded, so the run must not say that it was: {said}"
+    );
     assert_eq!(
         calls(&log),
         "",
@@ -654,6 +696,10 @@ fn a_populated_read_that_fails_is_reported() {
     assert!(
         said.contains("`populated` line could not be read"),
         "{said}"
+    );
+    assert!(
+        said.contains("may be left loaded"),
+        "nothing was read about the unit, so the run must not say that it was left loaded: {said}"
     );
     assert_eq!(calls(&log), "", "an unreadable scope is not stopped");
 }
@@ -699,6 +745,11 @@ fn the_one_question_is_bounded_and_its_killed_program_is_reaped() {
     assert!(
         refused.contains("--no-ask-password"),
         "the warning does not name the command that ran: {refused}"
+    );
+    assert_eq!(
+        refused.matches(&stand_in.display().to_string()).count(),
+        1,
+        "the warning names the command and then the program again: {refused}"
     );
     assert!(
         !refused.contains("could not be reaped"),
@@ -786,5 +837,253 @@ fn a_recovery_reads_a_loaded_empty_scope_as_gone() {
         verdict,
         Membership::Gone,
         "a loaded but empty scope is gone for a recovery"
+    );
+}
+
+/// What:
+/// `fn answering_systemctl(directory: &Path) -> (String, PathBuf)` writes a program that appends its arguments to a log and
+/// answers success,
+/// and answers the program and the log.
+/// Why:
+/// The one question the step asks is a program start,
+/// so a control that reads whether it was asked reads the log,
+/// and this stand-in answers like a manager that ran the stop job,
+/// which keeps the step's answer free of a warning.
+/// It is a stand-in: no claim about a real manager rests on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function answeringSystemctl(dir: string): [string, string]
+/// ```
+fn answering_systemctl(directory: &Path) -> (String, PathBuf) {
+    let program: PathBuf = directory.join("answering-systemctl");
+    let log: PathBuf = directory.join("answering-systemctl-calls");
+    // The stand-in's script: log one line per call and answer that the request was carried out.
+    let text: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nexit 0\n",
+        log = log.display()
+    );
+    fs::write(&program, text).expect("write the stand-in");
+    fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    return (program.display().to_string(), log);
+}
+
+/// What:
+/// `fn fixture_group(route: &Route, directory: &Path, name: &str, events: &str, peak: Option<&str>) -> ControlGroup` writes a
+/// directory holding the files the gate reads,
+/// with the contents the control names,
+/// and answers the scope pointed at it.
+/// Why:
+/// The gate is three reads of one directory,
+/// and a real scope always holds a process and always has a `pids.peak` on this host,
+/// so the states a kernel can present (a member, a group that held nothing, no `pids.peak` at all, a read that failed)
+/// are made where nothing can change them between the reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fixtureGroup(route: Route, dir: string, name: string, events: string, peak?: string): ControlGroup
+/// ```
+fn fixture_group(
+    route: &Route,
+    directory: &Path,
+    name: &str,
+    events: &str,
+    peak: Option<&str>,
+) -> ControlGroup {
+    fs::create_dir_all(directory).expect("make the fixture's group directory");
+    fs::write(directory.join("cgroup.events"), events).expect("write the kernel's populated line");
+    // What:     `if let Some(text) = peak` runs the write only for a fixture that has a `pids.peak`; `None` leaves the file out.
+    // Why:      A group without the file is the state on a kernel before 6.1, and it is one of the states under test.
+    if let Some(text) = peak {
+        fs::write(directory.join("pids.peak"), text).expect("write the kernel's peak");
+    }
+    return ControlGroup {
+        name: name.to_string(),
+        directory: directory.to_path_buf(),
+        parent: route.slice_dir.clone(),
+        parent_view: view_of(&route.slice_dir).expect("the slice's view"),
+        namespace: namespace_id().expect("this cgroup namespace"),
+    };
+}
+
+/// What:
+/// `fn an_absent_group(route: &Route, name: &str) -> ControlGroup` is the scope whose directory the manager removed.
+/// Why:
+/// A group that is gone is read through the error the read answers,
+/// and the absence check needs the parent it was planned in,
+/// so the fixture lends the real slice and no directory of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function anAbsentGroup(route: Route, name: string): ControlGroup
+/// ```
+fn an_absent_group(
+    route: &Route,
+    name: &str,
+) -> ControlGroup {
+    let unit: String = format!("{name}.scope");
+    return ControlGroup {
+        name: name.to_string(),
+        directory: route.slice_dir.join(unit),
+        parent: route.slice_dir.clone(),
+        parent_view: view_of(&route.slice_dir).expect("the slice's view"),
+        namespace: namespace_id().expect("this cgroup namespace"),
+    };
+}
+
+/// The control of the kernel that has no `pids.peak` (before Linux 6.1):
+/// a group that is there with no such file says nothing about a process having been counted in it,
+/// so the step asks the manager once,
+/// and that question is the whole cost on such a host.
+#[test]
+fn a_group_without_a_pids_peak_file_is_asked_about_once() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(directory.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("peakless"),
+        "cargo-shadow-test-peakless",
+        "populated 0\nfrozen 0\n",
+        None,
+    );
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    assert_eq!(
+        word, None,
+        "a question the manager answers is not a warning"
+    );
+    assert_eq!(
+        calls(&log),
+        format!("--user --no-ask-password stop {}\n", group.unit()),
+        "the step did not ask the manager about a group it cannot tell from the stuck scope"
+    );
+}
+
+/// The control of the order of the gate's two reads:
+/// a group that still holds a member keeps its unit,
+/// whatever `pids.peak` says or fails to say,
+/// and the run asks nothing.
+/// A gate that read the peak first would ask about both of these,
+/// and the stop would kill the member.
+#[test]
+fn a_member_is_read_before_the_peak_and_its_unit_is_kept() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(directory.path());
+    let fixtures: [(&str, Option<&str>); 2] = [("a peak of 0", Some("0")), ("no peak file", None)];
+
+    for (what, peak) in fixtures {
+        let name: String = format!("cargo-shadow-test-member-{}", peak.unwrap_or("none"));
+        let group: ControlGroup = fixture_group(
+            &route,
+            &directory.path().join(&name),
+            &name,
+            "populated 1\nfrozen 0\n",
+            peak,
+        );
+
+        let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+        let said: String = word.unwrap_or_else(|| {
+            return format!("the run said nothing about the member it read ({what})");
+        });
+        assert!(said.contains("still has a member"), "{what}: {said}");
+        assert_eq!(
+            calls(&log),
+            "",
+            "{what}: the step asked the manager to stop a scope whose member it had read"
+        );
+    }
+}
+
+/// The control of a group the manager collected:
+/// its directory is gone and the absence is verified,
+/// so the unit is the manager's to free and the step asks nothing.
+/// A `Collected` answer that asked would spend a program start on every run whose scope the manager took first.
+#[test]
+fn a_group_whose_directory_is_gone_is_not_asked_about() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(directory.path());
+    let group: ControlGroup = an_absent_group(&route, "cargo-shadow-test-collected");
+    assert!(
+        !group.directory().exists(),
+        "the fixture's group directory has to be gone for this control"
+    );
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    assert_eq!(word, None, "a collected unit is not a warning");
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager about a unit the manager had already collected"
+    );
+}
+
+/// The control of the decision a peak read's failure asks for:
+/// a file that is not there in a directory that is is a kernel without the file,
+/// which needs the question,
+/// and a directory that went away is a collected group,
+/// which needs none.
+/// The race the second case comes from (the manager removing the group between the two reads) cannot be staged from
+/// outside, so the decision is driven the way the refusal's decision is.
+#[test]
+fn a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let there: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("there"),
+        "cargo-shadow-test-peak-missing",
+        "populated 0\nfrozen 0\n",
+        None,
+    );
+    let gone: ControlGroup = an_absent_group(&route, "cargo-shadow-test-peak-gone");
+    // The error a read answers for a file that is not there, which is also the error a group that went away answers.
+    let no_entry: io::Error = io::Error::from_raw_os_error(rustix::io::Errno::NOENT.raw_os_error());
+
+    let answered: Option<Emptiness> = group_gone_at_the_peak(&there, &no_entry);
+    assert!(
+        answered.is_none(),
+        "a directory that is there was read as a group that went away, and its unit would be left loaded in silence"
+    );
+    let answered: Option<Emptiness> = group_gone_at_the_peak(&gone, &no_entry);
+    assert!(
+        matches!(answered, Some(Emptiness::Collected)),
+        "a group whose directory went away was not read as collected: {answered:?}"
+    );
+    // A failure that says nothing about the group's directory is a group that may still have a member, so it is not an absence.
+    let refused: io::Error = io::Error::from_raw_os_error(rustix::io::Errno::PERM.raw_os_error());
+    let answered: Option<Emptiness> = group_gone_at_the_peak(&gone, &refused);
+    assert!(
+        answered.is_none(),
+        "a read failure that is not an absence was read as a collected group: {answered:?}"
+    );
+}
+
+/// The control of the two errors that say a group is gone:
+/// a removed group's directory answers `ENOENT` and its files answer `ENODEV`,
+/// and both are the group being gone rather than a group that may still have a member.
+#[test]
+fn a_removed_group_reads_as_gone_with_either_error() {
+    let no_entry: io::Error = io::Error::from_raw_os_error(rustix::io::Errno::NOENT.raw_os_error());
+    let no_device: io::Error =
+        io::Error::from_raw_os_error(rustix::io::Errno::NODEV.raw_os_error());
+    let refused: io::Error = io::Error::from_raw_os_error(rustix::io::Errno::PERM.raw_os_error());
+
+    assert!(
+        is_the_group_being_gone(&no_entry),
+        "a group whose directory is gone was not read as gone"
+    );
+    assert!(
+        is_the_group_being_gone(&no_device),
+        "a removed group's file was not read as the group being gone, so its unit would be left loaded in silence"
+    );
+    assert!(
+        !is_the_group_being_gone(&refused),
+        "a refused read was read as a group that is gone"
     );
 }

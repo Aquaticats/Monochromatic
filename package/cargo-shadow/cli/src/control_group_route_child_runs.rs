@@ -152,11 +152,18 @@ use std::time::{
 /// so an attempt made immediately after the kill races with the scheduler and mostly answers that the child is still
 /// running.
 /// What the value rests on:
-/// on 2026-11-27 on this host,
-/// 20 `sleep 30` processes were killed and polled for their reaping every 200 microseconds:
-/// the median wait was 265 microseconds and the longest 282 microseconds,
-/// so 100 milliseconds is more than three hundred times the longest wait seen,
-/// and it is the most a reap attempt adds past the deadline it serves.
+/// the wait is `reap_within`, which asks `try_wait` once every `DISCOVERY_POLL` (5 ms),
+/// so a killed program is noticed at most one poll after it ends,
+/// and this grace is twenty of those polls.
+/// Measured 2026-11-28 on this host through that wait,
+/// five kills of `sleep 30` in a scope capped like the machine's rules require:
+/// the median wait was 5.069852 ms and the longest 5.079702 ms;
+/// with the same scope throttled to a `CPUQuota` of 2% the median was 5.079712 ms and the longest 5.145821 ms.
+/// The grace is the most a reap attempt adds past the deadline it serves.
+/// A program that outlasts it is not waited for again:
+/// `std::process::Child` has no destructor that waits,
+/// so the killed child stays a zombie of the shadow until the shadow exits,
+/// and a second wait would be another bounded grace on a path a hung manager already delays.
 pub(crate) const KILL_REAP_GRACE: Duration = Duration::from_millis(100);
 
 /// What:
@@ -416,7 +423,7 @@ fn reap_note(answered: Reap) -> String {
     return match answered {
         Reap::Reaped => String::new(),
         Reap::StillRunning => format!(
-            "; the program was killed and could not be reaped (it was still running {KILL_REAP_GRACE:?} after the kill)"
+            "; the program was killed and could not be reaped (it had not ended within {KILL_REAP_GRACE:?} of the kill, and nothing waits for it again)"
         ),
         Reap::Failed {
             error,
@@ -439,3 +446,8 @@ fn reap_note(answered: Reap) -> String {
 pub(crate) fn kill_file_present(directory: &Path) -> bool {
     return fs::metadata(directory.join("cgroup.kill")).is_ok();
 }
+
+/// The controls of the grace a killed short program is given.
+#[cfg(test)]
+#[path = "control_group_route_child_runs_tests.rs"]
+mod tests;

@@ -175,23 +175,15 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
     let populated: bool = match populated_at(group.directory()) {
         Ok(found) => found,
         Err(error) if is_the_group_being_gone(&error) => {
-            // What:     `absence_is_verified()` asks whether this process still sees the directory the scope was planned in.
+            // What:     `collected_or_unproven(group)` says whether the absence can be read as emptiness.
             // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too: an
             //           absence it cannot verify keeps the unit and says so.
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // if (absenceIsVerified(group)) return 'collected' else return { unproven: reason }
+            // return collectedOrUnproven(group)
             // ```
-            return match group.absence_is_verified() {
-                Ok(()) => Emptiness::Collected,
-                Err(reason) => Emptiness::Unproven {
-                    reason: format!(
-                        "the scope's directory {} is gone, and its absence could not be read as emptiness ({reason})",
-                        group.directory().display()
-                    ),
-                },
-            };
+            return collected_or_unproven(group);
         }
         Err(error) => {
             return Emptiness::Unproven {
@@ -212,9 +204,24 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
     // ```
     return match pids_peak_at(group.directory()) {
         Ok(peak) if peak > 0 => Emptiness::EmptiedAfterAProcess,
-        // A host whose group has no `pids.peak` (the controller is not enabled for it) shows nothing, so the question is
-        // asked: the safe side is one program start, never a unit left loaded without a word.
-        Ok(_) | Err(_) => Emptiness::EmptiedWithoutAProcess,
+        // What:     `group_gone_at_the_peak(group, &error)` says whether this failure means the group's directory went away
+        //           between the two reads, which is a collected unit, or something else.
+        // Why:      A missing `pids.peak` and a group that went away are different facts about the unit, and only the second
+        //           one needs no question.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const gone = groupGoneAtThePeak(group, error)
+        // if (gone) return gone
+        // return 'emptied without one'
+        // ```
+        Err(error) => match group_gone_at_the_peak(group, &error) {
+            Some(answer) => answer,
+            // A host whose group has no `pids.peak` (the controller is not enabled for it) shows nothing, so the question is
+            // asked: the safe side is one program start, never a unit left loaded without a word.
+            None => Emptiness::EmptiedWithoutAProcess,
+        },
+        Ok(_) => Emptiness::EmptiedWithoutAProcess,
     };
 }
 
@@ -235,16 +242,103 @@ fn is_the_group_being_gone(error: &io::Error) -> bool {
 }
 
 /// What:
+/// `fn group_gone_at_the_peak(group: &ControlGroup, error: &io::Error) -> Option<Emptiness>` says what a failed `pids.peak`
+/// read means for the unit,
+/// or `None` when it means nothing about the group's directory.
+/// Why:
+/// The two causes of that failure want different answers:
+/// a file that is not there in a directory that is means the kernel tells nothing about a process ever counted in the
+/// group,
+/// which only a question to the manager settles;
+/// a directory that went away is a group the manager already collected,
+/// which no question settles better.
+/// A control drives both, because the race this comes from (the manager removing the group between the two reads) cannot be
+/// staged from outside.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function groupGoneAtThePeak(group: ControlGroup, error: Error): Emptiness | undefined
+/// ```
+fn group_gone_at_the_peak(
+    group: &ControlGroup,
+    error: &io::Error,
+) -> Option<Emptiness> {
+    // What:     `if !is_the_group_being_gone(error)` leaves every failure that is not an absence to the caller, which asks the
+    //           manager.
+    // Why:      A read that was refused for another reason says nothing about the group's directory.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (!isTheGroupBeingGone(error)) return undefined
+    // ```
+    if !is_the_group_being_gone(error) {
+        return None;
+    }
+    // What:     `if group.directory().is_dir()` is the check that tells a file that is not there from a directory that is not:
+    //           the same `ENOENT` comes from both.
+    // Why:      A directory that is there without `pids.peak` is a kernel that has no such file (before Linux 6.1), or a group
+    //           whose parent does not enable the pids controller, and only the manager can be asked about that.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (group.directory.isDirectory()) return undefined
+    // ```
+    if group.directory().is_dir() {
+        return None;
+    }
+    // What:     `Some(collected_or_unproven(group))` is the answer the absent `populated` read gets.
+    // Why:      The two reads are of the same group, so an absence seen at the second is the absence the first would have seen.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return collectedOrUnproven(group)
+    // ```
+    return Some(collected_or_unproven(group));
+}
+
+/// What:
+/// `fn collected_or_unproven(group: &ControlGroup) -> Emptiness` says what a group whose directory is gone means for its unit:
+/// `Collected` when this process still sees the directory the scope was planned in,
+/// and `Unproven` with the reason when it does not.
+/// Why:
+/// Both reads of the group can find it gone,
+/// and an absence the stop accepts as emptiness is the only absence the retirement may read as a free unit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function collectedOrUnproven(group: ControlGroup): Emptiness
+/// ```
+fn collected_or_unproven(group: &ControlGroup) -> Emptiness {
+    // What:     `group.absence_is_verified()` asks whether this process still sees the directory the scope was planned in.
+    // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (absenceIsVerified(group)) return 'collected' else return { unproven: reason }
+    // ```
+    return match group.absence_is_verified() {
+        Ok(()) => Emptiness::Collected,
+        Err(reason) => Emptiness::Unproven {
+            reason: format!(
+                "the scope's directory {} is gone, and its absence could not be read as emptiness ({reason})",
+                group.directory().display()
+            ),
+        },
+    };
+}
+
+/// What:
 /// `pub(crate) fn retire(group: &ControlGroup, systemctl: &str, bound: Duration) -> Option<String>` ends the scope unit of a run
 /// that has ended,
 /// and answers the one warning a person has to read,
 /// or `None`.
 /// Why:
-/// The scope is already shown empty or gone,
-/// so this is housekeeping for the unit and never a claim about a writer:
+/// The step runs after the stop of the containment whatever that stop answered,
+/// a refusal included,
+/// so the scope may still hold a member and this is never a claim about a writer:
 /// a failure does not turn the run into "not quiescent".
 /// A unit that may still have a member behind it keeps the unit,
-/// because the refusal's report names that member and a manager stop would kill it behind the report;
+/// because the refusal's report names that member and a manager stop would kill it;
 /// a unit whose emptiness was not shown keeps it too,
 /// and the run says so.
 ///
@@ -269,12 +363,12 @@ pub(crate) fn retire(
             )),
         },
         Emptiness::Member => Some(format!(
-            "the scope unit {unit} of the run that just ended was left loaded: its control group still has a member, and a stop would kill it behind the report that names it"
+            "the scope unit {unit} of the run that just ended was left loaded: its control group still has a member, and a stop would kill it; a member that joins after this look is killed by that stop with nothing printed"
         )),
         Emptiness::Unproven {
             reason,
         } => Some(format!(
-            "the scope unit {unit} of the run that just ended was left loaded: {reason}, so it is not shown that no member is left"
+            "the scope unit {unit} of the run that just ended may be left loaded: {reason}, so it is not shown that no member is left"
         )),
     };
 }
@@ -327,7 +421,37 @@ pub(crate) fn retire_unit(
             Ok(())
         }
         Ok(answered) => Err(format!("`{text}` failed ({})", first_line(&answered.err))),
-        Err(reason) => Err(format!("`{text}` {reason}")),
+        Err(reason) => Err(format!(
+            "`{text}` {}",
+            without_the_program(systemctl, reason)
+        )),
+    };
+}
+
+/// What:
+/// `fn without_the_program(program: &str, reason: String) -> String` is the short program runner's reason with the program's
+/// own name taken off its front,
+/// when it starts with it.
+/// Why:
+/// The question's text already names the program and its flags,
+/// and the runner's reason opens with the program again,
+/// so a warning that carried both would read
+/// ```text
+/// `systemctl --user --no-ask-password stop X` systemctl did not answer within 5s
+/// ```
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withoutTheProgram(program: string, reason: string): string
+/// ```
+fn without_the_program(
+    program: &str,
+    reason: String,
+) -> String {
+    let prefix: String = format!("{program} ");
+    return match reason.strip_prefix(&prefix) {
+        Some(rest) => rest.to_string(),
+        None => reason,
     };
 }
 
