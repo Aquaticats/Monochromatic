@@ -457,6 +457,34 @@ fn the_slots_class_and_the_move_refusal_on_a_real_pool() {
     assert!(slot.join(".git").is_file(), "the underlay pointer stands");
     println!("REMOVAL-REFUSAL wrapper class=known-unmounted-clone status=refused");
 
+    // The same refusal behind a shell alias: Git runs the alias's shell at the top of the working tree, and the
+    //  operand is a path from there with a `.` step in it, so no registered path ends with it and the refusal has to
+    //  resolve it against the directory Git runs the command in. The host controls hold that rule
+    //  (`a_bound_slots_removal_reads_its_operand_where_git_runs_the_alias`); this arm repeats it once on a real pool.
+    let by_an_alias: Output = wrapper_git(
+        checkout.as_path(),
+        &[
+            "-c",
+            "alias.rmwt=!git worktree remove --force",
+            "rmwt",
+            format!(".claude/worktrees/./{SLOT}").as_str(),
+        ],
+    );
+    assert_eq!(
+        by_an_alias.status.code(),
+        Some(1),
+        "the wrapper refuses the removal behind a shell alias: {}",
+        said_of(&by_an_alias)
+    );
+    assert!(
+        said_of(&by_an_alias).contains("this release has no removal for a clone"),
+        "{}",
+        said_of(&by_an_alias)
+    );
+    assert!(place.registration.is_dir(), "the registration stands");
+    assert!(slot.join(".git").is_file(), "the underlay pointer stands");
+    println!("REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused");
+
     // The pointer the add keeps for prune: real Git's own prune keeps the registration while the pointer stands.
     let pruned_intact: Output = git(checkout.as_path(), &["worktree", "prune", "--verbose"]);
     assert!(
