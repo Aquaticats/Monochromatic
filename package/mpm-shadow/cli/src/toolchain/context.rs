@@ -170,9 +170,11 @@ impl Context<'_> {
     /// A question must not install a toolchain.
     /// `rustup` reads this variable before its `auto-install` setting,
     /// and without it `rustup 1.29.2` answers a query about a channel that is not installed by
-    /// downloading and installing it (see `src/config.rs`, `should_auto_install`);
+    /// downloading and installing it;
     /// with it the same query fails,
     /// which is what a reader of the answer can act on.
+    /// The reading is `should_auto_install` in rustup's own `src/config.rs` (1.29.2),
+    /// which asks `RUSTUP_AUTO_INSTALL` first and the settings file after.
     pub fn rustup_query(
         &self,
         args: &[&str],
