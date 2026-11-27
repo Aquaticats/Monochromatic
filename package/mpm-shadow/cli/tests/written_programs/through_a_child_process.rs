@@ -146,3 +146,43 @@ fn mark_executable(path: &Path) {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
         .expect("mark the program executable");
 }
+
+/// The four bytes every compiled ELF program starts with (the "magic number").
+const ELF_MAGIC: [u8; 4] = *b"\x7fELF";
+
+/// What:
+///     `fn assert_compiled(path)` fails unless the file at `path` starts with `ELF_MAGIC`,
+///     which every compiled program does and no text file does.
+/// Why:
+///     A control that holds a program open for writing needs a compiled program:
+///     a script's first line names an interpreter,
+///     so the message names the interpreter instead of the program,
+///     and a compiled program is started through the open file rather than by its path.
+///     A missing or unreadable file fails here rather than later,
+///     where its absence would read as the refusal the control is looking for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const head = readFileSync(path).subarray(0, 4).toString('latin1');
+/// if (head !== '\x7fELF') throw new Error(`${path} is not a compiled program`);
+/// ```
+pub fn assert_compiled(path: &Path) {
+    /// Imports `Read`,
+    /// the trait that adds `read_exact` to an open file.
+    use std::io::Read;
+    // What:     `fs::File::open(path)` gives an open file for reading only.
+    // Why:      A write descriptor this process held would be inherited by a child another
+    //           test thread forks, and its start would then be refused (issue 6527).
+    let mut file: std::fs::File = std::fs::File::open(path).expect("open the compiled program");
+    // What:     A four-byte array of zeroes, filled by `read_exact`.
+    // Why:      Only the magic number is needed, so the program is never read whole.
+    let mut head: [u8; 4] = [0; 4];
+    file.read_exact(&mut head)
+        .expect("read the compiled program's first bytes");
+    assert_eq!(
+        head,
+        ELF_MAGIC,
+        "{} is not a compiled program, so this control cannot use it",
+        path.display()
+    );
+}

@@ -49,6 +49,7 @@
 /// The bounded queue, its thread and its control hooks,
 /// which this file gives the diagnostics' words and rules.
 use crate::lines_written_by_a_thread::{
+    HandedOver,
     QueuePolicy,
     SharedQueue,
     hand,
@@ -206,49 +207,59 @@ fn queue() -> SharedQueue {
 ///  A line the reader has not taken is still the thread's,
 /// so it reaches the person when the reader comes back,
 ///  and the lines after it wait behind it in order.
+///  The answer is what a caller that must know whether its words reached the person reads;
+///  every other caller says its line and goes on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const write = (line) => { const ticket = hand(line); if (ticket !== undefined) waitFor(ticket, WARNING_WRITE_CEILING) }
+/// const write = (line) => writeBytes(new TextEncoder().encode(line))
 /// ```
 pub fn write(line: &str) {
-    write_bytes(line.as_bytes());
+    let _answered: HandedOver = write_bytes(line.as_bytes());
 }
 
 /// What:
 ///  Hands one rendered line's bytes to the thread that writes it,
-///  and waits for it to reach the stream only while the reader is still taking lines.
+///  waits for it to reach the stream only while the reader is still taking lines,
+///  and answers what the stream holds now.
 /// Why:
 ///   A line is not always text a `&str` can hold:
 ///  a Git a commit asked for its own refusal prints bytes a path or a message of the person's may put
 ///  outside UTF-8,
 ///  and decoding them would change what they read,
 ///  so the queue keeps bytes and this face takes them as they came.
+///  `Written` says every byte of the line is in the stream,
+///  which is only known after the wait the queue gives a reader that keeps up;
+///  `Unwritten` says the line was refused,
+///  that the reader stopped taking lines,
+///  or that the queue had no room for it,
+///  and a caller that must not lose what the line says keeps it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writeBytes = (line: Uint8Array) => { const ticket = hand(line); if (ticket !== undefined) waitFor(ticket, WARNING_WRITE_CEILING) }
+/// const writeBytes = (line: Uint8Array) => { const ticket = hand(line); return ticket === undefined ? 'Unwritten' : waitUntilWritten(ticket, WARNING_WRITE_CEILING) }
 /// ```
-pub fn write_bytes(line: &[u8]) {
+pub fn write_bytes(line: &[u8]) -> HandedOver {
     let queue: SharedQueue = queue();
     // What:     `hand(...)` queues the line's own bytes and answers its number, or nothing when the queue had no room.
-    // Why:      A line the queue could not take is counted there, and the next line states the gap.
+    // Why:      A line the queue could not take is counted there, and the next line states the gap;
+    //           a line that never entered the queue is one the stream will never hold.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const ticket = hand(queue, line.slice(), QUEUED_LINES);
     // ```
     let Some(ticket) = hand(queue, line.to_vec(), QUEUED_LINES) else {
-        return;
+        return HandedOver::Unwritten;
     };
-    // What:     `wait_until_written(...)` waits, bounded, for exactly this line to reach the stream.
+    // What:     `wait_until_written(...)` waits, bounded, for exactly this line and answers whether it is in the stream.
     // Why:      A later line's write must not be taken for this one, and the caller waits for its own line alone.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // waitUntilWritten(queue, ticket, WARNING_WRITE_CEILING);
+    // return waitUntilWritten(queue, ticket, WARNING_WRITE_CEILING);
     // ```
-    wait_until_written(queue, ticket, WARNING_WRITE_CEILING);
+    return wait_until_written(queue, ticket, WARNING_WRITE_CEILING);
 }
 
 /// What:

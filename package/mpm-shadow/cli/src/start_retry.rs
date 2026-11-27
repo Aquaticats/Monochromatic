@@ -14,21 +14,28 @@
 //! (`ETXTBSY`,
 //! `ErrorKind::ExecutableFileBusy`) is not retried,
 //! and `is_refusal` stays what its name says.
-//! Read from the code,
-//! every writer this tool starts or stands in front of gives the new program a name of its own
-//! and names the finished file or the finished directory into place with a rename,
-//! so none of them ever writes the path a start resolves.
-//! Measured 2026-11-27 on the same syscall shapes,
-//! the launcher placement,
-//! the gunzipped download,
-//! the plain download and the `tar` extraction held the file they were writing open
-//! for 2.9 to 20.1 ms and never at the published path,
-//! and `uv tool install --force` wrote the entry point under a temporary name in `bin/`
-//! and renamed it.
-//! A writer that does hold the published file open is outside this tool
-//! and keeps it for as long as its own work takes,
-//! so there is no measured window a retry could carry;
-//! `start_failure` explains that refusal instead of hiding it behind a stall.
+//! For the two paths a start through this tool resolves,
+//! the real `mpm` the shadow starts and the program a launcher's record names,
+//! every writer traced or read on 2026-11-27 stages the new file under another name
+//! and renames it into place:
+//! `uv tool install` and `uv tool upgrade` for `mpm`,
+//! `cargo binstall`,
+//! `cargo install` and this tool's archive install for a launcher's program.
+//! Two writers this tool starts do open a published path for writing:
+//! `go install` where its work directory is on another file system (3.5 ms,
+//! traced,
+//! and the only refusal this round measured),
+//! and `pnpm add --global` (0.09 ms,
+//! traced);
+//! neither writes a path a start through this tool resolves.
+//! A window a retry could carry does exist,
+//! and it is not a writer's:
+//! a `fork` copies a write descriptor,
+//! and the child holds that copy from its `fork` to its own `execve`,
+//! about 1 to 3 ms in this crate's own tests,
+//! which the record's threaded arm refused in 5 to 12 of 20 starts.
+//! `start_failure` explains that refusal rather than retrying it,
+//! and the record sets the two options before the owner.
 //! The arms,
 //! the probe and the syscall timestamps are in
 //! `doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`.

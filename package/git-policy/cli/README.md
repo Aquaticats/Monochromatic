@@ -8752,25 +8752,38 @@ The repository's layout rules are on for this crate since 2026-11-25
 The crate does not satisfy them yet,
 so today's findings stand in the two allow lists beside this file:
 
-- `layout-allow-list/folder-rule.txt`:
-  524 `uses <folder> -> <folder>` lines for the uses of today's folder and entry loops,
-  49 lines for the `pub use folder::*` re-exports,
-  which keep the crate's flat module paths,
-  20 lines for the findings that `health/` is a group folder
-  with module files beside its child folder,
-  and 421 lines for the `uses` links the crate does not hold.
-- `layout-allow-list/file-rule.txt`:
-  544 `file-uses <folder> <file> -> <file>` lines for the uses of today's file loops,
-  59 lines for the folders whose top doc has no file list or misses a name,
-  and one for the function that `main.rs` holds beside `fn main`.
+- `layout-allow-list/folder-rule.txt` holds what `rust/folder-uses-links` still reports:
+  a `uses <folder> -> <folder>` line for the uses inside a folder or an entry loop,
+  a `glob <file> <module>` line for a `pub use folder::*` re-export,
+  which keeps the crate's flat module paths,
+  a `missing-link <folder> -> <folder>` line for a `uses` link the crate does not hold,
+  and the lines of the rule's other findings,
+  among them the module files a group folder holds beside its child folders.
+- `layout-allow-list/file-rule.txt` holds what `rust/file-order-in-folder` still reports:
+  a `file-uses <folder> <file> -> <file>` line for the uses inside a file loop,
+  and an `index-item <index file> <kind>-<name>` line for an item an index file holds
+  beside its top doc,
+  its `mod` lines and its re-exports,
+  such as the function `main.rs` holds beside `fn main`.
 
-The 421 links are recorded rather than written,
+Each round deletes the lines of the findings it untangles,
+so a list only shrinks and no number of lines on this page can stay true:
+count each kind of line from the list itself.
+
+```sh
+# Run from the repository top level: one line per kind of line, with its count.
+cut --delimiter=' ' --fields=1 package/git-policy/cli/layout-allow-list/folder-rule.txt | sort | uniq --count
+cut --delimiter=' ' --fields=1 package/git-policy/cli/layout-allow-list/file-rule.txt | sort | uniq --count
+```
+
+The `missing-link` lines are recorded rather than written,
 because a link set that holds mutual uses makes `cargo package --list` walk without end:
 cargo follows every `uses` link,
 and the crate's loops make those paths multiply.
-Measured on 2026-11-25:
-1.9 s for the whole list with the 109 links the crate had,
-and no answer after 120 s with the 421 added ones.
+Measured on 2026-11-25 in the round whose commit `457a1f6142` wrote it into
+`doc/planning/cli-git-source-layout.md`:
+`cargo package --list` answered in 1.9 s with the 109 links the crate had then,
+and gave no answer after 120 s with the 421 links it owed then.
 The crate's own control `source_guard::packaged_uses_links_tests` reads that list,
 and a release runs `cargo publish --dry-run`.
 So a round writes a folder's links when that folder's uses no longer loop,
