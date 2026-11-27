@@ -2066,6 +2066,30 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Fifteenth batch: gh downloading a wrapper release into the repository's cache, 2026-11-27T08:28:28-05:00
+
+Met while unpacking the wrapper's `0.6.1-alpha.48` beside alpha.47's for its release passes:
+`gh release download ... --dir .cache/wrapper-release-0.6.1-alpha.48/download` ended with
+`open .../download: permission denied`,
+while the same download into `~/temp/agent` worked.
+`/var/log/audit/audit.log` held one record
+(the kernel journal held none):
+
+```text
+apparmor="DENIED" operation="open" class="file" profile="gh" name="/home/user/Monochromatic/.cache/wrapper-release-0.6.1-alpha.48/download/" comm="gh" requested_mask="r" denied_mask="r"
+```
+
+Under the owner's rule recorded under "Eleventh batch",
+`/etc/apparmor.d/local/gh` gained one rule and the profile was reloaded with `apparmor_parser --replace`:
+
+```text
+owner @{HOME}/Monochromatic/.cache/wrapper-release-*/{,**} rw,
+```
+
+The same download then wrote the archive there,
+byte for byte the one downloaded into scratch (`cmp`),
+and the audit log gained no further record for that folder.
+
 ## Fourteenth batch: the ssh terminal tests on the host, and a round's preloaded shim, 2026-11-26T17:05:00-05:00
 
 Met while checking the alpha.47 host-key round before its merge:
