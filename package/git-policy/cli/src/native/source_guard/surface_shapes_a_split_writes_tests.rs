@@ -171,7 +171,10 @@ fn a_re_export_carries_each_of_its_names() {
                  pub use crate::reached::Open;\n\
                  pub use self::globbed::*;\n",
             ),
-            ("outer/private.rs", "pub struct One;\npub struct Two;\npub struct Three;\n"),
+            (
+                "outer/private.rs",
+                "pub struct One;\npub struct Two;\npub struct Three;\n",
+            ),
             ("outer/globbed.rs", "pub struct FromAGlob;\n"),
             ("reached.rs", "pub struct Open;\n"),
         ],
@@ -222,7 +225,10 @@ fn what_this_reading_cannot_see_stays_out_of_the_surface() {
     write_tree(
         &root,
         &[
-            ("lib.rs", "pub mod outer;\nmod facade;\npub use self::facade::Carried;\n"),
+            (
+                "lib.rs",
+                "pub mod outer;\nmod facade;\npub use self::facade::Carried;\n",
+            ),
             (
                 "outer.rs",
                 "pub trait Asked {\n\

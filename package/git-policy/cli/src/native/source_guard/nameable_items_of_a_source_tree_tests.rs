@@ -19,13 +19,18 @@
 //!
 //! What this reading cannot see, and why:
 //!  - A `pub` field inside a tuple-like struct's parentheses
-//!    (`pub struct PlanError(pub String);`, and five more fields written one to a line).
+//!    (`pub struct PlanError(pub String);` and `pub PathBuf,` one to a line).
+//!    Thirteen types hold fourteen such fields today: eight written on the declaration line,
+//!    and six written one to a line.
 //!    Such a field is reached as `.0`,
 //!    and this scan keys a member by the name the declaration writes,
 //!    which a paren body does not write.
 //!  - A member of a type published only through a `pub use` facade:
 //!    the type's own `pub` declaration sits in a module no `pub mod` chain reaches,
 //!    and this scan reads a type as published only where such a chain reaches its declaration.
+//!    Four types today publish fourteen `pub` members that way
+//!    (`ReadinessFileRefusal`, `StoredIdentity`, `TheRecordsProof` and `WhatTheRecordsProve`),
+//!    which a consumer can reach through the facade and this scan reads nothing of.
 //!  - A `pub trait`'s methods and a `pub enum`'s variants:
 //!    both are published with no `pub` of their own,
 //!    so a new one changes the published surface without a line here.
