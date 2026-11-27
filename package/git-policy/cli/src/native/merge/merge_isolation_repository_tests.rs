@@ -9,6 +9,8 @@ use super::*;
 use crate::child_environment::environment_with_overlay;
 use crate::forwarded_command::ResolvedCommand;
 use crate::forwarded_command::Route;
+/// The entry an isolated merge comes through, which lives in the file that loops over rounds.
+use crate::merge_isolation::run_isolated_merge;
 use crate::merge_isolation_git_reads::unsaved_paths;
 use crate::merge_isolation_journal::{
     MergeIntent,
@@ -28,6 +30,8 @@ use crate::test_support::{
 use crate::transaction_owner::current_transaction_owner;
 use crate::worktree_identity::resolve_worktree_identity;
 use std::ffi::OsString;
+/// `PathBuf` is an owned filesystem path.
+use std::path::PathBuf;
 
 /// A session over the repository at `repo`,
 /// the way `attempt` makes one.

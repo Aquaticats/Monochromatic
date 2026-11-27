@@ -283,8 +283,24 @@
 //! - `merge_isolation_apply.rs`:
 //!   the writing half of an isolated merge:
 //!   the commit and the two-way update.
+//! - `merge_isolation_recovery_before_the_merge.rs`:
+//!   the merges a dead process left,
+//!   finished or discarded before this merge reads the checkout.
+//! - `merge_isolation_round_writes.rs`:
+//!   what one round of an isolated merge writes of its merge,
+//!   once the paths it changes are judged:
+//!   the message it carries,
+//!   the capture of the person's own work,
+//!   the merge commit,
+//!   and the update that puts it in the checkout.
+//! - `merge_isolation_round.rs`:
+//!   one round of an isolated merge:
+//!   the branch as it is now,
+//!   the settings and the paths it changes,
+//!   and the checks that stop it before anything is written.
 //! - `merge_isolation.rs`:
-//!   a true merge completed in isolation while the index holds staged changes.
+//!   a true merge completed in isolation while the index holds staged changes,
+//!   read as the entry every merge comes through and the rounds it makes again when the branch moved.
 //! - `merge_second_pass_worktree_watch.rs`:
 //!   the paths a stopped operation had already left unmerged before it ran,
 //!   and the conflicts the index holds for the paths it created.
@@ -551,7 +567,22 @@ pub mod pull_untracked_paths_in_the_way_kept_copies;
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 
-/// A true merge completed in isolation while the index holds staged changes.
+/// The merges a dead process left,
+/// finished or discarded before this merge reads the checkout.
+pub mod merge_isolation_recovery_before_the_merge;
+
+/// What one round of an isolated merge writes of its merge,
+/// once the paths it changes are judged.
+pub mod merge_isolation_round_writes;
+
+/// One round of an isolated merge:
+/// the branch as it is now,
+/// the settings and the paths it changes,
+/// and the checks that stop it before anything is written.
+pub mod merge_isolation_round;
+
+/// A true merge completed in isolation while the index holds staged changes,
+/// read as the entry every merge comes through and the rounds it makes again when the branch moved.
 pub mod merge_isolation;
 
 /// The person's own work in the paths a merge changes:
