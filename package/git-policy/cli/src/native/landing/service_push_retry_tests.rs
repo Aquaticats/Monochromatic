@@ -57,6 +57,7 @@ use crate::test_support::{
 use crate::work_item::WorkKind;
 use crate::work_item::enqueue;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{
