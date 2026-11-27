@@ -151,7 +151,7 @@ fn plant_trash(
         );
     }
     let root: std::fs::File = open_root(worktree).expect("the worktree");
-    let names = plain_components(Path::new(TRASH_PARENT)).expect("plain parent");
+    let names = crate::fs_beneath::plain_components(Path::new(TRASH_PARENT)).expect("plain parent");
     let parent: std::fs::File =
         open_directory_beneath(&root, names.as_slice()).expect("the trash parent");
     let trash: std::fs::File =
@@ -303,14 +303,15 @@ fn btrfs_a_snapshot_of_main_sets_aside_exactly_what_the_rule_leaves_out() {
         .collect();
     assert!(
         aside.contains(&String::from(
-            crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME
+            crate::the_names_and_the_manifest_of_the_trash::MANIFEST_FILE_NAME
         )),
         "{aside:?}: the trash says what it is"
     );
     let held: usize = aside
         .iter()
         .filter(|name: &&String| {
-            return name.as_str() != crate::worktree_trash_own_manifest::MANIFEST_FILE_NAME;
+            return name.as_str()
+                != crate::the_names_and_the_manifest_of_the_trash::MANIFEST_FILE_NAME;
         })
         .count();
     assert_eq!(

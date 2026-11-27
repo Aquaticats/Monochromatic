@@ -124,25 +124,63 @@ fn git_that_holds_the_branch_write(world: &World) -> (PathBuf, PathBuf, PathBuf)
     return (program, entered, release);
 }
 
-/// A directory with a path short enough for a socket.
-fn short_directory(name: &str) -> PathBuf {
-    let home: PathBuf =
-        PathBuf::from(std::env::var_os("HOME").expect("a home directory for the short directory"));
-    let directory: PathBuf = home
-        .join("temp/agent")
-        .join(format!("hw-{}-{name}", std::process::id()));
-    let _stale = std::fs::remove_dir_all(&directory);
-    std::fs::create_dir_all(&directory).expect("short directory");
-    return directory;
+/// The name of the socket inside its folder:
+/// one byte,
+/// so the path one socket address carries keeps that byte and the separator before it for the socket itself.
+const SOCKET_NAME: &str = "s";
+
+/// What:
+///  A folder one socket's path fits in,
+///  made and removed by this test thread's fixtures.
+/// Why:
+///   One socket address carries `LONGEST_SOCKET_PATH` bytes of path:
+///  107,
+///  which is `sun_path`'s 108 bytes less the zero that ends the name,
+///  and the fixture folders this package makes under the build directory are far longer than that,
+///  so the folder stands in a place this account offers for short names.
+///  `runtime_directory_parent` picks that place,
+///  names the folder with a random token and makes it exclusively,
+///  and hands it to the thread's fixtures,
+///  which remove it however this control ends,
+///  a panic included:
+///  the helper this replaced read the process's real home and put `hw-<process id>-<name>` under it,
+///  which no control removed,
+///  so every control that panicked or failed left its folder and its socket behind (issue 6561).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const folder = runtimeDirectoryParent(`hw-${name}`, LONGEST_SOCKET_PATH - (1 + SOCKET_NAME.length));
+/// ```
+fn socket_folder(name: &str) -> PathBuf {
+    // What: the most bytes the folder may take,
+    //  while the socket's own name and the separator before it still fit in the path one socket address carries.
+    // Why: a folder longer than this leaves the socket's name nowhere to end,
+    //  and the kernel refuses that path when the control binds it.
+    let longest: usize = crate::service_instance::LONGEST_SOCKET_PATH - (1 + SOCKET_NAME.len());
+    // What: the folder's own name carries the control's name,
+    //  so a person who finds one knows which control made it;
+    //  `runtime_directory_parent` adds six random digits of its own,
+    //  so two runs never meet in one folder.
+    // Why: the name a leftover folder carries is what a person reads to know where it came from.
+    let prefix: String = format!("hw-{name}");
+    // What: `&prefix` is a borrowed view of the text,
+    //  which the chooser reads and does not keep.
+    // Why: the chooser takes borrowed text,
+    //  and the folder it answers with is already this thread's fixture.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return runtimeDirectoryParent(prefix, longest);
+    // ```
+    return crate::test_support::runtime_directory_parent(&prefix, longest);
 }
 
 /// A service on a socket of its own,
 /// serving on a thread until the control ends.
 pub(super) struct Serving {
-    /// The socket directory,
-    /// removed at the end.
-    pub(super) directory: PathBuf,
     /// Where the clients connect.
+    /// Its folder is one this thread's fixtures made,
+    /// and they remove it when the thread ends.
     socket: PathBuf,
 }
 
@@ -172,14 +210,13 @@ pub(super) fn serve_on_a_thread_with_settings(
     name: &str,
     settings: ServeSettings,
 ) -> Serving {
-    let directory: PathBuf = short_directory(name);
-    let socket: PathBuf = directory.join("s");
+    let directory: PathBuf = socket_folder(name);
+    let socket: PathBuf = directory.join(SOCKET_NAME);
     let listener: UnixListener = UnixListener::bind(&socket).expect("bind");
     std::thread::spawn(move || {
         serve(listener, &context, &settings);
     });
     return Serving {
-        directory,
         socket,
     };
 }
@@ -493,7 +530,6 @@ fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_it
         "the withdrawn commit never landed"
     );
     wait_until_settled(&world);
-    remove(serving.directory.as_path());
     remove(world.root.as_path());
 }
 
@@ -510,15 +546,38 @@ fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_it
 /// so the place of a batch that begins at once is sent,
 /// and the client's is zero too,
 /// which makes what it prints the whole of what it is told.
+///   The person is told the place alone,
+/// or the line saying the service has not said where the commit stands and then the place (issue 6564):
+/// that first line says only that the client's look found no message already here,
+/// so a host that held the client's thread up until the place was buffered leaves it out,
+/// and a control that demands both lines asserts the host's scheduling rather than the path.
+/// The landing is held after its objects,
+/// which is after the place was sent and before the answer,
+/// until the control has read the place:
+/// so the place is said to a wait that is still on whichever of the two messages the client's first look met.
 #[test]
 fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
     let world: World = world("service-place-of-a-commit");
+    // What:
+    //  The file whose appearance lets the held landing go on.
+    // Why:
+    //  The control keeps the answer away until it has read the place and ends the hold itself,
+    //  rather than by a sleep.
+    let release: PathBuf = world.root.join("let-the-landing-go");
+    let waiting: PathBuf = release.clone();
+    let hold: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+        // Bounded, so a control that fails before it lets go cannot hold the landing thread for ever.
+        let began: Instant = Instant::now();
+        while !waiting.exists() && began.elapsed() < PATIENCE {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    });
     let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
     settings.place_after = Duration::ZERO;
     let context: LandContext = LandContext {
         git: crate::test_support::git_context(),
         journal: world.context.journal.clone(),
-        on_objects_written: None,
+        on_objects_written: Some(hold),
         lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
     };
     let serving: Serving = serve_on_a_thread_with_settings(context, "place", settings);
@@ -526,24 +585,45 @@ fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
         waiting_notice_after: Duration::ZERO,
         ..client(&serving, PATIENCE, PATIENCE)
     };
-    let (answer, notices) =
-        submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n"))
-            .join()
-            .expect("client");
+    let placed = submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n"));
+    let place: String = crate::service_messages::position_notice(1, 1);
+    // The place while the wait is still on: said at the ceiling instead, or never, this fails and prints what the
+    // client did say.
+    wait_until_told(&placed.told, place.as_str(), PATIENCE);
+    // The landing goes on now that the place has been read, so the commit lands and its client ends with the answer.
+    std::fs::write(&release, b"").expect("let the landing go");
+    let (answer, notices) = placed.join().expect("client");
     assert!(
         matches!(answer, Ok(Submitted::Landed { .. })),
         "{answer:?} {notices}"
     );
-    let place: String = crate::service_messages::position_notice(1, 1);
+    // What:
+    //  The two shapes a person's whole notice of this wait may have.
+    // Why:
+    //  The place is news of a wait that is still on and is said once, and last;
+    //  the line saying the service has not said where the commit stands is said by a look that found nothing,
+    //  so it is said at most once and never after the place.
     let lines: Vec<&str> = notices.lines().collect();
-    assert_eq!(lines.len(), 2, "two lines: {notices:?}");
     assert!(
-        lines[0].contains("has not said where this commit stands"),
-        "the service not having said where it stands first: {notices:?}"
+        !lines.is_empty(),
+        "the place the service sent reached the person: {notices:?}"
     );
-    assert_eq!(lines[1], place, "then the place it sent: {notices:?}");
+    let before_the_place: usize = lines.len() - 1;
+    assert_eq!(
+        lines[before_the_place], place,
+        "the place is the last thing it says: {notices:?}"
+    );
+    assert!(
+        before_the_place <= 1,
+        "only the line saying the service has not said where the commit stands comes before the place: {notices:?}"
+    );
+    for line in &lines[..before_the_place] {
+        assert!(
+            line.contains("has not said where this commit stands"),
+            "the line before the place says the service has not said where the commit stands: {notices:?}"
+        );
+    }
     wait_until_settled(&world);
-    remove(serving.directory.as_path());
     remove(world.root.as_path());
 }
 
@@ -614,7 +694,6 @@ fn the_commit_inside_a_branch_write_that_does_not_return_is_reported_as_not_know
         std::thread::sleep(Duration::from_millis(50));
     }
     wait_until_settled(&world);
-    remove(serving.directory.as_path());
     remove(world.root.as_path());
 }
 
@@ -736,7 +815,6 @@ fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
         "the commit whose write returned lands: {answer:?} {notices}"
     );
     wait_until_settled(&world);
-    remove(serving.directory.as_path());
     remove(world.root.as_path());
 }
 
@@ -791,6 +869,5 @@ fn a_commit_inside_a_write_says_nothing_of_it_before_its_wait_has_mattered() {
     );
     std::fs::write(&release, b"").expect("let the write go");
     wait_until_settled(&world);
-    remove(serving.directory.as_path());
     remove(world.root.as_path());
 }

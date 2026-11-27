@@ -29,6 +29,8 @@ use crate::test_support::{
 use crate::transaction_owner::TransactionOwner;
 use std::path::PathBuf;
 
+use crate::merge_isolation_recovery_records::merge_intents_to_recover;
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// A record whose owner is in another PID namespace and older than the patience is neither alive nor dead (owner,
 /// 2026-11-04,
 /// "Refuse and name it (Recommended)"):

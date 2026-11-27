@@ -35,6 +35,7 @@ use super::readings::{
     snapshot,
 };
 use crate::merge_isolation_changes::file_identity;
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// The install of a merge's index entries and files,
 /// which a placement of the merge's own bytes makes.
 use crate::merge_isolation_recovery_steps::install_entries;
