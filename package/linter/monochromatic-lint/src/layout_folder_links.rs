@@ -1438,7 +1438,7 @@ pub fn check_folder_links(
     used.extend(live_use_entries(
         &grouped, &loops, &own_loops, list, &groups, base,
     ));
-    kept.extend(dead_entry_findings(list, &used, base));
+    kept.extend(dead_entry_findings(list, &used, &folders, base));
     return kept;
 }
 

@@ -14,6 +14,14 @@
 //! // parseAddRegion(postSubcommandArgs): AddRegion  (throws OptionError)
 //! ```
 
+use crate::command_options::parse_options;
+use crate::command_options_query::{
+    WrapperFlags,
+    is_enabled,
+    last_occurrence,
+    positional_tokens,
+    split_wrapper_flags,
+};
 /// What:
 ///  Bring the tokenizer,
 ///  its table builder and its questions into this file.
@@ -22,9 +30,10 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { parseOptions, row } from './command_options.ts';
+/// import { Arity, DEFAULT_MODE, Occurrence, OptionError, OptionSpec, ParsedOptions, UNREAD, row } from './command_options_types.ts';
+/// import { parseOptions } from './command_options.ts';
 /// ```
-use crate::command_options::{
+use crate::command_options_types::{
     Arity,
     DEFAULT_MODE,
     Occurrence,
@@ -32,15 +41,7 @@ use crate::command_options::{
     OptionSpec,
     ParsedOptions,
     UNREAD,
-    parse_options,
     row,
-};
-use crate::command_options_query::{
-    WrapperFlags,
-    is_enabled,
-    last_occurrence,
-    positional_tokens,
-    split_wrapper_flags,
 };
 /// `OsStr` is borrowed operating-system text of raw bytes,
 /// which an environment value is.

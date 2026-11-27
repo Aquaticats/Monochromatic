@@ -32,13 +32,13 @@ use crate::command_clean::{
 };
 /// Which nested Git repositories that reading says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
+use crate::command_options::parse_options;
 /// Git's own option grammar,
 ///  for where the clean's options end.
-use crate::command_options::{
+use crate::command_options_types::{
     Boundary,
     DEFAULT_MODE,
     ParsedOptions,
-    parse_options,
 };
 /// Where the subcommand starts in the invocation's arguments.
 use crate::global_arguments::{

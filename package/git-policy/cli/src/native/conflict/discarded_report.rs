@@ -17,13 +17,10 @@
 //! stderr.write(doctorSection(commonDir, limits)); // '' when there is nothing to say
 //! ```
 
-/// The folder of saved copies inside a Git directory.
-use crate::conflict_sides::SAVED_DIRECTORY;
-/// The listing of that folder and its limits.
-use crate::discarded_prune::{
-    Limits,
-    list_stamped_below,
-};
+/// The limits of that folder.
+use crate::discarded_prune_limits::Limits;
+/// The listing of that folder.
+use crate::discarded_prune_listing::list_stamped_below;
 /// The listing's shape and what could not be read,
 /// which are the pruning pass's.
 use crate::discarded_prune_problems::{
@@ -34,6 +31,8 @@ use crate::discarded_prune_problems::{
 use crate::kept_names_in_the_git_directories::relative_paths_for_reading;
 /// The ceiling of a file system read of the report.
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
+/// The folder of saved copies inside a Git directory.
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 /// The job of such a read,
 /// run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;

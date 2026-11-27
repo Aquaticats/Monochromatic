@@ -21,8 +21,9 @@
 //!  and one line never tolerates a finding a later edit added;
 //!  paths in an entry are relative to the package folder,
 //!  the way findings show them,
-//!  and never absolute and never climb out with `..`,
-//!  because the list is read on every machine that lints the repository.
+//!  and never absolute,
+//!  because the list is read on every machine that lints the repository,
+//!  while a `..` in one is the walk from the package folder to a module a `#[path]` names elsewhere.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,7 +41,10 @@ pub use crate::layout_allow_entries::{
     AllowKind,
     parse_entries,
 };
-/// Import the finding shape, the display helper and the one spelling a key gives a path.
+/// Import the finding shape,
+///  the path a key writes,
+///  the display helper,
+///  and the reader that writes every listed path back the way a key writes it.
 use crate::{
     layout_finding::{
         LayoutFinding,
@@ -487,32 +491,94 @@ pub fn tolerated(
 /// Why:
 ///  A dead line is the sign the list has not shrunk after the work that made it dead,
 ///  and the run must say so on the line itself.
+///  A `uses` or `file-uses` line that names a folder no folder of the package is called
+///  says which folder it read and that the package holds none of that name:
+///  that is what a hand-aligned or mistyped line looks like,
+///  and it is the only thing that tells its reader to re-space the line rather than delete it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function deadEntryFindings(list: AllowList, used: Set<number>, base: Path): LayoutFinding[];
+/// function deadEntryFindings(list: AllowList, used: Set<number>, folders: Set<Path>, base: Path): LayoutFinding[];
 /// ```
 pub fn dead_entry_findings(
     list: &AllowList,
     used: &BTreeSet<usize>,
+    folders: &BTreeSet<PathBuf>,
     base: &Path,
 ) -> Vec<LayoutFinding> {
+    // What: the folders of the package in the spelling a list line writes them.
+    // Why: an entry names its folder that way, so the two spellings must meet before a name can be called absent.
+    let mut known: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
+    for folder in folders {
+        known.insert(PathBuf::from(key_path(folder, base)));
+    }
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     for (index, entry) in list.entries().iter().enumerate() {
         if used.contains(&index) {
             continue;
         }
+        // What: the folders this entry names that no folder of the package is called.
+        // Why: a name that is not there is a misspelling or a hand-aligned line, and naming it is what tells its reader apart from a use that is simply gone.
+        let mut absent: Vec<String> = Vec::<String>::new();
+        match &entry.kind {
+            AllowKind::FolderUse {
+                from,
+                to,
+            } => {
+                for path in [from, to] {
+                    if known.contains(path) {
+                        continue;
+                    }
+                    absent.push(format!("`{}`", path.display()));
+                }
+            }
+            AllowKind::FileUse {
+                folder,
+                ..
+            } => {
+                if !known.contains(folder) {
+                    absent.push(format!("`{}`", folder.display()));
+                }
+            }
+            AllowKind::Key(_) => {}
+        }
+        let (message, help): (String, String) = if absent.is_empty() {
+            (
+                format!(
+                    "The allow-list entry `{}` in {} tolerates nothing any more. Delete the line so the list keeps shrinking.",
+                    entry.text,
+                    shown(list.source(), base)
+                ),
+                String::from(
+                    "Delete this line. The list holds today's findings only, and a line that matches none of them must not wait for a later round.",
+                ),
+            )
+        } else {
+            // What: the word that makes the sentence agree with how many folders are absent.
+            // Why: most dead lines name one absent folder, and only a line never read names two.
+            let names: &str = if absent.len() == 1 {
+                "the folder"
+            } else {
+                "the folders"
+            };
+            (
+                format!(
+                    "The allow-list entry `{}` in {} names {} {}, which no folder of this package is called, so the entry tolerates nothing any more. Check the line's spelling and the spacing between its words.",
+                    entry.text,
+                    shown(list.source(), base),
+                    names,
+                    absent.join(" and ")
+                ),
+                String::from(
+                    "Write the folder name the rule prints, or delete the line if the use is gone: a doubled or padded space is read as part of a name.",
+                ),
+            )
+        };
         findings.push(LayoutFinding {
             file: list.source().to_path_buf(),
             line: entry.line,
-            message: format!(
-                "The allow-list entry `{}` in {} tolerates nothing any more. Delete the line so the list keeps shrinking.",
-                entry.text,
-                shown(list.source(), base)
-            ),
-            help: Some(String::from(
-                "Delete this line. The list holds today's findings only, and a line that matches none of them must not wait for a later round.",
-            )),
+            message,
+            help: Some(help),
             key: String::new(),
         });
     }
