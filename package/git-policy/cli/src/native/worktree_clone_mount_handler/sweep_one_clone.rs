@@ -59,10 +59,10 @@
 //! const outcome = sweepOneClone(context, 'zpcachyos/…/clones/one');
 //! ```
 
+use super::sweep_attach_answer::answer_the_attach;
 use super::sweep_attach_step::{
     AttachRequest,
     AttachStepOutcome,
-    CloneAttachStep,
 };
 use super::sweep_clone_check::{
     VerifiedClone,
@@ -72,17 +72,14 @@ use super::sweep_dataset_facts::{
     CloneObjectFacts,
     facts_of,
 };
-use super::sweep_dataset_reader::DatasetReader;
-use super::sweep_first_attach::FirstAttachRecorder;
 use super::sweep_one_clone_answers::{
-    answer_the_attach,
     answer_the_standing_mount,
-    answer_unmount,
     record_the_first_attach,
-    refused_by_the_checks,
     the_first_attach_outcome,
     the_first_attach_refusal,
 };
+use super::sweep_refused_clone_answers::refused_by_the_checks;
+use super::sweep_unmount_under_the_claim::answer_unmount;
 use crate::diagnostic_log::{
     debug,
     warn,
@@ -97,71 +94,28 @@ use crate::worktree_clone_mount::{
     publish_slot_identity_under_root_control,
     read_the_slot_git_pointer,
 };
-use crate::worktree_clone_mount_handler::per_slot_root_claim::SlotClaimDirectory;
 use crate::worktree_clone_mount_protocol::{
     IntentReading,
     MountIntent,
     MountOperation,
-    ReceiptsFolder,
     read_intent,
 };
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::PathBuf;
 
 /// Module tag for diagnostics.
 const TAG: &str = "sweepOneClone";
 
-/// The step a receipt and the first attach's record name when the slot's own
-/// first observation could not be read or recorded.
-pub const IDENTITY_RECORD_STEP: &str = "identity-record";
-
-/// The step a receipt names when the receipt itself could not be filed.
-pub const RECEIPT_STEP: &str = "receipt";
-
-/// The step the sweep names when the durable intent changed while it waited for
-/// the claim.
-pub const INTENT_STEP: &str = "intent";
-
-/// What:
-///  Everything one clone's turn reads and writes.
-/// Why:
-///  The paths and the seams travel together so a caller cannot sweep one
-///  checkout's children against another checkout's store,
-///  and a control injects fixture folders and a scripted pool.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type SweepContext = { parentDataset; checkout; checkoutDataset; store; claims; receipts; boot; time; reader; attach; firstAttach };
-/// ```
-pub struct SweepContext<'a> {
-    /// The pinned clone parent dataset.
-    pub parent_dataset: &'a str,
-    /// The checkout the walk starts from.
-    pub checkout: &'a Path,
-    /// The checkout dataset a clone's origin must be a snapshot of.
-    pub checkout_dataset: &'a str,
-    /// The store of recorded identities.
-    pub store: &'a Path,
-    /// The per-slot claims.
-    pub claims: &'a SlotClaimDirectory,
-    /// The receipts folder.
-    pub receipts: &'a ReceiptsFolder,
-    /// This boot's kernel identifier.
-    pub boot: &'a str,
-    /// The clock a receipt's time is written from.
-    pub time: &'a dyn Fn() -> String,
-    /// The pool reads.
-    pub reader: &'a dyn DatasetReader,
-    /// The attach step.
-    pub attach: &'a dyn CloneAttachStep,
-    /// This boot's first attach,
-    /// which the first attempt that passes the key check claims.
-    pub first_attach: &'a dyn FirstAttachRecorder,
-    /// What the canonical slot already holds.
-    pub standing: &'a dyn StandingMounts,
-}
+/// What one clone's turn reads and writes,
+/// the outcome it answers with,
+/// and the step words a receipt names,
+/// which every caller of this turn names by this file.
+pub use super::sweep_turn_context_and_outcome::{
+    CloneOutcome,
+    IDENTITY_RECORD_STEP,
+    INTENT_STEP,
+    RECEIPT_STEP,
+    SweepContext,
+};
 
 #[cfg(test)]
 pub(crate) use super::sweep_standing_mount_source::{
@@ -178,192 +132,6 @@ pub use super::sweep_standing_mounts::{
     LiveStandingMounts,
     StandingMounts,
 };
-
-/// What:
-///  What one clone's turn answered.
-/// Why:
-///  A sweep reports every clone it reached,
-///  and a clone it attached and a clone it refused must read differently in one
-///  line an operator or a guest arm can find.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CloneOutcome = { kind: 'nothing-asked' | 'attached' | 'refused' | 'failed' | 'held'; ... };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum CloneOutcome {
-    /// The clone asked for nothing,
-    /// or the value it carries is inherited.
-    NothingAsked {
-        /// The dataset.
-        name: String,
-        /// The slot its name gave.
-        slot: String,
-        /// Why nothing was asked.
-        why: String,
-    },
-    /// The clone's mount is at its slot.
-    Attached {
-        /// The dataset.
-        name: String,
-        /// The slot.
-        slot: String,
-        /// The mount the attach made,
-        /// or the mount this clone already had at the slot.
-        mount_id: u64,
-        /// The canonical slot the mount was found at.
-        canonical_slot: PathBuf,
-    },
-    /// Nothing was attached,
-    /// and the line says why.
-    Refused {
-        /// The dataset.
-        name: String,
-        /// The slot,
-        /// where the name gave one.
-        slot: Option<String>,
-        /// The step the answer names.
-        step: String,
-        /// The refusal in words.
-        said: String,
-    },
-    /// A step failed after or during the attach,
-    /// and the receipt says which,
-    /// or nothing was filed when the receipt itself refused.
-    Failed {
-        /// The dataset.
-        name: String,
-        /// The slot,
-        /// where the name gave one.
-        slot: Option<String>,
-        /// The step the receipt names.
-        step: String,
-        /// What the step answered.
-        said: String,
-    },
-    /// The clone's mount and its staging bind left.
-    Unmounted {
-        /// The dataset.
-        name: String,
-        /// The slot.
-        slot: String,
-        /// The mount that left.
-        mount_id: u64,
-    },
-    /// A busy unmount put the same mount back at its slot.
-    Reattached {
-        /// The dataset.
-        name: String,
-        /// The slot.
-        slot: String,
-        /// The clone's mount number.
-        mount_id: u64,
-        /// Whether the staging bind left too.
-        bind_gone: bool,
-    },
-    /// Another sweep holds this slot.
-    Held {
-        /// The dataset.
-        name: String,
-        /// The slot another sweep holds.
-        slot: String,
-        /// What the claim answered.
-        said: String,
-    },
-}
-
-impl CloneOutcome {
-    /// The dataset this outcome is about.
-    pub fn name(&self) -> &str {
-        return match self {
-            CloneOutcome::NothingAsked {
-                name,
-                ..
-            }
-            | CloneOutcome::Attached {
-                name,
-                ..
-            }
-            | CloneOutcome::Unmounted {
-                name,
-                ..
-            }
-            | CloneOutcome::Reattached {
-                name,
-                ..
-            }
-            | CloneOutcome::Refused {
-                name,
-                ..
-            }
-            | CloneOutcome::Failed {
-                name,
-                ..
-            }
-            | CloneOutcome::Held {
-                name,
-                ..
-            } => name.as_str(),
-        };
-    }
-
-    /// The one line a sweep's report carries for this clone.
-    /// It begins with the answer's own word,
-    /// names the dataset and the slot,
-    /// and says what a person does next when the answer was no.
-    pub fn line(&self) -> String {
-        return match self {
-            CloneOutcome::NothingAsked {
-                name,
-                slot,
-                why,
-            } => format!("nothing {name} slot={slot} why={why}"),
-            CloneOutcome::Attached {
-                name,
-                slot,
-                mount_id,
-                canonical_slot,
-            } => format!(
-                "attached {name} slot={slot} mount={mount_id} at={}",
-                canonical_slot.display()
-            ),
-            CloneOutcome::Unmounted {
-                name,
-                slot,
-                mount_id,
-            } => format!("unmounted {name} slot={slot} mount={mount_id}"),
-            CloneOutcome::Reattached {
-                name,
-                slot,
-                mount_id,
-                bind_gone,
-            } => format!("reattached {name} slot={slot} mount={mount_id} bind-gone={bind_gone}"),
-            CloneOutcome::Refused {
-                name,
-                slot,
-                step,
-                said,
-            } => format!(
-                "refused {name} slot={} step={step}: {said}",
-                slot.as_deref().unwrap_or("none")
-            ),
-            CloneOutcome::Failed {
-                name,
-                slot,
-                step,
-                said,
-            } => format!(
-                "failed {name} slot={} step={step}: {said}",
-                slot.as_deref().unwrap_or("none")
-            ),
-            CloneOutcome::Held {
-                name,
-                slot,
-                said,
-            } => format!("held {name} slot={slot}: {said}"),
-        };
-    }
-}
 
 /// What:
 ///  Read one clone,

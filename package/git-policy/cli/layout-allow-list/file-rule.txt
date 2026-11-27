@@ -440,11 +440,6 @@ file-uses src/native/worktree_clone_binding_record registration_recipe.rs -> reg
 file-uses src/native/worktree_clone_binding_record registration_removals.rs -> registration_recipe.rs
 file-uses src/native/worktree_clone_mount_handler sweep_configuration.rs -> sweep_configuration_refusal.rs
 file-uses src/native/worktree_clone_mount_handler sweep_configuration_refusal.rs -> sweep_configuration.rs
-file-uses src/native/worktree_clone_mount_handler sweep_one_clone.rs -> sweep_one_clone_answers.rs
-file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> sweep_one_clone.rs
-file-uses src/native/worktree_clone_mount_handler sweep_one_clone_answers.rs -> sweep_unmount_answers.rs
-file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone.rs
-file-uses src/native/worktree_clone_mount_handler sweep_unmount_answers.rs -> sweep_one_clone_answers.rs
 file-uses src/native/worktree_clone_removal_proof_and_plan removal_completion.rs -> removal_origin_step.rs
 file-uses src/native/worktree_clone_removal_proof_and_plan removal_completion.rs -> removal_settle_step.rs
 file-uses src/native/worktree_clone_removal_proof_and_plan removal_origin_step.rs -> removal_completion.rs

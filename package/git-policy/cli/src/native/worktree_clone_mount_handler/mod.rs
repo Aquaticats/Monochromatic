@@ -115,10 +115,26 @@
 //! - `sweep_attach_step.rs`:
 //!   the attach step one clone goes through and its rollback,
 //!   and the answer an occupied slot gets before the attach.
+//! - `sweep_turn_context_and_outcome.rs`:
+//!   what one clone's turn reads and writes,
+//!   the outcome it answers with,
+//!   and the step words a receipt names.
+//! - `sweep_one_clone_answers.rs`:
+//!   what one clone's turn files:
+//!   a standing mount's `done` receipt,
+//!   this boot's `first-attach` record,
+//!   and the one receipt a request is answered with.
+//! - `sweep_unmount_answers.rs`:
+//!   the unmount arm's GUID read and refusal answer.
+//! - `sweep_attach_answer.rs`:
+//!   what one attach step's outcome files and answers.
+//! - `sweep_refused_clone_answers.rs`:
+//!   the answer to a clone the checks refused,
+//!   and the receipt an unavailable key alone files.
+//! - `sweep_unmount_under_the_claim.rs`:
+//!   the unmount arm of one clone's turn, once its slot is claimed.
 //! - `sweep_one_clone.rs`:
 //!   one clone's whole turn of the sweep.
-//! - `sweep_one_clone_answers.rs`:
-//!   what one clone's turn answers and files.
 //! - `sweep_run.rs`:
 //!   one whole sweep run and the lines it reports.
 //! - `attaching_sweep_mode.rs`:
@@ -130,8 +146,6 @@
 //! - `handler_mode_dispatch.rs`:
 //!   the command line,
 //!   the exit statuses and the lines each mode writes.
-//! - `sweep_unmount_answers.rs`:
-//!   the unmount arm's GUID read and refusal answer.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -166,6 +180,23 @@ pub mod root_mode_caller;
 
 /// The unmount arm's GUID read and refusal answer.
 mod sweep_unmount_answers;
+
+/// What one clone's turn reads and writes,
+/// the outcome it answers with,
+/// and the step words a receipt names.
+pub mod sweep_turn_context_and_outcome;
+
+/// The unmount arm of one clone's turn, once its slot is claimed.
+pub mod sweep_unmount_under_the_claim;
+
+/// What one clone's turn files.
+pub mod sweep_one_clone_answers;
+
+/// What one attach step's outcome files and answers.
+pub mod sweep_attach_answer;
+
+/// The answer to a clone the checks refused.
+pub mod sweep_refused_clone_answers;
 
 /// The default invocation:
 /// the clone-mount sweep.
@@ -217,9 +248,6 @@ pub(crate) mod standing_mount_source_call_refusal;
 
 /// One clone's whole turn of the sweep.
 pub mod sweep_one_clone;
-
-/// What one clone's turn answers and files.
-pub mod sweep_one_clone_answers;
 
 /// One whole sweep run and the lines it reports.
 pub mod sweep_run;
