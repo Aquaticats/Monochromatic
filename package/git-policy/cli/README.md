@@ -8089,7 +8089,26 @@ because a release waits on that gate and its suite is what the CPUs shorten
   a whole suite on a ZFS
   host peaked at 1123.8 MiB of it
   (`perf/gate-resource-peaks-2026-11-19-integration-pass.jsonl`,
-  read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+  read in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`),
+  and the same container peaked at 1149.3 MiB in the measurement of 2026-11-27 below.
+- The Clippy container has a bound of its own,
+  8 GiB from `bin/native-gate-container-limits.ts` (`gateClippyMemory`),
+  because it compiles every target of the crate,
+  the test build included,
+  rather than running the suite.
+  At the shared 2 GiB the kernel killed that compile on 2026-11-27
+  while the gate's suite passed all 12,089 tests (issue 6562),
+  and the 4 GiB the planning record had named would not have held it either.
+  Measured in the gate's own image and settings with a bound no step of the run met,
+  the Clippy container peaked at 4,574.4 MiB
+  (`memory.peak`, `memory.events` `max` 0, `oom_kill` 0),
+  and five gates at the bound that followed read 4,790.0, 4,835.4, 5,062.8, 5,273.4 and 5,278.7 MiB,
+  every one with `memory.events` `max` 0 and `oom_kill` 0;
+  the suite's container read 1,149.3 MiB in that arm and up to 1,516.5 MiB in the gates.
+  `doc/planning/git-policy-cli-cachyos-test-containers.md`
+  ("The Clippy container's own memory bound,
+  measured 2026-11-27") holds the arm, the gates and the arithmetic.
+  Eight GiB is 1.55 times that highest reading and 2,913 MiB above it.
 - The image build has a bound of its own,
   8 GiB from `bin/native-gate-container-limits.ts` (`gateBuildMemory`),
   because it compiles the crate's three layers at four jobs rather than running the suite.
@@ -8117,8 +8136,8 @@ A bound a person passes after the `--` still wins,
 with one exception:
 the process bound is a floor that follows the test count,
 so a `--pids-limit` below it is raised and the gate prints the line that says so.
-A `--memory` bounds the image build as it bounds the suite's containers,
-so a host with less memory than the build's own 8 GiB is served by lowering that one value;
+A `--memory` bounds the image build, Clippy and the suite's container together,
+so a host with less memory than the build's own 8 GiB, or Clippy's, is served by lowering that one value;
 the gate prints which bound each container got before it builds.
 Every task accepts overrides after the `--` of `mise run`,
 with these exact option names:

@@ -55,6 +55,7 @@ export function gateRunManifestOf(fields: {
     readonly mount: string;
   };
   readonly limits: readonly string[];
+  readonly clippyLimits: readonly string[];
   readonly run: GateRunContainers;
   readonly user: string;
 },): GateRunManifest {
@@ -71,6 +72,7 @@ export function gateRunManifestOf(fields: {
     image: fields.image,
     fixtureRoot: fields.fixtureRoot,
     limits: fields.limits,
+    clippyLimits: fields.clippyLimits,
     user: fields.user,
   };
   /**

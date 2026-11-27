@@ -45,9 +45,14 @@ export type GateManifest = {
     readonly mount: string;
   };
   /**
-   Bounds of every container: removal on exit, no network, and the memory, CPUs and processes of the container limits.
+   Bounds of the suite's container: removal on exit, no network, and the memory, CPUs and processes of the container
+   limits.
    */
   readonly limits: readonly string[];
+  /**
+   Bounds of Clippy's container: the same flags as the suite's, with Clippy's own measured memory bound.
+   */
+  readonly clippyLimits: readonly string[];
   /**
    The run's id, the label its containers carry, and one record per container.
    */

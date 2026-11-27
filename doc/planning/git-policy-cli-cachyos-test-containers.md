@@ -681,9 +681,25 @@ Two passing runs say it has not been killed for memory yet,
 and nothing more.
 The first gate that fails Clippy on memory is when to move it,
 and `--memory 4g` is the option that does it.
-That bound is the suite's and Clippy's and stays theirs;
-the image build shared it until 2026-11-24 and now has one of its own,
-measured in "The image build's own memory bound, measured 2026-11-24" below.
+
+That happened on 2026-11-27 (issue 6562),
+and the 4 GiB this passage named would not have held it either.
+The gate on main at `d9ec2443bd` passed all 12,089 tests of its suite and then refused,
+because the Clippy container's `clippy-driver` was killed while it compiled the crate's test build at the 2 GiB it
+shared with that suite.
+The measurement in "The Clippy container's own memory bound,
+measured 2026-11-27" below put that container's peak at
+4,574.4 MiB with a bound no step of the run met,
+so the Clippy container now has a bound of its own:
+8 GiB (`gateClippyMemory` in `bin/native-gate-container-limits.ts`).
+The suite keeps the 2 GiB its own measurement supports:
+978 MiB in the 2026-11-10 run above,
+1,123.8 MiB in the integration pass of 2026-11-19 on a ZFS host
+(`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`),
+and 1,149.3 MiB in the arm of 2026-11-27.
+The image build shared that 2 GiB until 2026-11-24 and now has one of its own,
+measured in "The image build's own memory bound,
+measured 2026-11-24" below.
 
 The whole gate was then run twice through `bin/test-native-container.ts` with the changes in place,
 tagged `gate-wall-time-after`,
@@ -765,19 +781,32 @@ At 2026-11-24T19:20-05:00 its compile sat at 2,047 MiB of it,
 its own `memory.pressure` at some avg10 6.48,
 while the host had 27,529 to 30,132 MiB available
 (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
-"Catalog: a rising stall from one capped container, at 2026-11-24T19:20:00-05:00").
+"Catalog:
+a rising stall from one capped container,
+at 2026-11-24T19:20:00-05:00").
 A compile held at its own cap runs in reclaim and swap instead of RAM,
 and that lifts the machine-wide stall figure that decides whether new work may start (issue 6455).
 
-Three arms were built, one build each,
+Three arms were built,
+one build each,
 and they are the round's whole measurement rather than repeated runs:
 each is a `podman build --no-cache` of the gate's own test image
-from the same snapshot, stand-ins, vendored sources and Containerfile text that `bin/test-native-container.ts` writes,
-at the gate's own CPU count (`--cpu-period=100000 --cpu-quota=400000`, so `CARGO_BUILD_JOBS=4`),
-in its own `systemd-run --user --scope` of six CPUs, 12 GiB and 2,000 tasks.
+from the same snapshot,
+stand-ins,
+vendored sources and Containerfile text that `bin/test-native-container.ts` writes,
+at the gate's own CPU count (`--cpu-period=100000 --cpu-quota=400000`,
+so `CARGO_BUILD_JOBS=4`),
+in its own `systemd-run --user --scope` of six CPUs,
+12 GiB and 2,000 tasks.
 Every build container's own cgroup was read every 250 ms:
-`memory.peak`, `memory.current`, `memory.max`, `memory.pressure`, `memory.events`, `cpu.stat` and `pids.peak`.
-Podman gives each build container a scope of its own beside the harness's, so a step's peak and its own stall are
+`memory.peak`,
+`memory.current`,
+`memory.max`,
+`memory.pressure`,
+`memory.events`,
+`cpu.stat` and `pids.peak`.
+Podman gives each build container a scope of its own beside the harness's,
+so a step's peak and its own stall are
 readable per step;
 the harness's copy of the readings is in
 `~/temp/agent/size-the-gate-image-build-memory-2026-11-24/keep/arms/`
@@ -786,9 +815,12 @@ deleted on 2026-11-27;
 what this record uses from it is stated here),
 and the harness and the summariser that produced them are in that folder's `keep/harness/`.
 
-The arms ran in this order, host load at each start being what the day had:
+The arms ran in this order,
+host load at each start being what the day had:
 
-- Arm a, `--memory=2g` (today's bound, the control),
+- Arm a,
+  `--memory=2g` (today's bound,
+  the control),
   started 2026-11-24T19:51:18-05:00,
   build 574.1 s,
   load 19.16.
@@ -796,11 +828,14 @@ The arms ran in this order, host load at each start being what the day had:
   the harness then read only a scope's own `cgroup.procs`,
   and a build container's processes live in the scope's `container` child,
   so the peaks below are the two later arms' and this arm's own five-second samples of the compile it was held at.
-- Arm b, `--memory=10g` (a cap no step of it met),
+- Arm b,
+  `--memory=10g` (a cap no step of it met),
   started 2026-11-24T20:04:12-05:00,
   build 454.2 s,
   load 12.34.
-- Arm c, `--memory=2g` (the control again, which bounds the round's run-to-run spread),
+- Arm c,
+  `--memory=2g` (the control again,
+  which bounds the round's run-to-run spread),
   started 2026-11-24T20:14:18-05:00,
   build 549.1 s,
   load 11.45.
@@ -813,52 +848,275 @@ and each is its own container with its own bound:
   it took 111.9 s in arm b and 110.6 s in arm c.
 - The path-crate layer (step 15) peaked at 2,876.2 MiB under 10 GiB.
   Under the 2 GiB it reached 2,048.0 MiB and stayed there:
-  `memory.events` `max` 9,437, some avg10 6.07, 1.1 s of stall,
+  `memory.events` `max` 9,437,
+  some avg10 6.07,
+  1.1 s of stall,
   52.2 s against arm b's 54.3 s.
-- The wrapper's own sources (step 17), which recompile the crate and every test target,
+- The wrapper's own sources (step 17),
+  which recompile the crate and every test target,
   peaked at 5,363.4 MiB under 10 GiB with 0.1 s of stall in 87.2 s.
   Under the 2 GiB it reached 2,048.0 MiB and stayed there too:
-  `memory.events` `max` 149,888, some avg10 22.33 at its highest,
+  `memory.events` `max` 149,888,
+  some avg10 22.33 at its highest,
   29.8 s of stall over 196 s of life,
-  and 197.1 s against 87.2 s, which is 2.26 times as long.
+  and 197.1 s against 87.2 s,
+  which is 2.26 times as long.
 
 Read as ratios to the controls of the same round rather than as absolute times:
 arm b's step 17 was 0.41 of arm a's and 0.44 of arm c's,
 while the two control arms differ from each other by 1.07,
 so the compile is between 2.26 and 2.42 times faster without the cap,
 which is larger than the spread the round itself showed.
-The whole build was 0.79 of arm a and 0.83 of arm c, against a control spread of 1.05,
+The whole build was 0.79 of arm a and 0.83 of arm c,
+against a control spread of 1.05,
 so a whole gate build is between 1.21 and 1.26 times faster.
 The other two steps' ratios (0.86 to 1.10) sit inside the control spread of their own steps (1.08 to 1.21),
 so they are the host's noise and not the bound's doing.
 
 So the build is bounded at 8 GiB (`gateBuildMemory` in `bin/native-gate-container-limits.ts`):
-8,192 MiB, 1.53 times the 5,363.4 MiB the wrapper's own compile peaked at,
+8,192 MiB,
+1.53 times the 5,363.4 MiB the wrapper's own compile peaked at,
 which leaves room for a source change that adds work and stays well inside the 20 GiB the gate's own systemd unit allows.
-The suite's and Clippy's 2 GiB is untouched.
-The bound is per container, so it is the largest single step that sizes it, not the sum of a build's steps.
+The suite's and Clippy's 2 GiB was untouched then;
+Clippy got a bound of its own on 2026-11-27 ("The Clippy container's own memory bound,
+measured 2026-11-27"),
+and the suite keeps its 2 GiB.
+The bound is per container,
+so it is the largest single step that sizes it,
+not the sum of a build's steps.
 
 What it costs and how a person lowers it:
 
 - The build may now take 8 GiB of the host's RAM at once instead of being held at 2 GiB.
-  On this host, with 31 to 44 GiB available across the arms, that is memory that would otherwise have been spent on
-  reclaiming and swapping, and the compile of the wrapper's sources is 2.26 to 2.42 times faster for it.
+  On this host,
+  with 31 to 44 GiB available across the arms,
+  that is memory that would otherwise have been spent on
+  reclaiming and swapping,
+  and the compile of the wrapper's sources is 2.26 to 2.42 times faster for it.
 - A host that cannot spare 8 GiB lowers it with `--memory <size>` after the task name,
-  which bounds the build and the suite together, and the gate prints which bound each container got before it builds.
-  Below what the compile needs, that host pays in reclaim and time exactly as these capped arms did;
-  it does not stall the rest of the host, because the bound is the container's own.
+  which bounds the build and the suite together,
+  and the gate prints which bound each container got before it builds.
+  Below what the compile needs,
+  that host pays in reclaim and time exactly as these capped arms did;
+  it does not stall the rest of the host,
+  because the bound is the container's own.
 - A container bounded below the compile can also be killed rather than slowed:
   another round measured the crate's lib tests in the gate image under `podman run --memory=2g`,
   where the test `rustc` died with `signal: 9, SIGKILL` at `--cpus=4` and at `--cpus=2` and the same command compiled
   and ran at `--memory=4g`
-  (that round's comment on issue 6455, 2026-11-24).
-  A build container carries the repository's swap allowance, so the capped arms above spent their time in reclaim instead,
+  (that round's comment on issue 6455,
+  2026-11-24).
+  A build container carries the repository's swap allowance,
+  so the capped arms above spent their time in reclaim instead,
   which is the slower and non-fatal version of the same bound.
 - The bound is sized at four compile jobs.
   A gate given more CPUs compiles more jobs at once and wants its `--memory` raised with them;
   nothing here measured more than four.
 - The base image's own build keeps the shared 2 GiB default:
-  it compiles nothing, and no measurement of it exists.
+  it compiles nothing,
+  and no measurement of it exists.
+
+### The Clippy container's own memory bound, measured 2026-11-27
+
+The Clippy container ran under the repository's shared 2 GiB until this measurement,
+and on 2026-11-27 that bound ended a gate whose other check had passed:
+the gate on main at `d9ec2443bd` passed all 12,089 tests of its suite
+(`Summary [1279.786s] 12089 tests run: 12089 passed (9 slow), 51 skipped`)
+and then refused,
+because `clippy-driver` was killed while it compiled `monochromatic-git-policy-cli`'s lib test
+(`signal: 9, SIGKILL`),
+with no diagnostic,
+and the kernel log carried the kill in the container's own cgroup
+(`Memory cgroup out of memory: Killed process (clippy-driver) total-vm:6042920kB, anon-rss:2074084kB`,
+issue 6562).
+The same command on the host at two jobs and with no swap finished clean at a memory peak of 4.4 GiB,
+which said the step needs more than twice its bound but not what the gate's own container needs.
+
+One arm was run,
+because the gate's own run is the measurement:
+`native:test:container` started 2026-11-27T03:26:20-05:00 in its own `systemd-run --user --scope` of twenty gigabytes,
+ten CPUs,
+4,000 tasks and a ninety-minute bound,
+on the tree of `2939b47565` (main's tip,
+with no change to the crate's Rust source),
+with `--memory 8g`,
+a bound no step of it met,
+and the image tag `issue-6562-clippy-measurement`.
+It built the gate's own image first,
+which took 66 minutes at the gate's four compile jobs under a host load average of 96,
+and then started both containers together the way every gate does.
+Each container's own cgroup was read every 100 ms:
+`memory.peak`,
+`memory.current`,
+`memory.max`,
+`memory.swap.current`,
+`memory.swap.max`,
+`memory.events` and `pids.peak`.
+The harness and its samples are in that round's scratch folder
+(`keep/poller/gate-container-peaks.ts`,
+`keep/measurement-peaks.jsonl`),
+and what this record uses from them is stated here.
+
+- Clippy's container peaked at 4,574.4 MiB of the 8,192 MiB bound,
+  with `memory.events` `max` 0 and `oom_kill` 0,
+  so that bound never bound it.
+  Its `pids.peak` was 75,
+  it ran 15 minutes 12 seconds,
+  and up to 647.1 MiB of its charge sat in swap,
+  which the host's own pressure put there rather than the container's bound,
+  so its pages were at most 5,221.5 MiB.
+- The suite's container,
+  in the same run and under the same 8 GiB,
+  peaked at 1,149.3 MiB with `memory.events` `max` 0 and `oom_kill` 0,
+  which agrees with the 1,123.8 MiB the integration pass of 2026-11-19 read on a ZFS host.
+  The arm was stopped by its scope's ninety-minute bound at 5,566 of the 12,089 tests,
+  so it says nothing about the whole suite except through that peak;
+  the whole gate at this bound is recorded below.
+
+So the Clippy container is bounded at 8 GiB (`gateClippyMemory` in `bin/native-gate-container-limits.ts`):
+8,192 MiB,
+1.55 times the highest peak any run of it read (5,278.7 MiB) and 2,913 MiB above that peak,
+which leaves room for a source change that adds work.
+The suite keeps the 2 GiB its own measurement supports,
+the image build keeps its 8 GiB,
+and the line the gate prints before it builds names all three bounds;
+a `--memory` after the task name still bounds every container.
+
+What it costs and how a person lowers it:
+
+- The gate may now take 8 GiB for Clippy where it took 2 GiB,
+  beside the suite's own 2 GiB,
+  and the two containers start together,
+  so a gate at its bounds can hold 10 GiB of the host at once.
+  The host held 19,522 MiB available when the arm started (`free -m`),
+  and the capped behavior measured on 2026-11-27 was the kill itself rather than a slower compile.
+- A host that cannot spare 8 GiB for Clippy lowers it with `--memory <size>` after the task name,
+  which bounds the build,
+  Clippy and the suite together;
+  below what the compile needs,
+  that host gets the 2026-11-27 failure rather than a slower compile.
+- The bound is sized at the gate's own four compile jobs.
+  A gate given more CPUs compiles more targets at once and wants `--memory` raised with them;
+  nothing here measured more than four.
+- One arm was measured and it has no control arm of its own.
+  The peak is the kernel's exact high-water mark for that container,
+  but a quieter host keeps more of a compile's pages in RAM and could read higher,
+  and this arm is the only figure of the gate's own Clippy container that exists.
+
+The whole gate at this bound is "The gate at the Clippy container's own bound,
+run 2026-11-27" below.
+
+### The gate at the Clippy container's own bound, run 2026-11-27
+
+The bound was then tried by whole gates on the branch that sets it,
+merged with main three times as main moved (`2a3bf031f8`,
+`cb5ad03763`,
+`ec4cb1ce37`),
+each started by `native:gate` with `--unit-io-weight 1`,
+its own image tag and the gate's own unit caps of ten CPUs,
+20 GiB and 4,000 tasks.
+Each gate's two containers were read the same way the arm was.
+
+The readings of the Clippy container,
+all against the 8,192 MiB bound:
+
+- 4,574.4 MiB in the arm above,
+  with 647.1 MiB of its charge in swap because the host was under its own pressure.
+- 4,790.0 MiB in the first gate,
+  in 6 minutes 54 seconds,
+  with up to 414.0 MiB of swap and `memory.events` `max` 0.
+- 4,835.4 MiB in the second gate,
+  in 4 minutes 29 seconds,
+  with 36.0 MiB of swap and `memory.events` `max` 0.
+- 5,062.8 MiB in the third gate,
+  in 3 minutes 8 seconds,
+  with 18.9 MiB of swap and `memory.events` `max` 0.
+- 5,278.7 MiB in the fourth gate,
+  in 2 minutes 19 seconds,
+  with no swap and `memory.events` `max` 0.
+- 5,273.4 MiB in the fifth gate,
+  in 1 minute 55 seconds,
+  with no swap and `memory.events` `max` 0.
+
+A compile the host is reclaiming reads lower than one that keeps its pages,
+so the highest of those,
+5,278.7 MiB,
+is the figure the bound is sized from.
+The three gates that read it ran with little or no swap,
+and their readings agree within 0.3 percent of each other,
+while the arm's 4,574.4 MiB is 704.3 MiB lower,
+which is the room a host under pressure hides.
+The suite's container read 1,149.3 MiB in the arm,
+1,160.0 MiB in the first gate,
+1,459.9 MiB in the second,
+1,354.6 MiB in the third,
+1,462.8 MiB in the fourth,
+and 1,516.5 MiB in the fifth,
+all of its own 2,048 MiB bound,
+with `memory.events` `max` 0 and `oom_kill` 0 in every one,
+and its `pids.peak` reached 504 and 576 of the 1,024 bound.
+The suite's highest reading leaves 531.5 MiB of its bound,
+which is worth a measurement of its own in a later round,
+and the bound held it.
+Clippy passed in every gate:
+three refusals named their suites alone,
+and two gates passed both checks.
+
+- The first gate,
+  `gpc-gate-issue-6562-clippy-bound-20261127T045928-0500.service`,
+  refused with `Summary [1922.733s] 12096 tests run: 12093 passed (20 slow), 3 failed, 51 skipped`
+  while the host's load average stood at 96 to 48,
+  and took 49 minutes 48 seconds.
+  Each of the three is a control that a loaded host moves under its feet:
+  `a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message` was held 31.9 s by a `gpg` in uninterruptible
+  sleep (`the bound did not end the step`),
+  `a_step_that_finishes_inside_its_ceiling_is_answered` read `the system refused a thread`,
+  and `a_transfer_that_meets_the_floor_is_work_however_slow` ended a slow transfer at its 2-second window.
+  The gate's refusal named the test run alone,
+  so its Clippy check had passed.
+- The second gate,
+  `gpc-gate-issue-6562-clippy-bound-2-20261127T055625-0500.service`,
+  refused with `Summary [1476.182s] 12096 tests run: 12095 passed (9 slow), 1 failed, 51 skipped`:
+  `commit::native_commit_waiting_notice::tests::the_notice_reports_the_programs_that_ran_below_the_step`
+  saw a `sleep` end between two of its looks,
+  which `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md` already records as
+  a control whose own spans another test's spans can disturb.
+  It took 25 minutes 35 seconds.
+- The third gate,
+  `gpc-gate-issue-6562-clippy-bound-3-20261127T062548-0500.service`,
+  passed both checks:
+  `Summary [1259.092s] 12096 tests run: 12096 passed (8 slow), 51 skipped`
+  and `Clippy passed beside the test run.`,
+  with `gate-exit-status=0`.
+  It ran from 06:25:48-05:00 to 06:47:31-05:00,
+  21 minutes 43 seconds,
+  and its unit's own memory peak was 1,017.1 MiB of the 20 GiB the unit allows,
+  which is the clients and the image build rather than the containers,
+  since those sit in their own scopes.
+- The fourth gate,
+  `gpc-gate-issue-6562-clippy-bound-4-20261127T065353-0500.service`,
+  ran on the merge at `cb5ad03763` and refused with
+  `Summary [ 940.253s] 12114 tests run: 12113 passed (6 slow), 1 failed, 51 skipped`:
+  `process::captured_child_run_to_its_end::tests::the_one_shot_git_questions_no_longer_block_a_thread_on_command_output`
+  read `repo_read/git_system_config.rs does not use the captured run`.
+  That control came into this branch with main's `9df756cd37`,
+  and main's next merge (`88a63ef565`) no longer holds it,
+  so the merge this round made after the gate took it away and the fifth gate ran without it.
+  It took 23 minutes 53 seconds.
+- The fifth gate,
+  `gpc-gate-issue-6562-clippy-bound-5-20261127T072220-0500.service`,
+  ran on `ec4cb1ce37`,
+  the last merge of main this round made,
+  and passed both checks:
+  `Summary [ 889.107s] 12115 tests run: 12115 passed (5 slow), 51 skipped`
+  and `Clippy passed beside the test run.`,
+  with `gate-exit-status=0`.
+  It ran from 07:22:20-05:00 to 07:42:55-05:00,
+  20 minutes 36 seconds.
+
+So the bound is what the gate needs at four compile jobs,
+and every refusal before the green gates was the loaded host's own control or main's own moving code,
+not the memory bound.
 
 ### The bound on each check
 

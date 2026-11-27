@@ -7,10 +7,13 @@ import {
 import {
   defaultContainerLimits,
   parseContainerLimitOptions,
+  runLimitArguments,
 } from './container-limits.ts';
 import {
   buildMemoryLine,
   gateBuildMemory,
+  gateClippyMemory,
+  gateContainerBounds,
   gateContainerCpus,
   gateContainerLimitOptions,
   gateLimitsFrom,
@@ -206,12 +209,12 @@ await describe({
       timeout: 10_000,
     }),
     it({
-      name: 'name both memory bounds in one line when they differ',
+      name: 'name each container\'s memory bound in one line when they differ',
       fn: async () => {
         /**
-         The limits the suite's containers and the image build run under when a person names no memory.
+         The limits the suite's, Clippy's and the image build's containers run under when a person names no memory.
          */
-        const { limits, buildLimits } = gateLimitsFrom({
+        const { limits, clippyLimits, buildLimits } = gateLimitsFrom({
           given: {
             ...defaultContainerLimits,
             cpus: gateContainerCpus,
@@ -223,25 +226,27 @@ await describe({
          */
         const line = buildMemoryLine({
           limits,
+          clippyLimits,
           buildLimits,
         });
         expect(line).toContain(limits.memory);
+        expect(line).toContain(clippyLimits.memory);
         expect(line).toContain(buildLimits.memory);
         expect(line).toContain('--memory');
       },
       timeout: 10_000,
     }),
     it({
-      name: 'name the one memory bound both share when a person gave it',
+      name: 'name the one memory bound every container shares when a person gave it',
       fn: async () => {
         /**
-         Memory a person asked for, which both bounds take.
+         Memory a person asked for, which every bound takes.
          */
         const memory = '3g';
         /**
-         The limits the suite's containers and the image build run under for that option.
+         The limits the suite's, Clippy's and the image build's containers run under for that option.
          */
-        const { limits, buildLimits } = gateLimitsFrom({
+        const { limits, clippyLimits, buildLimits } = gateLimitsFrom({
           given: {
             ...defaultContainerLimits,
             cpus: gateContainerCpus,
@@ -251,8 +256,100 @@ await describe({
         });
         expect(buildMemoryLine({
           limits,
+          clippyLimits,
           buildLimits,
-        }),).toBe(`The image build and the suite's containers are bounded at ${memory}, the memory this gate was given.`,);
+        }),).toBe(`The image build, the suite's container and Clippy's are bounded at ${memory}, the memory this gate was given.`,);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'give the Clippy container a measured memory bound of its own, and leave the suite\'s where its own measurement left it',
+      fn: async () => {
+        /**
+         The limits the suite's, Clippy's and the image build's containers run under when a person names no memory.
+         */
+        const { limits, clippyLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
+          givenFlags: [],
+        });
+        expect(limits.memory).toBe(defaultContainerLimits.memory);
+        expect(clippyLimits.memory).toBe(gateClippyMemory);
+        expect(clippyLimits.memory).not.toBe(limits.memory);
+        expect(clippyLimits.cpus).toBe(limits.cpus);
+        expect(clippyLimits.pidsLimit).toBe(limits.pidsLimit);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'let a person\'s --memory bound the Clippy container as it bounds every other container',
+      fn: async () => {
+        /**
+         Memory a person asked for, smaller than the bound Clippy has by itself.
+         */
+        const memory = '1g';
+        /**
+         The limits the suite's and Clippy's containers run under for that option.
+         */
+        const { limits, clippyLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+            memory,
+          },
+          givenFlags: ['--memory'],
+        });
+        expect(limits.memory).toBe(memory);
+        expect(clippyLimits.memory).toBe(memory);
+      },
+      timeout: 10_000,
+    }),
+    it({
+      name: 'start each container with its own memory bound and the flags both share',
+      fn: async () => {
+        /**
+         The flags both containers take, which the run writes before a container's own bounds.
+         */
+        const shared = [
+          '--rm',
+          '--init',
+          '--network=none',
+        ];
+        /**
+         The limits the suite's and Clippy's containers run under when a person names no memory.
+         */
+        const { limits, clippyLimits } = gateLimitsFrom({
+          given: {
+            ...defaultContainerLimits,
+            cpus: gateContainerCpus,
+          },
+          givenFlags: [],
+        });
+        /**
+         Both containers' complete `podman run` bounds.
+         */
+        const bounds = gateContainerBounds({
+          shared,
+          limits,
+          clippyLimits,
+        });
+        expect(bounds.suite,).toEqual([
+          ...shared,
+          ...runLimitArguments({
+            limits,
+            withPidsLimit: true,
+          }),
+        ],);
+        expect(bounds.clippy,).toEqual([
+          ...shared,
+          ...runLimitArguments({
+            limits: clippyLimits,
+            withPidsLimit: true,
+          }),
+        ],);
+        expect(bounds.clippy,).not.toEqual(bounds.suite,);
       },
       timeout: 10_000,
     }),

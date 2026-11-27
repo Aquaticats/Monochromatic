@@ -83,6 +83,10 @@ function manifestOf({
       '--rm',
       '--memory=2g',
     ],
+    clippyLimits: [
+      '--rm',
+      '--memory=8g',
+    ],
     run: {
       id: runId,
       label: runLabel,
@@ -152,6 +156,10 @@ await describe({
           limits: [
             '--rm',
             '--memory=2g',
+          ],
+          clippyLimits: [
+            '--rm',
+            '--memory=8g',
           ],
           run: {
             id: runId,
