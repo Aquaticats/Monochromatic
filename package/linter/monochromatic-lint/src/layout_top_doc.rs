@@ -419,6 +419,9 @@ fn near_miss_at(
 ///  so the doc spells the marker with a break in it.
 ///  Both halves are read exactly, because a break is not a word,
 ///  and the words before the break may wrap over several lines.
+///  The start line must hold words,
+///  because the words before the break are the marker's first words,
+///  so a start on a blank line is rejected before the run of blank lines after it is read at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -429,6 +432,14 @@ fn split_near_miss_at(
     start: usize,
     marker_words: &[&str],
 ) -> Option<(NearMiss, usize)> {
+    // What: the start line holds no word, so the words before the break are empty and cannot be the marker's first words.
+    // Why: the walk below over the run of blank lines after the start found that the first half was empty only after reading the rest of the run,
+    // so a doc of N blank lines cost the rest of the run once for each of its lines, which is N squared reads of one file.
+    if bodies[start].1.trim().is_empty() {
+        // What: `None` is the absent variant of `Option`.
+        // Why: a start on a blank line is no split near miss, with the same answer the walk gave.
+        return None;
+    }
     let mut break_at: Option<usize> = None;
     for end in start..bodies.len() {
         // What: one doc line this attempt read, which a control counts.
