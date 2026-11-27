@@ -91,6 +91,8 @@ thread_local! {
     static CONTAINMENT_INSPECTION: Cell<bool> = const { Cell::new(false) };
     /// Whether the next listing a stop's report makes on this thread finds the scope's own directory gone.
     static CONTAINMENT_SCOPE_GONE_AT_LISTING: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next listing a stop's report makes on this thread reads no member of any group.
+    static CONTAINMENT_LISTING_FINDS_NO_MEMBER: Cell<bool> = const { Cell::new(false) };
     /// How many deadline checks the next listing's own clock lets pass before it reads as past its deadline,
     /// when a control
     /// armed one (`arm_listing_clock_after_checks`),
@@ -203,6 +205,12 @@ pub enum Point {
     /// a window too short to produce from outside,
     /// because a removal before that read makes the stop report the scope empty at once.
     ContainmentScopeGoneAtListing,
+    /// The listing a stop's report makes reads no member of any group,
+    /// as it does when the scope's last member leaves between the kernel's last `populated` read and the listing:
+    /// a window too short to produce from outside,
+    /// because a member that leaves before that read makes the scope read unpopulated and the stop report it empty at
+    /// once.
+    ContainmentListingFindsNoMember,
     /// The look at a run's scope answers the leftover state of issue 6578:
     /// an empty group that no process was ever counted in,
     /// which cannot be produced from outside,
@@ -480,6 +488,11 @@ pub fn arm(point: Point) {
         Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(|slot| {
             slot.set(true);
         }),
+        Point::ContainmentListingFindsNoMember => {
+            CONTAINMENT_LISTING_FINDS_NO_MEMBER.with(|slot| {
+                slot.set(true);
+            })
+        }
         Point::RetireSeesStuckScope => RETIRE_SEES_STUCK_SCOPE.with(|slot| {
             slot.set(true);
         }),
@@ -536,6 +549,9 @@ pub fn fires(point: Point) -> bool {
         Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(Cell::take),
         Point::ContainmentMemberEndedAtRead => CONTAINMENT_MEMBER_ENDED_AT_READ.with(Cell::take),
         Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(Cell::take),
+        Point::ContainmentListingFindsNoMember => {
+            CONTAINMENT_LISTING_FINDS_NO_MEMBER.with(Cell::take)
+        }
         Point::RetireSeesStuckScope => RETIRE_SEES_STUCK_SCOPE.with(Cell::take),
         Point::AbsenceUnverifiable => ABSENCE_UNVERIFIABLE.with(Cell::take),
         Point::FinishCompletion => FINISH_COMPLETION.with(Cell::take),

@@ -147,6 +147,13 @@ impl ControlGroup {
         if crate::failpoints::fires(crate::failpoints::Point::ContainmentScopeGoneAtListing) {
             return Listing::ScopeGone;
         }
+        // A test makes the listing read no member while the kernel's last word said the scope was populated: the window between
+        // that read and the listing is too short to produce from outside, because a member that leaves before the read makes the
+        // stop report the scope empty at once.
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::ContainmentListingFindsNoMember) {
+            return Listing::Read(Vec::new());
+        }
         // What:     `let mut clock: ListingClock = ListingClock::starting_now();` is this listing's own clock, which holds
         //           the point it stops reading at (a control can arm it; see `ListingClock`).
         // Why:      Every read below asks it between reads, so one bound serves the whole walk and a control reaches it.

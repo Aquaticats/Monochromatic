@@ -6,7 +6,8 @@
 //! a listing cut before it read one member,
 //! a listing cut after it read one,
 //! a group below the scope that could not be read,
-//! and a member whose threads were not all read within the bound.
+//! a member whose threads were not all read within the bound,
+//! and a listing that read no member while the kernel said the scope was populated.
 //! Why:
 //! Release read of `0.1.5-alpha.12` (Medium 2 and Medium 3,
 //! 2026-11-27):
@@ -566,5 +567,57 @@ fn a_member_whose_threads_were_not_all_read_within_the_bound_is_never_read_as_go
         standing.text().contains("could not all be read within"),
         "the words do not say which bound the read of its threads hit: {}",
         standing.text()
+    );
+}
+
+/// Release read of `0.1.5-alpha.13`,
+/// Low "The refusal's listing":
+/// a listing that read no member of any group while the kernel's last word said the scope was populated is a `Nothing`
+/// leftover,
+/// and the run is refused on it.
+/// The refusal says the listing found no member,
+/// and says nothing about what a member it never read can do.
+/// The member leaves between that word and the listing,
+/// which nothing outside a test build can hold a process in:
+/// a member that leaves before the `populated` read makes the scope read unpopulated,
+/// and the stop then reports the scope empty at once instead of refusing.
+#[test]
+fn a_listing_that_read_no_member_while_the_kernel_said_populated_refuses_the_run() {
+    this_test_needs_a_delegated_scope();
+    let mut scope: TestScope = a_program_in_a_scope();
+    let member: MovedMember = MovedMember::started();
+    moved_into(&member, scope.group.directory());
+    let ended: Reaped = the_direct_child_has_ended(&mut scope);
+    // The stop answers at once with the report of a scope that really holds the member, and the listing reads none of it.
+    arm(Point::ContainmentStopStuck);
+    arm(Point::ContainmentListingFindsNoMember);
+
+    let report: StopReport = scope
+        .group
+        .stop(QUIESCE_BOUND)
+        .expect("the stop of a scope that exists answers a report");
+    let refusal: String = the_refusal_of(&report, &scope.group, &ended)
+        .expect("a scope the kernel reported populated is not one shown empty, even when the listing read no member");
+
+    assert!(
+        !crate::failpoints::fires(Point::ContainmentStopStuck)
+            && !crate::failpoints::fires(Point::ContainmentListingFindsNoMember),
+        "the stop never reached the report and the listing this control arms, so the refusal has another cause"
+    );
+    assert!(
+        matches!(
+            report.leftover(),
+            crate::control_group_stop::report::Leftover::Nothing
+        ),
+        "the report was not read as a listing that found no member: {refusal}"
+    );
+    assert!(
+        refusal.contains("and it listed no member of the scope or of any group below it"),
+        "the refusal does not open by saying that it listed no member: {refusal}"
+    );
+    assert!(
+        !refusal.contains(&member.pid().to_string()),
+        "the refusal names the member the listing did not read ({}): {refusal}",
+        member.pid()
     );
 }
