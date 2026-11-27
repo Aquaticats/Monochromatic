@@ -102,7 +102,7 @@ pub fn key_path(
 ) -> String {
     let written: String = match path.strip_prefix(base) {
         Ok(below) if below.components().next().is_some() => below.to_string_lossy().into_owned(),
-        _ => climbing_path(path, base),
+        _ => climbing_parts(path, base).join("/"),
     };
     let slashed: String = written.replace('\\', "/");
     // What: the one spelling of the package folder itself.
@@ -124,14 +124,16 @@ pub fn key_path(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function climbingPath(path: string, base: string): string;
+/// function climbingParts(path: Path, base: Path): string[];
 /// ```
-fn climbing_path(
+fn climbing_parts(
     path: &std::path::Path,
     base: &std::path::Path,
-) -> String {
+) -> Vec<String> {
     if path.is_absolute() != base.is_absolute() {
-        return path.to_string_lossy().into_owned();
+        // What: the path's own spelling as one part, separators and all.
+        // Why: the two share no folder to count `..` from, so the caller keeps what it gave.
+        return vec![path.to_string_lossy().into_owned()];
     }
     // What: the folders of each path, so the ones they share can be counted once.
     // Why: each folder below the shared part becomes one `..` of the answer.
@@ -151,7 +153,50 @@ fn climbing_path(
     for part in &path_parts[shared..] {
         parts.push(part.as_os_str().to_string_lossy().into_owned());
     }
-    return parts.join("/");
+    return parts;
+}
+
+/// What:
+///  Every part of one path below a folder, as the file system spells it.
+/// Why:
+///  The folders below the package folder are the names a key writes,
+///  and a name's own backslash must stay visible to the check that refuses it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function namesOf(path: Path): string[];
+/// ```
+fn names_of(path: &std::path::Path) -> Vec<String> {
+    let mut names: Vec<String> = Vec::<String>::new();
+    for part in path.components() {
+        names.push(part.as_os_str().to_string_lossy().into_owned());
+    }
+    return names;
+}
+
+/// What:
+///  Each name a key writes for one path, in order,
+///  with a name's own backslash kept instead of being spelled as a separator.
+/// Why:
+///  A key writes `/` for every separator,
+///  so the names of a written key cannot show a name that holds a backslash;
+///  the check for a name no list line can hold must see the file system's own spelling,
+///  or the name it refuses would be invisible.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function keyNames(path: Path, base: Path): string[];
+/// ```
+pub(crate) fn key_names(
+    path: &std::path::Path,
+    base: &std::path::Path,
+) -> Vec<String> {
+    if let Ok(below) = path.strip_prefix(base)
+        && below.components().next().is_some()
+    {
+        return names_of(below);
+    }
+    return climbing_parts(path, base);
 }
 
 /// What:

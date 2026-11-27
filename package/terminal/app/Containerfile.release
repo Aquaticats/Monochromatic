@@ -75,6 +75,8 @@ RUN arch="$(uname -m)" \
 
 ENV CARGO_HOME=/cargo
 # Slint's experimental language surface used by the UI is compiled consistently
-# for build, lint, test, and run tasks.
-ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
+# for build, lint, test, and run tasks. The markup uses none of the features, and
+# Slint 1.19.0 rejects the former boolean `1`, so the list is empty
+# (doc/troubleshooting/slint-lsp-experimental-features.md).
+ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=
 WORKDIR /work

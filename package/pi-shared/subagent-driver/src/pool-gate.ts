@@ -38,7 +38,6 @@ import {
   NO_POOL_HAS_ROOM,
   firstDefaultPoolWithRoom,
   poolHasRoom,
-  poolsWithoutRoom,
   summaryTextOf,
 } from './pool-tallies.ts';
 
@@ -65,7 +64,8 @@ export type PoolChoice =
   }
     | {
     /**
-     A virtual selection whose every pool has room, which keeps the provider and model the run named and takes its router's order.
+     A virtual selection, which keeps the provider and model the run named: a run on it holds no slot in any pool, and its router
+     may take these members, of which the largest wall factor gives the run its wall clock.
      */
       readonly destination: 'a-virtual-pool';
 
@@ -114,11 +114,12 @@ export function poolChoiceFor({
   readonly resumes: boolean;
 },): PoolChoice {
   // A run on a virtual selection keeps the provider and model it named, because that pair is what lets its router move the
-  // request on: rewriting it into one member's pair would pin the run to that member. It holds a slot in every pool its router may
-  // send it to, so it may start only while every one of them has room.
-  if (requested.holds === 'some-pools') {
+  // request on: rewriting it into one member's pair would pin the run to that member. It holds no slot in any pool, so no pool's
+  // room decides whether it may start; the members are named for the launcher's line and its wall clock, and for the router.
+  if (requested.holds === 'a-virtual-selection') {
     /**
-     The pools the selection's router may take, as the table being counted holds them, so a limit a caller set applies here too.
+     The pools the selection's router may take, as the table being counted holds them, so a limit a caller set reaches a line
+     that names them.
      */
     const members = requested.pools
       .map(function asTheCountedTableHoldsIt(pool,) {
@@ -127,17 +128,6 @@ export function poolChoiceFor({
           pools: tallies.pools,
         },);
       },);
-    if (poolsWithoutRoom({
-      tallies,
-      membership: {
-        holds: 'some-pools',
-        pools: members,
-      },
-    },)
-      .length
-      > 0) {
-      return { destination: 'no-room', };
-    }
     return {
       destination: 'a-virtual-pool',
       pools: members,
@@ -154,6 +144,11 @@ export function poolChoiceFor({
         1,
       ),
     };
+  }
+  // A membership that names every pool a run could be on is how a run whose own command line could not be read is counted, never
+  // how a run's own words place it: placing such a run would take one of those pools for a fact the driver does not have.
+  if (requested.holds === 'some-pools') {
+    throw new Error('poolChoiceFor was given a membership that names every pool a run could be on, which counts an unreadable run and places none: its caller reads what the run named',);
   }
   if (requested.holds !== 'a-pool') {
     return { destination: 'its-own-provider', };

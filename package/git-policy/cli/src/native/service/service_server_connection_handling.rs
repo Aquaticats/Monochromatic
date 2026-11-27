@@ -10,46 +10,65 @@
 //! Why:
 //!  Each connection runs as a task of its own (`doc/planning/git-policy-cli-full-tokio.md`,
 //! step T10),
-//! so a client that waits costs memory and no thread;
-//! the file keeps that task's whole life in one place.
+//! so a client that waits costs memory and no thread.
+//!
+//! The parts of this connection,
+//! each a file of this folder,
+//! in the order they build on each other:
+//!
+//! - `service_server_connection_handling_what_every_connection_shares.rs`:
+//!   the queues,
+//!   the board and the drawn shadows one service run hands every connection.
+//! - `service_server_connection_handling_the_note_of_a_stuck_landing.rs`:
+//!   the note a beat sends about what the landing is stuck in.
+//! - `service_server_connection_handling_whose_message_it_is.rs`:
+//!   whether a message is this instance's own,
+//!   and the words for the ones it is not.
+//! - `service_server_connection_handling_the_wait_of_a_commit.rs`:
+//!   a queued commit answered with beats,
+//!   and a withdrawal answered the same way.
+//! - `service_server_connection_handling_one_message.rs`:
+//!   what one decoded line of a connection comes to.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! server.on('connection', (socket) => handleConnection(socket, shared));
 //! ```
 
-use crate::blocking_job::run_blocking_job;
-use crate::service_busy::{
-    EarlyAnswer,
-    LandingBoard,
+/// What one decoded line of a connection comes to.
+pub(crate) use crate::service_server_connection_handling_one_message::answer_request;
+/// The point at which a beat's note reads the journal,
+/// for a control that holds that read.
+#[cfg(test)]
+pub(crate) use crate::service_server_connection_handling_the_note_of_a_stuck_landing::note_read_point;
+/// The note a connection's beat sends about what the landing thread is stuck in,
+/// said again only when the words change,
+/// named here for the controls of this connection.
+#[cfg(test)]
+pub(crate) use crate::service_server_connection_handling_the_note_of_a_stuck_landing::{
+    StuckNotice,
+    stuck_notice,
 };
-use crate::service_instance::instance_of;
+/// A commit queued and answered with beats,
+/// named here for the controls of this connection.
+#[cfg(test)]
+pub(crate) use crate::service_server_connection_handling_the_wait_of_a_commit::queue_a_commit;
+/// What every connection of one service run shares:
+/// the queues to the landing and the work loop,
+/// the landing's board,
+/// and the release and instance the service announces and serves.
+pub(crate) use crate::service_server_connection_handling_what_every_connection_shares::ConnectionShared;
+/// The point at which a connection reads an instance,
+/// for a control that holds that read.
+#[cfg(test)]
+pub(crate) use crate::service_server_connection_handling_whose_message_it_is::instance_read_point;
+
 use crate::service_protocol::{
-    ClientMessage,
-    FailureCode,
-    HEARTBEAT_EVERY,
     MAX_LINE_BYTES,
     PROTOCOL_VERSION,
     ServiceMessage,
-    decode_client,
 };
-use crate::service_reply::{
-    NoteSource,
-    Reply,
-    write_until_answered_noting,
-};
-use crate::service_server_queue_types_and_send::{
-    Job,
-    send,
-};
-use crate::service_timing::{
-    Arrival,
-    log,
-    retire_line,
-};
-use crate::service_work::Wake;
-use std::path::PathBuf;
-use std::sync::Arc;
+use crate::service_server_queue_types_and_send::send;
 use std::time::{
     Duration,
     Instant,
@@ -64,230 +83,9 @@ use tokio::net::unix::{
     OwnedReadHalf,
     OwnedWriteHalf,
 };
-use tokio::sync::mpsc::UnboundedSender;
 
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// What:
-///  The point at which this file reads `git_dir`'s instance,
-///  for a control that holds that read (`service_fault_hooks_test_support.rs`).
-/// Why:
-///   The point names the directory whose instance is read,
-///  so two controls of one process hold the read of their own directory and neither answers the other (issue 6497),
-///  as `collection_point` names the directory it collects.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const instanceReadPoint = (gitDir: string) => `the-instance-read-of-${gitDir}`;
-/// ```
-#[cfg(test)]
-pub(crate) fn instance_read_point(git_dir: &std::path::Path) -> String {
-    return format!("the-instance-read-of-{}", git_dir.display());
-}
-
-/// What:
-///  The point at which a beat's note of `request` reads the journal,
-///  for a control that holds that read (`service_fault_hooks_test_support.rs`).
-/// Why:
-///   The point names the connection's own request,
-///  so two controls of one process hold the note read of their own connection and neither answers the other
-///  (issue 6497).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const noteReadPoint = (request?: string) => `the-note-read-of-${request ?? ''}`;
-/// ```
-#[cfg(test)]
-pub(crate) fn note_read_point(request: Option<&str>) -> String {
-    return format!("the-note-read-of-{}", request.unwrap_or_default());
-}
-
-/// What every connection of one service run shares:
-/// the queues to the landing and the work loop,
-/// the count of work in flight,
-/// the landing's board,
-/// and what the service announces and serves.
-#[derive(Clone)]
-pub(crate) struct ConnectionShared {
-    /// Where requests for the landing go.
-    pub queue: UnboundedSender<Job>,
-    /// Where after-commit work is announced.
-    pub work: UnboundedSender<Wake>,
-    /// The count of work in flight that keeps the service from exiting idle.
-    /// What the landing is inside,
-    /// for the notes a waiting client is told.
-    pub board: Arc<LandingBoard>,
-    /// The finished shadows this service drew ahead of the commits that ask for one,
-    /// which the answer to a commit's question takes one out of.
-    pub drawn: Arc<crate::service_shadow_draw::DrawnShadows>,
-    /// The release the service announces to every client.
-    pub release: String,
-    /// The worktree this instance serves,
-    /// when it serves one.
-    pub instance: Option<String>,
-    /// The Git directory of the worktree this instance serves,
-    /// as its note or journal named it when the service started,
-    /// and nothing when that could not be told.
-    /// A request that names this text is this instance's without asking the filesystem whose it is.
-    pub own_git_dir: Option<PathBuf>,
-}
-
-/// What:
-///  The note for a connection's beat:
-/// what the landing thread is stuck in when it is inside a write that is never ended,
-/// said again
-///  only when the words change (they name whole minutes).
-/// Why:
-///   A client queued behind a write that never returns is told why it waits,
-/// and the words become the blocker its error names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
-/// ```
-pub(crate) fn stuck_notice(
-    board: Arc<LandingBoard>,
-    request: Option<String>,
-) -> StuckNotice {
-    return StuckNotice {
-        board,
-        request,
-        last: None,
-        still_reading: None,
-    };
-}
-
-/// The answer of one read of the journal for a beat's note:
-/// what the connection has to say,
-/// and the key of the words said last.
-type NoteFromTheBoard =
-    Result<(Option<ServiceMessage>, Option<String>), crate::blocking_job::BlockingJobError>;
-
-/// What:
-///  The read of one note while it is still running.
-/// Why:
-///  A read of the journal can outlive the beat that started it,
-/// and a source that started another read every beat would queue one read a second behind a storage that is late,
-///  each of them holding a thread of the blocking pool that the commits of every other client need;
-///  one read is kept here and the next beat waits for that same read,
-/// which is also the only way the words of a read that took several beats are ever written.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type NoteRead = Promise<[ServiceMessage | undefined, string | undefined]>;
-/// ```
-type NoteRead = std::pin::Pin<Box<dyn std::future::Future<Output = NoteFromTheBoard> + Send>>;
-
-/// What:
-///  The note source of a connection's beat:
-/// what the landing thread is stuck in,
-/// said again only when the words change,
-///  with the read that is still running kept for the beats behind it.
-/// Why:
-///   The note is read from the journal on every beat,
-/// and one read that storage holds must cost a read and never a beat.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class StuckNotice { board; request; last; stillReading; async note() { ... } }
-/// ```
-pub(crate) struct StuckNotice {
-    /// What the landing thread reports about itself.
-    board: Arc<LandingBoard>,
-    /// The identity of the request the connection serves,
-    /// when it serves one.
-    request: Option<String>,
-    /// The key of the words said last.
-    last: Option<String>,
-    /// The read of this connection's note that is still running,
-    /// and nothing when no read is.
-    still_reading: Option<NoteRead>,
-}
-
-/// The note the board has for a connection and the key of the words said last after it,
-/// given the key said before.
-/// The board is files of the journal,
-/// which can wait on storage,
-/// so the reads run on the blocking pool.
-fn note_from_the_board(
-    board: &LandingBoard,
-    request: Option<&str>,
-    last: Option<String>,
-) -> (Option<ServiceMessage>, Option<String>) {
-    // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
-    #[cfg(test)]
-    {
-        let held_point: String = note_read_point(request);
-        crate::service_fault::hooks::run_on_any_thread(held_point.as_str());
-    }
-    // A client whose own request is in the group being landed is told so when the write starts, because its commit may be on
-    // the branch already; the key changes when the longer words of a minute's stuck write replace the first ones.
-    let inside: Option<(String, String)> = match request {
-        Some(id) => board.inside_notice(id),
-        None => None,
-    };
-    if let Some((key, words)) = inside {
-        if last.as_deref() == Some(key.as_str()) {
-            return (None, last);
-        }
-        return (
-            Some(ServiceMessage::InsideWrite {
-                text: words,
-            }),
-            Some(key),
-        );
-    }
-    let Some(words) = board.describe() else {
-        return (None, last);
-    };
-    if last.as_deref() == Some(words.as_str()) {
-        return (None, last);
-    }
-    return (
-        Some(ServiceMessage::Waiting {
-            text: words.clone(),
-        }),
-        Some(words),
-    );
-}
-
-impl NoteSource for StuckNotice {
-    async fn note(&mut self) -> Option<ServiceMessage> {
-        if self.still_reading.is_none() {
-            let board: Arc<LandingBoard> = Arc::clone(&self.board);
-            let request: Option<String> = self.request.clone();
-            // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
-            //  ones, and a read that outlives its beat answers only beats later.
-            let last: Option<String> = self.last.clone();
-            self.still_reading = Some(Box::pin(run_blocking_job(move || {
-                return note_from_the_board(&board, request.as_deref(), last);
-            })));
-        }
-        let running: &mut NoteRead = self
-            .still_reading
-            .as_mut()
-            .expect("the read of this connection's note was just started");
-        // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
-        //  of starting a second one behind a storage that is already late.
-        let answer: NoteFromTheBoard = running.await;
-        // This read is over, whatever it answered: the beat behind this one starts the next read.
-        self.still_reading = None;
-        return match answer {
-            Ok((message, last_said)) => {
-                self.last = last_said;
-                message
-            }
-            Err(error) => {
-                // No note this beat: the beat itself is the proof of life and is still written.
-                crate::service_warn!(
-                    "the note of what the landing is inside could not be read for a waiting client: {error}"
-                );
-                None
-            }
-        };
-    }
-}
 
 /// The user id of the process on the other end of a connection.
 fn user_of(credentials: tokio::net::unix::UCred) -> u32 {
@@ -347,397 +145,6 @@ pub(crate) async fn handle_connection(
         return;
     }
     answer_request(&line, &mut write_half, &shared, accepted).await;
-}
-
-/// Whether a Git directory belongs to another instance of the service than this one,
-/// asked on the blocking pool because naming the instance resolves the path;
-/// nothing when the pool could not run it.
-/// Why:
-///  A request that names this worktree's own Git directory exactly is this instance's without that ask:
-/// the same text
-///  names the same directory,
-/// so the same instance,
-/// and the filesystem is asked only for a request that spells it another way
-///  or belongs to another worktree.
-///  The ask resolves a real path,
-/// which under a busy disk took thirty-two seconds in the record of
-///  2026-11-10T17:50:19Z,
-/// and it is on the answering path of every commit and every wake.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// isForeign(shared, gitDir) // shared.ownGitDir === gitDir ? false : await named(gitDir) !== shared.instance
-/// ```
-async fn is_foreign(
-    shared: &ConnectionShared,
-    git_dir: PathBuf,
-) -> Option<bool> {
-    let Some(mine) = shared.instance.clone() else {
-        return Some(false);
-    };
-    // The text this service was named for: the same text names the same directory, whatever a resolution would say.
-    if shared.own_git_dir.as_deref() == Some(git_dir.as_path()) {
-        return Some(false);
-    }
-    return match run_blocking_job(move || {
-        // A control holds this read on whichever thread runs it, which is a pool thread and not the thread that set the hold.
-        #[cfg(test)]
-        {
-            let held_point: String = instance_read_point(git_dir.as_path());
-            crate::service_fault::hooks::run_on_any_thread(held_point.as_str());
-        }
-        return instance_of(git_dir.as_path()) != mine;
-    })
-    .await
-    {
-        Ok(foreign) => Some(foreign),
-        Err(error) => {
-            crate::service_error!(
-                "the instance of a Git directory could not be looked at: {error}"
-            );
-            None
-        }
-    };
-}
-
-/// Refuses a message about a Git directory that another instance serves.
-async fn refuse_a_message_for(
-    git_dir: &std::path::Path,
-    write_half: &mut OwnedWriteHalf,
-) {
-    crate::service_warn!(
-        "refused a message for {}, which another instance serves",
-        git_dir.display()
-    );
-    send(
-        write_half,
-        &ServiceMessage::Failed {
-            id: String::new(),
-            code: FailureCode::Rejected,
-        },
-    )
-    .await;
-}
-
-/// What:
-///  Answers a commit's question about the finished shadow drawn ahead of it:
-///  the tree,
-/// or that the stock holds none.
-/// Why:
-///   The question is answered here and not by the landing,
-///  from a list held in memory,
-///  so its answer cannot wait for another commit's landing.
-///  A tree leaves the stock with this answer,
-///  so two commits that ask at once never get the same one:
-///  the second is told there is none and takes the pool's member or its own creation.
-///  The commit's scratch tree names the attempt that asked,
-///  which the answer needs nothing more of:
-///  the tree's life is the commit's renewal and the sweep's (`shadow_drawn.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const tree = shared.drawn.handOut(); send(writeHalf, tree ? { type: 'drawn', tree } : { type: 'no-shadow' });
-/// ```
-async fn answer_the_shadow_question(
-    scratch: &std::path::Path,
-    write_half: &mut OwnedWriteHalf,
-    shared: &ConnectionShared,
-) {
-    match shared.drawn.hand_out() {
-        Some(tree) => {
-            crate::diagnostic_log::debug(
-                "shadowDrawn",
-                format!(
-                    "handed {} to the commit that asked from {}",
-                    tree.display(),
-                    scratch.display()
-                )
-                .as_str(),
-            );
-            send(
-                write_half,
-                &ServiceMessage::Drawn {
-                    tree,
-                },
-            )
-            .await;
-        }
-        None => send(write_half, &ServiceMessage::NoShadow).await,
-    };
-}
-
-/// Tells a client that the service cannot take its request now.
-async fn tell_unavailable(write_half: &mut OwnedWriteHalf) {
-    send(
-        write_half,
-        &ServiceMessage::Failed {
-            id: String::new(),
-            code: FailureCode::Unavailable,
-        },
-    )
-    .await;
-}
-
-/// Acts on the request line of a connection:
-/// refuses what another instance serves,
-/// answers what needs no landing,
-/// and queues the rest.
-async fn answer_request(
-    line: &str,
-    write_half: &mut OwnedWriteHalf,
-    shared: &ConnectionShared,
-    accepted: Instant,
-) {
-    // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
-    //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
-    match decode_client(line.trim_end_matches('\n')) {
-        Ok(ClientMessage::Commit(request)) => {
-            // The question of whose this request is runs beside the beats of its connection, not before them, so a check
-            //  whose own read waits on storage never leaves the client silent (`queue_a_commit`).
-            let deciding = is_foreign(shared, request.git_dir.clone());
-            queue_a_commit(request, write_half, shared, accepted, deciding).await;
-        }
-        Ok(ClientMessage::Work {
-            git_dir,
-            review_key,
-            push_programs,
-        }) => match is_foreign(shared, git_dir.clone()).await {
-            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
-            Some(false) => {
-                // What: The programs and transport settings of the command that wrote these push records are held here, for the
-                //  records it named.
-                // Why:  Nothing of them is written (the two command lines can hold a password), and the round that runs a push
-                //  looks them up by its record's id, so each push speaks and searches with the values of the command that asked
-                //  for it (`service_push_programs_held_in_memory`).
-                for (id, programs) in push_programs {
-                    crate::service_push_programs_held_in_memory::remember(
-                        git_dir.as_path(),
-                        id.as_str(),
-                        programs,
-                    );
-                }
-                let _queued = shared.work.send((git_dir, review_key));
-                let _touched = shared.queue.send(Job::Activity);
-            }
-            None => tell_unavailable(write_half).await,
-        },
-        // What: The push records this command settled or removed can no longer run, so the values held against them are given
-        //  up here.
-        // Why:  A record the committing wrapper removed leaves nothing the service could learn it from, and one of the values
-        //  can hold a password (`service_push_programs_held_in_memory`). Nothing is queued: no push is left to run.
-        Ok(ClientMessage::ForgetPrograms {
-            git_dir,
-            records,
-        }) => match is_foreign(shared, git_dir.clone()).await {
-            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
-            Some(false) => {
-                for id in records {
-                    crate::service_push_programs_held_in_memory::forget(
-                        git_dir.as_path(),
-                        id.as_str(),
-                    );
-                }
-            }
-            None => tell_unavailable(write_half).await,
-        },
-        // What: A commit asks whether a finished shadow was drawn ahead of it, and where it is.
-        // Why:  The answer is taken out of the service's own stock and written by this connection's task, never by the
-        //       landing thread: a commit that waited for its tree through the landing queue would queue behind every other
-        //       commit's landing, which is the wait the hand-out exists to remove.
-        Ok(ClientMessage::Shadow {
-            git_dir,
-            scratch,
-        }) => match is_foreign(shared, git_dir.clone()).await {
-            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
-            Some(false) => answer_the_shadow_question(scratch.as_path(), write_half, shared).await,
-            None => tell_unavailable(write_half).await,
-        },
-        Ok(ClientMessage::Warm {
-            repository,
-            git_dir,
-        }) => match is_foreign(shared, git_dir.clone()).await {
-            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
-            // Nothing is answered: the compile is a job of the blocking pool, and the connection closes with this function.
-            Some(false) => crate::service_rules_precompile::warm_in_background(repository),
-            None => tell_unavailable(write_half).await,
-        },
-        Ok(ClientMessage::Withdraw {
-            id,
-        }) => withdraw(id, write_half, shared).await,
-        Ok(ClientMessage::Retire) => {
-            log(retire_line(shared.release.as_str()).as_str());
-            let _queued = shared.queue.send(Job::Retire);
-        }
-        Err(reason) => {
-            crate::service_warn!("refused a request line: {reason}");
-            send(
-                write_half,
-                &ServiceMessage::Failed {
-                    id: String::new(),
-                    code: FailureCode::Rejected,
-                },
-            )
-            .await;
-        }
-    };
-}
-
-/// What:
-///  Queues a commit and writes its answers,
-/// with beats,
-/// until the landing has answered.
-/// Why:
-///   The beats begin before the check that says whether this request is this instance's has answered,
-/// and that check's answer goes through the same
-/// writer,
-///  so a check whose own read waits on storage never leaves the client silent.
-/// A client ends a service it has heard nothing from for five seconds (`HEARTBEAT_SILENCE`,
-///  `service_client.rs`),
-/// sends the commit again and may report it failed although it landed;
-/// the check resolves a Git directory's real path
-///  through the filesystem,
-/// which under a busy disk took thirty-two seconds in the record of 2026-11-10T17:50:19Z.
-/// The request reaches the landing only when the check says it is this instance's,
-/// so a request for another
-///  worktree still never lands here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [beats, queued] = await Promise.all([writeUntilAnswered(socket, messages), decide().then(queueOrRefuse)]);
-/// ```
-async fn queue_a_commit<Decide>(
-    request: Box<crate::service_protocol::CommitRequest>,
-    write_half: &mut OwnedWriteHalf,
-    shared: &ConnectionShared,
-    accepted: Instant,
-    decide: Decide,
-) where
-    Decide: std::future::Future<Output = Option<bool>> + Send,
-{
-    let id: String = request.id.clone();
-    let (reply, mut messages) = Reply::new();
-    let answering: UnboundedSender<ServiceMessage> = reply.sender();
-    let queue: UnboundedSender<Job> = shared.queue.clone();
-    // What a beat asks for before it, held here because the writer borrows it for the whole wait.
-    let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()));
-    // What the check's answer is written with, and what it does with the request it decides about.
-    let checking = async move {
-        match decide.await {
-            // A request for another worktree is not this instance's to land, so it never reaches the landing.
-            Some(true) => {
-                crate::service_warn!(
-                    "refused a commit for {}, which another instance serves",
-                    request.git_dir.display()
-                );
-                let _answered = answering.send(ServiceMessage::Failed {
-                    id,
-                    code: FailureCode::Rejected,
-                });
-            }
-            // Nothing could say whose the request is: the client is told, and the landing never sees it.
-            None => {
-                let _answered = answering.send(ServiceMessage::Failed {
-                    id,
-                    code: FailureCode::Unavailable,
-                });
-            }
-            Some(false) => {
-                // The tree this request names is one the landing has still to read, however long the queue before it takes,
-                //  so a collection spares it until the service is done with the request (`service_scratch_trees_of_queued_requests.rs`).
-                crate::service_scratch_trees_of_queued_requests::note(
-                    request.id.as_str(),
-                    request.scratch.as_path(),
-                );
-                let _queued = queue.send(Job::Commit(
-                    request,
-                    reply,
-                    Arrival {
-                        accepted,
-                        read: accepted.elapsed(),
-                    },
-                ));
-                crate::service_fault::queued(id.as_str());
-            }
-        }
-    };
-    // This task has nothing else to do until the request is answered, so it writes the answers the landing thread
-    //  queues and keeps the client told that the service lives, and what it is stuck in when it is stuck in a write.
-    let beats =
-        write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut notice);
-    tokio::join!(beats, checking);
-}
-
-/// Answers the withdrawal of a request.
-async fn withdraw(
-    id: String,
-    write_half: &mut OwnedWriteHalf,
-    shared: &ConnectionShared,
-) {
-    // Behind a write that never returns the landing thread answers nothing, so a request that has not begun to land is
-    //  withdrawn here (`service_busy.rs`); otherwise the landing thread answers between two landings, so the answer is
-    //  either that the commit landed or that it never will, and meanwhile this task keeps the client told that the
-    //  service lives.
-    let board: Arc<LandingBoard> = Arc::clone(&shared.board);
-    let asked: String = id.clone();
-    // The decision is made by creating files in the journal, which can wait on storage.
-    let early: EarlyAnswer = match run_blocking_job(move || {
-        return board.withdraw_early(asked.as_str());
-    })
-    .await
-    {
-        Ok(answer) => answer,
-        // Without a thread to decide here, the landing thread answers between two landings, as it does for a request that began.
-        Err(error) => {
-            crate::service_warn!(
-                "the withdrawal of {id} could not be decided here and goes to the landing: {error}"
-            );
-            EarlyAnswer::Queued
-        }
-    };
-    match early {
-        EarlyAnswer::Landed(commit) => {
-            send(
-                write_half,
-                &ServiceMessage::Landed {
-                    id,
-                    commit,
-                    already: true,
-                    landing: None,
-                },
-            )
-            .await
-        }
-        EarlyAnswer::Withdrawn(words) => {
-            send(
-                write_half,
-                &ServiceMessage::Waiting {
-                    text: words,
-                },
-            )
-            .await;
-            send(
-                write_half,
-                &ServiceMessage::Withdrawn {
-                    id,
-                },
-            )
-            .await;
-        }
-        EarlyAnswer::Queued => {
-            let (reply, mut messages) = Reply::new();
-            let withdrawing: String = id.clone();
-            let _queued = shared.queue.send(Job::Withdraw(id, reply));
-            // The connection keeps the identity of the request, so a client that withdrew too early to have been told it is
-            // inside the write is told now.
-            write_until_answered_noting(
-                write_half,
-                &mut messages,
-                HEARTBEAT_EVERY,
-                &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing)),
-            )
-            .await;
-        }
-    };
 }
 
 /// The refusal paths of a connection are controlled in the test module.

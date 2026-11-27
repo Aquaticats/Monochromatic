@@ -1,8 +1,8 @@
 //! What:
 //!  The jobs of the Cargo repair:
-//! the program and the bounds one run takes,
 //! the lookup of the program beside the worktree's real path,
-//! and the two jobs the runner starts for one workspace.
+//! and the two jobs the runner starts for one workspace,
+//! whose Cargo program and bounds are `package_repair_cargo_one_workspace.rs`'s.
 //! Why:
 //!  `package_repair_cargo.rs` would otherwise pass the file-size limit,
 //! and the jobs need nothing of its decisions but the two
@@ -15,6 +15,7 @@
 //! ```
 
 use super::{
+    CargoTool,
     Done,
     PROGRAM,
     repair_workspace_awaiting,
@@ -26,37 +27,12 @@ use crate::add_timing::{
 };
 use crate::package_repair_cargo_concurrent::ConcurrentAwaitingWork;
 use crate::package_repair_cargo_workspaces::Workspace;
-use crate::package_repair_command::{
-    ToolLimits,
-    find_program,
-};
+use crate::package_repair_command::find_program;
 use std::ffi::OsString;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Instant;
-
-/// What the Cargo program and the bounds every one of its runs takes:
-/// found once,
-/// and owned by the tasks that start it.
-/// Why:
-///   The repair's items are tasks of the runtime,
-/// which must own what they read;
-/// the program is one path and the two bounds are
-///  copied values,
-/// so each item holds them without a lock.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CargoTool = { program: string; limits: { windowMs: number; ceilingMs: number } };
-/// ```
-#[derive(Clone)]
-pub(super) struct CargoTool {
-    /// The Cargo program found on the person's search path.
-    pub(super) program: PathBuf,
-    /// The quiet window and the ceiling of one run.
-    pub(super) limits: ToolLimits,
-}
 
 /// What:
 ///  The job of reading the Cargo workspace of one directory,

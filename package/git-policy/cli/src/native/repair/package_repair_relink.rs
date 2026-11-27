@@ -24,33 +24,76 @@
 //! ```ts
 //! handOverRelink({ context, commonDir, destination, entry }); // enqueue one `relink` item, wake the service
 //! ```
+//!
+//! Files in this module,
+//! each using only the files listed before it:
+//!
+//! - `package_repair_relink_record.rs`:
+//!   the record one worktree's relink is queued as,
+//!   and the tools it may ask for.
+//! - `package_repair_relink_work_item.rs`:
+//!   the work item that record becomes,
+//!   its object name,
+//!   and the add's own directories a relative search path is read from.
 
+/// Import the one diagnostic log this crate writes.
 use crate::diagnostic_log::debug;
-use crate::iso_time::now_iso;
+/// Import the record's entry,
+/// the tool names it carries,
+/// the entry's object name,
+/// and the item the queue stores.
+pub use crate::package_repair_relink_record::{
+    RELINK_REFERENCE,
+    RelinkEntry,
+    RelinkTool,
+    SearchPathOfTheAdd,
+    decode,
+    encode,
+};
+pub use crate::package_repair_relink_work_item::{
+    item_of,
+    object_name_of,
+};
+/// Import the client that wakes a service,
+/// and the configuration a wake is given.
 use crate::service_client::wake;
+/// Import the client configuration every session of this wrapper reaches a service with.
 use crate::service_commit_input_notes_and_embedded_commit::managed_client_config;
+/// Import the words and the rendering of a client's failure.
 use crate::service_messages::{
     ClientFailure,
     render,
 };
+/// Import the one step that makes a service of a session's own.
 use crate::service_provision::provision;
+/// Import the route a session's environment names.
 use crate::service_route::route_from_environment;
+/// Import the address a wake is sent to.
 use crate::service_server::Bind;
+/// Import the directory the queue's states live in.
 use crate::service_work::work_directory;
+/// Import the real Git and its overlay a hand-over is made for.
 use crate::transaction_git::GitContext;
+/// Import the bound a hand-over waits for a greeting.
 use crate::wait_ceilings::HAND_OVER_GREETING_WAIT;
+/// Import the queue's own names:
+/// its record,
+/// its pending state,
+/// the work to add,
+/// and the directory a state lives in.
 use crate::work_item::{
     Enqueued,
     PENDING,
     WorkItem,
-    WorkKind,
     enqueue,
     state_directory,
 };
+/// Import what a hand-over may reach:
+/// the route finder,
+/// the provisioner,
+/// and the bound the greeting is waited with.
 use crate::worktree_trash_hand_over::Reach;
-
-use std::ffi::OsString;
-use std::os::unix::ffi::OsStrExt as _;
+/// Import the borrowed and owned filesystem paths a record names.
 use std::path::{
     Path,
     PathBuf,
@@ -58,396 +101,6 @@ use std::path::{
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairRelink";
-
-/// The reference a relink record carries.
-/// It names no branch:
-/// the record is about working state,
-/// and a Git reference is only what the queue's record format asks every kind for.
-pub const RELINK_REFERENCE: &str = "refs/monochromatic/relink";
-
-/// What:
-///  One tool whose copied state the service relinks in the worktree.
-/// Why:
-///   The record says which tools the worktree needs,
-/// so a worktree with only a pnpm layout pays for no toolchain run,
-/// and the name is what a record carries,
-/// so a record another release wrote cannot ask for a tool this one does not know.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RelinkTool = 'pnpm' | 'toolchain';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RelinkTool {
-    /// pnpm relinks the copied `node_modules` for the new depth.
-    Pnpm,
-    /// mpm-shadow rebuilds the toolchain links and launchers for the new checkout.
-    Toolchain,
-}
-
-impl RelinkTool {
-    /// The name a record carries for this tool.
-    pub fn name(self) -> &'static str {
-        return match self {
-            RelinkTool::Pnpm => "pnpm",
-            RelinkTool::Toolchain => "toolchain",
-        };
-    }
-
-    /// The tool a name spells,
-    /// or nothing for a name this release does not know.
-    pub fn from_name(name: &str) -> Option<RelinkTool> {
-        return match name {
-            "pnpm" => Some(RelinkTool::Pnpm),
-            "toolchain" => Some(RelinkTool::Toolchain),
-            _ => None,
-        };
-    }
-}
-
-/// What:
-///  The search path a record carries.
-/// Why:
-///   The record must say which programs the add resolved,
-/// and "the add held no search path" is not "this record is too old to carry one".
-/// With no path,
-/// the add selects the worktree's own `.cache/toolchain-bin/mpm-shadow`,
-/// while a record that names none makes the service search its own path and start another program;
-/// so the three answers travel as three,
-/// not as the two an optional field could carry.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type SearchPathOfTheAdd = { kind: 'not-recorded' } | { kind: 'unset' } | { kind: 'set'; path: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SearchPathOfTheAdd {
-    /// A record written before this release carried the add's environment:
-    /// the service searches its own path.
-    NotRecorded,
-    /// The add's environment held no search path,
-    /// so the service's own must not stand in for one.
-    Unset,
-    /// The directories the add resolved each tool's program on.
-    Set(OsString),
-}
-
-/// What:
-///  The work one relink record asks for:
-/// the new worktree,
-/// the search path the add resolved its programs on,
-/// and the tools whose state needs relinking there.
-/// Why:
-///   The first two facts are what the add already read from the worktree and the person's environment,
-/// so the service repeats no decision the add made,
-/// and the record says exactly what the add would have run.
-/// The search path travels because the service is a resident process of another session:
-/// its own path may hold no pnpm or another one,
-/// and the owner decided the repair starts whatever pnpm is first on the person's path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RelinkEntry = { root: string; searchPath: SearchPathOfTheAdd; tools: RelinkTool[] };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RelinkEntry {
-    /// The new worktree.
-    pub root: PathBuf,
-    /// The search path the add resolved each tool's program on,
-    /// and that the tools' own children inherit.
-    pub search_path: SearchPathOfTheAdd,
-    /// The tools the service runs there,
-    /// in the order the report has always named them.
-    pub tools: Vec<RelinkTool>,
-}
-
-/// What:
-///  The name of one tool as the payload carries it.
-/// Why:
-///   The record's list is one JSON string per tool,
-/// and a named function stands where a closure that only forwarded its argument stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const nameOfTool = (tool) => tool.name();
-/// ```
-fn name_of_tool(tool: &RelinkTool) -> serde_json::Value {
-    return serde_json::Value::from(tool.name());
-}
-
-/// What:
-///  The entry as the one text a record can carry.
-/// Why:
-///   The queue's record holds one text field,
-/// so the entry travels as one JSON object,
-/// and a path or a search path is refused rather than written lossily.
-///
-/// # Errors
-///
-/// A path or a search path that is not UTF-8,
-/// which no record could name back,
-/// and an entry that asks for no tool,
-/// which would be a record of nothing.
-pub fn encode(entry: &RelinkEntry) -> Result<String, String> {
-    if entry.tools.is_empty() {
-        return Err(String::from("a relink of no tool is no work"));
-    }
-    let Some(root) = entry.root.to_str() else {
-        return Err(String::from(
-            "the path of the relink is not valid UTF-8, so no record can name it",
-        ));
-    };
-    let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-    fields.insert(String::from("root"), serde_json::Value::from(root));
-    // The three answers are three spellings: no field for a record written before the add's environment travelled,
-    // a null for an add that held no search path, and the text for the one it held.
-    match entry.search_path {
-        SearchPathOfTheAdd::NotRecorded => {}
-        SearchPathOfTheAdd::Unset => {
-            fields.insert(String::from("searchPath"), serde_json::Value::Null);
-        }
-        SearchPathOfTheAdd::Set(ref search_path) => {
-            let Some(text) = search_path.to_str() else {
-                return Err(String::from(
-                    "the search path of the relink is not valid UTF-8, so no record can carry it",
-                ));
-            };
-            fields.insert(String::from("searchPath"), serde_json::Value::from(text));
-        }
-    }
-    let names: Vec<serde_json::Value> = entry.tools.iter().map(name_of_tool).collect();
-    fields.insert(String::from("tools"), serde_json::Value::Array(names));
-    return Ok(serde_json::Value::Object(fields).to_string());
-}
-
-/// What:
-///  The entry a relink record carries.
-/// Why:
-///   A payload that is not the object `encode` writes is refused,
-/// and so is a tool name this release does not know or a list of no tool:
-/// the service must run exactly the tools the add decided on.
-/// A record written before this release carried a search path names none,
-/// and the service then searches its own path,
-/// so such a record still relinks the worktree it was written for.
-/// A record whose search path is null names an add that held none,
-/// so the service searches nowhere rather than searching its own.
-///
-/// # Errors
-///
-/// Text that is not the object,
-/// a root that is not named,
-/// a tool that cannot be read,
-/// and a search path that is neither text nor null.
-pub fn decode(payload: &str) -> Result<RelinkEntry, String> {
-    let parsed: serde_json::Value = match serde_json::from_str(payload) {
-        Ok(value) => value,
-        Err(error) => return Err(format!("the relink payload is not JSON ({error})")),
-    };
-    let Some(root) = parsed.get("root").and_then(serde_json::Value::as_str) else {
-        return Err(String::from("the relink names no worktree"));
-    };
-    let Some(names) = parsed.get("tools").and_then(serde_json::Value::as_array) else {
-        return Err(String::from("the relink names no tools"));
-    };
-    let mut tools: Vec<RelinkTool> = Vec::with_capacity(names.len());
-    for name in names {
-        let Some(named) = name.as_str() else {
-            return Err(String::from("a tool of the relink is not text"));
-        };
-        let Some(tool) = RelinkTool::from_name(named) else {
-            return Err(format!("this release knows no tool named {named}"));
-        };
-        tools.push(tool);
-    }
-    if tools.is_empty() {
-        return Err(String::from("the relink names no tools"));
-    }
-    let search_path: SearchPathOfTheAdd = match parsed.get("searchPath") {
-        None => SearchPathOfTheAdd::NotRecorded,
-        Some(serde_json::Value::Null) => SearchPathOfTheAdd::Unset,
-        Some(serde_json::Value::String(text)) => SearchPathOfTheAdd::Set(OsString::from(text)),
-        Some(_) => {
-            return Err(String::from(
-                "the search path of the relink is neither text nor null",
-            ));
-        }
-    };
-    return Ok(RelinkEntry {
-        root: PathBuf::from(root),
-        search_path,
-        tools,
-    });
-}
-
-/// What:
-///  The record's object name for one hand-over:
-/// a digest of the worktree's path and the moment the add asked for the relink.
-/// Why:
-///   A work item's id is its idempotency key,
-/// and the queue answers an id it already knows as known in every state.
-/// With the path alone,
-/// a worktree removed and added again at the same path would be answered by the earlier record,
-/// and its copied links would stay exactly as the copy left them while the add reported a relink
-/// that can never arrive.
-/// A previous failure would keep every later add at that path from ever asking again.
-/// The moment tells two hand-overs of one path apart,
-/// and the path keeps two worktrees apart.
-/// Forty hexadecimal digits is what a work item's object name must have,
-/// and a SHA-256 slice is cheap to compute.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const objectNameOf = (destination, queuedAt) => sha256(utf8(`${destination}\n${queuedAt}`)).toString('hex').slice(0, 40);
-/// ```
-pub fn object_name_of(
-    destination: &Path,
-    queued_at: &str,
-) -> String {
-    let mut text: Vec<u8> = Vec::new();
-    text.extend_from_slice(destination.as_os_str().as_bytes());
-    text.push(b'\n');
-    text.extend_from_slice(queued_at.as_bytes());
-    let digest: [u8; 32] = crate::subvolume_sha::sha256(text.as_slice());
-    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(&digest[..20]);
-}
-
-/// What:
-///  The entry with every relative directory of its search path made absolute against the add's directory.
-/// Why:
-///   `PATH=bin` names the add's own `bin`,
-/// and the service is a resident process of another session,
-/// started from another directory,
-/// so a record carrying `bin` would make it search its own `bin`,
-/// and the program the add resolved may never run.
-/// The tools' own children read the same path from the same record,
-/// so they resolve on the add's directories too.
-/// An empty entry is left as it is:
-/// it means the current directory of whoever runs,
-/// which no record can name for another process.
-///
-/// # Errors
-///
-/// A working directory this process cannot read,
-/// so no record could say what `bin` meant,
-/// and a search path that cannot be written back.
-fn entry_with_an_absolute_search_path(
-    entry: &RelinkEntry,
-    start: &crate::start_directory::StartDirectory,
-) -> Result<RelinkEntry, String> {
-    let SearchPathOfTheAdd::Set(search_path) = &entry.search_path else {
-        return Ok(entry.clone());
-    };
-    if !names_a_relative_directory(search_path) {
-        return Ok(entry.clone());
-    }
-    let Some(add) = start.path() else {
-        return Err(no_working_directory(start.reason()));
-    };
-    let mut absolute: Vec<PathBuf> = Vec::new();
-    for directory in std::env::split_paths(search_path) {
-        if directory.as_os_str().is_empty() || directory.is_absolute() {
-            absolute.push(directory);
-            continue;
-        }
-        absolute.push(add.join(directory));
-    }
-    let joined: OsString = std::env::join_paths(absolute).map_err(unrecordable_search_path)?;
-    return Ok(RelinkEntry {
-        search_path: SearchPathOfTheAdd::Set(joined),
-        ..entry.clone()
-    });
-}
-
-/// What:
-///  Whether any entry of `search_path` is relative to whatever directory runs.
-/// Why:
-///   Only a relative entry needs the add's directory,
-/// and a path of only absolute entries and empty entries is recorded as the add held it,
-/// which is the same text the person wrote.
-/// An empty entry is not relative:
-/// a shell reads it as the current directory of whatever runs,
-/// which no record can name for another process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const relative = splitPath(searchPath).some((directory) => directory !== '' && !isAbsolute(directory));
-/// ```
-fn names_a_relative_directory(search_path: &std::ffi::OsStr) -> bool {
-    for directory in std::env::split_paths(search_path) {
-        if !directory.as_os_str().is_empty() && !directory.is_absolute() {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
-///  The words a working directory that cannot be read is reported with.
-/// Why:
-///   `bin` means the add's own `bin`,
-/// so a command whose own directory cannot be read cannot say what its search path named,
-/// and no record could carry an answer it did not have.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const noWorkingDirectory = (error) => `the directory this command runs in cannot be read (${error}), so a relative search path names no program it could resolve`;
-/// ```
-fn no_working_directory(reason: Option<&str>) -> String {
-    return format!(
-        "the directory this command runs in cannot be read ({}), so a relative search path names no program it could resolve",
-        reason.unwrap_or("the caller named none")
-    );
-}
-
-/// What:
-///  The words a search path that cannot be written back are reported with.
-/// Why:
-///   A joined path holds a separator between entries,
-/// so an entry holding that separator cannot be recorded,
-/// and the add says so rather than writing a path that means another set of directories.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unrecordableSearchPath = (error) => `the search path of this command cannot be recorded (${error})`;
-/// ```
-fn unrecordable_search_path(error: std::env::JoinPathsError) -> String {
-    return format!("the search path of this command cannot be recorded ({error})");
-}
-
-/// What:
-///  The record a worktree's relink is queued as.
-/// Why:
-///   The producer and its controls both write exactly this,
-/// so a control can compare a record without reaching a service.
-/// The stamp is read once and is both the record's `created` and part of its object name,
-/// so a control can tell which record it is looking at from the record alone,
-/// and two adds at one path are two records.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const itemOf = ({ commonDir, destination, entry }) => { const created = new Date().toISOString(); return { kind: 'relink', repository: destination, gitDir: commonDir, ref: RELINK_REFERENCE, oid: objectNameOf(destination, created), parent: encode(entry), created, tries: 0 }; };
-/// ```
-pub fn item_of(
-    common_dir: &Path,
-    destination: &Path,
-    entry: &RelinkEntry,
-    start: &crate::start_directory::StartDirectory,
-) -> Result<WorkItem, String> {
-    let created: String = now_iso();
-    let recorded: RelinkEntry = entry_with_an_absolute_search_path(entry, start)?;
-    return Ok(WorkItem {
-        kind: WorkKind::Relink,
-        repository: destination.to_path_buf(),
-        git_dir: common_dir.to_path_buf(),
-        branch_ref: String::from(RELINK_REFERENCE),
-        oid: object_name_of(destination, created.as_str()),
-        parent: encode(&recorded)?,
-        created,
-        tries: 0,
-        transport: false,
-    });
-}
-
 /// What:
 ///  Write the relink's record and wake the service that runs it,
 /// or take the record back when no service holds it.

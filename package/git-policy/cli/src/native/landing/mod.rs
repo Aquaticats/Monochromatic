@@ -10,6 +10,20 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `service_durable_the_background_sync_thread.rs`:
+//!   the task that makes a landing's syncs after the landing answered,
+//!   and the wait a control makes until its queue is empty.
+//! - `service_index_prestage_the_markers_made_ahead.rs`:
+//!   the marker this service keeps made ahead:
+//!   the marked file,
+//!   its slot,
+//!   the record of every file made,
+//!   and the step that makes and records one.
+//! - `service_messages_the_failures_a_person_can_meet.rs`:
+//!   every failure the client can meet,
+//!   and the facts its text names.
+//! - `service_messages_what_a_failure_gives_a_person.rs`:
+//!   the commands and words a failure hands a person to act on.
 //! - `conclusion_state_copy.rs`:
 //!   the copy the service keeps of the conclusion state a landed commit removes.
 //! - `earlier_service_look_paths.rs`:
@@ -231,6 +245,9 @@
 //!   the small text steps of the replay of captured changes.
 //! - `service_retry.rs`:
 //!   the repositories the service looks at again when a claim another instance holds may have run out.
+//! - `service_route_what_the_status_answers.rs`:
+//!   what the status of a worktree's service answers,
+//!   and the words it answers with.
 //! - `service_route.rs`:
 //!   which way a commit goes:
 //!   through the service,
@@ -285,6 +302,11 @@
 //! - `held_push_holder_and_verdict.rs`:
 //!   which command will decide a held commit's post-commit checks,
 //!   and the verdict that command left.
+//! - `service_amend_replayed_the_commit_made_again.rs`:
+//!   the commit an amend makes on the branch as it is now:
+//!   where it is written,
+//!   how it is signed,
+//!   and the request that lands it.
 //! - `service_amend_replayed.rs`:
 //!   the commit an amend makes when the branch moved under it:
 //!   the amended commit's own author,
@@ -399,6 +421,10 @@
 //!   the state folders of the work queue,
 //!   the names of claim files,
 //!   and the listing of a folder oldest first.
+//! - `work_item_holding_the_verdicts_and_the_promotion.rs`:
+//!   the verdicts written into a held record,
+//!   the promotion that makes the record runnable,
+//!   and the two ways a record leaves the queue.
 //! - `work_item.rs`:
 //!   the durable work-item record for asynchronous work (review,
 //!   push,
@@ -552,6 +578,9 @@
 //! - `service_work_drains_a_snapshot_ahead.rs`:
 //!   the drain of the snapshots the commit service makes ahead of the next add,
 //!   as one step of a round.
+//! - `service_work_drains_awaiting_the_due_push_retries.rs`:
+//!   the pushes a round runs again because their retry is due,
+//!   and the programs a record's end gives up.
 //! - `service_work_drains_awaiting.rs`:
 //!   the drains of one directory and of a common directory,
 //!   awaited by a task of the runtime.
@@ -581,6 +610,13 @@
 //! ```ts
 //! // landing/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// Every failure the client can meet,
+/// and the facts its text names.
+pub mod service_messages_the_failures_a_person_can_meet;
+
+/// The commands and words a failure hands a person to act on.
+pub mod service_messages_what_a_failure_gives_a_person;
 
 /// The landing location a forwarded index writer coordinates with:
 ///  the real index and the registry.
@@ -620,6 +656,11 @@ pub mod work_item_recovery;
 /// to the queue,
 /// and finding what is already there.
 pub mod work_item_enqueue;
+
+/// The verdicts written into a held record,
+/// the promotion that makes the record runnable,
+/// and the two ways a record leaves the queue.
+pub mod work_item_holding_the_verdicts_and_the_promotion;
 
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
@@ -852,6 +893,12 @@ pub mod service_index_marker;
 
 /// The marker of the next batch's index lock,
 /// made and flushed while the service is idle.
+/// The marker this service keeps made ahead:
+/// its slot,
+/// the record of every file made,
+/// and the step that makes and records one.
+pub mod service_index_prestage_the_markers_made_ahead;
+
 pub mod service_index_prestage;
 
 /// What an acquisition of the index lock found when it had to wait,
@@ -1030,6 +1077,10 @@ pub mod service_replay_line_text;
 /// through the service,
 /// set up first,
 /// or the earlier path.
+/// What the status of a worktree's service answers,
+/// and the words it answers with.
+pub mod service_route_what_the_status_answers;
+
 pub mod service_route;
 
 /// The message and identities of a service commit,
@@ -1060,6 +1111,11 @@ pub mod service_replay_conclusion;
 /// message and signature,
 /// on the replayed tree,
 /// on top of the branch as it is now.
+/// The commit an amend makes on the branch as it is now,
+/// its fields,
+/// and the request that lands it.
+pub mod service_amend_replayed_the_commit_made_again;
+
 pub mod service_amend_replayed;
 
 /// The commits real Git builds for the service:
@@ -1189,6 +1245,10 @@ pub mod service_work_storage_awaited;
 
 /// The drains of one directory and of a common directory,
 /// awaited by a task of the runtime.
+/// The pushes a round runs again because their retry is due,
+/// and the programs a record's end gives up.
+pub mod service_work_drains_awaiting_the_due_push_retries;
+
 pub mod service_work_drains_awaiting;
 
 /// The service's work that can take minutes:
@@ -1245,6 +1305,10 @@ pub mod service_object_questions_left_to_git;
 /// Where the landing's own syncs wait:
 /// queued for a background thread when the landing publishes,
 /// made before return otherwise.
+/// The task that makes a landing's syncs after the landing answered,
+/// and the wait a control makes until its queue is empty.
+pub mod service_durable_the_background_sync_thread;
+
 pub mod service_durable;
 
 /// The syncs one landing made,

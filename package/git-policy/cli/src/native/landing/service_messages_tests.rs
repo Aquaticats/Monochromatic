@@ -5,6 +5,7 @@
 
 use super::*;
 use std::collections::BTreeSet;
+use std::time::Duration;
 
 /// One sample of every failure,
 /// and every platform,

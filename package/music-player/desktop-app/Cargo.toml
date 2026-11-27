@@ -28,7 +28,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 # Slint 1.17.0 is the first crates.io release with Flickable mouse-wheel
 # animation (slint-ui/slint#11338, fixing #11312), so this package no longer
-# needs the former master-revision pin. Slint is now on 1.18.1. Keep slint, i-slint-backend-winit, and
+# needs the former master-revision pin. Slint is now on 1.19.1. Keep slint, i-slint-backend-winit, and
 # slint-build on the same release family because the runtime, explicit winit
 # backend, and markup compiler are versioned together.
 # Command-line argument parsing (src/cli.rs). The `derive` feature lets the `Cli`
@@ -43,9 +43,9 @@ directories = { workspace = true }
 # taskbar progress to the running window. Its re-exported `winit`
 # (`i_slint_backend_winit::winit`) is reused for the WindowAttributes ext trait,
 # so no separate `winit` dependency is added.
-# "1.18.1" here is Cargo's default caret requirement (">=1.18.1, <2.0.0"), not an
+# The catalog's floor here is `>=1.18.1`, a rust-catalog range rather than an
 # exact pin: unlike pnpm, where a bare version string pins the exact release,
-# Cargo already lets `cargo update` move to any newer 1.x release past 1.18.1.
+# `cargo update` may move it to any newer 1.x release at or above that floor.
 i-slint-backend-winit = { workspace = true }
 # Not called from our code: a feature-unification shim. icu_provider reaches the
 # tree transitively (slint -> parley -> icu_segmenter -> icu_provider). With its
@@ -240,15 +240,15 @@ alsa-fallback = ["dep:cpal"]
 # imperative write, freezing the seek bar). The default testing backend simulates a
 # windowing system with a mock renderer, so these run with no X/Wayland/display.
 # This crate is "preliminary" and does NOT follow semver, so it MUST be pinned with
-# `=` to the exact slint release family (1.18.1) it is versioned against.
+# `=` to the exact slint release family (1.19.1) it is versioned against.
 [dev-dependencies]
 i-slint-backend-testing = { workspace = true }
 
 [build-dependencies]
 # Must match the `slint` release family used for this crate's slint and
 # i-slint-backend-winit dependencies because the compiler and runtime are
-# versioned together. "1.18.1" here is Cargo's default caret requirement
-# (">=1.18.1, <2.0.0"), not an exact pin.
+# versioned together. `">=1.19.0"` here is the rust-catalog floor, not an exact
+# pin, so `cargo update` may move it to any newer 1.x release at or above it.
 slint-build = { workspace = true }
 
 # Windows-only build dependency: embeds asset/music-player.ico into the .exe so
@@ -292,7 +292,7 @@ clap = ">=4.6.7"
 cpal = ">=0.18.2"
 directories = ">=6"
 futures-util = { version = ">=0.3.34", default-features = false }
-i-slint-backend-testing = "=1.18.1"
+i-slint-backend-testing = "=1.19.1"
 i-slint-backend-winit = ">=1.18.1"
 icu_provider = ">=2.4.0"
 libc = ">=0.2.191"

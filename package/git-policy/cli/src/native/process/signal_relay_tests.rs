@@ -8,6 +8,15 @@
 
 use super::*;
 
+use crate::signal_relay_child_published_to_the_handler::{
+    CHILD_PUBLISHED,
+    publish,
+    retire,
+};
+use crate::signal_relay_descriptor::{
+    RELAY_FD,
+    ensure_relay_descriptor,
+};
 use crate::test_support::{
     executable,
     fixture,
