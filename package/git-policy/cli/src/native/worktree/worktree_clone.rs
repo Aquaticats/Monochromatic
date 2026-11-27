@@ -53,6 +53,7 @@
 //! installTheIndex(admin, seed, cloned.stats, written, hashLength); // throws a reason
 //! ```
 
+use crate::parallel_budget::HostResources;
 use crate::side_by_side_on_the_runtime::AJob;
 use crate::subvolume_index::StatFields;
 use crate::worktree_clean::stored_stats;
@@ -226,7 +227,7 @@ pub fn leftover_report(
 }
 
 /// The run itself for one entry set:
-/// every entry in the slices the host's budget allows,
+/// every entry in the slices the budget of `host` allows,
 /// with the caller's job beside them when it has one;
 /// the caller installs the index,
 /// and removes `created` when this fails.
@@ -235,13 +236,14 @@ fn clone_these_entries<S, T>(
     entries: Vec<StatEntry>,
     destination: &File,
     created: &mut Vec<Created>,
+    host: &HostResources,
     mut beside: Option<AJob<S, T>>,
 ) -> Result<(HashMap<Vec<u8>, StatFields>, Option<T>), String>
 where
     S: Clone + Send + 'static,
     T: Send + 'static,
 {
-    let workers: usize = clone_worker_count(entries.len());
+    let workers: usize = clone_worker_count(entries.len(), host);
     if workers > 1 {
         return clone_in_slices(
             source,
@@ -302,7 +304,18 @@ where
     }) else {
         return Err(String::from("the source's index changed shape"));
     };
-    return clone_these_entries(source, read, destination, created, beside);
+    // What:
+    //  The host this run's budget is derived from, read once here for the copies that follow.
+    // Why:
+    //  This rung has no caller to name one, and one reading serves the whole entry set; the partial rung hands the host
+    //  in instead, which is what lets a control state the processors and the memory its own run is budgeted on.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const host = readHost();
+    // ```
+    let host: HostResources = HostResources::read();
+    return clone_these_entries(source, read, destination, created, &host, beside);
 }
 
 /// What:
@@ -431,6 +444,7 @@ pub fn clone_tracked_files(
 
 /// What:
 ///  Copy `entries` of the source while the caller's job runs beside the copies,
+///  within the budget of `host`,
 ///  and give both answers,
 /// installing no index.
 /// Why:
@@ -440,15 +454,18 @@ pub fn clone_tracked_files(
 /// the copies,
 /// the slices and the work beside them are the whole rung's own,
 /// so only the entry set differs.
+/// The host is the caller's because the partial rung's caller names it,
+/// and a control then asks about the processors and the memory it states (issue 6537).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [cloned, beside] = cloneTheseBytesBeside(source, entries, destination, job); // throws a reason
+/// const [cloned, beside] = cloneTheseBytesBeside(source, entries, destination, host, job); // throws a reason
 /// ```
 pub fn clone_these_bytes_beside<S, T>(
     source: &SnapshotSource,
     entries: Vec<StatEntry>,
     destination: &File,
+    host: &HostResources,
     beside: AJob<S, T>,
 ) -> Result<(ClonedBytes, Option<T>), String>
 where
@@ -456,7 +473,14 @@ where
     T: Send + 'static,
 {
     let mut created: Vec<Created> = Vec::new();
-    return match clone_these_entries(source, entries, destination, &mut created, Some(beside)) {
+    return match clone_these_entries(
+        source,
+        entries,
+        destination,
+        &mut created,
+        host,
+        Some(beside),
+    ) {
         Ok((stats, answered)) => Ok((
             ClonedBytes {
                 created,
