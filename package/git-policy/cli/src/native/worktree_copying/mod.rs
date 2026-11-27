@@ -216,6 +216,12 @@
 //! - `worktree_copy_stage_reaping_proof_and_words.rs`:
 //!   whether that record proves the folder standing at a container's name,
 //!   and the words a sweep says about a stage it keeps or removes.
+//! - `worktree_copy_stage_claim_held_by_a_command.rs`:
+//!   the claim one command holds on a stage container's name:
+//!   the marking of its add as complete,
+//!   the naming of the Git it started,
+//!   the binding recorded once Git returned,
+//!   and the release that removes its three files.
 //! - `worktree_copy_stage_claim.rs`:
 //!   the durable claim on a stage container's name,
 //!   and the removal of stages an interrupted copy left behind.
@@ -511,6 +517,14 @@ pub mod worktree_copy_journal_removal;
 /// and the readers that answer what it says.
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_record;
+
+/// The claim one command holds on a stage container's name:
+/// the marking of its add as complete,
+/// the naming of the Git it started,
+/// the binding recorded once Git returned,
+/// and the release that removes its three files.
+#[cfg(unix)]
+pub mod worktree_copy_stage_claim_held_by_a_command;
 
 /// The durable claim on a stage container's name,
 /// and the removal of stages an interrupted copy left behind.
