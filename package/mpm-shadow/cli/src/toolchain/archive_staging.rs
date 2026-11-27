@@ -127,10 +127,12 @@ use self::exchanging_the_two_names::{
     cannot_exchange,
     exchange_the_two_names,
 };
-/// Imports what a later install does with the leftovers of a killed one.
+/// Imports what a later install does with the leftovers of a killed one,
+/// and the hidden name that holds the copy a kill moved aside.
 pub(crate) use self::leftovers_of_a_killed_install::{
     AnOlderVersion,
     FinishedCopy,
+    HoldingInstaller,
     Recovered,
     hidden_siblings,
     recover_leftovers,

@@ -18,9 +18,11 @@
 //! export function replacementWarning(id: string, observed: string | undefined, locked: string): string | undefined;
 //! ```
 
-/// Imports what a later install did with the leftovers of a killed one.
+/// Imports what a later install did with the leftovers of a killed one,
+/// and the hidden name that holds the wait.
 use super::super::archive_staging::{
     FinishedCopy,
+    HoldingInstaller,
     Recovered,
 };
 /// Imports the version comparison the warning uses.
@@ -116,22 +118,102 @@ fn who_left_them(count: usize) -> &'static str {
 
 /// What:
 /// `, and removed 1 hidden directory that a killed install left behind`,
+/// together with what went with a removed directory when a finished copy did,
 /// for the end of a sentence that already said what became of the finished copy.
 /// Why:
 /// One wording,
-/// so the two sentences about a recovery read the same way.
+/// so the two sentences about a recovery read the same way,
+/// and a person learns that a removed directory took the only finished copy of its version with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function removedClause(count: number): string {
-///   return `, and removed ${hiddenDirectories(count)} that ${whoLeftThem(count)} left behind`;
+/// function removedClause(count: number, finishedCopies: number): string {
+///   return `, and removed ${hiddenDirectories(count)} that ${whoLeftThem(count)} left behind${finishedCopiesClause(finishedCopies)}`;
 /// }
 /// ```
-fn removed_clause(count: usize) -> String {
-    return format!(
+fn removed_clause(
+    count: usize,
+    finished_copies: usize,
+) -> String {
+    let mut clause: String = format!(
         ", and removed {} that {} left behind",
         hidden_directories(count),
         who_left_them(count)
+    );
+    if finished_copies > 0 {
+        clause.push_str(&finished_copies_clause(finished_copies));
+    }
+    return clause;
+}
+
+/// What:
+/// `, 1 of which held a finished copy that this run could not publish, so that copy is gone`,
+/// or the same words for several copies.
+/// Why:
+/// A removed hidden directory may be the only finished copy of its version,
+/// and a person has to know that the removal took it,
+/// because the version then comes back only from a download or another copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function finishedCopiesClause(count: number): string {
+///   return count === 1
+///     ? ', 1 of which held a finished copy that this run could not publish, so that copy is gone'
+///     : `, ${count} of which held a finished copy that this run could not publish, so those copies are gone`;
+/// }
+/// ```
+fn finished_copies_clause(count: usize) -> String {
+    if count == 1 {
+        return ", 1 of which held a finished copy that this run could not publish, so that copy is gone"
+            .to_string();
+    }
+    return format!(
+        ", {count} of which held a finished copy that this run could not publish, so those copies are gone"
+    );
+}
+
+/// What:
+/// The sentence for a copy a killed install moved aside and this run left where it is,
+/// because nothing it read shows that the install holding that name has ended.
+/// Why:
+/// A person looks for the install that holds the wait,
+/// and the run knows only which hidden name it is and whether that name holds a finished copy:
+/// a name whose installer the system reports running ends by itself,
+/// while one no reader can judge may belong to an install that died where nothing can see it,
+/// and then nothing of this build publishes that copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leftWhereItIs(id: string, version: string, holder: HoldingInstaller): string {
+///   const moved = `left the copy of ${id} ${version} that an earlier install had moved aside where it is`;
+///   if (holder.running) return `${moved}, because an install that is still running holds the hidden name ${holder.path}`;
+///   const unjudged = `${moved}, because the hidden name ${holder.path} may belong to an install that is still running, and nothing here can judge that install`;
+///   return holder.finishedCopy ? `${unjudged}; that name holds a finished copy of ${version}, which nothing here publishes while that install cannot be judged` : unjudged;
+/// }
+/// ```
+fn left_where_it_is(
+    id: &str,
+    version: &str,
+    holder: &HoldingInstaller,
+) -> String {
+    let moved_aside: String = format!(
+        "left the copy of {id} {version} that an earlier install had moved aside where it is"
+    );
+    if holder.running {
+        return format!(
+            "{moved_aside}, because an install that is still running holds the hidden name {}",
+            holder.path.display()
+        );
+    }
+    let unjudged: String = format!(
+        "{moved_aside}, because the hidden name {} may belong to an install that is still running, and nothing here can judge that install",
+        holder.path.display()
+    );
+    if !holder.finished_copy {
+        return unjudged;
+    }
+    return format!(
+        "{unjudged}; that name holds a finished copy of {version}, which nothing here publishes while that install cannot be judged"
     );
 }
 
@@ -142,7 +224,8 @@ fn removed_clause(count: usize) -> String {
 /// An install that finished the publish of a version without downloading anything did something a person should see,
 /// and so did one that dropped its copy for a publish another install made,
 /// and one that only removed hidden directories of an installer known to have ended.
-/// "Finished the publish" is printed only for a publish this run made.
+/// "Finished the publish" is printed only for a publish this run made,
+/// and it names the hidden name the copy was read at rather than a kill no run can see.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,9 +237,24 @@ pub(crate) fn recovery_sentence(
     recovered: &Recovered,
 ) -> Option<String> {
     let removed: usize = recovered.removed.len();
+    // What: how many of the removed directories held a finished copy, which the sentence has to say.
+    // Why: a finished copy that went cannot be published by any later run.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const finishedCopiesRemoved = recovered.removed.filter((leftover) => leftover.heldAFinishedCopy).length;
+    // ```
+    let finished_copies_removed: usize = recovered
+        .removed
+        .iter()
+        .filter(|leftover| return leftover.held_a_finished_copy)
+        .count();
     let head: Option<String> = match &recovered.finished_copy {
-        FinishedCopy::PublishedHere => Some(format!(
-            "finished the publish of {id} {version} that a killed install left"
+        FinishedCopy::PublishedHere {
+            copy,
+        } => Some(format!(
+            "finished the publish of {id} {version} from the finished copy an earlier install left at {}",
+            copy.display()
         )),
         FinishedCopy::PublishedByAnotherInstall => Some(format!(
             "dropped the copy of {id} {version} that a killed install left, because another install published that version meanwhile"
@@ -169,23 +267,27 @@ pub(crate) fn recovery_sentence(
         FinishedCopy::NothingToPublish if recovered.restored => Some(format!(
             "put back the copy of {id} {version} that a killed install had moved aside"
         )),
-        FinishedCopy::NothingToPublish if recovered.left_for_a_live_install => Some(format!(
-            "left the copy of {id} {version} that a killed install had moved aside where it is, because another install is between its claim and its publish of that version"
-        )),
-        FinishedCopy::NothingToPublish => None,
+        FinishedCopy::NothingToPublish => recovered
+            .left_for_a_live_install
+            .as_ref()
+            .map(|holder| return left_where_it_is(id, version, holder)),
     };
     if let Some(mut sentence) = head {
         if removed > 0 {
-            sentence.push_str(&removed_clause(removed));
+            sentence.push_str(&removed_clause(removed, finished_copies_removed));
         }
         return Some(sentence);
     }
     if removed > 0 {
-        return Some(format!(
+        let mut sentence: String = format!(
             "removed {} that {} of {id} left behind",
             hidden_directories(removed),
             who_left_them(removed)
-        ));
+        );
+        if finished_copies_removed > 0 {
+            sentence.push_str(&finished_copies_clause(finished_copies_removed));
+        }
+        return Some(sentence);
     }
     return None;
 }

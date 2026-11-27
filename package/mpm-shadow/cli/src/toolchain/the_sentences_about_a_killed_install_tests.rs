@@ -199,8 +199,11 @@ fn the_publish_this_run_finished_names_the_copy_an_earlier_install_left() {
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
     let version_dir = tool_dir.join("0.2.1");
     // The state a kill after the marker leaves: a finished copy under a dead installer's staging name.
-    let finished: std::path::PathBuf =
-        hidden_sibling(&version_dir, STAGING_PURPOSE, an_installer_that_no_longer_runs());
+    let finished: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
     write_the_program(&finished);
     write_complete_marker(&finished, ID, "0.2.1", &release_digest("0.2.1"))
         .expect("write the completion marker");
@@ -296,7 +299,8 @@ fn the_copy_left_for_an_install_that_runs_names_that_install_and_not_a_claim() {
     write_the_program(&aside);
     // An install of this version that is running and only unpacking: its staging name holds no finished copy.
     let running = RunningProgram::start();
-    let unpacking: std::path::PathBuf = hidden_sibling(&version_dir, STAGING_PURPOSE, running.owner());
+    let unpacking: std::path::PathBuf =
+        hidden_sibling(&version_dir, STAGING_PURPOSE, running.owner());
     write_the_program(&unpacking);
 
     let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);

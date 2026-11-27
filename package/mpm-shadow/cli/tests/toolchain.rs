@@ -11,6 +11,7 @@ use mpm_shadow::cli::{
     declared_verbs,
 };
 use mpm_shadow::constants::USAGE_EXIT_CODE;
+use mpm_shadow::toolchain::archive_staging::COMPLETE_MARKER;
 use mpm_shadow::toolchain::lock::{
     parse_lock,
     render_lock,
@@ -679,7 +680,7 @@ fn the_prune_says_which_hidden_directory_it_cannot_judge_holds_a_finished_copy()
     let finished = tool_directory.join(".0.2.1.staging.42.100");
     fs::create_dir_all(&finished).expect("make the hidden directory");
     fs::write(
-        finished.join("mpm-shadow-installed"),
+        finished.join(COMPLETE_MARKER),
         "bin 0.2.1 sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
     )
     .expect("write the completion marker");
