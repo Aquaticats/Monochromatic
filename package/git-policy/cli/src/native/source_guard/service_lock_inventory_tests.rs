@@ -109,7 +109,7 @@ const USE_PREFIXES: &[&str] = &["use ", "pub use ", "pub(crate) use ", "pub(supe
 /// what each protects is in the comment block above it,
 /// and in `SPEC.md`.
 const INVENTORY: &[&str] = &[
-    "service/journald_native.rs",
+    "service/journald_native_the_sink.rs",
     // The directories this service is collecting, and the trees the requests it holds named:
     //  both are a set that a landing, a connection and a collection read and change together,
     //  so neither can be one atomic.
