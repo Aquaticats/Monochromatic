@@ -909,11 +909,11 @@ fn the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture() {
             return entry.expect("an entry of the cache place").path();
         })
         .filter(|path| {
-            let named: Option<&str> = path.file_name().and_then(|name| {
+            let text: Option<&str> = path.file_name().and_then(|name| {
                 return name.to_str();
             });
-            return named.is_some_and(|named| {
-                return named.starts_with(crate::git_system_config::SYSTEM_ATTRIBUTES_KIND);
+            return text.is_some_and(|entry_name| {
+                return entry_name.starts_with(crate::git_system_config::SYSTEM_ATTRIBUTES_KIND);
             });
         })
         .collect();

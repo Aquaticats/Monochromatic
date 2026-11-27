@@ -129,8 +129,8 @@ pub fn check_clean_tracked(
 ///  a tree this proves clean is exactly a tree that check would prove clean could it settle the stat data,
 /// and the
 ///  volumes a removal goes around sit in untracked directories the scan does not read inside.
-/// The facts about the Git this context forwards to, and the place the wrapper records
-///  what it learned there, are `for_context`'s:
+/// The facts about the Git this context forwards to are `for_context`'s,
+///  and so is the place the wrapper records what it learned there:
 /// the same answer the index reset of a landing reads.
 ///
 /// In TS you'd write (pseudocode):

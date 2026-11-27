@@ -114,10 +114,11 @@ impl ConversionEnvironment {
 /// The variables are the ones a child of this context runs with:
 /// this process's own with the context's overlay over them,
 ///  so an entry the caller named wins over the process's own.
-/// A control names `XDG_CACHE_HOME` in its overlay (`test_support::isolated_overlay`)
-///  and hands its work a folder of its fixture that way;
-/// without that, the wrapper recorded
-///       `git-system-attributes-<digest>` under the person's home cache (issue 6571).
+/// A control names `XDG_CACHE_HOME` in its overlay (`test_support::isolated_overlay`),
+///  and hands its work a folder of its fixture that way.
+/// Without that,
+///  the wrapper recorded `git-system-attributes-<digest>` under the person's home cache
+///  (issue 6571).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,8 +126,9 @@ impl ConversionEnvironment {
 /// ```
 pub fn for_context(context: &crate::transaction_git::GitContext) -> ConversionEnvironment {
     // What: this process's own variables, less every one the context's overlay replaces.
-    // Why: the merge a child's environment gets is this one (`environment_with_overlay`), so the facts below are the
-    //  child's facts and not a mixture in which the process's own entry of a name the caller named also counts.
+    // Why: the merge a child's environment gets is this one (`environment_with_overlay`),
+    //  so the facts below are the child's facts and not a mixture in which the process's own entry of a name the caller
+    //  named also counts.
     let own: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     let inherited: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(
         own.as_slice(),
