@@ -82,8 +82,9 @@
 //! - `probe_attach_arm.rs`:
 //!   the exclusive attach itself.
 //! - `probe_walk_arm.rs`:
-//!   the walk,
-//!   its refusal controls and the checkout open.
+//!   the walk and the checkout open.
+//! - `probe_walk_refusal_controls.rs`:
+//!   the four refusals the walk must keep refusing.
 //! - `probe_report.rs`:
 //!   the lines folded into arm outcomes and one verdict.
 //! - `probe_record.rs`:
@@ -91,6 +92,8 @@
 //! - `probe_record_files.rs`:
 //!   the record's directory,
 //!   its mode and its atomic write.
+//! - `first_attach_record_text.rs`:
+//!   the record's words and its text.
 //! - `first_attach_record.rs`:
 //!   this boot's first real attach,
 //!   claimed once and published by one rename.
@@ -105,8 +108,15 @@
 //!   the mode's side of that holder.
 //! - `probe_status_drain.rs`:
 //!   one status pipe drained into the report.
+//! - `probe_worker_step_lines.rs`:
+//!   the lines the worker says on its status pipe.
+//! - `probe_worker_holder_scans.rs`:
+//!   the two holder requests and the scans' comparisons.
+//! - `probe_worker_unmount_child.rs`:
+//!   arm 8's forked child and the lines it relays.
 //! - `probe_worker.rs`:
-//!   arms 1 to 5,
+//!   what the fork hands the worker,
+//!   and arms 1 to 5,
 //!   the scans,
 //!   arm 8's fork and the teardown.
 //! - `probe_test_switch.rs`:
@@ -116,6 +126,8 @@
 //! - `probe_mode_words.rs`:
 //!   the verdict line,
 //!   the source readings and the skipped record.
+//! - `probe_mode_holder_answers.rs`:
+//!   the mode's answers to the worker's two holder requests.
 //! - `probe_mode.rs`:
 //!   the mode itself and its one deadline.
 //!
@@ -128,6 +140,8 @@
 /// its claim,
 /// its started record and its outcome.
 pub mod first_attach_record;
+/// The record's words and its text.
+pub mod first_attach_record_text;
 /// The nine arms and every step.
 pub mod probe_arms;
 /// The exclusive attach itself.
@@ -161,6 +175,8 @@ pub mod probe_holder_control;
 pub mod probe_line_refusal;
 /// The mode itself.
 pub mod probe_mode;
+/// The mode's answers to the worker's two holder requests.
+pub mod probe_mode_holder_answers;
 /// The mode's words and readings.
 pub mod probe_mode_words;
 /// The namespace,
@@ -202,11 +218,18 @@ pub mod probe_status_prefix;
 pub mod probe_test_switch;
 /// The child that moves and unmounts.
 pub mod probe_unmount_child;
-/// The walk,
-/// its refusal controls and the checkout open.
+/// The walk and the checkout open.
 pub mod probe_walk_arm;
+/// The four refusals the walk must keep refusing.
+pub mod probe_walk_refusal_controls;
 /// The worker's arms.
 pub mod probe_worker;
+/// The two holder requests and the scans' comparisons.
+pub mod probe_worker_holder_scans;
+/// The lines the worker says on its status pipe.
+pub mod probe_worker_step_lines;
+/// Arm 8's forked child and the lines it relays.
+pub mod probe_worker_unmount_child;
 
 /// The bound the mode enforces and its margin.
 pub use probe_deadline::{
