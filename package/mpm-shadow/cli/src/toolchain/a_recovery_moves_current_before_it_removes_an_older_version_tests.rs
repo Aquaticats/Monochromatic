@@ -92,7 +92,9 @@ use super::launcher::{
 };
 /// Imports the directory of one tool below the toolchain root.
 use super::layout::tool_directory;
-/// Imports the lock, its text, and the read of its text.
+/// Imports the lock,
+/// its text,
+/// and the read of its text.
 use super::lock::{
     Lock,
     parse_lock,
@@ -224,7 +226,8 @@ fn the_tool_directory(root: &Path) -> PathBuf {
 /// and a later install may remove a hidden name only when its installer provably ended,
 /// so the name has to be one the system answers `gone` for.
 /// This is the shape `the_killed_installs_finished_copy` writes,
-/// and it stands for a real kill; a real kill of a real install is the report's evidence,
+/// and it stands for a real kill;
+/// a real kill of a real install is the report's evidence,
 /// not this file's.
 ///
 /// In TS you'd write (pseudocode):

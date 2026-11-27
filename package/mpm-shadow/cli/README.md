@@ -1354,8 +1354,11 @@ the tool is installed from the network when the network is there,
 the recovery's message is then a warning in the report,
 and when that install fails too the report names both causes in one failure.
 That warning ends with what the run then did,
-so a run that installed the version itself does not leave the recovery's own sentence saying the copy is still where the next run would publish it from.
-A recovery that failed is a warning, and not a failure, whenever this tree's lock is satisfied after the run:
+because the recovery's own last clause says the copy is still where a later run would publish it from,
+which is false once this run installed the version itself.
+A recovery that failed is a warning,
+and not a failure,
+whenever this tree's lock is satisfied after the run:
 the install that followed put the version there,
 another install had already done so,
 or a newer version runs,
@@ -1460,9 +1463,11 @@ since no install can ever publish it.
 After a recovery that does put a version at its name,
 `install` points `current` at the newest finished version and then removes every version directory older than it,
 the order an install keeps,
-so a start between those two steps runs the newest finished version and a run killed there leaves a `current` that resolves.
+so a start between those two steps runs the newest finished version,
+and a run killed there leaves a `current` that resolves.
 The report names each version it removed that way and says what that version was in this run:
-the one the recovery published, or one that was installed before the run.
+the one the recovery published,
+or one that was installed before the run.
 
 `prune --toolchain` also reports and removes hidden directories whose installer has provably ended,
 except a vouched finished copy of a version some known lock names,

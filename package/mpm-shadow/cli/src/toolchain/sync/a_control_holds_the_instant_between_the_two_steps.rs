@@ -106,6 +106,17 @@ pub(crate) struct HoldGuard;
 /// The release of a hold.
 #[cfg(test)]
 impl Drop for HoldGuard {
+    /// What:
+    /// Forgets the hold this thread planted,
+    /// which is the one release a control's body must reach however it leaves.
+    /// Why:
+    /// The drop is the only place that runs on the way out of a panic,
+    /// and a hold left behind would end the next run on this thread with a signal.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose]() { clearTheHold(); }
+    /// ```
     fn drop(&mut self) {
         clear_the_hold();
     }
