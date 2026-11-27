@@ -8,6 +8,25 @@
 //! // source_guard/index.ts: one `export * from './file'` per module below.
 //! ```
 
+/// The modules a library root reaches, with the visibility of every `mod` declaration on the way,
+/// which is what decides whether another crate can name an item.
+#[cfg(test)]
+#[path = "modules_a_library_root_reaches_tests.rs"]
+pub(crate) mod modules_a_library_root_reaches_tests;
+
+/// The names another crate can reach through the library root,
+/// read once from the module tree and the `pub use` lines.
+#[cfg(test)]
+#[path = "nameable_items_of_a_source_tree_tests.rs"]
+pub(crate) mod nameable_items_of_a_source_tree_tests;
+
+/// The names the library target publishes,
+/// read from the `pub mod` chains and the public re-exports the source text writes,
+/// and the ban on publishing one without a line in the list beside the check.
+#[cfg(test)]
+#[path = "nothing_becomes_nameable_from_outside_tests.rs"]
+mod nothing_becomes_nameable_from_outside_tests;
+
 /// The ban on Git starting the wrapper for a hook,
 /// and the pin of the one entry that decides what a start is.
 #[cfg(test)]
