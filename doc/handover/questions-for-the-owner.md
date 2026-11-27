@@ -90,7 +90,7 @@ and whether a client-side upload check is wanted at all,
 since no refused push of this boot referenced an LFS object.
 
 
-## Open: five choices the rounds of 2026-11-27 left, recorded 2026-11-27T05:47:00-05:00
+## Open: five choices the rounds of 2026-11-27 left, recorded 2026-11-27T05:47:00-05:00 and revised 2026-11-27T06:24:00-05:00
 
 Each comes from one round's report,
 restated here because the reports are scratch and expire.
@@ -166,7 +166,7 @@ Ranking:
 1 beats 2 because a returned answer is more local than a flag another file has to take.
 `foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
-### Whether a landing may skip reading a path the index already proves (issue 6566)
+### What a landing writes for a path it has not read (issue 6566)
 
 A landing records a path's stat data only when the file provably holds the bytes the commit stores,
 and the proof reads and hashes the file.
@@ -174,17 +174,61 @@ For a change list of 4,097 paths that was 33.5 s and 34.9 s through the service,
 against native Git's 0.595 s and 0.607 s for the same change,
 measured once on 2026-11-27 on a loaded host
 (`doc/troubleshooting/git-policy-cli-landing-index-reset-reads-every-changed-path.md`).
-The cheaper form:
-where the live index's blob for a path equals the commit's and the file's `lstat` still matches the index's stat data,
-keep that stat data and do not read the file,
-which is the comparison native Git makes.
-It changes the stat data the installed index carries,
-which the differential controls compare with Git's own `reset` byte for byte,
-and an entry whose stat data the file no longer matches hides a person's edit from the next commit.
-No options are ranked yet:
-a proposal round would write them,
-as for issues 6555,
-6557 and 6559.
+A proposal round wrote the options (`5bf07aef72`,
+`doc/planning/cli-git-landing-index-reset-reads-every-changed-path.md`),
+with Git's own behaviour cited from its source at `v2.56.1`.
+It found the form the issue named changes nothing:
+the entries it would spare are the ones the reset already leaves alone,
+and a staged change list already costs no read.
+The shapes that do read are `git commit -a`,
+an amend,
+a merge,
+a rebase,
+an import,
+and every commit past `MAX_CHANGES` that real Git builds.
+
+- A:
+  today's proof,
+  one read and one hash for every path the reset writes.
+- B:
+  keep the live index's stat data where the blob already matches,
+  the form the issue named.
+- C:
+  carry the stat data of the index the commit was staged through.
+  A landing costs one `lstat` a path and the next command finds the entries clean;
+  it needs a field on the wire and in the journal.
+- D:
+  write the zero value,
+  as `git reset --no-refresh` does,
+  and let the person's next command pay the hash.
+- E:
+  write the zero value,
+  then refresh through Git after the lock is released,
+  which adds a second writer of the live index.
+- F:
+  a flag that picks between the proof and the zero value for one commit.
+
+Ranking,
+the round's:
+C > D > E > A > F > B.
+C beats D because both hold a landing to one `lstat` a path and only C leaves entries the next command finds clean.
+D beats E because E buys the same speed with a writer that races what the person stages next.
+E beats A because E hashes outside the index lock,
+so another client's commit is not held behind a vendor drop.
+A beats F because F is A plus a switch only a person who knows it gains from.
+F beats B because B changes nothing for anyone.
+
+The proposal's own questions,
+which the choice rests on:
+which measurement is the cost to beat (the record's 30 s,
+or the round's 3.06 s and 7.00 s);
+whether the landing may take stat data from the staging index (without that,
+C cannot be built);
+whether the zero value is acceptable for a path the landing cannot prove;
+whether any of it is a flag;
+which entries' stat data the differential controls must pin;
+and whether `SPEC.md` gains the fifth condition the source has and it lacks
+(the file's change time carries nanoseconds).
 
 ### Two bounds no round may size (issue 6556)
 
