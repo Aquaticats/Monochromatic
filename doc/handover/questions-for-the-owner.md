@@ -1069,17 +1069,43 @@ B beats C because an installed tool that differs from `main` is one more thing a
   beside the values and in the package README;
   no copy goes to `doc/planning/`.
 
-### Waiting on a pass before they are put
+### What the `cargo-shadow` and `mpm-shadow` passes of 2026-11-27 added, taken as work with veto open (recorded 2026-11-27T12:13:27-05:00)
 
-`mpm-shadow`'s republish (issue 6600,
-merged as `08ae962d40`,
-released in `0.2.7-alpha.14`) left three things its round named:
-two installs in two process namespaces that share one toolchain root can each read the other's live directory as a dead installer's,
-because a process id and its start time are read in the reader's own namespace;
-hidden names written by builds before this one carry no start time and are left alone for ever;
-and `mpm-shadow prune --toolchain` does not remove hidden directories.
-The `0.2.7-alpha.14` pass was asked each of them,
-and the choice is written here once it has answered.
+Neither pass left a choice only the owner can make;
+each point here is decided by a rule or a promise already on record,
+and its round runs.
+
+- `mpm-shadow`'s republish (issue 6600,
+  released in `0.2.7-alpha.14`) left three points its round named,
+  and the pass of that release confirmed each.
+  A live installer the reader cannot see,
+  in another process namespace or hidden by `hidepid`,
+  is read as ended,
+  and its directory removed or published.
+  The package's README already promises the opposite,
+  that a directory whose installer cannot be judged is left alone,
+  so the code is made to keep it,
+  without a lock
+  (the pass suggests a boot and a namespace identifier in the hidden name).
+  Hidden names written by earlier builds,
+  and finished hidden copies of versions no lock names,
+  are swept by `prune --toolchain` where their owner is provably ended,
+  under the recorded "mpm-shadow cleans up after itself"
+  (`doc/decision/mpm-shadow-and-cargo-shadow-clean-up-after-themselves-owner-answers-2026-11-13.md`).
+  A publish that fails or is raced after a claim no longer costs the finished copy.
+- The same pass found the repair publishes a hidden copy without the lock's SHA-256 behind it;
+  the marker is made to carry what was verified,
+  and the repair to compare it with the lock.
+- `cargo-shadow`'s `0.1.5-alpha.13` pass read in systemd's source three cases
+  in which the manager never ends a scope that emptied.
+  That is a second road to the leftover unit the section
+  "What clears a scope unit a killed `cargo-shadow` leaves" puts to the owner:
+  option D there,
+  a recovery that stops the unit its journal recorded,
+  may not reach a run that ended normally.
+  A round shows the state in a guest and adds it to the proposal,
+  with the ranking gone through again;
+  the choice stays the owner's and stays open.
 
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
