@@ -201,15 +201,11 @@ fn the_window_a_control_states_is_the_window_its_child_gets() {
             THE_WINDOW
         );
     };
-    let said: String = payload
-        .downcast_ref::<String>()
-        .cloned()
-        .or_else(|| {
-            payload
-                .downcast_ref::<&str>()
-                .map(|text| (*text).to_string())
-        })
-        .unwrap_or_default();
+    let words: Option<&str> = payload.downcast_ref::<&str>().copied();
+    let said: String = match payload.downcast_ref::<String>() {
+        Some(text) => text.clone(),
+        None => words.unwrap_or_default().to_string(),
+    };
     let owed: String = format!("did not end within {} s", THE_WINDOW.as_secs_f64());
     assert!(
         said.contains(owed.as_str()),
