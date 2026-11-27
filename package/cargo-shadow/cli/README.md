@@ -1121,9 +1121,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   The listing has a bound of its own (`LISTING_BOUND`),
   and it is looked at between reads,
   at the top of each group and before each member of it,
-  so a scope with many threads delays a refusal by that much and no
-  more;
-  a single read is not bounded by it:
+  so a scope with many threads is listed no further than that bound allows;
+  the bound is never looked at inside a read,
+  so a read that blocks delays a refusal past the bound by as long as it blocks:
   `cgroup.procs`,
   a group's directory,
   `/proc/<pid>/task`
@@ -1736,7 +1736,8 @@ and a `count_bytes: ByteCount` parameter on `add_tree_bytes`,
 `sweep_run_records`,
 and `tree_bytes`.
 `tests/shim.rs` is the only consumer in the repository,
-and it reads `cargo_run::CARGO_CALL_SECONDS` and three names from `journal`,
+and it reads `cargo_run::CARGO_CALL_SECONDS` and two names from `journal`
+(`KEPT_FILES_WARNING_COUNT` and `QUARANTINE_DIR`),
 none of which changed.
 
 The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
@@ -1744,7 +1745,8 @@ its bound plus twice `QUIESCE_BOUND` (5 s).
 A stop that has to refuse then lists the members it found,
 inside the listing's own bound (`LISTING_BOUND` in
 `src/control_group_stop.rs`),
-so a refusal answers within its bound plus twice `QUIESCE_BOUND` and that listing bound.
+so the window those tests allow a refusal is its bound plus twice `QUIESCE_BOUND` and that listing bound,
+and a read that blocks pushes a refusal past it.
 The end of a run adds the retirement's own bound only where the scope is the leftover of issue 6578:
 the manager is asked once there (`RETIRE_BOUND`,
 five seconds,
