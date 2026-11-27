@@ -537,6 +537,14 @@ as root with a user manager of its own:
 test control_group_route_discovery::reexec_tests::the_question_answers_across_a_real_reexec_of_a_containers_manager ... ok
 ```
 
+Run once more in the same container after `origin/main` was merged into the branch,
+with a test binary rebuilt from the merged tree:
+
+```text
+267 discoveries in 4s, 5 of them inside 3 real reexecs of 810.655757ms together, every one answered
+test control_group_route_discovery::reexec_tests::the_question_answers_across_a_real_reexec_of_a_containers_manager ... ok
+```
+
 And with the asking again taken out,
 which is `ASKING_AGAIN_ATTEMPTS` set to one and nothing else changed,
 the same binary's control in the same container:
