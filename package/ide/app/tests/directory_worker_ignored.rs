@@ -213,7 +213,12 @@ fn a_changed_gitignore_changes_the_rows_and_raises_the_reread_flag() {
         "the stamp of the root's .gitignore moved, so the shown directories below must be listed again"
     );
     // sub/deep.txt still shows the old answer until its directory is listed again.
-    assert!(!session.dimmed().contains(&"sub/deep.txt".to_string()));
+    assert!(
+        !session
+            .dimmed()
+            .iter()
+            .any(|path| return path == "sub/deep.txt")
+    );
     let sub = session.root.join("sub");
     session.list(&sub);
     assert_eq!(session.dimmed(), vec!["notes.txt", "sub/deep.txt"]);
