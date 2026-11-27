@@ -715,15 +715,19 @@ fn the_prune_says_which_hidden_directory_it_cannot_judge_holds_a_finished_copy()
     assert!(unfinished.is_dir(), "a dry run removes nothing: {stderr}");
 }
 
-/// Writes a program a finished install holds, with its execute bits set where the platform has them.
+/// Writes a program a finished install holds,
+/// with its execute bits set where the platform has them.
 fn write_program(path: &Path) {
-    fs::create_dir_all(path.parent().expect("a parent directory")).expect("make the program's folder");
+    fs::create_dir_all(path.parent().expect("a parent directory"))
+        .expect("make the program's folder");
     fs::write(path, "#!/bin/sh\n").expect("write the program");
     #[cfg(unix)]
     {
         /// Imports `PermissionsExt` from `std::os::unix::fs`.
         use std::os::unix::fs::PermissionsExt;
-        let mut permissions = fs::metadata(path).expect("the program's metadata").permissions();
+        let mut permissions = fs::metadata(path)
+            .expect("the program's metadata")
+            .permissions();
         permissions.set_mode(0o755);
         fs::set_permissions(path, permissions).expect("set the program's execute bits");
     }

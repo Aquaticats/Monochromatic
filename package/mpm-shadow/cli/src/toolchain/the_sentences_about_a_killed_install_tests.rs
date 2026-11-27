@@ -608,10 +608,7 @@ fn an_install_whose_download_failed_says_where_a_finished_copy_it_cannot_judge_s
 /// A failed download's sentence is part of that message,
 /// so a test reads it from the report the run answered with.
 fn the_tools_failure(report: &SyncReport) -> &str {
-    let found = report
-        .failed
-        .iter()
-        .find(|(id, _message)| return id == ID);
+    let found = report.failed.iter().find(|(id, _message)| return id == ID);
     return found
         .map(|(_id, message)| return message.as_str())
         .expect("the run reports the tool's failure");
@@ -619,7 +616,9 @@ fn the_tools_failure(report: &SyncReport) -> &str {
 
 /// What:
 /// The finished copy an earlier build's install left under a name of its own:
-/// the process id and its start time, no boot and no namespace, and a marker that records no archive digest.
+/// the process id and its start time,
+/// no boot and no namespace,
+/// and a marker that records no archive digest.
 /// Why:
 /// No run of this build judges such a name or publishes its copy,
 /// which is the state a failed download's sentence and the `prune` line are printed in.
@@ -636,9 +635,11 @@ fn write_the_earlier_builds_copy(
 
 /// What:
 /// Runs the step a failed download's sentence names for a person,
-/// as the sentence prints it: `cp --archive <copy>/. <version dir>/`.
+/// as the sentence prints it:
+/// `cp --archive <copy>/. <version dir>/`.
 /// Why:
-/// The sentence is advice, so a test follows it instead of rewriting it,
+/// The sentence is advice,
+/// so a test follows it instead of rewriting it,
 /// and the step has to work whether the version's name holds nothing or an unfinished copy.
 fn copy_the_contents_where_the_sentence_says(
     copy: &std::path::Path,
@@ -650,7 +651,10 @@ fn copy_the_contents_where_the_sentence_says(
         .arg(version_dir)
         .status()
         .expect("run cp");
-    assert!(copied.success(), "the step the sentence names copies the copy's contents");
+    assert!(
+        copied.success(),
+        "the step the sentence names copies the copy's contents"
+    );
 }
 
 #[test]
@@ -827,7 +831,8 @@ fn the_move_a_failed_download_names_puts_the_copy_at_a_version_name_that_holds_n
         "the step the sentence names leaves a finished copy at the version's name"
     );
 
-    let after: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    let after: SyncReport =
+        sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
     assert!(after.failed.is_empty(), "{after:?}");
     assert_eq!(
         after.unchanged,
@@ -858,7 +863,8 @@ fn the_move_a_failed_download_names_reaches_a_version_name_that_holds_an_unfinis
     );
     copy_the_contents_where_the_sentence_says(&earlier, &version_dir);
 
-    let after: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    let after: SyncReport =
+        sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
     assert!(after.failed.is_empty(), "{after:?}");
     assert_eq!(
         after.unchanged,
@@ -896,10 +902,7 @@ fn a_download_that_does_not_match_the_lock_says_what_brings_the_version_back() {
         "the network was there and did not bring the version back: {message}"
     );
     assert!(
-        message.contains(&format!(
-            "sits under the hidden name {}",
-            earlier.display()
-        )),
+        message.contains(&format!("sits under the hidden name {}", earlier.display())),
         "the sentence still names the copy a person can move: {message}"
     );
 }
@@ -957,8 +960,7 @@ fn a_name_that_holds_no_marker_is_not_named_for_a_person_to_move() {
     let root = rig.scope.toolchain_root.clone();
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
     // A name nothing can judge, holding an unpacking that never finished: no copy to move.
-    let unfinished: std::path::PathBuf =
-        tool_dir.join(format!(".0.2.1.{STAGING_PURPOSE}.42.100"));
+    let unfinished: std::path::PathBuf = tool_dir.join(format!(".0.2.1.{STAGING_PURPOSE}.42.100"));
     write_the_program(&unfinished);
 
     let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);

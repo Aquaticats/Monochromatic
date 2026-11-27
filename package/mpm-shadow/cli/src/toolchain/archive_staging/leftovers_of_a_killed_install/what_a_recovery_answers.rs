@@ -208,7 +208,8 @@ pub(crate) enum WhyNotPublished {
 /// A removed finished copy may be a second one the version can spare or the one copy it had here,
 /// and the run answers that by reading the version's own name,
 /// never by calling the copy's version lost;
-/// the words say which of those reads it made, because a marker and a program found are not a working tool.
+/// the words say which of those reads it made,
+/// because a marker and a program found are not a working tool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
