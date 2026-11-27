@@ -562,21 +562,82 @@ The disabled-background exception was added after this check;
 its unit tests cover it,
 and it was not run in a live session.
 
+## Merge and live REPL check
+
+Merged as `88632f16aa` at 2026-11-27T12:49:47-05:00.
+Live check at 12:50 -05:00,
+in the interactive code-mode session that wrote this record:
+a REPL command running an 8-second `node` script with `.timeout(600000)` moved at 2058 ms
+and returned a task ID,
+and the moved command later exited 0,
+so REPL commands are clamped as the owner chose.
+
+## Second-pass review findings
+
+A Claude Sonnet second pass (same vendor,
+so not independent) reviewed the branch range `f414afff83..e5ace4e390`
+and returned at 2026-11-27T13:07:56-05:00.
+Each finding,
+weighed:
+
+- The disable check read only the exact value `1`,
+  while Claude Code reads `1`,
+  `true`,
+  `yes` and `on` in any case (its `De`,
+  byte 328691256,
+  confirmed).
+  Fixed in `canMoveToBackground`.
+  The startup warning keeps the owner's exact-`1` trigger.
+  Bare mode sets `CLAUDE_CODE_SIMPLE`,
+  but settings-file hooks never run there (bundle text confirmed),
+  so it needs no check.
+- Two shapes slipped past the prefix:
+  a redirection-only first statement (`> log` on its own line)
+  and a leading backslash-newline.
+  Live under the merged bundle both were stopped at about 1 s;
+  fixed,
+  both moved at about 2.1 s
+  (`doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md`,
+  "Shapes the review found").
+- `EJi` is a refusal of a leading `sleep` of 25 seconds or more,
+  applied before hooks run;
+  the docs now say so,
+  and the examples use `sleep 20`.
+- The prefix changes what `$!` names after a prefixed `sleep N &`;
+  documented in the code,
+  the decision and the README.
+- REPL wording,
+  the superseded implementation requirement,
+  and the adoption status of the disabled-background exception are corrected in the decision.
+- New unit tests cover the disable values,
+  the redirection-led and backslash-newline shapes,
+  `\r`,
+  `(` and `)` as word ends,
+  and an unwrapped command without a timeout while background tasks are disabled.
+
+Branch `fix/claude-code-plugin-source-bash-sleep-prefix-review-fixes`:
+`format:oxlint`,
+`lint:types` and `lint:oxlint` for `claude-code-plugin-source`,
+`lint:types` and `build` for `claude-code-plugin-bash-output-filter`,
+and `test:unit` with no `[FAIL]` line and the `startsWithRedirection` suite present.
+
+## Traffic since the merges
+
+A scan of main-session transcripts on 2026-11-27 at about 13:18 -05:00
+for Bash results that start with "Exit code 143 Command timed out after"
+found one since 2026-11-26,
+a `sleep 6; cat ...` on 2026-11-26 under the earlier hook (the scan's positive control),
+none between the two merges (12:49:47 to 13:14:31 -05:00),
+and none after.
+During those 25 minutes the live hook stopped redirection-led and backslash-newline `sleep` shapes,
+as the probe in the troubleshooting record shows,
+but no recorded main-session call hit one.
+The scan cannot see commands that REPL scripts run,
+whose results sit inside REPL output.
+
 ## Open
 
-- A Claude Sonnet second pass on the branch (same vendor,
-  not independent) started at 2026-11-27T12:48 -05:00;
-  its findings are to be weighed and fixed after the merge.
-- Merged as `88632f16aa` at 2026-11-27T12:49:47-05:00.
-  Live check at 12:50 -05:00,
-  in the interactive code-mode session that wrote this record:
-  a REPL command running an 8-second `node` script with `.timeout(600000)` moved at 2058 ms
-  and returned a task ID,
-  so REPL commands are clamped as the owner chose.
-- The Claude Sonnet gate review's findings.
-- The REPL surface under the cap stays unprobed until an interactive code-mode session runs with the variable set.
-- A background subagent under the cap was not probed;
-  the source reads the variable only for the main agent.
-
-[tools-reference-background-limit]: https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands
-[tools-reference-foreground-move]: https://code.claude.com/docs/en/tools-reference#foreground-commands-that-move-to-the-background
+- Re-run the probes in `doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md`
+  after each Claude Code upgrade;
+  no automated check covers the sleep rule.
+- The disabled-background exception was adopted by the implementing session and awaits the owner's veto or acceptance.

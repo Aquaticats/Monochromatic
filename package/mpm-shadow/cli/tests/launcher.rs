@@ -29,6 +29,13 @@ use mpm_shadow::constants::{
     EXEC_FAILED_EXIT_CODE,
     NOT_FOUND_EXIT_CODE,
 };
+/// Imports the reader that says which interpreter a program names,
+/// and its answers,
+/// because the fixture's own sentences name the linker it gives the program.
+use mpm_shadow::named_interpreter::{
+    NamedInterpreter,
+    named_interpreter,
+};
 use mpm_shadow::toolchain::launcher::{
     LaunchRecord,
     record_path,
@@ -55,8 +62,10 @@ use held_programs::{
     hold_open_until,
 };
 use through_a_child_process::{
+    WithALinkerOfItsOwn,
     assert_compiled,
     copy_program,
+    give_a_linker_of_its_own,
     write_program,
 };
 
@@ -282,7 +291,7 @@ fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_
     );
     for expected in [
         &format!("could not start {}:", tree.real().display()),
-        "the program itself, or the interpreter it names",
+        "the program itself, or the interpreter its first line names (`/bin/sh`)",
         "cannot tell which process holds that file",
         "run the same command again",
     ] {
@@ -310,6 +319,34 @@ fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_
 }
 
 /// What:
+/// The dynamic linker the compiled program at `program` names,
+/// which the fixture's sentences about it have to repeat exactly.
+/// Why:
+/// The linker is whatever the program on this machine names,
+/// so a test that wrote `/lib64/ld-linux-x86-64.so.2` would be testing this machine instead of the
+/// message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function linkerOf(program: string): string {
+///   const named = namedInterpreter(program);
+///   if (named.kind !== 'linker') throw new Error(`${program} names no linker`);
+///   return named.linker;
+/// }
+/// ```
+fn linker_of(program: &Path) -> PathBuf {
+    return match named_interpreter(program) {
+        NamedInterpreter::DynamicLinker {
+            linker,
+        } => linker,
+        other => panic!(
+            "{} names no dynamic linker ({other:?}), so this control cannot use it",
+            program.display()
+        ),
+    };
+}
+
+/// What:
 /// Replaces the tree's tool with a compiled program,
 /// which this launcher checks and then starts by its path.
 /// Why:
@@ -329,6 +366,26 @@ fn replace_the_tool_with_a_compiled_program(tree: &Tree) {
     //           child's own start would then be refused (issue 6527).
     copy_program(Path::new(COMPILED_PROGRAM), &tree.real());
     assert_compiled(&tree.real());
+}
+
+/// What:
+/// Replaces the tree's tool with a compiled stand-in whose dynamic linker is a copy of the one that
+/// program names,
+/// so the test can hold that linker open for writing and then take it away.
+/// Why:
+/// `execve` answers `ENOENT` and `ETXTBSY` for the interpreter a program names as readily as for the
+/// program itself,
+/// and a compiled program names that interpreter in its own file,
+/// where a script has its first line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function replaceTheToolWithALinkerOfItsOwn(tree: Tree): WithALinkerOfItsOwn {
+///   return giveALinkerOfItsOwn(COMPILED_PROGRAM, tree.real());
+/// }
+/// ```
+fn replace_the_tool_with_a_linker_of_its_own(tree: &Tree) -> WithALinkerOfItsOwn {
+    return give_a_linker_of_its_own(Path::new(COMPILED_PROGRAM), &tree.real());
 }
 
 /// What:
@@ -357,11 +414,15 @@ fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_th
         "{stderr}"
     );
     assert!(refused.stdout.is_empty(), "{stderr}");
+    let linker: PathBuf = linker_of(&tree.real());
     for expected in [
         &format!("could not start {}:", tree.real().display()),
         "Text file busy",
         "is open for writing by some other process",
-        "the program itself, or the interpreter it names",
+        &format!(
+            "the program itself, or its dynamic linker (`{}`), which is the interpreter a compiled program names where a script has its `#!` line",
+            linker.display()
+        ),
         "cannot tell which process holds that file",
         "run the same command again",
         "the start succeeds as soon as the file is free and whole",
@@ -369,6 +430,10 @@ fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_th
     ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
+    assert!(
+        !stderr.contains("a script's first line or a compiled program's dynamic linker"),
+        "the program's own file says which interpreter it names, so both kinds are not claimed: {stderr}"
+    );
     assert!(
         stderr.contains("what to do:"),
         "the remedy carries its label in launcher mode too: {stderr}"
@@ -396,14 +461,38 @@ fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_th
     );
 }
 
+/// What:
+/// A script whose own first line names an interpreter that is not there is told so by name,
+/// with the interpreter as the file to install,
+/// and nothing on standard output.
+/// Why:
+/// `execve` answers `ENOENT` for both files,
+/// and the script's own first line says which one the start looked for;
+/// a message that keeps both possibilities would send the reader looking for a program that is still
+/// there.
 #[test]
-fn a_real_program_whose_interpreter_is_gone_is_reported_as_gone_with_one_remedy_and_no_advice_to_run_it_by_hand()
- {
+fn a_script_whose_interpreter_is_gone_is_named_by_that_interpreter_and_one_remedy() {
     let tree = Tree::new("0.4.4", "0.4.4");
-    // What:     A program that is a file at the launcher's check and names an interpreter that does not exist.
-    // Why:      This is the one way the start's own `No such file or directory` is reached without a race:
-    //           `execve` reports a missing program and a missing interpreter with the same answer,
-    //           and the message has to be true for both.
+    // What:     The control arm: the same script, whose first line names an interpreter that is there,
+    //           starts.
+    // Why:      A run that never starts a script proves nothing about the start that does not.
+    let direct: Output = run(&tree.real(), &["x"], &[]);
+    assert_eq!(
+        direct.status.code(),
+        Some(0),
+        "the control arm starts the same script: {}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&direct.stdout).contains("out:[x]"),
+        "the control arm's own output reached the caller: {}",
+        String::from_utf8_lossy(&direct.stdout)
+    );
+    // What:     The program stays a file at the launcher's check and names an interpreter that does not
+    //           exist.
+    // Why:      This is the one way the start's own `No such file or directory` is reached without a
+    //           race: `execve` reports a missing program and a missing interpreter with the same
+    //           answer.
     write_program(&tree.real(), b"#!/nonexistent/interpreter\n");
 
     let launched: Output = run(&tree.launcher(), &["x"], &[]);
@@ -417,8 +506,9 @@ fn a_real_program_whose_interpreter_is_gone_is_reported_as_gone_with_one_remedy_
     assert!(launched.stdout.is_empty(), "{stderr}");
     for expected in [
         &format!("could not start {}:", tree.real().display()),
-        "the program is gone, or the interpreter named on its first line",
-        "it was there when this launcher checked the path",
+        "the interpreter its first line names (`/nonexistent/interpreter`) is not there",
+        "the program itself was there when this launcher checked the path",
+        "install the interpreter its first line names (`/nonexistent/interpreter`) if that is the file that is missing",
         &format!(
             "run `mpm install` in {} to make this tree's links again",
             tree.directory.path().display()
@@ -427,6 +517,10 @@ fn a_real_program_whose_interpreter_is_gone_is_reported_as_gone_with_one_remedy_
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
     assert!(
+        !stderr.contains("the program is gone"),
+        "the program is there, so the launcher must not say it is gone: {stderr}"
+    );
+    assert!(
         !stderr.contains("no program named"),
         "the program is there, so the launcher must not say it was not found: {stderr}"
     );
@@ -434,6 +528,147 @@ fn a_real_program_whose_interpreter_is_gone_is_reported_as_gone_with_one_remedy_
         !stderr.contains("by hand"),
         "a program that cannot start shows nothing when it is run by hand: {stderr}"
     );
+}
+
+/// What:
+/// A compiled program whose own file names a dynamic linker that a writing process holds open is
+/// refused with that linker named,
+/// and the same command works once the write is over.
+/// Why:
+/// The linker is the file a compiled program needs where a script names its `#!` interpreter,
+/// and the kernel's own answer names neither file,
+/// so only the program's bytes can say which one the message should name.
+#[test]
+fn a_compiled_programs_linker_being_written_is_named_and_the_same_command_works_after() {
+    let tree = Tree::new("0.4.4", "0.4.4");
+    let stand_in: WithALinkerOfItsOwn = replace_the_tool_with_a_linker_of_its_own(&tree);
+    // What:     The control arm: the same stand-in, with its linker free, starts through the launcher.
+    // Why:      Only a program that starts proves the refusals below are about the linker.
+    let direct: Output = run(&tree.real(), &["x"], &[]);
+    assert_eq!(
+        direct.status.code(),
+        Some(0),
+        "the control arm starts the same program: {}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    let started: Output = run(&tree.launcher(), &["x"], &[]);
+    assert_eq!(
+        started.status.code(),
+        Some(0),
+        "the launcher starts it too: {}",
+        String::from_utf8_lossy(&started.stderr)
+    );
+    assert_eq!(started.stdout, direct.stdout);
+
+    let refused: Output = {
+        // What:      The holder lives for this block only, so the linker is being written when the
+        //            launcher replaces itself with the program and is free when the block ends.
+        // Why:       The second run below is the cure the message names, so it has to run after this one.
+        let _held = hold_open_for_writing(&stand_in.linker);
+        run(&tree.launcher(), &["x"], &[])
+    };
+
+    let stderr: String = String::from_utf8_lossy(&refused.stderr).to_string();
+    assert_eq!(
+        refused.status.code(),
+        Some(EXEC_FAILED_EXIT_CODE),
+        "{stderr}"
+    );
+    assert!(refused.stdout.is_empty(), "{stderr}");
+    for expected in [
+        &format!("could not start {}:", stand_in.program.display()),
+        "Text file busy",
+        "is open for writing by some other process",
+        &format!(
+            "the program itself, or its dynamic linker (`{}`)",
+            stand_in.linker.display()
+        ),
+        "cannot tell which process holds that file",
+        "run the same command again",
+    ] {
+        assert!(stderr.contains(expected), "{expected}: {stderr}");
+    }
+    assert!(
+        !stderr.contains("a script's first line or a compiled program's dynamic linker"),
+        "the program's own file names its linker, so both kinds are not claimed: {stderr}"
+    );
+    let after: Output = run(&tree.launcher(), &["x"], &[]);
+    assert_eq!(
+        after.status.code(),
+        Some(0),
+        "the same command works once the write is over: {}",
+        String::from_utf8_lossy(&after.stderr)
+    );
+    assert_eq!(after.stdout, direct.stdout);
+}
+
+/// What:
+/// A compiled program whose own file names a dynamic linker that is gone is refused with that linker
+/// named and the package that provides it,
+/// and the same program starts once the linker is back.
+/// Why:
+/// This is the case a person meets when a tool's own loader is deleted or a system's linker is being
+/// replaced,
+/// and a message that says the interpreter is named on the program's first line sends the reader to a
+/// line a compiled program does not have.
+#[test]
+fn a_compiled_programs_linker_being_gone_is_named_and_the_program_starts_once_it_is_back() {
+    let tree = Tree::new("0.4.4", "0.4.4");
+    let stand_in: WithALinkerOfItsOwn = replace_the_tool_with_a_linker_of_its_own(&tree);
+    let direct: Output = run(&tree.real(), &["x"], &[]);
+    assert_eq!(
+        direct.status.code(),
+        Some(0),
+        "the control arm starts the same program: {}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    fs::remove_file(&stand_in.linker).expect("take the linker away");
+
+    let launched: Output = run(&tree.launcher(), &["x"], &[]);
+
+    let stderr: String = String::from_utf8_lossy(&launched.stderr).to_string();
+    assert_eq!(
+        launched.status.code(),
+        Some(NOT_FOUND_EXIT_CODE),
+        "{stderr}"
+    );
+    assert!(launched.stdout.is_empty(), "{stderr}");
+    for expected in [
+        &format!("could not start {}:", stand_in.program.display()),
+        &format!(
+            "its dynamic linker (`{}`) is not there",
+            stand_in.linker.display()
+        ),
+        "a compiled program cannot start without it",
+        "the program itself was there when this launcher checked the path",
+        &format!(
+            "install or upgrade the package that provides `{}` if that linker is the file that is missing",
+            stand_in.linker.display()
+        ),
+        &format!(
+            "run `mpm install` in {} to make this tree's links again",
+            tree.directory.path().display()
+        ),
+    ] {
+        assert!(stderr.contains(expected), "{expected}: {stderr}");
+    }
+    assert!(
+        !stderr.contains("first line"),
+        "a compiled program names no interpreter on a first line: {stderr}"
+    );
+    assert!(
+        !stderr.contains("the program is gone"),
+        "the program is there, so the launcher must not say it is gone: {stderr}"
+    );
+    copy_program(&stand_in.linker_it_named, &stand_in.linker);
+    let after: Output = run(&tree.launcher(), &["x"], &[]);
+    assert_eq!(
+        after.status.code(),
+        Some(0),
+        "the same program starts once its linker is back: {}",
+        String::from_utf8_lossy(&after.stderr)
+    );
+    assert_eq!(after.stdout, direct.stdout);
 }
 
 #[test]
