@@ -1,4 +1,4 @@
-import { mkdir, mkdtempDisposable, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtempDisposable, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -16,6 +16,7 @@ import {
   readContainerMemory,
 } from './native-gate-container-cgroup-memory.ts';
 import { until } from './until-a-test-condition-holds.ts';
+import { holdStandInCgroupReading } from './stand-in-cgroup-files-for-tests.ts';
 import {
   type ContainerMemoryWatch,
   NO_MEMORY_KILL,
@@ -297,6 +298,66 @@ await describe({
           },
           timeout: 20_000,
         }),
+        it({
+          name: 'answers that the cgroup was not read when the group is there and answered no file of its own',
+          fn: async () => {
+            await using tree = await mkdtempDisposable(join(
+              scratchParent,
+              'gate-container-memory-empty-',
+            ),);
+            /**
+             A folder where a control group is being removed, which answers no file of its own any more.
+             */
+            const scope = join(
+              tree.path,
+              'empty.scope',
+            );
+            await mkdir(
+              scope,
+              { recursive: true, },
+            );
+            expect(await readContainerMemory({ cgroupPath: scope, }),).toBe(CGROUP_NOT_THERE,);
+          },
+          timeout: 20_000,
+        }),
+        it({
+          name: 'answers that the cgroup was not read when a reading lost a part of the one it would replace',
+          fn: async () => {
+            await using tree = await mkdtempDisposable(join(
+              scratchParent,
+              'gate-container-memory-lost-part-',
+            ),);
+            /**
+             The fixture scope's path, whose whole reading the later one is measured against.
+             */
+            const scope = await boundedScope({
+              root: tree.path,
+              scope: 'bounded.scope',
+            });
+            /**
+             The whole reading, which the reading after the group lost a file has to answer every part of.
+             */
+            const whole = await figuresOf(scope,);
+            expect(await readContainerMemory({
+              cgroupPath: scope,
+              replaces: whole,
+            },),).not.toBe(CGROUP_NOT_THERE,);
+            // The kernel takes a dying group's files away one at a time before the directory goes, so a group holding
+            // every file but the one a kill is counted in is the shape a container killed at its bound meets on the way
+            // out.
+            await rm(join(
+              scope,
+              'memory.events',
+            ),);
+            expect(await readContainerMemory({
+              cgroupPath: scope,
+              replaces: whole,
+            },),).toBe(CGROUP_NOT_THERE,);
+            // A reading with nothing to keep replaces nothing, so a group a kernel is still making is still read.
+            expect(await readContainerMemory({ cgroupPath: scope, }),).not.toBe(CGROUP_NOT_THERE,);
+          },
+          timeout: 20_000,
+        }),
       ],
     }),
     describe({
@@ -446,6 +507,71 @@ await describe({
             await waitUntil(50,);
             await watch.stop();
             expect(watch.lastRead(),).toBe(CGROUP_NOT_THERE,);
+          },
+          timeout: 30_000,
+        }),
+        it({
+          name: 'keeps the whole reading a killed container gave when its group loses memory.events part way through the next, so the gate still names the kill',
+          fn: async () => {
+            await using tree = await mkdtempDisposable(join(
+              scratchParent,
+              'gate-container-memory-kill-lost-',
+            ),);
+            /**
+             The scope the watch reads, in the shape the real root holds one.
+             */
+            const scope = await boundedScope({
+              root: tree.path,
+              scope: join(
+                'user.slice',
+                'user-1000.slice',
+                'user@1000.service',
+                'user.slice',
+                `libpod-${containerId}.scope`,
+              ),
+            });
+            // A kill inside the bound, which the gate's line for a killed container is made of.
+            await writeScopeFile({
+              scope,
+              name: 'memory.events',
+              text: 'low 0\nhigh 0\nmax 1\noom 1\noom_kill 1\noom_group_kill 0\n',
+            });
+            await using watch = watchContainerMemory({
+              containerId,
+              root: tree.path,
+              userId: 1_000,
+              intervalMilliseconds: gateMemoryPollMilliseconds,
+            });
+            await until({
+              condition: function killed() {
+                /**
+                 What the watch has read so far.
+                 */
+                const read = watch.lastRead();
+                return (read !== CGROUP_NOT_THERE) && containerMemoryKilled({ events: read.events, });
+              },
+              description: 'the watch to read the whole group, with the kill its events count',
+              pollMilliseconds: gateMemoryPollMilliseconds,
+            },);
+            /**
+             The reading this test holds, so the group loses its kill counter at a chosen point of it.
+             */
+            const held = await holdStandInCgroupReading({
+              cgroupPath: scope,
+              at: 'pids.peak',
+            },);
+            await held.goOnWithout({ file: 'memory.events', },);
+            await watch.stop();
+            /**
+             What the gate prints for this container, through the printer the gate's own container run prints with.
+             */
+            const printed = containerMemoryKilledLine({
+              role: 'suite',
+              sample: watch.lastRead(),
+            },);
+            if (printed === NO_MEMORY_KILL)
+              throw new Error(`the gate printed nothing for a container whose group lost memory.events part way through a reading: the watch kept the events ${JSON.stringify(lastSampleOf(watch,).events)}`,);
+            expect(printed,).toContain('1 out-of-memory kill',);
           },
           timeout: 30_000,
         }),

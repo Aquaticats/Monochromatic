@@ -6,10 +6,13 @@
  A named pipe is the one seam here that no kernel writes: it holds one read of a watch open at a chosen point, so a test
  knows where a reading stood when the group went instead of hoping a loaded host picks that point.
 
- Nothing in this package reads this module: it is the fixture two test files share (`AGENTS.md`, rule `UTL`).
+ Nothing in this package reads this module: it is the fixture the check scope accounting tests, the gate container memory
+ tests and the gate container peaks tests share (`AGENTS.md`, rule `UTL`).
  */
 import {
   mkdir,
+  open,
+  readFile,
   rename,
   rm,
   writeFile,
@@ -166,4 +169,95 @@ export async function makeStandInNamedPipe({ path }: { readonly path: string; },
   },);
   if (made.status !== 0)
     throw new Error(`mkfifo could not make ${path}: ${made.problem ?? made.stderr}`,);
+}
+
+/**
+ One reading of a fixture control group held at one of its files, and the way a test lets it go on.
+ */
+export type HeldStandInCgroupReading = {
+  /**
+   Take one file away from the group at the point of the reading this hold chose, then let the reading answer the file it
+   was held at.
+
+   @param file - the group's file to take away before the reading goes on
+   */
+  readonly goOnWithout: (options: { readonly file: string; },) => Promise<void>;
+};
+
+/**
+ Hold one reading of a fixture control group at one of its files, so a test chooses what the group loses while that
+ reading is under way.
+
+ A dying group loses its files one at a time, and a reading can meet it between two of them
+ (`doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`). A named pipe where one
+ of the group's files is holds a reader inside its open, so this answers once a reading has reached that file, and the
+ test then decides which file the group loses before the reading goes on. No pause decides where the reading stood.
+
+ The pipe is made under another name and renamed over the file, so no reading meets that file missing, and it answers the
+ text the file held, so the reading that goes on is short of the parts of the file the group loses and of no other. The
+ pipe is taken away before the reading is let go, so a later reading answers `ENOENT` for that file instead of waiting on
+ a pipe nothing will write to.
+
+ @param cgroupPath - the fixture's control group
+
+ @param at - the group's file to hold a reading at, which its reader reads before the file the group is to lose
+
+ @returns the hold, and the way to let its reading go on
+
+ @example
+ ```ts
+ const held = await holdStandInCgroupReading({ cgroupPath, at: 'pids.peak' });
+ await held.goOnWithout({ file: 'memory.events' });
+ ```
+ */
+export async function holdStandInCgroupReading({
+  cgroupPath,
+  at,
+}: {
+  readonly cgroupPath: string;
+  readonly at: string;
+},): Promise<HeldStandInCgroupReading> {
+  /**
+   The path of the file a reading is held at.
+   */
+  const heldPath = join(
+    cgroupPath,
+    at,
+  );
+  /**
+   What that file answers, which the pipe answers too, so the reading goes on short of the file the group loses and of no
+   other.
+   */
+  const text = await readFile(
+    heldPath,
+    'utf8',
+  );
+  /**
+   Where the pipe is made before it is renamed over the file.
+   */
+  const pipePath = `${heldPath}.held`;
+  await makeStandInNamedPipe({ path: pipePath, },);
+  await rename(
+    pipePath,
+    heldPath,
+  );
+  /**
+   The writing end of the held read, whose open answers once a reading has opened the pipe.
+   */
+  const writer = await open(
+    heldPath,
+    'w',
+  );
+
+  async function goOnWithout({ file }: { readonly file: string; },): Promise<void> {
+    await rm(join(
+      cgroupPath,
+      file,
+    ),);
+    await rm(heldPath,);
+    await writer.write(text,);
+    await writer.close();
+  }
+
+  return { goOnWithout, };
 }
