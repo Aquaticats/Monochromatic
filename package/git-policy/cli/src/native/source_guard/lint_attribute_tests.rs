@@ -184,7 +184,7 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[allow(clippy::result_large_err)]",
     ),
     (
-        "worktree_clone_unmount/user_cache_pin.rs",
+        "worktree_clone_unmount/user_cache_pin_record.rs",
         "#[allow(clippy::disallowed_methods)]",
     ),
 ];

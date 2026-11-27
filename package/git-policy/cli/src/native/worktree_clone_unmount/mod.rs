@@ -66,9 +66,15 @@
 //!   the identity comparisons before any move.
 //! - `reattach.rs`:
 //!   the checked move back to the slot.
-//! - `user_cache_pin.rs`:
-//!   the `user-cache` pin,
+//! - `user_cache_pin_record.rs`:
+//!   the pin's two fields,
+//!   its file and its bounded read,
+//!   and the words a person checks a refusal by.
+//! - `user_cache_pin_home_and_cache.rs`:
 //!   the account's passwd home and the cache descriptor.
+//! - `user_cache_pin.rs`:
+//!   the check of the cache's mount against the pin,
+//!   the live check both the wrapper and the handler run.
 //! - `unmount_turn_answers.rs`:
 //!   what one turn answered and the refusals it builds.
 //! - `unmount_turn_request.rs`:
@@ -116,8 +122,13 @@ pub mod staged_folder_record;
 /// The record's fields and the text it is written as.
 pub mod staged_folder_record_text;
 
-/// The `user-cache` pin,
-/// the account's home and the cache descriptor.
+/// The `user-cache` pin's file and the words a refusal carries.
+pub mod user_cache_pin_record;
+
+/// The account's passwd home and the cache descriptor.
+pub mod user_cache_pin_home_and_cache;
+
+/// The `user-cache` pin's check against the cache's mount.
 pub mod user_cache_pin;
 
 /// The kernel calls the unmount route makes,
