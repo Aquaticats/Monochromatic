@@ -96,6 +96,8 @@ pub enum Command {
         no_frozen_lockfile: bool,
         /// Report which lockfiles are stale,
         /// then restore every Cargo.lock.
+        ///
+        /// A kept journal is settled first: the dry run settles it, and keeps or replaces the lockfile an interrupted or refused run left.
         #[arg(long)]
         dry_run: bool,
     },
@@ -106,6 +108,8 @@ pub enum Command {
     Update {
         /// Report what would change,
         /// then restore every Cargo.lock.
+        ///
+        /// A kept journal is settled first: the dry run settles it, and keeps or replaces the lockfile an interrupted or refused run left.
         #[arg(long)]
         dry_run: bool,
     },
