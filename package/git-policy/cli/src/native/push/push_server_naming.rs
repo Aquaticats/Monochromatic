@@ -20,8 +20,6 @@
 //! const naming = ServerNaming.of(command, environment); await naming.ask(); naming.server(); // 'host:port'
 //! ```
 
-/// The grace a stopped query gets.
-use crate::bounded_push::STOP_GRACE;
 /// The bounded query that answers where a remote name sends a push,
 /// and the answer it gives.
 use crate::bounded_query::{
@@ -36,6 +34,8 @@ use crate::lfs_output_mask::{
     host_of,
     hosts_in,
 };
+/// The grace a stopped query gets.
+use crate::push_deadline_and_patience_settings::STOP_GRACE;
 /// Owned OS strings of the child environment.
 use std::ffi::{
     OsStr,

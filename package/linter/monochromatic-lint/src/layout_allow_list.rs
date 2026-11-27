@@ -24,6 +24,9 @@
 //!  and never absolute,
 //!  because the list is read on every machine that lints the repository,
 //!  while a `..` in one is the walk from the package folder to a module a `#[path]` names elsewhere.
+//!  Where each part of the reader lives:
+//!  `layout_allow_list_reading` reads one list file under its byte cap,
+//!  and `layout_allow_list_dead_entry_findings` holds the finding for a line that tolerates nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -41,15 +44,23 @@ pub use crate::layout_allow_entries::{
     AllowKind,
     parse_entries,
 };
-/// Import the finding shape,
-///  the path a key writes,
-///  the display helper,
-///  and the reader that writes every listed path back the way a key writes it.
+/// Import the finding for a line that tolerates nothing,
+///  re-exported so a caller asks the list module for it.
+pub(crate) use crate::layout_allow_list_dead_entry_findings::dead_entry_findings;
+/// Import the reader of one list file,
+///  re-exported so a caller asks the list module for it.
+pub use crate::layout_allow_list_reading::read_allow_list;
+/// Import the byte cap and the bounded reader the list's controls name here.
+#[cfg(test)]
+pub(crate) use crate::layout_allow_list_reading::{
+    MAX_BYTES,
+    read_at_most,
+};
+/// Import the finding shape and the path a key writes.
 use crate::{
     layout_finding::{
         LayoutFinding,
         key_path,
-        shown,
     },
     markdown_lfs_target::lexical_normal,
 };
@@ -59,7 +70,6 @@ use std::{
         BTreeMap,
         BTreeSet,
     },
-    io::Read,
     path::{
         Path,
         PathBuf,
@@ -105,33 +115,6 @@ pub(crate) mod counted_work {
         ENTRIES_WALKED.with(|count| return count.set(0));
     }
 }
-
-/// What:
-///  The largest list file this reader accepts:
-///  four mebibytes.
-/// Why:
-///  This repository's largest lists are the git wrapper's,
-///  measured on 2026-11-25 from the branch that builds them:
-///  `folder-rule.txt` 57,956 bytes with 524 `uses` lines and 416 `missing-link` lines,
-///  `file-rule.txt` 53,048 bytes with 544 `file-uses` lines and 42 `no-file-list` lines.
-///  The list a loop needs is one line per use inside it,
-///  and the dense shape of the alpha.15 release pass
-///  (200 groups whose own files use one folder that uses a child of each of them,
-///  60,100 uses in one loop)
-///  needs 60,300 lines and 1,681,290 bytes,
-///  measured on 2026-11-26 while that pass's findings were fixed:
-///  one mebibyte refused the very list the rule asked the round to write.
-///  Four mebibytes leave room for about 150,000 recorded uses
-///  and still bound a file a person controls:
-///  the bound is what keeps a mistyped path from reading a disk image,
-///  and the read itself is bounded too,
-///  so a file that grows between the check and the read is refused rather than swallowed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const MAX_BYTES = 4 * 1024 * 1024;
-/// ```
-pub const MAX_BYTES: u64 = 4 * 1024 * 1024;
 
 /// What:
 ///  The entries of one list file.
@@ -210,90 +193,6 @@ pub fn parse_allow_list(
         uses,
         keys,
     });
-}
-
-/// What:
-///  Read one list file,
-///  refusing a path that is not a regular file and a file over `MAX_BYTES`.
-/// Why:
-///  The option names a file a person edits;
-///  reading it must not block on a pipe or fill memory from a device.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function readAllowList(path: Path): AllowList;
-/// ```
-pub fn read_allow_list(path: &Path) -> Result<AllowList, String> {
-    let metadata: std::fs::Metadata = std::fs::metadata(path).map_err(|error| {
-        return format!(
-            "The allow-list file {} cannot be read: {error}.",
-            path.display()
-        );
-    })?;
-    if !metadata.is_file() {
-        return Err(format!(
-            "The allow-list file {} is not a regular file.",
-            path.display()
-        ));
-    }
-    if metadata.len() > MAX_BYTES {
-        return Err(format!(
-            "The allow-list file {} is {} bytes, over the {MAX_BYTES} bytes this reader accepts.",
-            path.display(),
-            metadata.len()
-        ));
-    }
-    let file: std::fs::File = std::fs::File::open(path).map_err(|error| {
-        return format!(
-            "The allow-list file {} cannot be read: {error}.",
-            path.display()
-        );
-    })?;
-    let bytes: Vec<u8> = read_at_most(file, path)?;
-    let text: String = String::from_utf8(bytes).map_err(|error| {
-        return format!(
-            "The allow-list file {} cannot be read: {error}.",
-            path.display()
-        );
-    })?;
-    return parse_allow_list(text.as_str(), path);
-}
-
-/// What:
-///  Read at most the list cap from one reader,
-///  refusing anything longer.
-/// Why:
-///  The size of the file was measured before this read,
-///  and a file that grows between the measurement and the read would get past that check,
-///  so the read itself stops one byte past the cap and says so.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function readAtMost(reader: ReadStream, path: Path): Uint8Array;
-/// ```
-fn read_at_most<R: std::io::Read>(
-    reader: R,
-    path: &Path,
-) -> Result<Vec<u8>, String> {
-    // What: at most one byte more than the cap, so the length read is known even when it is over.
-    // Why: reading the whole of a file that grew past the cap is what the bound exists to prevent.
-    let mut bytes: Vec<u8> = Vec::<u8>::new();
-    reader
-        .take(MAX_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| {
-            return format!(
-                "The allow-list file {} cannot be read: {error}.",
-                path.display()
-            );
-        })?;
-    if bytes.len() as u64 > MAX_BYTES {
-        return Err(format!(
-            "The allow-list file {} is longer than the {MAX_BYTES} bytes this reader accepts.",
-            path.display()
-        ));
-    }
-    return Ok(bytes);
 }
 
 /// What:
@@ -484,105 +383,6 @@ pub fn tolerated(
         used.insert(index);
     }
     return (kept, used);
-}
-
-/// What:
-///  The findings for the entries that tolerated nothing.
-/// Why:
-///  A dead line is the sign the list has not shrunk after the work that made it dead,
-///  and the run must say so on the line itself.
-///  A `uses` or `file-uses` line that names a folder no folder of the package is called
-///  says which folder it read and that the package holds none of that name:
-///  that is what a hand-aligned or mistyped line looks like,
-///  and it is the only thing that tells its reader to re-space the line rather than delete it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function deadEntryFindings(list: AllowList, used: Set<number>, folders: Set<Path>, base: Path): LayoutFinding[];
-/// ```
-pub fn dead_entry_findings(
-    list: &AllowList,
-    used: &BTreeSet<usize>,
-    folders: &BTreeSet<PathBuf>,
-    base: &Path,
-) -> Vec<LayoutFinding> {
-    // What: the folders of the package in the spelling a list line writes them.
-    // Why: an entry names its folder that way, so the two spellings must meet before a name can be called absent.
-    let mut known: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
-    for folder in folders {
-        known.insert(PathBuf::from(key_path(folder, base)));
-    }
-    let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
-    for (index, entry) in list.entries().iter().enumerate() {
-        if used.contains(&index) {
-            continue;
-        }
-        // What: the folders this entry names that no folder of the package is called.
-        // Why: a name that is not there is a misspelling or a hand-aligned line, and naming it is what tells its reader apart from a use that is simply gone.
-        let mut absent: Vec<String> = Vec::<String>::new();
-        match &entry.kind {
-            AllowKind::FolderUse {
-                from,
-                to,
-            } => {
-                for path in [from, to] {
-                    if known.contains(path) {
-                        continue;
-                    }
-                    absent.push(format!("`{}`", path.display()));
-                }
-            }
-            AllowKind::FileUse {
-                folder,
-                ..
-            } => {
-                if !known.contains(folder) {
-                    absent.push(format!("`{}`", folder.display()));
-                }
-            }
-            AllowKind::Key(_) => {}
-        }
-        let (message, help): (String, String) = if absent.is_empty() {
-            (
-                format!(
-                    "The allow-list entry `{}` in {} tolerates nothing any more. Delete the line so the list keeps shrinking.",
-                    entry.text,
-                    shown(list.source(), base)
-                ),
-                String::from(
-                    "Delete this line. The list holds today's findings only, and a line that matches none of them must not wait for a later round.",
-                ),
-            )
-        } else {
-            // What: the word that makes the sentence agree with how many folders are absent.
-            // Why: most dead lines name one absent folder, and only a line never read names two.
-            let names: &str = if absent.len() == 1 {
-                "the folder"
-            } else {
-                "the folders"
-            };
-            (
-                format!(
-                    "The allow-list entry `{}` in {} names {} {}, which no folder of this package is called, so the entry tolerates nothing any more. Check the line's spelling and the spacing between its words.",
-                    entry.text,
-                    shown(list.source(), base),
-                    names,
-                    absent.join(" and ")
-                ),
-                String::from(
-                    "Write the folder name the rule prints, or delete the line if the use is gone: a doubled or padded space is read as part of a name.",
-                ),
-            )
-        };
-        findings.push(LayoutFinding {
-            file: list.source().to_path_buf(),
-            line: entry.line,
-            message,
-            help: Some(help),
-            key: String::new(),
-        });
-    }
-    return findings;
 }
 
 /// Controls of the list reader stay outside release artifacts.

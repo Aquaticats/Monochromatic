@@ -27,6 +27,7 @@ use crate::worktree_copy_journal::{
     ensure_private_directory,
     journal_root,
 };
+use crate::worktree_copy_journal_names_and_shapes::UNREADABLE_FOLDER;
 use std::ffi::{
     OsStr,
     OsString,
@@ -35,19 +36,6 @@ use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  The folder under the journal root that keeps the records this release cannot read.
-/// Why:
-///   A record is the only trace of what an interrupted copy was doing,
-/// so it is moved rather than deleted,
-/// and one name keeps every one of them out of the readers' way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const UNREADABLE_FOLDER = 'unreadable';
-/// ```
-pub const UNREADABLE_FOLDER: &str = "unreadable";
 
 /// How many names one move aside tries before it gives up on a folder that keeps colliding.
 /// Exempt from a citation under `LQM` (class:

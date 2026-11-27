@@ -9,8 +9,8 @@ use crate::auto_push::{
     AutoPushOutcome,
     AutoPushResult,
     PUSH_FAILED_NOTE,
-    push_once,
 };
+use crate::auto_push_awaiting::push_once;
 use crate::auto_push_reconcile_basics_and_limits::{
     fetch_remote_tip,
     fetch_remote_tip_awaiting,

@@ -31,8 +31,10 @@ use crate::diagnostics::{
     render_engine_failure_with_hint,
 };
 use crate::merge_isolation_kept_copies::any_kept_copy;
-use crate::merge_isolation_recovery::{
-    RecoveryPlace,
+use crate::merge_isolation_recovery::RecoveryPlace;
+/// The records a command reads at its start,
+/// and the walk over them the merge folder owns.
+use crate::merge_isolation_recovery_records::{
     merge_intents_to_recover,
     recover_interrupted_merges,
 };

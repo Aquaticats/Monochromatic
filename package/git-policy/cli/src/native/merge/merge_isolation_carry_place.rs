@@ -39,8 +39,8 @@
 /// fsync and the runtime's own shutdown").
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 use crate::merge_isolation_carry_place_write::write_entry;
-use crate::merge_isolation_carry_writes::{
-    CarryFailure,
+use crate::merge_isolation_carry_write_failures::CarryFailure;
+use crate::merge_isolation_carry_write_forms::{
     FileWrite,
     IndexWrite,
 };
@@ -54,10 +54,8 @@ use crate::merge_isolation_take_aside_names::{
     CARRY_PREFIX,
     aside_name,
 };
-use crate::merge_isolation_take_asides::{
-    are_the_file_form_of_awaiting,
-    may_remove_the_aside_awaiting,
-};
+use crate::merge_isolation_take_asides::may_remove_the_aside_awaiting;
+use crate::merge_isolation_take_asides_proof::are_the_file_form_of_awaiting;
 use crate::rename_that_never_replaces::{
     TheAnswerOfARename,
     rename_noreplace_on_the_blocking_pool,

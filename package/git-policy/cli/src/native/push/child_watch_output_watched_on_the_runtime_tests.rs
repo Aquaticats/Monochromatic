@@ -93,7 +93,7 @@ fn a_step_awaited_on_the_runtime_returns_every_byte_of_both_streams() {
 fn the_synchronous_face_of_the_same_step_is_refused_from_inside_the_runtime() {
     let bound: StepBound = StepBound::EndAt(crate::wait_ceilings::OBJECT_STEP_CEILING);
     let refused: std::io::Result<Output> = crate::lazy_runtime::run_on_runtime(async {
-        return crate::child_watch::output_watched_within_for_a_stop(
+        return crate::child_watch_one_shot_run::output_watched_within_for_a_stop(
             &mut shell("exit 0"),
             "a step",
             "a step",

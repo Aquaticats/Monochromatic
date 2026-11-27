@@ -10,6 +10,11 @@ use crate::child_class::{
     CHILD_WAIT_VARIABLE,
     ChildClass,
 };
+use crate::child_watch_one_shot_run::{
+    output_watched,
+    output_watched_within,
+    reader_subject,
+};
 use crate::child_watch_step_bounds_and_errors::output_of;
 use crate::output_capture::Capture;
 use crate::test_support::{

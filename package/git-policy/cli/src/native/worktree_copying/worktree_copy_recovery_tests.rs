@@ -24,6 +24,10 @@ use crate::worktree_copy_journal::{
     write_journal,
 };
 use crate::worktree_copy_journal_encoding_and_validation::Journal;
+use crate::worktree_copy_registration_naming::{
+    NamedRegistration,
+    registration_naming,
+};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{
     StagedSnapshot,

@@ -86,6 +86,8 @@ use crate::rule_require_root::{
 };
 /// The variable that names the forbidden-strings rules list.
 use crate::scanner_selection::RULES_VARIABLE;
+/// The in-process planner that publishes the merge of a push that lost a race.
+use crate::stacked_merge_push::gated_merge_push;
 use crate::started_as_git::refusal_when_started_as_git;
 use crate::worktree_copy_forward::run_forwarded_git;
 use crate::wrapped_command::{
@@ -559,7 +561,7 @@ pub fn run_process(
             stderr,
         } => {
             write_stream(&mut std::io::stderr(), stderr.as_str());
-            return run_stacked_push(&forward);
+            return run_stacked_push(&forward, &gated_merge_push);
         }
         Action::Exit {
             code,
