@@ -88,6 +88,40 @@ pub(crate) use crate::journal_directory_readers::{
 };
 
 /// What:
+/// `pub(crate) const KEPT_JOURNAL: &str` is the clause both refusals carry about the journal they kept:
+/// what became of it,
+/// which later runs settle it,
+/// which leave it,
+/// and what a run that cannot show what this run left asks a person to run.
+/// Why:
+/// The install and the update say the same thing about one journal,
+/// and a copy in each place would drift;
+/// it names no scope,
+/// because a stop of a bare process group keeps the same journal and records a process group instead,
+/// and it names the runs by the rule that covers them rather than by a list of kinds,
+/// so a command added later is covered or excluded by what it does.
+/// Measured against a refusal staged on a test build (`refusal_journal_next_runs_tests`,
+/// 2026-11-27):
+/// `cargo check`,
+/// `cargo metadata`,
+/// `cargo update`,
+/// `cargo-shadow install`,
+/// `cargo-shadow update`,
+/// `install --dry-run` and `update --dry-run` settle the journal;
+/// `cargo fmt`,
+/// `--version`,
+/// a `CI` run,
+/// `install --frozen-lockfile`,
+/// a run outside every catalog repository,
+/// and a run on the fast path leave it and print nothing about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const KEPT_JOURNAL = 'the journal of this run was kept, and ...'
+/// ```
+pub(crate) const KEPT_JOURNAL: &str = "the journal of this run was kept, and any later run of this catalog that checks or updates a lockfile settles it once it can show that nothing this run started is still running (`cargo check`, `cargo metadata`, `cargo update`, `cargo-shadow install` or `cargo-shadow update`, a `--dry-run` included); a frozen run (`--locked`, `--frozen`, or `CI`), a run whose lockfile and remembered policy pass are already fresh (the fast path), a run that resolves nothing (`cargo fmt`, `cargo --version`), and a run outside this catalog repository leave it as it is and print nothing about it; a run that cannot show what this run left says so, names the journal, and prints the `cargo-shadow acknowledge <journal directory>` command to run once every process or worker of this run that can modify the workspace has stopped";
+
+/// What:
 /// `pub fn recover(root, judge) -> Vec<String>` finishes the journals of runs that no longer exist.
 /// Why:
 /// It is `recover_with` with no test hook.

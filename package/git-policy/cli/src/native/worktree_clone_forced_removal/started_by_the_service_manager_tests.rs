@@ -167,11 +167,15 @@ fn the_unified_cgroup_path_is_the_zero_line() {
     assert_eq!(unified_cgroup_path(""), None);
 }
 
-/// A command name is escaped before it enters the sentence,
+/// A command name is the kernel's own bytes,
+/// cut to its bound,
 /// and a record that could not be read gets the sentence's own word instead.
+/// Why:
+///  The escape belongs to the sentence that shows the name,
+///  so this hands it the name as the kernel holds it.
 #[test]
-fn a_command_name_is_escaped_in_the_sentence() {
-    assert_eq!(command_word(Some("a\nb")).text(), "a\\x0ab");
+fn a_command_name_is_the_kernels_own_bytes_and_a_missing_one_gets_our_own_word() {
+    assert_eq!(command_word(Some("a\nb")).text(), "a\nb");
     assert_eq!(
         command_word(None).text(),
         "a command this wrapper could not read"
