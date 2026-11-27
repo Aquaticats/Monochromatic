@@ -391,8 +391,17 @@
 //! - `service_index_prestage.rs`:
 //!   the marker of the next batch's index lock,
 //!   made and flushed while the service is idle.
+//! - `service_index_lock_without_a_wait.rs`:
+//!   the one attempt to take the lock that never waits,
+//!   and the stale lock it may remove before it tries again.
+//! - `service_index_lock_with_a_wait.rs`:
+//!   the attempt that waits for a foreign holder:
+//!   the watch set before the first placement,
+//!   the ceiling,
+//!   and what the wait was for.
 //! - `service_index_lock.rs`:
-//!   the commit service's hold on Git's index lock across a landing.
+//!   the faces the landing and the wrapper's own index writers call for the commit service's hold on Git's index lock,
+//!   re-exporting the files beside it under the names callers use.
 //! - `service_index_wait.rs`:
 //!   the wait of a wrapped index writer for the commit service's own hold on the index.
 //! - `service_hold_retry.rs`:
@@ -1152,7 +1161,14 @@ pub mod the_names_of_the_index_lock;
 /// The attempts and the wait of an acquisition of the index lock.
 pub mod service_index_attempts;
 
-/// The commit service's hold on Git's index lock across a landing.
+/// The one attempt to take Git's index lock that never waits.
+pub mod service_index_lock_without_a_wait;
+
+/// The attempt that takes Git's index lock and waits for a foreign holder.
+pub mod service_index_lock_with_a_wait;
+
+/// The commit service's hold on Git's index lock across a landing:
+/// the faces the landing and the wrapper's own index writers call.
 pub mod service_index_lock;
 
 /// The service's warm of the compiled forbidden-strings rules,
