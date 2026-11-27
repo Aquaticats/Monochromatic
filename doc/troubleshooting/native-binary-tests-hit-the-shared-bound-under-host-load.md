@@ -1347,11 +1347,11 @@ which one gate of 2026-11-25 saw
 A control that holds a command for its own reasons and takes longer than that to end it
 is the same case and is covered by the same state
 (`end_command` marks a command whose ending is still going on).
-A loop that burns processor time is judged by the processor budget,
-which load cannot lengthen:
-starvation shows as
-runnable tasks and a small tick count,
-so a starved command is never mistaken for a loop.
+A loop that burns processor time is judged by the processor budget.
+That budget is not a figure load leaves alone,
+as the measurement of 2026-11-27 below shows:
+a task that runs over many page-cache-cold bytes accrues them in the kernel's fault and copy path,
+while a starved one accrues few.
 The idle window never ends what the old 5-second wall bound would have let finish.
 The processor budget does not have that property:
 a tree that runs in parallel can use 10 processor seconds in less than 5 wall
@@ -1381,6 +1381,72 @@ The review of the supervisor replaced the group kill
 (see "2026-11-02T16:27:37-05:00:
 cross-vendor review of the supervisor");
 its controls are listed there.
+
+### 2026-11-27: a loaded host lengthened the processor figure, so a control states its own
+
+Issue 6547 recorded the processor budget ending a command that was not a loop.
+On 2026-11-26 a threaded run of `native_binary`'s `resolution::` module failed with
+`test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 1362 filtered out; finished in 54.92s`,
+and the supervisor's message ended
+`/usr/bin/timeout --signal=KILL 600 <fixture>/copy-early/git rev-parse --sq-quote reached real git`
+for using `10.0 s of processor time (a loop)`,
+with `timeout` asleep in `__se_sys_rt_sigsuspend` and `copy-early/git` in state `R`.
+
+What that start does was measured on 2026-11-27 on this host at load average 79.6 on ten threads.
+The wrapper's self-exclusion compares its own image with every PATH candidate whose length matches it,
+so a start as one of the control's copies compares four byte-identical candidates
+against its own 161,674,320-byte debug build:
+`bin/git`,
+`chain/git`,
+`hard/git`
+and `nested/bin-link/git`.
+That is eight file reads,
+1,293,394,560 bytes,
+before it can answer.
+`strace -c -f -e trace=read` counted 299 `read` calls using 0.72 s of processor time inside them;
+the whole command took 4.84 s of wall time and 1.01 s of processor time in one run,
+0.98 s and 0.76 s in a second,
+and the same command through the fixture's real Git 0.024 s and 0.002 s.
+A start as `bin/git`,
+where one candidate is a copy,
+used 0.37 s of processor time.
+
+The same instruction count costs more processor seconds on a loaded host:
+those 1.29 GB are page-cache cold when other sessions use the memory,
+so each byte is read from the volume,
+faulted into the cache and copied,
+and the kernel's share of the figure grows while the process stays runnable.
+The issue's host ran at load average 100 to 235 with a disk stall of `some avg10` 92 percent,
+and reported 10.0 s for the work this host did in 1.01 s.
+The figure was the release code's own work and not a loop,
+and the ten seconds it crossed were sized for one Git command.
+
+What the crate does about it now:
+
+- a control states the limits its own command is judged by
+  (`observe_under`,
+  `binary_support_observation.rs`),
+  and the command is entered under them in the monitor's registry the moment it exists,
+  so no look of the monitor judges it by the shared figures first;
+- `resolution::wrapper_never_selects_itself_or_a_copy_of_itself` states thirty processor-seconds,
+  three times the slowest figure on record,
+  and keeps the shared five-second window and ten-minute backstop;
+- `identical_content` compares two files a 64-kibibyte chunk at a time instead of reading both whole,
+  which took one comparison from 314,500 to 315,012 kB of resident memory and 330 to 340 ms of
+  processor time to 2,656 to 2,768 kB and 220 to 290 ms (three alternating rounds).
+
+What this does not claim.
+The round did not observe a loop.
+It reproduced the issue's ending by narrowing the shared budget from ten seconds to one,
+which failed the same control at `copy-late/git` with
+`it used 1.1 s of processor time (a loop)`,
+`timeout` asleep and the copy in state `R`,
+and the same narrowing passed once the control stated its own figure
+(`test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1362 filtered out`).
+Whether the copy in the issue's run looped is still open.
+Nor is a processor budget load-immune in general:
+what makes it usable is that it is sized from what the command does,
+so a command whose work is large states its own (`AGENTS.md` rule `LQM`).
 
 ### What was measured
 

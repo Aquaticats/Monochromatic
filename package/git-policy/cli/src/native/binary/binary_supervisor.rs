@@ -152,10 +152,11 @@ pub use super::supervisor_limits::{
     UNCLAIMED_GRACE,
 };
 /// The monitor thread,
-/// and the call that puts one command under it.
+/// and the calls that put a command under it.
 pub use super::supervisor_monitor::{
     ensure_monitor,
     watch,
+    watch_while_running,
 };
 /// The holds a thread takes on a command's entry in the registry.
 pub use super::supervisor_registry::{
