@@ -132,7 +132,7 @@ fn named_directory(named: Option<OsString>) -> Option<PathBuf> {
 /// function runtimeDirectory(): string | undefined { return process.env.XDG_RUNTIME_DIR || undefined; }
 /// ```
 #[cfg(not(test))]
-pub fn runtime_directory() -> Option<PathBuf> {
+pub(crate) fn runtime_directory() -> Option<PathBuf> {
     // What:     `std::env::var_os` reads one variable of this process's environment as raw bytes.
     // Why:      `std::env::var` answers nothing for a name that is not UTF-8, and the person's own runtime
     //           directory would then name no place at all.
@@ -160,7 +160,7 @@ pub fn runtime_directory() -> Option<PathBuf> {
 /// function runtimeDirectory(): string | undefined { return process.env.CLI_GIT_TEST_ONLY_SESSION_RUNTIME_DIRECTORY || undefined; }
 /// ```
 #[cfg(test)]
-pub fn runtime_directory() -> Option<PathBuf> {
+pub(crate) fn runtime_directory() -> Option<PathBuf> {
     // What:     `crate::test_only_switches::value` is the one read of a `CLI_GIT_TEST_ONLY_*` variable, and it
     //           answers nothing in a build made without the `test-only-switches` feature.
     // Why:      A build made for tests without that feature reads no switch, so its route answers no runtime
@@ -187,7 +187,7 @@ pub fn runtime_directory() -> Option<PathBuf> {
 /// function busAddress(): string | undefined { return process.env.DBUS_SESSION_BUS_ADDRESS; }
 /// ```
 #[cfg(not(test))]
-pub fn bus_address() -> Option<String> {
+pub(crate) fn bus_address() -> Option<String> {
     // What:     `std::env::var` reads one variable as UTF-8 text, and `.ok()` turns its "not there or not text"
     //           answer into the "nothing" this function returns.
     // Why:      A bus address is text a parser splits on `;` and `,`, so bytes that are not UTF-8 name no bus this
@@ -215,7 +215,7 @@ pub fn bus_address() -> Option<String> {
 /// function busAddress(): string | undefined { return process.env.CLI_GIT_TEST_ONLY_SESSION_BUS_ADDRESS; }
 /// ```
 #[cfg(test)]
-pub fn bus_address() -> Option<String> {
+pub(crate) fn bus_address() -> Option<String> {
     return crate::test_only_switches::text(BUS_ADDRESS_SWITCH);
 }
 
