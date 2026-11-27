@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::git_metadata::run_metadata_git;
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::test_support::{
     REAL_GIT,
     executable,
@@ -224,60 +225,88 @@ fn a_panicking_reader_is_left_to_git() {
 ///  that holds only a Git path has it:
 /// the readers still learn the system file from the Git the caller names,
 /// so they answer.
+///  The body runs in a child of its own because it writes the Git it starts:
+/// a `fork` by another thread of a threaded run holds that copy's write descriptor until its own `exec`,
+/// and an `exec` inside that window is refused with `ETXTBSY`
+/// (`doc/troubleshooting/git-policy-cli-a-fixture-git-is-refused-with-etxtbsy.md`,
+/// issues 6517 and 6540).
 #[test]
 fn a_caller_that_names_only_its_git_still_gets_in_process_answers() {
-    let root = fixture("repo-read-hook-named-git");
-    let repo = repository(root.as_path(), "repo");
-    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
-    git(repo.as_path(), &["add", "a.txt"]);
-    let named_git = root.join("bin").join("git");
-    std::fs::create_dir(named_git.parent().expect("parent")).expect("bin");
-    std::fs::copy(REAL_GIT, &named_git).expect("an executable named git");
-    let cache = root.join("cache");
-    let overlay: Vec<(OsString, OsString)> = vec![
-        (
-            OsString::from("GIT_CONFIG_GLOBAL"),
-            OsString::from("/nonexistent-global-config"),
-        ),
-        (
-            OsString::from("HOME"),
-            root.join("no-home").into_os_string(),
-        ),
-        (
-            OsString::from("XDG_CACHE_HOME"),
-            cache.clone().into_os_string(),
-        ),
-    ];
-    let context = GitContext {
-        real_git: named_git.clone(),
-        overlay: overlay.clone(),
-        global_prefix: Vec::new(),
-        common_dir: None,
-    };
-    let request = GitRequest::new(
-        repo.as_path(),
-        &["ls-files", "--stage", "-z", "--full-name"],
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_caller_that_names_only_its_git_still_gets_in_process_answers",
+        || {
+            let root = fixture("repo-read-hook-named-git");
+            let repo = repository(root.as_path(), "repo");
+            std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+            git(repo.as_path(), &["add", "a.txt"]);
+            let named_git = root.join("bin").join("git");
+            std::fs::create_dir(named_git.parent().expect("parent")).expect("bin");
+            std::fs::copy(REAL_GIT, &named_git).expect("an executable named git");
+            let cache = root.join("cache");
+            let overlay: Vec<(OsString, OsString)> = vec![
+                (
+                    OsString::from("GIT_CONFIG_GLOBAL"),
+                    OsString::from("/nonexistent-global-config"),
+                ),
+                (
+                    OsString::from("HOME"),
+                    root.join("no-home").into_os_string(),
+                ),
+                (
+                    OsString::from("XDG_CACHE_HOME"),
+                    cache.clone().into_os_string(),
+                ),
+            ];
+            let context = GitContext {
+                real_git: named_git.clone(),
+                overlay: overlay.clone(),
+                global_prefix: Vec::new(),
+                common_dir: None,
+            };
+            let request = GitRequest::new(
+                repo.as_path(),
+                &["ls-files", "--stage", "-z", "--full-name"],
+            );
+            let expected = git_output(
+                repo.as_path(),
+                &["ls-files", "--stage", "-z", "--full-name"],
+            );
+            // What:     the wrapper's own lines about this request; `take_lines_written` empties this thread's list.
+            // Why:      a failure that says only "no answer came" leaves the reader without the start error or the
+            //           ceiling that cost it (issue 6540).
+            let _ = crate::diagnostic_log::take_lines_written();
+            // What:     the readers' answer, or a failure carrying every line the wrapper wrote while it declined.
+            // Why:      `try_request` answers `None` for a start the system refused and for a wait the ceiling ended
+            //           alike, and only those lines tell the two apart.
+            let Some(found) = try_request(&context, &request) else {
+                let written: Vec<String> = crate::diagnostic_log::take_lines_written();
+                let said: String = if written.is_empty() {
+                    String::from("the wrapper wrote no line saying why")
+                } else {
+                    written.join("\n")
+                };
+                panic!(
+                    "the readers answer nothing for `git ls-files` in {} although the caller named only its Git: {said}",
+                    repo.display()
+                );
+            };
+            assert_eq!(found.stdout, expected.stdout);
+            let learned = std::fs::read_dir(cache.join("monochromatic-git-policy-cli"))
+                .expect("the cache directory")
+                .count();
+            assert_eq!(
+                learned, 1,
+                "the system file path was asked of the named Git once and recorded"
+            );
+            let metadata = run_metadata_git(
+                named_git.as_path(),
+                listing(repo.as_path()).as_slice(),
+                overlay.as_slice(),
+            )
+            .expect("answer");
+            assert_eq!(metadata.stdout, expected.stdout);
+            remove(root.as_path());
+        },
     );
-    let expected = git_output(
-        repo.as_path(),
-        &["ls-files", "--stage", "-z", "--full-name"],
-    );
-    let found = try_request(&context, &request)
-        .expect("the readers answer without the forward-target variable");
-    assert_eq!(found.stdout, expected.stdout);
-    let learned = std::fs::read_dir(cache.join("monochromatic-git-policy-cli"))
-        .expect("the cache directory")
-        .count();
-    assert_eq!(
-        learned, 1,
-        "the system file path was asked of the named Git once and recorded"
-    );
-    let metadata = run_metadata_git(
-        named_git.as_path(),
-        listing(repo.as_path()).as_slice(),
-        overlay.as_slice(),
-    )
-    .expect("answer");
-    assert_eq!(metadata.stdout, expected.stdout);
-    remove(root.as_path());
 }

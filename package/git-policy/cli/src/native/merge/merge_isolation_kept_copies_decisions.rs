@@ -68,6 +68,7 @@ use crate::merge_isolation_kept_copies::{
 use crate::merge_isolation_kept_copies_words::{
     say_the_copy_stays,
     say_the_copy_stays_because,
+    say_the_copy_stays_held_open,
 };
 /// The place a command's recovery runs in.
 use crate::merge_isolation_recovery_steps::RecoveryPlace;
@@ -396,6 +397,10 @@ enum Fate {
     /// and something else the copy holds is not at the path,
     /// so the copy stays and is named with the reason.
     KeptBecause(&'static str),
+    /// The bytes at the path are the copy's own,
+    /// and programs a scan this command made can read hold the copy open,
+    /// so the copy stays and is named with each of them.
+    HeldOpen(Vec<crate::index_lock_holders::Holder>),
 }
 
 /// What:
@@ -510,9 +515,10 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
                         .await
                         {
                             CopyRemoval::Proven(proof) => Fate::TheFileHoldsThem(proof),
-                            CopyRemoval::HeldOpen => {
-                                Fate::KeptBecause("a program still holds the copy open")
-                            }
+                            CopyRemoval::HeldBy(holders) => Fate::HeldOpen(holders),
+                            CopyRemoval::Unproven => Fate::KeptBecause(
+                                "nothing could prove that no program holds the copy open",
+                            ),
                             CopyRemoval::Changed => Fate::KeptBecause(
                                 "the file at its path or the copy changed after they were compared",
                             ),
@@ -541,12 +547,15 @@ async fn settle_kept_copy_awaiting<W: Write + ?Sized>(
         Fate::GitHoldsThem(object) => {
             remove_the_copy_because_git_holds_it_awaiting(git_dir, copy, object.as_str(), out).await
         }
-        Fate::Kept | Fate::KeptBecause(_) => {
+        Fate::Kept | Fate::KeptBecause(_) | Fate::HeldOpen(_) => {
             // The copy is recorded, so the next command that runs the recovery decides it again even though no later merge
             //  touches its path.
             keep_the_copy(git_dir, copy.location.as_path(), copy.aside.as_path());
             match fate {
                 Fate::KeptBecause(why) => say_the_copy_stays_because(out, copy, why),
+                Fate::HeldOpen(holders) => {
+                    say_the_copy_stays_held_open(out, copy, holders.as_slice())
+                }
                 _ => say_the_copy_stays(out, copy, named),
             }
         }
