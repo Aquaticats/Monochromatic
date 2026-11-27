@@ -867,3 +867,61 @@ fn a_child_dies_with_the_test_process_that_started_it() {
 }
 
 //endregion
+
+//region The cache a fixture's work records its facts in is a folder of that fixture (issue 6571)
+
+/// What:
+///  The cache place the variables of a fixture context name is a folder of the fixture,
+///  and the facts about the real Git are recorded there.
+/// Why:
+///  The wrapper records `git version`'s text,
+///  and where that Git's system configuration and attributes files are,
+///  in a cache under `XDG_CACHE_HOME` or the home directory.
+///  A control's work must use disposable fixtures and never the person's,
+///  because such a cache is shared with every session and outlives the run,
+///  and a control that read one would answer from the machine
+///  (`AGENTS.md`'s THR and HOM).
+///  A build whose fixture named no place wrote `git-system-attributes-<digest>` under the
+///       person's home cache from a passing control's in-process service (issue 6571).
+/// Gotcha:
+///  The code this control starts is the landing's own:
+///  a service's index reset reads its facts through `for_context`,
+///  and that code records as it learns,
+///  so a fixture that names no place writes the person's home cache here.
+#[test]
+fn the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture() {
+    let context: crate::transaction_git::GitContext = git_context();
+    // What: the environment the landing's own in-process index reset reads its facts from.
+    // Why: any other way of asking would prove a place this control's subject never uses.
+    let environment: crate::worktree_clean_content::ConversionEnvironment =
+        crate::worktree_clean_content::for_context(&context);
+    let place: PathBuf =
+        crate::git_version_cache::cache_directory(environment.variables.as_slice())
+            .expect("a cache place for the variables a fixture hands its work");
+    assert!(
+        place.starts_with(fixture_root()),
+        "the cache a control's work records in is a folder of its fixture, never the person's home cache: {}",
+        place.display()
+    );
+    let learned: Vec<PathBuf> = std::fs::read_dir(place.as_path())
+        .expect("the cache place")
+        .map(|entry| {
+            return entry.expect("an entry of the cache place").path();
+        })
+        .filter(|path| {
+            let named: Option<&str> = path.file_name().and_then(|name| {
+                return name.to_str();
+            });
+            return named.is_some_and(|named| {
+                return named.starts_with(crate::git_system_config::SYSTEM_ATTRIBUTES_KIND);
+            });
+        })
+        .collect();
+    assert_eq!(
+        learned.len(),
+        1,
+        "learning where the system attributes file is records one entry of the fixture's place: {learned:?}"
+    );
+}
+
+//endregion
