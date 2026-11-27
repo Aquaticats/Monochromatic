@@ -164,11 +164,25 @@
 //!   the record,
 //!   beside a worktree,
 //!   of the objects one conversion may leave at its converting name.
-//! - `worktree_convert_phases.rs`:
-//!   the journaled phases of one worktree conversion.
+//! - `worktree_convert_stage_identity.rs`:
+//!   the identity of the object at a path,
+//!   at a conversion's converting name,
+//!   and with the directory that holds it held open.
 //! - `worktree_convert_unrecorded_stage.rs`:
 //!   the empty stage a conversion created and did not record,
 //!   and whether the object at the converting name is it.
+//! - `worktree_convert_job.rs`:
+//!   one conversion's job:
+//!   its candidate,
+//!   its converting sibling and its journal,
+//!   the stage it makes sure of,
+//!   and Git's index lock that it holds.
+//! - `worktree_convert_swap_and_removal.rs`:
+//!   the swap of the copy into the worktree's place,
+//!   the index refresh,
+//!   and the removal of the old tree.
+//! - `worktree_convert_phases.rs`:
+//!   the copy phase of one worktree conversion and its proof.
 //! - `worktree_convert.rs`:
 //!   converting a linked worktree that is an ordinary directory into a btrfs subvolume at the same path,
 //!   resumably.
@@ -1116,9 +1130,28 @@ pub mod worktree_convert;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_inspection;
 
-/// The journaled phases of one worktree conversion.
+/// The identity of the object at a path,
+/// at a conversion's converting name,
+/// and with the directory that holds it held open.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_stage_identity;
+
+/// One conversion's job:
+/// its candidate,
+/// its converting sibling and its journal,
+/// the stage it makes sure of,
+/// and Git's index lock that it holds.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_job;
+
+/// The copy phase of one worktree conversion and its proof.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_phases;
+/// The swap of the copy into the worktree's place,
+/// the index refresh,
+/// and the removal of the old tree.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_swap_and_removal;
 
 /// What a conversion does about a stage container another command is filling below the tree it would swap or delete.
 #[cfg(target_os = "linux")]
