@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:27:32-05:00
+## The state at 2026-11-27T12:35:11-05:00
 
-`main` was `0f33063f26`.
+`main` was `d4a9bb5544`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 226 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 228 more by this time.
 
 ### Rounds running
 
@@ -153,10 +153,10 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   a container killed for memory can be reported as one that met no kill);
   and `issue-6613-a-passing-typescript-check-says-what-it-ran`
   (`native:ts-checks` prints only `exit 0` for a check that passed);
-- in the linter,
-  `monochromatic-lint-alpha-19-release-pass-tabs-in-a-uses-line-and-four-small-points`
-  ("Releases of 2026-11-27");
-  `0.5.2-alpha.20` follows its merge;
+- nothing in the linter:
+  its alpha.19 pass round is merged and `0.5.2-alpha.20` is released ("Releases of 2026-11-27"),
+  to be locked,
+  installed and read by a Claude Sonnet pass once published;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -177,11 +177,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
 - for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  two rounds started 2026-11-27T12:00:02-05:00,
-  each named `cargo-shadow-alpha-13-release-pass-` and then:
-  `the-retire-gates-fallback-and-its-words-are-held-by-controls`
-  and `the-refusals-listing-and-its-records-say-what-the-code-does`.
-  The third of that list is merged (`17a5efdf9a`):
+  one round started 2026-11-27T12:00:02-05:00,
+  `cargo-shadow-alpha-13-release-pass-the-retire-gates-fallback-and-its-words-are-held-by-controls`;
+  `0.1.5-alpha.14` follows its merge.
+  The round on the refusal's listing is merged (`cf3210724e`):
+  the last leftover a stop can report reaches the refusal's decision in a control that rests on no race;
+  a branch no input could reach is gone;
+  the listing's order is stated as the code gives it,
+  the scope's own group first,
+  and pinned across two groups;
+  and the refusal for a scope the manager collected says what becomes of the kept journal.
+  The proposal round of that list is merged too (`17a5efdf9a`):
   in a guest on systemd 262.2,
   with the account's inotify watches used up,
   a scope started the way `cargo-shadow` starts one stayed `loaded active running` with no member after its program ended,
@@ -718,17 +724,24 @@ and both of alpha.18's Medium findings fixed
 Every printed key reads back with the same binary,
 and the layout gate on `package/git-policy/cli` and on the ZFS binding reports nothing,
 with a control that removes the allow keys reporting 558 and 16 findings.
-Its six Low findings have one round:
-a `uses` line spaced with tabs or no-break spaces still stops the whole rule,
-with a message that does not mention whitespace
-(163 of 220 spellings,
-all of which alpha.16 read);
-a mistyped `file-uses` line gets the wrong message;
-two wording gaps;
-a README mapping gap;
-edits no test would catch;
-and one constructed walk shape that costs 1.64 times alpha.16,
-fixed only if a package of this repository has that shape.
+Its six Low findings had one round,
+merged as `2fcfbfc9f8` and released in `0.5.2-alpha.20`
+(release commit `d4a9bb5544`).
+Of 220 spellings of one `uses` line,
+alpha.19 refused 163 and stopped the whole rule,
+with a message that named no whitespace;
+alpha.20 refuses none:
+31 read as the use and 189 are reported as a dead line that spells the whitespace it read,
+since a second whitespace character beside a name belongs to the name,
+which is the rule the README states.
+alpha.16 read all 220 as the use,
+so a list aligned with more than one character in a gap is reported where alpha.16 took it.
+A mistyped `file-uses` line is told what is wrong with it,
+the two wording gaps and the README mapping gap are closed
+(the README gains "How a list written before alpha.20 maps"),
+and the edits no test would catch have tests.
+The constructed walk shape that costs 1.64 times alpha.16 is left:
+no package of this repository has it.
 
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,

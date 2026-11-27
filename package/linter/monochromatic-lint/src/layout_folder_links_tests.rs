@@ -1097,6 +1097,69 @@ fn a_directly_answered_use_reaches_no_entry_behind_it() {
     );
 }
 
+/// A package of one group whose own file uses the entry that sorts first,
+///  and of many entries that each reach the group directly,
+///  so the walk meets the entry it was asked about before any of the others.
+fn package_of_many_entries_reaching_one_group(entries: usize) -> crate::test_fs::Fixture {
+    // What: the module declarations of the root, which every folder below needs.
+    // Why: a folder that no `mod` line reaches is no folder of the tree.
+    let mut lib: String = String::from("mod g;\n");
+    let mut files: Vec<(String, String)> = Vec::<(String, String)>::new();
+    files.push((
+        String::from("src/g/mod.rs"),
+        String::from("pub mod c0;\npub mod own;\n"),
+    ));
+    files.push((
+        String::from("src/g/c0/mod.rs"),
+        String::from("pub struct C;\n"),
+    ));
+    // What: the own file's use of the folder that sorts first, which is the one entry the walk is asked about.
+    // Why: every other folder reaches the group too, so a walk that read on after this one reaches all of them.
+    files.push((
+        String::from("src/g/own.rs"),
+        String::from("use crate::p0::P;\n"),
+    ));
+    for index in 0..entries {
+        lib.push_str(format!("mod p{index};\n").as_str());
+        files.push((
+            format!("src/p{index}/mod.rs"),
+            String::from("use crate::g::c0::C;\npub struct P;\n"),
+        ));
+    }
+    let mut listed: Vec<(&str, &str)> = vec![("src/lib.rs", lib.as_str())];
+    for (path, body) in &files {
+        listed.push((path.as_str(), body.as_str()));
+    }
+    return package_with(listed.as_slice());
+}
+
+/// A group that many entries reach directly stops its walk at the first of them,
+///  which is the one its own file uses:
+///  the entries behind that one answer no use of the group, so none of them is read.
+#[test]
+fn a_directly_answered_use_stops_the_walk_at_the_entry_it_asked_for() {
+    // What: how many folders reach the group, named so the count is no magic number.
+    // Why: a walk that read on after the answered entry reaches every one of them.
+    const ENTRIES: usize = 200;
+    // What: the entries one answered use needs, which are the group and the entry the own file uses.
+    // Why: that is the whole route the finding spells, so anything more is a walk that read entries no use asked for.
+    const ENTRIES_OF_ONE_ANSWERED_USE: usize = 2;
+    let fixture = package_of_many_entries_reaching_one_group(ENTRIES);
+    counted_work::reset();
+    let loops: Vec<String> = own_file_loops_of(&fixture.path);
+    assert_eq!(loops.len(), 1, "{loops:#?}");
+    assert!(
+        loops[0].contains("src/g uses src/p0"),
+        "the finding spells the use the own file makes: {}",
+        loops[0]
+    );
+    assert_eq!(
+        counted_work::reached(),
+        ENTRIES_OF_ONE_ANSWERED_USE,
+        "the walk stops at the entry it answered, over {ENTRIES} entries that reach the group"
+    );
+}
+
 /// A package whose groups close no loop builds no reverse index and walks nothing,
 ///  which is what the README says such a package pays.
 #[test]
