@@ -83,9 +83,25 @@
 //! - `index_reset.rs`:
 //!   in-process index update:
 //!   a path-limited mixed reset of an index held in memory.
+//! - `index_reset_file_names_and_checksums.rs`:
+//!   in-process index update:
+//!   the bounds,
+//!   the checksums and the names the landing's update reads.
+//! - `index_reset_file_surroundings.rs`:
+//!   in-process index update:
+//!   the layout,
+//!   the settings and the objects the update reads around the index file.
+//! - `index_reset_file_reading.rs`:
+//!   in-process index update:
+//!   the index file read,
+//!   and the attribute directories its entries name.
+//! - `index_reset_file_reset.rs`:
+//!   in-process index update:
+//!   the update itself.
 //! - `index_reset_file.rs`:
 //!   in-process index update:
-//!   the landing's follow-up on an index file.
+//!   the landing's follow-up on an index file:
+//!   the entry a landing calls.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -198,6 +214,29 @@ pub mod index_reset_tree;
 /// the temporary file and the file mode of the landing's private index.
 #[cfg(target_os = "linux")]
 pub mod index_reset_publish;
+
+/// In-process index update:
+/// the bounds,
+/// the checksums and the names the landing's update reads.
+#[cfg(target_os = "linux")]
+pub mod index_reset_file_names_and_checksums;
+
+/// In-process index update:
+/// the layout,
+/// the settings and the objects the update reads around the index file.
+#[cfg(target_os = "linux")]
+pub mod index_reset_file_surroundings;
+
+/// In-process index update:
+/// the index file read,
+/// and the attribute directories its entries name.
+#[cfg(target_os = "linux")]
+pub mod index_reset_file_reading;
+
+/// In-process index update:
+/// the update itself.
+#[cfg(target_os = "linux")]
+pub mod index_reset_file_reset;
 
 /// In-process index update:
 /// the landing's follow-up on an index file.
