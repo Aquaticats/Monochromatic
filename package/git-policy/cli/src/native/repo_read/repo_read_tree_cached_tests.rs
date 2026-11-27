@@ -9,6 +9,7 @@
 //! and every state the cache-tree says nothing of is read in full or declined.
 
 use super::*;
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::repo_read_index::parse_index_with_tree;
 use crate::repo_read_query::tests::{
     answered,
@@ -377,57 +378,88 @@ fn a_sparse_index_is_left_to_git() {
 /// before `HEAD`,
 /// whose trees the cache-tree does not name,
 /// reads far more.
+/// The decodes it counts belong to the whole process,
+/// so the body runs in a child of its own.
 #[test]
 fn the_directories_the_cache_tree_proves_equal_are_not_read() {
-    let root = fixture("repo-read-cached-reads");
-    let directories: usize = 40;
-    let repo = committed_repository(root.as_path(), "reads", "sha1", directories);
-    std::fs::write(repo.join("d3/sub/f.txt"), "staged\n").expect("edit");
-    git(repo.as_path(), &["add", "d3/sub/f.txt"]);
-    let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let decoded_by = |shape: &[&str]| -> u64 {
-        let started =
-            crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed);
-        answered(root.as_path(), repo.as_path(), shape);
-        return crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed)
-            - started;
-    };
-    let raw = decoded_by(&[
-        "diff-index",
-        "--cached",
-        "--raw",
-        "-z",
-        "--no-renames",
-        "--no-abbrev",
-        head.as_str(),
-    ]);
-    let quiet = decoded_by(&["diff-index", "--cached", "--quiet", head.as_str()]);
-    let directories_u64: u64 = directories as u64;
-    assert!(
-        raw > 0 && raw < directories_u64,
-        "only the trees along the staged path are read: {raw} entries decoded for {directories} directories"
+    // What:     `run_the_body_in_a_child_of_its_own(module_path!(), name, body)` starts this test binary
+    //           on this one test, in a process of its own, and runs `body` there; `module_path!()` is
+    //           `repo_read::repo_read_tree_cached::tests`, and the starter drops the crate's own first
+    //           segment to name the test the way libtest prints it.
+    //           `|| { .. }` is a closure: a block of code handed over as a value, which the starter
+    //           calls once in the child and this parent never calls at all.
+    // Why:      `DECODED_TOTAL` adds up every pack entry every pack of this process decoded, so a
+    //           threaded run adds another test's decodes to the difference between this control's two
+    //           reads: one recorded run counted 42 entries for these 40 directories (issue 6539), and a
+    //           run with a window planted between the reads counted the sibling control that decodes
+    //           every state of the cache-tree. A child of its own holds this test alone, so the count
+    //           is the control's own.
+    // Gotcha:   everything the body needs is made inside it, because nothing before this call runs in
+    //           the child.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(modulePath, 'the_directories_the_cache_tree_proves_equal_are_not_read', () => {
+    //   const root = fixture('repo-read-cached-reads');
+    //   // ... the body ...
+    // });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_directories_the_cache_tree_proves_equal_are_not_read",
+        || {
+            let root = fixture("repo-read-cached-reads");
+            let directories: usize = 40;
+            let repo = committed_repository(root.as_path(), "reads", "sha1", directories);
+            std::fs::write(repo.join("d3/sub/f.txt"), "staged\n").expect("edit");
+            git(repo.as_path(), &["add", "d3/sub/f.txt"]);
+            let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
+            let decoded_by = |shape: &[&str]| -> u64 {
+                let started =
+                    crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed);
+                answered(root.as_path(), repo.as_path(), shape);
+                return crate::repo_read_pack::DECODED_TOTAL
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                    - started;
+            };
+            let raw = decoded_by(&[
+                "diff-index",
+                "--cached",
+                "--raw",
+                "-z",
+                "--no-renames",
+                "--no-abbrev",
+                head.as_str(),
+            ]);
+            let quiet = decoded_by(&["diff-index", "--cached", "--quiet", head.as_str()]);
+            let directories_u64: u64 = directories as u64;
+            assert!(
+                raw > 0 && raw < directories_u64,
+                "only the trees along the staged path are read: {raw} entries decoded for {directories} directories"
+            );
+            assert!(
+                quiet > 0 && quiet < directories_u64,
+                "the quiet comparison reads as little: {quiet} entries decoded"
+            );
+            // Positive control: the commit before HEAD has other trees than the cache-tree names where `d1` changed, and a state with no
+            // cache-tree reads every directory.
+            without_cache_tree(repo.as_path());
+            let whole = decoded_by(&[
+                "diff-index",
+                "--cached",
+                "--raw",
+                "-z",
+                "--no-renames",
+                "--no-abbrev",
+                head.as_str(),
+            ]);
+            assert!(
+                whole >= directories_u64 * 2,
+                "without a cache-tree every directory is read: {whole} entries decoded"
+            );
+            remove(root.as_path());
+        },
     );
-    assert!(
-        quiet > 0 && quiet < directories_u64,
-        "the quiet comparison reads as little: {quiet} entries decoded"
-    );
-    // Positive control: the commit before HEAD has other trees than the cache-tree names where `d1` changed, and a state with no
-    // cache-tree reads every directory.
-    without_cache_tree(repo.as_path());
-    let whole = decoded_by(&[
-        "diff-index",
-        "--cached",
-        "--raw",
-        "-z",
-        "--no-renames",
-        "--no-abbrev",
-        head.as_str(),
-    ]);
-    assert!(
-        whole >= directories_u64 * 2,
-        "without a cache-tree every directory is read: {whole} entries decoded"
-    );
-    remove(root.as_path());
 }
 
 /// A node whose count is not the number of index entries below the directory is not trusted:
