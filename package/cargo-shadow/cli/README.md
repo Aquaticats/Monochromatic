@@ -974,6 +974,28 @@ and an HTTP 429 is retried after its `Retry-After`.
   A journal with no ready record is removed only when every lockfile equals its snapshot (the copies are then redundant);
   otherwise it is kept and named,
   because a lost ready record looks the same.
+  Before such a journal goes,
+  each live file it stands for is made durable by the path the journal recorded,
+  byte for byte:
+  a manifest whose name is not UTF-8 is synced itself,
+  never through the text a lossy conversion spells for that name,
+  and a barrier that fails keeps the journal and names the file.
+  That is what release `0.1.5-alpha.11` changed in this behaviour beyond issue 6528 (issue 6550,
+  `1c0303a1ba`):
+  `0.1.5-alpha.10` carried those live files as `String`,
+  so such a manifest was skipped as absent (or another file under the spellable name was synced in its place)
+  and the journal was removed while the live manifest had never been made durable.
+  The control is
+  `journal_recover_tests::an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable`:
+  it arms the manifest's own data barrier and holds a file under the spellable name beside it,
+  and on alpha.10's code it fails here:
+
+  ```text
+  the live manifest's own barrier was never reached, so the recovery asked for a name this file does not have: []
+  ```
+
+  (measured 2026-11-27 on this host,
+  the red quoted in `doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md`).
   A replacement temporary left by a killed run is reported and never deleted.
   Finishing a run has three phases that fail differently (round 7):
   the outputs are forced to disk (the owner's "Force at leaving";
@@ -1609,6 +1631,17 @@ issue 6552;
 `doc/troubleshooting/zfs-reports-one-block-for-a-file-written-moments-ago.md`).
 The tools pass `allocated_bytes_of` as the same rule,
 because their caps and their freed-byte reports are about the disk (the "Limits" heading).
+That seam changed no production call when `0.1.5-alpha.11` added it
+(issue 6552,
+`7a609527d9`):
+every tool of this package passes `allocated_bytes_of`,
+which is what it counted by before,
+so what the lean tools count and report is unchanged by the release,
+and only a control passes `length_bytes`.
+The production call sites are the size walks of `lean_idle_trees` (its own and the qualified tree's removal),
+the trash sweep and the unit removal in `lean_removal`,
+the run-record sweep and its steps,
+and the rustup toolchain removal.
 
 The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
 its bound plus twice `QUIESCE_BOUND` (5 s).
@@ -1734,6 +1767,40 @@ The fixtures therefore stand in a temporary folder of their own below a folder e
 then `/var/tmp`),
 and where the host has neither,
 each control prints the `not run` line above with its reason and the `test` task leaves it out of its totals.
+
+### Which host each check runs on
+
+- This machine runs the `test` task,
+  and it can give the tests a delegated control group:
+  `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope` passes here
+  (`cargo nextest run --release -E 'test(=cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope)'`,
+  exit status 0,
+  measured 2026-11-27),
+  so the suite runs as the gate always did and no run here is a degraded one.
+  The rounds that wrote this release ran the whole suite here,
+  each arm beside another
+  (`doc/the-journal-control-that-makes-a-name-which-is-not-utf8.md`).
+- The release workflow's runner runs no test of this package,
+  so it never meets the question and no answer of it is recorded.
+  Run `46000914401`,
+  the crate-release workflow for `0.1.5-alpha.11`
+  (2026-11-27T12:42:42Z,
+  runner image `ubuntu-26.04`),
+  prints no line of the `test` task,
+  and its bump step says in its own words:
+
+  ```text
+  no cargo check: an alpha is committed without compiling here, and cargo-publish.yml builds the binary of the pushed commit on both Linux targets
+  ```
+
+  `.github/workflows/cargo-publish.yml` builds this crate with `cargo package` (which verifies by compiling)
+  and `cargo build --release --locked` for its two Linux targets,
+  and runs `cargo nextest` nowhere.
+  So the release's test evidence is no test run rather than a degraded run:
+  there is no test that such a run leaves out
+  (read from that log,
+  2026-11-27).
+  Whether the release gate should run this package's tests at all is the owner's to decide.
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store
