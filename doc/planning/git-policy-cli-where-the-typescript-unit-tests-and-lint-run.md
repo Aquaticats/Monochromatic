@@ -664,10 +664,11 @@ Cons:
   20 minutes to 50 minutes of wall time plus its queue,
   for a failure that the batch could have been told about before the gate started.
 - The gate worktree has to hold a workspace install.
-  `native:gate:main-tip` detaches the gate worktree with the wrapper's own worktree add,
-  which copies ignored state including `node_modules`,
-  so this works today only by that copy,
-  and a gate whose copy failed would refuse for an infrastructure reason that reads like a product failure.
+  `native:gate:main-tip` only detaches an existing gate worktree at `main`'s tip
+  (`git checkout --detach` in `bin/native-gate-main-tip.ts:184`),
+  so the install it carries is the one its own `git worktree add` copied,
+  and a merge that moves `pnpm-lock.yaml` leaves it behind until someone updates that worktree.
+  A gate whose install is stale or missing would then refuse for an infrastructure reason that reads like a product failure.
 - The TypeScript failure and the Rust failure now share one verdict,
   so a release that is waiting reads a red gate without knowing which kind of work to start.
 
@@ -702,8 +703,7 @@ Cons:
   which is the shape of the failure this issue records.
 - Two things start from one action,
   so a launcher that starts only the gate (as `native:gate:main-tip` does today) leaves the second unstarted,
-  and nothing says so.
-- It puts a second 4.5 GB peak on the host while the gate compiles,
+  and nothing says so.- It puts a second 4.5 GB peak on the host while the gate compiles,
   which on this host is the kind of pressure the gate's own controls are sensitive to,
   and 1.8 GB once issue 6580's fix is in the tree.
 
