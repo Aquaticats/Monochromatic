@@ -91,6 +91,11 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// The services that fixture holds, one for each worktree under it,
+/// and the acts that start one, stop them all and forget the ones that ended.
+#[path = "binary_support_fixture_services_of_the_worktrees.rs"]
+mod support_fixture_services_of_the_worktrees;
+
 /// The folder a binary control's sockets stand in,
 /// and the short runtime directory one of them holds.
 #[path = "binary_support_socket_folders.rs"]
