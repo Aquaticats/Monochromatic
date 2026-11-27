@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T07:52:00-05:00
+## The state at 2026-11-27T07:48:30-05:00
 
-`main` was `cf98f01e22`.
+`main` was `b73451aabe`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 166 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 169 more by this time.
 
 ### Rounds running
 
@@ -133,14 +133,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 - `issue-6578-bounded-runner-leaves-no-empty-scope-loaded`,
   in `cargo-shadow`.
 
-Two release passes also run,
+Three release passes also run,
 as background agents of the coordinating session:
-Claude Sonnet reads of the linter's `0.5.2-alpha.19` and of `mpm-shadow`'s `0.2.7-alpha.12`
+Claude Sonnet reads of the linter's `0.5.2-alpha.19`,
+of `mpm-shadow`'s `0.2.7-alpha.12`
+and of `cargo-shadow`'s `0.1.5-alpha.11`
 (same vendor as some of the authors,
 so second passes and not independent reviews).
 Each writes `keep/review.md`,
-under `~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`
-and `~/temp/agent/mpm-shadow-alpha-12-release-review-2026-11-27/`,
+under `~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`,
+`~/temp/agent/mpm-shadow-alpha-12-release-review-2026-11-27/`
+and `~/temp/agent/cargo-shadow-alpha-11-release-review-2026-11-27/`,
 and the coordinator rewrites what lasts from them into this file before scratch expires.
 
 Round 3 of the crate split's order is done but for three lines.
@@ -187,9 +190,10 @@ the four Clippy tasks exited 0
 `native:clippy:measurement`
 and `native:clippy:start-probe-raised-deadline`),
 and the `source_guard` module passed 179 of 179.
-The one merge after it,
-`cf98f01e22`,
-changes only `cargo-shadow`'s tests and README.
+The merges after it change no file of the wrapper:
+`cf98f01e22` holds `cargo-shadow`'s tests and README,
+and the rest are `cargo-shadow`'s release commit,
+its lock row and this handover.
 A tip check that a merge lands under is void and is run again.
 A threaded `worktree::` run on this host fails 155 controls unless `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` is set,
 every one with the refusal of `subvolume/fs_btrfs_test_support.rs` on a home that is on ZFS;
@@ -234,7 +238,7 @@ the workflow pushes its bump commit to `origin/main`,
 and a local merge made meanwhile diverges from it.
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
-(last at 2026-11-27T07:34:38-05:00).
+(last at 2026-11-27T07:47:16-05:00).
 
 - The linter,
   `0.5.2-alpha.19`:
@@ -260,9 +264,9 @@ and it is put back on the build of 2026-11-22
   and issue 6527's test fix.
 - `cargo-shadow`,
   `0.1.5-alpha.11`:
-  started at 2026-11-27T07:44-05:00
-  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46000914401>),
-  not yet locked or installed.
+  release commit `82cfbcaf11`,
+  locked (`c0b6187db0`) and installed;
+  a `native:check` of the wrapper through it printed its two install-step lines and exited 0.
   Over alpha.10 it holds issue 6528's stop report,
   issue 6576's test programs that end by themselves,
   the test fixes of issues 6549 to 6554,
@@ -281,7 +285,7 @@ and only that refusal left the main checkout's lock as it was.
 
 ### What the split rounds left
 
-On `main` at `cf98f01e22` the wrapper has no layout finding and 12 files over the budget,
+On `main` at `b73451aabe` the wrapper has no layout finding and 12 files over the budget,
 down from 264 before the splits.
 
 - `worktree/worktree_remove.rs` has its split round running.
@@ -467,15 +471,7 @@ and the two `truepeak` files wait on their branch.
   which the coordinator's gate of 2026-11-27 did not use and the next one does:
   `mise run //package/git-policy/cli:native:gate:main-tip` starts it on `main`'s tip in a capped unit,
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
-- `cargo-shadow`'s `0.1.5-alpha.11`:
-  when its workflow has published it,
-  `mise run toolchain:update cargo:monochromatic-cargo-shadow` in a branch worktree,
-  commit `toolchain.lock.json`,
-  merge,
-  `mise run toolchain:install` in the main checkout,
-  put the session's `git` link back,
-  and start its Claude Sonnet release pass.
-- Read the two release passes that run ("Rounds running") and route their findings.
+- Read the three release passes that run ("Rounds running") and route their findings.
 - After the gate on `main` passes:
   the wrapper's `0.6.1-alpha.48` and its Claude Sonnet release pass,
   which reads the release-code changes listed under "What the rounds found" and the splits as changes.

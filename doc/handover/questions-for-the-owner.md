@@ -366,7 +366,7 @@ A beats B because the service already holds that one value for every child it ru
 B beats C because B fixes the place for every route that reaches the work,
 where C only refuses the write.
 
-## Open: how long cargo-shadow's stop waits for a killed scope (issue 6577, recorded 2026-11-27T07:55:00-05:00)
+## Open: how long cargo-shadow's stop waits for a killed scope (issue 6577, recorded 2026-11-27T07:45:45-05:00)
 
 On 2026-11-26 `cargo-shadow`'s install step refused a command with
 "a process started by cargo could not be stopped",
