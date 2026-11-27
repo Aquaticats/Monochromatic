@@ -2589,6 +2589,14 @@ fn an_update_whose_run_cannot_show_quiescence_stops_without_rollback_or_acceptan
         error.to_string().contains("could not be stopped") && error.to_string().contains("journal"),
         "{error}"
     );
+    // The reason the stop gave reaches this refusal's own words: a reader of an update refusal must be able to tell a writer
+    // that is alive from one that has exited (issue 6528), and the stand-in stop above gives the reason every real stop gives.
+    assert!(
+        error
+            .to_string()
+            .contains("a test marked the scope as one whose writers may remain"),
+        "the update refusal does not carry the reason the stop gave: {error}"
+    );
     assert_eq!(
         lock_of(&world),
         lock_with("1.0.0"),

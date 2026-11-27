@@ -143,14 +143,16 @@ the measurement understates the work in two ways.
 
 The deadline is a wall clock,
 taken before the child is started
-(`package/cargo-shadow/cli/src/bounded_run.rs:401`),
+(`package/cargo-shadow/cli/src/bounded_run.rs:406`),
 so it covers the scope the child is started in,
 the write of the launcher record to disk,
 and the call.
-At the deadline the run is stopped (`package/cargo-shadow/cli/src/bounded_run.rs:471`),
+At the deadline the run is stopped (`package/cargo-shadow/cli/src/bounded_run.rs:476`),
 its whole control group is killed,
 and the call returns only once the kernel says nothing is left in it.
-The text is built at `package/cargo-shadow/cli/src/bounded_run_bound_and_error.rs:112`:
+The text is built at `package/cargo-shadow/cli/src/bounded_run/bound_and_error.rs:118`
+(`bounded_run_bound_and_error.rs:112` before `4f53921f3e` moved the file under `bounded_run/`,
+2026-11-27T02:39:05-05:00):
 
 > `{what}` did not finish within `{limit:?}`;
 > it and every process it started were stopped.
@@ -465,7 +467,7 @@ and end the call only when they show no sign of work for the quiet window,
 The package already watches one observable event,
 the child's exit,
 through a pidfd
-(`package/cargo-shadow/cli/src/bounded_run_containment.rs:602`),
+(`package/cargo-shadow/cli/src/bounded_run_containment.rs:650`),
 so this adds the second and third observables (bytes moved,
 processor time) rather than a new mechanism.
 A call stalled on this host's disk is "waiting for the disk",

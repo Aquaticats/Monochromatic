@@ -37,6 +37,28 @@ await describe({
           },
         }),
         it({
+          name: 'read the release being installed when the caller names one',
+          fn: async () => {
+            expect(options({
+              argv: [
+                ...everyOption(),
+                '--candidate-wrapper',
+                '/opt/git-0.6.1-alpha.21',
+              ],
+            },),).toEqual({
+              image: 'localhost/git-policy-native-test:example',
+              olderWrapper: '/opt/git-0.6.1-alpha.20',
+              candidateWrapper: '/opt/git-0.6.1-alpha.21',
+            },);
+          },
+        }),
+        it({
+          name: "read no release being installed when the caller names none, so the run installs this worktree's build",
+          fn: async () => {
+            expect(options({ argv: everyOption(), },).candidateWrapper,).toBeUndefined();
+          },
+        }),
+        it({
           name: 'keep the later value of an option a caller named twice',
           fn: async () => {
             expect(options({
@@ -81,7 +103,7 @@ await describe({
                 caught = error;
               }
               expect(caught,).toBeInstanceOf(NativeVerificationError,);
-              expect((caught as Error).message,).toBe('Usage: node bin/service-manager-install-proof.ts --image <tag> --older-wrapper <path>',);
+              expect((caught as Error).message,).toBe('Usage: node bin/service-manager-install-proof.ts --image <tag> --older-wrapper <path> [--candidate-wrapper <path>]',);
             },
           },);
         },),

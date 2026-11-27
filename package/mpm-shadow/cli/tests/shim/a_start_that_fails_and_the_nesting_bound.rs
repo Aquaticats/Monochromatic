@@ -1,6 +1,7 @@
 //! What:
 //! The part of the shim tests that watches a start that cannot happen:
 //! a real `mpm` whose interpreter is missing gets the full explanation and the failure status,
+//! a real `mpm` whose file another process is writing is explained as a replacement in progress,
 //! the program the shadow starts learns how deep the nesting is,
 //! and at the bound the shadow starts nothing and says why.
 //! Why:
@@ -16,6 +17,9 @@
 //! test('a real mpm that cannot start is explained', () => { ... });
 //! ```
 
+/// Imports the borrowed path type the cleanup snapshot takes.
+use std::path::Path;
+/// Imports the output of a finished start.
 use std::process::Output;
 
 use mpm_shadow::constants::EXEC_FAILED_EXIT_CODE;
@@ -23,6 +27,7 @@ use mpm_shadow::nesting::MAX_NESTING as NESTING_LIMIT;
 
 use crate::{
     fixture_root,
+    held_programs::hold_open_for_writing,
     start_shadow,
     start_shadow_with,
     write_fake_mpm,
@@ -113,4 +118,83 @@ fn a_shadow_nested_to_the_limit_refuses_to_start_another_program() {
     ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
+}
+
+/// What:
+/// Every file under `directory`,
+/// as paths relative to it,
+/// sorted.
+/// Why:
+/// The cleanup test compares the set of files before and after a run that never started,
+/// so it reads the whole set rather than one path.
+fn relative_paths(directory: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut pending: Vec<std::path::PathBuf> = vec![directory.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(&next) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path: std::path::PathBuf = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            let relative: String = path
+                .strip_prefix(directory)
+                .expect("a path below the root")
+                .display()
+                .to_string();
+            found.push(relative);
+        }
+    }
+    found.sort();
+    return found;
+}
+
+/// A start the system refuses because the real `mpm`'s file is being written says the file is being replaced,
+/// names the command to run again,
+/// prints no advice that cannot show the error again,
+/// and leaves the cargo home exactly as it found it.
+#[test]
+fn a_start_refused_because_the_program_is_being_written_says_the_file_is_being_replaced() {
+    let root = fixture_root();
+    write_fake_mpm(&root.path().join("real"), "#!/bin/sh\nexit 0\n");
+    write_stale_copies(root.path());
+    let program: std::path::PathBuf = root.path().join("real").join("mpm");
+    let cargo_before: Vec<String> = relative_paths(&root.path().join("cargo"));
+
+    let output: Output = {
+        // What:      The holder lives for this block only, so the file is being written when the shadow starts
+        //            and is no longer being written when the block ends.
+        // Why:       Nothing else can release it early, and a panic still drops it.
+        let _held = hold_open_for_writing(&program);
+        start_shadow(root.path(), &["installed"])
+    };
+
+    let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
+    assert_eq!(
+        output.status.code(),
+        Some(EXEC_FAILED_EXIT_CODE),
+        "{stderr}"
+    );
+    assert!(stderr.contains("Text file busy"), "{stderr}");
+    for expected in [
+        "mpm installed",
+        "is open for writing by another program",
+        "run the same command again",
+        "126",
+    ] {
+        assert!(stderr.contains(expected), "{expected}: {stderr}");
+    }
+    assert!(
+        !stderr.contains("by hand to see the same error"),
+        "the advice names a step that shows nothing once the file is closed: {stderr}"
+    );
+    assert!(!stderr.contains("deleted stale"), "{stderr}");
+    assert_eq!(
+        relative_paths(&root.path().join("cargo")),
+        cargo_before,
+        "the skipped cleanup left nothing behind and deleted nothing"
+    );
 }

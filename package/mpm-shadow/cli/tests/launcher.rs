@@ -19,7 +19,10 @@ use std::process::{
     Output,
 };
 
-use mpm_shadow::constants::NOT_FOUND_EXIT_CODE;
+use mpm_shadow::constants::{
+    EXEC_FAILED_EXIT_CODE,
+    NOT_FOUND_EXIT_CODE,
+};
 use mpm_shadow::toolchain::launcher::{
     LaunchRecord,
     record_path,
@@ -36,6 +39,12 @@ use mpm_shadow::toolchain::scope::ScopeKind;
 #[path = "written_programs/through_a_child_process.rs"]
 mod through_a_child_process;
 
+/// The holder of a program file a test starts while it is being written,
+/// shared with the crate's other test binaries.
+#[path = "held_programs/through_a_child_process.rs"]
+mod held_programs;
+
+use held_programs::hold_open_for_writing;
 use through_a_child_process::{
     copy_program,
     write_program,
@@ -229,6 +238,42 @@ fn a_missing_real_program_exits_127_naming_it_and_never_writes_standard_output()
     assert!(
         !stderr.contains("os error"),
         "the launcher checked and did not try to start it: {stderr}"
+    );
+}
+
+#[test]
+fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_works_after() {
+    let tree = Tree::new("0.4.4", "0.4.4");
+    let refused: Output = {
+        // What:      The holder lives for this block only, so the program's file is being written when the launcher
+        //            replaces itself with the program and is no longer being written when the block ends.
+        // Why:       The second run below is the cure the message names, so it has to run after this one.
+        let _held = hold_open_for_writing(&tree.real());
+        run(&tree.launcher(), &["x"], &[])
+    };
+    let stderr: String = String::from_utf8_lossy(&refused.stderr).to_string();
+    assert_eq!(
+        refused.status.code(),
+        Some(EXEC_FAILED_EXIT_CODE),
+        "{stderr}"
+    );
+    for expected in [
+        &format!("could not start {}:", tree.real().display()),
+        "is open for writing by another program",
+        "run the same command again",
+    ] {
+        assert!(stderr.contains(expected), "{expected}: {stderr}");
+    }
+    assert!(
+        !stderr.contains("by hand"),
+        "the advice names a step that shows nothing once the file is closed: {stderr}"
+    );
+    let after: Output = run(&tree.launcher(), &["x"], &[]);
+    assert_eq!(
+        after.status.code(),
+        Some(0),
+        "the same command works once the write is over: {}",
+        String::from_utf8_lossy(&after.stderr)
     );
 }
 
