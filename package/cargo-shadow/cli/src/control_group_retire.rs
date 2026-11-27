@@ -246,14 +246,12 @@ pub(crate) fn retire(
         // The manager collected the unit when the scope stopped, or the kernel told it the group emptied and it will: a
         // retire has nothing to add, and the ordinary run ends without a program start here.
         Emptiness::Collected | Emptiness::EmptiedAfterAProcess => None,
-        Emptiness::EmptiedWithoutAProcess => {
-            match retire_unit(systemctl, &unit, bound) {
-                Ok(()) => None,
-                Err(reason) => Some(format!(
-                    "the scope unit {unit} of the run that just ended may still be loaded ({reason})"
-                )),
-            }
-        }
+        Emptiness::EmptiedWithoutAProcess => match retire_unit(systemctl, &unit, bound) {
+            Ok(()) => None,
+            Err(reason) => Some(format!(
+                "the scope unit {unit} of the run that just ended may still be loaded ({reason})"
+            )),
+        },
         Emptiness::Member => Some(format!(
             "the scope unit {unit} of the run that just ended was left loaded: its control group still has a member, and a stop would kill it behind the report that names it"
         )),
@@ -304,7 +302,11 @@ pub(crate) fn retire_unit(
     let text: String = command_text(systemctl, &arguments);
     return match run_asking(systemctl, &arguments, &[], bound) {
         // The manager ran the stop job, or it does not load the unit: either way the unit is gone.
-        Ok(answered) if answered.status.success() || answered.status.code() == Some(UNIT_NOT_LOADED) => Ok(()),
+        Ok(answered)
+            if answered.status.success() || answered.status.code() == Some(UNIT_NOT_LOADED) =>
+        {
+            Ok(())
+        }
         Ok(answered) => Err(format!("`{text}` failed ({})", first_line(&answered.err))),
         Err(reason) => Err(format!("`{text}` {reason}")),
     };

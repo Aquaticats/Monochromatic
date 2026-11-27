@@ -549,7 +549,10 @@ fn a_scope_that_held_a_process_is_left_to_the_manager() {
 
     let word: Option<String> = retire(&scope.group, &systemctl, RETIRE_BOUND);
 
-    assert_eq!(word, None, "nothing is said about a unit left to the manager");
+    assert_eq!(
+        word, None,
+        "nothing is said about a unit left to the manager"
+    );
     assert_eq!(
         calls(&log),
         "",
@@ -614,7 +617,10 @@ fn an_absence_that_cannot_be_verified_keeps_the_unit_and_the_run_says_so() {
     );
     let said: String = word.expect("a unit kept because its absence was not shown is reported");
     assert!(said.contains(&absent), "{said}");
-    assert!(said.contains("absence could not be read as emptiness"), "{said}");
+    assert!(
+        said.contains("absence could not be read as emptiness"),
+        "{said}"
+    );
     assert_eq!(
         calls(&log),
         "",
@@ -642,7 +648,10 @@ fn a_populated_read_that_fails_is_reported() {
     let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
 
     let said: String = word.expect("a scope that cannot be read is reported");
-    assert!(said.contains("`populated` line could not be read"), "{said}");
+    assert!(
+        said.contains("`populated` line could not be read"),
+        "{said}"
+    );
     assert_eq!(calls(&log), "", "an unreadable scope is not stopped");
 }
 
@@ -716,8 +725,7 @@ fn a_retire_the_manager_refuses_is_reported_with_the_command_that_ran() {
         "#!/bin/sh\necho 'the stand-in refuses' >&2\nexit 1\n",
     )
     .expect("write the stand-in");
-    fs::set_permissions(&stand_in, fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
+    fs::set_permissions(&stand_in, fs::Permissions::from_mode(0o755)).expect("make it executable");
     let reason: String = retire_unit(
         &stand_in.display().to_string(),
         "cargo-shadow-test-x.scope",

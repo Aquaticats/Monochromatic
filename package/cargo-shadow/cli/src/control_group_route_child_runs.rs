@@ -244,7 +244,10 @@ pub(crate) fn run_asking(
     let cancel: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let (Some(out_pipe), Some(err_pipe)) = (child.stdout.take(), child.stderr.take()) else {
         let _ = child.kill();
-        let note: String = reap_note(reap_within(&mut child, deadline.max(Instant::now() + KILL_REAP_GRACE)));
+        let note: String = reap_note(reap_within(
+            &mut child,
+            deadline.max(Instant::now() + KILL_REAP_GRACE),
+        ));
         return Err(format!("{program} has no output pipes{note}"));
     };
     let out_reader = crate::bounded_io::collect(OwnedFd::from(out_pipe), Arc::clone(&cancel));
@@ -288,7 +291,11 @@ pub(crate) fn run_asking(
         }
     };
     cancel.store(true, Ordering::Relaxed);
-    return Ok(Answered { status, out, err });
+    return Ok(Answered {
+        status,
+        out,
+        err,
+    });
 }
 
 /// What:

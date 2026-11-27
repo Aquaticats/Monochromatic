@@ -139,6 +139,20 @@ use crate::cgroup_test_support::wait_up_to;
 /// ```
 use crate::control_group::RouteSettings;
 /// What:
+/// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
+/// Why:
+/// A run of a real program cannot leave the stuck scope of issue 6578 (a scope that held a process keeps `pids.peak`),
+/// so the last look is made to read that state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Point, arm } from 'crate/failpoints';
+/// ```
+use crate::failpoints::{
+    Point,
+    arm,
+};
+/// What:
 /// `use crate::round_sixteen_tests::launched_scope;` imports the reader of the scope name from a run's own trace.
 /// Why:
 /// The unit the run made is the name its own trace carries,
@@ -159,20 +173,6 @@ use crate::round_sixteen_tests::launched_scope;
 /// import { scratch } from 'crate/test_scratch';
 /// ```
 use crate::test_scratch::scratch;
-/// What:
-/// `use crate::failpoints::{Point, arm};` imports the test-only switches and how one is armed.
-/// Why:
-/// A run of a real program cannot leave the stuck scope of issue 6578 (a scope that held a process keeps `pids.peak`),
-/// so the last look is made to read that state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Point, arm } from 'crate/failpoints';
-/// ```
-use crate::failpoints::{
-    Point,
-    arm,
-};
 
 /// What:
 /// `fn bound(limit: Duration) -> Bound` is the bound of a run in these controls.
