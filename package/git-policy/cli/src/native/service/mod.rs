@@ -204,6 +204,15 @@
 //! - `service_server_land_group_owed_pushes.rs`:
 //!   what a batch of landings owes,
 //!   and takes before its branch moves.
+//! - `service_server_land_group_the_batches_left_open.rs`:
+//!   the batches an earlier service left open,
+//!   settled before this one lands.
+//! - `service_server_land_group_the_words_a_client_waits_with.rs`:
+//!   what the landing waits for,
+//!   and the place each request of the batch has.
+//! - `service_server_land_group_the_answers_to_a_batch.rs`:
+//!   what each request of a landed batch came to,
+//!   and the note that names the repository to the next service.
 //! - `service_server_land_group.rs`:
 //!   lands one group of queued requests as a batch and answers each client.
 //! - `service_server_shutdown_after_a_stop.rs`:
@@ -504,6 +513,18 @@ pub mod service_queue_received_on_the_runtime;
 pub mod service_server_queue_types_and_send;
 
 /// Lands one group of queued requests as a batch and answers each client.
+/// The batches an earlier service left open,
+/// settled before this one lands.
+pub mod service_server_land_group_the_batches_left_open;
+
+/// What the landing waits for,
+/// and the place each request of the batch has.
+pub mod service_server_land_group_the_words_a_client_waits_with;
+
+/// What each request of a landed batch came to,
+/// and the note that names the repository to the next service.
+pub mod service_server_land_group_the_answers_to_a_batch;
+
 pub mod service_server_land_group;
 
 /// What one batch's answer says about that batch:
