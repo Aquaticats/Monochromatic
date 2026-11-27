@@ -21,8 +21,6 @@
 //! // const findings = await policy.check({ context });
 //! ```
 
-/// The code a check reports when a repository fact could not be read.
-use crate::diagnostics::EngineFailureCode;
 /// What:
 ///  `use` brings names from sibling files into this file;
 ///  `super::` means "the parent
@@ -66,7 +64,6 @@ use crate::policy_dependent_version::{
 ///  findings and outcomes.
 use crate::policy_engine::{
     PolicyChecks,
-    PolicyFinding,
     PolicyOutcome,
 };
 /// The built-in final-newline check over candidates.
@@ -116,6 +113,13 @@ use crate::rule_require_root::{
     RequireRootVerdict,
     decide_require_root,
     resolve_require_root,
+};
+/// The three answers the checks of this folder give,
+/// which the policies below and the checks below share.
+use crate::the_answers_a_policy_gives::{
+    clean,
+    fact_unavailable,
+    rejected,
 };
 /// The worktree's top level.
 use crate::worktree_identity::worktree_root;
@@ -302,71 +306,6 @@ pub fn guarded_forwarded<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) -> G
     );
     checks.forwarded = Some(decided.clone());
     return decided;
-}
-
-/// What:
-///  The outcome of a check whose repository fact could not be read.
-///       `String` is the owned reason the facts provider gave.
-/// Why:
-///   Every fact these checks ask for is read from the repository,
-///  so its absence is
-///       `content-unavailable`,
-///  never a failure of the policy itself.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const factUnavailable = (message: string): PolicyOutcome => ({ kind: 'failed', code: 'content-unavailable', message });
-/// ```
-pub(crate) fn fact_unavailable(message: String) -> PolicyOutcome {
-    return PolicyOutcome::Failed {
-        code: EngineFailureCode::ContentUnavailable,
-        message,
-        // `None`: a repository fact is about no single file.
-        path: None,
-    };
-}
-
-/// What:
-///  The outcome "nothing found".
-///  `Vec::<PolicyFinding>::new()` is an empty owned list.
-/// Why:
-///   Most checks end this way;
-///  one helper keeps them identical.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const clean = (): PolicyOutcome => ({ kind: 'findings', findings: [] });
-/// ```
-pub(crate) fn clean() -> PolicyOutcome {
-    return PolicyOutcome::Findings(Vec::<PolicyFinding>::new());
-}
-
-/// What:
-///  The outcome "exactly one finding about the command".
-///  `&'static str` is text
-///       baked into the program;
-///  `String` is owned text.
-/// Why:
-///   The four command policies each report at most one finding,
-///  without a path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const rejected = (code: string, message: string): PolicyOutcome => ({ kind: 'findings', findings: [{ code, message }] });
-/// ```
-pub(crate) fn rejected(
-    code: &'static str,
-    message: String,
-) -> PolicyOutcome {
-    // `vec![...]` is a macro building an owned list from literal items.
-    return PolicyOutcome::Findings(vec![PolicyFinding {
-        code,
-        message,
-        // `None` is the "absent" case of `Option`.
-        path: None,
-        location: None,
-        fix_available: false,
-    }]);
 }
 
 /// What:

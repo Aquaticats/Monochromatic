@@ -222,6 +222,9 @@ Update this file whenever a work unit lands so the context survives auto-compact
    `quit`.
 - GTK source for citations:
    clone the GitHub mirror `GNOME/gtk` shallowly under `~/temp/agent/`.
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 ## Repo-rule notes that bit during this session
 
