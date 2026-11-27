@@ -5,6 +5,12 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use crate::worktree_copy_manifest::{
+    EntryKind,
+    collect_entry_manifest,
+    retained_mode,
+    stamp_of,
+};
 use crate::worktree_copy_stage_leaf_copying::RECENT_CHANGE_NANOS;
 
 /// A file length that spans two comparison chunks with a short last chunk.

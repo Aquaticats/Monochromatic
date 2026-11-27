@@ -33,6 +33,7 @@ use crate::worktree_clone_paths::{
     Directories,
     entry_names,
 };
+use crate::worktree_clone_slices::A_HOST_THAT_BOUNDS_NO_WORKER;
 use crate::worktree_ladder_test_support::{
     commit_all,
     main_identity,
@@ -648,11 +649,18 @@ fn btrfs_a_changed_entry_ends_a_sliced_run_and_keeps_what_the_slices_made() {
 }
 
 /// Below the break-even the copy stage was measured at,
-/// the clones take one thread.
+/// the clones take one thread,
+/// whatever host the budget is asked about.
 #[test]
 fn the_clones_use_one_thread_below_the_break_even() {
-    assert_eq!(clone_worker_count(PARALLEL_BREAK_EVEN_ENTRIES - 1), 1);
-    assert_eq!(clone_worker_count(0), 1);
+    assert_eq!(
+        clone_worker_count(
+            PARALLEL_BREAK_EVEN_ENTRIES - 1,
+            &A_HOST_THAT_BOUNDS_NO_WORKER
+        ),
+        1
+    );
+    assert_eq!(clone_worker_count(0, &A_HOST_THAT_BOUNDS_NO_WORKER), 1);
 }
 
 /// Clone with the destination and the administrative directory opened as the ladder holds them.

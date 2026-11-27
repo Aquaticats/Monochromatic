@@ -35,6 +35,9 @@ moved verbatim on 2026-11-23:
   Script and output:
   `~/temp/agent/opencode-go-pool-reopened-on-the-owners-word-2026-11-16/` (`print-the-model-time-per-turn-of-each-run-whose-feed-was-written-lately.ts`,
   `keep/model-time-per-answer-of-the-going-runs-first-reading.txt`).
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   The second run there is the checkout-migration author's sixth,
   a session that ran on flex before:
   a resumed session moved to the new pool and takes turns.
@@ -59,6 +62,9 @@ moved verbatim on 2026-11-23:
   since both change `pool-limits.ts`.
   Output:
   `~/temp/agent/opencode-go-pool-reopened-on-the-owners-word-2026-11-16/keep/model-time-per-answer-of-the-going-runs-second-reading-with-eight-runs-on-the-pool.txt`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   At 17:05:32,
   13 Pi units were active:
   eight on `opencode-go` and,

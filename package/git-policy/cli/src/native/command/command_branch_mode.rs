@@ -54,11 +54,11 @@ use crate::command_branch_table::{
     TRACK,
     UNSET_UPSTREAM,
 };
-use crate::command_options::ParsedOptions;
 use crate::command_options_query::{
     is_enabled,
     is_stated,
 };
+use crate::command_options_types::ParsedOptions;
 
 /// What:
 ///  Whether the tracking mode ends as the one `--set-upstream` writes.

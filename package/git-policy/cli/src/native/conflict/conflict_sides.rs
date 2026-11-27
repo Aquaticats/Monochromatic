@@ -39,6 +39,9 @@ use crate::private_storage::{
     create_private_directory_all,
     sync_directory,
 };
+/// Where the copies live,
+/// below the common Git directory.
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
@@ -56,11 +59,6 @@ pub use crate::conflict_side_state::{
     conflicted_paths,
     operation_in_progress,
 };
-
-/// Where the copies live,
-/// below the common Git directory,
-/// beside `monochromatic-git-policy-cli-audit.jsonl`.
-pub const SAVED_DIRECTORY: &str = "monochromatic-git-policy-cli/discarded";
 
 /// One saved file.
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -43,6 +43,7 @@ use crate::add_timing::{
     end_step,
 };
 use crate::diagnostic_log::debug;
+use crate::parallel_budget::HostResources;
 use crate::subvolume_index::StatFields;
 use crate::transaction_git::GitContext;
 #[cfg(test)]
@@ -122,17 +123,21 @@ impl PartCloned {
 /// what it reads from Git,
 /// what the source check proved,
 /// where its bytes go,
-/// and the fence the attributes
-///  half already answered.
+/// the fence the attributes
+///  half already answered,
+/// and the host the copies' budget is derived from.
 /// Why:
 ///   The rung reads the source,
 /// the destination and the administrative directory of the new worktree,
 /// and it must not choose the conversion fence itself:
 /// the ladder decided the decline and read the attributes before any copy (`the_fence_of_this_build`).
+/// The host is an input of the same kind:
+/// a control states the processors and the memory its own run is budgeted on,
+/// and the ladder reads the live host once (issue 6537).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PartialClone = { context: GitContext; source: SnapshotSource; destination: File; admin: File; adminPath: Path; fence: AttributeFence };
+/// type PartialClone = { context: GitContext; source: SnapshotSource; destination: File; admin: File; adminPath: Path; fence: AttributeFence; host: HostResources };
 /// ```
 pub(crate) struct PartialClone<'a> {
     /// The Git face the rung's own runs go through.
@@ -155,6 +160,8 @@ pub(crate) struct PartialClone<'a> {
     /// The attributes the fence answered before the copies,
     /// and the rules it judged them by.
     pub fence: AttributeFence,
+    /// The processors and the memory the copies' budget is derived from.
+    pub host: HostResources,
 }
 
 /// What:
@@ -197,6 +204,7 @@ pub(crate) fn clone_the_unchanged(
         admin,
         admin_path,
         fence,
+        host,
     }: PartialClone<'_> = work;
     let read_entered: bool = begin_step("partRead");
     let read_outcome = read_tracked(source, entries);
@@ -263,6 +271,7 @@ pub(crate) fn clone_the_unchanged(
         source,
         split.cloned_entries(tracked.entries.as_slice()),
         destination,
+        &host,
         fence_beside_the_clone(source, context, fence),
     )?;
     end_step(beside_entered);

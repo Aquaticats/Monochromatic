@@ -283,11 +283,38 @@
 //!   the merge tree of an isolated merge,
 //!   computed from objects,
 //!   and the word-level second pass over its conflicts.
+//! - `merge_isolation_apply_record.rs`:
+//!   what an isolated merge writes before any byte of the checkout changes:
+//!   the intent record,
+//!   the look at `index.lock`,
+//!   and the marker phase a crash control arms.
+//! - `merge_isolation_apply_commit.rs`:
+//!   the merge commit of an isolated merge,
+//!   signed as the options and the settings ask.
 //! - `merge_isolation_apply.rs`:
 //!   the writing half of an isolated merge:
-//!   the commit and the two-way update.
+//!   the clear of the person's paths,
+//!   Git's own update that puts the merge in the checkout,
+//!   the carry of their work after it,
+//!   and the report the command ends with.
+//! - `merge_isolation_recovery_before_the_merge.rs`:
+//!   the merges a dead process left,
+//!   finished or discarded before this merge reads the checkout.
+//! - `merge_isolation_round_writes.rs`:
+//!   what one round of an isolated merge writes of its merge,
+//!   once the paths it changes are judged:
+//!   the message it carries,
+//!   the capture of the person's own work,
+//!   the merge commit,
+//!   and the update that puts it in the checkout.
+//! - `merge_isolation_round.rs`:
+//!   one round of an isolated merge:
+//!   the branch as it is now,
+//!   the settings and the paths it changes,
+//!   and the checks that stop it before anything is written.
 //! - `merge_isolation.rs`:
-//!   a true merge completed in isolation while the index holds staged changes.
+//!   a true merge completed in isolation while the index holds staged changes,
+//!   read as the entry every merge comes through and the rounds it makes again when the branch moved.
 //! - `merge_second_pass_worktree_watch.rs`:
 //!   the paths a stopped operation had already left unmerged before it ran,
 //!   and the conflicts the index holds for the paths it created.
@@ -558,7 +585,22 @@ pub mod pull_untracked_paths_in_the_way_kept_copies;
 /// The refusal findings of an isolated merge.
 pub mod merge_isolation_report;
 
-/// A true merge completed in isolation while the index holds staged changes.
+/// The merges a dead process left,
+/// finished or discarded before this merge reads the checkout.
+pub mod merge_isolation_recovery_before_the_merge;
+
+/// What one round of an isolated merge writes of its merge,
+/// once the paths it changes are judged.
+pub mod merge_isolation_round_writes;
+
+/// One round of an isolated merge:
+/// the branch as it is now,
+/// the settings and the paths it changes,
+/// and the checks that stop it before anything is written.
+pub mod merge_isolation_round;
+
+/// A true merge completed in isolation while the index holds staged changes,
+/// read as the entry every merge comes through and the rounds it makes again when the branch moved.
 pub mod merge_isolation;
 
 /// The person's own work in the paths a merge changes:
@@ -656,8 +698,21 @@ pub mod merge_isolation_carry_place;
 /// and the permission bits a person set on their own entry.
 pub mod merge_isolation_carry_place_write;
 
+/// What a merge wrote before any byte of the checkout changed:
+/// its intent record,
+/// its look at `index.lock`,
+/// and the marker phase a crash control arms.
+pub mod merge_isolation_apply_record;
+
+/// The merge commit of an isolated merge,
+/// signed as the options and the settings ask.
+pub mod merge_isolation_apply_commit;
+
 /// The writing half of an isolated merge:
-/// the commit and the two-way update.
+/// the clear of the person's paths,
+/// Git's own update that puts the merge in the checkout,
+/// the carry of their work after it,
+/// and the report the command ends with.
 pub mod merge_isolation_apply;
 
 /// The merge a command saves for a later one:

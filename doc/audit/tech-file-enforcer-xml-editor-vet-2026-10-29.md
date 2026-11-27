@@ -1029,6 +1029,9 @@ whether to add a strict-JSON emit mode to
   holds a sibling TOML vet lock owned by
   another session,
   which must be left alone).
+   (scratch,
+  deleted on 2026-11-27;
+  not kept).
 - No clones,
   no probe crates,
   no containers left running.

@@ -20,6 +20,7 @@ use crate::add_timing::{
     end_step,
 };
 use crate::diagnostic_log::warn;
+use crate::parallel_budget::HostResources;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::{
     Bound,
@@ -253,6 +254,7 @@ pub(super) fn clone_with_the_fence(
                         admin: &bound.admin,
                         admin_path,
                         fence: held,
+                        host: HostResources::read(),
                     },
                 );
                 let (cloned, decided, pending): (
