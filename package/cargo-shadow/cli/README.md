@@ -1240,7 +1240,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   `a_frozen_run_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
   measured 2026-11-27).
   No run reminds the person of a kept journal it leaves:
-  that would be a change of what those runs print, which nobody has decided.
+  that would be a change of what those runs print,
+  which nobody has decided.
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
   Two runs of one process do not wait for each other and share no lock:
@@ -1885,6 +1886,22 @@ on such a host fails instead of passing quietly:
 ```text
 cargo-shadow tests: not run [bounded_contain_tests::nested_transactions_keep_their_own_records]: this host cannot give it a delegated control group (...)
 ```
+
+A control that fails in about ten milliseconds has not failed at anything it measures:
+it failed at that question,
+and the words after `not run [<the test>]` say which ask of the manager answered no.
+The question is put three times,
+fifty milliseconds apart,
+before an answer of no is taken for this host's answer
+(`ASKING_AGAIN_ATTEMPTS` and `ASKING_AGAIN_PAUSE` in `src/control_group_route_discovery.rs`),
+because one `systemctl` that failed to run is not a host without a control group.
+On 2026-11-27 a whole run of this suite failed ten such controls in about ten milliseconds each,
+and a `systemctl` that refuses the first ask of each control reproduces exactly that
+(`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`).
+A run of the ten beside another round's scope tests does not produce it.
+The task keeps the whole output of a failing run in `target/test-runs` under this package,
+which `.gitignore` excludes,
+and its last lines name the file.
 
 Before it starts the suite,
 the task asks that question alone,

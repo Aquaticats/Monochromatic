@@ -1352,8 +1352,18 @@ so the path that skips the download keeps the same check the download makes.
 A marker an earlier build wrote records the tool and the version but no archive digest;
 it cannot vouch for the bytes,
 so its copy is never published.
-When its installer has ended and it belongs to the version this run installs,
-that copy is removed as an unverified leftover.
+A name an earlier build wrote carries neither a boot nor a namespace,
+so no run can show that its installer ended,
+and a copy such a name holds is never removed either:
+`prune --toolchain` prints that name on every run,
+says whether the directory holds a finished copy,
+and leaves it for a person.
+An install of that version that cannot download leaves the version's name empty,
+and its failure says that a finished copy of that version sits under that hidden name,
+which is what an offline machine has left.
+A copy this build wrote the name for is removed as an unverified leftover once its installer has ended,
+and an unfinished copy of any version goes the same way;
+a finished copy of another version is left for that version's own install to publish.
 
 A recovery whose own publish fails keeps the copy it claimed:
 the copy stays under its `.recovered` name with that run's pair,
@@ -1391,15 +1401,25 @@ a record `/proc` hides,
 and a name that carries no start time.
 Then the copy waits where it is,
 and a later install puts it back once nothing may hold that version.
+The wait has no end when the name belongs to this boot and its installer died where this reader cannot see it:
+an install killed in another process namespace leaves such a name,
+no later run can judge it,
+the version's name stays empty after every install,
+and each install prints which hidden name holds the wait and whether that name holds a finished copy.
+A person ends it,
+by moving that finished copy to the version's name,
+or by deleting the unjudged name and letting the next install put the copy that was moved aside back,
+which loses the finished copy the unjudged name holds.
 A name written by an earlier build carries neither a boot nor a namespace,
 so it cannot be placed in any boot,
 and no install ever removes it;
 waiting for it would keep the copy of a killed install aside for ever,
 so it does not hold the copy back.
-That is the one cost this rule accepts:
+That is the cost this rule accepts for an earlier build's name:
 a live install of an earlier build holding such a name loses the finished copy it holds,
 because its own publish does not retry over a name that appeared.
-`prune --toolchain` prints such a name and leaves it for a person to delete.
+`prune --toolchain` prints such a name,
+and its line says what deleting that directory costs.
 
 A dead install's copy is claimed before anything is published from it:
 one rename to a `.recovered` name of this process's own,
@@ -1431,10 +1451,11 @@ so it is left for that version's own install to publish,
 and `prune --toolchain` removes it once no known lock names that version.
 
 `install` prints one sentence for each version a recovery touched.
-The publish it finished:
+The publish it finished,
+naming the hidden name the copy was read at:
 
 ```text
-toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed 1 hidden directory that a killed install left behind
+toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 from the finished copy an earlier install left at <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99.424242.22222222-2222-2222-2222-222222222222
 ```
 
 The copy it dropped because another install published the version meanwhile:
@@ -1449,18 +1470,37 @@ The finished copy it left hidden because an older repository tool is never kept:
 toolchain install: left the finished copy of mpm-shadow 0.2.7-alpha.13 that a killed install left under its hidden name, because 0.2.7-alpha.14 is installed and an older repository tool is never kept
 ```
 
-The copy a killed install had moved aside,
-either put back or waiting for a live install to publish:
+The copy a killed install had moved aside and this run put back:
 
 ```text
 toolchain install: put back the copy of mpm-shadow 0.2.7-alpha.13 that a killed install had moved aside
 ```
 
+The copy it left where it is,
+because an install that is still running holds a hidden name for that version:
+
+```text
+toolchain install: left the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install had moved aside where it is, because an install that is still running holds the hidden name <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4343.101.434343.22222222-2222-2222-2222-222222222222
+```
+
+and,
+when no run can judge the install that holds that name,
+with the finished copy that name holds when it holds one:
+
+```text
+toolchain install: left the copy of mpm-shadow 0.2.7-alpha.13 that an earlier install had moved aside where it is, because the hidden name <toolchain root>/mpm-shadow/.0.2.7-alpha.13.recovered.4343.101.434343.22222222-2222-2222-2222-222222222222 may belong to an install that is still running, and nothing here can judge that install; that name holds a finished copy of 0.2.7-alpha.13, which nothing here publishes while that install cannot be judged
+```
+
 and the hidden directories it removed,
-counted in the singular or the plural:
+counted in the singular or the plural,
+with what went with one when a finished copy did:
 
 ```text
 toolchain install: removed 2 hidden directories that killed installs of mpm-shadow left behind
+```
+
+```text
+toolchain install: removed 1 hidden directory that a killed install of mpm-shadow left behind, 1 of which held a finished copy that this run could not publish, so that copy is gone
 ```
 
 A recovery never publishes an older version beside a newer installed one:
@@ -1481,12 +1521,26 @@ the one the recovery published,
 or one that was installed before the run.
 
 `prune --toolchain` also reports and removes hidden directories whose installer has provably ended,
-except a vouched finished copy of a version some known lock names,
-which that version's own install may still publish.
-A hidden name it cannot judge is printed on standard error and left.
+except a finished copy whose marker records an archive digest,
+for a version some known lock names:
+such a copy is one that version's own install publishes or removes,
+so `prune` leaves that decision to the install.
+A hidden name it cannot judge is printed on standard error and left,
+and the line says whether that directory holds a finished copy and what deleting it costs:
+
+```text
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds a finished copy of mpm-shadow 0.2.7-alpha.13, and deleting it by hand loses that copy, which nothing publishes while its installer cannot be judged
+```
+
+```text
+mpm-shadow: left <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.42.100: the installer that made it cannot be judged, so it is not removed; it holds no finished copy, so deleting it by hand loses no finished copy, once no install uses it
+```
+
 To delete such a directory by hand,
 remove the hidden name whose version and purpose it carries,
-for example `rm -r <toolchain root>/<tool id>/.<version>.staging.<process id>.<start>.<namespace>.<boot>`
+for example `rm -r <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99.424242.22222222-2222-2222-2222-222222222222`
+on the shape this build writes,
+or `rm -r <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99` on the shape an earlier build wrote,
 once no install is using that tool.
 
 ### One set across both toolchain roots
@@ -1809,13 +1863,17 @@ It runs only when asked;
   and each file given with `--lock` (a clone that git does not list).
 - Hidden installs under `<toolchain root>/<tool id>/` are judged too:
   one whose installer has provably ended is removed,
-  except a vouched finished copy of a version some known lock names,
-  which that version's own install may still publish.
-  A name whose installer cannot be judged is printed on standard error and left;
+  except a finished copy whose marker records an archive digest,
+  for a version some known lock names.
+  Such a copy is one that version's own install publishes or removes,
+  so `prune` leaves that decision to the install.
+  A name whose installer cannot be judged is printed on standard error and left,
+  and its line says whether the directory holds a finished copy;
   that covers another process namespace,
   a name an earlier release wrote without a boot and a namespace,
   and a copy whose marker an earlier release wrote without an archive digest.
-  Delete such a directory by hand once no install is using that tool.
+  Delete such a directory by hand once no install is using that tool,
+  which costs the finished copy its line names.
 - A third-party version is kept when any known lock names it;
   a repository-published crate keeps only its newest finished version,
   and nothing when no known lock names the crate.

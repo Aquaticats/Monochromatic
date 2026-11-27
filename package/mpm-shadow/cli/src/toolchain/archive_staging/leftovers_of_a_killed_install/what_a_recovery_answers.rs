@@ -16,8 +16,10 @@
 //! type Holds = 'unpacking' | 'replaced-copy' | 'recovered';
 //! type Leftover = { path: string; version: string; holds: Holds; owner?: Owner };
 //! type AnOlderVersion = 'may-stay' | { newer: string };
-//! type FinishedCopy = 'nothing-to-publish' | 'published-here' | 'published-by-another-install' | { newer: string };
-//! type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall: boolean; removed: string[] };
+//! type FinishedCopy = 'nothing-to-publish' | { publishedHere: string } | 'published-by-another-install' | { newer: string };
+//! type HoldingInstaller = { path: string; running: boolean; finishedCopy: boolean };
+//! type RemovedLeftover = { path: string; heldAFinishedCopy: boolean };
+//! type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall?: HoldingInstaller; removed: RemovedLeftover[] };
 //! function holdsOf(purpose: string): Holds | undefined;
 //! function mayBePublished(holds: Holds): boolean;
 //! ```
@@ -120,15 +122,20 @@ pub(crate) enum AnOlderVersion {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FinishedCopy = 'nothing-to-publish' | 'published-here' | 'published-by-another-install' | { olderVersionIsNeverKept: string };
+/// type FinishedCopy = 'nothing-to-publish' | { publishedHere: string } | 'published-by-another-install' | { olderVersionIsNeverKept: string };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) enum FinishedCopy {
     /// There was no finished copy this run could publish.
     #[default]
     NothingToPublish,
-    /// This run published it at the version's name.
-    PublishedHere,
+    /// This run published it at the version's name,
+    /// from the hidden name the copy stood at when this run read it.
+    PublishedHere {
+        /// The hidden name the finished copy was found at,
+        /// which the report names.
+        copy: PathBuf,
+    },
     /// Another install published the version in the instant since this run looked,
     /// so this run dropped its copy.
     PublishedByAnotherInstall,
@@ -141,16 +148,59 @@ pub(crate) enum FinishedCopy {
 }
 
 /// What:
+/// The hidden name that holds the copy a killed install moved aside,
+/// because nothing this run read shows that its own installer ended.
+/// Why:
+/// A person reading the report needs the path whose installer waits,
+/// whether the system reports that installer running,
+/// and whether the name holds a finished copy,
+/// because that copy is all the version has when the installer died where this reader cannot see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HoldingInstaller = { path: string; running: boolean; finishedCopy: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct HoldingInstaller {
+    /// The hidden name whose installer may still run.
+    pub(crate) path: PathBuf,
+    /// Whether the system reports that installer running,
+    /// rather than this reader failing to judge it.
+    pub(crate) running: bool,
+    /// Whether the hidden name holds a finished copy of the version.
+    pub(crate) finished_copy: bool,
+}
+
+/// What:
+/// One hidden sibling this run removed,
+/// with whether it held a finished copy when it went.
+/// Why:
+/// The report says that a finished copy went with a removed directory,
+/// so a person knows the version comes back only from a download or another copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RemovedLeftover = { path: string; heldAFinishedCopy: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RemovedLeftover {
+    /// The hidden sibling that is gone when the recovery returns.
+    pub(crate) path: PathBuf,
+    /// Whether that directory held a finished copy of its version.
+    pub(crate) held_a_finished_copy: bool,
+}
+
+/// What:
 /// What one recovery of a tool's version directory found and did.
 /// Why:
 /// The install report says what became of the finished copy,
 /// whether the copy that was there came back,
-/// whether it was left for a live install to replace,
-/// and which hidden siblings went.
+/// which hidden name holds the wait,
+/// and which hidden siblings went with whether a finished copy went with them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall: boolean; removed: string[] };
+/// type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall?: HoldingInstaller; removed: RemovedLeftover[] };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Recovered {
@@ -158,12 +208,12 @@ pub(crate) struct Recovered {
     pub(crate) finished_copy: FinishedCopy,
     /// Whether the copy a killed install moved aside was put back at the version's name.
     pub(crate) restored: bool,
-    /// Whether the copy a killed install moved aside was left where it is,
-    /// because a live install is between its claim and its publish for that version and a later install replaces it.
-    pub(crate) left_for_a_live_install: bool,
+    /// The hidden name that holds the copy a killed install moved aside in place,
+    /// because nothing this run read shows that its installer ended.
+    pub(crate) left_for_a_live_install: Option<HoldingInstaller>,
     /// The hidden siblings this run removed,
     /// which are gone when it returns.
-    pub(crate) removed: Vec<PathBuf>,
+    pub(crate) removed: Vec<RemovedLeftover>,
 }
 
 /// The methods of `Recovered`.
@@ -194,7 +244,9 @@ impl Recovered {
         // ```
         return matches!(
             self.finished_copy,
-            FinishedCopy::PublishedHere | FinishedCopy::PublishedByAnotherInstall
+            FinishedCopy::PublishedHere {
+                copy: _,
+            } | FinishedCopy::PublishedByAnotherInstall
         ) || self.restored;
     }
 
@@ -212,7 +264,12 @@ impl Recovered {
     /// }
     /// ```
     pub(crate) fn put_a_copy_at_the_version_name(&self) -> bool {
-        return matches!(self.finished_copy, FinishedCopy::PublishedHere) || self.restored;
+        return matches!(
+            self.finished_copy,
+            FinishedCopy::PublishedHere {
+                copy: _,
+            }
+        ) || self.restored;
     }
 }
 
