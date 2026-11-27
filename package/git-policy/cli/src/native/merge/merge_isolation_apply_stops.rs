@@ -44,7 +44,7 @@ use crate::merge_isolation_recovery::{
     RecoveryPlace,
     settle_failed_merge,
 };
-use crate::merge_isolation_recovery_steps::IndexHeldAt;
+use crate::merge_isolation_recovery_record::IndexHeldAt;
 use crate::merge_isolation_report::not_applied_finding;
 use crate::merge_isolation_run_types::{
     BRANCH_MOVED_EXIT_CODE,

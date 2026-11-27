@@ -34,8 +34,11 @@
 //! async function mergeWithGitLines(runner, conflict, [base, ours, theirs]): Promise<WordMerge>;
 //! ```
 
-use crate::merge_second_pass::{
-    Conflict,
+/// The conflicted file one candidate is asked about.
+use crate::merge_second_pass_conflicts::Conflict;
+/// How the pass starts Git,
+/// and what a start answers.
+use crate::merge_second_pass_git_runner::{
     GitReply,
     GitRunner,
 };
