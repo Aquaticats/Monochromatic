@@ -106,6 +106,31 @@ pub(crate) fn refuse_outside_the_child(state: &str) {
 }
 
 /// What:
+///  The path libtest answers to for one test of `module` named `name`:
+///  the module path without the crate's own first segment, and the test's name.
+///  Its sibling is the bare test name,
+///  which `--exact` matches nothing for.
+/// Why:
+///  Every starter below names its one child by this text,
+///  so a path built twice could disagree with itself and run no test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function thePathLibtestAnswersTo(module: string, name: string): string { return `${module.split('::').slice(1).join('::')}::${name}`; }
+/// ```
+fn the_path_libtest_answers_to(
+    module: &str,
+    name: &str,
+) -> String {
+    return format!(
+        "{}::{name}",
+        module.split_once("::").map_or(module, |(_, rest)| {
+            return rest;
+        })
+    );
+}
+
+/// What:
 ///  Run `body` in a child of this test binary that holds one test,
 ///  `name` of `module`,
 ///  and fail this call with the child's own words when that child's one test did not pass.
@@ -135,7 +160,7 @@ pub(crate) fn refuse_outside_the_child(state: &str) {
 /// ```ts
 /// function runTheBodyInAChildOfItsOwn(module: string, name: string, body: () => void): void {
 ///   if (thisProcessIsTheChild()) { body(); return; }
-///   passed({ exactTest: `${module.split('::').slice(1).join('::')}::${name}`, environment: [[CHILD_VARIABLE, thePath]] });
+///   passed({ exactTest: thePathLibtestAnswersTo(module, name), environment: [[CHILD_VARIABLE, thePath]] });
 /// }
 /// ```
 pub(crate) fn run_the_body_in_a_child_of_its_own(
@@ -155,20 +180,14 @@ pub(crate) fn run_the_body_in_a_child_of_its_own(
         body();
         return;
     }
-    // What:     the path libtest answers to: the module path without the crate's own first segment, and the test's
-    //           name.
+    // What:     the path libtest answers to, which is the one test the child runs.
     // Why:      `--exact` matches this text and nothing else, so a path that is wrong would run no test at all.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const path = `${module.split('::').slice(1).join('::')}::${name}`;
+    // const path = thePathLibtestAnswersTo(module, name);
     // ```
-    let path: String = format!(
-        "{}::{name}",
-        module.split_once("::").map_or(module, |(_, rest)| {
-            return rest;
-        })
-    );
+    let path: String = the_path_libtest_answers_to(module, name);
     // What:     the one variable the child gets, whose value is the path of the test it runs.
     // Why:      the child has to learn that it is a child with a process of its own, and which control it is there
     //           for, before it starts.
@@ -192,6 +211,85 @@ pub(crate) fn run_the_body_in_a_child_of_its_own(
         environment: environment.as_slice(),
         ..ChildTest::default()
     });
+}
+
+/// What:
+///  Run `body` in a child of this test binary that holds the one measurement `name` of `module`,
+///  and print what that child printed,
+///  so the figures of a measurement for the record reach the run that asked for them.
+/// Why:
+///  A measurement that emulates a shipped process's caps holds the bound on blocking jobs (`hold_blocking_jobs_to`),
+///  which belongs to the whole process and is refused outside a child (issue 6477).
+///  It is marked `#[ignore]`, so a plain run of its module starts it never,
+///  and the child must therefore be asked for it with `--ignored`; `passed` cannot be used as it is,
+///  because its request names a test that is not ignored and reads no line the measurement printed.
+/// Gotcha:
+///  The figures arrive through the parent's own print, so a run reads them as a line of the test it started;
+///  the child's `test result` line comes with them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runTheMeasurementInAChildOfItsOwn(module: string, name: string, body: () => void): void {
+///   if (thisProcessIsTheChild()) { body(); return; }
+///   const output = passed({ exactTest: thePathLibtestAnswersTo(module, name), environment: [[CHILD_VARIABLE, thePath]], ignored: true });
+///   print(output.stdout);
+/// }
+/// ```
+pub(crate) fn run_the_measurement_in_a_child_of_its_own(
+    module: &str,
+    name: &str,
+    body: impl FnOnce(),
+) {
+    // What:     the child of this measurement runs the body, which is the process whose caps the figures are about.
+    // Why:      the parent never runs it, so the caps the body sets reach no other test of the run.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (thisProcessIsTheChild()) { body(); return; }
+    // ```
+    if this_process_is_the_child() {
+        body();
+        return;
+    }
+    // What:     the path libtest answers to, which is the one measurement the child runs.
+    // Why:      `--exact` matches this text and nothing else, so a path that is wrong would measure nothing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const path = thePathLibtestAnswersTo(module, name);
+    // ```
+    let path: String = the_path_libtest_answers_to(module, name);
+    // What:     the one variable the child gets, so it knows it is the child and which measurement it is there for.
+    // Why:      the body is handed to this call and runs only in the process this variable marks.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const environment: [string, string][] = [[CHILD_VARIABLE, path]];
+    // ```
+    let environment: [(&str, &OsStr); 1] = [(CHILD_VARIABLE, OsStr::new(path.as_str()))];
+    // What:     the child's whole answer, once its one measurement passed: `ignored` asks libtest for the test a plain
+    //           run of the module skips.
+    // Why:      a child that ran no measurement, or one that failed, is this call's failure, with its own words.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const output = passed({ exactTest: path, environment, ignored: true, ...plainRequest() });
+    // ```
+    let output = passed(ChildTest {
+        exact_test: path.as_str(),
+        environment: environment.as_slice(),
+        ignored: true,
+        ..ChildTest::default()
+    });
+    // What:     every byte the measurement printed, as the parent test's own output.
+    // Why:      a measurement is read for its figures, and a child whose output the parent dropped measured nothing a
+    //           person can see.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // print(output.stdout);
+    // ```
+    print!("{}", String::from_utf8_lossy(output.stdout.as_slice()));
 }
 
 /// What:

@@ -2681,6 +2681,10 @@ fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
 ///  The control holds the process's only place of that bound and gives it back when a job asks for one,
 ///  so the ask is the proof that the write took a place;
 ///  work that ran on the worker itself never asks.
+///  The bound is made once for the whole process and is never resized,
+///  so this body runs in a child of its own
+///  (`foundation/blocking_jobs_within_the_budget.rs`,
+///  issue 6477).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -2688,40 +2692,46 @@ fn the_record_of_a_terminal_failure_is_written_before_the_plans_file_goes() {
 /// ```
 #[test]
 fn keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool() {
-    let (given_back, finished): (
-        std::sync::Arc<std::sync::atomic::AtomicBool>,
-        std::sync::mpsc::Receiver<bool>,
-    ) = crate::parallel_test_support::hold_the_only_place();
-    let repo: Repo = repo("work-plan-kept-in-a-job");
-    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
-    let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    let replanning: Replanning = Replanning {
-        first: Some(FIRST_PAUSE),
-        changes: Vec::new(),
-        plans: Some(plans.clone()),
-    };
-    let kept: bool = await_it(replanning.keep_the_plan(repo.common.as_path(), &due, 1));
-    let asked: bool = finished
-        .recv_timeout(crate::parallel_test_support::PATIENCE)
-        .expect("the job that holds the process's only place never returned");
-    assert!(
-        asked,
-        "no job of the write asked for a place of the process's bound, so the plan was written on the worker the runtime needs"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool",
+        || {
+            let (given_back, finished): (
+                std::sync::Arc<std::sync::atomic::AtomicBool>,
+                std::sync::mpsc::Receiver<bool>,
+            ) = crate::parallel_test_support::hold_the_only_place();
+            let repo: Repo = repo("work-plan-kept-in-a-job");
+            let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+            let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+            let replanning: Replanning = Replanning {
+                first: Some(FIRST_PAUSE),
+                changes: Vec::new(),
+                plans: Some(plans.clone()),
+            };
+            let kept: bool = await_it(replanning.keep_the_plan(repo.common.as_path(), &due, 1));
+            let asked: bool = finished
+                .recv_timeout(crate::parallel_test_support::PATIENCE)
+                .expect("the job that holds the process's only place never returned");
+            assert!(
+                asked,
+                "no job of the write asked for a place of the process's bound, so the plan was written on the worker the runtime needs"
+            );
+            assert!(
+                given_back.load(std::sync::atomic::Ordering::SeqCst),
+                "the place went back on the ask the write made"
+            );
+            assert!(
+                kept,
+                "the plan the write kept is promised, so the write answered that it is on disk"
+            );
+            assert_eq!(
+                crate::push_retry_store::load(plans.as_path()).len(),
+                1,
+                "the control's own plan is on disk after the write"
+            );
+            remove(repo.root.as_path());
+        },
     );
-    assert!(
-        given_back.load(std::sync::atomic::Ordering::SeqCst),
-        "the place went back on the ask the write made"
-    );
-    assert!(
-        kept,
-        "the plan the write kept is promised, so the write answered that it is on disk"
-    );
-    assert_eq!(
-        crate::push_retry_store::load(plans.as_path()).len(),
-        1,
-        "the control's own plan is on disk after the write"
-    );
-    remove(repo.root.as_path());
 }
 
 /// What:
@@ -2736,6 +2746,10 @@ fn keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool() {
 /// (`blocking_jobs_within_the_budget.rs`).
 ///  The control holds the process's only place and gives it back when a job asks for one,
 ///  so the ask is the proof that the removal took a place.
+///  The bound is made once for the whole process and is never resized,
+///  so this body runs in a child of its own
+///  (`foundation/blocking_jobs_within_the_budget.rs`,
+///  issue 6477).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -2743,49 +2757,55 @@ fn keeping_a_plan_writes_it_as_a_job_of_the_blocking_pool() {
 /// ```
 #[test]
 fn forgetting_a_branch_takes_its_plan_file_as_a_job_of_the_blocking_pool() {
-    let (given_back, finished): (
-        std::sync::Arc<std::sync::atomic::AtomicBool>,
-        std::sync::mpsc::Receiver<bool>,
-    ) = crate::parallel_test_support::hold_the_only_place();
-    let repo: Repo = repo("work-plan-removed-in-a-job");
-    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
-    let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
-    crate::push_retry_store::save(
-        plans.as_path(),
-        &crate::push_retry_store::StoredPlan {
-            git_dir: repo.common.clone(),
-            item: due.clone(),
-            attempt: 1,
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "forgetting_a_branch_takes_its_plan_file_as_a_job_of_the_blocking_pool",
+        || {
+            let (given_back, finished): (
+                std::sync::Arc<std::sync::atomic::AtomicBool>,
+                std::sync::mpsc::Receiver<bool>,
+            ) = crate::parallel_test_support::hold_the_only_place();
+            let repo: Repo = repo("work-plan-removed-in-a-job");
+            let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+            let due: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+            crate::push_retry_store::save(
+                plans.as_path(),
+                &crate::push_retry_store::StoredPlan {
+                    git_dir: repo.common.clone(),
+                    item: due.clone(),
+                    attempt: 1,
+                },
+            )
+            .expect("the plan the branch is done with");
+            let mut replanning: Replanning = Replanning {
+                first: Some(FIRST_PAUSE),
+                changes: Vec::new(),
+                plans: Some(plans.clone()),
+            };
+            await_it(replanning.forget(repo.common.as_path(), BRANCH));
+            let asked: bool = finished
+                .recv_timeout(crate::parallel_test_support::PATIENCE)
+                .expect("the job that holds the process's only place never returned");
+            assert!(
+                asked,
+                "no job of the removal asked for a place of the process's bound, so the file was removed on the worker the runtime needs"
+            );
+            assert!(
+                given_back.load(std::sync::atomic::Ordering::SeqCst),
+                "the place went back on the ask the removal made"
+            );
+            assert!(
+                crate::push_retry_store::load(plans.as_path()).is_empty(),
+                "the plan of a branch the service is done with is gone"
+            );
+            assert_eq!(
+                replanning.changes.len(),
+                1,
+                "the loop still drops the branch from the list it owns"
+            );
+            remove(repo.root.as_path());
         },
-    )
-    .expect("the plan the branch is done with");
-    let mut replanning: Replanning = Replanning {
-        first: Some(FIRST_PAUSE),
-        changes: Vec::new(),
-        plans: Some(plans.clone()),
-    };
-    await_it(replanning.forget(repo.common.as_path(), BRANCH));
-    let asked: bool = finished
-        .recv_timeout(crate::parallel_test_support::PATIENCE)
-        .expect("the job that holds the process's only place never returned");
-    assert!(
-        asked,
-        "no job of the removal asked for a place of the process's bound, so the file was removed on the worker the runtime needs"
     );
-    assert!(
-        given_back.load(std::sync::atomic::Ordering::SeqCst),
-        "the place went back on the ask the removal made"
-    );
-    assert!(
-        crate::push_retry_store::load(plans.as_path()).is_empty(),
-        "the plan of a branch the service is done with is gone"
-    );
-    assert_eq!(
-        replanning.changes.len(),
-        1,
-        "the loop still drops the branch from the list it owns"
-    );
-    remove(repo.root.as_path());
 }
 
 /// The names in one state directory of the work queue below `common`.
