@@ -85,6 +85,25 @@ export const gateBuildMemory = '8g';
 export const gateClippyMemory = '8g';
 
 /**
+ Memory the gate's suite container may use: 4 GiB.
+
+ Not the repository default, which the mutation campaigns and the planted controls keep. The suite runs the crate's whole
+ test run at four test threads inside the gate's image, and on 2026-11-27 a gate whose suite bound no step met peaked at
+ 1,516.8 MiB, almost all of it page cache and the tests' own anonymous memory, while the same morning's gates read
+ 1,149.3 to 1,516.5 MiB of the 2 GiB they shared with Clippy (issue 6583).
+
+ 4 GiB is 4,096 MiB, 2.70 times that peak and 2,579.2 MiB above it, so a suite that gains a large control still fits
+ with its pages kept, and the room has the shape the two bounds beside it were sized with: {@link gateBuildMemory} is
+ 1.53 times its measured peak and {@link gateClippyMemory} 1.55 times its own.
+
+ A container held at its cap is not a smaller container but a slower one: its pages are reclaimed instead of used, and a
+ process the kernel picks there is killed with no diagnostic beside the line the gate now prints for it
+ (`bin/native-gate-container-memory.ts`). `--memory <size>` after the task name, or `--container-memory <size>` on
+ `native:gate`, still bounds this container with the build and Clippy, for a host that cannot spare the bound.
+ */
+export const gateSuiteMemory = '4g';
+
+/**
  Processes one test thread of the suite was measured to need, which sizes the process bound for any thread count.
 
  At four threads two runs peaked at 401 and at the 512 the repository default allows, so 256 for each thread leaves the
@@ -209,7 +228,7 @@ export function buildMemoryLine({
 },): string {
   if ((buildLimits.memory === limits.memory) && (clippyLimits.memory === limits.memory))
     return `The image build, the suite's container and Clippy's are bounded at ${limits.memory}, the memory this gate was given.`;
-  return `The image build is bounded at ${buildLimits.memory}, its own measured bound; the suite's container at ${limits.memory}; Clippy's at ${clippyLimits.memory}, its own measured bound. A --memory after the task name bounds all three.`;
+  return `The image build is bounded at ${buildLimits.memory}, its own measured bound; the suite's container at ${limits.memory}, its own; Clippy's at ${clippyLimits.memory}, its own measured bound. A --memory after the task name bounds all three.`;
 }
 
 /**
@@ -220,10 +239,12 @@ export function buildMemoryLine({
  test under 1024 processes and failed three at 512. So the cap is a floor here and any larger value, the person's
  included, is kept.
 
- The image build compiles the crate rather than running it, so it gets {@link gateBuildMemory} instead of the repository's
- 2 GiB. Clippy compiles the crate's test targets, so it gets {@link gateClippyMemory}. A `--memory` the person gave still
- bounds both, because the person asking every container of the gate for a smaller bound means the build and Clippy too;
- `givenFlags` is what tells a person's own `--memory 2g` from the repository default they never named.
+ The image build compiles the crate rather than running it, so it gets {@link gateBuildMemory} instead of the suite's
+ bound. The suite runs the crate's whole test run, so it gets {@link gateSuiteMemory} rather than the repository default
+ the mutation campaigns keep. Clippy compiles the crate's test targets, so it gets {@link gateClippyMemory}. A `--memory`
+ the person gave still bounds all three, because the person asking every container of the gate for a smaller bound means
+ the build, the suite and Clippy too; `givenFlags` is what tells a person's own `--memory 2g` from the repository default
+ they never named.
 
  @param given - the limits the parser read from the gate's own options and the person's
 
@@ -252,23 +273,27 @@ export function gateLimitsFrom({
    */
   const needed = processesForTestThreads(given.cpus,);
   /**
-   The limits every container of the gate runs under, which is the person's own when its process bound is enough.
+   The limits every container of the gate runs under: the person's own when its process bound is enough, and always the
+   suite's own measured memory bound unless the person named a memory.
    */
-  const limits = given.pidsLimit >= needed
-    ? given
-    : {
-      ...given,
-      pidsLimit: needed,
-    };
+  const limits = {
+    ...(given.pidsLimit >= needed
+      ? given
+      : {
+        ...given,
+        pidsLimit: needed,
+      }),
+    memory: givenFlags.includes('--memory',) ? given.memory : gateSuiteMemory,
+  };
   return {
     limits,
     clippyLimits: {
       ...limits,
-      memory: givenFlags.includes('--memory',) ? given.memory : gateClippyMemory,
+      memory: givenFlags.includes('--memory',) ? limits.memory : gateClippyMemory,
     },
     buildLimits: {
       ...limits,
-      memory: givenFlags.includes('--memory',) ? given.memory : gateBuildMemory,
+      memory: givenFlags.includes('--memory',) ? limits.memory : gateBuildMemory,
     },
     ...(given.pidsLimit >= needed
       ? {}

@@ -10,6 +10,7 @@
  neither its `TasksMax` nor its `CPUQuota`.
  */
 import { NativeGateError } from './native-gate-error.ts';
+import { memoryBytes, } from './container-limits.ts';
 
 /**
  Everything one gate caps.
@@ -35,6 +36,11 @@ export type GateCaps = {
    Processes the gate container may have, which is its `--pids-limit`.
    */
   readonly containerPidsLimit: number;
+  /**
+   Memory bound every container of the gate runs under, which is its `--memory`, absent when the gate runs its own
+   measured bounds.
+   */
+  readonly containerMemory?: string;
 };
 
 /**
@@ -138,6 +144,31 @@ export function wholeCapProblem({
 }
 
 /**
+ Why a container memory bound is unusable, or nothing when it can be read.
+
+ @param memory - the bound as the caller gave it, absent when the caller named none
+
+ @returns the refusal as the only entry, or no entry at all
+
+ @example
+ ```ts
+ containerMemoryProblems({ memory: '3g' });
+ ```
+ */
+function containerMemoryProblems({ memory }: { readonly memory: string | undefined; },): readonly string[] {
+  if (memory === undefined)
+    return [];
+  try {
+    // The one grammar of a container memory size is the option parser's own, so the two cannot disagree.
+    memoryBytes(memory,);
+    return [];
+  }
+  catch {
+    return [`--container-memory "${memory}" is not a memory size: a whole number of bytes with an optional unit b, k, m or g, as in 3g or 2048m.`];
+  }
+}
+
+/**
  Why a gate's caps cannot be used, one line each, empty when they can.
 
  Checked before anything starts, because a cap systemd cannot read fails the start with a message about a property, and
@@ -176,6 +207,7 @@ export function gateCapsProblems({ caps }: { readonly caps: GateCaps; }): readon
         value: caps.unitIoWeight,
         name: '--unit-io-weight',
       })),
+    ...containerMemoryProblems({ memory: caps.containerMemory, }),
   ];
 }
 
