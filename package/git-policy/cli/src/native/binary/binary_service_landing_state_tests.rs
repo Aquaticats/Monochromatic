@@ -40,7 +40,7 @@ use super::service_landing_support::{
     run_served,
     text_of_within,
 };
-use super::support::in_a_fixture_root_taking_any_name;
+use super::support::in_a_fixture_root_taking_any_name_within;
 use super::support::{
     Fixture,
     NATIVE_GIT_BOUND_SECONDS,
@@ -58,6 +58,26 @@ use std::time::{
     Duration,
     Instant,
 };
+
+/// How long the child that runs this control's body may take before the control counts it as one that did not end.
+///  The sibling a reader might expect is `CHILD_TEST_DEADLINE`, which every control whose body is a handful of files
+///  takes, and which this body crossed on a loaded host.
+/// Why:
+///  This body is not a handful of files:
+///  it makes 4,196 paths of which two change lists past `MAX_CHANGES` are landed,
+///  and each landing's index update reads every one of them.
+///  Measured alone on this host:
+///  70.25 s and 75.68 s while its load average was 90,
+///  73.77 s and 79.97 s while it was 120 to 185,
+///  and more than the 120 s of `CHILD_TEST_DEADLINE` in the run of 2026-11-26 whose load average was 100 to 235
+///  (issue 6546).
+///  Four times the 60 s `NATIVE_GIT_BOUND_SECONDS` bounds one command of this harness with,
+///  3.4 times the quietest body measured,
+///  and below the five minutes the container gate stops a test after,
+///  so a child that really never ends is still a named failure and not a timeout.
+///  The measurements and what the body spends its time on are in
+///  `doc/troubleshooting/git-policy-cli-controls-that-wait-on-a-guessed-bound-or-a-flush.md`.
+const AWKWARD_CHANGE_LISTS_DEADLINE: Duration = Duration::from_secs(4 * 60);
 
 fn write(
     repo: &Path,
@@ -710,8 +730,9 @@ fn a_policy_rewrite_lands_and_reaches_the_worktree() {
 /// and a file replaced by a directory.
 #[test]
 fn awkward_change_lists_land_as_native_git_commits_them() {
-    if !in_a_fixture_root_taking_any_name(
+    if !in_a_fixture_root_taking_any_name_within(
         "service_landing_state::awkward_change_lists_land_as_native_git_commits_them",
+        AWKWARD_CHANGE_LISTS_DEADLINE,
     ) {
         return;
     }

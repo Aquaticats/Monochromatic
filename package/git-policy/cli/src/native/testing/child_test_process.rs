@@ -114,10 +114,15 @@ use super::test_process_owner::own_group;
 ///  and no bound at all, which is what this file's predecessor had.
 /// Why:
 ///  A run under `cargo test` has no per-test limit, so a child that hangs holds the whole run;
-/// 120 s is the window the run's own watchdog uses (`QUIET_WINDOW` in `testing/test_support.rs`),
+/// 120 s is the length of the window the run's own watchdog reads (`QUIET_WINDOW` in `testing/test_support.rs`),
 /// so a child that shows nothing is failed here with its own name before the watchdog ends the run,
 /// and the container gate stops any test after five minutes (`.config/nextest.toml`),
 /// which leaves room for this file's message to reach the log.
+/// Gotcha:
+///  The watchdog's window is a stretch that shows no sign of work, not the length of a run,
+///  so this number is a wall clock and a child is ended by it whether it worked or not.
+///  A control whose body does more than a handful of files' work states its own `ChildTest::deadline`
+///  from what that body does (issue 6546).
 pub(crate) const CHILD_TEST_DEADLINE: Duration = Duration::from_secs(120);
 
 /// How often a wait in this file looks at its child again.

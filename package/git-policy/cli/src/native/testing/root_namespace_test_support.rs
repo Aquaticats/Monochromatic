@@ -44,23 +44,29 @@ pub(crate) const NO_USER_NAMESPACES_ACKNOWLEDGED_VARIABLE: &str = "CLI_GIT_TEST_
 
 /// The one request for a child of this test binary, the program that runs it, and the check on its one test.
 use super::child_test_process::{
+    CHILD_TEST_DEADLINE,
     ChildTest,
     ProgramRunningTheTest,
     passed,
 };
 /// `OsStr` is borrowed operating-system text of raw bytes.
 use std::ffi::OsStr;
+/// `Duration` is a span, which a control states for the child that runs its body.
+use std::time::Duration;
 
 /// What:
 ///  Whether the running control is the inner half,
 ///  inside a user namespace of its own;
 ///  when it is not,
-///  the same test binary is started there and this test runs as root in that child.
+///  the same test binary is started there and this test runs as root in that child,
+///  within the file's own `CHILD_TEST_DEADLINE`.
 /// Why:
 ///   The test binary is the only thing that can run the test,
 ///  so the outer half names the test by its own path and states which half the child is;
 ///  a child that ran nothing or failed makes the outer half fail,
 ///  and a host without user namespaces says the control did not run.
+///  A control whose body is longer than that deadline states its own
+///  (`in_a_root_namespace_within`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,6 +79,28 @@ use std::ffi::OsStr;
 pub(crate) fn in_a_root_namespace(
     variable: &str,
     test: &str,
+) -> bool {
+    return in_a_root_namespace_within(variable, test, CHILD_TEST_DEADLINE);
+}
+
+/// What:
+///  `in_a_root_namespace` with `deadline` as the window the child that runs the inner half is given.
+/// Why:
+///  The child's body is the whole control,
+///  so the window has to cover what that control does,
+///  and a control that lands change lists past `MAX_CHANGES` does minutes of Git's work on a loaded host
+///  where a control of a few files does seconds;
+///  a window sized on a quiet host fails such a control for the host's load and not for its code
+///  (`AGENTS.md` rule `SLW`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const inner = inARootNamespaceWithin(variable, 'service_landing_state::...::tests::a_control', 240_000);
+/// ```
+pub(crate) fn in_a_root_namespace_within(
+    variable: &str,
+    test: &str,
+    deadline: Duration,
 ) -> bool {
     if std::env::var_os(variable).is_some() {
         return true;
@@ -107,6 +135,7 @@ pub(crate) fn in_a_root_namespace(
             program: UNSHARE,
             arguments_before_the_test_binary: NAMESPACE_SWITCHES,
         }),
+        deadline,
         ..ChildTest::default()
     });
     // What: the inner half's own error lines, printed here when it passed.
