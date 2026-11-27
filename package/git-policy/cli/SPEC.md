@@ -21294,6 +21294,33 @@ that replica is the shape the pass declines,
 and its file stayed a conflict in the merge,
 so the text merge `b971df44f5` carried was written by whoever resolved that conflict by hand.
 
+A region that both sides only deleted lines from is not read by word:
+when every line of each side's part is a line of the base's part,
+in the base's order,
+with the line end that line had,
+and the base writes each of its lines there once,
+the region resolves to the lines both sides kept,
+in the base's own bytes
+(`merged_deletions` in `src/native/merge/word_merge_deleted_lines.rs`).
+That is the union of the two sides' deletions,
+which a file of one record per line needs,
+and the word level cannot give it,
+because it loses which line is which and pairs one side's deleted line with the other side's kept line
+(issue 6529,
+merge `b928c5fa6999`,
+whose resolution `24f8c1947b` corrected by hand).
+A base line written twice in the region is read by word:
+which copy a side deleted cannot be told there.
+A region whose word merge would write back a line the base held,
+while one side's part holds that line fewer times than the base did
+and the other side's part holds it as often as the base did,
+is refused rather than merged,
+and keeps both sides
+(`keeps_a_deleted_line` in the same file).
+The measurements above were taken on 2026-11-10,
+before these two rules,
+and were not run again.
+
 It can produce text neither side wrote (two edits of different arguments of one call become one call with both),
 which the owner accepted;
 it never drops a line both sides kept,
