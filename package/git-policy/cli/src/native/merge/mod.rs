@@ -167,8 +167,20 @@
 //!   the bytes a path holds as Git's object store reads them,
 //!   the proof that no program can write into a file whose last name is about to go,
 //!   and the last look a kept copy's removal is decided by.
+//! - `merge_isolation_kept_copies_decisions_evidence.rs`:
+//!   the evidence one decision about a kept copy rests on:
+//!   which merge names the copy,
+//!   where else its bytes are kept,
+//!   and whether the file at its path holds them again in the same form.
+//! - `merge_isolation_kept_copies_decisions_outcomes.rs`:
+//!   what one decision does about a copy,
+//!   and the line each of the three prints.
 //! - `merge_isolation_kept_copies_decisions.rs`:
 //!   the one decision every command makes about a copy a merge kept.
+//! - `merge_isolation_kept_copies_decisions_sweep.rs`:
+//!   the copies a command decides all at once:
+//!   every copy this worktree's records name,
+//!   and the copies left beside one path of a merge that still runs.
 //! - `merge_isolation_take_asides.rs`:
 //!   the take of a worktree file a merge must replace or delete,
 //!   and the private names it leaves behind.
@@ -565,8 +577,23 @@ pub mod merge_isolation_carry_write_forms;
 /// and the record of each.
 pub mod merge_isolation_kept_copies;
 
+/// The evidence one decision about a kept copy rests on:
+/// which merge names the copy,
+/// where else its bytes are kept,
+/// and whether the file at its path holds them again in the same form.
+pub mod merge_isolation_kept_copies_decisions_evidence;
+
+/// What one decision does about a copy,
+/// and the line each of the three prints.
+pub mod merge_isolation_kept_copies_decisions_outcomes;
+
 /// The one decision every command makes about a copy a merge kept.
 pub mod merge_isolation_kept_copies_decisions;
+
+/// The copies a command decides all at once:
+/// every copy this worktree's records name,
+/// and the copies left beside one path of a merge that still runs.
+pub mod merge_isolation_kept_copies_decisions_sweep;
 
 /// The lines a kept copy earns,
 /// and the reason it stays when the file at its path holds its bytes.

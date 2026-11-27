@@ -48,7 +48,7 @@ use crate::merge_isolation_changes::{
 };
 /// The copies a merge kept,
 /// and the one decision every command makes about each.
-use crate::merge_isolation_kept_copies_decisions::settle_the_asides_of_a_merge_awaiting;
+use crate::merge_isolation_kept_copies_decisions_sweep::settle_the_asides_of_a_merge_awaiting;
 use crate::merge_isolation_recovery_place::RecoveryPlace;
 /// The private name a take leaves.
 use crate::merge_isolation_take_aside_names::aside_name;
