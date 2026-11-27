@@ -7,6 +7,10 @@
 //! in a repository where four characters are often ambiguous.
 
 use super::*;
+use crate::object_abbreviation_pack_index::{
+    SortedNames,
+    open_index,
+};
 use crate::test_support::{
     fixture,
     git,

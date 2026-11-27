@@ -130,7 +130,7 @@ fn a_saved_merge_writes_the_mode_git_writes_over_a_permission_set_after_the_capt
     std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n")
         .expect("the person's edit");
     let context = crate::test_support::git_context();
-    let capture = crate::merge_isolation_carry::keep_capture(
+    let capture = crate::merge_isolation_carry_ref::keep_capture(
         &context,
         world.repo.as_path(),
         &crate::merge_isolation_carry::capture_work(
@@ -259,7 +259,7 @@ fn a_capture_another_record_still_names_keeps_its_ref() {
     std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n")
         .expect("the person's edit");
     let context = crate::test_support::git_context();
-    let capture = crate::merge_isolation_carry::keep_capture(
+    let capture = crate::merge_isolation_carry_ref::keep_capture(
         &context,
         world.repo.as_path(),
         &crate::merge_isolation_carry::capture_work(
@@ -373,7 +373,7 @@ fn two_finished_records_of_one_capture_leave_no_ref_behind() {
     std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n")
         .expect("the person's edit");
     let context = crate::test_support::git_context();
-    let capture = crate::merge_isolation_carry::keep_capture(
+    let capture = crate::merge_isolation_carry_ref::keep_capture(
         &context,
         world.repo.as_path(),
         &crate::merge_isolation_carry::capture_work(
@@ -411,7 +411,7 @@ fn two_finished_records_of_one_capture_leave_no_ref_behind() {
     }
     // The interleaving: both commands decide before either removes its record, so each drop is asked while both records are
     //  still there, which is the ordering the two commands can realise.
-    let first: bool = crate::merge_isolation_carry::drop_capture_ref(
+    let first: bool = crate::merge_isolation_carry_ref::drop_capture_ref(
         &context,
         world.git_dir.as_path(),
         world.repo.as_path(),
@@ -419,7 +419,7 @@ fn two_finished_records_of_one_capture_leave_no_ref_behind() {
         Some(records[0].as_path()),
     );
     assert!(first, "the first finish may go on");
-    let second: bool = crate::merge_isolation_carry::drop_capture_ref(
+    let second: bool = crate::merge_isolation_carry_ref::drop_capture_ref(
         &context,
         world.git_dir.as_path(),
         world.repo.as_path(),
@@ -439,7 +439,7 @@ fn two_finished_records_of_one_capture_leave_no_ref_behind() {
             &[
                 "for-each-ref",
                 "--format=%(refname)",
-                crate::merge_isolation_carry::CARRIED_REF_PREFIX
+                crate::merge_isolation_carry_ref::CARRIED_REF_PREFIX
             ]
         )
         .trim(),
