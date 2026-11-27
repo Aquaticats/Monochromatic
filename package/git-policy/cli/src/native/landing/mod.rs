@@ -307,6 +307,9 @@
 //!   the staging files of the index lock.
 //! - `service_index_attempts.rs`:
 //!   the attempts and the wait of an acquisition of the index lock.
+//! - `service_index_claim_files.rs`:
+//!   what the file at one slot of the claim chain is,
+//!   read without following a link or waiting on a pipe.
 //! - `service_index_claim.rs`:
 //!   the claim chain that keeps two reclaimers apart where the file system gives no `flock`.
 //! - `service_index_lock.rs`:
@@ -1207,6 +1210,10 @@ pub mod service_commit_waiting_notices;
 /// The removal of an index lock that no process holds and no Git lock PID file stands behind,
 /// on a proof written to the service journal.
 pub mod service_index_unheld_removal;
+
+/// What the file at one slot of the claim chain is,
+/// read without following a link or waiting on a pipe.
+pub mod service_index_claim_files;
 
 /// The claim chain that keeps two reclaimers apart where the file system gives no `flock`.
 pub mod service_index_claim;
