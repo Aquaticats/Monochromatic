@@ -15,7 +15,6 @@
 //! heldPushNotices(gitDir, record, wake); queuedPushNotices(gitDir, now, record, wake);
 //! ```
 
-use crate::blocked_commit_lines::named_reason;
 use crate::held_push_commit_on_the_remote::{
     OnTheRemote,
     RemoteRecord,
@@ -28,6 +27,7 @@ use crate::held_push_holder_and_verdict::{
     proven_gone,
 };
 use crate::held_push_release_wakes_the_service::WakeTheService;
+use crate::push_held_back_by_a_blocked_commit::named_reason;
 use crate::service_handoff_queued_push_words::queued_push_line;
 use crate::service_work::work_directory;
 use crate::work_item::{

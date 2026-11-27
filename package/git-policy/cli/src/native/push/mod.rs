@@ -21,8 +21,6 @@
 //!   and their overlap.
 //! - `auto_push_refspec_judging.rs`:
 //!   the reading of a configured push refspec and the judgement of what the refspecs make of one branch.
-//! - `blocked_commit_lines.rs`:
-//!   the lines a command prints about a branch the automatic push stops short of.
 //! - `bounded_query_input.rs`:
 //!   the thread that gives a second-pass command its request,
 //!   and the bounds it runs under.
@@ -236,9 +234,6 @@
 //! - `push_held_back_by_a_blocked_commit_awaiting.rs`:
 //!   where the push of one branch stops when its questions go to a Git awaited on the runtime,
 //!   which is the decision of `push_held_back_by_a_blocked_commit.rs` with its waits as tasks of the runtime.
-//! - `blocked_commit_questions.rs`:
-//!   the questions about a repository's history that decide where the automatic push stops,
-//!   in the faces that ask them.
 //! - `auto_push_reconcile_merge_commit.rs`:
 //!   the merge commit of a reconcile,
 //!   built in the object store without a worktree or an index.
@@ -261,26 +256,6 @@
 //! - `auto_push_reconcile.rs`:
 //!   publishing a landed commit that a moved remote branch rejected:
 //!   the merge is made from objects alone and pushed.
-//! - `auto_push.rs`:
-//!   the plan and the words of a post-commit auto-push:
-//!   the push argv,
-//!   the surfaced output and the failure reporting.
-//! - `push_tracking_ref_repair.rs`:
-//!   the remote-tracking reference a successful push delivered,
-//!   brought up to date when Git could not write it.
-//! - `push_failure_notice_words.rs`:
-//!   the words a found record becomes:
-//!   the text of a failed push,
-//!   of a push the service did not make,
-//!   and of one lost with its worktree.
-//! - `auto_push_awaiting.rs`:
-//!   the same automatic push as a task of the runtime,
-//!   and the plain-thread face that enters the runtime for it.
-//! - `push_without_its_transport.rs`:
-//!   the words a service push stops with when the transport settings of the command that asked for it are gone,
-//!   with the one command that pushes the branch instead.
-//! - `push_failure_notice.rs`:
-//!   the record of a failed backup push and the rule for when a wrapper command shows it.
 //! - `manual_push_update_and_query_limits.rs`:
 //!   what a push would update:
 //!   the public update of one pushed reference,
@@ -306,6 +281,31 @@
 //! - `stacked_merge_push.rs`:
 //!   the push of a merge that integrated a lost race,
 //!   planned and run inside the running wrapper.
+//! - `blocked_commit_lines.rs`:
+//!   the lines a command prints about a branch the automatic push stops short of.
+//! - `blocked_commit_questions.rs`:
+//!   the questions about a repository's history that decide where the automatic push stops,
+//!   in the faces that ask them.
+//! - `auto_push.rs`:
+//!   the plan and the words of a post-commit auto-push:
+//!   the push argv,
+//!   the surfaced output and the failure reporting.
+//! - `push_tracking_ref_repair.rs`:
+//!   the remote-tracking reference a successful push delivered,
+//!   brought up to date when Git could not write it.
+//! - `push_failure_notice_words.rs`:
+//!   the words a found record becomes:
+//!   the text of a failed push,
+//!   of a push the service did not make,
+//!   and of one lost with its worktree.
+//! - `auto_push_awaiting.rs`:
+//!   the same automatic push as a task of the runtime,
+//!   and the plain-thread face that enters the runtime for it.
+//! - `push_without_its_transport.rs`:
+//!   the words a service push stops with when the transport settings of the command that asked for it are gone,
+//!   with the one command that pushes the branch instead.
+//! - `push_failure_notice.rs`:
+//!   the record of a failed backup push and the rule for when a wrapper command shows it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
