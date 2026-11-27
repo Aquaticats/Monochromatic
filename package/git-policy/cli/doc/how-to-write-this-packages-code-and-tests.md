@@ -203,6 +203,32 @@ and a control that read it asserted on the cap the run happened to carry rather 
 (issue 6537;
 the quota's effect on `available_parallelism` is measured in
 `doc/troubleshooting/container-nproc-ignores-cpu-quota.md`).
+A round's widths are that same answer,
+and its memory figure is the one a control trips over:
+`HostResources::read` takes the free bytes of this process's control group,
+and the page cache a build wrote inside that group is charged to it,
+so a run in a capped scope reads no headroom at all and every batch runs one item at a time
+(measured for issue 6567:
+a threaded `landing::` run whose build filled a 10 GB cap read `memory_available: Some(0)`,
+and both side-by-side controls of `landing/service_work_items_side_by_side_tests.rs` then saw one item inside the
+handler;
+the same run with a warm build read 23.5 GB free and passed,
+`doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
+So the batches are sized by a host the caller states:
+`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take it,
+the shipped round reads the machine once and hands that one reading to every batch it drains,
+and a control that needs two items beside each other states a host of its own
+(`A_HOST_THAT_BOUNDS_NO_BATCH`),
+as a control whose subject is a batch that keeps its turn states one that puts a single item at a time
+(`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`),
+both in `landing/service_work_items_side_by_side.rs`.
+A width a control states for the whole process
+(`hold_the_width_to`,
+`landing/service_work_items_side_by_side.rs`)
+is a measurement's alone,
+because every other test of the run reads it too:
+that value was held at one by `a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent`
+while the side-by-side controls of the same process read it (issue 6567).
 
 The service's stop is one such fact
 (`process/stop_of_the_service_noticed_by_its_children.rs`):
@@ -257,6 +283,22 @@ The binary test target's own helper names its folders the same way
 `binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
 
+A fixture is removed through `test_support::remove`,
+which waits `REMOVAL_TRIES` pauses of `REMOVAL_PAUSE` while the tree still gains entries
+and,
+when the tries run out,
+fails with every name the fixture still holds,
+each with what it is.
+A landing does not write on its own thread alone:
+`land_group` starts the shadow pool's fill,
+the scratch sweep and a shadow drawn ahead on threads of their own,
+and the blocking pool makes the markers the next batches' locks are made from,
+each of them after the landing has answered.
+Measured 2026-11-27 (issue 6568):
+the draw made `monochromatic-git-policy-cli-shadow-drawn/main/drawn-<uuid>` inside a control's fixture `.git`
+5 ms after the landing returned,
+and a teardown that met it mid-write failed with `DirectoryNotEmpty` beside no entry at all,
+so the round that met it could not name the writer.
 A folder that has to be short,
 because a socket's path must fit one socket address,
 comes from `runtime_directory_folders.rs`'s `runtime_directory_parent`:
@@ -268,6 +310,19 @@ No control builds that folder under the home directory itself:
 the helper the hung-write controls used put `hw-<process id>-<name>` under the real `~/temp/agent`,
 and every control that panicked or failed left one there:
 34 of them by 2026-11-27 (issue 6561).
+
+A fixture's overlay names the place the wrapper records what it learned about the real Git in:
+`test_support::cache_home` makes one folder of the thread's own,
+and `isolated_overlay` names it as `XDG_CACHE_HOME` beside the configuration's own variables.
+The wrapper learns where that Git's system configuration and attributes files are,
+and records the answer under that place,
+so a control's work writes a file of its fixture and never `~/.cache/monochromatic-git-policy-cli`,
+and it reads none another session made (issue 6571).
+A service whose work runs in the test process reads those facts through `for_context`,
+which builds them from the process's variables with the context's overlay over them,
+and a control that hands the writing code no place of its own writes the person's home cache:
+`testing/test_support_tests.rs`'s `the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture`
+starts that code and refuses a place outside the fixture root.
 
 ## Own every child, end it on every path
 
@@ -286,6 +341,21 @@ A child must not keep the test's standard output or error open after the test:
 close or redirect the streams it does not need.
 `lfs::lfs_upload`'s `git-lfs` stand-in, which writes its process number and `exec`s `/usr/bin/sleep {HOLD_SECONDS}`,
 is the shape that leaked.
+A helper whose state a control reads is one the control ends,
+never one that ends by itself:
+`identity_of_process` and `process_birth_identity` answer nothing for a process that has exited,
+so a control that reads one passes or fails by how fast this host woke its thread.
+Such a helper waits for its own end:
+`sleep` with a hold the control states,
+or `cat` on a pipe the control holds,
+and the control kills it before it asserts on what a gone number means.
+On 2026-11-27 the record sweep control read the identity of `talk`,
+which printed its usage and exited at once,
+so the read lost that race whenever the host was slow (issue 6574).
+Every other helper a control of this crate expects to be alive
+is a `sleep` with its own argument,
+a `cat` or `tee` on a pipe the control holds,
+or a shell running a script that waits.
 A child a shipped call starts itself is still the test's to end:
 a control of the relay's end rule starts the child with `process_group(0)`,
 has that child write down the number of the group it leads,
@@ -480,6 +550,38 @@ The fix for issue 6421 (`700a6e4c02`) rewrote the line that starts the commit's 
 and left `the_commit_command_hands_its_waiting_notices_to_this_stream` asserting the line it replaced,
 so the whole container gate on `main` at `132843d9d1` failed in a module that fix never ran.
 
+The search a merge owes is wider than that grep:
+a control may also read a source file while it runs
+(`std::fs::read_to_string` of a path under `src/native`).
+Four test files outside `source_guard` do that as of 2026-11-27.
+
+A call a control requires belongs to the folder that asks it and not to one file of that folder
+because a split moves the call into a sibling file and leaves behind the file it left.
+The round for issue 6540 moved `output_of_within_bound` out of `repo_read/git_system_config.rs`
+into `repo_read/git_system_config_asking.rs` (`e58254244d`).
+A control that still named the file it left failed the whole gate on `main` (issue 6573).
+`process/captured_child_run_to_its_end_callers_tests.rs` finds the call across the module now:
+`source_root()` and `real_roots()` and `classified_sources()` of `source_guard/source_scan_tests.rs`
+list the files the build itself reaches.
+The control requires the call in one of the folder's release files
+and refuses `Command::output` in any of them.
+That fails when the call leaves the folder or a caller goes back to `Command::output`
+and passes when a split moves the call between the folder's files.
+That move is what the claim is about.
+
+No check over this text can replace running those modules.
+A needle a control requires may also be a sentence the program prints
+and so a scan cannot tell a pin over source from an assertion about a running program.
+The search of 2026-11-27 that guessed from literal needles found 58 places where a required
+literal was absent from the file read and every one of those modules passes.
+Reading the splits of 2026-11-26 and 2026-11-27 against every control that reads a source file
+found one stale control:
+22 test files `include_str!` a source file (65 file-and-needle pairs)
+and 4 more read one at run time outside `source_guard`
+and the rest are in `source_guard` whose whole module runs.
+Each of those 26 modules ran once and threaded
+and only the control above was stale.
+
 ## A filtered run counts only when it ran the tests you meant
 
 A `cargo test` filter that matches no test prints `ok. 0 passed`,
@@ -547,17 +649,30 @@ and the controls its brief asks for,
 red and green,
 and says in its report which checks ran and which did not.
 
-A round that writes or moves a line behind the controls' test-only switches runs
-`mise run //package/git-policy/cli:native:clippy:test-only-switches`
-(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`)
+A round that writes or moves a line behind a feature name runs that feature's
+`mise run //package/git-policy/cli:native:clippy:<feature>`
 as well as the plain `mise run //package/git-policy/cli:native:clippy`
 (`cargo clippy --locked --offline --all-targets -- -D warnings`),
 because the gate's Clippy step and every plain run compile without a feature
 (`bin/test-native-container.ts`),
 so nothing else lints a line only that build has.
-A line behind the fence's measurement routes takes
-`mise run //package/git-policy/cli:native:clippy:measurement` the same way.
+The controls' test-only switches take
+`mise run //package/git-policy/cli:native:clippy:test-only-switches`
+(`cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`),
+the start probe's raised deadline takes
+`mise run //package/git-policy/cli:native:clippy:start-probe-raised-deadline`
+(`cargo clippy --locked --offline --all-targets --features start-probe-raised-deadline -- -D warnings`),
+and the fence's measurement routes take
+`mise run //package/git-policy/cli:native:clippy:measurement`
+(`cargo clippy --locked --offline --all-targets --features measurement-routes -- -D warnings`).
 On 2026-11-27 the switch task failed alone on an unused re-export in `foundation/lazy_runtime.rs`,
 whose only namer,
 `testing/no_switch_is_read_without_its_feature_tests`,
-is compiled out where the feature is on (issue 6570).
+is compiled out where the feature is on (issue 6570);
+the raised-deadline task,
+added the same day,
+failed alone on a test-only import
+and a test-only constant that a build with the feature names nowhere
+(`start_probe/probe_deadline_tests.rs`,
+issue 6575),
+and the measurement task was green with nothing to fix.

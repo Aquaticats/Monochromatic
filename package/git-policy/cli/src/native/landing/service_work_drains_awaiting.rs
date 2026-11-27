@@ -27,6 +27,7 @@
 
 use crate::claim_time::ClaimTime;
 use crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND;
+use crate::parallel_budget::HostResources;
 use crate::push_retry::Retrying;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_work_common_directory::{
@@ -76,7 +77,7 @@ pub(crate) use crate::service_work_drains_awaiting_the_due_push_retries::run_due
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPlannedAwaiting(dir, handlers, now, retrying, kinds)
+/// await drainPlannedAwaiting(dir, handlers, now, retrying, kinds, host)
 /// ```
 pub async fn drain_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
@@ -85,6 +86,7 @@ pub async fn drain_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
     lease: Duration,
     retrying: &Retrying,
     kinds: &'static [WorkKind],
+    host: &HostResources,
 ) -> Drained {
     return drain_planned_with_awaiting(
         git_dir,
@@ -94,6 +96,7 @@ pub async fn drain_planned_awaiting<H: WorkHandlers + Sync + ?Sized>(
         Renewal::Timed,
         retrying,
         kinds,
+        host,
     )
     .await;
 }
@@ -116,6 +119,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
     renewal: Renewal<'_>,
     retrying: &Retrying,
     kinds: &'static [WorkKind],
+    host: &HostResources,
 ) -> Drained {
     // A directory that cannot be reached runs nothing,
     // and what becomes of its push plans is what the filesystem still proves about it:
@@ -158,6 +162,7 @@ pub async fn drain_planned_with_awaiting<H: WorkHandlers + Sync + ?Sized>(
         &mut replanning,
         kinds,
         HOUSEKEEPING_OF_ONE_ROUND,
+        host,
     )
     .await;
     return Drained {
@@ -213,6 +218,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Siz
     lease: Duration,
     retrying: &Retrying,
     kinds: &'static [WorkKind],
+    host: &HostResources,
 ) -> Drained {
     let Some(common) = common_directory_of(git_dir) else {
         return Drained::default();
@@ -237,6 +243,7 @@ pub async fn drain_common_records_planned_awaiting<H: WorkHandlers + Sync + ?Siz
         &mut replanning,
         kinds,
         HOUSEKEEPING_OF_ONE_ROUND,
+        host,
     )
     .await;
     return Drained {

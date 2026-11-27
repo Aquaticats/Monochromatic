@@ -672,55 +672,69 @@ fn the_copy_threshold_is_the_measured_break_even() {
 /// The copy's slices are jobs of the process's blocking pool:
 /// a slice asks for the one place of the process's bound before its files are copied,
 /// which a slice on a thread of its own never does.
+/// The bound is made once for the whole process and is never resized,
+/// so a hold that comes after another test's blocking job decides nothing,
+/// and this body runs in a child of its own
+/// (`foundation/blocking_jobs_within_the_budget.rs`,
+/// issue 6477).
 #[test]
 fn the_copy_slices_take_places_of_the_processs_bound() {
-    use std::sync::atomic::{
-        AtomicBool,
-        Ordering,
-    };
-    use std::sync::mpsc::RecvTimeoutError;
-    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) =
-        crate::parallel_test_support::hold_the_only_place();
-    let root: PathBuf = fixture("stage-copy-the-bound");
-    let source: PathBuf = root.join("source");
-    let stage: PathBuf = root.join("stage");
-    std::fs::create_dir_all(source.join("many")).expect("many");
-    std::fs::create_dir_all(stage.join("many")).expect("stage many");
-    for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
-        std::fs::write(
-            source.join(format!("many/file-{index:05}")),
-            format!("{index}"),
-        )
-        .expect("file");
-    }
-    let entries = crate::worktree_copy_manifest::collect_entry_manifest(
-        source.as_path(),
-        &[b"many".to_vec()],
-        &[],
-    )
-    .expect("manifest");
-    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice())
-        .expect("every file is copied");
-    assert_eq!(copied.stamps.len(), entries.len());
-    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
-    //  copy's slices reached the process's bound instead of starting at once.
-    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
-        Ok(true) => {}
-        Ok(false) => panic!(
-            "the job that holds the only place saw no ask, so no slice of the copy took a place of the process's bound"
-        ),
-        Err(RecvTimeoutError::Timeout) => panic!(
-            "no slice of the copy asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"
-        ),
-        Err(RecvTimeoutError::Disconnected) => {
-            panic!("the job that holds the only place ended without answering")
-        }
-    }
-    assert!(
-        given_back.load(Ordering::SeqCst),
-        "the place of the process's bound was never given back to a slice of the copy"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_copy_slices_take_places_of_the_processs_bound",
+        || {
+            use std::sync::atomic::{
+                AtomicBool,
+                Ordering,
+            };
+            use std::sync::mpsc::RecvTimeoutError;
+            let (given_back, wanted): (
+                std::sync::Arc<AtomicBool>,
+                std::sync::mpsc::Receiver<bool>,
+            ) = crate::parallel_test_support::hold_the_only_place();
+            let root: PathBuf = fixture("stage-copy-the-bound");
+            let source: PathBuf = root.join("source");
+            let stage: PathBuf = root.join("stage");
+            std::fs::create_dir_all(source.join("many")).expect("many");
+            std::fs::create_dir_all(stage.join("many")).expect("stage many");
+            for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
+                std::fs::write(
+                    source.join(format!("many/file-{index:05}")),
+                    format!("{index}"),
+                )
+                .expect("file");
+            }
+            let entries = crate::worktree_copy_manifest::collect_entry_manifest(
+                source.as_path(),
+                &[b"many".to_vec()],
+                &[],
+            )
+            .expect("manifest");
+            let copied =
+                copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice())
+                    .expect("every file is copied");
+            assert_eq!(copied.stamps.len(), entries.len());
+            // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+            //  copy's slices reached the process's bound instead of starting at once.
+            match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+                Ok(true) => {}
+                Ok(false) => panic!(
+                    "the job that holds the only place saw no ask, so no slice of the copy took a place of the process's bound"
+                ),
+                Err(RecvTimeoutError::Timeout) => panic!(
+                    "no slice of the copy asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"
+                ),
+                Err(RecvTimeoutError::Disconnected) => {
+                    panic!("the job that holds the only place ended without answering")
+                }
+            }
+            assert!(
+                given_back.load(Ordering::SeqCst),
+                "the place of the process's bound was never given back to a slice of the copy"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// Where the system starts no thread the copy workers' slices are copied in turn and every file arrives with its bytes.

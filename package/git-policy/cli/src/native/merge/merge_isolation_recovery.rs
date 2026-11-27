@@ -1,34 +1,34 @@
 /// Running Git for the settle,
 /// on the runtime the caller runs on.
 use crate::lazy_runtime::run_on_runtime;
-/// The raw differences and the worktree states.
+/// The change one path of a merge makes,
+/// kept so the controls of the folder reach the name they had.
+#[cfg(test)]
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
-/// The awaited face of the settle of a moved branch.
-use crate::merge_isolation_moved::settle_moved_branch_awaiting;
+/// The settle of a merge whose branch is not at the commit it was computed on.
+use crate::merge_isolation_recovery_a_branch_that_moved::a_branch_that_moved_awaiting;
+/// The settle of a merge whose branch this worktree does not have checked out.
+use crate::merge_isolation_recovery_a_checkout_for_another_branch::a_checkout_for_another_branch_awaiting;
+/// The settle of a merge whose commit the branch already names.
+use crate::merge_isolation_recovery_a_merge_the_branch_already_names::a_merge_the_branch_already_names_awaiting;
 /// The person's own work a merge carries,
 /// in the file that carries it.
 use crate::merge_isolation_recovery_carry::{
-    carry_onto_awaiting,
     carry_the_capture_awaiting,
     drop_the_records_refs_then_the_record_or_say,
     restore_the_capture_awaiting,
 };
 use crate::merge_isolation_recovery_cleanup::SideRef;
-/// The steps shared with the settling of a moved branch;
-/// named here so the paths outside this file stay the same.
-pub use crate::merge_isolation_recovery_cleanup::drop_record_and_side_ref_awaiting;
 /// Settling a saved merge whose paths hold the person's own newer edits.
 use crate::merge_isolation_recovery_cleanup::settle_a_saved_merge_over_newer_edits;
 use crate::merge_isolation_recovery_cleanup::{
-    a_landed_merge_in_another_branchs_worktree,
     edits_on_the_merges_own_paths,
     no_commit_names_the_merges_parent,
     staged_work_on_the_merges_paths,
 };
 /// The install and the branch move of a merge that is finished from its record.
 use crate::merge_isolation_recovery_complete::complete_awaiting;
-pub use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_notice::saved_merge_waits_for_the_index_lock;
 pub use crate::merge_isolation_recovery_place::RecoveryPlace;
 /// The ancestry question the moved-branch settling asks,
@@ -63,11 +63,11 @@ use crate::merge_isolation_recovery_steps::{
     finish_asides,
     merge_changes,
 };
-use crate::merge_isolation_recovery_steps::{
-    index_standings_awaiting,
-    judge_changes_awaiting,
-    merge_changes_awaiting,
-    put_back_stranded_takes_awaiting,
+/// What this worktree already holds of the merge,
+/// and the reading that says whether it began.
+use crate::merge_isolation_recovery_the_evidence_of_an_install::{
+    TheEvidence,
+    the_evidence_of_an_install_awaiting,
 };
 pub use crate::merge_isolation_the_merges_paths_judged::{
     Judged,
@@ -78,10 +78,7 @@ use crate::recovery_error::RecoveryError;
 /// Writing the notices of what recovery did.
 use std::io::Write;
 /// `Path` is a borrowed filesystem path.
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::Path;
 
 /// What:
 ///  Settle a merge that is known not to be running:
@@ -151,94 +148,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     };
     match current.as_deref() {
         Some(head) if head == intent.new_oid.as_str() => {
-            // The branch already names the merge, and the record is what still names the worktree its install went into: a
-            //  checkout another branch owns may hold the merge's index entries and files, so the branch is read before the
-            //  record goes (the owner's "never discard user data"; a trial reviewer's finding).
-            let checked_out: Option<String> = symbolic_ref_awaiting(place, root)
-                .await
-                .map_err(partly_installed)?;
-            if checked_out != intent.target_ref {
-                return Err(partly_installed(
-                    a_landed_merge_in_another_branchs_worktree(
-                        target,
-                        root,
-                        checked_out.as_deref(),
-                        record,
-                    ),
-                ));
-            }
-            // The merge is in the branch, so the person's own work in its paths is merged with it now, and the record goes only
-            //  once every byte of theirs is back in the checkout.
-            // What the command that moved the checkout read is what this carry judges the paths against, so a save that
-            //  arrived after a kill is left alone instead of being replaced by the person's older layer.
-            let mut landed: Vec<crate::merge_isolation_carry_landed::LandedFile> =
-                crate::merge_isolation_carry_landed::read_landed_record(
-                    place.git_dir.as_path(),
-                    intent.owner.transaction_id.as_str(),
-                );
-            // A file a command that stopped left under its private name is put back before the carry judges the path: the take
-            //  that moved it aside registers nothing until its placement returns, so a kill in that window leaves a copy no
-            //  record names, and the path is empty while it waits beside it. The carry would read the empty path as somebody
-            //  else's write, leave it, and the record would then go with the person's file still absent.
-            let changes: Vec<Change> = match merge_changes_awaiting(place, root, intent).await {
-                Ok(found) => found,
-                // The branch already names this merge, so a read that fails cannot prove the checkout untouched.
-                Err(error) => {
-                    return Err(MergeRefusal {
-                        error,
-                        began: true,
-                    });
-                }
-            };
-            let put_back: Vec<PathBuf> = put_back_stranded_takes_awaiting(
-                &place.git,
-                root,
-                place.git_dir.as_path(),
-                changes.as_slice(),
-                intent.carried.as_ref(),
-                intent.owner.transaction_id.as_str(),
-                out,
-            )
-            .await;
-            // A file this command put back is the entry the merge judged at that path: the rename left its identity as it was and
-            //  changed only its change time, so the reading is taken again there and the carry writes over the file it put back.
-            for location in &put_back {
-                for entry in landed.iter_mut() {
-                    if crate::merge_isolation_changes::worktree_path(root, entry.path.as_slice())
-                        == *location
-                    {
-                        let path: Vec<u8> = entry.path.clone();
-                        *entry = crate::merge_isolation_carry_landed::landed_file_at(
-                            location.as_path(),
-                            path.as_slice(),
-                        );
-                    }
-                }
-            }
-            // A record whose carry already finished needs nothing from the capture's objects, which may be collected by then: a
-            //  kill between the drop of a ref and the removal of the record leaves exactly that, and the read that failed there
-            //  refused every command (`merge_isolation_journal.rs`, `carry_finished`).
-            let already_carried: bool = crate::merge_isolation_journal::carry_finished(record);
-            if !already_carried
-                && !carry_the_capture_awaiting(place, root, intent, landed.as_slice(), out).await?
-            {
-                return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
-                    the_merges_entries_in_the_checkout: true,
-                    landed: true,
-                    branch_moved: false,
-                }));
-            }
-            drop_the_records_refs_then_the_record_or_say(
-                place,
-                root,
-                record,
-                intent,
-                SideRef::Drop,
-                true,
-                out,
-            )
-            .await?;
-            return Ok(MergeRecoveryAction::AlreadyLanded);
+            return a_merge_the_branch_already_names_awaiting(place, record, intent, out).await;
         }
         Some(_moved) => {}
         None => {
@@ -248,100 +158,18 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             });
         }
     }
-    // A merge whose own commits cannot be read may still be half installed, so a command is not let past this: the refusal
-    //  that follows says the merge is installed even where nothing was read, which is the safe answer.
-    let changes: Vec<Change> = match merge_changes_awaiting(place, root, intent).await {
-        Ok(found) => found,
-        Err(error) => {
-            return Err(MergeRefusal {
-                error,
-                began: true,
-            });
-        }
-    };
-    // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty
-    //  while the file waits beside it, and would otherwise be read as someone else's.
-    put_back_stranded_takes_awaiting(
-        &place.git,
-        root,
-        place.git_dir.as_path(),
-        changes.as_slice(),
-        intent.carried.as_ref(),
-        intent.owner.transaction_id.as_str(),
-        out,
-    )
-    .await;
-    // What this worktree already holds of the merge is read once, the index first and the worktree second, before anything can
-    //  refuse; every refusal after this point reports from this one reading, so no path can say nothing is installed while the
-    //  index holds the merge.
-    let index_standing: Vec<Standing> =
-        match index_standings_awaiting(place, root, intent.old_oid.as_str(), changes.as_slice())
-            .await
-        {
-            Ok(found) => found,
-            // An index that cannot be read may hold the merge, so a command must not read the checkout past this.
-            Err(error) => {
-                return Err(MergeRefusal {
-                    error,
-                    began: true,
-                });
-            }
-        };
-    // Whether anything of the merge is in the index at all, which is what keeps a record from being only discarded; and whether
-    //  every path the merge changes holds its side in the index, which is what an install leaves because Git writes the entries
-    //  in one step.
-    let any_in_index: bool = index_standing.iter().any(holds_the_merges_entry);
-    let every_entry_is_the_merges: bool =
-        !index_standing.is_empty() && index_standing.iter().all(holds_the_merges_entry);
-    let judgements: Vec<Judged> =
-        match judge_changes_awaiting(place, root, changes.as_slice()).await {
-            Ok(found) => found,
-            // The worktree cannot be read; the index is the evidence of the install that is still there.
-            Err(error) => {
-                return Err(MergeRefusal {
-                    error,
-                    began: every_entry_is_the_merges,
-                });
-            }
-        };
-    let any_in_worktree: bool = judgements.iter().any(holds_the_merge);
-    let every_file_is_the_merges: bool =
-        !judgements.is_empty() && judgements.iter().all(holds_the_merge);
-    // Every path holding the merge is what an install leaves.
-    let every_path_is_the_merges: bool = every_entry_is_the_merges || every_file_is_the_merges;
-    // Evidence of an install is a path the branch does not already hold the merge's content for and the checkout does:
-    //  an independent commit of the same content gives the branch that content, while an install leaves the branch as it was,
-    //  whatever another command does to the checkout afterwards.
-    let branch_lacks: Vec<bool> = match current.as_deref() {
-        Some(tip) => match paths_the_branch_does_not_hold_awaiting(
-            place,
-            root,
-            tip,
-            intent.new_oid.as_str(),
-            changes.as_slice(),
-        )
-        .await
-        {
-            Ok(found) => found,
-            Err(error) => {
-                return Err(MergeRefusal {
-                    error,
-                    began: every_path_is_the_merges,
-                });
-            }
-        },
-        None => Vec::new(),
-    };
-    let mut evidence: bool = false;
-    for (index, lacks) in branch_lacks.iter().enumerate() {
-        let held: bool = index_standing.get(index) == Some(&Standing::New)
-            || judgements.get(index).is_some_and(holds_the_merge);
-        if *lacks && held {
-            evidence = true;
-            break;
-        }
-    }
-    let began: bool = evidence;
+    // What this worktree already holds of the merge is read once, before anything can refuse: every refusal after this point
+    //  reports from this one reading, so no path can say nothing is installed while the index holds the merge.
+    let the_evidence: TheEvidence =
+        the_evidence_of_an_install_awaiting(place, root, intent, current.as_deref(), out).await?;
+    let TheEvidence {
+        changes,
+        index_standing,
+        judgements,
+        any_in_index,
+        any_in_worktree,
+        began,
+    } = the_evidence;
     // The checkout belongs to the branch the merge was computed on: installing it into another branch's worktree would put
     //  this merge's files and index into a branch it is not for, and move a branch from a checkout that is not its own.
     let checked_out: Option<String> = match symbolic_ref_awaiting(place, root).await {
@@ -354,158 +182,24 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
         }
     };
     if checked_out != intent.target_ref {
-        // A record that names no side ref and has nothing of the merge in this checkout has nothing to finish and nothing to stop
-        //  a command for: the branch it was computed on is not the one here, and no index entry or file of it is either. Nothing
-        //  was saved of it, so the person runs the merge again on the branch it is for; leaving the record kept every command on
-        //  another branch refused for a merge nothing installed
-        //  (a cross-vendor review of the ninth round,
-        // its fifth finding).
-        // A merge kept on a side ref says where the commit is; one that was only recorded has nothing to promise about it.
-        let kept: &str = match intent.side_ref.is_some() {
-            true => " and the merge's commit is still where it was saved",
-            false => "",
-        };
-        if intent.side_ref.is_none() && !any_in_index && !any_in_worktree {
-            if !restore_the_capture_awaiting(place, root, intent, out).await? {
-                return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
-                    the_merges_entries_in_the_checkout: false,
-                    landed: false,
-                    branch_moved: current.as_deref() != Some(intent.old_oid.as_str()),
-                }));
-            }
-            // The person's bytes are back, and the ref that kept them goes before the record that names it, so a deletion another
-            //  command's lock blocked is retried by the next command instead of leaving a name nothing removes.
-            drop_the_records_refs_then_the_record_or_say(
-                place,
-                root,
-                record,
-                intent,
-                SideRef::Drop,
-                began,
-                out,
-            )
-            .await?;
-            return Ok(MergeRecoveryAction::Discarded);
-        }
-        return Err(MergeRefusal {
-            error: RecoveryError(format!(
-                "A merge saved for {target} in {} was not finished: this worktree has {} checked out, and finishing the merge would \
-             put it into that branch's checkout instead. Nothing was changed and the record {} was kept{kept}. Check out {target} \
-             in this worktree and run any git command again.",
-                root.display(),
-                checked_out.as_deref().unwrap_or("a detached HEAD"),
-                record.display()
-            )),
+        return a_checkout_for_another_branch_awaiting(
+            place,
+            root,
+            record,
+            intent,
+            checked_out.as_deref(),
+            current.as_deref(),
+            any_in_index,
+            any_in_worktree,
             began,
-        });
+            out,
+        )
+        .await;
     }
     match current.as_deref() {
         Some(head) if head == intent.old_oid => {}
         Some(head) => {
-            // A merge that landed and was then built on by another session is still the person's merge: the checkout is put back
-            //  to the moved head, and their own work is merged onto it rather than written back as it was before the merge, which
-            //  would show the merge's lines undone. The record stays until their bytes are in the files.
-            if intent.carried.is_some()
-                && is_ancestor_awaiting(place, root, intent.new_oid.as_str(), head).await?
-            {
-                let action: MergeRecoveryAction =
-                    settle_moving_the_record_aside_awaiting(place, record, intent, head, out)
-                        .await?;
-                if action != MergeRecoveryAction::BranchMoved {
-                    return Ok(action);
-                }
-                if !carry_onto_awaiting(
-                    place,
-                    root,
-                    intent,
-                    head,
-                    intent.target_ref.as_deref().unwrap_or("HEAD"),
-                    out,
-                )
-                .await?
-                {
-                    return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
-                        the_merges_entries_in_the_checkout: true,
-                        landed: true,
-                        branch_moved: false,
-                    }));
-                }
-                drop_the_records_refs_then_the_record_or_say(
-                    place,
-                    root,
-                    record,
-                    intent,
-                    SideRef::Drop,
-                    began,
-                    out,
-                )
-                .await?;
-                return Ok(MergeRecoveryAction::AlreadyLanded);
-            }
-            if intent.side_ref.is_some() {
-                // A merge that is partly installed here has files and index entries nobody else can settle: its record stays,
-                //  and the command is told, because dropping it would leave them with nothing that ever recovers them.
-                if began {
-                    return Err(MergeRefusal {
-                        error: RecoveryError(format!(
-                            "A merge saved for {target} in {} is partly installed in this worktree, and {target} has moved to {} \
-                             since. Its index entries and any file it had set aside are still here, so the record {} was kept and \
-                             nothing was removed; the merge's commit is still where it was saved. Check `git status`, finish or \
-                             undo what is staged, then remove the record {} when the checkout is as you want it.",
-                            root.display(),
-                            head,
-                            record.display(),
-                            record.display()
-                        )),
-                        began,
-                    });
-                }
-                // A merge that a command already reported as saved must not vanish: the record goes, so nothing stops a later
-                //  command, and the side ref keeps its commit and is named.
-                if !restore_the_capture_awaiting(place, root, intent, out).await? {
-                    return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
-                        the_merges_entries_in_the_checkout: false,
-                        landed: false,
-                        branch_moved: true,
-                    }));
-                }
-                // The side ref stays: it is the only name that still keeps the merge's commit reachable, and the line says so.
-                drop_the_records_refs_then_the_record_or_say(
-                    place,
-                    root,
-                    record,
-                    intent,
-                    SideRef::Keep,
-                    began,
-                    out,
-                )
-                .await?;
-                return Ok(MergeRecoveryAction::SavedBranchMoved);
-            }
-            let action: MergeRecoveryAction =
-                settle_moved_branch_awaiting(place, record, intent, head, true, out).await?;
-            if action == MergeRecoveryAction::BranchMoved {
-                // The person's bytes come back before the ref that keeps them goes, and the record that names both goes last, so a
-                //  deletion another command's lock blocked is retried by the next command.
-                if !restore_the_capture_awaiting(place, root, intent, out).await? {
-                    return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
-                        the_merges_entries_in_the_checkout: false,
-                        landed: false,
-                        branch_moved: true,
-                    }));
-                }
-                drop_the_records_refs_then_the_record_or_say(
-                    place,
-                    root,
-                    record,
-                    intent,
-                    SideRef::Drop,
-                    true,
-                    out,
-                )
-                .await?;
-            }
-            return Ok(action);
+            return a_branch_that_moved_awaiting(place, record, intent, head, began, out).await;
         }
         None => {
             return Err(MergeRefusal {
@@ -653,27 +347,6 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     )
     .await?;
     return Ok(MergeRecoveryAction::Completed);
-}
-
-/// What:
-///  Put the merge's paths at the moved head while the record stays,
-/// so the person's work can be carried onto it.
-/// Why:
-///  The record is the only thing that names the capture,
-/// and the carry needs it until the bytes are in the files.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const action = await settleMovedBranch({ place, record, intent, movedTo, keepRecord: true });
-/// ```
-async fn settle_moving_the_record_aside_awaiting<W: std::io::Write + ?Sized>(
-    place: &RecoveryPlace,
-    record: &Path,
-    intent: &MergeIntent,
-    moved_to: &str,
-    out: &mut W,
-) -> Result<MergeRecoveryAction, MergeRefusal> {
-    return settle_moved_branch_awaiting(place, record, intent, moved_to, true, out).await;
 }
 
 /// Recovery of records whose owner is dead,

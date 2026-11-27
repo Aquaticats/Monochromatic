@@ -324,6 +324,48 @@ Read first beats run now because five signatures are five design choices nobody 
 Run now beats leave because rounds 5 to 7 build on these changes,
 and the files over the budget in `invocation/` and `health/` wait for round 7's move.
 
+## Open: where a worktree removal's Git reads its cache place (issue 6571, recorded 2026-11-27T07:08:00-05:00)
+
+Controls whose service runs inside the test process wrote `git-system-attributes-<digest>`
+under the real home cache.
+The round measured the writers and fixed the ones it could without a signature the release's callers see
+(`c1a3b33db5`):
+a fixture names a cache place of its own,
+and `for_context` now lets a variable its caller named win over the process's own,
+where the caller's entries were appended and the first match won,
+so a caller's variable never reached the place.
+That last change is release code:
+the release's overlay names no cache place,
+and the built binary run with a throwaway home wrote its two cache files there.
+
+One writer is left,
+and reaching it changes a signature:
+a worktree removal's service-side Git (`the_service_git`) builds a context of its own from the process's environment,
+so a removal a control runs still writes `git-system-config-<digest>` under the real home cache.
+The proposal is `doc/planning/cli-git-removal-work-cache-place-the-caller-hands.md`.
+
+- A:
+  the removal work runs under the `GitContext` its handlers already hold,
+  and `the_service_git`'s own resolution of Git goes.
+  One channel for the place;
+  the removal stops resolving a second Git.
+- B:
+  the work keeps resolving its own Git,
+  and its caller hands it the variables.
+  It keeps the Git of the attempt for a service that restarts mid-record.
+- C:
+  a build of the controls refuses a write to the process's own home cache.
+  No signature changes;
+  two callers already catch a panic and decline,
+  so the file can be written and the control stay green.
+
+Ranking,
+the round's:
+A > B > C.
+A beats B because the service already holds that one value for every child it runs.
+B beats C because B fixes the place for every route that reaches the work,
+where C only refuses the write.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.
@@ -362,6 +404,47 @@ and each can be undone by one round.
   where spacing after the arrow is only a dead entry.
   The fix round for the alpha.18 pass was told to make the two sides one rule,
   and to prefer a finding on the line over a refusal of the list unless the reader cannot recover.
+- A drain's batches are sized by a host its caller states,
+  where the drain used to read the machine itself (issue 6567,
+  `e22e629637`):
+  `drain_pending_awaiting`,
+  `drain_the_slow_work_awaiting` and the planned drains take `&HostResources`.
+  Nothing test-only entered a signature;
+  the callers read the machine once.
+  The round measured why the two controls saw one item of two:
+  `HostResources::read` takes the control group's free bytes,
+  which count the page cache a build wrote inside a memory-capped scope,
+  so a scope whose cache fills its cap reads no headroom and every batch falls to one item.
+  That is the shipped conservative behaviour for a service unit too,
+  and whether the width should count reclaimable cache is a design question the round left open
+  (`doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
+- A fixture's removal now waits the package's five seconds for what a landing starts beside its loop,
+  and names what is left when it fails (issue 6568,
+  `291fe5309f`).
+  The writer was the thread that draws a shadow ahead,
+  five milliseconds after the landing returned.
+  Open:
+  the two index-lock markers a landing makes for the next batches stay in a control's fixture
+  until a service's shutdown or the next landing's take,
+  and ending them needs a way that is not a test-only argument of `land_group`;
+  and the shadow pool's fill was measured at 5.6 s in a release note,
+  longer than the five seconds the removal waits.
+- Three place controls of `worktree_copying` (stage,
+  journal,
+  install) own their process now (issue 6477,
+  `d3ea7eaeea`) and can still pass when the bound is not one place,
+  because nothing inside them asserts the width.
+  Adding the assertion issue 6534's control has is one line each.
+- The control for issue 6573 reads every release file of `repo_read/` and `invocation/` for the bounded call,
+  where it read one named file (`53d7f739f3`).
+  The round's search found no other control made stale by the splits,
+  and 58 places where a required literal is absent from the file a pin reads although every such module passes,
+  so it built no guard over source pins and left whether one is worth building.
+- The control for issue 6572 waits for the record its landing writes
+  (`41d82a677e`).
+  The release code did what `SPEC.md` says:
+  a command may report a landed commit from an open batch before the finished record exists.
+  Its new failure message for the bound itself was written and not reached by a run.
 
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 

@@ -84,7 +84,6 @@ use crate::worktree_clean_untracked_scan::{
     scan_for_untracked_file,
     scan_for_untracked_file_awaiting,
 };
-use std::ffi::OsString;
 use std::path::Path;
 
 /// What:
@@ -130,6 +129,9 @@ pub fn check_clean_tracked(
 ///  a tree this proves clean is exactly a tree that check would prove clean could it settle the stat data,
 /// and the
 ///  volumes a removal goes around sit in untracked directories the scan does not read inside.
+/// The facts about the Git this context forwards to are `for_context`'s,
+///  and so is the place the wrapper records what it learned there:
+/// the same answer the index reset of a landing reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -141,14 +143,7 @@ pub fn check_clean_by_content(
     git_dir: &Path,
     common_dir: &Path,
 ) -> Result<CleanSource, CleanRefusal> {
-    let variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    let platform: crate::subvolume_platform::LinuxPlatform =
-        crate::subvolume_platform::LinuxPlatform::forwarding_to(
-            variables.as_slice(),
-            Some(context.real_git.as_path()),
-        );
-    let environment: ConversionEnvironment =
-        crate::subvolume_platform::Platform::conversion_environment(&platform);
+    let environment: ConversionEnvironment = crate::worktree_clean_content::for_context(context);
     return the_clean_verdict((
         check_tracked(root, git_dir, common_dir, Some(&environment), false),
         scan_for_untracked_file((context, root)),
