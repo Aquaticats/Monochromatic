@@ -457,7 +457,13 @@ fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
         .map(|name| return base.join(name))
         .collect::<BTreeSet<PathBuf>>();
     let findings: Vec<LayoutFinding> =
-        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+        dead_entry_findings(
+            &list,
+            &BTreeSet::<usize>::new(),
+            &folders,
+            &BTreeSet::<PathBuf>::new(),
+            base,
+        );
     assert_eq!(findings.len(), 4, "{findings:#?}");
     assert!(
         findings[0].message.contains(
@@ -506,7 +512,13 @@ fn a_dead_use_line_spells_the_whitespace_that_is_part_of_the_name() {
         .map(|name| return base.join(name))
         .collect::<BTreeSet<PathBuf>>();
     let findings: Vec<LayoutFinding> =
-        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+        dead_entry_findings(
+            &list,
+            &BTreeSet::<usize>::new(),
+            &folders,
+            &BTreeSet::<PathBuf>::new(),
+            base,
+        );
     assert_eq!(findings.len(), 2, "{findings:#?}");
     assert!(
         findings[0]
@@ -538,7 +550,13 @@ fn a_dead_use_line_whose_gap_holds_two_characters_says_which_to_remove() {
         .map(|name| return base.join(name))
         .collect::<BTreeSet<PathBuf>>();
     let findings: Vec<LayoutFinding> =
-        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+        dead_entry_findings(
+            &list,
+            &BTreeSet::<usize>::new(),
+            &folders,
+            &BTreeSet::<PathBuf>::new(),
+            base,
+        );
     assert_eq!(findings.len(), 1, "{findings:#?}");
     let help: &str = findings[0].help.as_deref().expect("a dead line has help");
     for part in [
@@ -674,6 +692,7 @@ fn a_dead_use_line_spells_a_character_it_holds_that_a_reader_cannot_see() {
             &list,
             &BTreeSet::<usize>::new(),
             &BTreeSet::<PathBuf>::new(),
+            &BTreeSet::<PathBuf>::new(),
             base,
         );
         assert_eq!(findings.len(), 1, "{line}");
@@ -705,6 +724,7 @@ fn a_byte_order_mark_before_a_line_is_named_where_it_stands_and_taken_out() {
         &list,
         &BTreeSet::<usize>::new(),
         &BTreeSet::<PathBuf>::new(),
+        &BTreeSet::<PathBuf>::new(),
         base,
     );
     assert_eq!(findings.len(), 1, "{findings:#?}");
@@ -732,6 +752,7 @@ fn a_zero_width_space_where_a_separator_belongs_is_named_and_taken_out() {
     let findings: Vec<LayoutFinding> = dead_entry_findings(
         &list,
         &BTreeSet::<usize>::new(),
+        &BTreeSet::<PathBuf>::new(),
         &BTreeSet::<PathBuf>::new(),
         base,
     );
@@ -1155,6 +1176,7 @@ fn one_dead_line(
         &list,
         &BTreeSet::<usize>::new(),
         &known,
+        &BTreeSet::<PathBuf>::new(),
         Path::new("package"),
     );
     assert_eq!(findings.len(), 1, "{findings:#?}");
