@@ -33,9 +33,6 @@ use crate::shadow_create_for_one_commit::{
     carry_the_commit_parts,
     conclusion_state_present,
 };
-/// The `git init` a reftable shadow is made by,
-/// re-exported under the path it had in this file.
-pub(crate) use crate::shadow_create_init::init_with_git;
 /// The number of those starts,
 /// and what a start the ceiling ended or the system refused was,
 /// re-exported under the paths they had in this file;
@@ -45,29 +42,25 @@ pub(crate) use crate::shadow_create_init::{
     SHADOW_CREATION_ATTEMPTS,
     start_was_cut_or_refused,
 };
+/// The private parent of a shadow.
+use crate::shadow_create_private_storage::create_parent;
 /// The private directory a shadow is made in,
 /// re-exported under the path it had in this file.
 pub use crate::shadow_create_private_storage::ensure_private_directory;
-/// The private parent of a shadow,
-/// and the mode of its files and of its directory,
-/// re-exported under the paths they had in this file.
-pub(crate) use crate::shadow_create_private_storage::{
-    create_parent,
-    overwrite_private,
-    set_private_directory_mode,
-};
 /// The facts a shadow is made from,
 /// re-exported under the path it had in this file.
 pub use crate::shadow_create_template::ShadowTemplate;
+/// The creation of everything but the commit's own parts,
+/// and the failure text of one step of it.
+use crate::shadow_create_the_commit_free_parts::{
+    create_shadow_template,
+    step_failure,
+};
 /// Shadow path.
 use crate::shadow_git::shadow_repository_path;
-/// Entry links.
-use crate::shadow_links::link_shadow_entries;
 /// What a tree must be for this invocation,
 /// which is the question a claim and a hand-out both ask.
 use crate::shadow_pool_member::refusal;
-/// The in-process entries of an empty bare repository.
-use crate::shadow_skeleton::create_shadow_skeleton;
 /// Process context and the failure of a step.
 use crate::transaction_git::{
     GitContext,
@@ -78,46 +71,6 @@ use std::path::{
     Path,
     PathBuf,
 };
-
-/// What:
-///  Turn the result of a filesystem step on the shadow into a Git failure that names the verb and the shadow:
-///  `<verb> <shadow> failed: <error>`.
-///  `std::io::Result<T>` is "the value,
-/// or an input/output error".
-/// Why:
-///   Several steps of the creation report their failure this way,
-/// and a named function stands where a closure that built
-///  that text stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function stepFailure<T>(attempt: () => T, verb: string, shadow: string): T; // throws GitFailure(`${verb} ${shadow} failed: ${error}`)
-/// ```
-fn step_failure<T>(
-    result: std::io::Result<T>,
-    verb: &str,
-    shadow: &Path,
-) -> Result<T, GitFailure> {
-    return match result {
-        Ok(value) => Ok(value),
-        Err(error) => Err(GitFailure(format!(
-            "{verb} {} failed: {error}",
-            shadow.display()
-        ))),
-    };
-}
-
-/// The same for a step that is named by a phrase and not by a verb and the shadow:
-/// `<phrase> failed: <error>`.
-fn named_step_failure<T>(
-    result: std::io::Result<T>,
-    phrase: &str,
-) -> Result<T, GitFailure> {
-    return match result {
-        Ok(value) => Ok(value),
-        Err(error) => Err(GitFailure(format!("{phrase} failed: {error}"))),
-    };
-}
 
 /// What:
 ///  Creates the shadow repository of one published transaction.
@@ -368,64 +321,6 @@ pub fn take_or_create_shadow(
         path: shadow.to_path_buf(),
         handed: None,
     });
-}
-
-/// What:
-///  Creates everything of a shadow that does not depend on the commit or its branch:
-/// the skeleton,
-/// the config,
-/// the alternates and the links.
-/// Why:
-///   These are the stretches a pool member holds,
-/// and the two callers of them (a commit's own creation and the pool's fill) must make
-///  the same entries.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await createShadowTemplate({ context, template, shadowPath, clock });
-/// ```
-pub fn create_shadow_template(
-    context: &GitContext,
-    template: &ShadowTemplate,
-    shadow: &Path,
-    clock: &mut BuildPartClock,
-) -> Result<(), GitFailure> {
-    if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
-        // The reftable backend's tables are Git's to create, so this one case still starts `git init`.
-        init_with_git(context, template, shadow)?;
-    } else {
-        step_failure(create_shadow_skeleton(shadow), "creating", shadow)?;
-    }
-    step_failure(set_private_directory_mode(shadow), "protecting", shadow)?;
-    clock.next("shadow config");
-    named_step_failure(
-        overwrite_private(
-            shadow.join("config").as_path(),
-            template.config_bytes().as_slice(),
-        ),
-        "writing the shadow config",
-    )?;
-    named_step_failure(
-        overwrite_private(
-            shadow
-                .join("objects")
-                .join("info")
-                .join("alternates")
-                .as_path(),
-            template.alternates_bytes().as_slice(),
-        ),
-        "writing the shadow alternates",
-    )?;
-    clock.next("shadow links");
-    named_step_failure(
-        link_shadow_entries(
-            shadow,
-            template.common_dir.as_path(),
-            template.git_dir.as_path(),
-        ),
-        "linking the shadow entries",
-    )?;
-    return Ok(());
 }
 
 /// Shadow creation controls stay out of the release executable.

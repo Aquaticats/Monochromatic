@@ -25,11 +25,9 @@ use crate::scratch_location::{
     SCRATCH_STALE_AFTER,
     prepare_repository_scratch,
 };
-use crate::shadow_create::{
-    ShadowTemplate,
-    create_shadow_template,
-    take_or_create_shadow,
-};
+use crate::shadow_create::take_or_create_shadow;
+use crate::shadow_create_template::ShadowTemplate;
+use crate::shadow_create_the_commit_free_parts::create_shadow_template;
 use crate::test_support::{
     fixture,
     git,
