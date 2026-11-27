@@ -6,10 +6,11 @@
 //! one asset of a release by its name,
 //! and the SHA-256 a lock records for that asset.
 //! Why:
-//! The release and tag lookups are the part of the resolver that talks to GitHub,
-//! so they sit in one file:
-//! the `tagPrefix` search and the resolver above them read release objects
-//! and never build a request themselves.
+//! Every request that returns a release object is built here,
+//! as is the one that fetches an asset's bytes,
+//! beside the tag rules that choose among a repository's releases (`tag_names`).
+//! The resolver above both of them reads release objects
+//! and builds no request of its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
