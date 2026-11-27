@@ -360,6 +360,12 @@ mod exposure_tests;
 #[cfg(test)]
 mod the_repository_rust_row_names_no_unresolved_bin_tests;
 
+/// The controls of the same row against a machine holding exactly what it declares:
+/// the programs its own components install,
+/// and what an install asks the manager for.
+#[cfg(test)]
+mod the_rust_rows_own_toolchain_holds_every_bin_it_declares_tests;
+
 /// The unit tests of the `github:` resolver's `tagPrefix` option.
 #[cfg(test)]
 mod update_github_prefix_tests;
