@@ -417,8 +417,6 @@ file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash.rs
 file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_dispose.rs
 file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_hand_over.rs
 file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_own_manifest.rs
-file-uses src/native/worktree_clone_binding_record registration_recipe.rs -> registration_removals.rs
-file-uses src/native/worktree_clone_binding_record registration_removals.rs -> registration_recipe.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs
