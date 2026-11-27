@@ -13,6 +13,12 @@
 //! - `service_durable_the_background_sync_thread.rs`:
 //!   the task that makes a landing's syncs after the landing answered,
 //!   and the wait a control makes until its queue is empty.
+//! - `service_index_prestage_the_markers_made_ahead.rs`:
+//!   the marker this service keeps made ahead:
+//!   the marked file,
+//!   its slot,
+//!   the record of every file made,
+//!   and the step that makes and records one.
 //! - `service_messages_the_failures_a_person_can_meet.rs`:
 //!   every failure the client can meet,
 //!   and the facts its text names.
@@ -813,6 +819,12 @@ pub mod service_index_marker;
 
 /// The marker of the next batch's index lock,
 /// made and flushed while the service is idle.
+/// The marker this service keeps made ahead:
+/// its slot,
+/// the record of every file made,
+/// and the step that makes and records one.
+pub mod service_index_prestage_the_markers_made_ahead;
+
 pub mod service_index_prestage;
 
 /// What an acquisition of the index lock found when it had to wait,
