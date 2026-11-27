@@ -8,7 +8,8 @@
 //! // source_guard/index.ts: one `export * from './file'` per module below.
 //! ```
 
-/// The modules a library root reaches, with the visibility of every `mod` declaration on the way,
+/// The modules a library root reaches,
+/// with the visibility of every `mod` declaration on the way,
 /// which is what decides whether another crate can name an item.
 #[cfg(test)]
 #[path = "modules_a_library_root_reaches_tests.rs"]

@@ -1,5 +1,6 @@
 //! What:
-//!  The modules a library root reaches, by the chain of `mod` declarations from the root,
+//!  The modules a library root reaches,
+//!  by the chain of `mod` declarations from the root,
 //!  with the visibility each declaration has.
 //! Why:
 //!  Whether another crate can name an item is decided above the item,
@@ -36,20 +37,22 @@ use std::path::Path;
 /// type ModuleOfTheTree = { file: string; public: boolean; testOnly: boolean; children: Map<string, string> }
 /// ```
 pub(crate) struct ModuleOfTheTree {
-    /// The file holding the module, relative to the source root.
+    /// The file holding the module,
+    /// relative to the source root.
     pub(crate) file: String,
     /// Whether every `mod` line from the root to here is exactly `pub mod`.
     pub(crate) public: bool,
     /// Whether a `cfg` on the way here compiles the module only when testing.
     pub(crate) test_only: bool,
-    /// Each child's name and chain, whichever visibility its declaration has.
+    /// Each child's name and chain,
+    /// whichever visibility its declaration has.
     pub(crate) children: BTreeMap<String, String>,
 }
 
 /// What:
 ///  `fn chain_of(parent: &str, name: &str) -> String` is the chain a child module has,
 ///  written `a::b`.
-///  `&str` is a borrowed view of text (sibling `String`, owned);
+///  `&str` is a borrowed view of text (the sibling `String` is the owned one);
 ///  `String` outlives the line the name was cut from.
 /// Why:
 ///  One spelling of a chain keys the map and is what a `pub use` path resolves against.
@@ -71,7 +74,8 @@ fn chain_of(
 /// What:
 ///  `pub(crate) fn read_the_tree(root: &Path) -> Result<BTreeMap<String, ModuleOfTheTree>, String>` follows every
 ///  `mod` declaration from `lib.rs` and returns each module by its chain.
-///  `BTreeMap` is a sorted map (TS: `Map` iterated in key order); `Result<T, E>` is "answer or why not".
+///  `BTreeMap` is a sorted map (as TS's `Map` iterated in key order),
+///  and `Result<T, E>` is "answer or why not".
 /// Why:
 ///  The reachability of one item is the reachability of every module above it,
 ///  so the chain is read once and every scan of the surface reads the same tree.
@@ -126,7 +130,8 @@ pub(crate) fn read_the_tree(root: &Path) -> Result<BTreeMap<String, ModuleOfTheT
 
 /// What:
 ///  `pub(crate) fn chain_the_target_reaches(modules, from, target) -> Option<String>` answers which module chain a
-///  `pub use` path names, started from the module `from` that holds the line.
+///  `pub use` path names,
+///  started from the module `from` that holds the line.
 /// Why:
 ///  `crate::name` starts at the root,
 /// `self::name` at the module that writes the line,

@@ -1,5 +1,6 @@
 //! What:
-//!  The names another crate can reach through a library root, read from the source text:
+//!  The names another crate can reach through a library root,
+//!  read from the source text:
 //!  every bare `pub` item whose module the `pub mod` chain from the library root reaches,
 //!  and every `pub use` line that carries a name out of a module that chain does not reach.
 //! Why:
@@ -35,7 +36,7 @@ const ITEM_KINDS: &[&str] = &[
 
 /// What:
 ///  `pub(crate) struct NameableItem` is one item another crate can name:
-///  its kind (`fn`, `struct`, ...),
+///  its kind (a `fn` or a `struct` and so on),
 ///  its name,
 ///  and the file it is written in.
 /// Why:
@@ -46,11 +47,13 @@ const ITEM_KINDS: &[&str] = &[
 /// type NameableItem = { kind: string; name: string; file: string }
 /// ```
 pub(crate) struct NameableItem {
-    /// The item's kind, as its declaration writes it.
+    /// The item's kind,
+    /// as its declaration writes it.
     pub(crate) kind: String,
     /// The item's name.
     pub(crate) name: String,
-    /// The file, relative to the source root, that declares it.
+    /// The file that declares it,
+    /// relative to the source root.
     pub(crate) file: String,
 }
 
@@ -70,7 +73,8 @@ pub(crate) struct NameableItem {
 pub(crate) struct CarriedName {
     /// The file holding the `pub use` line.
     pub(crate) file: String,
-    /// The module part of the re-exported path, as the line writes it.
+    /// The module part of the re-exported path,
+    /// as the line writes it.
     pub(crate) target: String,
 }
 
@@ -93,7 +97,7 @@ pub(crate) struct Surface {
 
 /// What:
 ///  `fn word_after(line: &str) -> Option<&str>` reads the first word of a declaration's tail:
-///  the name, or the `fn` of a `pub const fn`.
+///  the name or the `fn` of a `pub const fn`.
 /// Why:
 ///  `pub const fn` puts two keywords before the name,
 /// and every other kind puts one.
@@ -118,7 +122,7 @@ fn word_after(line: &str) -> Option<&str> {
 ///  and of every `#[macro_export] macro_rules!` name.
 /// Why:
 ///  Exactly `pub` publishes a name to another crate:
-/// `pub(crate)`, `pub(super)` and `pub(in path)` do not.
+/// `pub(crate)` or `pub(super)` or `pub(in path)` do not.
 ///  A `#[cfg(test)]` attribute above a declaration keeps it out of the release build,
 ///  so it publishes nothing.
 ///

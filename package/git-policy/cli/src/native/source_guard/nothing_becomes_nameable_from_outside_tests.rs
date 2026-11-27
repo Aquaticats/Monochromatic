@@ -8,12 +8,14 @@
 //!  and the release `0.6.1-alpha.48` widened it without anyone choosing to:
 //!  a split moved a private helper into a file of its own and wrote bare `pub` so a sibling could call it,
 //!  which the `pub mod` chain then published to every consumer
-//!  (review M1: 31 items newly nameable, 7 of them private before the split).
-//!  A `pub(crate)`, `pub(super)` or `pub(in path)` says the same thing to the caller
+//!  (the review's M1 counted 31 items newly nameable,
+//!  7 of them private before the split).
+//!  A `pub(crate)` or `pub(super)` or `pub(in path)` says the same thing to the caller
 //!  and publishes nothing,
 //!  so the list is where publishing becomes a decision a reader sees.
 //! Gotcha:
-//!  This reads source text, so it sees the lines this crate writes;
+//!  This reads source text,
+//!  so it sees the lines this crate writes;
 //!  the limits of the reading are in `nameable_items_of_a_source_tree_tests.rs`.
 //!  The list is compared in both directions:
 //!  a published name that is missing fails,
@@ -30,14 +32,15 @@ use super::nameable_items_of_a_source_tree_tests::surface_of;
 use crate::source_scan_tests::source_root;
 use std::collections::BTreeSet;
 
-/// The list beside this file, which is also the ledger of every publishing decision.
+/// The list beside this file,
+/// which is also the ledger of every publishing decision.
 const THE_LIST: &str = include_str!("items_nameable_from_outside_release.txt");
 
 /// What:
 ///  `fn listed_lines() -> BTreeSet<String>` reads the list's entries,
 ///  each written `<kind> <name>`,
 ///  and ignores its comments and blank lines.
-///  `BTreeSet` is a sorted set (TS: `Set` iterated in sorted order).
+///  `BTreeSet` is a sorted set (as TS's `Set` iterated in sorted order).
 /// Why:
 ///  A reason is written above the entries it covers,
 ///  so only the entry lines are compared with the tree.
