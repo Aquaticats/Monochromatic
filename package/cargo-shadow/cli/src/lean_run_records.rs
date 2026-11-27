@@ -58,7 +58,10 @@ use crate::lean_removal::{
     modes_named,
 };
 /// Imports the names this file uses from `crate::lean_sizes`.
-use crate::lean_sizes::add_tree_bytes;
+use crate::lean_sizes::{
+    ByteCount,
+    add_tree_bytes,
+};
 
 /// The name prefixes of run records,
 /// one entry per program of this repository that writes a record of its own run into a verification directory,
@@ -169,8 +172,9 @@ pub struct RecordsOutcome {
     /// Records removed,
     /// or in a dry run that would be.
     pub removed: usize,
-    /// Disk bytes freed,
-    /// or that would be.
+    /// The bytes freed,
+    /// or that would be,
+    /// by the rule the sweep was given.
     pub bytes: u64,
     /// Records a process was using,
     /// kept.
@@ -233,18 +237,20 @@ fn older_first(
 }
 
 /// What:
-/// `fn records_of(directory: &Path, deadline: &Deadline) -> Vec<Record>` lists the run records of a verification directory,
+/// `fn records_of(directory: &Path, deadline: &Deadline, count_bytes: ByteCount) -> Vec<Record>` lists the run records of a
+/// verification directory,
 /// oldest first.
 /// Why:
 /// Only names with a run prefix are records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function recordsOf(directory: string, deadline: Deadline): Record[]
+/// function recordsOf(directory: string, deadline: Deadline, countBytes: ByteCount): Record[]
 /// ```
 fn records_of(
     directory: &Path,
     deadline: &Deadline,
+    count_bytes: ByteCount,
 ) -> Vec<Record> {
     let mut records: Vec<Record> = Vec::new();
     let mut seen: HashSet<Identity> = HashSet::new();
@@ -257,7 +263,7 @@ fn records_of(
             continue;
         }
         let path: PathBuf = entry.path();
-        let bytes: u64 = add_tree_bytes(&path, &mut seen, deadline).bytes;
+        let bytes: u64 = add_tree_bytes(&path, &mut seen, deadline, count_bytes).bytes;
         records.push(Record {
             modified: newest_write(&path),
             path,
@@ -269,14 +275,14 @@ fn records_of(
 }
 
 /// What:
-/// `pub fn sweep_run_records(directory: &Path, policy: &RetentionPolicy, environment: &GuardEnvironment, now: i64, dry_run: bool, deadline: &Deadline, log: &mut Vec<String>) -> RecordsOutcome`
+/// `pub fn sweep_run_records(directory: &Path, policy: &RetentionPolicy, environment: &GuardEnvironment, now: i64, dry_run: bool, deadline: &Deadline, count_bytes: ByteCount, log: &mut Vec<String>) -> RecordsOutcome`
 /// applies the retention to one verification directory.
 /// Why:
 /// It is mechanism D.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function sweepRunRecords(directory: string, policy: RetentionPolicy, env: GuardEnvironment, now: number, dryRun: boolean, deadline: Deadline, log: string[]): RecordsOutcome
+/// export function sweepRunRecords(directory: string, policy: RetentionPolicy, env: GuardEnvironment, now: number, dryRun: boolean, deadline: Deadline, countBytes: ByteCount, log: string[]): RecordsOutcome
 /// ```
 pub fn sweep_run_records(
     directory: &Path,
@@ -285,10 +291,11 @@ pub fn sweep_run_records(
     now: i64,
     dry_run: bool,
     deadline: &Deadline,
+    count_bytes: ByteCount,
     log: &mut Vec<String>,
 ) -> RecordsOutcome {
     let mut outcome: RecordsOutcome = RecordsOutcome::default();
-    let records: Vec<Record> = records_of(directory, deadline);
+    let records: Vec<Record> = records_of(directory, deadline, count_bytes);
     let mut total: u64 = 0;
     for record in &records {
         total += record.bytes;
@@ -367,7 +374,7 @@ pub fn sweep_run_records(
             }
         };
         match claim_into_trash(&item, &trash, 0) {
-            Ok(claimed) => match delete_claimed(&claimed, item.identity) {
+            Ok(claimed) => match delete_claimed(&claimed, item.identity, count_bytes) {
                 Ok(deleted) => {
                     emit(
                         log,

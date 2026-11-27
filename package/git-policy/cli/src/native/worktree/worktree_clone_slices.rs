@@ -81,6 +81,29 @@ const TAG: &str = "cloneSlices";
 pub(crate) static FORCED_ONE_TURN_ARM: AtomicBool = AtomicBool::new(false);
 
 /// What:
+///  A host whose processors and memory bound no clone:
+/// eight threads for every worker the copy ceiling allows,
+/// and no memory figure,
+/// so a budget asked about it answers that ceiling and never the machine the control runs on.
+/// Why:
+///  A control that asked for the worker count of the live host asserted on whatever the machine had at that moment:
+/// the threads `HostResources::read` answers are the smaller of the affinity mask and the control group's CPU quota,
+/// so a run in a scope capped below two processors answered one worker and the control's own precondition failed
+///  beside a fixture that was right (issue 6537).
+/// Eight threads per allowed worker keeps the eighth the CPU margin takes back above the ceiling,
+///  so a raised ceiling still leaves room for every worker it allows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_HOST_THAT_BOUNDS_NO_WORKER = { parallelism: PARALLEL_COPY_MAX_WORKERS * 8, memoryAvailable: undefined };
+/// ```
+#[cfg(test)]
+pub(crate) const A_HOST_THAT_BOUNDS_NO_WORKER: HostResources = HostResources {
+    parallelism: PARALLEL_COPY_MAX_WORKERS * 8,
+    memory_available: None,
+};
+
+/// What:
 ///  Whether the slices are refused, which a control may ask for and no shipped add can.
 /// Why:
 ///   The arm's shape is the caller's answer and not the runtime's here,
@@ -199,16 +222,22 @@ async fn clone_the_slices(states: Vec<SliceOfClones>) -> Vec<Result<ClonedEntrie
 /// and
 ///  measuring this rung at a few hundred entries is owed (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 /// step 3's open items).
+/// The host is an input rather than a reading of this process,
+/// so a caller states the processors and the memory its own budget is derived from,
+/// and a control asserts on a host it names instead of on the machine the run is on (issue 6537).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const cloneWorkerCount = (entries) => entries < 16 ? 1 : slicedWorkers(entries, 8, host);
+/// const cloneWorkerCount = (entries, host) => entries < 16 ? 1 : slicedWorkers(entries, 8, host);
 /// ```
-pub(crate) fn clone_worker_count(entries: usize) -> usize {
+pub(crate) fn clone_worker_count(
+    entries: usize,
+    host: &HostResources,
+) -> usize {
     if entries < PARALLEL_BREAK_EVEN_ENTRIES {
         return 1;
     }
-    return sliced_workers(entries, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
+    return sliced_workers(entries, PARALLEL_COPY_MAX_WORKERS, host);
 }
 
 /// What:

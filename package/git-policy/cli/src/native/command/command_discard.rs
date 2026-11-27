@@ -41,7 +41,13 @@ use crate::command_checkout_table::{
     STAGE,
     SWITCH_TABLE,
 };
-use crate::command_options::{
+use crate::command_options::parse_options;
+use crate::command_options_query::{
+    is_enabled,
+    is_stated,
+    positional_tokens,
+};
+use crate::command_options_types::{
     Arity,
     Boundary,
     DEFAULT_MODE,
@@ -49,13 +55,7 @@ use crate::command_options::{
     OptionSpec,
     ParsedOptions,
     UNREAD,
-    parse_options,
     row,
-};
-use crate::command_options_query::{
-    is_enabled,
-    is_stated,
-    positional_tokens,
 };
 use std::ffi::OsString;
 

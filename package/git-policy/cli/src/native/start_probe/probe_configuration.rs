@@ -32,6 +32,13 @@
 //! const source = sourceName(textOrNone, configurationPath, liveMountedDatasets, checkout);
 //! ```
 
+/// The keys of the one object the project answered holds both names,
+/// re-exported under the paths they had in this file.
+pub use super::probe_configuration_refusal::{
+    CHECKOUT_KEY,
+    DATASET_KEY,
+    START_PROBE_KEY,
+};
 use super::probe_configuration_refusal::{
     CheckoutRefusal,
     SourceRefusal,
@@ -54,17 +61,6 @@ use std::path::{
     Path,
     PathBuf,
 };
-
-/// The one object the project answered holds both names.
-pub const START_PROBE_KEY: &str = crate::handler_configuration_keys::START_PROBE_KEY;
-
-/// The key inside `startProbe` that names the probe dataset,
-/// beside the pool and dataset names the configuration pins.
-pub const DATASET_KEY: &str = crate::handler_configuration_keys::PROBE_DATASET_KEY;
-
-/// The key inside `startProbe` that names the checkout the walk opens
-/// read-only.
-pub const CHECKOUT_KEY: &str = crate::handler_configuration_keys::PROBE_CHECKOUT_KEY;
 
 /// The object the sweep's names sit in,
 /// whose clone-container key the probe reads too,

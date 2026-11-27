@@ -22,6 +22,11 @@ use crate::wait_ceilings::{
     PLUMBING_STEP_CEILING,
 };
 use crate::wait_progress::Cadence;
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::Command;
 
 /// A function-like value with the right shape is a source of watch terms in these controls:
 /// the shipped caller writes a small struct.

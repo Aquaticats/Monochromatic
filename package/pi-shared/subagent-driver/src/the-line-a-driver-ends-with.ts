@@ -9,6 +9,7 @@
  */
 
 import { join, } from 'node:path';
+import { sentenceOfAStartThatEndedWithoutARun, } from './a-start-that-ended-without-a-run.ts';
 import type {
   PiStartFailure,
   RunSummary,
@@ -180,6 +181,17 @@ function maskingNoteOf(summary: RunSummary,): string {
 }
 
 /**
+ Says a sentence with a period at its end, so two of them never run together in the one line a reader gets.
+
+ @param text - the sentence
+
+ @returns the sentence, ending in a period
+ */
+function asASentence(text: string,): string {
+  return text.endsWith('.') ? text : `${text}.`;
+}
+
+/**
  Builds the line the driver prints as a run that did not end on its own terms ends, naming where the summary and Pi's standard
  error are.
 
@@ -205,15 +217,22 @@ export function endingLineOf({
    What the line says before the files it names, ending where the reason it quotes already ended a sentence.
    */
   const sentence = `The Pi run ended with "${summary.endReason}"${maskingNoteOf(summary,)}${attemptsOf(summary,)}${startsNoteOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}`;
-  return `${sentence}${sentence.endsWith('.') ? '' : '.'} The summary is in ${
-    join(
+  /**
+   Every sentence of the line: why the run ended, what the start that ended without one has to say when the run never began, and
+   where the files are.
+   */
+  const sentences = [
+    asASentence(sentence,),
+    ...((summary.startThatEndedWithoutARun === undefined)
+      ? []
+      : [asASentence(sentenceOfAStartThatEndedWithoutARun({ start: summary.startThatEndedWithoutARun, },))]),
+    `The summary is in ${join(
       runFolder,
       'summary.json',
-    )
-  } and Pi's standard error in ${
-    join(
+    )} and Pi's standard error in ${join(
       runFolder,
       'stderr.log',
-    )
-  }.`;
+    )}.`,
+  ];
+  return sentences.join(' ',);
 }

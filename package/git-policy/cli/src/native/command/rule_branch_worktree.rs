@@ -40,7 +40,7 @@ use crate::command_branch_create::{
     branch_creation_command,
     parse_branch_creation_region,
 };
-use crate::command_options::OptionError;
+use crate::command_options_types::OptionError;
 use crate::escape_hatch::BRANCH_WORKTREE_ESCAPE_HATCH;
 use crate::global_arguments::command_tokens;
 /// What:

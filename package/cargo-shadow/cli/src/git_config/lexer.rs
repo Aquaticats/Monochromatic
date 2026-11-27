@@ -17,7 +17,7 @@
 // import { Name } from './module.ts';
 // ```
 /// Imports the recorded variable that a key and its value become.
-use crate::git_config::ConfigEntry;
+use super::ConfigEntry;
 
 /// How the lexer sees the text:
 /// Git's `get_next_char`.

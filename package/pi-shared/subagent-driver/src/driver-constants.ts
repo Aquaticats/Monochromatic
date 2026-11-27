@@ -64,6 +64,49 @@ export const COMMAND_ANSWER_MILLISECONDS = 30_000;
 export const START_UP_ANSWER_MILLISECONDS = 120_000;
 
 /**
+ The variable that gives the three start-up answers a bound of the caller's own, in milliseconds.
+
+ It is the seam a test of a Pi that never answers needs, beside `PI_RUNS_PROCESS_FOLDER` for the process table: the shipped bound is
+ two minutes, and no unit test can spend that on each of the three answers. A launcher starts no run with it, so no run of this
+ machine is bounded by anything but {@link START_UP_ANSWER_MILLISECONDS}.
+ */
+export const START_UP_ANSWER_MILLISECONDS_VARIABLE = 'PI_RUNS_START_UP_ANSWER_MILLISECONDS';
+
+/**
+ The bound one of the three answers a run waits for while Pi starts is given: the shipped one, or the one the environment names for a
+ test.
+
+ @param environment - the driver's own environment
+
+ @returns the bound, in milliseconds
+
+ @example
+ ```ts
+ const bound = startUpAnswerMillisecondsOf({ environment: process.env, },);
+ ```
+ */
+export function startUpAnswerMillisecondsOf({
+  environment,
+}: {
+  readonly environment: Readonly<NodeJS.ProcessEnv>;
+},): number {
+  /**
+   What the environment names, when it names anything.
+   */
+  const named = environment[START_UP_ANSWER_MILLISECONDS_VARIABLE];
+  if (named === undefined) {
+    return START_UP_ANSWER_MILLISECONDS;
+  }
+  /**
+   The bound as a number, which a word that is no number does not make.
+   */
+  const asked = Number(named,);
+  // A bound that is not a positive, finite number of milliseconds is no bound, so the shipped one stands rather than a start that
+  // could wait forever or not at all.
+  return ((Number.isFinite(asked,)) && (asked > 0)) ? asked : START_UP_ANSWER_MILLISECONDS;
+}
+
+/**
  How many times the driver starts Pi in one run before it ends the run on a prompt Pi never took.
 
  Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended with Pi exiting before the prompt took the
