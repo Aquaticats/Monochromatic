@@ -1,6 +1,7 @@
 //! What:
 //! End-to-end tests of the built `mpm-shadow` binary,
-//! in six parts, each in a file of its own beside this one.
+//! in six parts,
+//! each in a file of its own beside this one.
 //! This file holds how every part starts the binary and the disposable cargo home it starts it against:
 //! the built binary is linked as `mpm`,
 //! a

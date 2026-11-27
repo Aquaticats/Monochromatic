@@ -19,7 +19,10 @@
 /// Imports `Path` from `std::path`.
 use std::path::Path;
 
-/// Imports the error, the trait, the response and the real client from `super`.
+/// Imports the error,
+/// the trait,
+/// the response
+/// and the real client from `super`.
 use super::{
     HttpError,
     HttpGet,

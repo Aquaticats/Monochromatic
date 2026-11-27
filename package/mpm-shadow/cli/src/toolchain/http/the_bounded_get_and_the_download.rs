@@ -1,5 +1,6 @@
 //! What:
-//! The two bounded reads of the real client, inside its runtime:
+//! The two bounded reads of the real client,
+//! inside its runtime:
 //! `get_async` collects the body of one GET into memory,
 //! refusing more than the caller's byte bound and failing when the body stalls,
 //! and `download_async` streams the body into a file,
@@ -33,9 +34,13 @@ use std::path::Path;
 /// Imports `Duration` from `std::time`.
 use std::time::Duration;
 
-/// Imports `hex_of_digest` from the toolchain's hash module, one folder above this one.
+/// Imports `hex_of_digest` from the toolchain's hash module,
+/// one folder above this one.
 use super::super::hash::hex_of_digest;
-/// Imports the two idle and total bounds, the error, the response and the client from `super`.
+/// Imports the two idle and total bounds,
+/// the error,
+/// the response
+/// and the client from `super`.
 use super::{
     DOWNLOAD_IDLE_TIMEOUT_SECONDS,
     DOWNLOAD_TOTAL_TIMEOUT_SECONDS,

@@ -1,7 +1,8 @@
 //! What:
 //! One request and its redirects:
 //! `resolve_location` turns a redirect's `Location` value into the next URL (https,
-//! absolute-path or scheme-relative, everything else refused),
+//! absolute-path or scheme-relative,
+//! everything else refused),
 //! `require_https` refuses any URL that is not `https://`,
 //! and `send` builds the request with its headers,
 //! follows up to `MAX_REDIRECTS` redirects and returns the final response.
@@ -35,7 +36,10 @@ use hyper::http::Uri;
 /// Imports `Duration` from `std::time`.
 use std::time::Duration;
 
-/// Imports the header timeout, the error, the client and the redirect limit from `super`.
+/// Imports the header timeout,
+/// the error,
+/// the client
+/// and the redirect limit from `super`.
 use super::{
     CONNECT_AND_HEADERS_TIMEOUT_SECONDS,
     HttpError,

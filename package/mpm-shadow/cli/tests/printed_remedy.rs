@@ -1,6 +1,7 @@
 //! What:
 //! End-to-end tests of the commands `mpm-shadow` prints for a person to run,
-//! in three parts, each in a file of its own beside this one:
+//! in three parts,
+//! each in a file of its own beside this one:
 //! the sentence in the older-lock warning names a program and the verb that moves one row of the lock,
 //! and that command,
 //! run exactly as printed in a disposable home laid out the way this machine's is,
@@ -43,7 +44,8 @@
 #[path = "printed_remedy/the_warning_for_a_moved_global_lock_reaches_the_shadow.rs"]
 mod the_warning_for_a_moved_global_lock_reaches_the_shadow;
 
-/// The machine both scopes install into, which the two parts below build.
+/// The machine both scopes install into,
+/// which the two parts below build.
 #[path = "printed_remedy/a_machine_with_both_scopes_installed.rs"]
 mod a_machine_with_both_scopes_installed;
 

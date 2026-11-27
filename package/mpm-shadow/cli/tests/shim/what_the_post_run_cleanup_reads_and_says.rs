@@ -1,6 +1,7 @@
 //! What:
 //! The part of the shim tests that asks what the post-run cleanup reads and what it prints:
-//! which toolchain roots it reads (`data home` of the fixture, never the machine's own),
+//! which toolchain roots it reads (`data home` of the fixture,
+//! never the machine's own),
 //! a newer version recorded where `install` records one,
 //! one summary line by default and one line per removed path under `MPM_SHADOW_VERBOSE`,
 //! and silence when nothing is stale.

@@ -10,7 +10,8 @@
 //! ("I want pnpm style verbs.
 //! We talked about this!"),
 //! and the recursion of 2026-11-03 showed how much depends on the shadow never starting a shadow:
-//! each test proves the real mpm never ran by a marker file, not by the shape of the output.
+//! each test proves the real mpm never ran by a marker file,
+//! not by the shape of the output.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

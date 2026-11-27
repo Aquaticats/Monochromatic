@@ -39,7 +39,10 @@ use std::time::Duration;
 
 /// Imports the https-only rule from the sibling module that builds one request.
 use super::one_request_and_its_redirects::require_https;
-/// Imports the GET timeout, the response, the error and the trait from `super`.
+/// Imports the GET timeout,
+/// the response,
+/// the error
+/// and the trait from `super`.
 use super::{
     GET_TIMEOUT_SECONDS,
     HttpError,
