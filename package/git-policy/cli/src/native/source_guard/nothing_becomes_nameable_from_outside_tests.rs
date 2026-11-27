@@ -14,8 +14,10 @@
 //!  and publishes nothing,
 //!  so the list is where publishing becomes a decision a reader sees.
 //!  The reading is wider than the one the first version of this check made:
-//!  a function whose kind carries any count of qualifiers (`pub async fn`, `pub const unsafe fn`),
-//!  a field, a method and an associated constant of a published type,
+//!  a function whose kind carries any count of qualifiers,
+//!  as `pub async fn` and `pub const unsafe fn` do,
+//!  a field,
+//!  a method and an associated constant of a published type,
 //!  a member whose declaration opens its body on a later line than its header,
 //!  an item of a kind and name another module already publishes (keyed by its module path),
 //!  a re-export written over several lines or under a name of its own,

@@ -2,7 +2,8 @@
 //!  The names another crate can reach through a library root,
 //!  read from the source text:
 //!  every bare `pub` item whose module the `pub mod` chain from the library root reaches,
-//!  every bare `pub` field, method or constant of a type that chain publishes,
+//!  every bare `pub` field,
+//!  every method and every constant of a type that chain publishes,
 //!  and every name a `pub use` publishes that the chain does not already reach:
 //!  a name carried out of a module it does not reach,
 //!  and a name a re-export spells differently from the name it re-exports.
@@ -199,7 +200,8 @@ fn words_of(line: &str) -> Vec<&str> {
 ///  qualifiers that start at `from`.
 /// Why:
 ///  `pub const fn f` publishes a function while `pub const NAME` publishes a constant,
-///  and the qualifiers between the two may be more than one (`const unsafe`, `const extern "C"`).
+///  and the qualifiers between the two may be more than one,
+///  as `const unsafe` and `const extern "C"` are.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -446,7 +448,8 @@ fn attribute_only_for_tests(line: &str) -> bool {
 ///  and the kind and the name of a declaration in an `impl`'s body,
 ///  which is a function or a constant.
 /// Why:
-///  A field, a method and an associated constant are all written `pub` one level in,
+///  A field,
+///  a method and an associated constant are all written `pub` one level in,
 ///  and only the body they stand in says which they are.
 ///
 /// In TS you'd write (pseudocode):

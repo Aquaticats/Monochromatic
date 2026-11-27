@@ -116,7 +116,8 @@ pub struct RealAttachStep<
     Mount: CloneMountCall = RealCloneMountCall,
 > {
     /// The rollback's two calls.
-    /// This file and its controls read it, so it stays private to the module.
+    /// This file and its controls read it,
+    /// so it stays private to the module.
     calls: Calls,
     /// The one mount call.
     mount_call: Mount,

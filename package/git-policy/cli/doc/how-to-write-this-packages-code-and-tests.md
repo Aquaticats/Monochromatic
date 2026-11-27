@@ -811,16 +811,20 @@ a line whose name is no longer reachable fails,
 and a `pub use` that publishes a name the `pub mod` chain does not already reach fails without its line.
 
 A line is added only where a release publishes a name on purpose:
-write it as `<module path> <kind> <name>` under a reason of its own that names the commit which added it,
-or, for a name a re-export publishes, as `<module path> pub use <target>::<published name>`.
+write it as `<module path> <kind> <name>` under a reason of its own that names the commit which added it.
+A name a re-export publishes is written as `<module path> pub use <target>::<published name>` instead.
 A name a split needs only inside the crate takes `pub(crate)`,
 `pub(super)` or `pub(in path)`,
 and no line.
 
-The reading, in the words of that reader's own top doc:
+The reader's own top doc states the reading:
 a bare `pub` item at the first column of a file the `pub mod` chain reaches,
-whatever count of qualifiers stands before its kind (`pub async fn`, `pub const unsafe fn`, `pub extern "C" fn`);
-a `pub` field, method or associated constant of a type that chain publishes,
+whatever count of qualifiers stands before its kind,
+as `pub async fn`,
+`pub const unsafe fn` and
+`pub extern "C" fn` do;
+a `pub` field,
+a method or an associated constant of a type that chain publishes,
 read in a body that opens its `{` on the declaration's own line or on a later one;
 a `#[macro_export] macro_rules!`;
 and a `pub use` over any number of lines,

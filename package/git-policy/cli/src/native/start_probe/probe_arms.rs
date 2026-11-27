@@ -71,7 +71,8 @@ pub enum ProbeArm {
 impl ProbeArm {
     /// Every arm,
     /// in the design's own order.
-    /// It is read by the report beside this file, so `pub(super)` is the reach it needs.
+    /// It is read by the report beside this file,
+    /// so `pub(super)` is the reach it needs.
     pub(super) const ALL: &[ProbeArm] = &[
         ProbeArm::Namespace,
         ProbeArm::Walk,
@@ -173,7 +174,8 @@ impl ProbeStep {
     /// The steps the worker runs,
     /// in order,
     /// with the scan in its two passes around the holder.
-    /// It is read by the report beside this file, so `pub(super)` is the reach it needs.
+    /// It is read by the report beside this file,
+    /// so `pub(super)` is the reach it needs.
     pub(super) const WORKER_ORDER: &[ProbeStep] = &[
         ProbeStep::Unshare,
         ProbeStep::PrivatePropagation,
@@ -200,6 +202,9 @@ impl ProbeStep {
 
     /// The steps the holder runs,
     /// in order.
+    /// It is read by the controls beside this file and by nothing of a release build,
+    /// so it exists for the tests alone and `pub(super)` is the reach it needs there.
+    #[cfg(test)]
     pub(super) const HOLDER_ORDER: &[ProbeStep] = &[ProbeStep::HolderAttach, ProbeStep::HolderWait];
 
     /// The step in the words a record line carries.
@@ -234,7 +239,8 @@ impl ProbeStep {
     /// Every step of both children,
     /// the worker's and the holder's,
     /// in one list for parsing and folding.
-    /// It is read by the report beside this file, so `pub(super)` is the reach it needs.
+    /// It is read by the report beside this file,
+    /// so `pub(super)` is the reach it needs.
     pub(super) const ALL: &[ProbeStep] = &[
         ProbeStep::Unshare,
         ProbeStep::PrivatePropagation,

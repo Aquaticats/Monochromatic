@@ -92,7 +92,8 @@ fn split_top_level(text: &str) -> Vec<&str> {
 /// reading it as release is the safe direction (the scan reads more,
 /// not less).
 /// Gotcha:
-///  This is the one reading of a test gate, for a `mod` line and for an item alike,
+///  This is the one reading of a test gate,
+///  for a `mod` line and for an item alike,
 ///  so a predicate is never a test gate in one place and release code in another.
 ///
 /// In TS you'd write (pseudocode):
