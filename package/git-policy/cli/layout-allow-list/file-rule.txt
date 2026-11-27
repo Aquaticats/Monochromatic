@@ -112,8 +112,6 @@ file-uses src/native/landing service_messages_of_a_service_that_stopped.rs -> se
 file-uses src/native/landing service_messages_of_a_start_that_cannot_come.rs -> service_messages.rs
 file-uses src/native/landing service_messages_of_a_start_that_was_asked_and_did_not_come.rs -> service_messages.rs
 file-uses src/native/landing service_messages_of_an_interrupted_commit.rs -> service_messages.rs
-file-uses src/native/landing service_replay.rs -> service_replay_capture_order.rs
-file-uses src/native/landing service_replay_capture_order.rs -> service_replay.rs
 file-uses src/native/landing service_round.rs -> service_work.rs
 file-uses src/native/landing service_round.rs -> service_work_drains_awaiting.rs
 file-uses src/native/landing service_work.rs -> service_work_drains_awaiting.rs
