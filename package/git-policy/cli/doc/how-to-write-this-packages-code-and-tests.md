@@ -280,6 +280,12 @@ and the control sizes that wait as a multiple of the notice's own bound,
 because issue 6524's control waited one ceiling away from a notice due at one second,
 and a journal read that waited on storage carried the words past the client's ceiling,
 so it counted none.
+A control whose subject is a notice a client says asserts only what holds in either order of the messages that decide it,
+and holds the answer away with a seam of its own when that notice must be said to a wait that is still on
+(`on_objects_written` in `landing/service_land_hung_write_tests.rs`):
+the line saying the service has not said where a commit stands is said by a look that found nothing already here,
+so a control that demands it asserts which message the host let arrive first,
+and it failed that way in one threaded module run of five (issue 6564).
 A window a control times never holds work the release code grants no ceiling to,
 because no multiple of a ceiling can bound that work:
 a commit's landing costs what this host's disk costs,

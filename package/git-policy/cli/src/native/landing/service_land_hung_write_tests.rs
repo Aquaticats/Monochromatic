@@ -510,15 +510,38 @@ fn a_commit_queued_behind_a_branch_write_that_does_not_return_is_withdrawn_at_it
 /// so the place of a batch that begins at once is sent,
 /// and the client's is zero too,
 /// which makes what it prints the whole of what it is told.
+///   The person is told the place alone,
+/// or the line saying the service has not said where the commit stands and then the place (issue 6564):
+/// that first line says only that the client's look found no message already here,
+/// so a host that held the client's thread up until the place was buffered leaves it out,
+/// and a control that demands both lines asserts the host's scheduling rather than the path.
+/// The landing is held after its objects,
+/// which is after the place was sent and before the answer,
+/// until the control has read the place:
+/// so the place is said to a wait that is still on whichever of the two messages the client's first look met.
 #[test]
 fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
     let world: World = world("service-place-of-a-commit");
+    // What:
+    //  The file whose appearance lets the held landing go on.
+    // Why:
+    //  The control keeps the answer away until it has read the place and ends the hold itself,
+    //  rather than by a sleep.
+    let release: PathBuf = world.root.join("let-the-landing-go");
+    let waiting: PathBuf = release.clone();
+    let hold: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+        // Bounded, so a control that fails before it lets go cannot hold the landing thread for ever.
+        let began: Instant = Instant::now();
+        while !waiting.exists() && began.elapsed() < PATIENCE {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    });
     let mut settings: ServeSettings = ServeSettings::new(PATIENCE);
     settings.place_after = Duration::ZERO;
     let context: LandContext = LandContext {
         git: crate::test_support::git_context(),
         journal: world.context.journal.clone(),
-        on_objects_written: None,
+        on_objects_written: Some(hold),
         lock_ceiling: crate::wait_ceilings::LANDING_LOCK_CEILING,
     };
     let serving: Serving = serve_on_a_thread_with_settings(context, "place", settings);
@@ -526,22 +549,44 @@ fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
         waiting_notice_after: Duration::ZERO,
         ..client(&serving, PATIENCE, PATIENCE)
     };
-    let (answer, notices) =
-        submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n"))
-            .join()
-            .expect("client");
+    let placed = submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n"));
+    let place: String = crate::service_messages::position_notice(1, 1);
+    // The place while the wait is still on: said at the ceiling instead, or never, this fails and prints what the
+    // client did say.
+    wait_until_told(&placed.told, place.as_str(), PATIENCE);
+    // The landing goes on now that the place has been read, so the commit lands and its client ends with the answer.
+    std::fs::write(&release, b"").expect("let the landing go");
+    let (answer, notices) = placed.join().expect("client");
     assert!(
         matches!(answer, Ok(Submitted::Landed { .. })),
         "{answer:?} {notices}"
     );
-    let place: String = crate::service_messages::position_notice(1, 1);
+    // What:
+    //  The two shapes a person's whole notice of this wait may have.
+    // Why:
+    //  The place is news of a wait that is still on and is said once, and last;
+    //  the line saying the service has not said where the commit stands is said by a look that found nothing,
+    //  so it is said at most once and never after the place.
     let lines: Vec<&str> = notices.lines().collect();
-    assert_eq!(lines.len(), 2, "two lines: {notices:?}");
     assert!(
-        lines[0].contains("has not said where this commit stands"),
-        "the service not having said where it stands first: {notices:?}"
+        !lines.is_empty(),
+        "the place the service sent reached the person: {notices:?}"
     );
-    assert_eq!(lines[1], place, "then the place it sent: {notices:?}");
+    let before_the_place: usize = lines.len() - 1;
+    assert_eq!(
+        lines[before_the_place], place,
+        "the place is the last thing it says: {notices:?}"
+    );
+    assert!(
+        before_the_place <= 1,
+        "only the line saying the service has not said where the commit stands comes before the place: {notices:?}"
+    );
+    for line in &lines[..before_the_place] {
+        assert!(
+            line.contains("has not said where this commit stands"),
+            "the line before the place says the service has not said where the commit stands: {notices:?}"
+        );
+    }
     wait_until_settled(&world);
     remove(serving.directory.as_path());
     remove(world.root.as_path());
