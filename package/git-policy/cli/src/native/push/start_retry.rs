@@ -393,6 +393,100 @@ impl RetryStart for Command {
     }
 }
 
+/// What:
+///  The action in place for `signal` in this process,
+/// read with a null new action,
+/// which changes nothing.
+/// Why:
+///  A process replacement puts `SIGPIPE` back to the kernel's default in the process that tries it,
+///  which is `library/std/src/sys/process/unix/unix.rs:374`,
+///  and a start that cannot run its program returns and leaves that default behind.
+///  The action a process had is read before such a call,
+///  so it can go back after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theActionInPlace(signal: number): Sigaction { return sigaction(signal, null); }
+/// ```
+#[cfg(unix)]
+fn the_action_in_place(signal: libc::c_int) -> libc::sigaction {
+    // What: `std::mem::zeroed()` starts an all-zero action, which the read overwrites whole.
+    // Why:  the call writes the action into this variable, so its first value never matters.
+    // SAFETY: every field of `sigaction` is an integer or a set of signals, for which all zeroes are valid.
+    let mut in_place: libc::sigaction = unsafe { std::mem::zeroed() };
+    // SAFETY: a null new action only reads the action in place into `in_place`, and touches no other memory.
+    let read: libc::c_int = unsafe { libc::sigaction(signal, std::ptr::null(), &mut in_place) };
+    // What: a refused read is a signal number the kernel does not know, and no action can be put back from it.
+    // Why:  going on with an all-zero action would set the default, which is the state this code exists to leave behind.
+    assert_eq!(
+        read,
+        0,
+        "reading the action in place for signal {signal} failed: {}",
+        std::io::Error::last_os_error()
+    );
+    return in_place;
+}
+
+/// What:
+///  Put back the action for `signal` that `the_action_in_place` read.
+/// Why:
+///  A write to a pipe nobody reads must answer `EPIPE` in this process,
+///  which is what a Rust program starts with and does its own work under.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function putTheActionBack(signal: number, action: Sigaction): void { sigaction(signal, action, null); }
+/// ```
+#[cfg(unix)]
+fn put_the_action_back(
+    signal: libc::c_int,
+    action: &libc::sigaction,
+) {
+    // SAFETY: `action` is an action `sigaction` read for this same signal, put back into the kernel; no other memory of
+    //  this process is touched, and a refusal would leave the action as it is, which the controls beside this call read.
+    let _restored: libc::c_int = unsafe { libc::sigaction(signal, action, std::ptr::null_mut()) };
+}
+
+/// What:
+///  Replace this process with the program of `command`,
+/// and put back the action this process had for `SIGPIPE` when the start fails.
+/// Why:
+///  `Command::exec` returns only when nothing was replaced,
+///  and before it tries it sets `SIGPIPE` to the kernel's default in the process that called it,
+///  which is `do_exec` in `library/std/src/sys/process/unix/unix.rs` at line 374,
+///  as `doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md` records it.
+///  Every path through this call goes on after a failed start:
+///  the retry says on standard error that a start was refused,
+///  and the caller says why it could not start Git and ends with status `2`,
+///  in `invocation/entry.rs` and `invocation/entry_run_forwarded_actions.rs`.
+///  So the action goes back after every failed try,
+///  and those writes answer `EPIPE` as every other write of this process does.
+///  Ending by `SIGPIPE` is not what is meant here:
+///  that is a Git of the person's own that a signal ended,
+///  which `forwarding::end_as_git_ended` relays,
+///  and a start that failed ran no Git at all.
+/// Gotcha:
+///  A start that succeeds never returns,
+///  so nothing is put back,
+///  and the program that replaces this one begins with the kernel's default for `SIGPIPE`,
+///  as native Git does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function execKeepingTheSignalAction(command: Command): Error {
+///   const before = theActionInPlace(SIGPIPE); const error = command.exec(); putTheActionBack(SIGPIPE, before); return error;
+/// }
+/// ```
+#[cfg(unix)]
+fn exec_keeping_the_signal_action(command: &mut Command) -> Error {
+    /// The Unix extension that adds `exec` to a command.
+    use std::os::unix::process::CommandExt;
+    let before: libc::sigaction = the_action_in_place(libc::SIGPIPE);
+    let error: Error = command.exec();
+    put_the_action_back(libc::SIGPIPE, &before);
+    return error;
+}
+
 /// `Command::exec` as a start the retry can run again:
 /// it returns only the error that ended the replacement.
 #[cfg(unix)]
@@ -404,9 +498,7 @@ struct ExecStart<'a> {
 #[cfg(unix)]
 impl RefusableStart<()> for ExecStart<'_> {
     fn start(&mut self) -> Result<()> {
-        /// The Unix extension that adds `exec` to a command.
-        use std::os::unix::process::CommandExt;
-        return Err(self.command.exec());
+        return Err(exec_keeping_the_signal_action(self.command));
     }
 }
 
@@ -417,6 +509,8 @@ impl RefusableStart<()> for ExecStart<'_> {
 /// Why:
 ///   `exec` returns only when it failed,
 /// and a failed `exec` replaced nothing.
+///  The action this process had for `SIGPIPE` goes back after every failed try (`exec_keeping_the_signal_action`),
+///  so a caller that says why Git could not start writes under the action this process began with.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

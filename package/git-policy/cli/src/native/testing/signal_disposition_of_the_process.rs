@@ -1,7 +1,6 @@
 //! What:
 //!  Reads the action in place for a signal in this process,
-//!  names the three actions a control compares against,
-//!  and puts back the ignore a Rust program starts with.
+//!  and names the three actions a control compares against.
 //! Why:
 //!  The disposition of a signal belongs to the whole process,
 //!  so a control that asks which action is in place asks about every thread of the run.
@@ -73,33 +72,4 @@ pub(crate) fn the_word_for(the_disposition: &libc::sigaction) -> &'static str {
         return "SIG_IGN";
     }
     return "a handler";
-}
-
-/// What:
-///  Puts the ignore a Rust program starts with back for `signal`,
-///  which is the one direction a control may change:
-/// towards the state the program began in.
-/// Why:
-///  A child that read a call leaving a signal at its default is a process whose next write to a pipe
-///  nobody reads would end it,
-///  so the body puts the ignore back before it returns and asserts what it left.
-/// Gotcha:
-///  Only a child of a control calls this:
-///  the action belongs to the whole process,
-/// and a test run holds its controls as threads of one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function putTheIgnoreBack(signal: number): void { signal(signal, SIG_IGN); }
-/// ```
-pub(crate) fn put_the_ignore_back(signal: libc::c_int) {
-    // SAFETY: restoring the ignore takes one signal number and one action number and touches no memory; it is the
-    //  direction a Rust program's own start already took.
-    let previous: libc::sighandler_t = unsafe { libc::signal(signal, libc::SIG_IGN) };
-    assert_ne!(
-        previous,
-        libc::SIG_ERR,
-        "putting back the ignore for signal {signal} failed: {}",
-        std::io::Error::last_os_error()
-    );
 }

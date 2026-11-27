@@ -58,7 +58,8 @@ The same pid on every line is the test binary:
 both resets happened in the test process,
 on the two libtest threads whose tests ran a start that could not run its program
 (`invocation/forwarding_tests.rs`'s `unstartable_program_is_an_error` and
-`push/start_retry_tests.rs`'s `a_failed_exec_returns_its_error_at_once`).
+`push/start_retry_tests.rs`'s `a_failed_exec_returns_its_error_at_once`,
+which is `a_failed_exec_returns_its_error_and_puts_the_signal_action_back` since 2026-11-27).
 
 `grep 'signal=13 '` over that log after the two lines found nothing that set the ignore back,
 so the whole run stayed one broken-pipe write away from death.
@@ -86,3 +87,57 @@ A probe of the shape above is worth keeping in mind for the next death by a sign
 `strace` without `-f` does not trace the threads a process starts,
 so it shows a process's own `sigaction` calls and misses every libtest thread's.
 An `LD_PRELOAD` shim that logs the caller's address does not.
+
+## What the release does after a failed `exec`
+
+Issue 6607 asked what the wrapper does after a start of the real Git that could not run its program,
+and the record decides it:
+the wrapper puts the action back and goes on.
+
+`SPEC.md`'s "Stream and exit contract" says what a command means where real Git does not run:
+"`2` means usage, config, patch, transaction, or engine failure.",
+and `README.md`'s "Output and exit status" says the same for "When real Git does not run".
+A start that failed ran no Git, so the wrapper's own words and status are what the caller must read.
+Ending by `SIGPIPE` has a place of its own in that record,
+for a Git that ran and was ended by a signal:
+"So `git log -p | head -1` ends by `SIGPIPE` on this route as it does on native Git".
+That death is relayed by `forwarding::end_as_git_ended`,
+and a failed start is not it.
+
+Every path that continues after a failed `exec`,
+and what it writes:
+
+- `push/start_retry.rs`'s `ExecStart::start` to `retry_refused_start`:
+  each refusal that is `EAGAIN` hands one `[warn]` line to the thread that writes standard error,
+  pauses,
+  and tries the replacement again.
+- `invocation/entry.rs`'s `Action::Forward` arm:
+  `cannot_start` writes `monochromatic-git-policy-cli: cannot start <git>: <error>. Hint: ...` to standard error,
+  and the arm returns `ENGINE_FAILURE_EXIT_CODE`, which is `2`.
+- `invocation/entry_run_forwarded_actions.rs`'s `run_coordinated_action`,
+  in its `CoordinatedRun::NotCoordinated` arm:
+  one `monochromatic-git-policy-cli: cannot start <git>: <error>` line to standard error and status `2`,
+  and, for a command that adds commits, one push-trigger line in the repository's trigger log file,
+  (`push/push_trigger_log.rs`'s `record_decision`),
+  with a `[debug]` line when verbose.
+- `main.rs`'s `end_after_the_log`, which every invocation ends through:
+  the lines the diagnostic writer thread still holds go to standard error before the process exits with the status.
+
+`exec_keeping_the_signal_action` (`push/start_retry.rs`) is the one function that replaces this process,
+and it puts the action back after every failed `exec`, before anything is written.
+So the writes above answer `EPIPE` where nobody reads them, and the status stands.
+A start that succeeds never returns,
+so the program that replaces the wrapper still begins with the kernel's default for `SIGPIPE`,
+exactly as native Git does.
+
+The need is stated beside the call.
+`source_guard/every_exec_puts_the_signal_action_back_tests.rs` fails a release file that does not put the action back.
+The behavioural controls are named in `SPEC.md`'s "Stream and exit contract".
+
+Measured 2026-11-27 on the test host, for issue 6607:
+before the change, the parent of a child that took this path,
+with a program that cannot be started and standard error a pipe whose reader was gone,
+read `signal: 13 (SIGPIPE)`;
+after it,
+the same parent read `exit status: 2`.
+The control is `invocation::forwarding::tests::a_wrapper_that_could_not_start_git_ends_by_the_status_it_means`.
