@@ -17320,6 +17320,20 @@ When real Git does not run:
   transaction,
   or engine failure.
 
+A start of the real Git that cannot run its program leaves the wrapper running,
+because a replacement that failed replaced nothing:
+the wrapper puts back the action this process had for `SIGPIPE` after every failed try,
+so the words it says and the status it ends with behave as everywhere else,
+and a write to a standard error nobody reads answers `EPIPE` and never ends the process by `SIGPIPE`.
+A Git that ran and was ended by a signal still ends the wrapper by that signal
+(`forwarding::end_as_git_ended`),
+and a start that failed ran no Git at all.
+Tests:
+`a_wrapper_that_could_not_start_git_ends_by_the_status_it_means`,
+`a_replacement_that_cannot_run_the_program_puts_sigpipe_back`,
+`a_failed_exec_returns_its_error_and_puts_the_signal_action_back`,
+and `source_guard/every_exec_puts_the_signal_action_back_tests.rs`.
+
 When real Git runs,
 preserve its exit code except for a landed commit followed by a post-commit policy or engine failure,
 which returns `2`.
