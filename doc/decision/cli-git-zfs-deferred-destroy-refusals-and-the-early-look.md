@@ -14,6 +14,9 @@ and plan step 16 of `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
 The design it binds is still unapproved:
 `doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
 on its own branch.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 An origin snapshot that somebody marked with `zfs destroy -d` is destroyed by ZFS itself once its last clone is gone.
 The project had already decided that a removal checks for that mark twice and refuses.
