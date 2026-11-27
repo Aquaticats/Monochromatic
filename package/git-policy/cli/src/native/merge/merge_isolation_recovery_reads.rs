@@ -24,10 +24,10 @@ use crate::merge_isolation_changes::{
     Change,
     parse_raw_changes,
 };
-use crate::merge_isolation_recovery_steps::{
+use crate::merge_isolation_recovery_place::RecoveryPlace;
+use crate::merge_isolation_recovery_record::MergeRefusal;
+use crate::merge_isolation_the_merges_paths_judged::{
     Judged,
-    MergeRefusal,
-    RecoveryPlace,
     Standing,
 };
 use crate::recovery_error::RecoveryError;
@@ -232,7 +232,7 @@ pub async fn the_paths_hold_only_the_persons_own_bytes_awaiting(
             return false;
         };
         for side in [change.old_oid.as_str(), change.new_oid.as_str()] {
-            if crate::merge_isolation_take_asides::the_file_form_of_awaiting(
+            if crate::merge_isolation_take_asides_proof::the_file_form_of_awaiting(
                 &place.git,
                 root,
                 change.path.as_slice(),

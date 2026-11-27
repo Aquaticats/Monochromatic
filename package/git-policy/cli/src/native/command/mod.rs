@@ -14,8 +14,11 @@
 //!   the facts one audit line of a deleted branch carries.
 //! - `command_clean_nested_repositories.rs`:
 //!   which nested Git repositories a clean's two dry runs say it would delete.
-//! - `command_options.rs`:
-//!   git 2.56.0 `parse-options` tokenization of one command's argument region.
+//! - `command_options_types.rs`:
+//!   what one argument region is read into:
+//!   a row of Git's option table,
+//!   the parse switches,
+//!   every accepted use and the refusal kinds.
 //! - `command_branch_table.rs`:
 //!   the complete Git 2.56.0 option table of `git branch`.
 //! - `command_checkout_table.rs`:
@@ -24,13 +27,19 @@
 //!   the complete Git 2.56.0 option table of `git commit`.
 //! - `command_config_table.rs`:
 //!   the Git 2.56.0 option groups of `git config`.
-//! - `command_options_long.rs`:
-//!   long-option matching:
-//!   one token read into the tokenizer's record of the options Git applied.
 //! - `command_options_long_resolution.rs`:
 //!   which row one long token names:
 //!   exact names,
 //!   unique abbreviations and `no-` negation.
+//! - `command_options_value.rs`:
+//!   the shared decision of which bytes are an option's value.
+//! - `command_options_long.rs`:
+//!   long-option matching:
+//!   one token read into the tokenizer's record of the options Git applied.
+//! - `command_options_short.rs`:
+//!   short-option clusters and their attached or following values.
+//! - `command_options.rs`:
+//!   git 2.56.0 `parse-options` tokenization of one command's argument region.
 //! - `command_options_query.rs`:
 //!   final-state and position questions over a tokenized region.
 //! - `command_add.rs`:
@@ -53,10 +62,6 @@
 //! - `command_discard.rs`:
 //!   the commands that can overwrite or delete uncommitted state,
 //!   read as Git reads them.
-//! - `command_options_short.rs`:
-//!   short-option clusters and their attached or following values.
-//! - `command_options_value.rs`:
-//!   the shared decision of which bytes are an option's value.
 //! - `command_push.rs`:
 //!   the Git 2.56.0 option table of `git push` and its facts.
 //! - `command_remote_table.rs`:
@@ -100,6 +105,11 @@
 //!   pure decision of the status-hints transform.
 //! - `rule_worktree_dirty.rs`:
 //!   the query and reading of "does this worktree hold uncommitted state?".
+//! - `the_guarded_commands.rs`:
+//!   the command forms the linked-worktree policy guards,
+//!   and the list of all of them that a control walks.
+//! - `rule_linked_worktree_messages.rs`:
+//!   the rejection texts of the linked-worktree-only policy.
 //! - `rule_linked_worktree.rs`:
 //!   pure decision of the linked-worktree-only policy.
 //! - `rule_abort_operation.rs`:
@@ -107,8 +117,6 @@
 //!   and whether that operation waits.
 //! - `rule_abort_messages.rs`:
 //!   the plain-language texts of the abort carve-out.
-//! - `rule_linked_worktree_messages.rs`:
-//!   the rejection texts of the linked-worktree-only policy.
 //! - `rule_linked_worktree_nested_repository_messages.rs`:
 //!   the notice that names where a clean's nested repository went,
 //!   and the rejection when it could not be moved there.
@@ -117,6 +125,12 @@
 //! ```ts
 //! // command/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// What one argument region is read into:
+///  a row of Git's option table,
+///  the parse switches,
+///  every accepted use and the refusal kinds.
+pub mod command_options_types;
 
 /// Git 2.56.0 `parse-options` tokenization of one command's argument region.
 pub mod command_options;
@@ -246,6 +260,10 @@ pub mod command_branch_delete;
 
 /// The facts one audit line of a deleted branch carries.
 pub mod branch_delete_audit;
+
+/// The forms the linked-worktree policy guards:
+///  every command form that can throw away uncommitted work.
+pub(crate) mod the_guarded_commands;
 
 /// Pure decision of the linked-worktree-only policy.
 pub mod rule_linked_worktree;

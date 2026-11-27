@@ -17,6 +17,7 @@
 //! // parseRemoteRegion(['-v', 'set-url', 'origin', url]).subcommand === 'set-url'
 //! ```
 
+use crate::command_options::parse_options;
 /// What:
 ///  Bring the table,
 ///  the tokenizer and its default mode into this file.
@@ -28,12 +29,12 @@
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { REMOTE_TABLE } from './command_remote_table.ts';
-/// import { DEFAULT_MODE, parse_options } from './command_options.ts';
+/// import { DEFAULT_MODE, OptionError } from './command_options_types.ts';
+/// import { parse_options } from './command_options.ts';
 /// ```
-use crate::command_options::{
+use crate::command_options_types::{
     DEFAULT_MODE,
     OptionError,
-    parse_options,
 };
 use crate::command_remote_table::REMOTE_TABLE;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).

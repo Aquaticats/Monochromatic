@@ -16,13 +16,13 @@
 //! const ignored = await trashLocationIsIgnoredAwaiting(context, root);
 //! ```
 
+use crate::the_names_and_the_manifest_of_the_trash::TRASH_PARENT;
 use crate::transaction_git::{
     GitContext,
     GitRequest,
     run_git,
 };
 use crate::transaction_git_awaiting::run_git_awaiting;
-use crate::worktree_trash::TRASH_PARENT;
 use std::path::Path;
 
 /// What:

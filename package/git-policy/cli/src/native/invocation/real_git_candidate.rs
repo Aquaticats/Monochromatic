@@ -303,6 +303,71 @@ pub fn same_file(
 }
 
 /// What:
+///  How many bytes of each file the content comparison holds at one time,
+///  64 kibibytes.
+///       `usize` is the platform's index and length type (siblings `u32` and
+///  `u64`),
+///  chosen because it is the type a read's length and a buffer's length already have.
+/// Why:
+///   The comparison then needs the same small amount of memory however large the
+///  two files are.
+///  Reading both whole,
+///  as this check did until 2026-11-27,
+///  asked for twice the file's length:
+///  for this crate's 161,674,320-byte debug build that is 315 MB of resident memory.
+///  A loaded host pays that in page faults and reclaim,
+///  and the whole machine pays it in swap
+///  (measured 2026-11-27:
+///  two whole reads of one such file used 314,500 to 315,012 kB of resident memory and 330 to
+///  340 ms of processor time,
+///  the same two files in 64-kibibyte chunks 2,656 to 2,768 kB and 220 to 290 ms).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const COMPARED_CHUNK_BYTES = 64 * 1024;
+/// ```
+pub const COMPARED_CHUNK_BYTES: usize = 64 * 1024;
+
+/// What:
+///  Fill `buffer` from `file` and answer how many bytes of it the file filled,
+///  which is less than the whole buffer only at the end of the file.
+///       `&mut std::fs::File` lends the open file for reading (reading moves its position),
+///  and `&mut [u8]` lends the bytes to fill.
+///       `Option<usize>` is the count,
+///  or `None` when a read failed.
+/// Why:
+///   One `read` call may return fewer bytes than asked for,
+///  and two files compared a chunk at a time must be cut at the same offsets,
+///  so each side is filled to the buffer's end before the two are compared.
+///  A read a signal interrupted is made again rather than taken for a failed comparison,
+///  which is what the whole-file read this replaces did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function fillAChunk(file: FileHandle, buffer: Uint8Array): number | undefined;
+/// ```
+fn fill_a_chunk(
+    file: &mut std::fs::File,
+    buffer: &mut [u8],
+) -> Option<usize> {
+    // `filled` counts the bytes of the buffer the file has filled so far.
+    let mut filled: usize = 0;
+    while filled < buffer.len() {
+        match file.read(&mut buffer[filled..]) {
+            // `Ok(0)` is the end of the file: the bytes filled so far are the chunk it has left.
+            Ok(0) => return Some(filled),
+            // `read` is the count of bytes this call moved; the rest of the buffer is still to fill.
+            Ok(read) => filled += read,
+            // A signal ended the call before any byte moved, so the same read is made again.
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            // Any other failure is a comparison this function cannot make.
+            Err(_) => return None,
+        }
+    }
+    return Some(filled);
+}
+
+/// What:
 ///  Report whether two files have the same length and the same bytes.
 /// Why:
 ///   A copy of this executable under another name or directory is still this
@@ -310,7 +375,10 @@ pub fn same_file(
 ///  although its inode differs.
 ///  Lengths are compared first,
 ///  so real Git
-///       is never read in full for this check.
+///       is never read in full for this check,
+///  and the bytes are then compared a chunk at a time
+///  (`COMPARED_CHUNK_BYTES`),
+///  so a wrapper says no to the first byte that differs and never holds two whole files at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -328,11 +396,45 @@ pub fn identical_content(
     if first_metadata.len() != second_metadata.len() {
         return false;
     }
-    // `std::fs::read` returns the whole file as an owned byte list, or an error.
-    let (Ok(first_bytes), Ok(second_bytes)) = (std::fs::read(first), std::fs::read(second)) else {
+    // What: one open file for each side, `mut` because reading moves the file's position.
+    //       `std::fs::File` is an owned open file (siblings are `std::fs::ReadDir` for a directory and
+    //       the borrowed `&Path` this was opened from).
+    // Why:  reading a chunk at a time needs the files open, and a file that cannot be opened cannot be
+    //       proven identical to anything.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [a, b] = [await open(first), await open(second)];
+    // ```
+    let (Ok(mut first_file), Ok(mut second_file)) =
+        (std::fs::File::open(first), std::fs::File::open(second))
+    else {
         return false;
     };
-    return first_bytes == second_bytes;
+    // What: two buffers, one chunk each; `vec![0; n]` is an owned list of `n` zero bytes.
+    // Why:  the same two buffers are filled again for every chunk, so no chunk's bytes outlive it and
+    //       the memory is not lost to a large allocation that fails on a loaded host.
+    let mut first_chunk: Vec<u8> = vec![0; COMPARED_CHUNK_BYTES];
+    let mut second_chunk: Vec<u8> = vec![0; COMPARED_CHUNK_BYTES];
+    loop {
+        // What: one chunk of each file, `&mut first_file` lending the open file to be read from.
+        // Why:  a chunk that cannot be read is a comparison this check cannot make.
+        let (Some(first_read), Some(second_read)) = (
+            fill_a_chunk(&mut first_file, first_chunk.as_mut_slice()),
+            fill_a_chunk(&mut second_file, second_chunk.as_mut_slice()),
+        ) else {
+            return false;
+        };
+        // A chunk filled short on one side and not the other means the same length ended at two
+        //  different places, so the bytes after it differ.
+        if first_read != second_read || first_chunk[..first_read] != second_chunk[..second_read] {
+            return false;
+        }
+        // Two chunks of no bytes are the two ends of the file, so every byte of both was compared.
+        if first_read == 0 {
+            return true;
+        }
+    }
 }
 
 /// What:

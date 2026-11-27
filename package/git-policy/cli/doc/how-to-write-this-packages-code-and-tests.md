@@ -59,6 +59,13 @@ The same holds for what a test reads:
 so a control that judges the run's own figures runs its reading in a helper process of the test's own
 (`testing/helper_process_test_support.rs`),
 as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
+The pack decode count is one of them too:
+`DECODED_TOTAL` (`repo_read/repo_read_pack.rs`) adds up every entry every pack of this process decoded,
+so a control that counts the decodes of its own answer runs its body in a child of its own,
+as `repo_read::repo_read_tree_cached::tests::the_directories_the_cache_tree_proves_equal_are_not_read`
+and `repo_read::repo_read_query::tests::the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories` do
+(issue 6539:
+in a threaded run of `repo_read::` the cache tree control counted another test's decodes).
 So does a program a control starts that reads standard input:
 the run's standard input is the terminal the run was started from,
 and a control that starts such a program runs its body in a child of its own,
@@ -114,6 +121,21 @@ is one too
 `tasks_can_run` and `built_flavor` answer for the whole process,
 so a control that arms one runs its body in a child,
 and both setters refuse outside it (issue 6511).
+A descriptor a control holds open is one of those facts as well,
+because a fork copies the whole descriptor table,
+and an advisory kernel lock lasts until every copy of its open file description is closed:
+a child another test's thread starts between the control's `open` and its `close` keeps the control's `flock`
+after the control dropped its own descriptor,
+so the older-release conversion control runs its body in a child of its own
+(`worktree/worktree_convert_ownership_tests.rs`,
+issue 6536).
+Measured 2026-11-26 by planting that fork in the control:
+the forked child held a copy of the control's descriptor naming `cli-git-convert.lock`,
+`/proc/locks` still named the lock once the control closed its own descriptor,
+and the second call skipped with "a command of release 0.5.20 or older holds" it.
+The window is only the fork to the child's exec,
+where the standard library's close-on-exec flag closes the copy,
+and a host under load stretches it.
 The preparation's named steps are one ledger of the whole process too
 (`commit/prepare_work_spans.rs`):
 every preparation notes into it and every timing record empties it,
@@ -131,6 +153,21 @@ so a control that counts its own command's figures runs its body in a child of i
 and one that names any of them without one fails
 `source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs`
 (issue 6509).
+The add timing record is one list of the whole process as well
+(`worktree/add_timing_steps.rs`:
+`begin` replaces its empty list and `finish` takes it),
+and beginning a recording also publishes the step the add's standing notice names,
+so a control that begins one runs its body in a child of its own
+(`worktree/add_timing_tests.rs`),
+and a control that ran its body beside another's recording read a line holding none of its own work
+(issue 6532).
+No `source_guard` ban covers that record yet:
+the scan such a ban is built on reads every test-only source,
+and seven controls of four other files still begin a recording in the run's own process
+(`worktree/add_standing_notice_tests.rs` is issue 6533's,
+`worktree/worktree_clone_tests.rs`,
+`worktree/worktree_ladder_finish_tests.rs` and
+`worktree/worktree_ladder_target_tree_skip_tests.rs`).
 The two windows a notice reads are one window for the process as well,
 so a control that steps a notice takes them before it starts
 (`take_the_windows_a_notice_control_reads` in `commit/native_commit_waiting_notice_tests.rs`),
@@ -142,7 +179,8 @@ every other test's child is a descendant of the same process.
 A child makes its own fixtures;
 nothing here counts this process's descriptors.
 A threaded run moves those counters on other tests' threads,
-and the comparison then fails on a figure the control never named.
+and the comparison then fails on a figure the control never named
+(issues 6511 and 6545).
 The four share one comparison,
 `the_figures_did_not_move` in `testing/run_progress_tests.rs`,
 which refuses a look where a task that is not the control's own moved between two looks
@@ -156,6 +194,35 @@ the renewal makes the count of its one task's ending and hands the control a sha
 `ClaimRenewal::endings`),
 so a control reads the endings of the task it made and never a count the whole test process shares
 (issue 6526).
+And a control that asserts how many workers a run's budget allows names the host that budget is derived from,
+as `A_HOST_THAT_BOUNDS_NO_WORKER` in `worktree/worktree_clone_slices.rs` does,
+because `HostResources::read` answers the live machine:
+the threads it reports are the smaller of the affinity mask and the control group's CPU quota,
+so a run in a scope capped below two processors answers one worker,
+and a control that read it asserted on the cap the run happened to carry rather than on its fixture
+(issue 6537;
+the quota's effect on `available_parallelism` is measured in
+`doc/troubleshooting/container-nproc-ignores-cpu-quota.md`).
+
+The service's stop is one such fact
+(`process/stop_of_the_service_noticed_by_its_children.rs`):
+the signal the handler recorded,
+the pipe it wakes the shutdown through,
+the level every waiter reads and the count of unfinished work
+are statics of the whole test process,
+so a control that records a stop,
+prepares to notice one or reads them runs its body in a child of its own
+(`testing/process_wide_state_child_test_support.rs`),
+and so does a control that starts a step a recorded stop would refuse
+(`process/signal_relay_tests.rs`).
+A threaded `push::` run failed 110 of its 600 tests and a threaded `process::` run failed eleven on 2026-11-26
+(issues 6530 and 6531),
+because the stop one control recorded was the stop every other control then read.
+Measured on 2026-11-27:
+a threaded run of `process::stop_of_the_service_noticed_by_its_children::tests` answered
+`test result: FAILED. 2 passed; 8 failed`,
+and `a_process_that_never_prepared_counts_nothing_and_refuses_nothing` recorded the stop first,
+after which every control that needed to record its own found one already there.
 
 A control that holds a fault point of the service
 (`service_fault_hooks_test_support.rs`)
@@ -163,11 +230,13 @@ names the instance it owns in the point itself:
 the directory whose instance is read,
 the plan the start reads,
 the request whose beat reads its note,
-or the repository a note is written about
+the repository a note is written about,
+or the record whose trash is emptied
 (`instance_read_point`,
 `note_read_point`,
 `read_at_a_start_point`,
-`next_service_note_point`).
+`next_service_note_point`,
+`inside_a_slow_step_point`).
 The holds are a list of the whole process,
 so one slot for a run held nothing of a second control,
 and the module of three heartbeat controls failed all three (issue 6497);
@@ -187,6 +256,18 @@ The binary test target's own helper names its folders the same way
 (`native-binary-<process id>-<the number this call took>-<name>`,
 `binary/binary_support_fixture_directories.rs`).
 Never write a fixed path outside the fixture root (no `/tmp`, no shared name under the build folder).
+
+A folder that has to be short,
+because a socket's path must fit one socket address,
+comes from `runtime_directory_folders.rs`'s `runtime_directory_parent`:
+it picks the longest place this account offers that leaves room for the folder's name,
+makes the folder exclusively under a random token,
+and hands it to the thread's fixtures,
+which remove it however the control ends.
+No control builds that folder under the home directory itself:
+the helper the hung-write controls used put `hw-<process id>-<name>` under the real `~/temp/agent`,
+and every control that panicked or failed left one there:
+34 of them by 2026-11-27 (issue 6561).
 
 ## Own every child, end it on every path
 
@@ -272,6 +353,25 @@ twice the notice's own maximum,
 and failed that way in three threaded `commit::` runs;
 it waits thirty times the notice's own bound now,
 sized from a measured answer of 500.1 to 501.6 ms).
+A fixture's own pipe is waited for at the pipe,
+not at the thread of this process that reads it
+(issue 6538:
+three `repo_read_config_typed` controls failed in five kept threaded runs with
+`the query [...] ended, and a descendant of it still holds its output`).
+`real_git_within` gave a query's output 250 ms to reach its end,
+and the news it waited for was a message from a thread of the test process,
+so a host that woke that thread past 250 ms made the answer say a pipe was held when nothing held it.
+Measured on 2026-11-27 at this host's load average of 86.0 to 142.5:
+over 15398 hand-overs of one query's standard output in one threaded module run,
+the median came 0.003 ms after the pipe's end and the worst 110.4 ms,
+which the window cleared by 2.3 times.
+The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_commands.rs`:
+the kernel reports a pipe's end the instant its last writing end closes and keeps that news until it is read),
+and the reader's hand-over of the bytes is bounded by `REPORTING_THE_END`,
+sixty seconds,
+which only stops a hang.
+A control's own bound then rests on a promise the test's own threads do not have to keep.
+
 A control whose subject is a notice said to a waiting client reads what the client has said while it still waits,
 and reads it before the client ends
 (`Told` in `landing/service_land_hung_write_tests.rs`):
@@ -280,6 +380,12 @@ and the control sizes that wait as a multiple of the notice's own bound,
 because issue 6524's control waited one ceiling away from a notice due at one second,
 and a journal read that waited on storage carried the words past the client's ceiling,
 so it counted none.
+A control whose subject is a notice a client says asserts only what holds in either order of the messages that decide it,
+and holds the answer away with a seam of its own when that notice must be said to a wait that is still on
+(`on_objects_written` in `landing/service_land_hung_write_tests.rs`):
+the line saying the service has not said where a commit stands is said by a look that found nothing already here,
+so a control that demands it asserts which message the host let arrive first,
+and it failed that way in one threaded module run of five (issue 6564).
 A window a control times never holds work the release code grants no ceiling to,
 because no multiple of a ceiling can bound that work:
 a commit's landing costs what this host's disk costs,
@@ -294,6 +400,21 @@ and holds only that ceiling and the answer after it,
 and a property that cannot be timed that way is asserted structurally instead:
 the store named no repository once both answers had come,
 so neither answer came from it.
+A control whose subject is a wait the release code must never enter waits on the work's own answer
+and on the run's own progress,
+never on a clock over the work,
+and says what it saw when it gave up
+(`worktree_copy_settling_tests.rs`,
+`the_copy_answered`):
+the copy of two ignored entries took 0.478 s at its slowest on this host at a load average of 198 to 281,
+and the ten-second patience the control borrowed from the rendezvous helper failed at a load average of 152
+(issue 6548).
+The state a claim like that rests on is measured,
+never inferred:
+a writing open of the named pipe with `O_NONBLOCK` fails with `ENXIO` unless a reader holds it open
+(`pipe(7)`),
+so a reader that holds it is a copy waiting inside the open,
+and the writer that releases it also lets that copy's thread end.
 A state a control means to test is reached by the control and not by a sleep:
 that control offers a line into the queue the writer takes its lines from,
 where sleeping three cadences expected a starved notice thread to have offered one

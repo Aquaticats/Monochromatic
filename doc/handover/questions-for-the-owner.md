@@ -18,6 +18,209 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: four proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
+
+Four rounds each wrote a proposal on 2026-11-27 and changed no code.
+Each document gives what happens today with the source lines,
+what was measured,
+the options with what a person would see,
+a ranking,
+and the questions it leaves to you.
+They wait here and are not put in a dialog while rounds run,
+because a dialog holds the session and no round merges until it is answered
+(`doc/planning/pi-round-start-failures-and-what-would-stop-them.md`).
+
+### The 60 s bound on the Git calls `cargo-shadow` makes before a command (issue 6555)
+
+`doc/planning/cargo-shadow-bound-on-the-git-calls-before-a-command.md`.
+The round measured the same call at 80 ms to 130.6 s on this repository under load.
+Its ranking is D > A > C > B > E > F > G:
+D caches the base and its lockfiles per commit and so removes 39 of the 40 Git starts it counted;
+A judges the calls by the progress meter the wrapper already uses instead of a wall clock.
+Its questions:
+may a Git call before a command take minutes on a loaded host as long as it is working;
+if a wall clock stays,
+what number and from which measurement;
+and whether the wrapper's "no sign of work for its quiet window" rule is the project's answer here too.
+
+### An ignored-state copy owed to a worktree that is gone (issue 6557)
+
+`doc/planning/cli-git-owed-ignored-state-copy-of-a-removed-worktree.md`.
+Its ranking is 1 > 2 > 5 > 3 > 4,
+and option 1 is that the worktree's absence settles the claim and the source settles the stage,
+so the wrapper removes the stage folder itself.
+It counted 20 stage folders under `.claude/worktrees/`,
+42,628 MiB by `du` at 2026-11-27T03:56:10-05:00,
+most of them left by the starts of that morning whose `git worktree add` was killed at its bound (issue 6563).
+Its questions are under "What only the owner can answer" in the document.
+Until this is answered the folders stay:
+the wrapper says to remove them by hand once nothing needs them,
+and the coordinator has not removed any.
+
+### How starts from several launchers order their worktree adds (issue 6563)
+
+`doc/planning/pi-driver-order-of-worktree-adds-across-launchers.md`.
+It reads the morning of 2026-11-27 from what the machine left and starts no add of its own.
+Its ranking is A > B > C > D > E:
+A is an add cheap enough to need no order,
+which is what the ZFS route does for a worktree,
+and it says the copy of ignored files is 89% to 99% of an add that returned;
+B moves that copy off the add's waiting path;
+D and E are a claim per add or one queue.
+Its first question is whether any rule about starts is wanted at all,
+or whether the answer is the hold of 2026-11-18 read again
+("We shouldn't use worktrees heavily before we implement the zfs parts for the git wrapper."),
+and it notes that a bound on overlapping adds needs a figure nobody has measured,
+and that measuring it would mean starting overlapping adds on purpose,
+which is synthetic load and needs your word.
+Its second is when the checkout's move to its own dataset runs and what holds until then.
+
+### A push the server refuses with GH009 (issue 6559)
+
+`doc/planning/cli-git-push-refused-by-the-server-with-gh009.md`.
+Its ranking is B > E > C > A > D:
+B gives the refusal the bounded retry GH006 already gets (five tries over two and a half minutes),
+E is one more try after the first pause.
+Its questions:
+whether a `GH009` refusal gets a bound and which;
+whether one rule should cover both shapes of the refusal,
+the readable `GH009` and the unreadable `(failed)` decline;
+whether the record should name GitHub's documented remedy above the server's words;
+and whether a client-side upload check is wanted at all,
+since no refused push of this boot referenced an LFS object.
+
+
+## Open: five choices the rounds of 2026-11-27 left, recorded 2026-11-27T05:47:00-05:00
+
+Each comes from one round's report,
+restated here because the reports are scratch and expire.
+The rankings are the rounds',
+except where one is marked the coordinator's.
+
+### Where a merge the word-level pass finished says so (issue 6529)
+
+The fix merged (`5914dd3810`):
+the pass no longer writes back a line one side deleted.
+The issue's third request is open:
+a merge a person runs is committed with Git's prepared message,
+so the commit says nothing about what the pass decided.
+The pass already prints one line per merged part on standard error and writes a journal entry,
+and the auto-push reconcile merge already appends those lines to its commit message.
+`SPEC.md` fixes the message today ("the prepared message as it is"),
+so each option changes the SPEC.
+
+- A:
+  append the part lines to the merge commit's message,
+  as the reconcile merge does.
+  A reader of `git show` gets the path,
+  the three line spans and the blob names.
+  Every merge the pass finishes carries those lines,
+  and an `--edit` finish opens an editor holding them.
+- B:
+  append one trailer line naming the pass and the paths.
+  Smaller in the log;
+  it drops the spans and the blobs,
+  and this repository uses trailers nowhere.
+- C:
+  leave the commit alone.
+  Nothing is added,
+  and a person reading the history still cannot tell the pass finished a merge.
+
+Ranking:
+A > B > C.
+A beats B because the spans and blob names are what let a reader check the resolution.
+B beats C because any durable record on the commit beats a line on standard error nobody kept.
+
+### What closes the last file loop in `foundation/`
+
+`diagnostic_lines_off_the_calling_thread.rs`,
+`diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
+The plan's move was applied and the linter run:
+a loop of two replaces the loop of three,
+because the log's door writes through those lines,
+so any file under it that says a log line closes a loop with it.
+The line in question is the notice that the queue's reader stopped.
+
+- 1:
+  the door says the line.
+  Three functions answer whether that call stopped waiting.
+  Three signatures change,
+  and two callers that hand a line in without the door would say the notice late or never.
+- 2:
+  the queue records that a reader just stopped,
+  and the door takes that record after each write.
+  No signature changes;
+  the same lateness as 1,
+  and a state flag.
+- 3:
+  the words move below the queue,
+  into a file of their own,
+  and `diagnostic_log.rs` keeps only the door over them.
+  No signature change and no lateness;
+  it cuts `diagnostic_log.rs`'s public shape in two,
+  and that file's controls for those words move with them.
+
+Ranking:
+3 > 1 > 2.
+3 beats 1 because it alone keeps the notice said when it is said today without changing a signature.
+1 beats 2 because a returned answer is more local than a flag another file has to take.
+`foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
+
+### Whether a landing may skip reading a path the index already proves (issue 6566)
+
+A landing records a path's stat data only when the file provably holds the bytes the commit stores,
+and the proof reads and hashes the file.
+For a change list of 4,097 paths that was 33.5 s and 34.9 s through the service,
+against native Git's 0.595 s and 0.607 s for the same change,
+measured once on 2026-11-27 on a loaded host
+(`doc/troubleshooting/git-policy-cli-landing-index-reset-reads-every-changed-path.md`).
+The cheaper form:
+where the live index's blob for a path equals the commit's and the file's `lstat` still matches the index's stat data,
+keep that stat data and do not read the file,
+which is the comparison native Git makes.
+It changes the stat data the installed index carries,
+which the differential controls compare with Git's own `reset` byte for byte,
+and an entry whose stat data the file no longer matches hides a person's edit from the next commit.
+No options are ranked yet:
+a proposal round would write them,
+as for issues 6555,
+6557 and 6559.
+
+### Two bounds no round may size (issue 6556)
+
+Seven Pi starts of 2026-11-26 ended without a run.
+Four stopped at the sops decrypt of the checkout's `.env.local.json`
+(`SOPS_TIMEOUT_MS`,
+15,000 ms,
+`package/env-local-json/core/src/constants.ts`),
+before Pi was started.
+Three stopped at the start-up answer bound
+(`START_UP_ANSWER_MILLISECONDS`,
+120,000 ms),
+on a host at load 100 to 235.
+Each now leaves a line naming the wait,
+its bound and how long it waited (`faa52ab2af`).
+Open:
+whether either bound changes,
+which needs a measurement under load;
+and whether a start that stops before Pi starts writes a `summary.json`,
+which needs an end reason of its own.
+
+### Whether a stuck pipe ends a control's wait at once (issue 6548)
+
+The control that proves a copy does not wait on a file replaced by a named pipe had borrowed a ten-second rendezvous patience as a deadline over real work;
+its window is now sized over the whole run (`407adb173c`).
+In a busy shared process a copy really stuck in a pipe's open is therefore waited for up to the four-minute ceiling.
+The gate runs each test in a process of its own,
+where 60 s ends it.
+The choice:
+whether the pipe's state should end the wait immediately,
+at the price of a probe on every look
+and a false reading if the probe catches the release code's own non-blocking open.
+The coordinator's ranking:
+leave it > probe,
+because the gate's verdict is unchanged and a false failure costs more than a slow one.
+
 ## Open: point the session's `git` at the wrapper's `0.6.1-alpha.47`? Recorded 2026-11-26T08:55-05:00
 
 The session's `git` (`.cache/monochromatic-git-policy-cli-bin/git`) is the wrapper built from `ee0cf2268b` on 2026-11-22,
@@ -30,34 +233,50 @@ so every `git worktree remove` warns and keeps one.
 `0.6.1-alpha.47` was released from `68af165851` after a whole gate on `main` at `196b8d0c87` failed nothing
 (11991 of 11991 passed);
 its x86_64 archive is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`
-with sha256 `aac27ad2eebceda5d03ed0f080b4951cd7271555725700ab851b47f99ace24f7`, the digest GitHub lists for the release asset,
-and its sweep, run by absolute path, removed the 201 journals the old build had kept.
+with sha256 `aac27ad2eebceda5d03ed0f080b4951cd7271555725700ab851b47f99ace24f7`,
+the digest GitHub lists for the release asset,
+and its sweep,
+run by absolute path,
+removed the 201 journals the old build had kept.
 Its Sonnet release passes are running.
 
 ### Option B: point the link at alpha.47 by its exact path
 
-Add alpha.47's path to `local/git` (`rix`) and `local/gh` (`px -> git`) beside the old lines, reload,
-prove `gh` reaching `git` through a scratch link first, then repoint the link and keep the old build for a rollback.
-Pros: the session runs what the gate passed, and removals stop leaving journals.
-Cons: each later release needs the same rule change and review.
+Add alpha.47's path to `local/git` (`rix`) and `local/gh` (`px -> git`) beside the old lines,
+reload,
+prove `gh` reaching `git` through a scratch link first,
+then repoint the link and keep the old build for a rollback.
+Pros:
+the session runs what the gate passed,
+and removals stop leaving journals.
+Cons:
+each later release needs the same rule change and review.
 
 ### Option A: keep the reviewed build
 
-Pros: no rule change.
-Cons: the session runs code three days behind `main`, and alpha.47's sweep must be run by hand after each batch.
+Pros:
+no rule change.
+Cons:
+the session runs code three days behind `main`,
+and alpha.47's sweep must be run by hand after each batch.
 
 ### Option C: bump the wrapper's lock row and let `toolchain:install` own the link
 
-Pros: one mechanism for every tool.
-Cons: the link then points at `.cache/toolchain-launchers/monochromatic-git-policy-cli`,
-which the `gh` rule does not name, the failure recorded in
+Pros:
+one mechanism for every tool.
+Cons:
+the link then points at `.cache/toolchain-launchers/monochromatic-git-policy-cli`,
+which the `gh` rule does not name,
+the failure recorded in
 `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md` ("The wrapper link a toolchain install repoints"),
 and every later install moves it again.
 
-Ranking: B > A > C.
+Ranking:
+B > A > C.
 B over A because the session then runs the gated code and stops leaving a journal per removed worktree,
 for one reviewed rule change per release;
-A over C because C ties the grant to a launcher any toolchain install rewrites, which is the recorded `gh` failure.
+A over C because C ties the grant to a launcher any toolchain install rewrites,
+which is the recorded `gh` failure.
 
 ## Open: should local lists of names become slices too? Recorded 2026-11-26T06:41-05:00
 
@@ -86,7 +305,8 @@ the round each point holds is named beside it.
 - The test helpers,
   where the libraries live,
   and plural folder names:
-  the document records both the answer "Not yet." of 2026-11-07 and an answer of 2026-11-15
+  the document records both the answer "Not yet."
+  of 2026-11-07 and an answer of 2026-11-15
   (a separate test-folders library,
   `package/<job>/core-rust`,
   plural names kept with an exemption),
@@ -108,7 +328,8 @@ the round each point holds is named beside it.
 - Which file owns the clone-and-settle copy path once `copy_file_exclusive` leaves `worktree_copying/worktree_copy_stage_leaf_copying.rs`:
   the plan sends it to `saving_private_files` (`foundation/private_storage.rs` today),
   but its body reads `worktree_copying`'s file stamps and `subvolume`'s clone,
-  and `private_storage` may use neither without new allow-list lines, which the list may not gain.
+  and `private_storage` may use neither without new allow-list lines,
+  which the list may not gain.
   Split round 1 (2026-11-26T09:10-05:00) stopped that one move and recorded the point under step 2
   of `doc/planning/cli-git-source-layout-target-tree.md`.
   Holds the rest of step 2.
@@ -875,7 +1096,8 @@ Plan step 18's managed-lock line in `doctor` is built and unwired
 `src/native/health/doctor_zfs_route/managed_lock_checks.rs`),
 and it prints the sentences step 13 already wrote (`worktree_clone_managed_lock/lock_state_words.rs`).
 The round that built it kept two of the design's mappings rather than deciding them in `doctor`,
-and they wait here until step 18 is wired, since no command prints the line before then.
+and they wait here until step 18 is wired,
+since no command prints the line before then.
 
 ### A lock whose own read was refused
 
@@ -1338,10 +1560,17 @@ and `def79174b0` left `package-paused/` and `package-deprecated/` out on purpose
 "a pause means no work",
 and the repository already excludes the deprecated folder from every repo-wide pass.
 Eight manifests there still carry the pre-transfer URL
-(`git grep --files-with-matches 'github.com/Aquaticat/Monochromatic' -- '*package.json'`, measured 2026-11-26):
+(`git grep --files-with-matches 'github.com/Aquaticat/Monochromatic' -- '*package.json'`,
+measured 2026-11-26):
 `package-deprecated/mcp/nvim`,
-and under `package-paused/`: `dev-script/inference-canary-viewer`, `dev-script/inference-canary`, `module/es`,
-`pi-plugin/morph-compact`, `stylesheet/monochromatic`, `web-demo/glass`, `webapp-edu/paper2vn`.
+and under `package-paused/`:
+`dev-script/inference-canary-viewer`,
+`dev-script/inference-canary`,
+`module/es`,
+`pi-plugin/morph-compact`,
+`stylesheet/monochromatic`,
+`web-demo/glass`,
+`webapp-edu/paper2vn`.
 So the issue's own acceptance search does not come back empty.
 The alpha.2 release pass raised it as a scope question (Low 7).
 

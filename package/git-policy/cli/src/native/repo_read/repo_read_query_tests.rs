@@ -13,6 +13,7 @@
 //! a decisive configuration key) is declined.
 
 use super::*;
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::test_support::{
     fixture,
     git,
@@ -807,57 +808,87 @@ fn a_worktree_config_that_sets_a_content_key_is_declined() {
 /// A repository of many directories with one changed
 /// file is the shape where the two ways differ most;
 /// the answer must still equal Git's.
+/// The decodes it counts belong to the whole process,
+/// so the body runs in a child of its own.
 #[test]
 fn the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories() {
-    let root = fixture("repo-read-query-changes-only");
-    let repo = root.join("repo");
-    std::fs::create_dir(&repo).expect("dir");
-    git(
-        repo.as_path(),
-        &["init", "--quiet", "--initial-branch=main"],
+    // What:     `run_the_body_in_a_child_of_its_own(module_path!(), name, body)` starts this test binary
+    //           on this one test, in a process of its own, and runs `body` there; `module_path!()` is
+    //           `repo_read::repo_read_query::tests`, and the starter drops the crate's own first segment
+    //           to name the test the way libtest prints it.
+    //           `|| { .. }` is a closure: a block of code handed over as a value, which the starter
+    //           calls once in the child and this parent never calls at all.
+    // Why:      `DECODED_TOTAL` adds up every pack entry every pack of this process decoded, so a
+    //           threaded run adds another test's decodes to the difference between this control's two
+    //           reads and the bound on them fails for work the control never asked for (issue 6539). A
+    //           child of its own holds this test alone, so the count is the control's own.
+    // Gotcha:   everything the body needs is made inside it, because nothing before this call runs in
+    //           the child.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(modulePath, 'the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories', () => {
+    //   const root = fixture('repo-read-query-changes-only');
+    //   // ... the body ...
+    // });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories",
+        || {
+            let root = fixture("repo-read-query-changes-only");
+            let repo = root.join("repo");
+            std::fs::create_dir(&repo).expect("dir");
+            git(
+                repo.as_path(),
+                &["init", "--quiet", "--initial-branch=main"],
+            );
+            let directories: usize = 40;
+            for directory in 0..directories {
+                std::fs::create_dir_all(repo.join(format!("d{directory}/sub"))).expect("dirs");
+                std::fs::write(
+                    repo.join(format!("d{directory}/sub/f.txt")),
+                    format!("{directory}\n"),
+                )
+                .expect("file");
+            }
+            git(repo.as_path(), &["add", "--all"]);
+            git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+            std::fs::write(repo.join("d3/sub/f.txt"), "changed\n").expect("edit");
+            git(
+                repo.as_path(),
+                &["commit", "--quiet", "--all", "--message=second"],
+            );
+            git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
+            git(repo.as_path(), &["prune-packed"]);
+            let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
+            let shape = [
+                "diff-tree",
+                "--root",
+                "--no-commit-id",
+                "-r",
+                "-z",
+                "-m",
+                "--no-renames",
+                "--no-abbrev",
+                head.as_str(),
+            ];
+            let before =
+                crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed);
+            answered(root.as_path(), repo.as_path(), &shape);
+            let decoded = crate::repo_read_pack::DECODED_TOTAL
+                .load(std::sync::atomic::Ordering::Relaxed)
+                - before;
+            // Positive control: the repository has more directories than the changed path is deep, so reading all of both trees would
+            // decode more entries than there are directories.
+            assert!(decoded > 0, "the answer reads the pack");
+            assert!(
+                decoded < directories as u64,
+                "only the trees along the changed path are read, not every directory: {decoded} entries decoded"
+            );
+            remove(root.as_path());
+        },
     );
-    let directories: usize = 40;
-    for directory in 0..directories {
-        std::fs::create_dir_all(repo.join(format!("d{directory}/sub"))).expect("dirs");
-        std::fs::write(
-            repo.join(format!("d{directory}/sub/f.txt")),
-            format!("{directory}\n"),
-        )
-        .expect("file");
-    }
-    git(repo.as_path(), &["add", "--all"]);
-    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
-    std::fs::write(repo.join("d3/sub/f.txt"), "changed\n").expect("edit");
-    git(
-        repo.as_path(),
-        &["commit", "--quiet", "--all", "--message=second"],
-    );
-    git(repo.as_path(), &["repack", "-a", "-d", "-f", "--quiet"]);
-    git(repo.as_path(), &["prune-packed"]);
-    let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let shape = [
-        "diff-tree",
-        "--root",
-        "--no-commit-id",
-        "-r",
-        "-z",
-        "-m",
-        "--no-renames",
-        "--no-abbrev",
-        head.as_str(),
-    ];
-    let before = crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed);
-    answered(root.as_path(), repo.as_path(), &shape);
-    let decoded =
-        crate::repo_read_pack::DECODED_TOTAL.load(std::sync::atomic::Ordering::Relaxed) - before;
-    // Positive control: the repository has more directories than the changed path is deep, so reading all of both trees would
-    // decode more entries than there are directories.
-    assert!(decoded > 0, "the answer reads the pack");
-    assert!(
-        decoded < directories as u64,
-        "only the trees along the changed path are read, not every directory: {decoded} entries decoded"
-    );
-    remove(root.as_path());
 }
 
 /// What:

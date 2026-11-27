@@ -26,6 +26,13 @@ use std::sync::atomic::{
 use std::sync::{
     Mutex,
     MutexGuard,
+    PoisonError,
+};
+/// Spans of time and the monotonic clock,
+/// which only moves forward.
+use std::time::{
+    Duration,
+    Instant,
 };
 
 /// The mode of the clone request the control supplies:
@@ -87,9 +94,11 @@ fn two_ignored_files(
     PathBuf,
     Vec<WorktreeCopyEntry>,
 ) {
-    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME
-        .lock()
-        .expect("no other control holds the clone request");
+    // A control that panicked while it held this lock poisoned it, and the next control must still
+    // run: it reads the lock's own value, never the panic another control raised, so a failure of
+    // one control cannot hide the result of the next (`PoisonError::into_inner`).
+    let held: MutexGuard<'static, ()> =
+        ONE_AT_A_TIME.lock().unwrap_or_else(PoisonError::into_inner);
     let root: PathBuf = fixture(label);
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("the ignored cache");
@@ -109,7 +118,8 @@ fn two_ignored_files(
     .expect("the manifest");
     assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
     assert!(left_out.uncopiable.is_empty(), "{:?}", left_out.uncopiable);
-    *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
+    // The lock a control that panicked under the copy poisoned, taken for its value.
+    *SOURCE_ROOT.lock().unwrap_or_else(PoisonError::into_inner) = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
     COPIES.store(0, Ordering::SeqCst);
     CHANGED.store(false, Ordering::SeqCst);
@@ -170,7 +180,11 @@ fn changing_clone(
 ) -> bool {
     let mode: usize = MODE.load(Ordering::SeqCst);
     let copies: usize = COPIES.fetch_add(1, Ordering::SeqCst);
-    let Some(root) = SOURCE_ROOT.lock().expect("the source").clone() else {
+    let Some(root) = SOURCE_ROOT
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+    else {
         return try_clone(input, output);
     };
     let a: PathBuf = root.join("cache/a.txt");
@@ -417,9 +431,10 @@ fn source_with_a_directory(
     PathBuf,
     Vec<WorktreeCopyEntry>,
 ) {
-    let held: MutexGuard<'static, ()> = ONE_AT_A_TIME
-        .lock()
-        .expect("no other control holds the clone request");
+    // A control that panicked while it held this lock poisoned it, and the next control must still
+    // run: it reads the lock's own value, never the panic another control raised.
+    let held: MutexGuard<'static, ()> =
+        ONE_AT_A_TIME.lock().unwrap_or_else(PoisonError::into_inner);
     let root: PathBuf = fixture(label);
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache/deep")).expect("the ignored cache");
@@ -438,7 +453,8 @@ fn source_with_a_directory(
     )
     .expect("the manifest");
     assert!(left_out.unreadable.is_empty(), "{:?}", left_out.unreadable);
-    *SOURCE_ROOT.lock().expect("the source") = Some(source.clone());
+    // The lock a control that panicked under the copy poisoned, taken for its value.
+    *SOURCE_ROOT.lock().unwrap_or_else(PoisonError::into_inner) = Some(source.clone());
     MODE.store(mode, Ordering::SeqCst);
     COPIES.store(0, Ordering::SeqCst);
     CHANGED.store(false, Ordering::SeqCst);
@@ -539,6 +555,242 @@ fn a_directory_whose_mode_changed_under_the_copy_is_staged_with_the_new_mode() {
     remove(root.as_path());
 }
 
+/// The longest the control waits for the copy while the copy keeps showing work.
+/// Why:
+///  The window a control's wait allows ends a copy that shows nothing
+/// (`test_support::wait_until`),
+///  and this ends one that shows work for ever,
+/// which is a loop of the code and never a slow host:
+///  the copy of this control's two entries took 0.478 s at its slowest on this host
+///  while the host's load average was 198 to 281 on ten processors,
+/// and four whole minutes is five hundred times that,
+///  while the test runner's own limit still ends a test that reaches this ceiling
+/// (`package/git-policy/cli/.config/nextest.toml`:
+/// `slow-timeout` 60 s and `terminate-after` 5,
+/// which is five minutes).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const COPY_CEILING = 4 * 60_000;
+/// ```
+#[cfg(unix)]
+const COPY_CEILING: Duration = Duration::from_secs(4 * 60);
+
+/// What:
+///  The writing end of `pipe` when a reader holds that pipe open,
+///  and nothing when no reader does.
+/// Why:
+///  A blocking open of a named pipe for reading waits until a writer opens it,
+/// which is the wait this control guards against,
+///  so a reader that holds the pipe open is the one state a copy must never be in.
+///  The operating system answers the question here:
+/// a writing open with `O_NONBLOCK` fails with `ENXIO` unless a reader has the pipe open
+/// (`pipe(7)`,
+/// "Opening a FIFO").
+///  The file is also the writer such a reader waits for,
+/// so holding it while the copy answers releases a copy that waits inside the open:
+///  the copy answers,
+/// its thread ends,
+/// and the place it holds of this process's blocking jobs comes back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writer = tryOpenSync(pipe, O_WRONLY | O_NONBLOCK); // undefined when ENXIO says no reader holds it
+/// ```
+#[cfg(unix)]
+fn a_reader_holds_the_pipe(pipe: &Path) -> Option<std::fs::File> {
+    // What:     `OpenOptionsExt` adds the `custom_flags` method to `OpenOptions`,
+    //           which is how a Rust open passes flags the standard library has no method for.
+    // Why:      `O_NONBLOCK` has no method of its own, and without it this open waits for a reader.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // import { O_NONBLOCK } from 'node:fs'; // the flag is passed through openSync's flags
+    // ```
+    use std::os::unix::fs::OpenOptionsExt as _;
+    return std::fs::OpenOptions::new()
+        .write(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(pipe)
+        // `.ok()` turns the `ENXIO` of "no reader holds it" into nothing, which is the answer the caller reads.
+        .ok();
+}
+
+/// What:
+///  Waits for the copy `work` runs to answer while the run keeps moving,
+///  and gives back its answer or the sentence a control fails with.
+///  `waiting_for` names the work in that sentence,
+///  and `pipe` is the named pipe whose state a copy that waits inside an open leaves behind.
+/// Why:
+///   A copy costs what the fixture and this host make it cost,
+/// and the release code grants it no ceiling,
+///  so a clock the control sets over it fails a busy host while the copy is fine:
+/// ten seconds of patience failed at a load average of 152 on ten processors (issue 6548).
+///  The wait ends on the copy's own answer,
+/// or when the run has shown no sign of work for the window a control's wait allows,
+///  which is what tells a copy that is slow from one that is stuck.
+///  A copy that never answered is then described by what can be seen of it:
+/// whether a reader holds the pipe open,
+///  which is the wait this control guards against,
+/// and how many entries of the copy its own hook had reached.
+///  The sentence comes back rather than being raised here,
+/// so the caller removes its fixture before it fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = theCopyAnswered('the copy of the ignored cache', pipe, () => copyManifestEntriesWith(...)); // throws when it never came
+/// ```
+#[cfg(unix)]
+fn the_copy_answered<T: Send + 'static>(
+    waiting_for: &str,
+    pipe: &Path,
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, String> {
+    // What:     `channel()` makes a one-shot pipe between two threads: `Sender<T>` puts a value in,
+    //           and `Receiver<T>` takes it out.
+    // Why:      the waiting side reads the answer without joining the copy's thread, because a copy
+    //           that never answers must not hold the control in a join.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [sender, receiver] = makeChannel<thread_result_of<T>>();
+    // ```
+    let (sender, receiver) = std::sync::mpsc::channel::<std::thread::Result<T>>();
+    // What:     `Arc<AtomicBool>` is a flag two threads share: `Arc` shares ownership between threads
+    //           (`Rc` cannot cross one), and `AtomicBool` is a `bool` another thread may read while
+    //           one writes it, which a plain `bool` is not.
+    // Why:      the copy's thread says here that it answered, and the waiting side reads that
+    //           without waiting on the channel's lock.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const answered = { value: false }; // one object both closures see
+    // ```
+    let answered: std::sync::Arc<std::sync::atomic::AtomicBool> =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    // The same flag as the copy's thread owns it: one more shared owner of that `bool`.
+    let said: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&answered);
+    // What:     `Instant::now()` is a point on the monotonic clock, which only moves forward and
+    //           which the system's own clock changes cannot move.
+    // Why:      the ceiling and the sentence are spans of time, and a span is one `Instant`
+    //           subtracted from another.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const began = performance.now();
+    // ```
+    let began: Instant = Instant::now();
+    // What:     `Builder::new().name(..).spawn(..)` starts a thread the operating system names, and
+    //           moves the closure it is given onto that thread.
+    // Why:      the copy answers on a thread of its own, so a copy that never answers fails this
+    //           control instead of holding the whole run at this line.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const started = spawnThread('cli-git-copy-watch', () => { ... });
+    // ```
+    let started: std::io::Result<std::thread::JoinHandle<()>> = std::thread::Builder::new()
+        .name(String::from("cli-git-copy-watch"))
+        .spawn(move || {
+            // What:     `catch_unwind` runs the closure and hands a panic it raised back as a value
+            //           instead of letting it end the thread, and `AssertUnwindSafe` says the values
+            //           the closure captured may be used after it.
+            // Why:      a panic inside the copy is the copy's own failure, and the waiting side
+            //           raises it as itself rather than blaming the wait.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // let outcome; try { outcome = { answered: work() }; } catch (error) { outcome = { panicked: error }; }
+            // ```
+            let outcome: std::thread::Result<T> =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(work));
+            // The answer goes into the channel first, so a reader that sees the flag finds it there.
+            let _sent = sender.send(outcome);
+            // `Release` says every write before this store is visible to a reader that sees it.
+            said.store(true, Ordering::Release);
+        });
+    if let Err(refused) = started {
+        return Err(format!(
+            "the thread that was to run {waiting_for} could not start: {refused}"
+        ));
+    }
+    // What:     `wait_until` waits for a condition for as long as the run keeps moving, and gives up
+    //           only when the whole run has shown no sign of work for the window `run_progress` judges.
+    // Why:      the copy costs what this host makes it cost, so the wait ends on the copy's own
+    //           answer and on the run's own progress, never on a clock over the copy; the ceiling is
+    //           the one clock here, and it ends a copy that shows work for ever.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const stoppedShowingWork = !waitUntil(() => answered.value || began.elapsed() >= COPY_CEILING);
+    // ```
+    let stopped_showing_work: bool = !crate::test_support::wait_until(&|| {
+        return answered.load(Ordering::Acquire) || began.elapsed() >= COPY_CEILING;
+    });
+    if answered.load(Ordering::Acquire) {
+        return match receiver.try_recv() {
+            Ok(Ok(value)) => Ok(value),
+            // What:     `resume_unwind` raises, on this thread, the panic the copy's thread caught.
+            // Why:      the control's subject is the copy, so a copy that panicked fails as itself.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // throw outcome.panicked;
+            // ```
+            Ok(Err(payload)) => std::panic::resume_unwind(payload),
+            // The flag is stored after the answer is sent, so an answer is always there to read.
+            Err(_absent) => Err(String::from(
+                "the wait read no answer from a copy whose thread said it had answered one",
+            )),
+        };
+    }
+    // What:     the writer a reader of the pipe waits for, or nothing when no reader holds it open.
+    // Why:      holding it while the copy answers releases a copy that waits inside the open, so what
+    //           follows can say whether that wait was the one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const writer = aReaderHoldsThePipe(pipe);
+    // ```
+    let writer: Option<std::fs::File> = a_reader_holds_the_pipe(pipe);
+    let held_by_a_reader: bool = writer.is_some();
+    // The copy's answer after that release, which is the proof that the open was the wait.
+    let freed: bool = held_by_a_reader
+        && crate::test_support::wait_until(&|| {
+            return answered.load(Ordering::Acquire);
+        });
+    drop(writer);
+    let reached: usize = COPIES.load(Ordering::SeqCst);
+    // How the wait ended, in the words the sentence uses.
+    let ending: String = if stopped_showing_work {
+        format!(
+            "and the run showed no sign of work for the {} s window a control's wait allows",
+            crate::test_support::STILL_WORKING_WINDOW.as_secs()
+        )
+    } else {
+        format!(
+            "while the copy kept showing work for the whole {} s ceiling",
+            COPY_CEILING.as_secs()
+        )
+    };
+    // What the pipe was doing, which is the state this control's claim is about.
+    let pipe_state: &str = match (held_by_a_reader, freed) {
+        (true, true) => {
+            "a reader held the pipe open, so the copy waited inside the open of the named pipe, and it answered once the pipe was given its writer"
+        }
+        (true, false) => {
+            "a reader held the pipe open, so the copy waited inside the open of the named pipe, and it answered nothing even once the pipe was given its writer"
+        }
+        (false, _) => {
+            "no reader held the pipe open, so nothing of the copy was waiting inside the open of the named pipe"
+        }
+    };
+    return Err(format!(
+        "{waiting_for} answered nothing after {:.1} s, {ending}; {pipe_state}; the copy's own hook had reached {reached} entries",
+        began.elapsed().as_secs_f64(),
+    ));
+}
+
 /// What:
 ///  A named pipe that replaces a cache file between its listing and its own copy is left out,
 /// and the copy answers
@@ -567,26 +819,25 @@ fn a_pipe_that_replaces_a_file_before_its_copy_is_left_out_without_waiting() {
         two_ignored_files("settling-pipe-replaces", A_PIPE_REPLACES_A_FILE);
     let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) =
         (source.clone(), stage.clone(), entries.clone());
-    let answered: Option<Result<CopiedManifest, WorktreeCopyError>> =
-        crate::parallel_test_support::finished_within_at(
-            crate::parallel_test_support::PATIENCE,
-            move || {
-                return copy_manifest_entries_with(
-                    wanted.0.as_path(),
-                    wanted.1.as_path(),
-                    wanted.2.as_slice(),
-                    changing_clone,
-                    &CopyCeiling::unbounded(),
-                );
-            },
-        );
-    let Some(staged) = answered else {
-        panic!(
-            "the copy of cache/b.txt waited for a writer of the named pipe that replaced it and never came; opening a source entry for reading must not wait"
-        );
+    let copied: CopiedManifest = match the_copy_answered(
+        "the copy of the ignored cache's two files",
+        source.join("cache/b.txt").as_path(),
+        move || {
+            return copy_manifest_entries_with(
+                wanted.0.as_path(),
+                wanted.1.as_path(),
+                wanted.2.as_slice(),
+                changing_clone,
+                &CopyCeiling::unbounded(),
+            );
+        },
+    ) {
+        Ok(copied) => copied.expect("a pipe where a file was listed is no failure of the copy"),
+        Err(still_waiting) => {
+            remove(root.as_path());
+            panic!("{still_waiting}");
+        }
     };
-    let copied: CopiedManifest =
-        staged.expect("a pipe where a file was listed is no failure of the copy");
     assert_eq!(
         copied.gone,
         vec![b"cache/b.txt".to_vec()],
@@ -632,20 +883,20 @@ fn settling_leaves_out_a_pipe_that_replaced_a_file_and_keeps_its_neighbours() {
         two_ignored_files("settling-pipe-named", A_PIPE_REPLACES_A_FILE);
     let wanted: (PathBuf, PathBuf, Vec<WorktreeCopyEntry>) =
         (source.clone(), stage.clone(), entries.clone());
-    let answered: Option<Result<Settled, WorktreeCopyError>> =
-        crate::parallel_test_support::finished_within_at(
-            crate::parallel_test_support::PATIENCE,
-            move || {
-                return copy_and_settle(wanted.0.as_path(), wanted.1.as_path(), wanted.2);
-            },
-        );
-    let Some(outcome) = answered else {
-        panic!(
-            "the staging of the copy waited for a writer of the named pipe that replaced cache/b.txt and never came"
-        );
+    let settled: Settled = match the_copy_answered(
+        "the settling of the ignored cache's two files",
+        source.join("cache/b.txt").as_path(),
+        move || {
+            return copy_and_settle(wanted.0.as_path(), wanted.1.as_path(), wanted.2);
+        },
+    ) {
+        Ok(settled) => settled
+            .expect("an entry no worktree can hold is left out of the settled copy, never fatal"),
+        Err(still_waiting) => {
+            remove(root.as_path());
+            panic!("{still_waiting}");
+        }
     };
-    let settled: Settled = outcome
-        .expect("an entry no worktree can hold is left out of the settled copy, never fatal");
     let kept: Vec<&[u8]> = settled
         .entries
         .iter()

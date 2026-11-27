@@ -21,10 +21,8 @@ use crate::command_test_support::{
     fixture,
     remove,
 };
-use crate::conflict_sides::{
-    SAVED_DIRECTORY,
-    SavedCopy,
-};
+use crate::conflict_sides::SavedCopy;
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 use std::path::{
     Path,
     PathBuf,

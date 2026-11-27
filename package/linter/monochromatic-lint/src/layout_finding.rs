@@ -82,35 +82,35 @@ pub fn shown(
 ///  and this crate ships binaries for every platform,
 ///  so a key built from the platform's separator would match on the machine that wrote the line
 ///  and nowhere else.
+///  Each segment is written as the file system spells it,
+///  so a name that holds a backslash keeps it:
+///  that is what a file name and an entry of a `uses` folder are written as,
+///  and a folder name holding one is refused before any check,
+///  because a `uses` line writes a folder as a path.
 ///  An absolute path would make the line match only one checkout,
 ///  so a file outside the package is named by the folders between it and the package:
 ///  `../outside x.rs` reads the same on every machine that holds the repository.
 ///  The package folder itself is written `.`,
 ///  because the empty path would end a key in a space that the list reader trims away,
 ///  and no line could hold it.
-///  A file name that holds a backslash is written as a slash here;
-///  an allow-list entry refuses a backslash for that reason,
-///  so a list line and a key can never disagree about a path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // keyPath(p, base) = shown(p, base).replaceAll('\\', '/'), or '.' for the base folder
+/// // keyPath(p, base) = climbingParts(p, base).join('/'), or '.' for the base folder
 /// ```
 pub fn key_path(
     path: &std::path::Path,
     base: &std::path::Path,
 ) -> String {
-    let written: String = match path.strip_prefix(base) {
-        Ok(below) if below.components().next().is_some() => below.to_string_lossy().into_owned(),
-        _ => climbing_parts(path, base).join("/"),
-    };
-    let slashed: String = written.replace('\\', "/");
+    // What: the path's own segments, each as the file system spells it, joined with `/`.
+    // Why: joining the segments is what keeps a name's own backslash and still writes every separator the same on every platform.
+    let written: String = climbing_parts(path, base).join("/");
     // What: the one spelling of the package folder itself.
     // Why: a key that ends in an empty path holds a trailing space, which the list reader trims away.
-    if slashed.is_empty() {
+    if written.is_empty() {
         return String::from(".");
     }
-    return slashed;
+    return written;
 }
 
 /// What:

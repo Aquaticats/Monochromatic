@@ -32,13 +32,16 @@ use std::time::Duration;
 /// What:
 ///  `PID <n>` with the command in parentheses when known.
 /// Why:
-///   Shared by the evidence and the waiting line.
+///   Shared by the evidence,
+/// the waiting line
+/// and the line a kept copy stays with,
+/// so one process is named one way wherever a person reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `PID ${pid}${command === undefined ? '' : ` (${command})`}`
 /// ```
-fn holder_name(
+pub(crate) fn holder_name(
     pid: i64,
     command: Option<&str>,
 ) -> String {
