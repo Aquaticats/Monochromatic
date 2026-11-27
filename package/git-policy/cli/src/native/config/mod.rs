@@ -18,6 +18,8 @@
 //!   a repository-relative name that stays inside the repository.
 //! - `config_schema.rs`:
 //!   typed settings and their defaults.
+//! - `config_snapshot_value_conversions.rs`:
+//!   one configuration value's bytes read as the type a lookup asks for.
 //! - `config_snapshot.rs`:
 //!   one `git config --list` read,
 //!   parsed,
@@ -72,6 +74,9 @@ pub mod config_fsync;
 /// parsed,
 /// and the lookups the commit path makes against it.
 pub mod config_snapshot;
+
+/// One configuration value's bytes read as the type a lookup asks for.
+pub mod config_snapshot_value_conversions;
 
 /// Key-naming typed readers over parsed JSONC values.
 pub(crate) mod config_values;
