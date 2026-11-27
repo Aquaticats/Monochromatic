@@ -410,6 +410,7 @@ The crate is a library plus a thin binary so the pure logic is unit-testable wit
    and Windows `THREAD_PRIORITY_IDLE`,
    with a
   no-op on any other target.
+   That one request is written once per platform in `src/measure/thread_idle_priority.rs`.
 - `src/sweep_gate.rs`:
    the pause gate of the background sweep (D107).
    Every sweep worker asks the gate for admission before it claims the next track,
@@ -429,6 +430,7 @@ The crate is a library plus a thin binary so the pure logic is unit-testable wit
    The logic file holds the pure rules (rate limit of two updates a second,
   skipping repeats,
   pause and dismissal),
+   the state machine itself is in `src/analysis_notification_logic/machine.rs`,
    the wire file holds the D-Bus messages (Linux only),
    and the handle runs them on its own thread so the window and the sweep workers never wait on the bus.
    Protocol facts and pitfalls:
@@ -457,13 +459,17 @@ The crate is a library plus a thin binary so the pure logic is unit-testable wit
    and expose a pending result that the controller polls before decoding.
 - `src/controller.rs`:
    the playback state machine (state struct,
-   command handling,
-   background-measurement
-  kickoff).
+   the playing flag,
+   and the
+  background-measurement kickoff).
    It owns the queue,
    the active decoder,
    the output,
    and the shared peak cache.
+- `src/controller/command_dispatch.rs`:
+   the `impl Controller` block that answers every UI command in one exhaustive match,
+   split out to keep
+  `controller.rs` within the line budget.
 - `src/controller_audio.rs`:
    the second `impl Controller` block (loading,
    gain resolution,

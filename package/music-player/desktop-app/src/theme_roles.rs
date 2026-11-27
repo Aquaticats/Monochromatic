@@ -46,16 +46,35 @@
 //! so AA
 //! holds for ANY root color.
 //! The baseline passes without any adjustment.
+//! The lightness search lives in `src/theme_roles_contrast_fit.rs`,
+//! the two derivation entry points in `src/theme_roles_derivation.rs`,
+//! and the role tables themselves in `src/theme_roles_declaration.rs`;
+//! this file holds the role types and the resolution of one role.
 
-/// Import the OKLCH color math the derivation moves colors through.
+/// Imports the OKLCH types and the conversions the resolution of one role moves colors through.
 use crate::oklch::{
     Oklch,
     Srgb8,
-    composite_over,
-    contrast_ratio,
-    mix_oklch,
     oklch_to_srgb8,
     srgb_to_oklch,
+};
+
+/// What:
+///      `use crate::oklch::{...}` brings the contrast ratio and the layer composite
+///           that only the unit tests name.
+/// Why:
+///       `theme_roles_tests.rs` reaches them through its `use super::*`,
+///  and production code here does not,
+///  so the import exists in the test build alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { compositeOver, contrastRatio } from "./oklch";
+/// ```
+#[cfg(test)]
+use crate::oklch::{
+    composite_over,
+    contrast_ratio,
 };
 
 /// What:
@@ -156,13 +175,30 @@ mod theme_roles_declaration;
 pub use theme_roles_declaration::RoleSet;
 
 /// What:
-///      `use theme_roles_declaration::{...}` brings the role tables here.
+///      `use theme_roles_declaration::Role;` brings the role value this module
+///           resolves into a color.
 /// Why:
-///       `derive_scheme` reads the scheme tables and builds each role from them.
+///       `resolve_oklch` and `resolve_srgb` take one role,
+///  and the tables the derivation walks are read there.
+use theme_roles_declaration::Role;
+
+/// What:
+///      `use theme_roles_declaration::{...}` brings both role tables,
+///           their type and the gray tint ceiling.
+/// Why:
+///       Only `theme_roles_tests.rs` names them,
+///  through its `use super::*`,
+///  so the import exists in the test build alone,
+///  and the derivation names the same items by its own path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DARK_SPEC, LIGHT_SPEC, SchemeSpec, gray_tint_ceiling } from "./theme_roles_declaration";
+/// ```
+#[cfg(test)]
 use theme_roles_declaration::{
     DARK_SPEC,
     LIGHT_SPEC,
-    Role,
     SchemeSpec,
     gray_tint_ceiling,
 };
@@ -372,526 +408,68 @@ fn resolve_srgb(
 }
 
 /// What:
-///      `trait FitCheck { fn accepts(&self, candidate: Srgb8) -> bool; }`:
-/// the contrast test that a lightness fit moves a color until it passes.
+///      `mod theme_roles_contrast_fit;` loads the sibling
+///           `src/theme_roles_contrast_fit.rs`,
+///  the lightness search that holds a role's contrast target.
 /// Why:
-///       Each role is fitted against its own surfaces and layers,
-/// so the test is a value that carries them (`FitRule`),
-/// and a plain function of the color is a test too,
-/// which the unit tests use.
+///       The fit is the whole contrast guarantee of the derivation,
+///           so it keeps a file of its own while this module holds the role types
+///           and their resolution.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface FitCheck { accepts(candidate: Srgb8): boolean }
+/// import * as themeRolesContrastFit from "./theme_roles_contrast_fit";
 /// ```
-trait FitCheck {
-    /// What:
-    /// `accepts` is true when the 8-bit color meets the role's contrast targets.
-    /// Why:
-    /// the fit keeps the closest lightness that it accepts.
-    fn accepts(
-        &self,
-        candidate: Srgb8,
-    ) -> bool;
-}
-
-/// A plain function of the color is a contrast test.
-impl<F: Fn(Srgb8) -> bool> FitCheck for F {
-    /// What:
-    /// `accepts` calls the function.
-    /// Why:
-    /// it lets a test pass a function.
-    fn accepts(
-        &self,
-        candidate: Srgb8,
-    ) -> bool {
-        return self(candidate);
-    }
-}
+#[path = "theme_roles_contrast_fit.rs"]
+mod theme_roles_contrast_fit;
 
 /// What:
-///      `enum FitRule`:
-/// the contrast test of each role that `derive_scheme` fits,
-/// with the colors it is measured against.
+///      `use theme_roles_contrast_fit::fit_lightness;` brings the lightness search
+///           into the unit tests' scope.
 /// Why:
-///       Every fit passes a different set of surfaces and layers,
-/// and a value that names the role and carries the colors replaces a closure that captured them.
+///       Only `theme_roles_tests.rs` names it,
+///  through its `use super::*`,
+///  so the import exists in the test build alone,
+///  and the derivation names the same function by its own path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FitRule =
-///   | { kind: "container"; container: Srgb8 }
-///   | { kind: "legible"; surfaces: Srgb8[]; layer: Srgb8 | null }
-///   | { kind: "outline"; canvas: Srgb8; deck: Srgb8 }
-///   | { kind: "primary"; surfaces: Srgb8[]; onSurface: Srgb8; fills: Srgb8[]; lightOnPrimary: Srgb8 | null }
-///   | { kind: "matchFill"; onSurface: Srgb8; onSurfaceVariant: Srgb8 };
+/// import { fit_lightness } from "./theme_roles_contrast_fit";
 /// ```
-enum FitRule<'surfaces> {
-    /// Text on the selected fill:
-    /// legible on the fill and under its hover and pressed layers.
-    Container {
-        /// The selected fill.
-        container: Srgb8,
-    },
-    /// Text legible on every surface and under the text layers over each.
-    Legible {
-        /// The surfaces the text is drawn on.
-        surfaces: &'surfaces [Srgb8],
-        /// The layer color drawn over a surface,
-        /// or `None` when it is the text color itself.
-        layer: Option<Srgb8>,
-    },
-    /// An outline that holds the non-text target against the canvas and the deck.
-    Outline {
-        /// The canvas surface.
-        canvas: Srgb8,
-        /// The deck surface.
-        deck: Srgb8,
-    },
-    /// The accent text:
-    /// legible on every surface,
-    /// on the selected fill states,
-    /// and against the light on-primary content when the scheme has one.
-    Primary {
-        /// The surfaces the text is drawn on.
-        surfaces: &'surfaces [Srgb8],
-        /// The text color whose layers are drawn over the surfaces.
-        on_surface: Srgb8,
-        /// The selected fill and its hover and pressed states.
-        fills: [Srgb8; 3],
-        /// The fixed content color of a light scheme's primary,
-        /// when there is one.
-        light_on_primary: Option<Srgb8>,
-    },
-    /// The match fill:
-    /// both text colors read on it.
-    MatchFill {
-        /// The main text color.
-        on_surface: Srgb8,
-        /// The secondary text color.
-        on_surface_variant: Srgb8,
-    },
-}
-
-/// The contrast test of one role.
-impl FitCheck for FitRule<'_> {
-    /// What:
-    /// `accepts` runs the role's own contrast checks on the 8-bit candidate.
-    /// Why:
-    /// the lightness fit asks every role the same question.
-    fn accepts(
-        &self,
-        candidate: Srgb8,
-    ) -> bool {
-        match self {
-            FitRule::Container {
-                container,
-            } => {
-                let (hovered, pressed) = container_layers(*container, candidate);
-                return contrast_ratio(candidate, *container) >= TEXT_TARGET_RATIO
-                    && contrast_ratio(candidate, hovered) >= TEXT_TARGET_RATIO
-                    && contrast_ratio(candidate, pressed) >= TEXT_TARGET_RATIO;
-            }
-            FitRule::Legible {
-                surfaces,
-                layer,
-            } => {
-                return legible_on(
-                    candidate,
-                    surfaces,
-                    layer.unwrap_or(candidate),
-                    &TEXT_LAYER_ALPHAS,
-                    TEXT_TARGET_RATIO,
-                );
-            }
-            FitRule::Outline {
-                canvas,
-                deck,
-            } => {
-                return contrast_ratio(candidate, *canvas) >= NON_TEXT_TARGET_RATIO
-                    && contrast_ratio(candidate, *deck) >= NON_TEXT_TARGET_RATIO;
-            }
-            FitRule::Primary {
-                surfaces,
-                on_surface,
-                fills,
-                light_on_primary,
-            } => {
-                if !legible_on(
-                    candidate,
-                    surfaces,
-                    *on_surface,
-                    &TEXT_LAYER_ALPHAS,
-                    TEXT_TARGET_RATIO,
-                ) {
-                    return false;
-                }
-                for fill in fills {
-                    if contrast_ratio(candidate, *fill) < TEXT_TARGET_RATIO {
-                        return false;
-                    }
-                }
-                if let Some(content) = light_on_primary {
-                    return contrast_ratio(candidate, *content) >= TEXT_TARGET_RATIO;
-                }
-                return true;
-            }
-            FitRule::MatchFill {
-                on_surface,
-                on_surface_variant,
-            } => {
-                return contrast_ratio(*on_surface, candidate) >= TEXT_TARGET_RATIO
-                    && contrast_ratio(*on_surface_variant, candidate) >= TEXT_TARGET_RATIO;
-            }
-        }
-    }
-}
+#[cfg(test)]
+use theme_roles_contrast_fit::fit_lightness;
 
 /// What:
-///      `fn fit_lightness(name, start, endpoint, rule) -> Oklch`:
-/// moves `start` in lightness toward `endpoint`
-///  (0 black or 1 white),
-/// keeping chroma and hue,
-/// until `rule` accepts the 8-bit result;
-/// returns the closest
-///  accepted lightness to `start`.
+///      `mod theme_roles_derivation;` loads the sibling
+///           `src/theme_roles_derivation.rs`,
+///  which derives both schemes from one root.
 /// Why:
-///       This is the contrast guarantee:
-/// contrast depends on luminance,
-/// so lightness is the one coordinate moved,
-///           and the rule always sees the quantized color that reaches the screen.
-/// If even the endpoint fails,
-/// the
-///           endpoint is returned and a warning logged,
-/// because no lightness can do better.
+///       The placement order of the roles is what makes the contrast guarantee
+///           hold,
+///  so it is read on its own and this module stays within the line budget.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (passes(toSrgb8(start))) return start;
-/// let [failing, passing] = [start.lightness, endpoint];
-/// for (let i = 0; i < 40; i++) { const mid = (failing + passing) / 2; passes(toSrgb8({ ...start, lightness: mid })) ? (passing = mid) : (failing = mid); }
-/// return { ...start, lightness: passing };
+/// import * as themeRolesDerivation from "./theme_roles_derivation";
 /// ```
-fn fit_lightness(
-    name: &str,
-    start: Oklch,
-    endpoint: f64,
-    rule: &impl FitCheck,
-) -> Oklch {
-    if rule.accepts(oklch_to_srgb8(start)) {
-        return start;
-    }
-    let at_endpoint: Oklch = Oklch {
-        lightness: endpoint,
-        ..start
-    };
-    if !rule.accepts(oklch_to_srgb8(at_endpoint)) {
-        tracing::warn!(
-            role = name,
-            endpoint,
-            "no lightness reaches the contrast target, using the endpoint"
-        );
-        return at_endpoint;
-    }
-    let mut failing: f64 = start.lightness;
-    let mut passing: f64 = endpoint;
-    for _step in 0..40 {
-        let middle: f64 = (failing + passing) / 2.0;
-        if rule.accepts(oklch_to_srgb8(Oklch {
-            lightness: middle,
-            ..start
-        })) {
-            passing = middle;
-        } else {
-            failing = middle;
-        }
-    }
-    tracing::debug!(
-        role = name,
-        from = start.lightness,
-        to = passing,
-        "moved lightness to reach the contrast target"
-    );
-    return Oklch {
-        lightness: passing,
-        ..start
-    };
-}
+#[path = "theme_roles_derivation.rs"]
+mod theme_roles_derivation;
 
 /// What:
-///      `fn legible_on(content, backgrounds, layer, layer_alphas, target) -> bool`:
-/// true when `content` reaches
-///  `target` against every background,
-/// and also against that background with `layer` at each of `layer_alphas` over it.
+///      `pub use theme_roles_derivation::{...}` re-exports the two derivation entry
+///           points at this module's path.
 /// Why:
-///       Text is drawn on a surface and also under a hover,
-/// pressed or focus layer (alpha-only,
-/// D108);
-/// the caller
-///           passes every layer strength the text must survive.
+///       Callers name `theme_roles::derive_roles` and `theme_roles::derive_scheme`,
+///  and only where they are declared moved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// return backgrounds.every(b => ratio(content, b) >= target
-///   && alphas.every(a => ratio(content, compositeOver(layer, a, b)) >= target));
+/// export { derive_scheme, derive_roles } from "./theme_roles_derivation";
 /// ```
-fn legible_on(
-    content: Srgb8,
-    backgrounds: &[Srgb8],
-    layer: Srgb8,
-    layer_alphas: &[f64],
-    target: f64,
-) -> bool {
-    for background in backgrounds {
-        if contrast_ratio(content, *background) < target {
-            return false;
-        }
-        for layer_alpha in layer_alphas {
-            let layered: Srgb8 = composite_over(layer, *layer_alpha, *background);
-            if contrast_ratio(content, layered) < target {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-/// What:
-///      `fn container_layers(container, content) -> (Srgb8, Srgb8)`:
-/// the selected fill under the hover and under the
-///  pressed state,
-/// moved from the container toward its content color in OKLCH.
-/// A tuple `(A, B)` is a fixed pair.
-/// Why:
-///       Replaces the sRGB `mix` the segmented button used;
-/// the move is in lightness,
-/// chroma and hue.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// return [toSrgb8(mixOklch(c, on, 0.08)), toSrgb8(mixOklch(c, on, 0.12))];
-/// ```
-fn container_layers(
-    container: Srgb8,
-    content: Srgb8,
-) -> (Srgb8, Srgb8) {
-    let from: Oklch = srgb_to_oklch(container);
-    let to: Oklch = srgb_to_oklch(content);
-    let hovered: Srgb8 = oklch_to_srgb8(mix_oklch(from, to, HOVER_ALPHA));
-    let pressed: Srgb8 = oklch_to_srgb8(mix_oklch(from, to, PRESSED_ALPHA));
-    return (hovered, pressed);
-}
-
-/// What:
-///      `pub fn derive_scheme(from_root: RootTerms, scheme: Scheme) -> RoleSet`:
-/// every role of one scheme.
-/// Why:
-///       Places each role from its target,
-/// then fits lightness so each text pair holds AA:
-/// content on its surface
-///           and layers,
-/// accent text on every surface it is drawn on,
-/// outlines against the canvas and deck.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const spec = scheme === "dark" ? DARK_SPEC : LIGHT_SPEC;
-/// const surfaces = [canvas, deck, currentRow, surfaceHigh].map(resolve);
-/// // fit onSecondaryContainer, onSurface, onSurfaceVariant, outline, primary, onPrimary, then derive matchFill
-/// ```
-pub fn derive_scheme(
-    from_root: RootTerms,
-    scheme: Scheme,
-) -> RoleSet {
-    tracing::debug!(
-        hue = from_root.hue,
-        scale = from_root.scale,
-        completely_neutral = from_root.completely_neutral,
-        scheme = ?scheme,
-        "deriving the scheme roles"
-    );
-    let spec: SchemeSpec = match scheme {
-        Scheme::Dark => DARK_SPEC,
-        Scheme::Light => LIGHT_SPEC,
-    };
-    // Text moves toward white on a dark scheme and toward black on a light one to gain contrast.
-    let toward_text: f64 = if scheme == Scheme::Dark { 1.0 } else { 0.0 };
-    // D118 reading: every accent role is at least as chromatic as the strongest gray of this scheme, unless the root
-    // is completely neutral, where every accent stays at chroma 0.
-    let accent_chroma_floor: f64 = if from_root.completely_neutral {
-        0.0
-    } else {
-        gray_tint_ceiling(&spec)
-    };
-    let terms: RootTerms = RootTerms {
-        accent_chroma_floor,
-        ..from_root
-    };
-    let away_from_text: f64 = 1.0 - toward_text;
-
-    let canvas: Srgb8 = resolve_srgb(spec.canvas, terms);
-    let deck: Srgb8 = resolve_srgb(spec.deck, terms);
-    let current_row: Srgb8 = resolve_srgb(spec.current_row, terms);
-    let surface_high: Srgb8 = resolve_srgb(spec.surface_high, terms);
-    // Settings has no surface of its own (D109): it is drawn on the canvas, so no further surface needs fitting.
-    let surfaces: [Srgb8; 4] = [canvas, deck, current_row, surface_high];
-
-    // Selected fill and its content: the content is fitted against the fill and both state layers.
-    let secondary_container: Srgb8 = resolve_srgb(spec.secondary_container, terms);
-    let on_container_start: Oklch = resolve_oklch(spec.on_secondary_container, terms);
-    let on_container_fit: Oklch = fit_lightness(
-        "on-secondary-container",
-        on_container_start,
-        toward_text,
-        &FitRule::Container {
-            container: secondary_container,
-        },
-    );
-    let on_secondary_container: Srgb8 = oklch_to_srgb8(on_container_fit);
-    let (secondary_container_hovered, secondary_container_pressed) =
-        container_layers(secondary_container, on_secondary_container);
-
-    // Neutral text on every surface, under the on-surface hover and pressed layers. Secondary text below holds under
-    // the same layers, tinted with on-surface.
-    let on_surface_fit: Oklch = fit_lightness(
-        "on-surface",
-        resolve_oklch(spec.on_surface, terms),
-        toward_text,
-        &FitRule::Legible {
-            surfaces: &surfaces,
-            layer: None,
-        },
-    );
-    let on_surface: Srgb8 = oklch_to_srgb8(on_surface_fit);
-    let variant_fit: Oklch = fit_lightness(
-        "on-surface-variant",
-        resolve_oklch(spec.on_surface_variant, terms),
-        toward_text,
-        &FitRule::Legible {
-            surfaces: &surfaces,
-            layer: Some(on_surface),
-        },
-    );
-    let on_surface_variant: Srgb8 = oklch_to_srgb8(variant_fit);
-
-    // Outlines are UI parts: 3:1 against the canvas and the deck they border.
-    let outline_fit: Oklch = fit_lightness(
-        "outline",
-        resolve_oklch(spec.outline, terms),
-        toward_text,
-        &FitRule::Outline {
-            canvas,
-            deck,
-        },
-    );
-    let outline: Srgb8 = oklch_to_srgb8(outline_fit);
-
-    // Primary is both a fill and text (rail letter, links, action labels), so it holds AA on every surface and under
-    // the hover and pressed (also focus) layers, on the selected fill at rest and under the layers the rail cell draws
-    // over it, and against the light scheme's white on-primary. The OKLCH hovered and pressed fills carry only
-    // on-secondary-container text (the deck segment), so primary is not fitted to them.
-    let selected_fill_states: [Srgb8; 3] = [
-        secondary_container,
-        composite_over(on_secondary_container, HOVER_ALPHA, secondary_container),
-        composite_over(on_secondary_container, PRESSED_ALPHA, secondary_container),
-    ];
-    let primary_start: Oklch = resolve_oklch(spec.primary, terms);
-    let light_on_primary: Option<Srgb8> = match scheme {
-        Scheme::Dark => None,
-        Scheme::Light => Some(resolve_srgb(spec.on_primary, terms)),
-    };
-    let primary_fit: Oklch = fit_lightness(
-        "primary",
-        primary_start,
-        toward_text,
-        &FitRule::Primary {
-            surfaces: &surfaces,
-            on_surface,
-            fills: selected_fill_states,
-            light_on_primary,
-        },
-    );
-    let primary: Srgb8 = oklch_to_srgb8(primary_fit);
-
-    // On-primary is fitted against the primary fill and its own pressed layer (the first-run button).
-    let on_primary: Srgb8 = match light_on_primary {
-        Some(content) => content,
-        None => oklch_to_srgb8(fit_lightness(
-            "on-primary",
-            resolve_oklch(spec.on_primary, terms),
-            away_from_text,
-            &FitRule::Legible {
-                surfaces: &[primary],
-                layer: None,
-            },
-        )),
-    };
-
-    // Search match fill (D59): the primary moved toward the neutral end in OKLCH, with the Android shares, then
-    // fitted so both text roles stay legible on it.
-    let (lightness_share, chroma_share, neutral_end): (f64, f64, f64) = match scheme {
-        Scheme::Dark => (MATCH_DARK_LIGHTNESS_SHARE, MATCH_DARK_CHROMA_SHARE, 0.0),
-        Scheme::Light => (MATCH_LIGHT_LIGHTNESS_SHARE, MATCH_LIGHT_CHROMA_SHARE, 1.0),
-    };
-    let primary_lch: Oklch = srgb_to_oklch(primary);
-    let match_start: Oklch = Oklch {
-        lightness: primary_lch.lightness + (neutral_end - primary_lch.lightness) * lightness_share,
-        chroma: (primary_lch.chroma * (1.0 - chroma_share)).max(terms.accent_chroma_floor),
-        hue: primary_lch.hue,
-    };
-    let match_fit: Oklch = fit_lightness(
-        "match-fill",
-        match_start,
-        neutral_end,
-        &FitRule::MatchFill {
-            on_surface,
-            on_surface_variant,
-        },
-    );
-    let match_fill: Srgb8 = oklch_to_srgb8(match_fit);
-
-    return RoleSet {
-        canvas,
-        deck,
-        current_row,
-        surface_high,
-        on_surface,
-        on_surface_variant,
-        outline,
-        outline_variant: resolve_srgb(spec.outline_variant, terms),
-        primary,
-        on_primary,
-        secondary_container,
-        secondary_container_hovered,
-        secondary_container_pressed,
-        on_secondary_container,
-        match_fill,
-        error: resolve_srgb(spec.error, terms),
-        error_container: resolve_srgb(spec.error_container, terms),
-        on_error_container: resolve_srgb(spec.on_error_container, terms),
-    };
-}
-
-/// What:
-///      `pub fn derive_roles(root: Option<Srgb8>) -> ThemePalette`:
-/// both schemes from one root;
-/// `None` is the baseline.
-/// Why:
-///       The single entry point the window glue calls at startup and on every accent change.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const terms = rootTerms(root);
-/// return { dark: deriveScheme(terms, "dark"), light: deriveScheme(terms, "light") };
-/// ```
-pub fn derive_roles(root: Option<Srgb8>) -> ThemePalette {
-    tracing::info!(root = ?root, "deriving the theme roles from the root color");
-    let terms: RootTerms = root_terms(root);
-    return ThemePalette {
-        dark: derive_scheme(terms, Scheme::Dark),
-        light: derive_scheme(terms, Scheme::Light),
-    };
-}
+pub use theme_roles_derivation::{
+    derive_roles,
+    derive_scheme,
+};
 
 /// What:
 ///      `#[cfg(test)] mod tests;` declares the derivation's unit-test sidecar.
