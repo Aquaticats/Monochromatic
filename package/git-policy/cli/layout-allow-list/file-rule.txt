@@ -33,12 +33,10 @@ file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.r
 file-uses src/native/foundation private_storage.rs -> private_storage_replacing_a_record.rs
 file-uses src/native/foundation private_storage_replacing_a_record.rs -> private_storage.rs
 file-uses src/native/landing push_record_of_a_moved_branch.rs -> service_handoff.rs
-file-uses src/native/landing service_amend_replayed.rs -> service_commit_requests_and_landing_report.rs
 file-uses src/native/landing service_commit.rs -> service_commit_after_a_failure.rs
 file-uses src/native/landing service_commit.rs -> service_landed_aftermath.rs
 file-uses src/native/landing service_commit_after_a_failure.rs -> service_commit.rs
 file-uses src/native/landing service_commit_after_a_failure.rs -> service_landed_aftermath.rs
-file-uses src/native/landing service_commit_requests_and_landing_report.rs -> service_amend_replayed.rs
 file-uses src/native/landing service_handoff.rs -> push_record_of_a_moved_branch.rs
 file-uses src/native/landing service_land_copy.rs -> service_land_follow.rs
 file-uses src/native/landing service_land_follow.rs -> service_land_copy.rs
