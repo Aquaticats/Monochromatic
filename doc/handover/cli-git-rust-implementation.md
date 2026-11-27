@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T07:48:30-05:00
+## The state at 2026-11-27T08:03:48-05:00
 
-`main` was `b73451aabe`.
+`main` was `1c8acd5bfb`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 168 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 170 more by this time.
 
 ### Rounds running
 
@@ -125,13 +125,28 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- `issue-6562-gate-clippy-container-gets-a-measured-memory-bound`,
-  which runs whole gates of its own to measure the bound and has run for hours;
-- `split-wrapper-worktree-remove-file-over-the-line-budget`,
-  for `worktree/worktree_remove.rs` (468 lines),
-  which the last loop break freed;
 - `issue-6578-bounded-runner-leaves-no-empty-scope-loaded`,
-  in `cargo-shadow`.
+  in `cargo-shadow`;
+- for the wrapper package's TypeScript checks,
+  which were red on `main` with nothing running them
+  ("What the rounds found"):
+  `issue-6579-service-words-unit-test-reads-the-declaration-as-written`,
+  `issue-6580-source-walks-of-the-scripts-do-not-follow-uses-links`,
+  four rounds for issue 6581's oxlint findings
+  (`issue-6581-oxlint-clean-guest-scripts-part-<n>-of-3`
+  and `issue-6581-oxlint-clean-fence-measurement-and-service-manager-scripts`,
+  each writing `Refs #6581`,
+  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`),
+  and the proposal round `issue-6584-proposal-where-the-typescript-checks-run`;
+- `issue-6582-two-worktree-copying-controls-hold-in-a-wide-threaded-run`;
+- `issue-6583-gate-suite-container-gets-a-measured-memory-bound`,
+  which runs gates of its own.
+
+The whole gate on `main` at `1c8acd5bfb` runs since 2026-11-27T07:50:19-05:00,
+in the unit `gpc-gate-wrapper-next-alpha-on-1c8acd5bfb-20261127T075019-0500`,
+with its log at `~/temp/agent/gate/<unit>.log`
+and its worktree at `.claude/worktrees/gate-wrapper-next-alpha`,
+which `native:gate:main-tip` expects to exist and does not make.
 
 Three release passes also run,
 as background agents of the coordinating session:
@@ -173,11 +188,8 @@ and no record shows the owner accepting them
 
 Waiting on a named merge:
 the two `truepeak` crates' one file each,
-on the branch `refactor/flac-profiler-keeps-the-rust-one`;
-the whole gate on `main`,
-on issue 6562;
-the wrapper's next alpha,
-on that gate.
+on the branch `refactor/flac-profiler-keeps-the-rust-one`.
+The wrapper's next alpha waits on the gate that runs.
 
 `main`'s tip is checked after a batch of merges and not by each merge:
 the merge routine runs `git merge-tree` and compiles nothing.
@@ -190,10 +202,16 @@ the four Clippy tasks exited 0
 `native:clippy:measurement`
 and `native:clippy:start-probe-raised-deadline`),
 and the `source_guard` module passed 179 of 179.
-The merges after it change no file of the wrapper:
-`cf98f01e22` holds `cargo-shadow`'s tests and README,
-and the rest are `cargo-shadow`'s release commit,
-its lock row and this handover.
+Two merges after it change the wrapper and are checked by the gate that runs:
+issue 6562's (`79b93df956`,
+the gate's own scripts and records)
+and the split of `worktree/worktree_remove.rs` (`1c8acd5bfb`).
+That check never ran the package's TypeScript side,
+and it does from now on:
+`test:unit`,
+`lint:types` and `lint:oxlint`,
+with what is red named,
+until the owner chooses where those checks run (issue 6584).
 A tip check that a merge lands under is void and is run again.
 A threaded `worktree::` run on this host fails 155 controls unless `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` is set,
 every one with the refusal of `subvolume/fs_btrfs_test_support.rs` on a home that is on ZFS;
@@ -201,21 +219,27 @@ with it set,
 1015 pass and none fails,
 on `main` and on the last loop-break branch alike.
 
-The whole container gate on `main` at `d9ec2443bd` ended at 2026-11-27T02:37:12-05:00 and refused.
-Its suite passed:
-`12089 tests run: 12089 passed (9 slow), 51 skipped`.
-Its Clippy container was killed for memory while it compiled the wrapper's test build
-(the kernel log has "Memory cgroup out of memory:
-Killed process (clippy-driver)" with 2,074,084 kB of anonymous memory at the 2g bound the two containers share).
-`doc/planning/git-policy-cli-cachyos-test-containers.md` foresaw it:
-"The first gate that fails Clippy on memory is when to move it".
-The same Clippy command on the host at that commit,
-with two jobs and no swap,
-exited 0 with a peak of 4.4G,
-so the batch's code passed Clippy and the bound is what failed.
-Issue 6562 holds it;
-its round runs whole gates of its own to measure the bound,
-which is why it has run for hours.
+The whole container gate on `main` at `d9ec2443bd` ended at 2026-11-27T02:37:12-05:00 and refused:
+its suite passed 12089 of 12089,
+and its Clippy container was killed at the 2 GiB bound the two containers shared.
+Issue 6562's round measured Clippy's container in six runs (4,574.4 to 5,278.7 MiB with a bound that did not bind)
+and gave it a bound of its own,
+8 GiB,
+with the readings beside the value in `bin/native-gate-container-limits.ts`
+and in `doc/planning/git-policy-cli-cachyos-test-containers.md` (`79b93df956`).
+Two of its five gates passed both checks,
+the last on its branch merged with `main` at `88a63ef565`:
+`12115 tests run: 12115 passed (5 slow), 51 skipped` and "Clippy passed beside the test run."
+The three that refused each named its test run alone,
+under a host load average of 48 to 96:
+one control held 31.9 s by a `gpg` in an uninterruptible wait,
+one that read "the system refused a thread",
+one slow transfer ended at its two-second window,
+the notice control another test's spans disturb
+(`doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`),
+and the stale source-reading control that issue 6573 has since fixed.
+The suite's container read 1,149.3 to 1,516.5 MiB of its 2 GiB in those runs,
+which issue 6583 holds.
 
 A package-launched round has ended when `pi-runs/<round>-<n>/summary.json` exists,
 which the package's `list-runs-that-ended-since` lists,
@@ -285,10 +309,9 @@ and only that refusal left the main checkout's lock as it was.
 
 ### What the split rounds left
 
-On `main` at `b73451aabe` the wrapper has no layout finding and 12 files over the budget,
+On `main` at `1c8acd5bfb` the wrapper has no layout finding and 11 files over the budget,
 down from 264 before the splits.
 
-- `worktree/worktree_remove.rs` has its split round running.
 - `foundation/lines_written_by_a_thread.rs` waits for the owner,
   with its loop.
 - The rest wait for the move of group-folder files into child folders,
@@ -297,7 +320,7 @@ down from 264 before the splits.
   the files of `invocation/`,
   `health/doctor.rs` and `health/doctor_filesystem.rs`,
   where a new sibling file needs a `group-file` line,
-  and `worktree/mod.rs` (335 lines of module declarations).
+  and `worktree/mod.rs` (339 lines of module declarations).
 
 A split is not always a pure move.
 The landing split's last commit (`3b9ada357b`) boxed the commit inside the service's answers
@@ -329,10 +352,10 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6578,
+  issues 6524 to 6584,
   each filed after a search.
   Closed by a merged round:
-  all of them except issues 6562 and 6578 ("Rounds running") and these,
+  all of them except those with a round ("Rounds running") and these,
   which stay open on purpose and wait in `doc/handover/questions-for-the-owner.md`.
   Issues 6555,
   6557,
@@ -381,6 +404,25 @@ and the two `truepeak` files wait on their branch.
   issue 6528 (`41b9597adf`),
   the stop's report,
   whose new test-only switch sits behind `cfg(test)` at its call site in `control_group_stop.rs`.
+- The wrapper package's TypeScript side was red on `main` and nothing ran it.
+  Issue 6562's round reported it,
+  and at `1c8acd5bfb` `test:unit` exits 1 on two files:
+  `e2e/service-mode-words.unit.test.ts` looks for a declaration line that became a slice (issue 6579),
+  and `bin/native-planted-controls.unit.test.ts` dies with "Invalid string length"
+  because a recursive read of `src/native` follows the `uses/` links
+  and returns 163,079 entries for a tree of 3,809 files (issue 6580).
+  `lint:oxlint` exits 1 with 850 errors and 1856 warnings in fifteen files:
+  eleven guest scripts in `e2e/`,
+  two fence measurements in `perf/`
+  and `bin/service-manager-install-proof.ts` (issue 6581).
+  The release gate runs the Rust suite and Clippy,
+  a round runs the Rust modules it touched,
+  and the coordinator's tip check ran `native:check`,
+  Clippy and `source_guard`;
+  where the TypeScript checks should run is a proposal for the owner (issue 6584).
+- Two `worktree_copying` controls that expect a quiet add see
+  "Waiting for the commit service of this worktree..." in a threaded run of every test whose path holds `worktree`,
+  and pass alone (issue 6582).
 - `cargo-shadow`'s tests left processes and units behind.
   At 2026-11-27T07:05-05:00 the host held 25 orphaned shells,
   each polling a release file every 50 ms for up to twelve hours,
