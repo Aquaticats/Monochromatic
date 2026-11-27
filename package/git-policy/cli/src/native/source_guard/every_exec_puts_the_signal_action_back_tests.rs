@@ -7,7 +7,8 @@
 //!  which is `do_exec` in `library/std/src/sys/process/unix/unix.rs` at line 374.
 //!  Every path of the wrapper that goes on after such a start writes its own words and ends with a status,
 //!  and at the default the first of those writes to a pipe nobody reads ends the process by the signal instead
-//!  (`doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`, issue 6607).
+//!  The record is
+//!  `doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md` for issue 6607.
 //!  So the replacement puts the action back,
 //!  and this scan fails a release file that replaces the process without it.
 //!
@@ -71,7 +72,8 @@ const PUTS_THE_ACTION_BACK: &str = "put_the_action_back(libc::SIGPIPE, &before)"
 /// interface Scan { replacing: string[]; findings: string[] }
 /// ```
 struct Scan {
-    /// The release files whose code replaces this process, as paths under the source root.
+    /// The release files whose code replaces this process,
+    /// as paths under the source root.
     replacing: Vec<String>,
     /// One finding for each of them that does not put the action back.
     findings: Vec<String>,
@@ -115,7 +117,8 @@ fn findings_in_code(
 ///  Every finding of one file's text,
 ///  which is the code of it with its comments cut.
 /// Why:
-///  A control plants a text, so the cut is made here once for it and for the scan below.
+///  A control plants a text,
+///  so the cut is made here once for it and for the scan below.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +132,8 @@ fn findings_in_text(
 }
 
 /// What:
-///  The scan of `sources`, read as paths under `root`.
+///  The scan of the release sources,
+///  read as paths under `root`.
 /// Why:
 ///  One read of each file answers both questions the controls ask,
 ///  and a file that cannot be read stops the scan with its own name rather than passing as a file with no findings.

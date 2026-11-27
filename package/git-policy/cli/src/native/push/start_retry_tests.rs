@@ -6,7 +6,8 @@ use super::*;
 ///  and the word for it,
 ///  so a control can say what a call left in place.
 /// Why:
-///  The action belongs to the whole process, and reading it changes nothing.
+///  The action belongs to the whole process,
+///  and reading it changes nothing.
 use crate::signal_disposition_of_the_process::{
     the_disposition_of,
     the_word_for,

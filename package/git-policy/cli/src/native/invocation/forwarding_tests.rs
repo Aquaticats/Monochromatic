@@ -213,7 +213,8 @@ fn unstartable_program_is_an_error() {
 ///  `std` sets `SIGPIPE` to the kernel's default in whatever process calls `exec`,
 ///  and a replacement that fails replaces nothing,
 ///  so the process that goes on is left at the default unless the action goes back (issue 6604).
-///  The wrapper goes on after a failed start: it says why it could not start Git and ends with status `2`,
+///  The wrapper goes on after a failed start:
+///  it says why it could not start Git and ends with status `2`,
 ///  and at the default the first of those writes to a pipe nobody reads would end it by the signal (issue 6607).
 ///  The body runs in a child of its own,
 ///  so the action it reads reaches no other control.

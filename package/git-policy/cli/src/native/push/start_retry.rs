@@ -395,12 +395,14 @@ impl RetryStart for Command {
 
 /// What:
 ///  The action in place for `signal` in this process,
-/// read with a null new action, which changes nothing.
+/// read with a null new action,
+/// which changes nothing.
 /// Why:
 ///  A process replacement puts `SIGPIPE` back to the kernel's default in the process that tries it,
 ///  which is `library/std/src/sys/process/unix/unix.rs:374`,
 ///  and a start that cannot run its program returns and leaves that default behind.
-///  The action a process had is read before such a call, so it can go back after it.
+///  The action a process had is read before such a call,
+///  so it can go back after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -460,11 +462,14 @@ fn put_the_action_back(
 ///  So the action goes back after every failed try,
 ///  and those writes answer `EPIPE` as every other write of this process does.
 ///  Ending by `SIGPIPE` is not what is meant here:
-///  that is a Git of the person's own that a signal ended, which `forwarding::end_as_git_ended` relays,
+///  that is a Git of the person's own that a signal ended,
+///  which `forwarding::end_as_git_ended` relays,
 ///  and a start that failed ran no Git at all.
 /// Gotcha:
-///  A start that succeeds never returns, so nothing is put back,
-///  and the program that replaces this one begins with the kernel's default for `SIGPIPE`, as native Git does.
+///  A start that succeeds never returns,
+///  so nothing is put back,
+///  and the program that replaces this one begins with the kernel's default for `SIGPIPE`,
+///  as native Git does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
