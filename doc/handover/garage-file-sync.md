@@ -77,7 +77,7 @@ Open:
   (rollback steps: `doc/decision/garage-file-sync-change-watcher.md`).
   (scratch,
   deleted on 2026-11-27;
-  what this record uses from it is stated here).
+  not kept).
 
 ## Client check (macOS, `ssh m1`) at 2026-11-25T18:51:49-05:00
 
