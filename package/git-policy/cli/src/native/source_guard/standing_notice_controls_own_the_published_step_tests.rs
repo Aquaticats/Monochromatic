@@ -1,5 +1,6 @@
 //! What:
-//!  The ban on a control publishing, ending or reading the step a waiting add's notice names
+//!  The ban on a control publishing,
+//!  ending or reading the step a waiting add's notice names
 //!  in the run's own process:
 //!  a control that publishes a step or a plainly run add's route,
 //!  starts a notice that prints the step,
@@ -8,7 +9,8 @@
 //!  starts a child of its own first.
 //! Why:
 //!  `worktree/add_standing_notice.rs` keeps the step an add publishes and the route it is on
-//!  in `STANDING`, one `Mutex<Option<Standing>>` for the whole process,
+//!  in `STANDING`,
+//!  one `Mutex<Option<Standing>>` for the whole process,
 //!  because one process runs one add's steps at a time.
 //!  `cargo test` runs a crate's tests as threads of one process,
 //!  so a control that publishes a step replaces the step a control beside it just published,
@@ -17,7 +19,7 @@
 //!  Measured on 2026-11-27 on `main`,
 //!  a threaded run of `worktree::add_standing_notice::tests` failed two of its eight controls:
 //!  `a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value` printed no line
-//!  (`left: 0`, `right: 1`),
+//!  (`left: 0` and `right: 1`),
 //!  and `a_plain_add_s_line_names_git_s_own_add_and_the_missing_folder` printed a line that named no route,
 //!  while `--test-threads=1` on the same module answered `ok. 8 passed; 0 failed` (issue 6533).
 //!  The container gate starts each test in a process of its own,
@@ -123,7 +125,7 @@ const THE_STANDING_STEP: Requirement = Requirement {
 };
 
 /// The step a waiting add's notice names is one record for the whole process.
-/// A control that publishes it, prints it, ends it or reads it starts a child of its own first.
+/// A control that asks about the step starts a child of its own first.
 #[test]
 fn no_control_reads_the_standing_step_in_the_run_s_own_process() {
     let read: Scan = scan(&THE_STANDING_STEP).expect("the crate's sources");

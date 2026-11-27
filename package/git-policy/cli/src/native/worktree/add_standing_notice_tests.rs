@@ -75,10 +75,11 @@ fn published() -> Option<(Option<String>, Instant, Option<String>)> {
 /// (`testing/process_wide_state_child_test_support.rs`):
 /// in the run's own process a control beside it that enters a step
 /// or finishes its add replaces what this one published,
-/// and the readings below then answer another control's step or nothing
-/// (measured 2026-11-27: a threaded run of this module failed two of its controls,
-/// `left: 0` and a line without the plain route,
-/// while `--test-threads=1` passed all eight).
+/// and the readings below then answer another control's step or nothing.
+/// Measured on 2026-11-27:
+/// a threaded run of this module failed two of its controls,
+/// one with `left: 0` and one with a line that named no route,
+/// while `--test-threads=1` passed all eight.
 #[test]
 fn the_add_s_own_steps_are_what_the_notice_names() {
     crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
@@ -136,8 +137,10 @@ fn the_add_s_own_steps_are_what_the_notice_names() {
 /// (`testing/process_wide_state_child_test_support.rs`):
 /// in the run's own process a control beside it that finishes its add
 /// ends the step this one published,
-/// and the notice then prints nothing
-/// (measured 2026-11-27: a threaded run of this module failed this control `left: 0`, `right: 1`).
+/// and the notice then prints nothing.
+/// Measured on 2026-11-27:
+/// a threaded run of this module failed this control,
+/// whose line was never printed (`left: 0` and `right: 1`).
 #[test]
 fn a_notice_is_printed_once_the_wait_is_over_and_stops_with_its_value() {
     crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
@@ -676,9 +679,10 @@ fn every_step_an_add_enters_has_its_own_sentence() {
 /// (`testing/process_wide_state_child_test_support.rs`):
 /// in the run's own process a control beside it that finishes its add
 /// ends the route this one published,
-/// and the line then names a step without the fact that put the add on the plain route
-/// (measured 2026-11-27: a threaded run of this module failed this control at
-/// `the line names the route and the fact that caused it`).
+/// and the line then names a step without the fact that put the add on the plain route.
+/// Measured on 2026-11-27:
+/// a threaded run of this module failed this control at
+/// `the line names the route and the fact that caused it`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
