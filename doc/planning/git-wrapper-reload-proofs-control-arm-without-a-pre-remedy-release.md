@@ -74,6 +74,8 @@ and `--main-wrapper` naming the executable of `0.6.1-alpha.48`,
 the newest release this host holds.
 Both machines held 1,557 units,
 and both arms ran every step of the scenario.
+That run was on the tree that merged `main` at `653cb33d01`,
+and the run before those merges printed the same readings.
 The closing lines of each arm,
 as the proof printed them:
 
@@ -84,7 +86,7 @@ arm main:
   the desktop stand-in ended: never
 
 arm this worktree:
-  the machine was seeded by the release at .../.cache/wrapper-release-0.6.1-alpha.48/.../monochromatic-git-policy-cli, as one that has its template installed: [main 75178d0] seed | status=0
+  the machine was seeded by the release at .../.cache/wrapper-release-0.6.1-alpha.48/.../monochromatic-git-policy-cli, as one that has its template installed: [main 0806fc1] seed | status=0
   the template the seeding left: ExecStart=/run/user/0/monochromatic-git-policy-cli-bin monochromatic-git-policy-cli service run --journal %S/monochromatic-git-policy-cli/service/%i --git /usr/bin/git --instance %i
   the manager was asked to re-read its units 0 time(s) during this arm's steps, 1 in this machine's whole life
   commits that did not land: none
@@ -224,6 +226,12 @@ Cons:
   so whether their commit path still works there (protocol,
   Git behaviour) is unmeasured;
 - it makes `test:service-manager` depend on a binary this repository no longer builds or tests.
+- it would provision the machine from a program that is not this account's install,
+  which is the question
+  `doc/planning/cli-git-provisioning-from-a-program-that-is-not-an-installed-wrapper.md` puts to the owner.
+  A published release archive carries whatever that proposal's own choice marks a release build with,
+  so its options that refuse a local build would not stop this one,
+  and an option that refused anything but the account's install would.
 
 ## Option B: a stand-in that asks the manager for the reload
 

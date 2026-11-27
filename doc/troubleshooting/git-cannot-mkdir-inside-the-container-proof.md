@@ -163,31 +163,21 @@ so Git was refused,
 the landing failed,
 and the service answered `outcome=failed:repository-permission-denied`.
 
-`/etc/apparmor.d/local/git` gained a rule for that name.
-It matched nothing until 2026-11-27T09:32:43-05:00:
-it was written as `owner @{HOME}/.local/state/monochromatic-git-policy-cli/service/*/marks-@{int}{,.lock} rwlk`,
-and `@{int}` stops at ten digits (`tunables/system`)
-while the service numbers its marks with sixteen
-(`marks-1795789803456142.lock`).
-The audit log holds two more refusals of that name from this record's own runs,
+`/etc/apparmor.d/local/git` gained a rule for that name,
+and the rule matched nothing until it was corrected:
+it read `marks-@{int}`,
+and `@{int}` stops at ten digits while the service numbers its marks with sixteen.
+Two more refusals of the same name followed from this record's own runs,
 at 09:30:03 and 09:32:08,
-so every run before the correction met the same refusal as the first round and says nothing new.
-The rule now reads
-
-```text
-owner @{HOME}/.local/state/monochromatic-git-policy-cli/service/*/marks-[0-9]*{,.lock} rwlk,
-```
-
-and it is proved from inside a container of the gate image,
-as its root:
-`git fast-import --done --export-marks=/root/.local/state/monochromatic-git-policy-cli/service/<hash>/marks-1795788270296498`
-exits 0 and writes the file,
-and the same command with a name the rule does not cover is refused with
-`unable to write marks file ...: Permission denied`,
-which is the control.
+so every run that started before 2026-11-27T09:32:43 met the refusal the first round met and says nothing new.
+The rule as corrected,
+the control that proves it in a container of the gate image,
+and the rest of that batch are in
+`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+"Seventeenth batch".
 The audit log is the coordinating session's to read,
 not a round's;
-the round's own evidence is what the proofs print.
+what a round can show is what the proofs print.
 
 ## What the proofs print now, from runs that started after the correction
 
@@ -197,11 +187,11 @@ the round's own evidence is what the proofs print.
   in order:
 
   ```text
-  machine gpc-reload-proof-3785555-1795790043: holding 257 units, so a reload of it costs what a loaded host's costs
+  machine gpc-reload-proof-4006674-1795791384: holding 257 units, so a reload of it costs what a loaded host's costs
   the program pointer the older release's texts name: /opt/release-old/git
-  the installing command: Updating the commit service... | [main ac5fb61] install | status=0
+  the installing command: Updating the commit service... | [main e711326] install | status=0
   every instance started again by the manager: 4 active
-  the second worktree's next commit: [detached HEAD 47f52c7] second-worktree |  1 file changed, 1 insertion(+), 1 deletion(-) | status=0
+  the second worktree's next commit: [detached HEAD 77b0555] second-worktree |  1 file changed, 1 insertion(+), 1 deletion(-) | status=0
   starts of a wrapper service this run made: 3
   starts that failed at the EXEC step: 0
   units that reached the start limit: 0
@@ -209,6 +199,10 @@ the round's own evidence is what the proofs print.
   the pair of commits at once: 0 and 0; commits 3 to 5 (2 added)
   THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once
   ```
+
+  That is the run on the tree that merged `main` at `653cb33d01`;
+  the runs before those merges printed the same lines and passed,
+  one of them with the service's own ten-second notice before the landing.
 
   So both worktrees were seeded through the older release,
   both landed their commits,
@@ -254,9 +248,13 @@ Nothing the proofs write was refused for a capability.
 
 ## What a failing proof leaves behind
 
-Every machine is removed however the run ends,
-by the `Symbol.asyncDispose` that `runArm` and `prove` and `main_` hold,
-through `removeKeptMachines` (`bin/service-manager-machine.ts`).
+Every machine is removed however the run ends.
+`startMachine` and `stopMachine` are in `bin/service-manager-machine.ts`,
+and `removeKeptMachines` (`bin/service-manager-machine.ts:156`) removes every container this run started.
+`runArm` (`bin/service-manager-proof.ts`) holds its machine in an `await using`,
+whose value's `Symbol.asyncDispose` (`bin/service-manager-machine.ts:549`) is what `await using` calls when a step throws,
+and `main_` and `prove` hold `removeKeptMachines` the same way,
+so a throw removes the containers rather than leaving them to nobody.
 A machine is a container whose init is a system manager,
 so a container left behind keeps a manager and its units running on this host,
 and the `/etc/machine-id` it was given is a file in this package's
