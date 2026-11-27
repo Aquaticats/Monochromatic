@@ -72,8 +72,18 @@
 //!   its boot time,
 //!   what its process table shows,
 //!   and the time a file carries.
+//! - `stale_ref_lock_judge_limits.rs`:
+//!   the shipped limits a judgement rests on,
+//!   with the measurements each was chosen from.
+//! - `stale_ref_lock_judge_words.rs`:
+//!   the sentences an unproven verdict is reported in:
+//!   what the pid file's number is now,
+//!   why it proves nothing,
+//!   and that the lock looks older than the boot.
 //! - `stale_ref_lock_judge.rs`:
 //!   how one reference lock is judged.
+//! - `stale_ref_lock_judge_staging.rs`:
+//!   how the staging file `packed-refs.new` is judged when no lock stands beside it.
 //! - `stale_ref_lock_message.rs`:
 //!   what the wrapper prints about reference locks,
 //!   and the quoted command that clears one it will not remove.
@@ -197,6 +207,19 @@ pub mod stale_ref_lock_judge_environment;
 
 /// How one reference lock is judged.
 pub mod stale_ref_lock_judge;
+
+/// The shipped limits a judgement rests on,
+/// with the measurements each was chosen from.
+pub mod stale_ref_lock_judge_limits;
+
+/// The sentences an unproven verdict is reported in:
+/// what the pid file's number is now,
+/// why it proves nothing,
+/// and that the lock looks older than the boot.
+pub mod stale_ref_lock_judge_words;
+
+/// How the staging file `packed-refs.new` is judged when no lock stands beside it.
+pub mod stale_ref_lock_judge_staging;
 
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;
