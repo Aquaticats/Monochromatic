@@ -3567,3 +3567,104 @@ It also matches a start through a variable whose name begins with that letter.
 No file of the commit path holds one today,
 so the round left the ban;
 a rule that reads a literal argument would be narrower and is not built.
+
+## Veto open: three picks inside the router the owner chose for the writer's list (recorded 2026-11-27T17:30:22-05:00)
+
+The owner chose that the router pass over a member too small for a request,
+and that a pool advertise its head member's window.
+The round that built it merged as `45b9aaeb94`,
+and the built copy Pi loads was rebuilt at 2026-11-27T17:28:33-05:00,
+so it is live.
+The coordinating session read its report whole and wrote this entry.
+
+### A member is too small when the request's input alone exceeds its window
+
+- The input alone (taken):
+  Pi cuts the answer's limit to what the window leaves,
+  so a request whose input fits is served.
+  The cost is a short answer near the edge:
+  the round's case leaves 10,875 tokens of answer for an input of 509,317 in a window of 524,288.
+- The input plus the member's output limit:
+  no answer is cut short.
+  The cost is that a request Pi can serve is passed over.
+
+Ranking,
+the round's and the coordinating session's:
+the input alone > the input plus the output limit,
+because passing a member over refuses a request it can answer.
+
+### No margin beside the estimate
+
+- None (taken):
+  the estimate is Pi's own,
+  and over 48,805 requests in 200 sessions it stood within 0.1% to 0.2% of the count the member reported,
+  at the 5th and the 95th percentile.
+  A request the estimate misjudges ends in the member's own rejection,
+  after which Pi compacts and retries the turn once,
+  as the owner's chosen option said.
+- A margin of a few percent:
+  fewer such rejections.
+  The cost is a member passed over for a request it can hold;
+  0.6% of the requests in untouched sessions stood 5% or more from their member's count.
+
+Ranking,
+the round's and the coordinating session's:
+none > a margin,
+because the tail is rare and already has a recovery,
+and a margin costs every request near the edge.
+
+### The head is the first member the session's registry resolves
+
+Where the first member of the list is not registered,
+the pool advertises the next member's limits,
+which is 524,288 and 65,536 where Qwen's member is missing.
+The other way would keep the list's first member's limits whether or not it is registered,
+and advertise a window no member of the session has.
+No ranking is needed:
+the second is wrong for such a session.
+
+## Veto open: the Rust toolchain row no longer declares `rustup`, and what its two format programs need (recorded 2026-11-27T17:30:22-05:00)
+
+The round of issue 6626 merged as `7aa3e5e61f`.
+The coordinating session read its report whole and wrote this entry.
+
+### The row stops declaring `rustup`
+
+- Stop declaring it (taken):
+  `rustup` is the manager,
+  no toolchain holds it,
+  and nothing in the repository's tasks,
+  scripts or workflows reaches it through the exposure folder.
+  An install now names no unresolved bin on this machine.
+- Teach the route to link the manager's own program:
+  the folder would hold a `rustup`.
+  The cost is a link into a program this tool neither installs nor updates,
+  whose place differs by machine,
+  and which would shadow the manager for every task.
+
+Ranking,
+the round's and the coordinating session's:
+stop declaring it > link the manager,
+because nothing needs the link.
+
+### The row declares `cargo-fmt` and `rustfmt`, and no component it declares installs them
+
+Both resolve on this machine only because the `rustfmt` component was added by hand on 2026-11-25.
+A machine that follows the plan has neither,
+and a task that runs `rustfmt` finds none.
+This is issue 6630.
+
+- Declare the `rustfmt` component in the row,
+  which is the coordinating session's pick and what a round builds:
+  the row's bins resolve on any machine.
+  The cost is one more component download where it is missing,
+  and nothing here.
+- Stop declaring the two bins:
+  no download.
+  The cost is that the tasks that run `rustfmt` or `cargo fmt` depend on some other copy on `PATH`,
+  which this machine does not have.
+
+Ranking,
+the round's and the coordinating session's:
+declare the component > drop the bins,
+because the repository's own tasks run both programs.

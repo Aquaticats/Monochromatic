@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:19:01-05:00
+## The state at 2026-11-27T17:30:22-05:00
 
-`main` was `eaef6b630c`.
+`main` was `45b9aaeb94`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 272 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 275 more by this time.
 
 ### Rounds running
 
@@ -125,9 +125,6 @@ then Neuralwatt's flex lane,
 and the writer asks those without Synthetic
 (`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`);
 the round `the-virtual-writer-asks-the-members-the-virtual-reviewer-asks` built that
-(branch `feat/pi-plugin-rate-limit-fallback-the-virtual-writer-asks-the-members-the-virtual-reviewer-asks`,
-on origin and not merged,
-on purpose)
 and measured what it costs:
 a pool advertises the smallest window among its registered members,
 Synthetic's member has 524,288 tokens where the others have about 1,000,000,
@@ -140,15 +137,32 @@ and the pool advertises its head member's window,
 so the writer keeps 1,000,000 and the reviewer rises to it.
 Not chosen:
 "Keep three members" and "Live as built".
-The round `the-router-passes-over-a-member-too-small-for-the-request-and-the-pool-advertises-its-heads-window`,
-started 2026-11-27T16:48:00-05:00,
-builds that on top of the first branch,
-and until it lands the writer keeps its three members.
+The round `the-router-passes-over-a-member-too-small-for-the-request-and-the-pool-advertises-its-heads-window`
+built that on top of the first branch and is merged (`45b9aaeb94`),
+with the first branch inside it.
 Pi loads that extension from the main checkout's built copy,
-so after the merge the coordinator rebuilds it there
-(`mise run //package/pi-plugin/rate-limit-fallback:build`)
-with no round start in flight,
-and a round started before that keeps the list it loaded.
+which the coordinator rebuilt at 2026-11-27T17:28:33-05:00
+(`mise run //package/pi-plugin/rate-limit-fallback:build`),
+so the change is live for every Pi run started after that,
+and a run started before it keeps the list it loaded.
+Asked before and after the rebuild,
+that built copy answered:
+before,
+the writer asks three members and the reviewer advertises 524,288 and 65,536;
+after,
+both pools ask the four members and advertise 1,000,000 tokens of window and 384,000 of output,
+and with the head member unregistered both advertise the next member's 524,288 and 65,536.
+The head is the first member of the pool's order that the session's registry resolves.
+The size of a request is Pi's own estimate,
+which the round measured against the counts real providers reported:
+over 200 sessions and 48,805 requests the estimate divided by the reported count had a median of 1.000,
+with 0.999 at the 5th percentile and 1.002 at the 95th.
+The router compares the input alone with a member's window,
+because Pi fits the answer into what the window leaves,
+and it keeps no margin.
+Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
+issue 6631.
 The owner also wrote,
 of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
 "nw-large is advisor,
@@ -170,10 +184,8 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the `mpm-shadow` sentences,
   issue 6623 (`cargo-shadow`),
   and the rounds of the wrapper's alpha.50 reads.
-  The router's round started alone at 2026-11-27T16:48:00-05:00.
-  It got a note in its inbox at 2026-11-27T16:58:15-05:00,
-  asking for a control at the edge of the small member's window
-  and for an estimate measured against counts a real provider reported.
+  The router's round is merged (`45b9aaeb94`),
+  and the passage on the writer's members says what is live.
   The round for issue 6622 is merged (`e56b8abaec`) and the issue is closed.
   Nothing warns about bytes that end with one line feed:
   on `main`'s code,
@@ -240,10 +252,15 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   where no round runs:
   the round for the Claude Sonnet read of `0.5.2-alpha.21`
   ("What the linter's alpha.21 read found") is merged (`83d10dd296`),
-  and the release run of `0.5.2-alpha.22` started 2026-11-27T17:10:32-05:00
-  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46074982770>);
-  its bump commit is `f10132d60f`,
-  and `main` is fast-forwarded to it.
+  and `0.5.2-alpha.22` is released
+  (release commit `f10132d60f`,
+  published by the follower's log,
+  whose run ended 2026-11-27T17:21:26-05:00),
+  locked (`0b90e1d87e`) and installed,
+  with the session's `git` link put back at 2026-11-27T17:23:24-05:00.
+  A Claude Sonnet read of it runs since about 2026-11-27T17:22-05:00,
+  a same-vendor second pass,
+  writing `~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`.
   A `file-uses` line of six words now names the folder its words name for every spelling of its gaps:
   1,152 of the read's 1,296 lines,
   against 324 in alpha.21,
@@ -775,9 +792,23 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   one of 2026-11-19 named three bins,
   and every install through 2026-11-11 whose kept output shows its last lines printed none.
   Issue 6626 holds that evidence,
-  and its round,
-  `issue-6626-the-rust-toolchain-row-declares-a-rustup-bin-no-install-resolves`,
-  started 2026-11-27T17:04:25-05:00.
+  and its round is merged (`7aa3e5e61f`).
+  No commit began the line:
+  on 2026-11-17 this machine's `rustup` became the system's package,
+  and the proxies in the cargo home that had resolved every bin of the row went with the old one.
+  The row stops declaring `rustup`,
+  which is the manager and no program of the toolchain,
+  and nothing in the repository reaches it through the exposure folder.
+  The lock followed through `mpm-shadow install --lockfile-only --offline`;
+  the branch's lock met the linter's lock row at the merge,
+  so the coordinator regenerated it the same way in a worktree,
+  and against `main`'s lock it differed in the row's `bins` and the digest alone.
+  The install after the merge reported nothing installed,
+  nothing failed and no unresolved bin.
+  The row's `cargo-fmt` and `rustfmt` resolve here only because the `rustfmt` component was added by hand on 2026-11-25,
+  which no component the plan declares installs:
+  issue 6630,
+  with the pick in `doc/handover/questions-for-the-owner.md`.
   Its Claude Sonnet read returned,
   a same-vendor second pass,
   and was read whole
@@ -1000,7 +1031,9 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-No read runs.
+One read runs as a background agent of the coordinating session,
+of the linter's `0.5.2-alpha.22`,
+at the path this section gives beside that release.
 Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
 ("What the wrapper's alpha.50 reads found"),
 as was the linter's
@@ -2437,8 +2470,8 @@ and the two `truepeak` files wait on their branch.
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
 - Read the wrapper's alpha.50 passes whole and route their findings ("Rounds running").
 - When a tool's fix rounds have merged and `main` equals `origin/main`:
-  release the linter's `0.5.2-alpha.22`,
-  and `cargo-shadow` `0.1.5-alpha.16` once the round of issue 6629 has merged,
+  release `cargo-shadow` `0.1.5-alpha.16` once the round of issue 6629 has merged,
+  and `mpm-shadow` `0.2.7-alpha.17` once its rounds have,
   lock each on a branch worktree,
   install,
   put the session's `git` link back,
