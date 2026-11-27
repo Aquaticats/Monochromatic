@@ -159,8 +159,10 @@ pub fn kill_with_everything_it_started(child: &mut Child) {
 pub(crate) use crate::support_fixture_service_start::*;
 
 /// What:
-///  The services this fixture holds, one for each worktree under it,
-///  and the acts that start one, stop them all and forget the ones that ended,
+///  The services this fixture holds,
+///  one for each worktree under it,
+///  and the acts that start one,
+///  stop them all and forget the ones that ended,
 ///  in a file of their own because the lifecycle file is over the per-file line budget.
 /// Why:
 ///  A caller that named one of them through this module goes on working,

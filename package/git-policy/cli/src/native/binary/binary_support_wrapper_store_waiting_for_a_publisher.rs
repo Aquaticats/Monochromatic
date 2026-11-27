@@ -9,7 +9,8 @@
 //!  and that write-back stalls the bounded commands of the controls around it
 //!  (`doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`,
 //!  "The first wave on a fresh store");
-//!  the wait is its own job, with its own clock a control can move,
+//!  the wait is its own job,
+//!  with its own clock a control can move,
 //!  so it lives in a file of its own beside the store it looks at.
 //!
 //! In TS you'd write (pseudocode):

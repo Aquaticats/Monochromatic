@@ -1,10 +1,12 @@
 //! What:
-//!  What a repository holds after a command, as labelled text:
+//!  What a repository holds after a command,
+//!  as labelled text:
 //!  its head,
 //!  its references,
 //!  the fields of its newest commit,
 //!  the index and the two diffs,
-//!  and the state files a merge, a cherry-pick or a revert leaves.
+//!  and the state files a merge,
+//!  a cherry-pick or a revert leaves.
 //! Why:
 //!  A byte copy has the same history,
 //!  so the twin harness compares fields as text rather than as a hash,

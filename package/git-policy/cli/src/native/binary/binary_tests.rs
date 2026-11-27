@@ -105,8 +105,10 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
-/// The services that fixture holds, one for each worktree under it,
-/// and the acts that start one, stop them all and forget the ones that ended.
+/// The services that fixture holds,
+/// one for each worktree under it,
+/// and the acts that start one,
+/// stop them all and forget the ones that ended.
 #[path = "binary_support_fixture_services_of_the_worktrees.rs"]
 mod support_fixture_services_of_the_worktrees;
 
@@ -795,7 +797,8 @@ mod fault_run;
 #[path = "binary_fault_run_a_stand_in_for_the_manager.rs"]
 mod fault_run_a_stand_in_for_the_manager;
 
-/// A sweep of fault cases: the batches it runs in,
+/// A sweep of fault cases:
+/// the batches it runs in,
 /// and the message a failure carries with the fixture's service log.
 #[path = "binary_fault_run_a_sweep_of_fault_cases.rs"]
 mod fault_run_a_sweep_of_fault_cases;
@@ -997,7 +1000,8 @@ mod service_selection;
 #[path = "binary_service_amend_tests.rs"]
 mod service_amend;
 
-/// What a repository holds after a command, as labelled text:
+/// What a repository holds after a command,
+/// as labelled text:
 /// its head,
 /// its references,
 /// the fields of its newest commit,

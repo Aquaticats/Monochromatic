@@ -1,6 +1,8 @@
 //! What:
-//!  The services a fixture holds, one for each worktree under it as in production,
-//!  and the acts that start one, stop them all and forget the ones that ended.
+//!  The services a fixture holds,
+//!  one for each worktree under it as in production,
+//!  and the acts that start one,
+//!  stop them all and forget the ones that ended.
 //! Why:
 //!  A fixture has no user manager:
 //!  in production that manager starts one instance per worktree at its first connection,

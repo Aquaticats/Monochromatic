@@ -47,7 +47,8 @@ use std::process::Command;
 const PINNED_DATE: &str = "2026-02-03T04:05:06+0000";
 
 /// What:
-///  What a repository holds after a command, as labelled text,
+///  What a repository holds after a command,
+///  as labelled text,
 ///  and the bounded Git reads it makes,
 ///  in a file of their own because this one is over the per-file line budget.
 /// Why:

@@ -28,13 +28,6 @@ use std::path::Path;
 ///  however long it holds it.
 pub const PIPE_GRACE: std::time::Duration = std::time::Duration::from_millis(500);
 
-/// How long a command this wait has ended may take to be reaped.
-/// Why five seconds:
-///  a `SIGKILL`ed child is reaped at once,
-///  so this window only covers the kernel and the scheduler;
-///  a command still not reaped in it is a defect of this wait,
-///  not a slow host.
-
 /// The bound this wait keeps for a command whose own line names none:
 ///  the shared backstop,
 ///  which is also where the supervisor ends a command that never shows it is working.
