@@ -17,36 +17,17 @@
 //! test('a real mpm that cannot start is explained', () => { ... });
 //! ```
 
-/// What:
-/// Imports `BufRead`,
-/// the trait that adds `read_line` to the pipe the holder reports through,
-/// and the buffer reader built over it.
-/// Why:
-/// The test waits for the holder to say the file is open before it starts the shadow,
-/// so a start can never run before the file is being written.
-use std::io::{
-    BufRead,
-    BufReader,
-};
-/// Imports the borrowed path type the holder takes.
+/// Imports the borrowed path type the cleanup snapshot takes.
 use std::path::Path;
-/// Imports the child process,
-/// the command that starts it,
-/// the standard streams it gets,
-/// and the pipe into it that ends its hold when it is dropped.
-use std::process::{
-    Child,
-    ChildStdin,
-    Command,
-    Output,
-    Stdio,
-};
+/// Imports the output of a finished start.
+use std::process::Output;
 
 use mpm_shadow::constants::EXEC_FAILED_EXIT_CODE;
 use mpm_shadow::nesting::MAX_NESTING as NESTING_LIMIT;
 
 use crate::{
     fixture_root,
+    held_programs::hold_open_for_writing,
     start_shadow,
     start_shadow_with,
     write_fake_mpm,
@@ -139,87 +120,6 @@ fn a_shadow_nested_to_the_limit_refuses_to_start_another_program() {
     }
 }
 
-/// What:
-/// A child process that holds one file open for writing,
-/// released when this value is dropped.
-/// Why:
-/// `execve` answers `Text file busy` for a file that any process holds open for writing,
-/// so the refusal needs a holder,
-/// and the holder has to be another process:
-/// a write descriptor in the test process is inherited by every child another test thread forks
-/// (issue 6527),
-/// and it would then be the holder of a start that is meant to succeed.
-struct HeldOpenForWriting {
-    /// The `sh` process whose descriptor number three is the file open for writing.
-    holder: Child,
-}
-
-/// What:
-/// `impl Drop for HeldOpenForWriting` closes the pipe into the holder and waits for it to end.
-/// Why:
-/// Closing the pipe is how the holder learns its work is over,
-/// and waiting for it keeps it from outliving the test that started it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// holder.stdin.end(); holder.waitSync();
-/// ```
-impl Drop for HeldOpenForWriting {
-    /// Ends the hold and reaps the holder.
-    fn drop(&mut self) {
-        // What:     `.stdin.take()` moves the pipe out of the child record and drops it here.
-        // Why:      Dropping the last handle on the pipe gives the holder's `cat` its end of file,
-        //           which is the only thing it waits for.
-        let pipe: Option<ChildStdin> = self.holder.stdin.take();
-        drop(pipe);
-        let _ = self.holder.wait();
-    }
-}
-
-/// What:
-/// `fn hold_open_for_writing(path) -> HeldOpenForWriting` starts a `sh`
-/// that opens `path` for appending and keeps it open until the returned value is dropped.
-/// Why:
-/// This is the one write a start can meet:
-/// the system refuses to start a file that is being written,
-/// and the shadow must say what that means.
-/// The holder appends nothing,
-/// so the program in the file stays the one the test wrote.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function holdOpenForWriting(path: string): Held {
-///   const child = spawn('sh', ['-c', 'exec 3>>"$1"; printf "held\n"; cat > /dev/null', 'sh', path], { stdio: ['pipe', 'pipe', 'inherit'] });
-///   readOneLine(child.stdout); return { child };
-/// }
-/// ```
-fn hold_open_for_writing(path: &Path) -> HeldOpenForWriting {
-    // What:     `Command::new("/bin/sh")` starts a shell with three arguments after the script:
-    //           `sh` (its own `$0`) then `path` (its `$1`).
-    // Why:      `exec 3>>"$1"` opens the file for appending on descriptor three of the shell itself,
-    //           so the descriptor belongs to a process of the test's own and never to the test.
-    let mut holder: Child = Command::new("/bin/sh")
-        .arg("-c")
-        .arg("exec 3>>\"$1\" || exit 9; printf 'held\\n'; cat > /dev/null")
-        .arg("sh")
-        .arg(path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("start the holder of the program file");
-    // What:     `.stdout.take()` moves the reporting pipe out of the child record.
-    // Why:      The line `held` is the proof the file is open before the shadow starts,
-    //           so the test never races the holder.
-    let reporting = holder.stdout.take().expect("the holder's report");
-    let mut reader: BufReader<std::process::ChildStdout> = BufReader::new(reporting);
-    let mut line: String = String::new();
-    reader.read_line(&mut line).expect("read the holder's report");
-    assert_eq!(line, "held\n", "the holder did not report the open file");
-    return HeldOpenForWriting {
-        holder,
-    };
-}
-
 /// Every file under `directory`, as paths relative to it, sorted.
 fn relative_paths(directory: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
@@ -262,7 +162,7 @@ fn a_start_refused_because_the_program_is_being_written_says_the_file_is_being_r
         // What:      The holder lives for this block only, so the file is being written when the shadow starts
         //            and is no longer being written when the block ends.
         // Why:       Nothing else can release it early, and a panic still drops it.
-        let _held: HeldOpenForWriting = hold_open_for_writing(&program);
+        let _held = hold_open_for_writing(&program);
         start_shadow(root.path(), &["installed"])
     };
 

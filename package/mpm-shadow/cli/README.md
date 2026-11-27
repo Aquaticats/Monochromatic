@@ -1518,6 +1518,11 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
   A file that vanishes between the check and the start still gets the `could not start` line and the same sentence.
+  A start the system refused because another program is writing that file gets the same explanation the shadow mode gives:
+  the file is being replaced,
+  and the same command works once the write has finished.
+  The launcher does not retry it either,
+  for the reason the shadow mode does not.
 - The launcher never reads `PATH` or the working directory,
   so which tree's launcher runs depends only on the path it was started by.
   Mise puts the tree's own `.cache/*-bin` directories first on `PATH` for `mise run`,
@@ -1961,6 +1966,34 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   A refused start started nothing,
   so starting again is safe.
   After a start that needed retries it says so once on standard error.
+- Explains,
+  and never retries,
+  a start the system refused because another program is writing the program's file
+  (`ETXTBSY`,
+  "Text file busy"):
+  the message says the file is being replaced by an upgrade or an install,
+  that nothing is broken,
+  and that the same command works once the write has finished.
+  It never names running the program by hand,
+  which shows nothing once the write is over.
+  There is no window for a retry to cover:
+  measured 2026-11-27 on this machine,
+  every writer this tool starts or stands in front of puts the program somewhere else first and
+  renames the finished file or directory into place,
+  so the file it holds open for writing is never the path a start resolves
+  (the launcher placement: 9.6 ms on `.program.<pid>.bin`, then a rename;
+  a copy into the hidden staging directory, the shape of both the gunzipped and the plain download:
+  2.9 ms and 3.5 ms in two runs;
+  `tar --extract`: 20.1 ms in the staging directory, then the directory is renamed;
+  `uv tool install --force`, which is how `mpm` itself is installed and upgraded:
+  the entry point is written as `bin/.tmpXXXXXX` and renamed).
+  A start that meets one of those renames instead of a write finds the program absent for 2.6 ms to 3.5 ms
+  (the archive install moves the old version directory aside before renaming the new one in),
+  and that is reported as the missing-program cause,
+  not as this one.
+  A writer that does hold the published file open is outside this tool and keeps it for as long as its
+  own work takes,
+  which is why the refusal is explained rather than hidden behind a stall.
 - Explains a start that fails for good,
   instead of one bare line:
   the command that was run,
@@ -1969,6 +2002,7 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   the cause in plain words (a process limit,
   missing permission,
   a missing program or interpreter,
+  a program whose file is being written,
   or the system's own words),
   what to do,
   the exit status (126) and why the command reports it,

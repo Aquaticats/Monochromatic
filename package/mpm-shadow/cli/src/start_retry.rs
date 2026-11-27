@@ -10,6 +10,25 @@
 //! so the shadow never stalls:
 //! a shortage that outlasts the budget is reported to the caller.
 //!
+//! A start refused because another program holds the program's file open for writing
+//! (`ETXTBSY`,
+//! `ErrorKind::ExecutableFileBusy`) is not retried,
+//! and `is_refusal` stays what its name says.
+//! Every writer this tool starts or stands in front of publishes the program by naming a finished
+//! file or a finished directory into place with a rename,
+//! so none of them ever writes the path a start resolves:
+//! measured 2026-11-27,
+//! the launcher placement,
+//! the gunzipped download,
+//! the plain download and the `tar` extraction held the file they were writing open
+//! for 2.9 to 20.1 ms and never at the published path,
+//! and `uv tool install --force` wrote the entry point under a temporary name in `bin/`
+//! and published it by rename.
+//! A writer that does hold the published file open is outside this tool
+//! and keeps it for as long as its own work takes,
+//! so there is no measured window a retry could carry;
+//! `start_failure` explains that refusal instead of hiding it behind a stall.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! for (let delay = 10; ; delay = Math.min(delay * 2, 500)) { try { return start(); } catch (e) { if (!isEagain(e) || waited > 5000) throw e; await wait(delay); } }
@@ -107,6 +126,8 @@ pub fn retry_refused_start<T>(start: &mut dyn StartAttempt<T>) -> (Result<T>, Re
 }
 
 /// Whether an error is the system's refusal to create another process.
+/// A refusal to start a file that is being written is not one of these:
+/// the module document above says why it is explained rather than retried.
 pub fn is_refusal(error: &Error) -> bool {
     return error.kind() == std::io::ErrorKind::WouldBlock;
 }
