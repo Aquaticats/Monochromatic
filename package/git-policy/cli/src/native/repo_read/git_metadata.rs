@@ -371,7 +371,7 @@ pub fn run_metadata_git_without_within(
 ///  so the read it starts is ended at
 ///       that ceiling by the wait for the read's answer and nothing waits after it:
 ///  this is the shape the wrapper already gives a read-only query
-///       with a ceiling of its own (`push/manual_push_range.rs`,
+///       with a ceiling of its own (`push/manual_push_update_and_query_limits.rs`,
 ///  `CeilingWhy::TheQueryIsBounded`).
 ///
 /// In TS you'd write (pseudocode):
@@ -534,7 +534,7 @@ fn run_a_metadata_read(
 ///       with a kill and no request,
 ///  because it writes nothing the person has to be told about,
 ///  and that is the shape
-///       `push/manual_push_range.rs` gives a query of its own.
+///       `push/manual_push_update_and_query_limits.rs` gives a query of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

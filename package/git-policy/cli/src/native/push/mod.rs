@@ -35,8 +35,6 @@
 //!   as the cause its hint is chosen by.
 //! - `manual_push_porcelain.rs`:
 //!   authoritative manual-push updates discovered by a private dry-run push and confirmed with ls-remote.
-//! - `manual_push_update_and_query_limits.rs`:
-//!   the public update of one pushed reference and the limits on the probe's side-by-side queries.
 //! - `push_deadline_and_patience_settings.rs`:
 //!   the deadline a push may show nothing for,
 //!   its default and the patience a push runs under.
@@ -195,22 +193,9 @@
 //! - `manual_push_probe_error.rs`:
 //!   why the probe of a manual push could not establish the updates Git would push,
 //!   and what Git said when it refused.
-//! - `manual_push_probe.rs`:
-//!   the updates a manual `git push` would send,
-//!   learned from Git's own dry-run report and confirmed against the remote.
-//! - `manual_push_range_published_tips.rs`:
-//!   what a remote has already published:
-//!   the commits a prior destination value names,
-//!   and the tracking refs Git keeps.
 //! - `push_server_naming.rs`:
 //!   the server a push waits for,
 //!   named from the command's own destination.
-//! - `manual_push_range.rs`:
-//!   published-set and range computation for manual-push scans:
-//!   which pushed commits a remote does not have.
-//! - `manual_push_lifecycle.rs`:
-//!   the manual-push candidate scope of one push:
-//!   the commits and trees the destination lacks.
 //! - `auto_push_destination_settings.rs`:
 //!   the settings that decide where one branch is pushed,
 //!   read from one listing of the configuration.
@@ -276,10 +261,6 @@
 //! - `auto_push_reconcile.rs`:
 //!   publishing a landed commit that a moved remote branch rejected:
 //!   the merge is made from objects alone and pushed.
-//! - `push_stacking.rs`:
-//!   an explicit push that lost a race:
-//!   run as a child,
-//!   merge in what landed on the remote and publish the merge.
 //! - `auto_push.rs`:
 //!   the plan and the words of a post-commit auto-push:
 //!   the push argv,
@@ -300,6 +281,28 @@
 //!   with the one command that pushes the branch instead.
 //! - `push_failure_notice.rs`:
 //!   the record of a failed backup push and the rule for when a wrapper command shows it.
+//! - `manual_push_update_and_query_limits.rs`:
+//!   what a push would update:
+//!   the public update of one pushed reference,
+//!   the limits on the probe's side-by-side queries,
+//!   and the batch query whose answer a range and its published tips are read with.
+//! - `manual_push_range_published_tips.rs`:
+//!   what a remote has already published:
+//!   the commits a prior destination value names,
+//!   and the tracking refs Git keeps.
+//! - `manual_push_range.rs`:
+//!   the range computation for manual-push scans:
+//!   which pushed commits a remote does not have.
+//! - `manual_push_probe.rs`:
+//!   the updates a manual `git push` would send,
+//!   learned from Git's own dry-run report and confirmed against the remote.
+//! - `manual_push_lifecycle.rs`:
+//!   the manual-push candidate scope of one push:
+//!   the commits and trees the destination lacks.
+//! - `push_stacking.rs`:
+//!   an explicit push that lost a race:
+//!   run as a child,
+//!   merge in what landed on the remote and publish the merge.
 //! - `stacked_merge_push.rs`:
 //!   the push of a merge that integrated a lost race,
 //!   planned and run inside the running wrapper.
