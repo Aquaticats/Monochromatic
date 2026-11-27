@@ -74,9 +74,6 @@ use crate::manual_push_probe::{
     PushUpdate,
     probe_manual_push_updates,
 };
-/// The merge push,
-/// planned and run inside this process.
-use crate::stacked_merge_push::gated_merge_push;
 /// The settled or plain run of the forwarded command.
 use crate::worktree_copy_forward::{
     ForwardedRun,
@@ -345,12 +342,18 @@ impl MergePusher for StackedMergePush<'_> {
 ///   The wrapper must outlive Git to look at its status;
 /// nothing is buffered,
 /// so Git's own output is what the person sees.
+///   `merge_push` publishes the merge this file integrates,
+/// and the caller hands it in,
+/// so this file names no planner of its own and a control can pass plain Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.exitCode = await runStackedPush(forward);
+/// process.exitCode = await runStackedPush(forward, gatedMergePush);
 /// ```
-pub fn run_stacked_push(forward: &PushForward) -> i32 {
+pub fn run_stacked_push(
+    forward: &PushForward,
+    merge_push: MergePush<'_>,
+) -> i32 {
     let (Some(prefix), Some(region)) = (
         forward.arguments.get(..forward.subcommand_index),
         forward.arguments.get(forward.subcommand_index + 1..),
@@ -424,7 +427,7 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     let request = StackRequest {
         git: &git,
         global_prefix: prefix,
-        merge_push: &gated_merge_push,
+        merge_push,
         region,
     };
     return stack_failed_push(&request, i64::from(code), &mut std::io::stderr()).unwrap_or(ended);

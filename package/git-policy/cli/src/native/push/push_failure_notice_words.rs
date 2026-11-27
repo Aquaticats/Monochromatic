@@ -22,7 +22,7 @@
 //! ```
 
 use crate::auto_push::PUSH_FAILED_NOTE;
-use crate::push_failure_notice::{
+use crate::push_failure_notice_record_text::{
     NO_REASON,
     clean_reason,
 };
