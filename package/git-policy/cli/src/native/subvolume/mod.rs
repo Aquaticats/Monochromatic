@@ -6,9 +6,29 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `fs_beneath_names.rs`:
+//!   the plain names and descriptor paths a held-handle call is written with.
+//! - `fs_beneath_identity.rs`:
+//!   the device,
+//!   inode and birth time that prove which object a name or a descriptor holds.
+//! - `fs_beneath_open.rs`:
+//!   `openat2` below a held directory,
+//!   with the resolution bits that refuse every link and mount.
+//! - `fs_beneath_entries.rs`:
+//!   creating,
+//!   reading,
+//!   timing,
+//!   renaming and removing one entry of a held directory.
+//! - `fs_beneath_owned_removal.rs`:
+//!   the lock file's removal,
+//!   which compares the identity recorded when it was made,
+//!   and the publishing of an open file under a new name.
+//! - `fs_beneath_permissions.rs`:
+//!   giving the owner write and search permission through the descriptor that was judged.
 //! - `fs_beneath.rs`:
 //!   directory-relative file operations that never follow a link:
-//!   the held-handle primitives of the clone rung and of the snapshot's stub removal.
+//!   the held-handle primitives of the clone rung and of the snapshot's stub removal,
+//!   re-exported from the six files above.
 //! - `fs_beneath_mount_facts.rs`:
 //!   what a held descriptor says about the mount it is on and the path the kernel finds at it now.
 //! - `fs_beneath_walk_chain.rs`:
@@ -58,6 +78,16 @@
 //! - `subvolume_platform.rs`:
 //!   the operating-system operations of the migration behind one trait,
 //!   and the Linux implementation.
+//! - `subvolume_preflight_paths.rs`:
+//!   the paths of a migration and the free space its metadata needs.
+//! - `subvolume_preflight_refusal.rs`:
+//!   one refusal and the two texts it is built from.
+//! - `subvolume_preflight_git_state_refusals.rs`:
+//!   the refusals about Git's own state in a checkout and its linked worktrees.
+//! - `subvolume_preflight_migration_refusals.rs`:
+//!   the refusals that stop a fresh or resumed migration before anything is created.
+//! - `subvolume_preflight_rollback_refusals.rs`:
+//!   the refusals of a rollback and of deleting the old tree.
 //! - `subvolume_preflight.rs`:
 //!   the paths of a migration and the refusals that stop it before anything is created.
 //! - `subvolume_registered_worktrees.rs`:
@@ -74,17 +104,47 @@
 //! - `subvolume_sha.rs`:
 //!   SHA-1 and SHA-256,
 //!   for the checksum of a rewritten Git index.
+//! - `subvolume_index_rewrite_contract.rs`:
+//!   what a caller of the index stat rewrite supplies and reads back.
+//! - `subvolume_index_bytes.rs`:
+//!   reading a Git index file's header,
+//!   entries,
+//!   extensions and checksum length.
 //! - `subvolume_index.rs`:
 //!   the stat rewrite of a Git index file's bytes.
 //! - `subvolume_index_install_into_new_worktree.rs`:
 //!   the first index of a new worktree:
 //!   written into `index.lock` and linked under its name,
 //!   nothing replaced.
+//! - `subvolume_index_file_stat_fields.rs`:
+//!   the stat fields an index entry stores,
+//!   read from a file and compared with what an entry recorded.
+//! - `subvolume_index_file_zeroed_stat.rs`:
+//!   an index with the stat data of named paths zeroed,
+//!   so Git hashes those files instead of trusting them.
+//! - `subvolume_index_file_options.rs`:
+//!   what a refresh of one index is told,
+//!   how it ended,
+//!   and the repository's hash length.
+//! - `subvolume_index_file_rewrite_and_install.rs`:
+//!   the rewrite of one index's stat fields and the install that replaces the index with it.
 //! - `subvolume_index_files.rs`:
 //!   the index stat rewrite applied to the checkout's index and to those of its linked worktrees.
 //! - `subvolume_index_refresh_of_every_worktree.rs`:
 //!   the index rewrite of a checkout and of every linked worktree inside it,
 //!   side by side within the host's budget.
+//! - `subvolume_sync_attrs_losses.rs`:
+//!   what a copy of one entry could not carry,
+//!   counted by kind.
+//! - `subvolume_sync_attrs_extended.rs`:
+//!   the extended attributes copied onto a copy,
+//!   removed from it and compared with the original's.
+//! - `subvolume_sync_attrs_owner_and_times.rs`:
+//!   the owner,
+//!   permission bits and times of a copy,
+//!   set in the order that keeps them.
+//! - `subvolume_sync_attrs_fifo.rs`:
+//!   opening and creating the named pipes of a copied tree.
 //! - `subvolume_sync_attrs.rs`:
 //!   copying owner,
 //!   permissions,
@@ -115,6 +175,14 @@
 //! - `subvolume_rollback_subvolume_removal.rs`:
 //!   removing a subvolume and every subvolume nested in it,
 //!   deepest first.
+//! - `subvolume_rollback_refusals.rs`:
+//!   the refusals a rollback and a deletion of the old tree answer with.
+//! - `subvolume_rollback_carry_back.rs`:
+//!   carrying the person's work back out of the new subvolume.
+//! - `subvolume_rollback_removal.rs`:
+//!   deleting the old tree once the person asks for it.
+//! - `subvolume_rollback_swap.rs`:
+//!   the exchange that turns the checkout back into the original tree.
 //! - `subvolume_rollback.rs`:
 //!   undoing a migration and deleting the old tree.
 //! - `subvolume_command.rs`:
@@ -164,6 +232,37 @@ pub mod fs_btrfs_ioctl;
 #[cfg(target_os = "linux")]
 pub mod fs_clone_exchange;
 
+/// The plain names and the descriptor paths a held-handle call is written with.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_names;
+
+/// The device,
+/// inode and birth time that prove which object a name or a descriptor holds.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_identity;
+
+/// `openat2` below a held directory,
+/// with the resolution bits that refuse every link and mount.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_open;
+
+/// Creating,
+/// reading,
+/// timing,
+/// renaming and removing one entry of a held directory.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_entries;
+
+/// The lock file's removal,
+/// which compares the identity recorded when it was made,
+/// and the publishing of an open file under a new name.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_owned_removal;
+
+/// Giving the owner write and search permission through the descriptor that was judged.
+#[cfg(target_os = "linux")]
+pub mod fs_beneath_permissions;
+
 /// Directory-relative file operations that never follow a link:
 /// the held-handle primitives of the clone rung and of the
 /// snapshot's stub removal.
@@ -195,6 +294,16 @@ pub(crate) mod fs_btrfs_test_support;
 #[cfg(target_os = "linux")]
 pub mod subvolume_sha;
 
+/// What a caller of the index stat rewrite supplies and reads back.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_rewrite_contract;
+
+/// Reading a Git index file's header,
+/// entries,
+/// extensions and checksum length.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_bytes;
+
 /// The stat rewrite of a Git index file's bytes.
 #[cfg(target_os = "linux")]
 pub mod subvolume_index;
@@ -208,6 +317,26 @@ pub mod subvolume_index_install_into_new_worktree;
 /// The linked worktrees of a main checkout and the registrations that are not one of them.
 #[cfg(target_os = "linux")]
 pub mod subvolume_registered_worktrees;
+
+/// The stat fields an index entry stores,
+/// read from a file and compared with what an entry recorded.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_file_stat_fields;
+
+/// An index with the stat data of named paths zeroed,
+/// so Git hashes those files instead of trusting them.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_file_zeroed_stat;
+
+/// What a refresh of one index is told,
+/// how it ended,
+/// and the repository's hash length.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_file_options;
+
+/// The rewrite of one index's stat fields and the install that replaces the index with it.
+#[cfg(target_os = "linux")]
+pub mod subvolume_index_file_rewrite_and_install;
 
 /// The index stat rewrite applied to the checkout's index and to those of its linked worktrees.
 #[cfg(target_os = "linux")]
@@ -230,6 +359,26 @@ pub mod subvolume_error;
 /// and the Linux implementation.
 #[cfg(target_os = "linux")]
 pub mod subvolume_platform;
+
+/// What a copy of one entry could not carry,
+/// counted by kind.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_attrs_losses;
+
+/// The extended attributes copied onto a copy,
+/// removed from it and compared with the original's.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_attrs_extended;
+
+/// The owner,
+/// permission bits and times of a copy,
+/// set in the order that keeps them.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_attrs_owner_and_times;
+
+/// Opening and creating the named pipes of a copied tree.
+#[cfg(target_os = "linux")]
+pub mod subvolume_sync_attrs_fifo;
 
 /// Copying owner,
 /// permissions,
@@ -294,6 +443,26 @@ pub mod subvolume_journal;
 #[cfg(target_os = "linux")]
 pub mod subvolume_entry_count;
 
+/// The paths of a migration and the free space its metadata needs.
+#[cfg(target_os = "linux")]
+pub mod subvolume_preflight_paths;
+
+/// One refusal and the two texts it is built from.
+#[cfg(target_os = "linux")]
+pub mod subvolume_preflight_refusal;
+
+/// The refusals about Git's own state in a checkout and its linked worktrees.
+#[cfg(target_os = "linux")]
+pub mod subvolume_preflight_git_state_refusals;
+
+/// The refusals that stop a fresh or resumed migration before anything is created.
+#[cfg(target_os = "linux")]
+pub mod subvolume_preflight_migration_refusals;
+
+/// The refusals of a rollback and of deleting the old tree.
+#[cfg(target_os = "linux")]
+pub mod subvolume_preflight_rollback_refusals;
+
 /// The paths of a migration and the refusals that stop it before anything is created.
 #[cfg(target_os = "linux")]
 pub mod subvolume_preflight;
@@ -306,6 +475,22 @@ pub mod subvolume_run;
 /// resumably.
 #[cfg(target_os = "linux")]
 pub mod subvolume_migrate;
+
+/// The refusals a rollback and a deletion of the old tree answer with.
+#[cfg(target_os = "linux")]
+pub mod subvolume_rollback_refusals;
+
+/// Carrying the person's work back out of the new subvolume.
+#[cfg(target_os = "linux")]
+pub mod subvolume_rollback_carry_back;
+
+/// Deleting the old tree once the person asks for it.
+#[cfg(target_os = "linux")]
+pub mod subvolume_rollback_removal;
+
+/// The exchange that turns the checkout back into the original tree.
+#[cfg(target_os = "linux")]
+pub mod subvolume_rollback_swap;
 
 /// Undoing a migration and deleting the old tree.
 #[cfg(target_os = "linux")]
@@ -333,6 +518,22 @@ pub mod subvolume_arguments;
 /// modes and exit statuses.
 #[cfg(target_os = "linux")]
 pub mod subvolume_command;
+
+/// A stand-in `Platform` on a plain directory tree.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod subvolume_test_support_plain_platform;
+
+/// A stand-in platform that can fail a clone and every hard link.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod subvolume_test_support_hooked_platform;
+
+/// A stand-in platform that answers that it flushes its writes.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod subvolume_test_support_flushing_platform;
+
+/// The fixture checkouts and run helpers of the subvolume migration controls.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod subvolume_test_support_fixtures;
 
 /// The stand-in platform and fixture checkouts of the subvolume migration controls.
 #[cfg(all(test, target_os = "linux"))]

@@ -18,9 +18,17 @@ use crate::test_support::{
     fixture,
     remove,
 };
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The root of a walk for a fixture directory,
 /// by its canonical path.

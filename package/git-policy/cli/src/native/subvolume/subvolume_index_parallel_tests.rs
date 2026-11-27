@@ -32,6 +32,10 @@ use crate::test_support::{
     remove,
 };
 use std::os::unix::fs::OpenOptionsExt;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Arc;
 use std::sync::atomic::{
     AtomicUsize,
