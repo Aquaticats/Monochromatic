@@ -149,7 +149,6 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/git-policy/cli/bin/build-git-test-image.ts',
     'package/git-policy/cli/bin/e2e-native-container.ts',
     'package/git-policy/cli/bin/native-planted-controls-only.ts',
-    'package/git-policy/cli/bin/test-native-container.ts',
     'package/git-policy/cli/bin/service-manager-machine.ts',
     'package/ide/app/bin/check-nextest-config.ts',
     'package/ide/app/bin/container-bounds.ts',
@@ -207,7 +206,8 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/zfs/request-to-openzfs-kernel-device/build-gate-image.ts',
   ].map((path,) => ({ path, role: 'builds' as const, }),),
   // Files that run a container with limits their caller or a sibling module built, the module that builds the limits the
-  // gate's containers are handed, and the one gate runner every one of them is started through.
+  // gate's containers are handed, the one gate runner every one of them is started through, and the gate's entry script,
+  // which hands that runner the bounds a sibling module builds.
   ...[
     'package/forbidden-strings/cli.fuzz/bin/smoke-container.ts',
     'package/forbidden-strings/cli/bin/guard-container.ts',
@@ -220,6 +220,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/git-policy/cli/bin/native-gate-container-limits.ts',
     'package/git-policy/cli/bin/native-gate-container.ts',
     'package/git-policy/cli/bin/native-planted-controls.ts',
+    'package/git-policy/cli/bin/test-native-container.ts',
     'package/linter/monochromatic-lint.fuzz/bin/fuzz-build.ts',
     'package/linter/monochromatic-lint.fuzz/bin/fuzz-run.ts',
     'package/vm-builder/cli/src/build-and-import.ts',
@@ -227,7 +228,8 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
   // Files that name the tool without starting a container: allow-lists, version, inspect, tag, login, copy, exec and push
   // calls, image names, stand-ins for tests, the generic runner whose callers build the arguments, and the gate's own
   // identity, ID file, fixture-root and evidence helpers, which name `podman` in prose only. The gate's syscall profile
-  // and its image retention read what `podman info` and `podman images` printed, and start nothing.
+  // and its image retention read what `podman info` and `podman images` printed, and its replaced-image removal runs
+  // `podman image rm`; none of them starts a container.
   ...[
     'package/claude-code-plugin/bash-output-filter/bundle/node/index.mjs',
     'package/container-limit/core/src/argument-text-of-a-container-start.ts',
@@ -242,6 +244,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/git-policy/cli/bin/native-gate-container-id-file.ts',
     'package/git-policy/cli/bin/native-gate-container-identity.ts',
     'package/git-policy/cli/bin/native-gate-fixture-root.ts',
+    'package/git-policy/cli/bin/native-gate-replaced-image.ts',
     'package/git-policy/cli/bin/native-gate-run-containers.ts',
     'package/git-policy/cli/bin/native-gate-syscall-profile.ts',
     'package/git-policy/cli/bin/native-image-retention.ts',
