@@ -189,6 +189,20 @@
 //!   and the refusal that carries whether it began.
 //! - `merge_isolation_moved.rs`:
 //!   the settling of an isolated merge whose branch moved while it was prepared or applied.
+//! - `merge_isolation_carry_place_judgement.rs`:
+//!   the judgement one planned worktree write stands on and the answer it gives:
+//!   what stood at the path when the write was judged,
+//!   the index entries a check accepts,
+//!   and what the write came to.
+//! - `merge_isolation_carry_place_private_names.rs`:
+//!   the private names one such write makes beside its path:
+//!   the name the new bytes are written under before they take the path,
+//!   and the removal of a name the write turned out not to need.
+//! - `merge_isolation_carry_place_take.rs`:
+//!   the take of the entry a planned write judged:
+//!   the rename that moves it aside,
+//!   the check of the identity and the bytes the take caught,
+//!   and the putting back of an entry that was not the one that was judged.
 //! - `merge_isolation_carry_place.rs`:
 //!   putting one planned worktree write in place,
 //!   or leaving a path alone because what stands there is not the entry that was judged.
@@ -712,6 +726,15 @@ pub mod merge_isolation_a_special_file_the_merge_changes;
 /// because their index entry carries the
 ///  `assume-unchanged` or `skip-worktree` mark.
 pub mod merge_isolation_marks_the_status_hides;
+
+/// The judgement one planned worktree write stands on and the answer it gives.
+pub mod merge_isolation_carry_place_judgement;
+
+/// The private names one such write makes beside its path.
+pub mod merge_isolation_carry_place_private_names;
+
+/// The take of the entry a planned write judged.
+pub mod merge_isolation_carry_place_take;
 
 /// Putting one planned worktree write in place,
 /// or leaving a path alone because what stands there is not the entry that was judged.
