@@ -123,6 +123,33 @@ move sibling hold it;
 which `a_prune_behind_a_shell_alias_from_a_subdirectory_restores_the_pointer`
 shows.
 
+## What the issue 6621 round measured
+
+Written on 2026-11-27,
+unapproved and non-final.
+The limit above is covered now for the three ways a command typed below the top
+of its repository gets past the wrapper's own root rule:
+`policies.require-root` at `off`,
+`policies.require-root` at `warn`,
+and the wrapper's own `--no-enforce-require-root`.
+Six controls in `entry_slot_refusals_read_every_spelling_tests.rs`
+start a removal and a move in a subdirectory of a fixture repository behind a
+`!git worktree ...` alias,
+one pair for each of the three ways,
+and each expects the bound-slot refusal and names the slot the refusal read.
+Every one of the six was shown red with the planning handed the typed directory
+in place of the top,
+which names no worktree at all,
+so all three spellings are refused by the slot reading as it stands and no
+release code changed.
+At `warn` the rule's finding and its warn-unsafe line are printed before a
+removal's refusal,
+and a move's refusal carries its own sentence alone:
+the move's refusal is built without the text the planning had already printed
+(`entry_zfs_slot_commands::move_refusal_of`).
+The round left that difference as it found it and wrote it into `SPEC.md`'s
+"Removal of a ZFS worktree clone" passage.
+
 ## Options
 
 ### A: refuse every shell alias in a repository that holds slot records

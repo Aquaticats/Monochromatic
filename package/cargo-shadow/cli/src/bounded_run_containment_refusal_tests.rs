@@ -288,3 +288,95 @@ fn a_child_that_was_not_reaped_is_named_before_the_scope_and_an_absent_scope_is_
         "a run whose scope was shown empty still carries a refusal: {settled:?}"
     );
 }
+
+/// The control of a refusal of a bare process group:
+/// it names the group and the wait,
+/// and the sentence about the journal it kept names no scope,
+/// so a person whose host can give no scope reads a message that is true of their run
+/// (the read of alpha.15,
+/// Low 9).
+#[test]
+fn the_refusal_of_a_process_group_carries_a_journal_sentence_that_names_no_scope() {
+    // What:     `GroupStop::MembersLeft.refusal()` is the reason a store of a process group gives when members are left.
+    // Why:      It is the reason an install or update refusal carries for this containment, so the message is assembled from the same
+    //           pieces a run assembles.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const reason = GroupStop.MembersLeft.refusal();
+    // ```
+    let reason: String = GroupStop::MembersLeft.refusal();
+    // What:     `crate::install::refusal_of_writers` is the one place both refusals build their message.
+    // Why:      Judging it here judges what an install and an update print, and the shim adds only its own line after it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const refusal = refusalOfWriters('lockfiles', reason);
+    // ```
+    let refusal: String = crate::install::refusal_of_writers("lockfiles", &reason);
+
+    assert!(
+        refusal.contains("the members of the process group could not be shown gone"),
+        "the refusal does not carry the reason of the process group: {refusal}"
+    );
+    assert!(
+        refusal.contains(crate::journal_recover::KEPT_JOURNAL),
+        "the refusal does not carry the one sentence about the kept journal: {refusal}"
+    );
+    assert!(
+        refusal.contains("nothing this run started is still running"),
+        "the refusal does not say when a later run settles the journal, in words a process group fits: {refusal}"
+    );
+    assert!(
+        !refusal.contains("scope"),
+        "the refusal of a process group names a scope, which such a run never had: {refusal}"
+    );
+}
+
+/// The control of the error a contained call prints when its stop could not settle it:
+/// it says what may still write and what the tool did not do,
+/// and it says nothing about a journal,
+/// because the refusal that keeps the journal says that once
+/// (`journal_recover::KEPT_JOURNAL`),
+/// and a call that ran outside any transaction has no journal to speak of.
+#[test]
+fn the_not_quiescent_error_says_nothing_about_a_journal() {
+    // What:     `RunError::NotQuiescent` is the error a contained call answers when its stop could not show every writer gone.
+    // Why:      Its text is printed by the callers that have no refusal around it, and the install and update refusals add the
+    //           sentence about the journal themselves.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const error = new RunError.NotQuiescent({ what: 'cargo update', shortfall: 'the stop waited 5s' });
+    // ```
+    let error: crate::bounded_run::RunError = crate::bounded_run::RunError::NotQuiescent {
+        what: "cargo update".to_string(),
+        shortfall: "the stop of the scope waited 5s for the kernel to report it empty".to_string(),
+    };
+
+    // What:     `error.to_string()` is what a caller prints for the error.
+    // Why:      The assertions judge the message a person reads, not the fields.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const said = String(error);
+    // ```
+    let said: String = error.to_string();
+
+    assert!(
+        said.contains("could not be stopped or shown to be gone"),
+        "the error does not say what the stop could not show: {said}"
+    );
+    assert!(
+        said.contains("the stop of the scope waited 5s for the kernel to report it empty"),
+        "the error does not carry the stop's own words: {said}"
+    );
+    assert!(
+        said.contains("this tool changed no file because of that"),
+        "the error does not say what the tool did not do: {said}"
+    );
+    assert!(
+        !said.contains("journal"),
+        "the error says what became of a journal, which the refusal that keeps one says once: {said}"
+    );
+}
