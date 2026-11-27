@@ -64,19 +64,6 @@ use super::the_relayed_bytes::{
 };
 
 /// What:
-///  How much of the child's error stream the relay keeps for the reading after the wait.
-/// Why:
-///   A clone prints megabytes of progress, and the words the reading needs are at the end;
-///   keeping the whole stream would let one command hold all of it.
-///   Sixty-four kilobytes is the bound the design names, and it holds a refusal's lines whole.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const KEPT_TAIL_BYTES = 65536;
-/// ```
-pub(super) const KEPT_TAIL_BYTES: usize = 65536;
-
-/// What:
 ///  How long one wait for the child's error stream lasts before the relay looks at the child again.
 /// Why:
 ///   `poll` returns the moment bytes arrive, so this slice is only how often an idle stream is looked at;
@@ -119,7 +106,9 @@ pub struct RelayedErrorStream {
     pub outcome: ChildOutcome,
     /// The child's process number, for the record of a lock it may hold.
     pub child_number: u32,
-    /// The last bytes the child wrote to its error stream, and no more than `KEPT_TAIL_BYTES` of them.
+    /// The last bytes the child wrote to its error stream,
+    /// and no more than `KEPT_TAIL_BYTES` of them,
+    /// which `the_relayed_bytes.rs` trims to.
     pub kept: Vec<u8>,
 }
 

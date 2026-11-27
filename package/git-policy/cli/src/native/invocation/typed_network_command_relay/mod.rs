@@ -24,17 +24,18 @@
 //!   and the words an `ssh` command needs to connect there.
 //! - `a_terminal_the_child_writes_its_error_stream_to.rs`:
 //!   the pseudo-terminal a child writes its error stream to when this process's standard error is a terminal.
+//! - `the_relayed_bytes.rs`:
+//!   the relayed bytes:
+//!   read as they arrive,
+//!   written on,
+//!   and kept as a bounded tail,
+//!   with the size that bound is.
 //! - `git_error_stream_relayed_as_it_arrives.rs`:
 //!   the child started with its error stream on a terminal or a pipe,
 //!   and the wait that reads it to the child's end.
 //! - `the_options_before_the_remote.rs`:
 //!   the first of a command's words that is not an option,
 //!   read with Git's own option table.
-//! - `the_relayed_bytes.rs`:
-//!   the relayed bytes:
-//!   read as they arrive,
-//!   written on,
-//!   and kept as a bounded tail.
 //! - `the_remote_a_typed_command_names.rs`:
 //!   the four command words,
 //!   the remote URL Git would use,
@@ -60,7 +61,7 @@ pub mod a_terminal_the_child_writes_its_error_stream_to;
 pub mod git_error_stream_relayed_as_it_arrives;
 /// The first of a command's words that is not an option, read with Git's own option table.
 pub mod the_options_before_the_remote;
-/// The relayed bytes: read as they arrive, written on, and kept as a bounded tail.
+/// The relayed bytes: read as they arrive, written on, and kept as a bounded tail of the size the file holds.
 pub mod the_relayed_bytes;
 /// The four command words, the remote URL Git would use, and whether ssh carries it.
 pub mod the_remote_a_typed_command_names;
