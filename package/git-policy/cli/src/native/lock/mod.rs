@@ -9,6 +9,11 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `holder_scan_evidence.rs`:
+//!   what one scan of a lock's holders reports:
+//!   the mechanism it read,
+//!   the processes holding the file open,
+//!   and the reasons it could not see a process or identify a descriptor.
 //! - `git_command_name.rs`:
 //!   whether a process's command name is Git's,
 //!   shared by both lock judgements.
@@ -28,6 +33,10 @@
 //! - `index_lock_holders_accounts.rs`:
 //!   which account owns one process of the scan,
 //!   which tells a holder this account cannot read from another account's.
+//! - `proc_fd_holder_scan.rs`:
+//!   the `/proc/<pid>/fd` scan for an open descriptor on one file,
+//!   newest process number first,
+//!   and the limit that cuts it short.
 //! - `index_lock_holders.rs`:
 //!   processes holding a lock file open,
 //!   found by device and inode.
@@ -104,6 +113,12 @@
 #[cfg(test)]
 mod git_stop_lock_tests;
 
+/// What one scan of a lock's holders reports:
+/// the mechanism it read,
+/// the processes holding the file open,
+/// and the reasons it could not see a process or identify a descriptor.
+pub mod holder_scan_evidence;
+
 /// Processes holding a lock file open,
 ///  found by device and inode.
 pub mod index_lock_holders;
@@ -111,6 +126,12 @@ pub mod index_lock_holders;
 /// Which account owns one process of the scan,
 ///  which tells a holder this account cannot read from another account's.
 pub mod index_lock_holders_accounts;
+
+/// The `/proc/<pid>/fd` scan for an open descriptor on one file,
+///  newest process number first,
+///  and the limit that cuts it short.
+#[cfg(unix)]
+pub mod proc_fd_holder_scan;
 
 /// Parsers of `lsof -F pcDi` records and Restart Manager lines,
 ///  matched by device and inode.
