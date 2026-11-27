@@ -834,6 +834,16 @@ so they detect the regression.
 which is the mode plan step 5 wires
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 step 5).
+The driver keeps what every guest driver does in `e2e/guest-host/`,
+and its arms live in `e2e/adoption-guest-arms/`,
+one file per arm:
+the adoption and store controls,
+the store's dataset and its publication-fsync probe,
+the sweep,
+the holder scan,
+the unmount mechanics,
+the delegation attempts,
+and the `snapdir` matrix.
 The modes are modes of the one wrapper executable now, so every arm starts the
  built wrapper under the installed ZED history event's name or through the words
  `monochromatic-git-policy-cli zfs-root <mode>`, and the link's name and the
@@ -1047,6 +1057,10 @@ step 8,
 
 `start-probe-guest.ts` runs the root probe's own arms in a guest of the same
 recipe:
+its arms live in `e2e/start-probe-arms/`,
+one file per group of them,
+and the names they share and the shell header every arm starts with are in
+`probe-fixture.ts`.
 the compatibility gate,
 the private namespace and the scratch tmpfs,
 the exclusive attach of the probe dataset's `ready` snapshot,
@@ -1103,4 +1117,31 @@ node e2e/mount-git-worktree-clone-datasets-guest.ts prepare --name <guest> --log
 node e2e/start-probe-guest.ts probe-dataset --name <guest> --log-dir <dir>
 node e2e/start-probe-guest.ts no-configuration --name <guest> --log-dir <dir>
 node e2e/mount-git-worktree-clone-datasets-guest.ts destroy --name <guest> --log-dir <dir>
+```
+
+## The step 22 measurement driver
+
+`zfs-step-22-measurements-guest.ts` runs plan step 22's guest half in a guest of
+the same recipe:
+the add against ordinary Git with an interleaved control,
+the mount request's wait,
+the unmount's with the holder scan,
+the sweep's cost at sixteen and at sixty-four clones,
+what expiration and removal free,
+the forced arm's three waits,
+and the snapshot-destroy request budget
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 22).
+Its build,
+its two pools,
+its measurement arm
+and the holder scan beside it are in `e2e/step-22-arms/`,
+and the numbers one run took are recorded in
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`;
+no task runs the driver,
+so a round that needs the numbers again runs it by hand.
+
+```sh
+# package/git-policy/cli: one throwaway guest for the whole measurement
+node e2e/zfs-step-22-measurements-guest.ts all --name <guest> --log-dir <dir>
 ```
