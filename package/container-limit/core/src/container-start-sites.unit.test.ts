@@ -320,11 +320,15 @@ const repositoryRoot = join(
 );
 
 /**
- Folders the scan skips: documents and paused packages.
+ Folders the scan skips: documents, paused packages, and this package's own fixtures for the readers it tests.
+
+The fixture folder holds Rust sources that state one answer each for the reader (`rust-sources-in-the-scan.unit.test.ts`);
+a fixture is not a program of this repository, so the ledger lists none of them.
  */
 const SKIPPED_FOLDERS: readonly string[] = [
   'doc/',
   'package-paused/',
+  'package/container-limit/core/src/rust-source-fixtures/',
 ];
 
 /**

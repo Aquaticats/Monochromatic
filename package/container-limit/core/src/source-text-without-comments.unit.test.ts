@@ -4,7 +4,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { stripSourceComments, } from './source-text-without-comments.ts';
+import {
+  stripSourceComments,
+  type SourceLanguage,
+} from './source-text-without-comments.ts';
 
 /**
  The blanked text of a fixture, with the language whose comment syntax it holds.
@@ -14,7 +17,7 @@ function blanked({
   language,
 }: {
   readonly text: string;
-  readonly language: 'toml' | 'typescript' | 'yaml';
+  readonly language: SourceLanguage;
 },): string {
   return stripSourceComments({
     text,
@@ -105,5 +108,77 @@ await describe({
         expect(blank.includes('podman',),).toBe(false,);
       },
     },),
+
+    //region Rust comments
+
+    it({
+      name: 'blanks a Rust line comment and a Rust doc comment, of all three kinds',
+      fn: async () => {
+        const blank = blanked({
+          text: 'let x = 1; // podman run\n/// podman run\nfn f() {}\n//! podman run\n',
+          language: 'rust',
+        },);
+        expect(blank.includes('podman',),).toBe(false,);
+        expect(blank.includes('fn f() {}',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'blanks a Rust block comment whole, including the comment nested inside it',
+      fn: async () => {
+        const blank = blanked({
+          text: '/* a /* b */ podman run */ x',
+          language: 'rust',
+        },);
+        expect(blank.includes('podman',),).toBe(false,);
+        expect(blank.endsWith('x',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'keeps a Rust raw string whole, so the comment opener in it blanks nothing after it',
+      fn: async () => {
+        const blank = blanked({
+          text: 'const NOTE: &str = r#"a "quote, and /* never a comment"#;\nfn f() {}',
+          language: 'rust',
+        },);
+        expect(blank.includes('/* never a comment',),).toBe(true,);
+        expect(blank.endsWith('fn f() {}',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'keeps a Rust raw string with three hashes whole, and blanks the comment after it',
+      fn: async () => {
+        const blank = blanked({
+          text: 'const Q: &str = r###"a #" b // c"###; // podman run\nlet y = 2;',
+          language: 'rust',
+        },);
+        expect(blank.includes('r###"a #" b // c"###',),).toBe(true,);
+        expect(blank.includes('podman',),).toBe(false,);
+        expect(blank.endsWith('let y = 2;',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'reads a Rust char literal holding a quote as one character, not as the start of a string',
+      fn: async () => {
+        const blank = blanked({
+          text: 'const Q: char = \'"\'; // podman run\nlet y = 2;',
+          language: 'rust',
+        },);
+        expect(blank.includes('podman',),).toBe(false,);
+        expect(blank.endsWith('let y = 2;',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'reads a Rust lifetime as code, so the comment after it is still blanked',
+      fn: async () => {
+        const blank = blanked({
+          text: 'fn f<\'static>(x: &\'static str) -> &\'static str { x }\n// podman run\nlet y = 2;',
+          language: 'rust',
+        },);
+        expect(blank.includes('podman',),).toBe(false,);
+        expect(blank.endsWith('let y = 2;',),).toBe(true,);
+      },
+    },),
+
+    //endregion Rust comments
   ],
 },);

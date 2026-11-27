@@ -21,7 +21,7 @@ import {
 /**
  Languages whose comment syntax the scan knows.
  */
-export type SourceLanguage = 'toml' | 'typescript' | 'yaml';
+export type SourceLanguage = 'rust' | 'toml' | 'typescript' | 'yaml';
 
 /**
  The comment syntax each extension a scanned file can hold.
@@ -33,6 +33,10 @@ export const SOURCE_LANGUAGE_BY_EXTENSION: ReadonlyMap<string, SourceLanguage> =
   [
     '.mjs',
     'typescript',
+  ],
+  [
+    '.rs',
+    'rust',
   ],
   [
     '.toml',
@@ -274,7 +278,7 @@ export function stripSourceComments({
    The file's characters, whose comment characters this scan blanks.
    */
   const characters = text.split('',);
-  if (language === 'typescript')
+  if ((language === 'typescript') || (language === 'rust'))
     blankSlashComments({
       characters,
       from: 0,
