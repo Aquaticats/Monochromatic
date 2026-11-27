@@ -1156,3 +1156,13 @@ pub mod lean_text;
 /// The tests of the ban on the lean-folder tools starting cargo or themselves.
 #[cfg(test)]
 mod lean_no_recursion_tests;
+
+/// Test support:
+/// the files of this crate's source tree,
+/// each one visited once and never read through a link.
+#[cfg(test)]
+mod source_tree_files;
+
+/// The control of the walk a guard reads this crate's sources through.
+#[cfg(test)]
+mod source_tree_files_tests;
