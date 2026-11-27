@@ -138,6 +138,14 @@
 //!   the conflicted files of a merge tree and the reading of `git merge-tree` output into conflicts.
 //! - `merge_second_pass_finish_stops.rs`:
 //!   which options make the finish of a stopped operation stop where Git would stop.
+//! - `merge_second_pass_finish_words.rs`:
+//!   the words a finish reads:
+//!   a `branch.<name>.mergeoptions` value split as Git splits it,
+//!   the command that ends the operation,
+//!   and the message without Git's conflict hint.
+//! - `merge_second_pass_finish_nesting.rs`:
+//!   how deep one finish may start the next,
+//!   and the todo lines that bound it.
 //! - `merge_second_pass_finish.rs`:
 //!   the finish of a stopped operation,
 //!   like a clean run,
@@ -312,6 +320,16 @@ pub mod merge_second_pass_worktree_unchanged;
 
 /// The sentences the word-level second pass ends a stopped operation with.
 pub mod merge_second_pass_worktree_words;
+
+/// The words a finish reads:
+/// a `branch.<name>.mergeoptions` value split as Git splits it,
+/// the command that ends the operation,
+/// and the message without Git's conflict hint.
+pub mod merge_second_pass_finish_words;
+
+/// How deep one finish may start the next,
+/// and the todo lines that bound it.
+pub mod merge_second_pass_finish_nesting;
 
 /// The finish of a stopped operation,
 /// like a clean run,
