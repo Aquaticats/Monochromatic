@@ -205,51 +205,47 @@ async function waitForStop({
 }
 
 /**
- Run one complete argument array with no shell interpretation.
+ Start one complete argument array, with no shell interpretation.
 
  @param command - executable to start
- 
+
  @param args - its arguments, each passed as one argument with no shell interpretation
- 
- @param capture - whether to capture output instead of streaming it to the terminal
- 
- @param allowFailure - whether a nonzero exit is evidence the caller inspects rather than a failed step
- 
+
+ @param capture - whether to pipe both output streams for a caller to read instead of streaming them to the terminal
+
  @param cwd - working directory, which defaults to this process's
- 
+
  @param env - environment, which defaults to this process's
 
- @param deadlineMilliseconds - how long the command may run before it and everything it started are stopped, absent
-   when the caller has no bound for it; a bound also releases the wait at the stop's grace, for output that something
-   the stop cannot end still holds
+ @param leadOwnProcessGroup - whether the command leads a process group of its own, which a bound needs so its stop
+   reaches everything the command started and not only the program named here: a `podman run` client stopped alone
+   leaves its container running
 
- @returns exit state and captured output for steps that read either
-
- @throws NativeVerificationError when the command could not run, when it ran past a deadline it was given, or when it
-   exited nonzero without `allowFailure`
+ @returns the started command, with the step name its refusals are said by
 
  @example
  ```ts
- const outcome = await runCommand({ command: 'podman', args: ['--version'], capture: true });
+ const started = startCommand({ command: 'podman', args: ['--version'], capture: true });
  ```
  */
-export async function runCommand({
+export function startCommand({
   command,
   args,
   capture = false,
-  allowFailure = false,
   cwd = process.cwd(),
   env = process.env,
-  deadlineMilliseconds,
+  leadOwnProcessGroup = false,
 }: {
   readonly command: string;
   readonly args: readonly string[];
   readonly capture?: boolean;
-  readonly allowFailure?: boolean;
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
-  readonly deadlineMilliseconds?: number;
-}): Promise<CommandOutcome> {
+  readonly leadOwnProcessGroup?: boolean;
+}): {
+  readonly child: ChildProcess;
+  readonly step: string;
+} {
   /**
    Command and first argument, enough to name the step in an error without echoing every argument.
    */
@@ -257,13 +253,7 @@ export async function runCommand({
     ? command
     : `${command} ${args[0]}`;
   /**
-   The bound this command is given, absent when it has none, so one narrowed value decides the stop below.
-   */
-  const bound = deadlineMilliseconds;
-  /**
    The started command; a command that cannot start surfaces through its streams and its close event.
-   A bounded command leads a process group of its own, so its deadline stops everything it started and not only the
-   program named here: a `podman run` client stopped alone leaves its container running.
    */
   const child = spawn(
     command,
@@ -271,7 +261,7 @@ export async function runCommand({
     {
       cwd,
       env,
-      detached: bound !== undefined,
+      detached: leadOwnProcessGroup,
       stdio: capture
         ? [
           'ignore',
@@ -281,6 +271,57 @@ export async function runCommand({
         : 'inherit',
     },
   );
+  return {
+    child,
+    step,
+  };
+}
+
+/**
+ Wait for one command that has already started, under the bound its caller gives it, and report what it answered.
+
+ The bound begins when this function is called and never counts the time the command took to start, which is what a
+ caller holding a fact of its own needs: a control waits for the record its stand-in writes before it starts the clock
+ of the bound it asserts, so a host that is slow to start a process spends the control's own window and never the
+ bound under test (issue 6608). {@link runCommand} starts a command and hands it here in one call.
+
+ @param child - the started command, which leads a process group of its own when a bound is given so the stop reaches
+   everything it started
+
+ @param step - command and first argument, as {@link startCommand} answered them, which a refusal names
+
+ @param allowFailure - whether a nonzero exit is evidence the caller inspects rather than a failed step
+
+ @param deadlineMilliseconds - how long the command may run before it and everything it started are stopped, absent
+   when the caller has no bound for it; a bound also releases the wait at the stop's grace, for output that something
+   the stop cannot end still holds
+
+ @returns exit state and captured output for steps that read either
+
+ @throws NativeVerificationError when the command could not run, when it ran past a bound it was given, or when it
+   exited nonzero without `allowFailure`
+
+ @example
+ ```ts
+ const started = startCommand({ command: 'podman', args: ['--version'], capture: true });
+ const outcome = await runStartedCommand({ ...started, deadlineMilliseconds: 600_000 });
+ ```
+ */
+export async function runStartedCommand({
+  child,
+  step,
+  allowFailure = false,
+  deadlineMilliseconds,
+}: {
+  readonly child: ChildProcess;
+  readonly step: string;
+  readonly allowFailure?: boolean;
+  readonly deadlineMilliseconds?: number;
+}): Promise<CommandOutcome> {
+  /**
+   The bound this command is given, absent when it has none, so one narrowed value decides the stop below.
+   */
+  const bound = deadlineMilliseconds;
   /**
    Stand-in for a stream that was not piped, so streamed output counts as empty captured output.
    */
@@ -372,6 +413,71 @@ export async function runCommand({
       `${step} failed (status ${String(outcome.status ?? 'none')}, signal ${outcome.signal ?? 'none'}). ${outcome.stderr}`,
     );
   return outcome;
+}
+
+/**
+ Run one complete argument array with no shell interpretation, under a bound the caller gives it.
+
+ @param command - executable to start
+
+ @param args - its arguments, each passed as one argument with no shell interpretation
+
+ @param capture - whether to capture output instead of streaming it to the terminal
+
+ @param allowFailure - whether a nonzero exit is evidence the caller inspects rather than a failed step
+
+ @param cwd - working directory, which defaults to this process's
+
+ @param env - environment, which defaults to this process's
+
+ @param deadlineMilliseconds - how long the command may run from its start before it and everything it started are
+   stopped, absent when the caller has no bound for it; a bound also releases the wait at the stop's grace, for output
+   that something the stop cannot end still holds
+
+ @returns exit state and captured output for steps that read either
+
+ @throws NativeVerificationError when the command could not run, when it ran past a deadline it was given, or when it
+   exited nonzero without `allowFailure`
+
+ @example
+ ```ts
+ const outcome = await runCommand({ command: 'podman', args: ['--version'], capture: true });
+ ```
+ */
+export async function runCommand({
+  command,
+  args,
+  capture = false,
+  allowFailure = false,
+  cwd = process.cwd(),
+  env = process.env,
+  deadlineMilliseconds,
+}: {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly capture?: boolean;
+  readonly allowFailure?: boolean;
+  readonly cwd?: string;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly deadlineMilliseconds?: number;
+}): Promise<CommandOutcome> {
+  /**
+   The command, started so a bound stops everything it starts and its refusals are said by its step name.
+   */
+  const started = startCommand({
+    command,
+    args,
+    capture,
+    cwd,
+    env,
+    leadOwnProcessGroup: deadlineMilliseconds !== undefined,
+  });
+  return await runStartedCommand({
+    child: started.child,
+    step: started.step,
+    allowFailure,
+    ...(deadlineMilliseconds === undefined ? {} : { deadlineMilliseconds, }),
+  },);
 }
 
 /**

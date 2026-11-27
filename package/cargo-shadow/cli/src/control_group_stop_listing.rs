@@ -147,6 +147,13 @@ impl ControlGroup {
         if crate::failpoints::fires(crate::failpoints::Point::ContainmentScopeGoneAtListing) {
             return Listing::ScopeGone;
         }
+        // A test makes the listing read no member while the kernel's last word said the scope was populated: the window between
+        // that read and the listing is too short to produce from outside, because a member that leaves before the read makes the
+        // stop report the scope empty at once.
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::ContainmentListingFindsNoMember) {
+            return Listing::Read(Vec::new());
+        }
         // What:     `let mut clock: ListingClock = ListingClock::starting_now();` is this listing's own clock, which holds
         //           the point it stops reading at (a control can arm it; see `ListingClock`).
         // Why:      Every read below asks it between reads, so one bound serves the whole walk and a control reaches it.
@@ -168,36 +175,11 @@ impl ControlGroup {
             // ```
             Err(error) => return Listing::Unreadable(Vec::new(), error.to_string()),
         };
-        // `members()` reads a removed group as empty; the directory itself says whether it was removed.
-        if own.is_empty() {
-            match fs::metadata(&self.directory) {
-                Ok(_found) => {}
-                // A scope the manager collected is gone; a directory this process may not examine is not, and the words say
-                // which of the two it was.
-                Err(error)
-                    if error.kind() == io::ErrorKind::NotFound
-                        || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) =>
-                {
-                    return Listing::ScopeGone;
-                }
-                // What:     `Listing::Unreadable(Vec::new(), format!(...))` is the same answer as above with the
-                //           directory's own error.
-                // Why:      `fs::metadata` failing for any other reason is not a scope the manager collected.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // return { kind: 'unreadable', members: [], reason: `its directory could not be examined (${error})` };
-                // ```
-                Err(error) => {
-                    return Listing::Unreadable(
-                        Vec::new(),
-                        format!(
-                            "{} could not be examined ({error})",
-                            self.directory.display()
-                        ),
-                    );
-                }
-            }
+        // `members()` reads a removed group as one with no members, so an empty list means either an empty scope or a scope the
+        // manager removed, and the directory's own answer says which. A directory this process may not examine is neither: the read
+        // of its `cgroup.procs` above failed with that same reason already, so no case of its own is left here.
+        if own.is_empty() && the_group_is_gone(&self.directory) {
+            return Listing::ScopeGone;
         }
         let mut members: Vec<MemberListing> = Vec::new();
         // The scope's own group first, then every group below it, depth first.
@@ -247,7 +229,7 @@ impl ControlGroup {
                         pending.push((path, Some(path_below)));
                     }
                 }
-                // The same answer as above: the members read before this group are kept.
+                // The same answer as above: the members read so far are kept, this group's own included.
                 Err(reason) => return Listing::Unreadable(members, reason),
             }
         }
@@ -352,12 +334,7 @@ fn read_procs(group: &Path) -> Result<Option<Vec<i32>>, String> {
     let text: String = match fs::read_to_string(&path) {
         Ok(found) => found,
         // `ENODEV` is what a read of a removed group's file says, and `NotFound` is what an absent directory says.
-        Err(error)
-            if error.kind() == io::ErrorKind::NotFound
-                || error.raw_os_error() == Some(Errno::NODEV.raw_os_error()) =>
-        {
-            return Ok(None);
-        }
+        Err(error) if is_absence(&error) => return Ok(None),
         Err(error) => return Err(format!("{} cannot be read ({error})", path.display())),
     };
     let mut found: Vec<i32> = Vec::new();
@@ -416,4 +393,38 @@ fn sub_groups(group: &Path) -> Result<Vec<(PathBuf, String)>, String> {
     }
     groups.sort();
     return Ok(groups);
+}
+
+/// What:
+/// `fn is_absence(error: &io::Error) -> bool` says whether an error is the answer a removed group gives:
+/// `NotFound` for a directory that is gone,
+/// or `ENODEV` for a control file of one.
+/// Why:
+/// The two reads of a group here ask that one question,
+/// and a group that cannot be read for another reason must not read as a group that was removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isAbsence(error: NodeJS.ErrnoException): boolean
+/// ```
+fn is_absence(error: &io::Error) -> bool {
+    return error.kind() == io::ErrorKind::NotFound
+        || error.raw_os_error() == Some(Errno::NODEV.raw_os_error());
+}
+
+/// What:
+/// `fn the_group_is_gone(group: &Path) -> bool` says whether a group's own directory is no longer there.
+/// Why:
+/// `members()` answers a removed group as one with no members,
+/// so only the directory can tell a scope the manager collected from a scope that simply holds nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theGroupIsGone(group: string): boolean
+/// ```
+fn the_group_is_gone(group: &Path) -> bool {
+    return match fs::metadata(group) {
+        Ok(_found) => false,
+        Err(error) => is_absence(&error),
+    };
 }
