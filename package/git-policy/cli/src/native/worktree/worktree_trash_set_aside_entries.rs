@@ -1,6 +1,7 @@
 //! What:
-//!  The entries a snapshot's leave-out sets aside,
-//! and the checks and sweeps it applies to them:
+//!  The entries a snapshot's leave-out sets aside:
+//! the record of where they go and how many were moved,
+//! the checks and sweeps it applies to them,
 //! whether a name is another
 //!  command's stage container,
 //! the sweep that removes those from a directory moved whole,
@@ -19,6 +20,7 @@
 //! so it is
 //!  removed while the leave-out runs rather than moved.
 //! These are the checks the walk asks about one entry at a time,
+//! and the record the walk keeps of them,
 //! kept
 //!  in a file of their own so the walk itself stays readable.
 //!
@@ -27,16 +29,21 @@
 //! const { namesTheContainer, removeContainersBeneath, inheritedTrashEntries } = setAsideEntries;
 //! ```
 
-use super::{
-    Aside,
-    TRASH_PARENT,
-    Trash,
+use crate::fs_beneath::{
+    ObjectId,
+    open_directory_at,
+    plain_components,
 };
-use crate::fs_beneath::open_directory_at;
+use crate::fs_beneath_walk_chain::open_directory_beneath;
+use crate::the_names_and_the_manifest_of_the_trash::TRASH_PARENT;
 use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_path_failure_message::path_failure;
-use crate::worktree_trash_manifest::is_trash_name;
+use crate::worktree_trash_manifest::{
+    entry_name,
+    is_trash_name,
+};
 use crate::worktree_trash_remove::remove_tree_beneath;
+use crate::worktree_trash_set_aside::Trash;
 use std::ffi::{
     OsStr,
     OsString,
@@ -47,6 +54,110 @@ use std::path::{
     Path,
     PathBuf,
 };
+
+/// Where left-out directories go:
+/// into one trash directory when there is one,
+/// else they are removed in place.
+pub(super) struct Aside {
+    /// The snapshot,
+    /// held open;
+    /// every directory moved or removed is reached from it by plain names.
+    pub(super) root: File,
+    /// The path of the snapshot,
+    /// for messages.
+    pub(super) stage: PathBuf,
+    /// The trash directory,
+    /// absent when the leave-out removes in the foreground.
+    pub(super) trash: Option<Trash>,
+    /// The identity of each directory moved into the trash,
+    /// in the order moved.
+    pub(super) entries: Vec<ObjectId>,
+    /// How many directories were set aside.
+    pub(super) count: usize,
+}
+
+impl Aside {
+    /// The held directory that contains `relative`,
+    /// and the entry's name in it.
+    fn holder(
+        &self,
+        relative: &Path,
+    ) -> Result<(File, OsString), String> {
+        let names: Vec<OsString> = path_failure(
+            plain_components(relative),
+            relative,
+            "is not a plain path inside the snapshot",
+        )?;
+        let Some((name, parents)) = names.split_last() else {
+            return Err(format!("{} names the snapshot itself", relative.display()));
+        };
+        let parent: File = path_failure(
+            open_directory_beneath(&self.root, parents),
+            self.stage.join(relative).as_path(),
+            "is reached through a link or another mount in the snapshot",
+        )?;
+        return Ok((parent, name.clone()));
+    }
+
+    /// Set one directory aside by renaming it into the trash,
+    /// or remove it when there is no trash or when it is another command's stage
+    ///  container;
+    /// `relative` is its path below the snapshot.
+    /// Why:
+    ///   A stage container holds another worktree's ignored state,
+    /// credentials included,
+    /// and it is removed here,
+    ///  before the snapshot is installed,
+    /// because the trash stands inside the new worktree until the emptying runs and a
+    ///  command that runs `git add --all` in that window stages what it holds;
+    /// emptying the trash afterwards does not
+    ///  take those blobs out of the index.
+    /// Everything else still waits for the emptying,
+    /// so the add pays only the
+    ///  container's own removal.
+    pub(super) fn put(
+        &mut self,
+        relative: &Path,
+    ) -> Result<(), String> {
+        // A container is removed here and never renamed into the trash: the pattern is None for it either way.
+        let direct_container: bool = names_the_container(relative);
+        if !direct_container {
+            // A directory set aside whole can hold one, because a container stands beside the destination of one add and a
+            //  nested worktree is another such place; the sweep removes those before the rename, so a kill before the
+            //  emptying cannot leave another command's credentials in the trash.
+            let (holder, name): (File, OsString) = self.holder(relative)?;
+            remove_containers_beneath(&holder, name.as_os_str(), &self.stage.join(relative))?;
+        }
+        let (parent, name): (File, OsString) = self.holder(relative)?;
+        let shown: PathBuf = self.stage.join(relative);
+        let into_trash: Option<&Trash> = match direct_container {
+            true => None,
+            false => self.trash.as_ref(),
+        };
+        match into_trash {
+            Some(trash) => {
+                let to: String = entry_name(self.entries.len());
+                let moved: ObjectId =
+                    trash.set_aside(&parent, name.as_os_str(), to.as_str(), shown.as_path())?;
+                self.entries.push(moved);
+            }
+            None => {
+                path_failure(
+                    remove_tree_beneath(
+                        shown.parent().unwrap_or(self.stage.as_path()),
+                        &parent,
+                        name.as_os_str(),
+                        None,
+                    ),
+                    shown.as_path(),
+                    "cannot be removed",
+                )?;
+            }
+        }
+        self.count += 1;
+        return Ok(());
+    }
+}
 
 /// What:
 ///  Remove every stage container that lies anywhere below the directory `name` of `holder`,
