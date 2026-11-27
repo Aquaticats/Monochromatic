@@ -70,6 +70,12 @@
 //! - `service_protocol_messages_and_name_checks.rs`:
 //!   the protocol messages as typed values,
 //!   and the checks on the names they carry.
+//! - `service_protocol_decode_the_words_of_a_refused_line.rs`:
+//!   the sentence a protocol line that cannot be read is refused with.
+//! - `service_protocol_decode_service_answers.rs`:
+//!   reads one line of the protocol as a service message,
+//!   checking every number,
+//!   name and figure of a landing.
 //! - `service_protocol_decode_lines_to_messages.rs`:
 //!   reads one line of the protocol as a client message or a service message,
 //!   checking every field.
@@ -354,6 +360,14 @@ pub mod service_protocol_encode_messages_to_lines;
 /// checking every field.
 /// The reader of the message that names the push records which can no longer run.
 pub mod service_protocol_forgetting_programs;
+
+/// The sentence a protocol line that cannot be read is refused with.
+pub mod service_protocol_decode_the_words_of_a_refused_line;
+
+/// Reads one line of the protocol as a service message,
+/// checking every number,
+/// name and figure of a landing.
+pub mod service_protocol_decode_service_answers;
 
 pub mod service_protocol_decode_lines_to_messages;
 
