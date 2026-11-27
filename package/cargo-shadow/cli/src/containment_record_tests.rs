@@ -449,10 +449,12 @@ fn the_weaker_path_still_stops_the_process_group_at_the_bound() {
         &mut |limit| {
             let delay: f64 = limit.as_secs_f64() + 0.5;
             let script: String = format!(
-                "(: > {ready}; sleep {delay}; : > {late}) & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; sleep 600",
+                "(: > {ready}; sleep {delay}; : > {late}) & echo $! > {pid}; n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; sleep 600",
                 ready = ready.display(),
                 late = marker.display(),
-                pid = writer_file.display()
+                pid = writer_file.display(),
+                // The writer makes the gate; where it fails to, the loop gives up instead of polling for ever (issue 6576).
+                looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20))
             );
             return output_within(
                 Command::new("sh").args(["-c", &script]),
@@ -609,10 +611,12 @@ fn the_weaker_path_stops_a_writer_of_the_process_group_at_a_normal_exit() {
     let pid_file = plain.path().join("writer-pid");
     // The writer closes its inherited pipes (so the runner's drain does not wait for it) and keeps running after the payload exits.
     let script: String = format!(
-        "(: > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        "(: > {ready}; sleep 2; : > {late}) >/dev/null 2>&1 </dev/null & echo $! > {pid}; n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; exit 0",
         pid = pid_file.display(),
         ready = ready.display(),
-        late = marker.display()
+        late = marker.display(),
+        // The writer makes the gate; where it fails to, the loop gives up instead of polling for ever (issue 6576).
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20))
     );
 
     let result = output_within(Command::new("sh").args(["-c", &script]), None, &bound());

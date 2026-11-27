@@ -151,10 +151,12 @@ fn a_launcher_that_has_not_made_its_scope_yet_is_not_read_as_a_run_that_ended() 
     // `spawn` returns at once (the shell has exec'd), and the scope is absent until the test opens the gate.
     let gate: PathBuf = root.path().join("gate");
     let mut held: Command = Command::new("sh");
+    // The test opens the gate; where it fails before it does, the loop counts its looks and gives up on its own (issue 6576).
     held.arg("-c")
         .arg(format!(
-            "while [ ! -e {} ]; do sleep 0.02; done; exec \"$@\"",
-            gate.display()
+            "n=0; while [ ! -e {gate} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; exec \"$@\"",
+            gate = gate.display(),
+            looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20))
         ))
         .arg("sh")
         .arg(launch.get_program())
@@ -325,10 +327,12 @@ fn a_discovery_whose_descendant_holds_the_pipes_ends_at_its_deadline() {
     // The direct program records its own process id, starts a descendant that records its id, says it is ready and holds the
     // inherited pipes open, waits for that readiness, and exits: both facts of the claim are established before the deadline.
     let script: String = format!(
-        "echo $$ > {shell}; sh -c 'echo $$ > {descendant}; : > {ready}; exec sleep 5' & while [ ! -e {ready} ]; do sleep 0.01; done; exit 0",
+        "echo $$ > {shell}; sh -c 'echo $$ > {descendant}; : > {ready}; exec sleep 5' & n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.01; n=$((n+1)); done; exit 0",
         shell = shell_file.display(),
         descendant = descendant_file.display(),
-        ready = ready_file.display()
+        ready = ready_file.display(),
+        // The descendant makes the gate; where it fails to, the loop gives up instead of polling for ever (issue 6576).
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(10))
     );
     let bound: Duration = Duration::from_millis(2500);
     let settings: RouteSettings = RouteSettings {

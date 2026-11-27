@@ -109,9 +109,12 @@ const FIXTURE_MOVE_INTO: &str = "CARGO_SHADOW_ROUND_SIXTEEN_MOVE_INTO";
 /// had at the moment of the spawn.
 fn gated_systemd_run(directory: &Path) -> PathBuf {
     let script: PathBuf = directory.join("gated-systemd-run");
+    // The gate is one the test opens; where the test fails before it does, the loop counts its looks and gives up on its own, so a
+    // stand-in left behind holds no slot for the rest of the machine's uptime (issue 6576).
     let text: String = format!(
-        "#!/bin/sh\nd={dir}\ni=1\nwhile ! mkdir \"$d/slot-$i\" 2>/dev/null; do i=$((i+1)); done\necho $$ > \"$d/pid-$i.part\"; mv \"$d/pid-$i.part\" \"$d/pid-$i\"\nwhile [ ! -e \"$d/open-$i\" ]; do sleep 0.01; done\nexec systemd-run \"$@\"\n",
-        dir = directory.display()
+        "#!/bin/sh\nd={dir}\ni=1\nwhile ! mkdir \"$d/slot-$i\" 2>/dev/null; do i=$((i+1)); done\necho $$ > \"$d/pid-$i.part\"; mv \"$d/pid-$i.part\" \"$d/pid-$i\"\nn=0\nwhile [ ! -e \"$d/open-$i\" ] && [ \"$n\" -lt {looks} ]; do sleep 0.01; n=$((n+1)); done\nexec systemd-run \"$@\"\n",
+        dir = directory.display(),
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(10))
     );
     fs::write(&script, text).expect("write the stand-in");
     fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).expect("make it executable");
@@ -986,8 +989,10 @@ fn an_unsuccessful_shutdown_returns_not_quiescent_at_the_quiescence_bound() {
         .expect("a journal");
     let ready: PathBuf = root.path().join("writer-ready");
     let script: String = format!(
-        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
-        ready = ready.display()
+        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; exit 0",
+        ready = ready.display(),
+        // The writer makes the gate; where it fails to, the loop gives up instead of polling for ever (issue 6576).
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20))
     );
     crate::failpoints::arm(crate::failpoints::Point::ContainmentSurvivor);
     let started = std::time::Instant::now();
