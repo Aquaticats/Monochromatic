@@ -61,6 +61,58 @@ use std::path::{
 };
 
 /// What:
+///  The refusal of a merge record this command cannot read,
+///  with the way a person ends it.
+/// Why:
+///  The first read of this folder runs on the start of every wrapped command in the worktree
+///  (`invocation/startup_gate.rs`),
+///  so a name no read passes stops every command in that repository;
+///  a line that named the file and no way out left the person holding a repository nothing of it could enter.
+///  That is the one thing this package's diagnostics never do: each names what failed, what it found and every way out
+///  (`AGENTS.md`, rule `DGT`).
+///  Nothing was changed when this answers, because every record is read before any merge is settled,
+///  so the line may say so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aRecordThisCommandCannotRead(record: string, error: Error): Error { const waysForward = error.kind === 'invalid' ? '... remove it, and run the command again.' : '... read that file, or remove it ... and run the command again.'; return new Error(`${readingFailed(record, error)}. Nothing was changed. ${waysForward}`); }
+/// ```
+fn a_record_this_command_cannot_read(
+    record: &Path,
+    error: &std::io::Error,
+) -> RecoveryError {
+    // What: the way out, chosen by what the read found: a name that is no record of this program's, or a file that is one
+    //  and could not be read.
+    // Why:  a pipe and an oversized file are removed; a file this account may not read is made readable,
+    //  and only a name that holds no running merge's record may be removed.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const waysForward = notAPlainFile(error) ? 'This program writes every merge record as a small plain file, so nothing at that name is a record of a merge: remove it, and run the command again.' : 'Ways forward: read that file, or remove it if no merge is running in this worktree, and run the command again.';
+    // ```
+    let ways_forward: &str = match error.kind() {
+        std::io::ErrorKind::InvalidInput | std::io::ErrorKind::InvalidData => {
+            "This program writes every merge record as a small plain file, so nothing at that name is a record of a merge: \
+             remove it, and run the command again."
+        }
+        _ => {
+            "Ways forward: read that file, or remove it if no merge is running in this worktree, and run the command again."
+        }
+    };
+    // What: the refusal, whose first clause names the file and what the operating system answered.
+    // Why:  a person met the line once per command and needs the file and the step in the same sentence.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return new Error(`${ioFailure('reading', record, error)}. Nothing was changed. ${waysForward}`);
+    // ```
+    return RecoveryError(format!(
+        "{}. Nothing was changed. {ways_forward}",
+        io_failure("reading", record, error)
+    ));
+}
+
+/// What:
 ///  Whether the worktree's Git directory holds an intent record that recovery must look at:
 /// one whose owner is
 ///  dead,
@@ -79,7 +131,7 @@ pub fn merge_intents_to_recover(git_dir: &Path) -> Result<bool, RecoveryError> {
         let bytes: Vec<u8> = match read_plain_file(record.as_path(), SMALL_FILE_LIMIT) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(io_failure("reading", record.as_path(), &error)),
+            Err(error) => return Err(a_record_this_command_cannot_read(record.as_path(), &error)),
         };
         let Some(intent) = parse_merge_intent(bytes.as_slice()) else {
             return Ok(true);
@@ -145,7 +197,9 @@ pub async fn recover_interrupted_merges_awaiting<W: std::io::Write + ?Sized>(
                 Ok(found) => found,
                 // A record a merge removed after the listing is one this command has nothing to settle.
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => return Err(io_failure("reading", record.as_path(), &error)),
+                Err(error) => {
+                    return Err(a_record_this_command_cannot_read(record.as_path(), &error));
+                }
             };
             kept.push((record, bytes));
         }
