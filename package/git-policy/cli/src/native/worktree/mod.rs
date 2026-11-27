@@ -12,9 +12,18 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `add_standing_notice_step_words.rs`:
+//!   every step an add enters,
+//!   and the words a person reads for it.
 //! - `add_standing_notice.rs`:
 //!   the line a `git worktree add` prints while it is still running,
-//!   naming the step it is in.
+//!   the thread that prints it,
+//!   and the step it is in.
+//! - `add_timing_record.rs`:
+//!   the accounting of one add's steps and the JSON line written for it.
+//! - `add_timing_steps.rs`:
+//!   the recording one thread runs for its add,
+//!   and the steps it publishes as it enters and leaves them.
 //! - `add_timing.rs`:
 //!   the record of where one wrapped `git worktree add` spent its time,
 //!   step by step,
@@ -93,6 +102,13 @@
 //!   the read-only comparison of the old tree of a conversion with the installed one.
 //! - `worktree_convert_filled_stages.rs`:
 //!   what a conversion does about a stage container another command is filling below the tree it would swap or delete.
+//! - `worktree_convert_journal_text.rs`:
+//!   the shape of one conversion's journal,
+//!   and the text it is written as.
+//! - `worktree_convert_journal_writes.rs`:
+//!   writing a conversion's journal into a file of its own,
+//!   reading it back,
+//!   and sweeping a temporary file a killed write left.
 //! - `worktree_convert_journal.rs`:
 //!   the journal of a conversion and the retirement of the kernel lock file older releases left.
 //! - `worktree_convert_remove.rs`:
@@ -126,6 +142,11 @@
 //! - `worktree_clean_content_attributes.rs`:
 //!   the attribute files a content decision reads,
 //!   and what it charges the caller for them.
+//! - `worktree_clean_tree_walk_held_paths.rs`:
+//!   the directory chain a walk keeps,
+//!   and the read of one tracked file's stat fields below a held root.
+//! - `worktree_clean_tree_walk_by_content.rs`:
+//!   the walks that judge a tracked file by its content where the stat data cannot vouch for it.
 //! - `worktree_clean_tree_walk.rs`:
 //!   the walks of tracked files against the index's recorded stat data,
 //!   by metadata or by content.
@@ -358,6 +379,12 @@
 //! - `worktree_removal_only_deletions.rs`:
 //!   whether everything Git reports about a worktree is an entry missing from it,
 //!   which is the state a removal that was killed in the middle leaves.
+//! - `worktree_removal_goes_around_a_foreign_volume_reports.rs`:
+//!   the words a removal that went around a volume prints,
+//!   and the line a later add adds to Git's own refusal.
+//! - `worktree_removal_goes_around_a_foreign_volume_records.rs`:
+//!   the record such a removal leaves,
+//!   and the words a later command shows for it once.
 //! - `worktree_removal_goes_around_a_foreign_volume.rs`:
 //!   the removal that goes around a subvolume or a mount point it did not make,
 //!   and the words it says about what it left.
@@ -431,6 +458,13 @@
 //!   prove the copy against the source's index,
 //!   settle an entry by content where the stat data cannot vouch for it,
 //!   and keep the snapshot's own index when the source changed under the copy.
+//! - `worktree_snapshot_ahead_names.rs`:
+//!   the names a snapshot made ahead of an add carries,
+//!   the pool folder it stands in,
+//!   and which entries a source keeps.
+//! - `worktree_snapshot_ahead_asks.rs`:
+//!   the seams through which an add reaches the commit service,
+//!   and the records that ask it for a snapshot ahead.
 //! - `worktree_snapshot_ahead.rs`:
 //!   the snapshots the wrapper makes ahead of an add,
 //!   and the add's claim of one instead of a snapshot of its own.
@@ -527,9 +561,20 @@ pub mod worktree_command_facts;
 /// and the cleanup that must leave it alone.
 pub mod worktree_kept_folders;
 
+/// Every step an add enters,
+/// and the words a person reads for it.
+pub mod add_standing_notice_step_words;
+
 /// The line a `git worktree add` prints while it is still running,
 /// naming the step it is in.
 pub mod add_standing_notice;
+
+/// The accounting of one add's steps and the JSON line written for it.
+pub mod add_timing_record;
+
+/// The recording one thread runs for its add,
+/// and the steps it publishes as it enters and leaves them.
+pub mod add_timing_steps;
 
 /// The record of where one wrapped `git worktree add` spent its time,
 /// step by step,
@@ -599,6 +644,15 @@ pub mod worktree_clean_stat_verdicts;
 /// whether an untracked file is one Git ignores.
 #[cfg(target_os = "linux")]
 pub mod worktree_clean_untracked_scan;
+
+/// The directory chain a walk keeps,
+/// and the read of one tracked file's stat fields below a held root.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tree_walk_held_paths;
+
+/// The walks that judge a tracked file by its content where the stat data cannot vouch for it.
+#[cfg(target_os = "linux")]
+pub mod worktree_clean_tree_walk_by_content;
 
 /// The walks of tracked files against the index's recorded stat data,
 /// by metadata or by content.
@@ -719,8 +773,17 @@ pub mod worktree_removal_clears_the_pool;
 /// taken out of a worktree's administrative directory before that worktree is removed.
 pub mod worktree_removal_clears_the_ahead_pool;
 
-/// The removal that goes around a subvolume or a mount point it did not make,
-/// and the words it says about what it left.
+/// The words a removal that went around a volume prints,
+/// and the line a later add adds to Git's own refusal.
+pub mod worktree_removal_goes_around_a_foreign_volume_reports;
+
+/// The record such a removal leaves,
+/// and the words a later command shows for it once.
+pub mod worktree_removal_goes_around_a_foreign_volume_records;
+
+/// The removal that goes around a subvolume or a mount point it did not make:
+/// the look for those volumes,
+/// and the report of a removal that could not finish.
 pub mod worktree_removal_goes_around_a_foreign_volume;
 
 /// The record a removal writes before its pass empties a worktree around a volume,
@@ -775,8 +838,19 @@ pub mod worktree_snapshot;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_index_step;
 
-/// The snapshots the wrapper makes ahead of an add,
-/// and the add's claim of one instead of a snapshot of its own.
+/// The names a snapshot made ahead of an add carries,
+/// the pool folder it stands in,
+/// and which entries a source keeps.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_names;
+
+/// The seams through which an add reaches the commit service,
+/// and the records that ask it for a snapshot ahead.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_asks;
+
+/// The answer one add's look for a snapshot came to,
+/// and the hand-over of the copies it proved stale.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_ahead;
 
@@ -1049,7 +1123,18 @@ pub mod worktree_convert_unrecorded_stage;
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_compare;
 
-/// The journal of a conversion and the retirement of the kernel lock file older releases left.
+/// The shape of one conversion's journal,
+/// and the text it is written as.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_journal_text;
+
+/// Writing a conversion's journal into a file of its own,
+/// reading it back,
+/// and sweeping a temporary file a killed write left.
+#[cfg(target_os = "linux")]
+pub mod worktree_convert_journal_writes;
+
+/// The claim a conversion takes and the retirement of the kernel lock file older releases left.
 #[cfg(target_os = "linux")]
 pub mod worktree_convert_journal;
 
