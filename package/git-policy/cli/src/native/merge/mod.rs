@@ -158,6 +158,12 @@
 //! - `pull_untracked_paths_in_the_way_kept_copies.rs`:
 //!   one such file or link copied beside the Git directory,
 //!   and the numbered folder a pull's copies go into.
+//! - `pull_untracked_paths_in_the_way_kept.rs`:
+//!   what a pull kept of the person's untracked files,
+//!   and what it could not keep.
+//! - `pull_untracked_paths_in_the_way_words.rs`:
+//!   the sentences a pull prints about the copies it kept,
+//!   and the reset Git's own words offer.
 //! - `pull_untracked_paths_in_the_way.rs`:
 //!   the untracked files a pull's branch move would overwrite,
 //!   kept before the failure is worded,
@@ -423,6 +429,14 @@ pub mod merge_isolation_message;
 /// A pull that merges,
 /// read as its fetch and its merge of `FETCH_HEAD`.
 pub mod pull_isolation;
+
+/// What a pull kept of the person's untracked files,
+/// and what it could not keep.
+pub mod pull_untracked_paths_in_the_way_kept;
+
+/// The sentences a pull prints about the copies it kept,
+/// and the reset Git's own words offer.
+pub mod pull_untracked_paths_in_the_way_words;
 
 /// The untracked files a pull's branch move would overwrite,
 /// kept before the failure is worded,
