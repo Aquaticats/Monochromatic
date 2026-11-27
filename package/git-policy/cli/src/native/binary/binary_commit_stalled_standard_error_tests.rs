@@ -32,7 +32,8 @@ use super::support::{
     repository,
     run_wrapped,
 };
-/// The full pipe nobody drains, the closed pipe a reader left,
+/// The full pipe nobody drains,
+/// the closed pipe a reader left,
 /// the bytes a pipe still holds and the bounded wait for a command given one,
 ///  which this control hands its commit instead of the pipes the shared reading drains.
 use super::support_a_full_standard_error::{
@@ -211,7 +212,7 @@ fn a_recorded_failed_push_notice(
 /// What:
 ///  A commit one recorded failed-push notice waits for,
 ///  whose standard error is a pipe whose reader has gone,
-///  returns, lands the commit,
+///  returns and lands the commit,
 ///  and leaves that notice's record for the next command.
 /// Why:
 ///   Every write to a pipe whose reader ended is refused with `EPIPE`,
@@ -253,7 +254,7 @@ fn a_record_whose_line_a_closed_reader_refused_stays_for_the_next_command() {
 /// What:
 ///  A commit one recorded failed-push notice waits for,
 ///  whose standard error is a full pipe nobody drains,
-///  returns, lands the commit,
+///  returns and lands the commit,
 ///  and leaves that notice's record for the next command,
 ///  which shows it once.
 /// Why:
@@ -265,7 +266,8 @@ fn a_record_whose_line_a_closed_reader_refused_stays_for_the_next_command() {
 ///  it is the only trace that a push did not land,
 ///  so it goes only once the thread that writes standard error says the line reached the person.
 ///  A line still waiting when the command gave up is not in the stream,
-///  so the record stays, and the next command whose reader is there shows it.
+///  so the record stays,
+///  and the next command whose reader is there shows it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

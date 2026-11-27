@@ -561,7 +561,8 @@ fn a_line_the_stream_took_is_answered_written() {
 /// What:
 ///  A line a closed stream refused is answered unwritten.
 /// Why:
-///   The write of the line answered nothing, because the thread had not written it yet;
+///   The write of the line answered nothing,
+///  because the thread had not written it yet;
 ///  this answer is what a record that must outlive its line is kept by
 ///  (`Notice::show`).
 #[cfg(target_os = "linux")]
@@ -589,7 +590,8 @@ fn a_line_a_closed_stream_refused_is_answered_unwritten() {
 ///   Two promises meet at this line:
 ///  the person must not be told the words reached them when they did not,
 ///  and the command must never wait for a reader that stopped draining (issue 6421).
-///  One bound is what the first line of such a stream costs, so this control reads both.
+///  One bound is what the first line of such a stream costs,
+///  so this control reads both.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_line_a_stream_nobody_drains_is_answered_unwritten_and_holds_no_caller() {

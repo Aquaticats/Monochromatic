@@ -123,7 +123,7 @@ pub(crate) struct QueuePolicy {
 ///   The hand-over answers before the thread has written anything,
 ///  so a caller that must know whether its words reached the person
 ///  reads this answer instead of the write's own
-///  (`Notice::show`, `push/push_failure_notice_shown_then_removed.rs`).
+///  (`Notice::show`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

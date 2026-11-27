@@ -595,8 +595,9 @@ fn a_left_in_place_record_that_is_a_named_pipe_is_answered_at_once() {
 }
 
 /// What:
-///  A record of a removal that went around, whose line the thread that writes standard error
-///  could not put in the stream, stays for the next command.
+///  A record of a removal that went around,
+///  whose line the thread that writes standard error could not put in the stream,
+///  stays for the next command.
 /// Why:
 ///   The record is removed only once its line is known written,
 ///  and the write itself answers before the line is written:

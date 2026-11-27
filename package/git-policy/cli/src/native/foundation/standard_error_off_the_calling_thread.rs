@@ -28,7 +28,7 @@
 //!  A caller that says its line and goes on ignores that error,
 //!  which is every note of the commit path;
 //!  a caller that must not lose what its line says keeps it
-//!  (`Notice::show`, `push/push_failure_notice_shown_then_removed.rs`),
+//!  (`Notice::show`),
 //!  and the record of a failed push or a kept worktree then stays for the next command.
 //!  The wait behind that answer is the queue's own (`WARNING_WRITE_CEILING`),
 //!  paid once per process and never past the first line a stopped reader did not take,

@@ -278,12 +278,13 @@ pub fn started_on_a_full_pipe(command: &mut std::process::Command) -> (Child, Pi
 
 /// What:
 ///  Starts `command` with a pipe as its standard error whose read end this control holds open and
-///  whose reader never appears, because the read end is closed here at once.
+///  whose reader never appears:
+///  the read end is closed here at once.
 /// Why:
 ///   A person's terminal can go away while a command runs,
 ///  and every byte the command writes to standard error is then refused with `EPIPE`.
-///  The read ends the shared reading makes are drained, so a control that needs a reader that is gone
-///  hands the command this pipe instead.
+///  The read ends the shared reading makes are drained,
+///  so a control that needs a reader that is gone hands the command this pipe instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

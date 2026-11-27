@@ -230,7 +230,9 @@ pub fn write(line: &str) {
 ///  so the queue keeps bytes and this face takes them as they came.
 ///  `Written` says every byte of the line is in the stream,
 ///  which is only known after the wait the queue gives a reader that keeps up;
-///  `Unwritten` says the line was refused, the reader stopped taking lines, or the queue had no room,
+///  `Unwritten` says the line was refused,
+///  that the reader stopped taking lines,
+///  or that the queue had no room for it,
 ///  and a caller that must not lose what the line says keeps it.
 ///
 /// In TS you'd write (pseudocode):
