@@ -480,6 +480,38 @@ The fix for issue 6421 (`700a6e4c02`) rewrote the line that starts the commit's 
 and left `the_commit_command_hands_its_waiting_notices_to_this_stream` asserting the line it replaced,
 so the whole container gate on `main` at `132843d9d1` failed in a module that fix never ran.
 
+The search a merge owes is wider than that grep:
+a control may also read a source file while it runs
+(`std::fs::read_to_string` of a path under `src/native`).
+Four test files outside `source_guard` do that as of 2026-11-27.
+
+A call a control requires belongs to the folder that asks it and not to one file of that folder
+because a split moves the call into a sibling file and leaves behind the file it left.
+The round for issue 6540 moved `output_of_within_bound` out of `repo_read/git_system_config.rs`
+into `repo_read/git_system_config_asking.rs` (`e58254244d`).
+A control that still named the file it left failed the whole gate on `main` (issue 6573).
+`process/captured_child_run_to_its_end_callers_tests.rs` finds the call across the module now:
+`source_root()` and `real_roots()` and `classified_sources()` of `source_guard/source_scan_tests.rs`
+list the files the build itself reaches.
+The control requires the call in one of the folder's release files
+and refuses `Command::output` in any of them.
+That fails when the call leaves the folder or a caller goes back to `Command::output`
+and passes when a split moves the call between the folder's files.
+That move is what the claim is about.
+
+No check over this text can replace running those modules.
+A needle a control requires may also be a sentence the program prints
+and so a scan cannot tell a pin over source from an assertion about a running program.
+The search of 2026-11-27 that guessed from literal needles found 58 places where a required
+literal was absent from the file read and every one of those modules passes.
+Reading the splits of 2026-11-26 and 2026-11-27 against every control that reads a source file
+found one stale control:
+22 test files `include_str!` a source file (65 file-and-needle pairs)
+and 4 more read one at run time outside `source_guard`
+and the rest are in `source_guard` whose whole module runs.
+Each of those 26 modules ran once and threaded
+and only the control above was stale.
+
 ## A filtered run counts only when it ran the tests you meant
 
 A `cargo test` filter that matches no test prints `ok. 0 passed`,

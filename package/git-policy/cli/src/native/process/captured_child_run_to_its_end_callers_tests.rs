@@ -12,7 +12,8 @@ use std::path::PathBuf;
 
 /// What:
 ///  `QUESTION_MODULES` names the two folders under `src/native/` whose files ask Git a one-shot question:
-///  each folder plus its `/`, which is how a source's identity is written.
+///  each folder plus its `/`,
+///  which is how a source's identity is written.
 /// Why:
 ///  The call the control below requires is found across a module's files rather than in one named file,
 ///  because a split moves such a call into a sibling file and leaves behind the file it left;
@@ -28,7 +29,8 @@ const QUESTION_MODULES: &[&str] = &["repo_read/", "invocation/"];
 
 /// What:
 ///  `THE_CAPTURED_RUN` is the call a one-shot Git question of those modules is asked through:
-///  a child awaited to its own end, with its output read from files rather than through a pipe.
+///  a child awaited to its own end,
+///  with its output read from files rather than through a pipe.
 /// Why:
 ///  A question asked any other way waits for its child with no bound,
 ///  which is the failure both modules' questions were changed to lose.
@@ -53,14 +55,18 @@ const BLOCKING_ON_OUTPUT: &str = ".output()";
 
 /// What:
 ///  `fn code_lines(text: &str) -> String` is one source file's code:
-///  every line that is not a comment, joined with newlines.
+///  every line that is not a comment,
+///  joined with newlines.
 /// Why:
 ///  A comment may name a call the file does not make,
 ///  and the header of a split is exactly where the name of the call that moved out survives.
-///  This crate writes every comment as whole lines, so cutting at a leading `//` loses no code.
+///  This crate writes every comment as whole lines,
+///  so cutting at a leading `//` loses no code.
 /// Gotcha:
-///  The cut is textual: a call written inside a string literal is kept and would be read as a call,
-///  which is why the words a file says about itself are checked by its own module, not here.
+///  The cut is textual:
+///  a call written inside a string literal is kept and would be read as a call,
+///  which is why the words a file says about itself are checked by its own module,
+///  not here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,14 +105,17 @@ fn code_lines(text: &str) -> String {
 ///  The call is required of a module's files rather than of one named file of it,
 ///  and the failure names every file that was read.
 /// Why:
-///  A split moves a call into a sibling file: `repo_read/git_system_config.rs` lost
+///  A split moves a call into a sibling file:
+///  `repo_read/git_system_config.rs` lost
 ///  `output_of_within_bound` to `repo_read/git_system_config_asking.rs` on 2026-11-27,
 ///  so a control that named the file it left failed on `main` for a move that changed nothing
 ///  about the question it guards (issue 6573).
-///  A module is what the claim is about: the question is still asked in `repo_read/`,
+///  A module is what the claim is about:
+///  the question is still asked in `repo_read/`,
 ///  and a caller that goes back to `Command::output` in any file of either module still fails here.
 /// Gotcha:
-///  The scan reads the tree's module declarations, so a file no `mod` declaration reaches is an error
+///  The scan reads the tree's module declarations,
+///  so a file no `mod` declaration reaches is an error
 ///  rather than a file this control silently skips.
 #[test]
 fn the_one_shot_git_questions_no_longer_block_a_thread_on_command_output() {
