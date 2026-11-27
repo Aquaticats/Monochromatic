@@ -215,7 +215,8 @@ pub(crate) enum WhyNotPublished {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum RemovedFinishedCopy {
-    /// The hidden sibling held no finished copy, so nothing went with it.
+    /// The hidden sibling held no finished copy,
+    /// so nothing went with it.
     NoFinishedCopy,
     /// It held a finished copy of `version`,
     /// and a finished copy of that version is at its name.

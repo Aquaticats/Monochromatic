@@ -130,8 +130,8 @@ fn who_left_them(
 /// `removed 1 hidden directory left behind by an install of mpm-shadow that has ended`,
 /// together with one clause for each removed directory that held a finished copy.
 /// Why:
-/// One wording, so the sentence that stands on its own and the clause a recovery appends to another sentence
-/// read the same way,
+/// One wording,
+/// so the sentence that stands on its own and the clause a recovery appends to another sentence read the same way,
 /// and a person learns what each removed directory took with it.
 ///
 /// In TS you'd write (pseudocode):
@@ -291,7 +291,8 @@ fn left_where_it_is(
 /// "Finished the publish" is printed only for a publish this run made,
 /// and it names the hidden name the copy was read at rather than a kill no run can see.
 /// A removed directory that held a finished copy says whether that copy was a second one or the version's only one
-/// here, which is the one fact that decides whether the person lost something.
+/// here,
+/// which is the one fact that decides whether the person lost something.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
