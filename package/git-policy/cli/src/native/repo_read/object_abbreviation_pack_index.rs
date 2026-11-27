@@ -4,7 +4,8 @@
 //! Why:
 //!  The abbreviated name Git prints must be long enough that no other object of the
 //!  repository shares it,
-//! so the abbreviation asks every pack of the root, and the multi-pack-index that
+//! so the abbreviation asks every pack of the root,
+//! and the multi-pack-index that
 //!  covers some of them,
 //! for their names.
 //!
