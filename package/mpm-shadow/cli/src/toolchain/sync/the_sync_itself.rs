@@ -49,7 +49,8 @@ use super::super::exposure::{
 use super::super::install::install_tool;
 /// Imports `reconcile_rust_parts` from `super::super::install_rust_android`.
 use super::super::install_rust_android::reconcile_rust_parts;
-/// Imports the artifact row of this host, whose SHA-256 is what the repair compares a hidden copy with.
+/// Imports the artifact row of this host,
+/// whose SHA-256 is what the repair compares a hidden copy with.
 use super::super::install_support::artifact_for_host;
 /// Imports `applies_to_family` from `super::super::layout`.
 use super::super::layout::applies_to_family;

@@ -133,7 +133,9 @@ fn tool_directories(root: &Path) -> Result<Vec<(String, PathBuf)>, ToolchainErro
 }
 
 /// What:
-/// Removes (or, with `dry_run`, lists) every hidden install whose installer has provably ended,
+/// Removes (or,
+/// with `dry_run`,
+/// lists) every hidden install whose installer has provably ended,
 /// except a finished copy of a version some known lock names,
 /// and names the ones it cannot judge.
 /// Why:

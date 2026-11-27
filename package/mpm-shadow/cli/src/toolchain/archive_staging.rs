@@ -223,7 +223,8 @@ pub(crate) struct CopyRecord {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum CompleteMarker {
-    /// This build wrote it, and it records the archive's SHA-256.
+    /// This build wrote it,
+    /// and it records the archive's SHA-256.
     Vouched {
         /// The tool the copy was unpacked for.
         tool: String,
@@ -232,14 +233,17 @@ pub(crate) enum CompleteMarker {
         /// The SHA-256 the download matched before the copy was unpacked.
         archive_sha256: String,
     },
-    /// An earlier build wrote it, naming only the tool and version.
+    /// An earlier build wrote it,
+    /// naming only the tool and version.
     Unvouched {
         /// The tool the copy was unpacked for.
         tool: String,
         /// The version the copy was unpacked for.
         version: String,
     },
-    /// The marker is absent, is not one regular file, or does not hold the text this scheme writes.
+    /// The marker is absent,
+    /// is not one regular file,
+    /// or does not hold the text this scheme writes.
     Unreadable,
 }
 
@@ -317,7 +321,8 @@ pub(crate) fn read_complete_marker(dir: &Path) -> CompleteMarker {
 }
 
 /// What:
-/// Whether the marker in `dir` is one this build wrote, with a digest field.
+/// Whether the marker in `dir` is one this build wrote,
+/// with a digest field.
 /// Why:
 /// Only such a copy can be published after a kill,
 /// and prune keeps one for a version a known lock names.
@@ -334,7 +339,8 @@ pub(crate) fn has_vouched_marker(dir: &Path) -> bool {
 /// Whether the marker in `dir` records exactly what the lock's row records.
 /// Why:
 /// The repair publishes a hidden copy without downloading the archive again,
-/// so the marker and the lock must name the same tool, version and archive digest
+/// so the marker and the lock must name the same tool,
+/// version and archive digest
 /// before those bytes become the version.
 ///
 /// In TS you'd write (pseudocode):

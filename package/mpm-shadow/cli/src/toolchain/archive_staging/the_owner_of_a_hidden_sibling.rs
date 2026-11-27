@@ -22,10 +22,12 @@
 //!
 //! The kernel documents both facts for a process without privileges:
 //! `/proc/sys/kernel/random/boot_id` holds a UUID generated at boot and unvarying after that
-//! (`Documentation/admin-guide/sysctl/kernel.rst`, "random"),
+//! (`Documentation/admin-guide/sysctl/kernel.rst`,
+//! "random"),
 //! and the content of `/proc/<pid>/ns/pid` is the process namespace's inode number,
 //! which two processes in one namespace share
-//! (`namespaces(7)`, "The /proc/pid/ns/ directory").
+//! (`namespaces(7)`,
+//! "The /proc/pid/ns/ directory").
 //! Reading one's own entries needs no capability,
 //! and a process's own record and namespace are the only ones this module reads of itself.
 //!
@@ -46,7 +48,8 @@
 //!
 //! When `/proc/<pid>/stat` says "no such file",
 //! the kernel's own `pidfd_open` still answers whether the number belongs to any process
-//! (`pidfd_open(2)`: `ESRCH` means it does not).
+//! (`pidfd_open(2)`:
+//! `ESRCH` means it does not).
 //! A process the reader can see but whose record `/proc` hides
 //! (a `hidepid` mount) is therefore not read as ended.
 //! Nothing is asked of the process itself:
@@ -134,7 +137,8 @@ fn stat_path(pid: u32) -> PathBuf {
 }
 
 /// What:
-/// The two kernel facts that place this reader: the boot and the process namespace.
+/// The two kernel facts that place this reader:
+/// the boot and the process namespace.
 /// Why:
 /// Both are read once per question,
 /// so the boot and the namespace a name is compared against cannot disagree.
@@ -145,9 +149,11 @@ fn stat_path(pid: u32) -> PathBuf {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Reader {
-    /// The boot's identifier, or nothing when it cannot be read.
+    /// The boot's identifier,
+    /// or nothing when it cannot be read.
     boot: Option<String>,
-    /// The process namespace's inode number, or nothing when it cannot be read.
+    /// The process namespace's inode number,
+    /// or nothing when it cannot be read.
     namespace: Option<u64>,
 }
 
@@ -295,7 +301,8 @@ fn this_namespace() -> Option<u64> {
 }
 
 /// What:
-/// Both kernel facts that place this reader, read once.
+/// Both kernel facts that place this reader,
+/// read once.
 /// Why:
 /// A question compares a name against one boot and one namespace,
 /// never two reads that could fall on either side of a change.
@@ -419,7 +426,9 @@ pub(crate) fn start_time_of_a_process(pid: u32) -> Option<u64> {
 /// An answer a control makes the reader give instead of asking the kernel.
 /// Why:
 /// The environments this module guards against are not reproducible on this host
-/// (another boot, another process namespace, a `hidepid` mount),
+/// (another boot,
+/// another process namespace,
+/// a `hidepid` mount),
 /// so a control needs a seam of the code's own.
 ///
 /// In TS you'd write (pseudocode):
@@ -431,7 +440,8 @@ pub(crate) fn start_time_of_a_process(pid: u32) -> Option<u64> {
 pub(crate) enum ForcedStart {
     /// The record reports this moment.
     At {
-        /// The moment, in clock ticks since boot.
+        /// The moment,
+        /// in clock ticks since boot.
         moment: u64,
     },
     /// The record is absent.
@@ -441,7 +451,8 @@ pub(crate) enum ForcedStart {
 }
 
 /// What:
-/// The kernel facts and the record answer a control forces, field by field.
+/// The kernel facts and the record answer a control forces,
+/// field by field.
 /// Why:
 /// A test can put the reader in another boot or namespace,
 /// or hide a record,
@@ -454,13 +465,16 @@ pub(crate) enum ForcedStart {
 #[cfg(test)]
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ReaderView {
-    /// When present, the boot answer the reader gives,
+    /// When present,
+    /// the boot answer the reader gives,
     /// including "no answer" as an inner `None`.
     pub(crate) boot: Option<Option<String>>,
-    /// When present, the namespace answer the reader gives,
+    /// When present,
+    /// the namespace answer the reader gives,
     /// including "no answer" as an inner `None`.
     pub(crate) namespace: Option<Option<u64>>,
-    /// When present, the answer for every process record.
+    /// When present,
+    /// the answer for every process record.
     pub(crate) start: Option<ForcedStart>,
 }
 
@@ -482,7 +496,8 @@ thread_local! {
 }
 
 /// What:
-/// Reads one field of the forcing view, or nothing when no view is armed.
+/// Reads one field of the forcing view,
+/// or nothing when no view is armed.
 /// Why:
 /// Every kernel read goes through this,
 /// so a control's answer reaches exactly the question it was made for.
@@ -499,7 +514,8 @@ fn read_the_forcing_view<T>(pick: impl FnOnce(&ReaderView) -> Option<T>) -> Opti
 /// What:
 /// Puts this test thread under a forcing view until the guard drops.
 /// Why:
-/// A test that changes the boot, namespace or record answer
+/// A test that changes the boot,
+/// namespace or record answer
 /// must put the reader back even when an assertion fails.
 ///
 /// In TS you'd write (pseudocode):
@@ -512,6 +528,7 @@ pub(crate) struct ReaderViewGuard;
 /// Clears the forcing view when the guard leaves.
 #[cfg(test)]
 impl Drop for ReaderViewGuard {
+    /// Clears the forcing view this thread holds.
     fn drop(&mut self) {
         THE_FORCING_VIEW.with(|view| {
             *view.borrow_mut() = ReaderView {
