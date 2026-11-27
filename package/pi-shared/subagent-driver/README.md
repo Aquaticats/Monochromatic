@@ -700,7 +700,10 @@ and what stays:
   the unit has ended,
   the run was not resumed,
   none of the run's own work still runs,
-  and no process works in the folder.
+  no process works in the folder,
+  and no newer run of the same name has taken a run folder since this one ended.
+  A resumed run and a fix run each take a folder number of their own,
+  so the newest folder of the name says whether the scratch folder is still this run's.
 - `keep/` stays exactly as it is,
   with everything in it,
   nested folders included.
@@ -716,6 +719,9 @@ and what stays:
 - A scratch folder that is a symbolic link is kept and never followed,
   and a symbolic link inside the folder is removed as the link it is:
   what it named is not touched.
+  That holds while nothing swaps the entry in the moment between the reading and the removal,
+  which is the same limit the folder a run's Pi writes into states:
+  Node has no call that removes an entry relative to an open folder.
 - A path under the folder's name that is not a folder is kept,
   because what it names is not this run's to remove.
 - A home directory that is not an absolute path,
@@ -727,9 +733,14 @@ Every other answer leaves the folder whole and prints why:
 the launcher's wait for the unit gave up while the unit may still run,
 the run's own work still runs,
 a process still works in the folder,
+a newer run of the same name has started since this one ended,
 the path is a link or is not a folder,
-or the operating system refused to read or remove an entry,
-naming what it answered.
+or the folder could not be read at all,
+naming what the operating system answered.
+An entry the operating system refuses to remove is reported as it is:
+the line says the folder is cleared only in part,
+how many entries went,
+and what was answered for those that stayed.
 None of them fails the launch:
 the run ended the way its unit ended.
 A run that is resumed is the one case where the folder is not cleared,
@@ -738,6 +749,11 @@ and only because the launcher of the resumed run clears it when that launch ends
 A launcher killed before its unit ends clears nothing,
 so that run's scratch folder stays whole until `~/temp` expires it,
 a day after its last write.
+A run started without this launcher,
+such as one started by hand with `drive-pi-subagent`,
+clears nothing either:
+the removal is the launcher's step,
+and no coordinator sweep reaches a folder the launcher never saw.
 
 ### `retry-pi-run-start-until-a-pool-has-room`
 
