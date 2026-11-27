@@ -53,7 +53,7 @@
 ///   }).join('');
 /// }
 /// ```
-pub fn shown_so_it_cannot_rewrite_the_line(text: &str) -> String {
+pub(crate) fn shown_so_it_cannot_rewrite_the_line(text: &str) -> String {
     // What: the text as it is being built, one character at a time.
     // Why:  a process name is fifteen bytes at most and a program path is short,
     //  so one pass into one buffer is the whole cost and the pass stays linear in the text's length.

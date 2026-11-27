@@ -6732,6 +6732,9 @@ trait TheDeviceOpened
 #   43ef699749 fix(git-policy-cli): doctor's group-drop report prints only where the ZFS route applies
 #   publishes what reading the host kind answered
 type HostKindRead
+#   78dd6c4e11 fix(git-policy-cli): each batch of the service's work reads the room it has when it starts
+#   publishes where the host one batch is sized by comes from, which the service's drain faces name in their signatures
+enum TheHostOfABatch
 
 #   c95613e116 fix(git-policy-cli): a notice's record outlives the line that could not be written
 #   publishes the answer a caller reads when its line was handed to the writing thread
