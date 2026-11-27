@@ -74,6 +74,17 @@ use crate::control_group::{
     Route,
 };
 /// What:
+/// `use crate::control_group_stop::report::StopReport;` imports what the stop of a scope answers.
+/// Why:
+/// The shortfall of a run that cannot be shown stopped is built from that report,
+/// so the same facts reach the refusal and the caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { StopReport } from 'crate/control_group_stop/report';
+/// ```
+use crate::control_group_stop::report::StopReport;
+/// What:
 /// `use rustix::event::{PollFd, PollFlags, Timespec, poll};` imports the descriptor watcher and its timeout shape.
 /// Why:
 /// A pidfd wakes the wait when the child ends,
@@ -408,10 +419,11 @@ pub(crate) fn stop_process_group(
 }
 
 /// What:
-/// `fn stop_everything(containment, child) -> bool` ends the run early or at its normal exit:
+/// `fn stop_everything(containment, child) -> Result<(), String>` ends the run early or at its normal exit:
 /// it kills and reaps the direct child,
 /// stops what the containment holds,
-/// and returns `true` only if all of it is shown gone.
+/// and answers `Ok` only if all of it is shown gone,
+/// or the words a refusal carries saying what was not shown and why.
 /// Why:
 /// This is the one way a run is ended,
 /// on timeout,
@@ -422,16 +434,17 @@ pub(crate) fn stop_process_group(
 /// still start the program in a scope that is not there yet.
 /// A scope that cannot be stopped,
 /// and any failure to inspect or stop it,
-/// is "not shown gone".
+/// is "not shown gone",
+/// and the text says how long the stop waited and what it was waiting for (issue 6528).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stopEverything(containment: Containment, child: ChildProcess): boolean
+/// function stopEverything(containment: Containment, child: ChildProcess): string | undefined
 /// ```
 pub(crate) fn stop_everything(
     containment: &Containment,
     child: &mut Child,
-) -> bool {
+) -> Result<(), String> {
     return match containment {
         Containment::Scope {
             group,
@@ -439,21 +452,47 @@ pub(crate) fn stop_everything(
         } => {
             let _ = child.kill();
             let reaped: bool = reap(child).is_some();
-            let stopped: bool = match group.stop(QUIESCE_BOUND) {
-                Ok(done) => done,
+            let report: StopReport = match group.stop(QUIESCE_BOUND) {
+                Ok(found) => found,
                 Err(error) => {
                     eprintln!(
                         "cargo-shadow: warning: the scope {} could not be shown empty ({error})",
                         group.directory().display()
                     );
-                    false
+                    return Err(format!(
+                        "the stop of {} could not be shown empty ({error})",
+                        group.directory().display()
+                    ));
                 }
             };
-            reaped && stopped
+            let scope: String = report.sentence(group.directory());
+            if !reaped {
+                return Err(format!(
+                    "the program did not end within {REAP_BOUND:?} after it was killed; {scope}"
+                ));
+            }
+            if !report.empty() && report.may_still_write() {
+                return Err(format!(
+                    "a member of the scope could not be shown stopped; {scope}"
+                ));
+            }
+            if !report.empty() {
+                // The kernel did not read the scope as empty, and no member it listed can write: the refusal keeps the message,
+                // because only `populated 0` proves a run is settled.
+                return Err(format!(
+                    "the scope did not read as empty, and no member it listed can still write; {scope}"
+                ));
+            }
+            Ok(())
         }
         Containment::ProcessGroup => match Pid::from_raw(i32::try_from(child.id()).unwrap_or(0)) {
-            Some(group) => stop_process_group(child, group),
-            None => false,
+            Some(group) if stop_process_group(child, group) => Ok(()),
+            Some(_) => Err(format!(
+                "the members of the process group could not be shown stopped within {QUIESCE_BOUND:?}"
+            )),
+            None => Err(format!(
+                "the process group of the program could not be named, so its members could not be stopped within {QUIESCE_BOUND:?}"
+            )),
         },
     };
 }
@@ -515,13 +554,18 @@ pub(crate) fn fail_started(
     bound: &Bound,
     error: RunError,
 ) -> RunError {
-    if stop_everything(containment, child) {
-        settle(containment, scope);
-        return error;
-    }
-    lose(scope);
-    return RunError::NotQuiescent {
-        what: bound.what.clone(),
+    return match stop_everything(containment, child) {
+        Ok(()) => {
+            settle(containment, scope);
+            error
+        }
+        Err(shortfall) => {
+            lose(scope, shortfall.clone());
+            RunError::NotQuiescent {
+                what: bound.what.clone(),
+                shortfall,
+            }
+        }
     };
 }
 
@@ -584,9 +628,13 @@ impl Drop for CancelOnDrop {
 /// ```ts
 /// function lose(scope: ScopeState | undefined): void
 /// ```
-pub(crate) fn lose(scope: &Option<Rc<ScopeState>>) {
+pub(crate) fn lose(
+    scope: &Option<Rc<ScopeState>>,
+    reason: String,
+) {
     if let Some(state) = scope {
         state.lost.set(true);
+        *state.lost_reason.borrow_mut() = Some(reason);
     }
 }
 

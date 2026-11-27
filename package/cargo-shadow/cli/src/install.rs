@@ -482,8 +482,24 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
     // A process that cargo started could not be stopped: it may still write the lockfiles, so they are neither rolled back nor
     // accepted. The transaction is dropped without `finish`, the journal stays, and the command does not run (round 6, 5c N2).
     if transaction.writers_may_remain() {
+        // What:     `transaction.writers_may_remain_reason()` is `Some(text)` when the stop recorded why it could not show every
+        //           writer gone, and `None` for a run that was marked without one (a test's stand-in).
+        // Why:      The refusal says how long the stop waited and what it was waiting for, so a member that has exited is told
+        //           from one that is alive and a loaded host from a member that cannot be killed (issue 6528).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const shortfall = transaction.writersMayRemainReason() ?? '';
+        // return refused(`... could not be stopped, ... ${shortfall ? ` (${shortfall})` : ''} ...`);
+        // ```
+        let shortfall: String = match transaction.writers_may_remain_reason() {
+            Some(reason) => format!(": {reason}"),
+            None => String::new(),
+        };
         return Err(InstallError::Unsettled {
-            message: "cargo-shadow: a process started by cargo could not be stopped, so it may still write the lockfiles; they were not rolled back or accepted, the journal of this run was kept and the next run settles it, and the command was not run".to_string(),
+            message: format!(
+                "cargo-shadow: a process started by cargo could not be stopped, so it may still write the lockfiles{shortfall}; they were not rolled back or accepted, the journal of this run was kept and the next run settles it, and the command was not run"
+            ),
         });
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.

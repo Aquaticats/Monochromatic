@@ -31,6 +31,7 @@
 /// import { RunError, ScopeState, append_record, append_record_with, configure_stdio, trace } from 'crate/bounded_run';
 /// ```
 use crate::bounded_run::{
+    QUIESCE_BOUND,
     RunError,
     ScopeState,
     append_record,
@@ -380,7 +381,20 @@ pub(crate) fn start_contained(
                     None => false,
                 };
                 if !stopped {
-                    lose(&Some(Rc::clone(state)));
+                    // What:     `lose(...)` takes the reason the refusal carries, and this stop is the process-group path: it has no
+                    //           report of its own, so the reason names the bound it waited out.
+                    // Why:      A refusal never travels with an empty reason, whatever path could not show the writers gone.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // lose(state, `the members of the process group could not be shown stopped within ${QUIESCE_BOUND}`)
+                    // ```
+                    lose(
+                        &Some(Rc::clone(state)),
+                        format!(
+                            "the members of the process group could not be shown stopped within {QUIESCE_BOUND:?}"
+                        ),
+                    );
                 }
                 return Err(RunError::Io(io::Error::new(
                     error.kind(),

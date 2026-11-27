@@ -365,6 +365,22 @@ impl Transaction {
     }
 
     /// What:
+    /// `pub fn writers_may_remain_reason(&self) -> Option<String>` is why a run of this transaction could not show that
+    /// everything it started was stopped,
+    /// in the words the refusal carries.
+    /// Why:
+    /// The refusal must say how long the stop waited and what it was waiting for,
+    /// and a member that has exited must be told from one that is alive (issue 6528).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// writersMayRemainReason(): string | undefined
+    /// ```
+    pub fn writers_may_remain_reason(&self) -> Option<String> {
+        return self.scope.writers_may_remain_reason();
+    }
+
+    /// What:
     /// `pub fn process_group_only(&self) -> bool` says whether a run of this transaction was contained by a process group only,
     /// because no control group could be had.
     /// Why:
