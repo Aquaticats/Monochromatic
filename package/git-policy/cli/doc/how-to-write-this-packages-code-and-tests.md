@@ -59,6 +59,13 @@ The same holds for what a test reads:
 so a control that judges the run's own figures runs its reading in a helper process of the test's own
 (`testing/helper_process_test_support.rs`),
 as issue 6478's descriptor-room control and the `run_progress` controls of issue 6486 do.
+The pack decode count is one of them too:
+`DECODED_TOTAL` (`repo_read/repo_read_pack.rs`) adds up every entry every pack of this process decoded,
+so a control that counts the decodes of its own answer runs its body in a child of its own,
+as `repo_read::repo_read_tree_cached::tests::the_directories_the_cache_tree_proves_equal_are_not_read`
+and `repo_read::repo_read_query::tests::the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories` do
+(issue 6539:
+in a threaded run of `repo_read::` the cache tree control counted another test's decodes).
 So does a program a control starts that reads standard input:
 the run's standard input is the terminal the run was started from,
 and a control that starts such a program runs its body in a child of its own,

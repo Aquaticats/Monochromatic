@@ -10,10 +10,8 @@
 //!  so the provider's own file stays within its line bound.
 
 use crate::git_metadata::path_from_git_bytes;
-use crate::repository_facts::{
-    GitFacts,
-    RepositoryFacts,
-};
+use crate::repository_facts_git_provider::GitFacts;
+use crate::the_facts_a_repository_reads::RepositoryFacts;
 use crate::worktree_identity::worktree_root;
 use std::path::{
     Path,
