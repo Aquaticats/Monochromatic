@@ -46,7 +46,10 @@ use crate::service_prepare::{
 use crate::service_protocol::CommitRequest;
 /// Standard error as a stream whose lines a thread of their own writes,
 /// so a reader that stopped draining holds neither the landing's report nor the command.
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 /// The kind of operation a commit concludes.
 use crate::transaction_journal::Conclusion;
 use crate::worktree_completion::install_added_worktree_files;
@@ -200,7 +203,7 @@ pub(crate) fn report_landing(
     // What: The lines of the landing report go to the thread that writes standard error.
     // Why:  They are lines a person can live without, and a reader that stopped draining must cost
     //       them and never the command that has already landed.
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+    let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
         StandardErrorOffTheCallingThread::new();
     // The owner: "Committing a conflicted path is fine. Warn and commit anyway, even if conflict markers will be committed."
     //  The claim is made for a path whose committed blob holds marker lines, read from the blob and the marker size
