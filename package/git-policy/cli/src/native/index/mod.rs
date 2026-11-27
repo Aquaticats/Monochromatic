@@ -51,10 +51,22 @@
 //!   in-process index update:
 //!   the choice of where a new entry's stat data comes from,
 //!   and the trait a proof implements.
+//! - `index_reset_worktree_stat_request.rs`:
+//!   in-process index update:
+//!   the bounds,
+//!   the seams a control changes the file at and what one path asks.
+//! - `index_reset_worktree_stat_proofs.rs`:
+//!   in-process index update:
+//!   the proofs that a file holds the commit's bytes and did not move while it
+//!   was read.
+//! - `index_reset_worktree_stat_landing.rs`:
+//!   in-process index update:
+//!   the worktree a landing holds open and proves every path against.
 //! - `index_reset_worktree_stat.rs`:
 //!   in-process index update:
 //!   the worktree's stat data for a path the reset writes,
-//!   recorded only where the file provably holds the commit's bytes.
+//!   recorded only where the file provably holds the commit's bytes:
+//!   the two entry functions that prove one path.
 //! - `index_untracked.rs`:
 //!   in-process index update:
 //!   the untracked-cache extension as directories,
@@ -152,6 +164,23 @@ pub mod index_reset_path_names;
 /// and the trait a proof implements.
 #[cfg(unix)]
 pub mod index_reset_worktree_stat_source;
+
+/// In-process index update:
+/// the bounds,
+/// the seams a control changes the file at and what one path asks.
+#[cfg(target_os = "linux")]
+pub mod index_reset_worktree_stat_request;
+
+/// In-process index update:
+/// the proofs that a file holds the commit's bytes and did not move while it
+/// was read.
+#[cfg(target_os = "linux")]
+pub mod index_reset_worktree_stat_proofs;
+
+/// In-process index update:
+/// the worktree a landing holds open and proves every path against.
+#[cfg(target_os = "linux")]
+pub mod index_reset_worktree_stat_landing;
 
 /// In-process index update:
 /// the worktree's stat data for a path the reset writes,
