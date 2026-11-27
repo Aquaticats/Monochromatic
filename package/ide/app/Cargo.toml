@@ -92,7 +92,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tempfile = { workspace = true }
 # Slint's element handles let the native tests read roles, labels, values, and states and invoke
 # accessible actions, as an assistive tool would. The crate is internal to Slint and has no semver
-# guarantee; its README requires an exact `=` version equal to the resolved `slint` version (1.18.1).
+# guarantee; its README requires an exact `=` version equal to the resolved `slint` version (1.19.1).
 # Raise both together.
 i-slint-backend-testing = { workspace = true }
 
