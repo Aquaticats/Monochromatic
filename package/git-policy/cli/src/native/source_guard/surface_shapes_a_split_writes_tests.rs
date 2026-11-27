@@ -5,7 +5,11 @@
 //!  The first version of the surface reader read one shape,
 //!  a bare `pub` followed by a kind at the first column,
 //!  and a split that wrote any other shape published a name with no line in the list
-//!  (review M1: a qualified function, a name another module already published, a field, a method,
+//!  (review M1:
+//! a qualified function,
+//! a name another module already published,
+//! a field,
+//! a method,
 //!  and a `pub use` over several lines were all invisible).
 //!  Each control here names one shape and shows what the reader answers for it,
 //!  and the last control pins the shapes it still answers nothing for,
@@ -16,7 +20,8 @@ use crate::source_scan_tests::write_tree;
 use crate::test_support::fixture;
 use std::path::Path;
 
-/// Every entry the reader answers for the fixture tree at `root`, sorted:
+/// Every entry the reader answers for the fixture tree at `root`,
+/// sorted:
 /// the published items and the carried names alike.
 fn keys_of(root: &Path) -> Vec<String> {
     let surface = surface_of(root).expect("a readable fixture tree");

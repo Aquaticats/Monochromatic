@@ -19,9 +19,14 @@
 //!  an item of a kind and name another module already publishes (keyed by its module path),
 //!  and a `pub use` written over several lines are all read now,
 //!  because a split writes all of them and the first version saw none
-//!  (review M1: 154 published `async` names, 1327 methods, 3915 fields and eight carried facades had no line).
+//!  (review M1:
+//! 154 published `async` names,
+//! 1327 methods,
+//! 3915 fields and eight carried facades had no line).
 //! Gotcha:
-//!  The reader's own doc, `nameable_items_of_a_source_tree_tests.rs`, states what this reading cannot see,
+//!  The reader's own doc,
+//! `nameable_items_of_a_source_tree_tests.rs`,
+//! states what this reading cannot see,
 //!  and every limit there is a shape no line covers yet.
 //!  The list is compared in both directions:
 //!  a published name that is missing fails,

@@ -17,10 +17,12 @@
 //!  `<module path> field <Type>::<field>`,
 //!  because a member is nameable through its type.
 //!
-//! What this reading cannot see, and why:
+//! What this reading cannot see,
+//! and why:
 //!  - A `pub` field inside a tuple-like struct's parentheses
 //!    (`pub struct PlanError(pub String);` and `pub PathBuf,` one to a line).
-//!    Thirteen types hold fourteen such fields today: eight written on the declaration line,
+//!    Thirteen types hold fourteen such fields today:
+//!    eight written on the declaration line,
 //!    and six written one to a line.
 //!    Such a field is reached as `.0`,
 //!    and this scan keys a member by the name the declaration writes,
@@ -29,7 +31,9 @@
 //!    the type's own `pub` declaration sits in a module no `pub mod` chain reaches,
 //!    and this scan reads a type as published only where such a chain reaches its declaration.
 //!    Four types today publish fourteen `pub` members that way
-//!    (`ReadinessFileRefusal`, `StoredIdentity`, `TheRecordsProof` and `WhatTheRecordsProve`),
+//!    (`ReadinessFileRefusal`,
+//!    `StoredIdentity`,
+//!    `TheRecordsProof` and `WhatTheRecordsProve`),
 //!    which a consumer can reach through the facade and this scan reads nothing of.
 //!  - A `pub trait`'s methods and a `pub enum`'s variants:
 //!    both are published with no `pub` of their own,
@@ -39,7 +43,8 @@
 //!    this crate declares no inline module that is `pub`.
 //!  - A `pub use ...::*` over a module no `pub mod` chain reaches:
 //!    the glob is listed as `pub use <module>::*` and carries every name that module holds.
-//!    Every glob of this crate today names a module the chain reaches, so it carries nothing.
+//!    Every glob of this crate today names a module the chain reaches,
+//!    so it carries nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -86,7 +91,8 @@ const KINDS_THAT_OWN_MEMBERS: &[&str] = &["struct", "enum", "union", "trait", "t
 /// type NameableItem = { key: string; file: string }
 /// ```
 pub(crate) struct NameableItem {
-    /// The list's entry, `<module path> <kind> <name>`.
+    /// The list's entry,
+    /// `<module path> <kind> <name>`.
     pub(crate) key: String,
     /// The file that declares it,
     /// relative to the source root.
@@ -107,7 +113,8 @@ pub(crate) struct NameableItem {
 /// type CarriedName = { key: string; file: string }
 /// ```
 pub(crate) struct CarriedName {
-    /// The list's entry, `<module path> pub use <target>::<name>`.
+    /// The list's entry,
+    /// `<module path> pub use <target>::<name>`.
     pub(crate) key: String,
     /// The file holding the `pub use` statement.
     pub(crate) file: String,
@@ -136,7 +143,9 @@ pub(crate) struct Surface {
 ///  skipping a string literal whole.
 /// Why:
 ///  A declaration is read by the words it writes:
-///  the qualifiers before a kind, the kind, and the name after it.
+///  the qualifiers before a kind,
+/// the kind,
+/// and the name after it.
 ///  A word inside a string literal is no word of the declaration,
 ///  and `extern "C"` puts one there.
 ///
@@ -181,7 +190,9 @@ fn words_of(line: &str) -> Vec<&str> {
 ///  a declaration writes after its `pub `,
 ///  whatever qualifiers stand in between.
 /// Why:
-///  `pub async fn`, `pub const fn`, `pub unsafe fn` and `pub extern "C" fn` publish a function,
+///  `pub async fn`,
+/// `pub const fn`,
+/// `pub unsafe fn` and `pub extern "C" fn` publish a function,
 ///  and a reader that took the word after `pub` for the kind read none of them.
 ///
 /// In TS you'd write (pseudocode):
@@ -243,7 +254,8 @@ fn is_a_test_only_attribute(attribute: &str) -> bool {
 /// Why:
 ///  Exactly `pub` publishes a name to another crate:
 /// `pub(crate)` or `pub(super)` or `pub(in path)` do not,
-///  and a `bare pub` written one level in is a field or a method, which `members_in` reads.
+///  and a `bare pub` written one level in is a field or a method,
+/// which `members_in` reads.
 ///  A `#[cfg(test)]` attribute above a declaration keeps it out of the release build,
 ///  so it publishes nothing.
 ///
@@ -323,13 +335,13 @@ fn self_type_of(line: &str) -> Option<String> {
             }
         }
     }
-    let mut tail: &str = rest[offset..].trim_start();
-    if let Some((_, after)) = tail.split_once(" for ") {
-        tail = after.trim_start();
+    let mut implemented: &str = rest[offset..].trim_start();
+    if let Some((_, after)) = implemented.split_once(" for ") {
+        implemented = after.trim_start();
     }
-    let tail: &str = tail.split('{').next()?.trim();
-    let tail: &str = tail.split('<').next()?.trim();
-    let name: &str = tail.rsplit("::").next()?.trim();
+    let up_to_the_body: &str = implemented.split('{').next()?.trim();
+    let without_generics: &str = up_to_the_body.split('<').next()?.trim();
+    let name: &str = without_generics.rsplit("::").next()?.trim();
     if name.is_empty() {
         return None;
     }
@@ -467,14 +479,17 @@ fn members_of(
                 }
                 _ => self_type_of(line).map(|owner| return (owner, true)),
             };
-            if let (Some((owner, methods)), true) = (opened, line.contains('{')) {
-                if published_types.contains(owner.as_str()) {
+            match opened {
+                Some((owner, methods))
+                    if line.contains('{') && published_types.contains(owner.as_str()) =>
+                {
                     body = Some((owner, methods));
                     remaining = brace_delta(line);
                     if remaining <= 0 {
                         body = None;
                     }
                 }
+                _ => {}
             }
             continue;
         }
@@ -485,10 +500,13 @@ fn members_of(
         let Some((owner, methods)) = body.as_ref() else {
             continue;
         };
-        if !only_for_tests {
-            if let Some((kind, member)) = member_of_body(line.trim(), *methods) {
-                found.push((kind, format!("{owner}::{member}")));
-            }
+        let named: Option<(String, String)> = if only_for_tests {
+            None
+        } else {
+            member_of_body(line.trim(), *methods)
+        };
+        if let Some((kind, member)) = named {
+            found.push((kind, format!("{owner}::{member}")));
         }
         only_for_tests = false;
         remaining += brace_delta(line);
@@ -546,7 +564,8 @@ fn use_statements(text: &str) -> Vec<String> {
 ///  `pub use` statement names,
 ///  with every `as` rename applied and the module written as the statement writes it.
 /// Why:
-///  The name a statement publishes is the name after its `as`, not the one it started from,
+///  The name a statement publishes is the name after its `as`,
+/// not the one it started from,
 ///  and a glob publishes every name of the module it names,
 ///  which is one entry with no name of its own.
 ///
@@ -589,8 +608,8 @@ fn carried_of_statement(statement: &str) -> Vec<(String, String)> {
     }
     collected.push((String::new(), piece));
     for (prefix, raw) in collected {
-        let entry: String = format!("{prefix}{}", raw.trim());
-        let entry: &str = entry.trim();
+        let whole: String = format!("{prefix}{}", raw.trim());
+        let entry: &str = whole.trim();
         if entry.is_empty() {
             continue;
         }
