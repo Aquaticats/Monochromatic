@@ -50,73 +50,42 @@ use rustix::fs::{
 /// ```
 use rustix::io::Errno;
 /// What:
-/// `use std::fs::{self, File, OpenOptions};` imports the file-system module,
-/// the open-file type and the builder that opens a file with chosen flags.
+/// `use std::fs::{self, File};` imports the file-system module and the open-file type.
 /// Why:
-/// The replacement is created exclusively (`create_new`),
-/// written,
-/// synchronized and renamed.
+/// The displaced file is linked under a surviving name and a temporary that was never exposed is removed,
+/// and the two barriers open the file or directory they sync.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { openSync, writeSync, fsyncSync, linkSync, unlinkSync } from 'node:fs';
+/// import { linkSync, unlinkSync, openSync } from 'node:fs';
 /// ```
 use std::fs::{
     self,
     File,
-    OpenOptions,
 };
 /// What:
-/// `use std::io::{self, Write};` imports the error module and the trait that adds `write_all` to an open file.
+/// `use std::io;` imports the standard library's input/output module so this file can name it unqualified.
 /// Why:
-/// The replacement text is written through the descriptor that created the file.
+/// Every step of the protocol answers an `io::Result`,
+/// and "this filesystem cannot exchange" is an `io::Error`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // errors are thrown in Node; writeSync is a free function
+/// // errors are thrown in Node
 /// ```
-use std::io::{
-    self,
-    Write,
-};
+use std::io;
 /// What:
-/// `use std::os::unix::fs::MetadataExt;` imports the trait that adds `ino` and `dev` to file metadata.
+/// `use std::path::Path;` imports the borrowed path type from the standard library so this file can name it unqualified.
 /// Why:
-/// The replacement's own inode is remembered so that the undo can tell it from another writer's file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { statSync } from 'node:fs';
-/// ```
-use std::os::unix::fs::MetadataExt;
-/// What:
-/// `use std::path::{Path, PathBuf};` imports the borrowed and owned path types.
-/// Why:
-/// Paths are lent to the functions and the kept names are returned.
+/// The protocol only lends the paths it is given;
+/// the owned `PathBuf` of the same family is not named here,
+/// because every name this file produces comes from the two modules split out of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // TS has one type for this: string
 /// ```
-use std::path::{
-    Path,
-    PathBuf,
-};
-/// What:
-/// `use std::sync::atomic::{AtomicU64, Ordering};` imports a counter that threads can add to safely.
-/// Why:
-/// Temporary names combine the process id,
-/// the clock and this counter,
-/// so two replacements in one process never collide.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// let counter = 0; // single-threaded in Node
-/// ```
-use std::sync::atomic::{
-    AtomicU64,
-    Ordering,
-};
+use std::path::Path;
 
 /// What:
 /// `use crate::file_owner::observe;` imports the read that separates absence from failure.
@@ -129,111 +98,46 @@ use std::sync::atomic::{
 /// ```
 use crate::file_owner::observe;
 
-/// Keeping the displaced file under a surviving name (split out of the journal replacement module).
-pub(crate) use crate::journal_replace_preserve::{
-    keep_and_unlink,
-    keep_name,
-    sync_directory_and_parent,
+/// The temporary file the replacement publishes (split out of this module).
+use crate::journal_replace_creates::create_temporary;
+/// The error for a directory whose temporary names are used up (split out of this module).
+#[cfg(test)]
+pub(crate) use crate::journal_replace_creates::names_exhausted_message;
+/// The name cap and the borrowed parent of a path (split out of this module).
+pub(crate) use crate::journal_replace_creates::{
+    MAX_NAME_ATTEMPTS,
+    parent_of,
 };
-
-/// Counts the temporary names made by this process.
-static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
-
-/// What a compare-and-replace did to one file.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ReplaceOutcome {
-    /// The file held what was expected and now holds the new text;
-    /// the displaced file was kept under the name inside.
-    Replaced(
-        /// Where the displaced file was kept (always `Some` unless the target had vanished and nothing was displaced).
-        Option<PathBuf>,
-    ),
-    /// The file held something else,
-    /// or held it only for a moment and was put back:
-    /// another writer's file is where it was.
-    LeftAlone,
-    /// The snapshot is live and the file it displaced is kept at this path
-    /// (it was not exactly the expected one,
-    /// or could only be kept under its temporary name).
-    Displaced(
-        /// Where the displaced file is kept.
-        PathBuf,
-    ),
-    /// The exchange was undone:
-    /// another writer's file is live and the replacement inode is kept at this path.
-    Undone(
-        /// Where the replacement is kept.
-        PathBuf,
-    ),
-}
-
-/// Where and under what suffix a displaced file is kept.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct KeepAs {
-    /// The directory the kept names are made in;
-    /// `None` means next to the target.
-    pub directory: Option<PathBuf>,
-    /// The suffix after the target's file name (`.displaced`,
-    /// `.refused`).
-    pub suffix: String,
-}
-
-/// The constructors of the places a displaced file is kept.
-impl KeepAs {
-    /// What:
-    /// `pub fn next_to_target(suffix: &str) -> KeepAs` keeps displaced files in the target's own directory.
-    /// Why:
-    /// A refused lockfile saved by a recovery sits beside the lockfile,
-    /// where the person looks for it.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// static nextToTarget(suffix: string): KeepAs
-    /// ```
-    pub fn next_to_target(suffix: &str) -> KeepAs {
-        // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-        // Why:      Absence is a value the caller must check; there is no `null`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // Some(value) is  value
-        // // None        is  undefined
-        // ```
-        // What:     `.to_string()` (also `.to_owned()`, `String::from`) copies borrowed or displayable text into a new owned `String` (sibling: `&str`, a borrowed view that owns nothing).
-        // Why:      A struct field or a returned value must own its text because it may outlive the place the text came from.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // String(value)  // JS strings are always owned values
-        // ```
-        return KeepAs {
-            directory: None,
-            suffix: suffix.to_string(),
-        };
-    }
-
-    /// What:
-    /// `pub fn in_directory(directory: &Path, suffix: &str) -> KeepAs` keeps displaced files in one directory
-    /// (the quarantine under `.cache/cargo-shadow/`).
-    /// Why:
-    /// An ordinary rollback of this run's own output should not leave files in the working tree.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// static inDirectory(directory: string, suffix: string): KeepAs
-    /// ```
-    pub fn in_directory(
-        directory: &Path,
-        suffix: &str,
-    ) -> KeepAs {
-        // `Some`: the present or the absent value of an `Option`.
-        // `.to_string()`/`.to_owned()`: copies the text into a new owned `String`.
-        return KeepAs {
-            directory: Some(directory.to_path_buf()),
-            suffix: suffix.to_string(),
-        };
-    }
-}
+/// The directory chain and the exclusive file that the replacement is published from (split out of this module).
+pub use crate::journal_replace_creates::{
+    create_directories_synced,
+    create_directories_with,
+    create_exclusive,
+    file_name_text,
+    sync_directory,
+    unique_suffix,
+};
+/// What a compare-and-replace answered and where the displaced file is kept (split out of this module).
+pub use crate::journal_replace_outcome_and_keep_rule::{
+    KeepAs,
+    ReplaceOutcome,
+};
+/// Keeping the displaced file under a surviving name (split out of the journal replacement module).
+pub(crate) use crate::journal_replace_preserve::keep_and_unlink;
+/// The name a displaced file is kept under,
+/// beside the target or in a quarantine (split out of the journal replacement module).
+pub(crate) use crate::journal_replace_preserve::keep_name;
+/// The registry of directories a creation left unsynchronized (split out of this module).
+pub(crate) use crate::journal_replace_unsynced::{
+    forget_unsynced,
+    is_unsynced,
+};
+/// The two registry calls the busy-registry test drives (split out of this module).
+#[cfg(test)]
+pub(crate) use crate::journal_replace_unsynced::{
+    hold_unsynced_registry_for_test,
+    registry_calls_for_test,
+};
 
 /// What:
 /// `fn exchange(first: &Path, second: &Path) -> io::Result<()>` swaps two paths in one step (`renameat2` with `RENAME_EXCHANGE`).
@@ -289,46 +193,6 @@ fn exchange(
 }
 
 /// What:
-/// `fn sync_directory(directory: &Path) -> io::Result<()>` forces the directory entries of a directory to disk.
-/// Why:
-/// A rename,
-/// a link or an unlink is durable only after the directory that holds the name is synchronized.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fd = openSync(directory, 'r'); fsyncSync(fd); closeSync(fd);
-/// ```
-pub fn sync_directory(directory: &Path) -> io::Result<()> {
-    // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-    return File::open(directory)?.sync_all();
-}
-
-/// What:
-/// `fn parent_of(path: &Path) -> PathBuf` is the directory that holds a path (the current directory for a bare name).
-/// Why:
-/// The temporary file and the kept names are made beside the target.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const parentOf = (path: string): string => dirname(path);
-/// ```
-pub(crate) fn parent_of(path: &Path) -> PathBuf {
-    // `match`: picks the arm whose pattern fits the value.
-    return match path.parent() {
-        // `Some`: the present or the absent value of an `Option`.
-        Some(found) if !found.as_os_str().is_empty() => found.to_path_buf(),
-        // What:     `PathBuf` is an owned file path and `&Path` the borrowed view of one (the same pair as `String` and `&str`).
-        // Why:      Joined or stored paths are owned; paths passed in are borrowed.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // // TS has one type for this: string
-        // ```
-        _ => PathBuf::from("."),
-    };
-}
-
-/// What:
 /// `pub fn no_hook(_path: &Path)` is the hook that does nothing.
 /// Why:
 /// The real callers have no gap to exercise;
@@ -339,23 +203,6 @@ pub(crate) fn parent_of(path: &Path) -> PathBuf {
 /// export const noHook = (_path: string): void => {};
 /// ```
 pub fn no_hook(_path: &Path) {}
-
-/// What:
-/// `pub fn file_name_text(path: &Path) -> String` is the last component of a path as text (empty when there is none).
-/// Why:
-/// The kept copies are named after the file they stand for,
-/// and the messages name them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const fileNameText = (path: string): string => basename(path);
-/// ```
-pub fn file_name_text(path: &Path) -> String {
-    return match path.file_name() {
-        Some(name) => name.to_string_lossy().to_string(),
-        None => String::new(),
-    };
-}
 
 /// What:
 /// `pub fn replace_if_holds(path, expected, new_text, between) -> io::Result<ReplaceOutcome>` puts `new_text` in `path` when `path`
@@ -540,310 +387,6 @@ pub struct Seams<'a> {
     pub sync_dir: &'a dyn Fn(&Path) -> io::Result<()>,
 }
 
-/// The most names tried when a kept file's name is taken,
-/// and the most temporary names tried.
-/// Delegated pick under the owner's "Pick options as if I had picked them and invite veto when I say I'm back"
-/// (handover "Picks made under the owner's delegation"),
-/// veto open;
-/// not a measurement.
-/// Collisions were not counted;
-/// the names carry the process id,
-/// a nanosecond clock and a counter,
-/// so one try is the normal case
-/// and the cap only ends a search that something else is filling.
-/// The number is a ceiling that a directory this tool does not fill cannot reach.
-pub(crate) const MAX_NAME_ATTEMPTS: u32 = 10_000;
-
-/// The directories this process knows it left unsynchronized because a sync after their creation failed.
-/// Contract assumption b:
-/// such a directory is not treated as durable merely because it exists now.
-/// The registry lives as long as the process;
-/// across processes a directory left unsynced is a pre-existing directory and assumption b applies to it.
-static UNSYNCED: std::sync::Mutex<std::collections::BTreeSet<PathBuf>> =
-    std::sync::Mutex::new(std::collections::BTreeSet::new());
-
-/// Set when the registry could not be updated because another thread held it:
-/// knowledge may be missing,
-/// so every directory counts as unsynced from then on (the safe answer continues the walk).
-static UNSYNCED_UNKNOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// What:
-/// `fn remember_unsynced(directory: &Path)` records a directory whose creation was not made durable.
-/// Why:
-/// The walk of a later preservation continues through it.
-/// The registry is only touched with `try_lock` and no file-system call is made while it is held (contract V6:
-/// an internal lock
-/// returns at once);
-/// when it is busy the knowledge is not lost but widened to "unknown".
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function rememberUnsynced(directory: string): void
-/// ```
-fn remember_unsynced(directory: &Path) {
-    let resolved: PathBuf = match fs::canonicalize(directory) {
-        Ok(found) => found,
-        Err(_) => directory.to_path_buf(),
-    };
-    match UNSYNCED.try_lock() {
-        Ok(mut known) => {
-            known.insert(resolved);
-        }
-        Err(_) => UNSYNCED_UNKNOWN.store(true, std::sync::atomic::Ordering::Relaxed),
-    }
-}
-
-/// What:
-/// `fn forget_unsynced(directory: &Path)` removes a directory from the registry once its entry has been synchronized.
-/// Why:
-/// A later preservation may stop at it again.
-/// A busy registry keeps the entry,
-/// which only makes later walks longer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function forgetUnsynced(directory: string): void
-/// ```
-pub(crate) fn forget_unsynced(directory: &Path) {
-    if let Ok(mut known) = UNSYNCED.try_lock() {
-        known.remove(directory);
-    }
-}
-
-/// What:
-/// `fn is_unsynced(directory: &Path) -> bool` says whether this process knows it left the directory unsynchronized.
-/// Why:
-/// A busy or unreadable registry,
-/// and a registry that missed an update,
-/// count as "unsynced":
-/// the safe answer continues the walk.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function isUnsynced(directory: string): boolean
-/// ```
-pub(crate) fn is_unsynced(directory: &Path) -> bool {
-    if UNSYNCED_UNKNOWN.load(std::sync::atomic::Ordering::Relaxed) {
-        return true;
-    }
-    return match UNSYNCED.try_lock() {
-        Ok(known) => known.contains(directory),
-        Err(_) => true,
-    };
-}
-
-/// What:
-/// `pub(crate) fn hold_unsynced_registry_for_test(work: impl FnOnce())` runs `work` while this thread holds the registry,
-/// and clears the "unknown" mark afterwards.
-/// Why:
-/// The test of the busy-registry rule makes the lock busy on purpose.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function holdUnsyncedRegistryForTest(work: () => void): void
-/// ```
-#[cfg(test)]
-pub(crate) fn hold_unsynced_registry_for_test(work: impl FnOnce()) {
-    let guard = UNSYNCED.lock();
-    work();
-    drop(guard);
-    UNSYNCED_UNKNOWN.store(false, std::sync::atomic::Ordering::Relaxed);
-}
-
-/// What:
-/// `pub(crate) fn registry_calls_for_test(directory: &Path) -> bool` makes the three registry calls on a directory and returns what
-/// `is_unsynced` said last.
-/// Why:
-/// The busy-registry test calls them from a thread while another holds the registry.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function registryCallsForTest(directory: string): boolean
-/// ```
-#[cfg(test)]
-pub(crate) fn registry_calls_for_test(directory: &Path) -> bool {
-    remember_unsynced(directory);
-    forget_unsynced(directory);
-    return is_unsynced(directory);
-}
-
-/// What:
-/// `pub fn create_directories_with(path, sync_dir) -> io::Result<Vec<PathBuf>>` creates a directory and every missing ancestor,
-/// syncing each new directory and the directory that now lists it with `sync_dir`,
-/// and returns the directories it created.
-/// Why:
-/// Review finding (3b 6):
-/// a file linked into a new directory is lost to a power failure when the new directory's own entry is
-/// not durable;
-/// `create_dir_all` alone makes no such promise.
-/// A directory whose sync failed is remembered as unsynced (contract assumption b).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function createDirectoriesWith(path: string, syncDir: (p: string) => void): string[]  // mkdir each missing ancestor, fsync it and its parent
-/// ```
-pub fn create_directories_with(
-    path: &Path,
-    sync_dir: &dyn Fn(&Path) -> io::Result<()>,
-) -> io::Result<Vec<PathBuf>> {
-    let mut missing: Vec<PathBuf> = Vec::new();
-    for ancestor in path.ancestors() {
-        if ancestor.as_os_str().is_empty() || ancestor.exists() {
-            break;
-        }
-        missing.push(ancestor.to_path_buf());
-    }
-    let mut created: Vec<PathBuf> = Vec::new();
-    for directory in missing.iter().rev() {
-        match fs::create_dir(directory) {
-            Ok(()) => created.push(directory.clone()),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
-        }
-        if let Err(error) = sync_directory_and_parent(sync_dir, directory) {
-            remember_unsynced(directory);
-            return Err(error);
-        }
-    }
-    return Ok(created);
-}
-
-/// What:
-/// `pub fn create_directories_synced(path: &Path) -> io::Result<()>` is `create_directories_with` with the real sync.
-/// Why:
-/// Most callers only need the directories to exist durably.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function createDirectoriesSynced(path: string): void
-/// ```
-pub fn create_directories_synced(path: &Path) -> io::Result<()> {
-    return create_directories_with(path, &sync_directory).map(drop);
-}
-
-/// What:
-/// `pub fn create_exclusive(directory, base, text, mode, next_name) -> io::Result<(PathBuf, u64, u64)>` writes `text` to a new file
-/// that did not exist,
-/// syncs it,
-/// and returns its path,
-/// device and inode.
-/// Why:
-/// An existing file of the chosen name is never truncated or reused:
-/// the next name is tried,
-/// up to `MAX_NAME_ATTEMPTS`,
-/// then the call fails naming the directory.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function createExclusive(directory: string, base: string, text: string, mode: number, nextName: () => string): [string, bigint, bigint]
-/// ```
-pub fn create_exclusive(
-    directory: &Path,
-    base: &str,
-    text: &str,
-    mode: u32,
-    next_name: &mut dyn FnMut() -> String,
-) -> io::Result<(PathBuf, u64, u64)> {
-    /// Imports `std::os::unix::fs::OpenOptionsExt` for this file.
-    use std::os::unix::fs::OpenOptionsExt;
-    for _attempt in 0..MAX_NAME_ATTEMPTS {
-        // Typed binding: `candidate: PathBuf`.
-        // Macro `format!`: builds or prints text (or a list) from a template.
-        let candidate: PathBuf = directory.join(format!(".{base}.shadow-{}.tmp", next_name()));
-        // `match`: picks the arm whose pattern fits the value.
-        // Borrow `&candidate`: lends the value without copying or giving it away.
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(mode & 0o777)
-            .open(&candidate)
-        {
-            // `Ok(...)`: builds the success or the failure variant of a `Result`.
-            Ok(mut file) => {
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                file.write_all(text.as_bytes())?;
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                #[cfg(test)]
-                if crate::failpoints::fires(crate::failpoints::Point::PublicationFileSync) {
-                    return Err(io::Error::other("injected file sync failure"));
-                }
-                file.sync_all()?;
-                // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
-                let metadata = file.metadata()?;
-                // `Ok(...)`: builds the success or the failure variant of a `Result`.
-                return Ok((candidate, metadata.dev(), metadata.ino()));
-            }
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
-            // `Err(...)`: builds the success or the failure variant of a `Result`.
-            Err(error) => return Err(error),
-        }
-    }
-    // `Err(...)`: builds the success or the failure variant of a `Result`.
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    return Err(io::Error::other(names_exhausted_message(directory, base)));
-}
-
-/// What:
-/// `pub fn unique_suffix() -> String` is a name part that differs between calls and processes (pid,
-/// clock,
-/// counter).
-/// Why:
-/// Temporary names are tried with `create_new`,
-/// so this only makes the first try succeed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const uniqueSuffix = (): string => `${process.pid}-${process.hrtime.bigint()}-${counter++}`;
-/// ```
-pub fn unique_suffix() -> String {
-    // `match`: picks the arm whose pattern fits the value.
-    // Typed binding: `nanos: u128`.
-    let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        // `Ok(...)`: builds the success or the failure variant of a `Result`.
-        Ok(elapsed) => elapsed.as_nanos(),
-        // `Err(...)`: builds the success or the failure variant of a `Result`.
-        Err(_) => 0,
-    };
-    // Typed binding: `number: u64`.
-    // What:     Integer types are fixed width: `i32`/`i64` signed, `u32`/`u64` unsigned, `usize` as wide as a memory address (siblings of each other); there is no automatic widening.
-    // Why:      The width matches the API the value comes from or goes to: `usize` for indexes and lengths, `i64` for milliseconds, `i32` for process exit codes, `u32` for process ids and counts.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // // TS has one type for this: number
-    // ```
-    let number: u64 = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
-    // Macro `format!`: builds or prints text (or a list) from a template.
-    return format!("{}-{nanos}-{number}", std::process::id());
-}
-
-/// What:
-/// `fn create_temporary(target: &Path, text: &str, mode: u32) -> io::Result<(PathBuf, u64, u64)>` writes the replacement beside
-/// the target.
-/// Why:
-/// The replacement is exchanged into place,
-/// so it lives in the target's directory (the same file system).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function createTemporary(target: string, text: string, mode: number): [string, bigint, bigint]
-/// ```
-fn create_temporary(
-    target: &Path,
-    text: &str,
-    mode: u32,
-) -> io::Result<(PathBuf, u64, u64)> {
-    // Borrow `&parent_of`: lends the value without copying or giving it away.
-    return create_exclusive(
-        &parent_of(target),
-        &file_name_text(target),
-        text,
-        mode,
-        &mut unique_suffix,
-    );
-}
-
 /// The operations the protocol is built from,
 /// so a test can fail or watch each one.
 pub struct Ops<'a> {
@@ -1008,25 +551,5 @@ pub fn replace_with_seams(
         seams.between,
         seams.after_exchange,
         &ops,
-    );
-}
-
-/// What:
-/// `pub(crate) fn names_exhausted_message(directory: &Path, base: &str) -> String` is the error for a directory whose temporary names are used up.
-/// Why:
-/// The files may be the only names of another writer's data,
-/// so the text says what keeps the data and what loses it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function namesExhaustedMessage(directory: string, base: string): string
-/// ```
-pub(crate) fn names_exhausted_message(
-    directory: &Path,
-    base: &str,
-) -> String {
-    return format!(
-        "{} holds {MAX_NAME_ATTEMPTS} temporary files named after {base}; those files can be the only names of data another writer produced, so keep them. Renaming one inside the same file system keeps its data; copying one elsewhere and deleting the original does not, because a program that still has the original open keeps writing to it. Close every program that may have one open before you move or remove any, then run the command again",
-        directory.display()
     );
 }

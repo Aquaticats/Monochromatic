@@ -5,6 +5,9 @@
 //! Split out of `journal_unready.rs`,
 //! which recovers the journals this assessment clears,
 //! to keep that file under the code-line limit.
+//! The record and the context it was made in were split out of this file into
+//! `journal_unready_record_context.rs`,
+//! for the same reason.
 //! The items are re-exported from `journal_unready`,
 //! so their paths there are unchanged.
 //!
@@ -12,12 +15,6 @@
 //! ```ts
 //! export function assess(directory: string): Finding | undefined
 //! ```
-
-/// Imports `std::fs` for this file.
-use std::fs;
-
-/// Imports `std::io` for this file.
-use std::io;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
 use std::path::{
@@ -36,22 +33,22 @@ use rustix::process::{
 
 /// Imports the control group records and queries for this file.
 use crate::control_group::{
-    Identity,
     LauncherState,
     Membership,
     Record,
-    current_identity,
     parse_record,
-    populated_at,
     query,
-    read_identity_text,
-    view_of,
 };
 
-/// Imports the journal file names for this file.
-use crate::journal::{
-    GROUPS_FILE,
-    VIEW_FILE,
+/// Imports the finding,
+/// the record context and the reader of that context,
+/// which live in their own file (split out of this module),
+/// and re-exports them,
+/// so every caller keeps the path it had.
+pub(crate) use crate::journal_unready_record_context::{
+    Finding,
+    RecordContext,
+    record_and_context,
 };
 
 /// Imports the verdict on a journal that has no ready record for this file.
@@ -59,7 +56,6 @@ use crate::journal_unready_verdict::{
     launcher_verdict_of,
     note_uncertain,
 };
-
 #[cfg(test)]
 thread_local! {
     /// A hook that runs inside `assess` after every record was queried and before the unsettled scopes are judged,
@@ -83,22 +79,6 @@ pub(crate) fn after_query_for_test(hook: Option<std::rc::Rc<dyn Fn()>>) {
     AFTER_QUERY.with(|slot| {
         *slot.borrow_mut() = hook;
     });
-}
-
-/// What a check of one journal found.
-pub(crate) enum Finding {
-    /// A recorded scope or process group is positively observed to have a member:
-    /// nothing overrides this.
-    Live(
-        /// The message.
-        String,
-    ),
-    /// The containment context cannot establish that the run's writers stopped:
-    /// an acknowledgement overrides this.
-    Uncertain(
-        /// The message.
-        String,
-    ),
 }
 
 /// What:
@@ -132,121 +112,21 @@ fn acknowledge_hint(directory: &Path) -> String {
 /// (round 7,
 /// 6b2 2:
 /// neither the ready record nor the absence of one stands in for it).
-/// A journal that holds records is also checked for the mount and inode view it was made in (contract assumption c).
+/// A journal that holds records is also checked for the mount and inode view it was made in (contract assumption c),
+/// which `record_and_context` answers before the records are judged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function assess(directory: string): Finding | undefined
 /// ```
 pub(crate) fn assess(directory: &Path) -> Option<Finding> {
-    let path: PathBuf = directory.join(GROUPS_FILE);
     let hint: String = acknowledge_hint(directory);
-    let text: String = match fs::read_to_string(&path) {
+    let context: RecordContext = match record_and_context(directory, &hint) {
         Ok(found) => found,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return match fs::read_dir(directory) {
-                Ok(mut entries) => match entries.next() {
-                    None => None,
-                    Some(Ok(_)) => Some(Finding::Uncertain(format!(
-                        "{}: the record of the containment of the killed run is missing, so a child of that run may still be writing; {hint}",
-                        directory.display()
-                    ))),
-                    Some(Err(listing_error)) => Some(Finding::Uncertain(format!(
-                        "{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}",
-                        directory.display()
-                    ))),
-                },
-                Err(listing_error) => Some(Finding::Uncertain(format!(
-                    "{}: the journal could not be listed ({listing_error}), so a child of the killed run may still be writing; {hint}",
-                    directory.display()
-                ))),
-            };
-        }
-        Err(error) => {
-            return Some(Finding::Uncertain(format!(
-                "{}: the record of the containment of the killed run could not be read ({error}), so a child of that run may still be writing; {hint}",
-                directory.display()
-            )));
-        }
+        Err(answer) => return answer,
     };
-    // An empty record shows that no child ever started.
-    let _first_line: &str = text.lines().next()?;
-    let mut uncertain: Option<String> = None;
-    let view_text: io::Result<String> = fs::read_to_string(directory.join(VIEW_FILE));
-    // A reboot of the same machine ended every process of the run (assumption a: the run's writers are inside it, and a boot ends them
-    // all). The journal was made by one process in one boot, so its identity covers every record. A different boot id with the same
-    // machine id discharges only the question whether the run's processes live; every other check of a recovery still runs.
-    let recorded_identity: Option<Identity> = match view_text.as_ref() {
-        Ok(recorded) => read_identity_text(recorded),
-        Err(_) => None,
-    };
-    // Both identities must be well formed (the reader already refuses a malformed or repeated record): an id that is not an id differs
-    // from every real one and is no evidence of a reboot (round 10, 9a D2).
-    let rebooted: bool = match (&recorded_identity, current_identity()) {
-        (Some(recorded), Ok(now)) => {
-            recorded.is_well_formed()
-                && now.is_well_formed()
-                && recorded.machine == now.machine
-                && recorded.boot != now.boot
-        }
-        _ => false,
-    };
-    if rebooted {
-        // The one contradiction that is kept: a recorded scope (its name carries a random token, so it cannot be a reused name)
-        // that has a member after a reboot is not explained by the reboot.
-        for line in text.lines() {
-            if let Ok(Record::Scope {
-                path: scope_path,
-                ..
-            }) = parse_record(line)
-                && populated_at(&scope_path).unwrap_or(false)
-            {
-                return Some(Finding::Live(format!(
-                    "{}: the scope {} of the killed run has a member although the boot id changed since the run; the journal was kept for a later run",
-                    directory.display(),
-                    scope_path.display()
-                )));
-            }
-        }
-        return None;
-    }
-    // The view of the journal directory: another mount view of the same path cannot be trusted to hold the same scopes.
-    match &view_text {
-        Ok(recorded) => {
-            let expected: String = recorded
-                .lines()
-                .next()
-                .unwrap_or("")
-                .strip_prefix("view ")
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            match view_of(directory) {
-                Ok(seen) if seen.to_string() == expected => {}
-                Ok(seen) => note_uncertain(
-                    &mut uncertain,
-                    format!(
-                        "{}: the journal is seen through another mount or path (mount and inode {seen} here, {expected:?} when it was made), so the containment it recorded may not be the one visible here; {hint}",
-                        directory.display()
-                    ),
-                ),
-                Err(error) => note_uncertain(
-                    &mut uncertain,
-                    format!(
-                        "{}: the view of the journal cannot be examined ({error}); {hint}",
-                        directory.display()
-                    ),
-                ),
-            }
-        }
-        Err(error) => note_uncertain(
-            &mut uncertain,
-            format!(
-                "{}: the record of the journal's mount view could not be read ({error}); {hint}",
-                directory.display()
-            ),
-        ),
-    }
+    let text: String = context.text;
+    let mut uncertain: Option<String> = context.uncertain;
     // A "starting" line of the weaker path that no process group line follows: a child may run that no record names.
     let mut announced_without_group: bool = false;
     let mut weaker_path: bool = false;

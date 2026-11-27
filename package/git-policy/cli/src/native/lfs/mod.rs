@@ -11,14 +11,28 @@
 //! - `lfs_command_line_configuration.rs`:
 //!   the configuration a push carries on its command line,
 //!   read by the upload child and by the switch that turns the upload off.
+//! - `lfs_output_mask_url_parts.rs`:
+//!   the parts of a URL,
+//!   read as bytes:
+//!   where its scheme,
+//!   its authority and the rest of it end,
+//!   and which host a destination or a text names.
 //! - `lfs_output_mask.rs`:
 //!   hides the credentials inside URLs in the text relayed from `git-lfs`.
 //! - `lfs_pointer.rs`:
 //!   whether a blob is a Git LFS pointer,
 //!   decided as `git-lfs` decides it.
+//! - `lfs_pointer_scan_object_reads.rs`:
+//!   one scan's reads of the objects a push introduces:
+//!   the commits it has parsed,
+//!   their committer times,
+//!   and the comparisons it has made.
 //! - `lfs_pointer_scan.rs`:
 //!   the LFS objects a push introduces,
 //!   found in process from the commits to be pushed.
+//! - `lfs_pre_push_host_key_refusal.rs`:
+//!   what a transcript says about an SSH host key this machine does not know,
+//!   and the lines of it the started program wrote itself.
 //! - `lfs_pre_push.rs`:
 //!   when a push needs the Git LFS upload,
 //!   and the texts the parent prints around it.
@@ -38,13 +52,17 @@
 //! - `lfs_destination_confirms_tracking_refs.rs`:
 //!   whether this clone's tracking refs for a remote describe the server a push goes to,
 //!   asked of the destination itself.
-//! - `lfs_upload_plan_arguments.rs`:
-//!   what the arguments of a push and the configuration decide about an upload,
-//!   before either face of the plan asks Git anything.
 //! - `lfs_upload_refspecs.rs`:
 //!   the refs one refspec names,
 //!   which both faces of the plan expand,
 //!   beside the plan itself so that neither file passes the package's length limit.
+//! - `lfs_upload_plan_destination.rs`:
+//!   what the destination of an upload is,
+//!   and the server it is connected to,
+//!   beside the plan itself so that each file passes the package's length limit.
+//! - `lfs_upload_plan_arguments.rs`:
+//!   what the arguments of a push and the configuration decide about an upload,
+//!   before either face of the plan asks Git anything.
 //! - `lfs_upload_plan.rs`:
 //!   what the Git LFS upload sends:
 //!   the remote and the refs,
@@ -52,6 +70,11 @@
 //! - `lfs_object_plan.rs`:
 //!   the upload plan narrowed to the objects the push introduces,
 //!   or to nothing.
+//! - `lfs_upload_child_run.rs`:
+//!   one child run of the upload:
+//!   the commands it runs,
+//!   the standard error captured from one of them,
+//!   and the wait that ends it.
 //! - `lfs_upload.rs`:
 //!   the parent's bounded or interactive run of the Git LFS upload.
 //! - `lfs_interactive.rs`:
@@ -74,6 +97,10 @@
 /// The configuration a push carries on its command line,
 /// read by the upload child and by the switch that turns the upload off.
 pub mod lfs_command_line_configuration;
+
+/// What a transcript says about an SSH host key this machine does not know,
+/// and the lines of it the started program wrote itself.
+pub mod lfs_pre_push_host_key_refusal;
 
 /// When a push needs the Git LFS upload,
 /// and the texts the parent prints around it.
@@ -102,6 +129,11 @@ pub mod lfs_upload_plan_awaiting;
 /// beside the plan itself so that neither file passes the package's length limit.
 pub mod lfs_upload_refspecs;
 
+/// What the destination of an upload is,
+/// and the server it is connected to,
+/// beside the plan itself so that each file passes the package's length limit.
+pub mod lfs_upload_plan_destination;
+
 /// The configuration the Git LFS upload plan reads,
 /// and the default remote derived from it.
 pub mod lfs_upload_settings;
@@ -110,12 +142,25 @@ pub mod lfs_upload_settings;
 /// asked of the destination itself.
 pub mod lfs_destination_confirms_tracking_refs;
 
+/// The parts of a URL,
+/// read as bytes:
+/// where its scheme,
+/// its authority and the rest of it end,
+/// and which host a destination or a text names.
+pub mod lfs_output_mask_url_parts;
+
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;
 
 /// Whether a blob is a Git LFS pointer,
 /// decided as `git-lfs` decides it.
 pub mod lfs_pointer;
+
+/// One scan's reads of the objects a push introduces:
+/// the commits it has parsed,
+/// their committer times,
+/// and the comparisons it has made.
+pub mod lfs_pointer_scan_object_reads;
 
 /// The LFS objects a push introduces,
 /// found in process from the commits to be pushed.
@@ -125,6 +170,12 @@ pub mod lfs_pointer_scan;
 /// The upload plan narrowed to the objects the push introduces,
 /// or to nothing.
 pub mod lfs_object_plan;
+
+/// One child run of the upload:
+/// the commands it runs,
+/// the standard error captured from one of them,
+/// and the wait that ends it.
+pub mod lfs_upload_child_run;
 
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;

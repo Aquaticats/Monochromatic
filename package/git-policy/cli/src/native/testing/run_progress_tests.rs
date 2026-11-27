@@ -12,12 +12,14 @@
 //! The controls that judge this process's own tasks run their reading in a helper process of the test's own,
 //! because a look adds up every task of this process and a threaded run shares it (issue 6486).
 
+use super::one_look::look;
 use super::*;
 use crate::helper_process_test_support::{
     helper_directory,
     in_a_helper,
     verdict_in_a_helper,
 };
+use crate::push_progress::SAMPLE_INTERVAL;
 use crate::test_support::{
     arm_watchdog,
     fixture,
@@ -25,7 +27,13 @@ use crate::test_support::{
     remove,
     spawn_owned,
 };
+use crate::thread_quiet::current_thread_id;
+use std::io::Write as _;
 use std::os::unix::process::ExitStatusExt as _;
+use std::time::{
+    Duration,
+    Instant,
+};
 
 /// What:
 ///  A look at a run in which nothing is able to run and nothing waits for the disk,

@@ -44,6 +44,9 @@ arms alternating,
 over 24,313 tracked files:
 `~/temp/agent/zfs-step-3-integration-pass-findings-fixed-2026-11-19/keep/report-from-summary.md`
 and `~/temp/agent/zfs-step-3-short-review-findings-after-guest-arm-2026-11-20/keep/report-from-summary.md`.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 - Dirty source:
   0.80 to 1.59 times `main`'s time over 20 rounds in four runs,
@@ -70,6 +73,9 @@ finding H1)
 measured a second cost on ZFS:
 a clean add of a tree of many small files is slower than on `main`,
 because cloning a small file costs more than Git's write of it.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Release builds,
 rounds in rotating order with a same-binary control:
 10,001 files of about 2.6 KB took a median 1.33 times `main`'s time

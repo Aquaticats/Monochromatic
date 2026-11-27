@@ -107,34 +107,26 @@ pub use super::service_claim_watch_watched_repositories::{
 };
 pub use super::service_claim_watch_writing_a_note::note_for_the_next_service;
 
-// The names a control of this store writes and names notes by.
+// The names a control of this store writes and names notes by, and the note's own format.
 #[cfg(test)]
 pub(crate) use super::service_claim_watch_note_format::{
+    NOTE_FILE_LIMIT,
+    WATCH_EXTENSION,
     encode,
     watch_name,
 };
 #[cfg(test)]
 pub(crate) use super::service_claim_watch_writing_a_note::next_service_note_point;
 
-// The note's own format and reading, and the write this store makes of one.
-pub(crate) use super::service_claim_watch_note_format::{
-    NOTE_FILE_LIMIT,
-    WATCH_EXTENSION,
-    decode,
-    read_file,
-};
+// The note's reading, and the write this store makes of one.
+pub(crate) use super::service_claim_watch_note_format::read_file;
 pub(crate) use super::service_claim_watch_writing_a_note::write_down;
 
-use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::private_storage::ReadRefusal;
-use crate::service_claim_watch_whose_repository_it_is::{
-    of_another_instance,
-    refused_for_another_instance,
-};
+use super::service_claim_watch_reading_the_store::scan_the_store;
+use crate::service_claim_watch_whose_repository_it_is::refused_for_another_instance;
 use crate::service_work::work_directory;
 use crate::work_item::{
     PENDING,
-    WORK_DIRECTORY,
     state_directory,
 };
 use std::path::{
@@ -147,6 +139,12 @@ use std::time::Duration;
 // so the trait that makes an owned string of bytes reaches it through this module's glob import.
 #[cfg(test)]
 use std::os::unix::ffi::OsStringExt;
+// A control of this store names the work directory of a Git directory and reads a note's refusals,
+// which the reading of the store hands it through this module's glob import.
+#[cfg(test)]
+use crate::private_storage::ReadRefusal;
+#[cfg(test)]
+use crate::work_item::WORK_DIRECTORY;
 
 /// Directory,
 /// under the service instance's journal,
@@ -561,132 +559,19 @@ impl ClaimWatch {
     /// that are certainly of no use,
     /// and notes a failure to read as `unread`.
     /// Gives the directories that were not known before.
-    /// A name that holds no regular file,
-    /// and a file longer than a note can hold,
-    /// is said once and left where it is:
-    /// no note this store wrote is either,
-    /// and it is not read again after a pause,
-    /// because a second read of it answers the same.
+    /// The reading itself is a file of its own (`service_claim_watch_reading_the_store.rs`),
+    /// so this store and the controls that read it stay readable.
     fn scan(
         &mut self,
         read: ReadFile<'_>,
     ) -> Vec<PathBuf> {
-        let Some(directory) = self.store.clone() else {
-            return Vec::new();
-        };
-        self.unread = false;
-        let listing = match std::fs::read_dir(directory.as_path()) {
-            Ok(listing) => listing,
-            // A journal that never held a note.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
-            Err(error) => {
-                crate::service_warn!(
-                    "the notes of the repositories to look at in {} could not be listed, so they are listed again after a pause: {error}",
-                    directory.display()
-                );
-                self.unread = true;
-                return Vec::new();
-            }
-        };
-        let mut found: Vec<PathBuf> = Vec::new();
-        for listed in listing {
-            let path: PathBuf = match listed {
-                Ok(entry) => entry.path(),
-                Err(error) => {
-                    crate::service_warn!(
-                        "an entry of {} could not be listed, so the notes are listed again after a pause: {error}",
-                        directory.display()
-                    );
-                    self.unread = true;
-                    continue;
-                }
-            };
-            if path.extension().and_then(std::ffi::OsStr::to_str) != Some(WATCH_EXTENSION) {
-                continue;
-            }
-            let git_dir: PathBuf = match read(path.as_path()) {
-                Ok(bytes) => match decode(bytes.as_slice()) {
-                    Ok(git_dir) => git_dir,
-                    Err(reason) => {
-                        crate::service_warn!(
-                            "the note {} holds no repository and is removed: {reason}",
-                            path.display()
-                        );
-                        let _removed = std::fs::remove_file(path.as_path());
-                        continue;
-                    }
-                },
-                // Removed between the listing and the read.
-                Err(ReadRefusal::Missing) => continue,
-                // Nothing this store writes: a pipe, a link or a directory.
-                // It is said once and left where it is,
-                // and it is not read again after a pause, because a second read of it answers the same.
-                Err(ReadRefusal::NotRegular) => {
-                    crate::service_warn!(
-                        "the note {} is not a regular file, so it holds no repository to look at and stays",
-                        path.display()
-                    );
-                    continue;
-                }
-                // Nothing this store writes either: a note is the format words and one path's bytes in hexadecimal.
-                Err(ReadRefusal::TooLarge) => {
-                    crate::service_warn!(
-                        "the note {} holds more than the {NOTE_FILE_LIMIT} bytes a note can, so it holds no repository and stays",
-                        path.display()
-                    );
-                    continue;
-                }
-                Err(ReadRefusal::Io(error)) => {
-                    crate::service_warn!(
-                        "the note {} could not be read, so it is read again after a pause: {error}",
-                        path.display()
-                    );
-                    self.unread = true;
-                    continue;
-                }
-            };
-            if of_another_instance(self.instance.as_deref(), git_dir.as_path()) {
-                crate::service_warn!(
-                    "the note {} names {}, which is not this instance's repository, and is removed",
-                    path.display(),
-                    git_dir.display()
-                );
-                let _removed = std::fs::remove_file(path.as_path());
-                continue;
-            }
-            match std::fs::symlink_metadata(path_for_reading(git_dir.as_path(), WORK_DIRECTORY)) {
-                Ok(metadata) if metadata.is_dir() => {
-                    if !self.known.contains(&git_dir) {
-                        self.known.push(git_dir.clone());
-                        found.push(git_dir);
-                    }
-                }
-                Ok(_) => {
-                    crate::service_warn!(
-                        "the work directory of {} is not a directory, so its note {} is removed",
-                        git_dir.display(),
-                        path.display()
-                    );
-                    let _removed = std::fs::remove_file(path.as_path());
-                }
-                Err(error)
-                    if matches!(
-                        error.kind(),
-                        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
-                    ) =>
-                {
-                    let _removed = std::fs::remove_file(path.as_path());
-                }
-                Err(error) => {
-                    crate::service_warn!(
-                        "the work directory of {} could not be looked at, so its note is kept and read again after a pause: {error}",
-                        git_dir.display()
-                    );
-                    self.unread = true;
-                }
-            }
-        }
-        return found;
+        return scan_the_store(
+            self.store.as_deref(),
+            self.instance.as_deref(),
+            &mut self.known,
+            &mut self.unread,
+            read,
+        );
     }
 }
 

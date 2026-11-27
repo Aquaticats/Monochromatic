@@ -25,8 +25,15 @@ Plan step 5 then added it to every release
 "Step 5"),
 although nothing installs or starts it until step 19.
 The release pass over alpha.45 found its `--help` naming install paths that do not exist
-(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/zfs-route-reach/keep/review.md`,
+(`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/zfs-route-reach/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 M1).
+That `--help` ended with the build "installed at
+/usr/libexec/monochromatic-git-policy-cli/mount-git-worktree-clone-datasets for service calls and at
+/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets for ZED events",
+and the pass found neither path on its host or in any install of alpha.45.
 
 ## The question
 

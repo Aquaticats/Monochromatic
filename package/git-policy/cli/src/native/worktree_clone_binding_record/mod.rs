@@ -53,7 +53,12 @@
 //!   and the sentence a person reads.
 //! - `binding_field_set.rs`:
 //!   the fields one binding parse has read so far,
-//!   each still optional until the whole record answers,
+//!   each still optional until the whole record answers.
+//! - `binding_field_set_line.rs`:
+//!   one line's key and value recorded into those fields,
+//!   or the value the field cannot hold.
+//! - `binding_field_set_record.rs`:
+//!   the record the fields describe,
 //!   and the check that every field its phase needs is present.
 //! - `binding_inventory_parse.rs`:
 //!   reading one inventory's bytes as the file its name says it is.
@@ -85,6 +90,8 @@ pub mod add_state_commands;
 pub mod binding_bound;
 pub mod binding_encoding;
 pub mod binding_field_set;
+pub mod binding_field_set_line;
+pub mod binding_field_set_record;
 pub mod binding_inventory;
 pub mod binding_inventory_parse;
 pub mod binding_parse;

@@ -12,11 +12,20 @@ section "Questions only the project can answer",
 Q-A,
 Q-B and Q-C),
 as its gate review would put them
-(`~/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review-diff-check.md`,
+(`~/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review-diff-check.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 section "The questions as they now stand,
 and whether I would put the design"),
 about the open item "Which triggers a lost last event waits for" of
 `doc/planning/cli-git-zfs-worktree-design-proposal.md`.
+That review put all three as the project's questions,
+each with concrete options and a ranking it called sound:
+Q-A ranked B > A > C > D against its trace of the hook action,
+Q-B ranked A > B > C,
+and Q-C ranked C > A > B,
+adopted once measured.
 
 ## What was decided
 
@@ -106,9 +115,18 @@ which the project's threat model accepts.
 Accepted 2026-11-22 in the question tool,
 recorded 2026-11-22T20:49:43-05:00,
 after the design was rewritten to the three answers of this record and reviewed twice more
-(`~/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review-diff-check-after-the-answers.md`,
+(`~/temp/agent/gate-review-zfs-lost-last-event-triggers-design-2026-11-22/keep/review-diff-check-after-the-answers.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 section "What is left for the owner",
 on the design's veto entry V14).
+That review found V14 complete as a veto entry and asked for it as a question,
+because its first option adds a consequence the owner was not shown:
+a request nothing can answer is nudged for ever,
+one handler run and one pass per `Gmax`,
+by ordinary Git use,
+with `Gmax` unmeasured.
 
 Asked:
 the design spaces a clone's nudges,

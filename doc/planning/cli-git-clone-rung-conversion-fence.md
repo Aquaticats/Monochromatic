@@ -45,7 +45,10 @@ against the fence's correctness at 1.11,
 and the second is the price of the bytes being right where a conversion rule applies.
 Those four numbers are the last round's kept run
 (`~/temp/agent/clone-rung-conversion-fence-gate-review-findings-fixed-2026-11-20/scratch/keep/`,
-`measure-r5b-real-*.summary.txt` and `.json`).
+`measure-r5b-real-*.summary.txt` and `.json`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 This round re-measured the same shape with the current code (`measure-recheck2-real-*`):
 step 3 0.49 of `main` (1,028 against 2,119 ms) and the fence 0.98 (control 0.90).
 The two runs differ by more than the fence-to-`main` difference in either,
@@ -106,7 +109,10 @@ with controls equal:
   `notes.txt ident` over an unexpanded `$Id$`,
   and
   `* text=auto eol=lf` over a CRLF file that was then `git add`ed all differ from Git's checkout
-  (`~/temp/agent/clone-rung-line-ending-reproduction-on-step-3-and-main-2026-11-20/keep/`).
+  (`~/temp/agent/clone-rung-line-ending-reproduction-on-step-3-and-main-2026-11-20/keep/`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - btrfs in a guest,
   `main` at `2df9b1689b`:
   rung 1 with a clean source,
@@ -114,7 +120,10 @@ with controls equal:
   and rung 2 with a
   clean source all differ from Git's checkout in those same four cases,
   with the controls equal
-  (`~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/keep/findings.md`).
+  (`~/temp/agent/snapshot-and-clone-rungs-under-conversion-in-a-btrfs-guest-2026-11-20/keep/findings.md`;
+  scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
 The second measured set matters for the merge bar:
 on btrfs `main` serves both rungs,
@@ -889,12 +898,18 @@ the fence at `527b890d3e` (sha256 `b7ddcb21…`,
 the shipped build) and its measurement build with the same code plus `measurement-routes` (sha256 `96587a9e…`)
 are in the previous round's
 `~/temp/agent/clone-rung-conversion-fence-gate-review-findings-fixed-2026-11-20/scratch/keep/`
-(the files `fence-h1h2-fixed` and `fence-h1h2-fixed-measurement`);
+(the files `fence-h1h2-fixed` and `fence-h1h2-fixed-measurement`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here);
 step 3 at `74caa69e7a` (sha256 `8077e6f9…`) and `main` at `4997e2a4cb` (sha256 `20a3e00b…`)
 are in the earlier round's `~/temp/agent/clone-rung-conversion-fence-design-and-measurement-2026-11-20/keep/binaries/`
 (`step3`,
 `main`,
-with `sha256.txt` and `commits.txt` beside them).
+with `sha256.txt` and `commits.txt` beside them;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 This round's fence binaries are in this round's
 `~/temp/agent/clone-rung-conversion-fence-recheck-findings-fixed-2026-11-20/scratch/keep/binaries/`:
 `fence` at `ef0f6c91f7` (sha256 `e1505e76…`) and `fence-measurement`,
@@ -2165,7 +2180,10 @@ which is why this proposal exists.
 ## What this round closed, and what went wrong in it
 
 This is the round after the gate review of this proposal on Sonnet
-(`~/temp/agent/gate-review-of-the-clone-conversion-fence-on-sonnet-2026-11-20/keep/review.md`).
+(`~/temp/agent/gate-review-of-the-clone-conversion-fence-on-sonnet-2026-11-20/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Its six findings from H1 to M6 and the lows it named are each fixed or dismissed below.
 
 Closed,
@@ -2371,7 +2389,10 @@ the compile,
 the suite and Clippy of `native:test:container`),
 with its verdict read through `native:gate:verdict`,
 and its log kept as
-`~/temp/agent/clone-rung-conversion-fence-gate-review-findings-fixed-2026-11-20/scratch/gate-logs/gpc-gate-fence-final-a690379aa5-20261120T192719-0500.log`:
+`~/temp/agent/clone-rung-conversion-fence-gate-review-findings-fixed-2026-11-20/scratch/gate-logs/gpc-gate-fence-final-a690379aa5-20261120T192719-0500.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 - **9,303 tests run across 4 binaries:
   9,301 passed (5 slow),
@@ -2526,7 +2547,10 @@ so the 66 are 66 that ran.
 ## The round that built option B
 
 This round is the one after the diff check of the previous round on Sonnet
-(`~/temp/agent/gate-diff-check-of-the-clone-conversion-fence-costs-on-sonnet-2026-11-20/keep/review.md`).
+(`~/temp/agent/gate-diff-check-of-the-clone-conversion-fence-costs-on-sonnet-2026-11-20/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 It built option B,
 which the project asked for first,
 and it fixed the sentences that diff check found wrong.
@@ -2792,7 +2816,10 @@ and its log is kept as `container-gate-beside-d4963cfb16.log` in this round's `k
 ## The round that decided the decline before the copying
 
 This round is the one after the report on option B
-(`~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/keep/report-from-summary.md`).
+(`~/temp/agent/clone-rung-conversion-fence-beside-the-clone-2026-11-20/keep/report-from-summary.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 That report found B right on every case it checked
 (18 of 18 guest conversion controls,
 62 of 62 btrfs controls,
@@ -2994,7 +3021,10 @@ and its log is kept as `container-gate-decides-737c28846f.log`:
 ## The round that closed this branch's own integration pass
 
 This round answers the integration pass on this branch on Sonnet
-(`~/temp/agent/integration-pass-zfs-step-3-with-the-conversion-fence-2026-11-21/keep/review.md`).
+(`~/temp/agent/integration-pass-zfs-step-3-with-the-conversion-fence-2026-11-21/keep/review.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 It merges the step 3 fixes this branch never took,
 closes the kill window the review reproduced,
 measures the btrfs snapshot rung's cost by step,
