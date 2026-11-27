@@ -124,13 +124,6 @@
 //! const clock = new Clock(child.pid, { stallMs }); while (!exited) { const stop = clock.check(); if (stop) return stop; }
 //! ```
 
-/// The patience a clock keeps,
-/// and what a stop reports.
-use crate::bounded_push::{
-    StopCause,
-    StopReport,
-    StopWindow,
-};
 use crate::push_deadline_and_patience_settings::Patience;
 /// Whether a control holds a limit for an ordering it needs first.
 use crate::push_limit_held_for_an_ordering::limit_has_passed;
@@ -146,6 +139,13 @@ pub use crate::push_progress_meter::{
 pub(crate) use crate::push_progress_meter::{
     is_working,
     parse_activity,
+};
+/// The patience a clock keeps,
+/// and what a stop reports.
+use crate::stop_cause_and_words::{
+    StopCause,
+    StopReport,
+    StopWindow,
 };
 /// The window a connected push may stay silent for.
 use crate::wait_ceilings::CONNECTED_PUSH_QUIET_WINDOW;

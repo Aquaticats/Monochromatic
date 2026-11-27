@@ -4,6 +4,8 @@
 //! in disposable repositories with a local bare remote.
 
 use super::*;
+use crate::auto_push_awaiting::push_once;
+use crate::auto_push_single_flight::PushGit;
 use crate::test_support::{
     fixture,
     git,

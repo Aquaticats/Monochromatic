@@ -25,17 +25,6 @@
 //! const { exitCode, stdout, stderr } = await nanoSpawn(gitPath, args, { cwd, signal: quietFor(windowMs) }); // quiet, not slow
 //! ```
 
-/// The failure type of the auto-push coordination.
-use crate::auto_push_single_flight::SingleFlightError;
-/// The deadline runner shared with the push,
-/// and its stop causes.
-use crate::bounded_push::{
-    MAX_PUSH_OUTPUT,
-    StopCause,
-    flooded,
-    stop_push,
-    wait_until_done_up_to,
-};
 /// The writer of a command's request,
 /// and the bound its own result is waited for under.
 use crate::bounded_query_input::WRITER_SETTLE_CEILING;
@@ -56,6 +45,8 @@ use crate::child_watch::{
     refused_while_stopping,
 };
 use crate::lazy_runtime::run_on_runtime;
+/// The failure type of the auto-push coordination.
+use crate::one_push_attempt_and_its_failure::SingleFlightError;
 use crate::push_deadline_and_patience_settings::{
     Patience,
     push_deadline,
@@ -63,6 +54,13 @@ use crate::push_deadline_and_patience_settings::{
 /// The clock a wait is judged by,
 /// and its reading of the signs of work.
 use crate::push_progress::Clock;
+/// The deadline runner shared with the push,
+/// the cap of the output it keeps and the look that sees a flood.
+use crate::push_wait_until_done::{
+    MAX_PUSH_OUTPUT,
+    flooded,
+    wait_until_done_up_to,
+};
 /// The longest quiet gap of each step,
 /// kept for the timing records.
 use crate::quiet_ledger;
@@ -71,6 +69,12 @@ use crate::quiet_ledger;
 /// made in the per-user scratch directory.
 use crate::scratch_location::scratch_file;
 use crate::start_retry::spawn_retrying_without_blocking;
+/// The stop a finished wait names,
+/// which the query turns into its own failure.
+use crate::stop_cause_and_words::StopCause;
+/// The stop of a running push,
+/// which ends a query past its window the same way.
+use crate::stop_of_a_push_and_sweep_of_its_locks::stop_push;
 use crate::stop_of_the_service_noticed_by_its_children::{
     StopArm,
     Unfinished,

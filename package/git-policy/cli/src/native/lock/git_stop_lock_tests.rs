@@ -22,10 +22,8 @@ use crate::bounded_push::{
     STOPPED_EXIT_CODE,
     run_bounded_push,
 };
-use crate::child_watch::{
-    WatchTerms,
-    output_watched,
-};
+use crate::child_watch::WatchTerms;
+use crate::child_watch_one_shot_run::output_watched;
 use crate::process_tree::TreeMember;
 use crate::push_limit_held_for_an_ordering::{
     LimitHeldForAnOrdering,
