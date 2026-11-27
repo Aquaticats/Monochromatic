@@ -511,6 +511,8 @@
 //! - `service_handoff_queued_push_words.rs`:
 //!   the words a waiting push record is named with:
 //!   the bound a running service looks in and how long the record has waited.
+//! - `service_handoff_push_notices.rs`:
+//!   what a command says about the pushes this worktree holds and the pushes it queued.
 //! - `service_handoff.rs`:
 //!   the wrapper's side of after-commit work:
 //!   records and the wake.
@@ -1138,6 +1140,9 @@ pub mod service_round;
 /// The push record a command that moves a branch leaves,
 /// and the hand-off that wakes the service to run it with that command's programs.
 pub mod push_record_of_a_moved_branch;
+
+/// What a command says about the pushes this worktree holds and the pushes it queued.
+pub mod service_handoff_push_notices;
 
 /// The wrapper's side of after-commit work:
 /// records and the wake.
