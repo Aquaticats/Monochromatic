@@ -72,6 +72,9 @@ mod closure_probe_platform;
 mod closure_report;
 /// The closure check as a step of a lint run.
 mod closure_step;
+/// One package's outcome of the closure check,
+///  with the skip and failure words it carries.
+mod closure_step_package;
 /// Internal data-shape checks,
 ///  including duplicate decoded keys.
 mod config_data;
