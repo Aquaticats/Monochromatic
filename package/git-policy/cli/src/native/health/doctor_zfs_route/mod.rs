@@ -51,12 +51,28 @@
 //! - `check_outcome.rs`:
 //!   what one check answered,
 //!   the checks' stable names and the line each report prints.
+//! - `zfs_checks_limits.rs`:
+//!   the numbers and words the kernel and the design fix.
+//! - `zfs_checks_reading.rs`:
+//!   what a read of one dataset answered,
+//!   and the rule that reads a failed read.
+//! - `zfs_checks_machine_prerequisites.rs`:
+//!   the device,
+//!   the ABI verdict and the pool.
+//! - `zfs_checks_dataset_roles.rs`:
+//!   a dataset's role and the facts a read of it answered.
+//! - `zfs_checks_dataset_properties.rs`:
+//!   one dataset against the properties its role requires.
+//! - `zfs_checks_key_and_clones.rs`:
+//!   the encryption key of each dataset,
+//!   and every clone's attach properties.
 //! - `zfs_checks.rs`:
 //!   the device,
 //!   the ABI verdict,
 //!   the pool,
 //!   the checkout and container datasets,
-//!   their keys and the clones' properties.
+//!   their keys and the clones' properties,
+//!   one report per dataset.
 //! - `snapshot_directory_checks.rs`:
 //!   the `snapdir` of the checkout dataset and of the clone container,
 //!   and the command that sets it where it is not `disabled`.
@@ -176,11 +192,31 @@
 /// the checks' stable names and the printed line.
 pub mod check_outcome;
 
+/// The numbers and words the kernel and the design fix.
+pub mod zfs_checks_limits;
+
+/// What a read of one dataset answered.
+pub mod zfs_checks_reading;
+
+/// The device,
+/// the ABI verdict and the pool.
+pub mod zfs_checks_machine_prerequisites;
+
+/// A dataset's role and the facts a read of it answered.
+pub mod zfs_checks_dataset_roles;
+
+/// One dataset against the properties its role requires.
+pub mod zfs_checks_dataset_properties;
+
+/// The encryption key of each dataset and every clone's properties.
+pub mod zfs_checks_key_and_clones;
+
 /// The device,
 /// ABI,
 /// pool,
 /// dataset,
-/// key and property checks.
+/// key and property checks,
+/// one report per dataset.
 pub mod zfs_checks;
 
 /// The `snapdir` of the checkout dataset and of the clone container.
