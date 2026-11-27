@@ -76,7 +76,9 @@ const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_ELEVEN_FIXTURE_ROOT";
 /// How often the program of the killed-wrapper control looks at its release gate (issue 6576).
 /// It ends by itself once `gate_patience` is spent in looks of this length,
 /// so a control that fails before its release line
-/// (a failed assertion, a panic, or the whole run killed from outside)
+/// (a failed assertion,
+/// a panic,
+/// or the whole run killed from outside)
 /// cannot leave a shell polling for hours.
 const PAYLOAD_GATE_LOOK: Duration = Duration::from_millis(50);
 
@@ -777,8 +779,10 @@ fn a_torn_launcher_line_never_reads_as_a_gone_launcher() {
     );
 }
 
-/// The identity of the program the killed-wrapper control runs, as the program publishes it:
-/// the process id, start time and process id namespace the run's own launcher record holds.
+/// The identity of the program the killed-wrapper control runs,
+/// as the program publishes it:
+/// the process id,
+/// start time and process id namespace the run's own launcher record holds.
 #[derive(Clone, Copy)]
 struct PublishedProgram {
     /// The program's process id.
@@ -795,21 +799,27 @@ struct PublishedProgram {
 /// Why:
 /// The fixture is the process the control kills on purpose,
 /// so it cannot be what ends the program:
-/// a control that fails after that kill (a failed assertion, a panic)
-/// left the program polling at its release gate, in a scope of the manager's that outlived the run
+/// a control that fails after that kill (a failed assertion,
+/// a panic)
+/// left the program polling at its release gate,
+/// in a scope of the manager's that outlived the run
 /// (issue 6576:
 /// twenty-five such shells on this host on 2026-11-27,
 /// the oldest twelve hours old).
 /// The program's own bound ends it even when nothing here runs;
-/// this guard ends it at once on the paths that do run, and lets a test prove the program and its scope gone.
+/// this guard ends it at once on the paths that do run,
+/// and lets a test prove the program and its scope gone.
 struct ProgramInItsScope {
-    /// The fixture: it begins a transaction and runs the program through the bounded runner.
+    /// The fixture:
+    /// it begins a transaction and runs the program through the bounded runner.
     fixture: Child,
     /// Where the program publishes who it is and where its release gate is made.
     root: PathBuf,
-    /// The program's identity, once it has published it.
+    /// The program's identity,
+    /// once it has published it.
     program: Option<PublishedProgram>,
-    /// The scope the program runs in, read from the program's own control group once it has published it.
+    /// The scope the program runs in,
+    /// read from the program's own control group once it has published it.
     scope: Option<PathBuf>,
 }
 
@@ -876,7 +886,8 @@ impl ProgramInItsScope {
     }
 
     /// What:
-    /// `fn scope(&self) -> Option<PathBuf>` is the scope the program reported, once it has.
+    /// `fn scope(&self) -> Option<PathBuf>` is the scope the program reported,
+    /// once it has.
     /// Why:
     /// A test asserts about the scope the program itself named,
     /// on the path where it reads no journal at all.
@@ -1158,13 +1169,15 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
 }
 
 /// The control for the leak itself (issue 6576):
-/// a control that fails before its release line, the way a failed assertion or a panic does,
+/// a control that fails before its release line,
+/// the way a failed assertion or a panic does,
 /// leaves neither the program it started nor that program's scope behind.
 /// It judges only what it started:
 /// other tests' programs and scopes are alive while it looks,
 /// and it asks about none of them.
 /// What no single test can judge is a scope left by a test it did not start;
-/// there the program's own bound (`gate_patience`) is what ends it, and this test does not see it.
+/// there the program's own bound (`gate_patience`) is what ends it,
+/// and this test does not see it.
 #[test]
 fn a_control_that_fails_before_its_release_line_leaves_no_program_and_no_scope() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();

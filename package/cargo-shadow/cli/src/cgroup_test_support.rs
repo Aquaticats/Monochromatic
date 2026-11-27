@@ -53,7 +53,8 @@ const TEST_STOP: Duration = Duration::from_secs(10);
 
 /// How long a test waits for a state it is looking for.
 /// Not private to this module:
-/// `gate_patience` is built from it, and a test that sizes its own waits states the same number by referring to it.
+/// `gate_patience` is built from it,
+/// and a test that sizes its own waits states the same number by referring to it.
 pub(crate) const STATE_WAIT: Duration = Duration::from_secs(20);
 
 /// The prefix of the line a test that cannot run prints,
@@ -238,11 +239,16 @@ pub(crate) fn wait_until(
 /// itself.
 /// Why:
 /// A gate is a file a test or a peer of its program makes.
-/// When the test fails, or the control that would make the gate ends, the gate is never made,
+/// When the test fails,
+/// or the control that would make the gate ends,
+/// the gate is never made,
 /// and a loop with no bound of its own outlives every process that could have ended it:
-/// on 2026-11-27 twenty-five such shells were left on this host, each polling every 50 ms for hours (issue 6576).
-/// Sized from the waits a test itself may take: `STATE_WAIT` is the longest it gives one state,
-/// a control makes a few of them, and this leaves a script three controls' worth.
+/// on 2026-11-27 twenty-five such shells were left on this host,
+/// each polling every 50 ms for hours (issue 6576).
+/// Sized from the waits a test itself may take:
+/// `STATE_WAIT` is the longest it gives one state,
+/// a control makes a few of them,
+/// and this leaves a script three controls' worth.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -256,7 +262,8 @@ pub(crate) fn gate_patience() -> Duration {
 
 /// What:
 /// `pub(crate) fn gate_looks(look: Duration) -> u128` is how many times a gate-waiting script looks at its gate,
-/// one look every `look`, before `gate_patience` is spent.
+/// one look every `look`,
+/// before `gate_patience` is spent.
 /// Why:
 /// The shell loops count their looks;
 /// the number comes from the constant instead of a second copy of it in each script.
