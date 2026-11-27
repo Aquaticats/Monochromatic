@@ -20,36 +20,77 @@
  carries every `SLOT-STATE`, `MOVE-REFUSAL`, `REMOVAL-REFUSAL`, `PRUNE-POINTER` and `REPAIR` line below and no `SKIP`
  line, so an arm that returned without running fails the run instead of reporting a green suite.
  */
-import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, } from 'node:fs';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  mkdir,
+  readFile,
+  rm,
+} from 'node:fs/promises';
 import {
   join,
   resolve,
 } from 'node:path';
 
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
+import {
+  runGuestScript,
+  runHostCommand,
+  runRecipeStep,
+} from '../bin/guest-route-commands.ts';
+import {
+  type GuestRouteOptions,
+  guestRouteOptions,
+} from '../bin/guest-route-options.ts';
+import { FOLDER_MODE, } from '../bin/guest-route-permissions.ts';
+import { shellQuote, } from '../bin/guest-route-shell-quote.ts';
 
-/** Where the crate is unpacked and built inside the guest, which every account may traverse. */
+/**
+ Where the crate is unpacked and built inside the guest, which every account may traverse.
+ */
 const CRATE_DIR = '/opt/git-policy-cli-slot-state';
-/** Milliseconds one host command may take. */
-const HOST_COMMAND_TIMEOUT_MS = 120_000;
-/** Milliseconds the guest's build of the test target may take. */
+/**
+ Milliseconds the guest's build of the test target may take.
+ */
 const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
-/** Milliseconds the guest arm may take. */
+/**
+ Milliseconds the guest arm may take.
+ */
 const ARM_TIMEOUT_MS = 900_000;
-/** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
-const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
-/** The environment variable the arm reads, so it never writes a guest fixture on a machine somebody uses. */
+
+/**
+ The environment variable the arm reads, so it never writes a guest fixture on a machine somebody uses.
+ */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_SLOT_STATE_GUEST';
-/** The checkout the arm registers, clones and moves, under the guest's own root. */
+/**
+ The checkout the arm registers, clones and moves, under the guest's own root.
+ */
 const CHECKOUT = '/root/slot-state-checkout';
-/** The OpenZFS userspace the guest built, which every `zfs` the arm runs comes from. */
+/**
+ The OpenZFS userspace the guest built, which every `zfs` the arm runs comes from.
+ */
 const SBIN = '/opt/openzfs-2.4.4/sbin';
-/** The pool this driver makes for the arm, and the file-backed vdev it stands on. */
+/**
+ The pool this driver makes for the arm, and the file-backed vdev it stands on.
+ */
 const POOL = 'git-policy-cli-slot-state';
+/**
+ The file-backed vdev the pool stands on.
+ */
 const POOL_IMAGE = '/home/git-policy-cli-slot-state-fixture/pool.img';
 
-/** The lines a run must find in the guest's arm log, one per class and per move arm plan step 12 runs. */
+/**
+ The folder the pool's vdev stands in, which the guest makes before it truncates the vdev.
+ */
+const POOL_IMAGE_FOLDER = POOL_IMAGE
+  .slice(
+  0,
+  POOL_IMAGE
+    .lastIndexOf('/',),
+  );
+
+/**
+ The lines a run must find in the guest's arm log, one per class and per move arm plan step 12 runs.
+ */
 const EXPECTED_MARKERS = [
   'SLOT-STATE mounted class=mounted managed clone dataset=',
   'SLOT-STATE record-behind-mount class=cannot be proved',
@@ -70,109 +111,53 @@ const EXPECTED_MARKERS = [
   'SLOT-STATE done',
 ] as const;
 
-/** The step, the guest name, the log directory and whether `all` keeps the guest. */
-interface Options {
-  readonly step: string;
-  readonly name: string;
-  readonly logDir: string;
-  readonly keepGuest: boolean;
-}
+/**
+ How the guest work of one `all` run ended: by itself, or with the failure the run reports.
+ */
+type GuestWorkEnding =
+  | { readonly kind: 'ended', }
+    | {
+      readonly kind: 'failed',
+      readonly error: Error
+    };
 
-/** The step and the values the command line gave it. */
-function options(): Options {
-  const [step = '', ...rest] = process.argv.slice(2);
-  const value = (flag: string): string | undefined => {
-    const at = rest.indexOf(flag);
-    return at === -1 ? undefined : rest[at + 1];
-  };
-  return {
-    step,
-    name: value('--name') ?? 'git-policy-cli-slot-state',
-    logDir: value('--log-dir') ?? resolve(import.meta.dirname, '..', 'target', 'slot-state-guest-logs'),
-    keepGuest: rest.includes('--keep-guest'),
-  };
-}
+/**
+ Create the guest the arm runs in.
 
-/** Quote one block of shell for the guest's `sh -ec`, quotes included. */
-function shellQuote(script: string): string {
-  return `'${script.replaceAll("'", `'\\''`)}'`;
+ @param chosen - the run's options
+ */
+async function create(chosen: GuestRouteOptions,): Promise<void> {
+  await runRecipeStep({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    step: 'create',
+  },);
 }
 
 /**
- One host command whose whole output goes to its own log.
+ Install the guest's tools: OpenZFS 2.4.4, the Rust toolchain and `cargo-nextest`.
 
  @param chosen - the run's options
-
- @param command - the program to run
-
- @param args - its arguments
-
- @param log - the log file's name in the log directory
-
- @throws Error naming the command and its status
  */
-function host({ chosen, command, args, log, }: { readonly chosen: Options; readonly command: string; readonly args: readonly string[]; readonly log: string; }): void {
-  const output = openSync(join(chosen.logDir, log), 'w', 0o600);
-  try {
-    const result = spawnSync(command, args, {
-      stdio: ['ignore', output, output,],
-      timeout: HOST_COMMAND_TIMEOUT_MS,
-    });
-    if ((result.error !== undefined) || (result.status !== 0))
-      throw result.error ?? new Error(`${command} ${args.join(' ')} exited ${String(result.status)}; see ${log}`);
-  } finally {
-    closeSync(output);
-  }
+async function prepare(chosen: GuestRouteOptions,): Promise<void> {
+  await runRecipeStep({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    step: 'prepare',
+  },);
 }
 
 /**
- One guest script, its whole output kept in its own log.
+ Destroy the guest this run made.
 
  @param chosen - the run's options
-
- @param script - the shell script to run inside the guest
-
- @param log - the log file's name in the log directory
-
- @param timeout - milliseconds the guest may take
-
- @returns what the guest wrote
-
- @throws Error naming the script and the guest's status
  */
-function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): string {
-  const output = openSync(join(chosen.logDir, log), 'w', 0o600);
-  const command = `test "$(hostname)" = ${chosen.name} && timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
-  try {
-    const result = spawnSync('mvm', ['--backend', 'libvirt', 'exec', chosen.name, '--', command], {
-      stdio: ['ignore', output, output,],
-      timeout,
-    });
-    if ((result.error !== undefined) || (result.status !== 0))
-      throw result.error ?? new Error(`mvm exec exited ${String(result.status)}; see ${log}`);
-  } finally {
-    closeSync(output);
-  }
-  return readFileSync(join(chosen.logDir, log), 'utf8');
-}
-
-/**
- Run one step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction.
-
- @param chosen - the run's options
-
- @param step - the recipe's step
-
- @throws Error naming the recipe step and its status
- */
-function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: string; }): void {
-  const script = resolve(import.meta.dirname, '..', '..', '..', 'zfs', 'request-to-openzfs-kernel-device', 'e2e', 'run-fixture.ts');
-  const result = spawnSync('node', [script, step, '--name', chosen.name, '--log-dir', chosen.logDir,], {
-    stdio: 'inherit',
-    timeout: HOST_COMMAND_TIMEOUT_MS * 60,
-  });
-  if ((result.error !== undefined) || (result.status !== 0))
-    throw result.error ?? new Error(`the guest recipe's ${step} step exited ${String(result.status)}`);
+async function destroy(chosen: GuestRouteOptions,): Promise<void> {
+  await runRecipeStep({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    step: 'destroy',
+  },);
 }
 
 /**
@@ -185,15 +170,68 @@ function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: st
 
  @throws Error naming the step that refused, or the marker the pulled log lacks
  */
-async function run(chosen: Options): Promise<void> {
-  const context = join(chosen.logDir, 'snapshot');
-  rmSync(context, { recursive: true, force: true, });
-  mkdirSync(context, { recursive: true, mode: 0o700, });
-  await copyWrapperSnapshot({ context, });
-  const tarball = join(chosen.logDir, 'subject.tar.gz');
-  host({ chosen, command: 'tar', args: ['--create', '--gzip', '--file', tarball, '--exclude=target', '--directory', context, '.'], log: 'host-package.log', });
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'push', chosen.name, tarball, '/root/subject.tar.gz'], log: 'guest-push.log', });
-  const prepare = [
+async function run(chosen: GuestRouteOptions,): Promise<void> {
+  /**
+   Where the snapshot of this worktree is unpacked before it is pushed.
+   */
+  const context = join(
+    chosen.logDir,
+    'snapshot',
+  );
+  await rm(
+    context,
+    {
+      recursive: true,
+      force: true,
+    },
+  );
+  await mkdir(
+    context,
+    {
+      recursive: true,
+      mode: FOLDER_MODE,
+    },
+  );
+  await copyWrapperSnapshot({ context, },);
+  /**
+   The archive the guest unpacks, which nothing this run builds stays in.
+   */
+  const tarball = join(
+    chosen.logDir,
+    'subject.tar.gz',
+  );
+  await runHostCommand({
+    logDir: chosen.logDir,
+    command: 'tar',
+    args: [
+      '--create',
+      '--gzip',
+      '--file',
+      tarball,
+      '--exclude=target',
+      '--directory',
+      context,
+      '.',
+    ],
+    log: 'host-package.log',
+  },);
+  await runHostCommand({
+    logDir: chosen.logDir,
+    command: 'mvm',
+    args: [
+      '--backend',
+      'libvirt',
+      'push',
+      chosen.name,
+      tarball,
+      '/root/subject.tar.gz',
+    ],
+    log: 'guest-push.log',
+  },);
+  /**
+   The guest's own script: unpack the archive, make the pool, and build the test target.
+   */
+  const prepareBuild = [
     'set -eu',
     // `mvm push` lands the tarball in the guest's shared folder, not at the path it was given.
     'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
@@ -201,7 +239,7 @@ async function run(chosen: Options): Promise<void> {
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     // The arm needs a pool of its own; the checkout dataset and its clone are made on it by the arm.
-    `mkdir --parents ${POOL_IMAGE.slice(0, POOL_IMAGE.lastIndexOf('/'))}`,
+    `mkdir --parents ${POOL_IMAGE_FOLDER}`,
     `if ! ${SBIN}/zpool list -H -o name ${POOL} > /dev/null 2>&1; then`,
     `  truncate --size 1G ${POOL_IMAGE}`,
     `  ${SBIN}/zpool create -f -O mountpoint=none ${POOL} ${POOL_IMAGE}`,
@@ -211,8 +249,18 @@ async function run(chosen: Options): Promise<void> {
     'export PATH=/root/.cargo/bin:$PATH',
     'cargo build --release --tests --locked --features test-only-switches > /root/slot-state-build.log 2>&1',
     'tail --lines=3 /root/slot-state-build.log',
-  ].join('\n');
-  guest({ chosen, script: prepare, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  ]
+    .join('\n',);
+  await runGuestScript({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    script: prepareBuild,
+    log: 'guest-crate-build.log',
+    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
+  },);
+  /**
+   The guest's own script: run the arm, refuse a returned one, and copy its log to the shared folder.
+   */
   const arm = [
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
@@ -221,63 +269,201 @@ async function run(chosen: Options): Promise<void> {
     `export CLI_GIT_ZFS_SWEEP_POOL=${POOL}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${SBIN}`,
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,
-    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
-      `--filterset "test(zfs_slot_state_guest)" > /root/slot-state-arm.log 2>&1; then status=0; else status=$?; fi`,
+    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all --filterset "test(zfs_slot_state_guest)" > /root/slot-state-arm.log 2>&1; then status=0; else status=$?; fi',
     'tail --lines=60 /root/slot-state-arm.log',
     'test "$status" = 0',
     `if grep --quiet '^SKIPPED' /root/slot-state-arm.log; then echo 'the slot-state arm returned without running'; exit 1; fi`,
-    ...EXPECTED_MARKERS.map(function markerLine(marker) {
-      return `grep --quiet --fixed-strings ${shellQuote(marker)} /root/slot-state-arm.log`;
-    }),
+    ...EXPECTED_MARKERS
+      .map(function markerLine(marker: string,): string {
+        return `grep --quiet --fixed-strings ${shellQuote(marker,)} /root/slot-state-arm.log`;
+      },),
     'cp /root/slot-state-arm.log /mnt/shared/slot-state-arm.log',
-  ].join('\n');
-  guest({ chosen, script: arm, log: 'guest-slot-state.log', timeout: ARM_TIMEOUT_MS * 2, });
-  host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'pull', chosen.name, '/mnt/shared/slot-state-arm.log', join(chosen.logDir, 'slot-state-arm.log'),], log: 'host-pull-slot-state.log', });
-  const pulled = readFileSync(join(chosen.logDir, 'slot-state-arm.log'), 'utf8');
+  ]
+    .join('\n',);
+  await runGuestScript({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    script: arm,
+    log: 'guest-slot-state.log',
+    timeoutMilliseconds: ARM_TIMEOUT_MS * 2,
+  },);
+  /**
+   The arm's own log, pulled back out of the guest.
+   */
+  const pulledPath = join(
+    chosen.logDir,
+    'slot-state-arm.log',
+  );
+  await runHostCommand({
+    logDir: chosen.logDir,
+    command: 'mvm',
+    args: [
+      '--backend',
+      'libvirt',
+      'pull',
+      chosen.name,
+      '/mnt/shared/slot-state-arm.log',
+      pulledPath,
+    ],
+    log: 'host-pull-slot-state.log',
+  },);
+  /**
+   Everything the arm printed once it was pulled back.
+   */
+  const pulled = await readFile(
+    pulledPath,
+    'utf8',
+  );
   for (const marker of EXPECTED_MARKERS) {
-    if (!pulled.includes(marker))
-      throw new Error(`the pulled slot-state log lacks ${marker}; the guest ran the arm without performing it`);
+    if (!pulled
+      .includes(marker,))
+      throw new Error(`the pulled slot-state log lacks ${marker}; the guest ran the arm without performing it`,);
   }
 }
 
-/** The steps by name, and the whole run. */
-const steps: Record<string, (chosen: Options) => Promise<void> | void> = {
-  create: (chosen) => recipe({ chosen, step: 'create', }),
-  prepare: (chosen) => recipe({ chosen, step: 'prepare', }),
+/**
+ The guest work of one `all` run, which reports how it ended instead of ending the run there, so the guest it made is
+ dealt with first.
+
+ @param chosen - the run's options
+
+ @param made - whether this run has to deal with a guest, which the work sets once `create` returned
+
+ @returns how the guest work ended, with the failure the run reports
+ */
+async function guestWork({
+  chosen,
+  made,
+}: {
+  readonly chosen: GuestRouteOptions;
+  readonly made: { created: boolean };
+},): Promise<GuestWorkEnding> {
+  try {
+    await create(chosen,);
+    made.created = true;
+    await prepare(chosen,);
+    await run(chosen,);
+    return { kind: 'ended', };
+  }
+  catch (thrown) {
+    /**
+     The failure this run reports once the guest it made is dealt with.
+     */
+    const error = Error
+      .isError(thrown,)
+      ? thrown
+      : new Error(
+        caughtValueText(thrown,),
+        { cause: thrown, },
+      );
+    return {
+      kind: 'failed',
+      error,
+    };
+  }
+}
+
+/**
+ Destroy the guest this run made, reporting a destruction that failed beside a failure the run already holds.
+
+ The first failure is the one the run reports: a guest that could not be destroyed is named on standard error beside
+ it, because both are a person's to deal with and only one of them can be thrown.
+
+ @param chosen - the run's options
+
+ @param holdsAFailure - whether the run already holds the failure it reports, which a destruction must not replace
+
+ @throws Error naming the destruction that failed, when the guest work itself ended
+ */
+async function destroyedAfter({
+  chosen,
+  holdsAFailure,
+}: {
+  readonly chosen: GuestRouteOptions;
+  readonly holdsAFailure: boolean;
+},): Promise<void> {
+  try {
+    await destroy(chosen,);
+  }
+  catch (destruction) {
+    if (!holdsAFailure)
+      throw destruction;
+    console.error(`git-policy slot-state guest: destroying '${chosen.name}' also failed: ${String(destruction)}`,);
+  }
+}
+
+/**
+ Create, prepare, run and destroy, keeping the guest when the run asked for it and reporting the first failure.
+
+ @param chosen - the run's options
+
+ @throws Error naming the first failure of the run
+ */
+async function all(chosen: GuestRouteOptions,): Promise<void> {
+  /**
+   Whether this run made a guest of its own, which decides whether it may destroy one.
+   */
+  const made = { created: false, };
+  /**
+   How the guest work ended.
+   */
+  const ending = await guestWork({
+    chosen,
+    made,
+  },);
+  if (chosen.keepGuest && made.created)
+    console.log(`git-policy slot-state guest: --keep-guest kept '${chosen.name}' to inspect and destroy`,);
+  else if ((!chosen.keepGuest) && made.created)
+    await destroyedAfter({
+      chosen,
+      holdsAFailure: ending.kind === 'failed',
+    },);
+  else if (!chosen.keepGuest)
+    console.error(`git-policy slot-state guest: no guest was destroyed, because this run did not create '${chosen.name}'`,);
+  if (ending.kind === 'failed')
+    throw ending.error;
+}
+
+/**
+ The steps by name, and the whole run.
+ */
+const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
+  create,
+  prepare,
   run,
-  destroy: (chosen) => recipe({ chosen, step: 'destroy', }),
-  all: async (chosen: Options): Promise<void> => {
-    let failure: unknown = null;
-    let created = false;
-    try {
-      recipe({ chosen, step: 'create', });
-      created = true;
-      recipe({ chosen, step: 'prepare', });
-      await run(chosen);
-    } catch (thrown) {
-      failure = thrown;
-    }
-    if (chosen.keepGuest && created)
-      console.log(`git-policy slot-state guest: --keep-guest kept '${chosen.name}' to inspect and destroy`);
-    else if (!chosen.keepGuest && created) {
-      try {
-        recipe({ chosen, step: 'destroy', });
-      } catch (destruction) {
-        if (failure === null)
-          throw destruction;
-        console.error(`git-policy slot-state guest: destroying '${chosen.name}' also failed: ${String(destruction)}`);
-      }
-    } else if (!chosen.keepGuest)
-      console.error(`git-policy slot-state guest: no guest was destroyed, because this run did not create '${chosen.name}'`);
-    if (failure !== null)
-      throw failure;
-  },
+  destroy,
+  all,
 };
 
-const chosen = options();
-mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
+/**
+ The step and the values the command line gave this run.
+ */
+const chosen = guestRouteOptions({
+  argv: process.argv,
+  defaultName: 'git-policy-cli-slot-state',
+  defaultLogDir: resolve(
+    import.meta.dirname,
+    '..',
+    'target',
+    'slot-state-guest-logs',
+  ),
+},);
+await mkdir(
+  chosen.logDir,
+  {
+    recursive: true,
+    mode: FOLDER_MODE,
+  },
+);
+
+/**
+ The step the command line names.
+ */
 const step = steps[chosen.step];
+
 if (step === undefined)
-  throw new Error(`unknown step '${chosen.step}'; use ${Object.keys(steps).join(', ')}`);
-await step(chosen);
-console.log(`git-policy slot-state guest: step '${chosen.step}' finished; logs in ${chosen.logDir}`);
+  throw new Error(`unknown step '${chosen.step}'; use ${Object
+    .keys(steps,)
+    .join(', ',)}`,);
+await step(chosen,);
+console.log(`git-policy slot-state guest: step '${chosen.step}' finished; logs in ${chosen.logDir}`,);
