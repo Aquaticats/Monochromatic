@@ -808,21 +808,46 @@ and that module is `#[cfg(target_os = "linux")]` (`worktree/mod.rs`).
 `source_guard/items_nameable_from_outside_release.txt`:
 a name another crate can reach without a line fails,
 a line whose name is no longer reachable fails,
-and a `pub use` that carries a name out of a module the `pub mod` chain does not reach fails without its line.
+and a `pub use` that publishes a name the `pub mod` chain does not already reach fails without its line.
 
 A line is added only where a release publishes a name on purpose:
-write it as `<kind> <name>` under a reason of its own that names the commit which added it.
+write it as `<module path> <kind> <name>` under a reason of its own that names the commit which added it.
+A name a re-export publishes is written as `<module path> pub use <target>::<published name>` instead.
 A name a split needs only inside the crate takes `pub(crate)`,
 `pub(super)` or `pub(in path)`,
 and no line.
 
-The list's header says how the reading is bounded,
-and a widening in a shape it does not read is one only the diff shows:
-a `pub` item written at the first column of a line in a module the `pub mod` chain reaches,
-a `#[macro_export] macro_rules!`,
-and a `pub use` written on one line whose module that chain does not reach.
-`#[cfg(test)]` above a declaration keeps it out,
-and an item inside an inline `mod name { ... }` is not read.
+The reader's own top doc states the reading:
+a bare `pub` item at the first column of a file the `pub mod` chain reaches,
+whatever count of qualifiers stands before its kind,
+as `pub async fn`,
+`pub const unsafe fn` and
+`pub extern "C" fn` do;
+a `pub` field,
+a method or an associated constant of a type that chain publishes,
+read in a body that opens its `{` on the declaration's own line or on a later one;
+a `#[macro_export] macro_rules!`;
+and a `pub use` over any number of lines,
+one entry per name it publishes,
+with an `as` rename read as the published name,
+a glob written `pub use <module>::*`,
+and a re-export written without a leading path read from the module that writes it.
+A gate keeps a name out only where it holds only when testing,
+so `#[cfg(test)]` and `#[cfg(all(test, unix))]` keep one out
+and `#[cfg(all(not(test), unix))]` does not.
+
+What the reading still cannot see,
+and why,
+is in that same doc:
+a `pub` field written in a tuple-like struct's parentheses,
+a member of a type published only through a `pub use` facade,
+a `pub trait`'s methods and a `pub enum`'s variants,
+an item inside an inline `mod name { ... }`,
+a glob's own names,
+the second path a re-export adds when it keeps the name it re-exports,
+and a signature or a value that changes under a name that stays.
+So a widening in one of those shapes is one only the diff shows,
+and a changed signature or constant value never shows at all.
 
 ## Show that a guard works
 
