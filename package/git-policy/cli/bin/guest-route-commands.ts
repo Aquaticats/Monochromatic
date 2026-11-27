@@ -333,6 +333,34 @@ export async function runGuestScript({
 }
 
 /**
+ The file of the ZFS binding's guest recipe, which owns every guest these drivers use.
+
+ The recipe sits at `package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`, three folders above this
+ module's own: `bin`, the package, this crate's parent, and then `package`. A driver that starts the wrong path prints
+ node's `Cannot find module` and dies at its first step, so
+ `guest-route-commands.unit.test.ts` holds this answer against the file it names.
+
+ @returns the recipe's own file, which this run starts with `node`
+
+ @example
+ ```ts
+ await runRecipeStep({ logDir: chosen.logDir, name: chosen.name, step: 'create' });
+ ```
+ */
+export function guestRecipePath(): string {
+  return resolve(
+    import.meta.dirname,
+    '..',
+    '..',
+    '..',
+    'zfs',
+    'request-to-openzfs-kernel-device',
+    'e2e',
+    'run-fixture.ts',
+  );
+}
+
+/**
  One step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction.
 
  @param logDir - the run's log folder, which the recipe writes its own step logs into
@@ -360,17 +388,7 @@ export async function runRecipeStep({
   /**
    The recipe that owns the guest this run acts on.
    */
-  const recipe = resolve(
-    import.meta.dirname,
-    '..',
-    '..',
-    '..',
-    '..',
-    'zfs',
-    'request-to-openzfs-kernel-device',
-    'e2e',
-    'run-fixture.ts',
-  );
+  const recipe = guestRecipePath();
   /**
    The started step, whose output the run's own terminal shows while it lasts.
    */
