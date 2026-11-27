@@ -403,12 +403,29 @@
 //! - `service_land_requests_whose_client_is_gone.rs`:
 //!   which requests of a batch a landing still makes,
 //!   given which of their clients went away before their commits landed.
-//! - `service_land_side_reference_write.rs`:
-//!   the write of a landing's own side reference:
+//! - `the_answer_of_one_git_step_of_a_side_reference.rs`:
+//!   what became of one Git step of a landing's own side reference,
+//!   and the sentence a step that a stop or a ceiling ended keeps for the landing that answers.
+//! - `the_write_of_a_side_reference.rs`:
+//!   the write itself:
 //!   made once more only when the wait for it ended without an answer,
 //!   never replacing a reference another command wrote,
 //!   answered by the reference's own value,
-//!   and what the landing does with a commit whose reference it could not prove.
+//!   and the words a person reads when Git refused it.
+//! - `the_side_references_a_commit_is_kept_on.rs`:
+//!   the write named for each reference of the wrapper's own:
+//!   the one a commit that did not land is kept on,
+//!   the shared one of a batch,
+//!   and a named side reference.
+//! - `the_commit_a_side_reference_did_not_keep.rs`:
+//!   the commit a write did not prove:
+//!   the reference it is kept on,
+//!   the sentence the person reads,
+//!   letting go of the batch's own reference,
+//!   and the tip a batch built that its reference did not hold.
+//! - `service_land_side_reference_write.rs`:
+//!   the face a landing's code calls for its own side references,
+//!   re-exporting the four files beside it under the names callers use.
 //! - `service_land_git_steps_and_import_stream.rs`:
 //!   the Git steps of a landing,
 //!   the import stream of a batch and the overlap tests of its requests.
@@ -1005,11 +1022,23 @@ pub mod service_land_branch_move_transaction;
 /// the import stream of a batch and the overlap tests of its requests.
 pub mod service_land_git_steps_and_import_stream;
 
-/// The write of a landing's own side reference:
-/// made once more only when the wait for it ended without an answer,
-/// never replacing a reference another command wrote,
-/// answered by the reference's own value,
-/// and what the landing does with a commit whose reference it could not prove.
+/// What became of one Git step of a landing's own side reference,
+/// and the sentence a step that a stop or a ceiling ended keeps.
+pub mod the_answer_of_one_git_step_of_a_side_reference;
+
+/// The write of one of a landing's own side references,
+/// and the words a person reads when Git refused it.
+pub mod the_write_of_a_side_reference;
+
+/// The write named for each reference of the wrapper's own.
+pub mod the_side_references_a_commit_is_kept_on;
+
+/// The commit a landing's own side reference did not prove,
+/// and the tip a batch built that it did not hold.
+pub mod the_commit_a_side_reference_did_not_keep;
+
+/// The face a landing's code calls for its own side references,
+/// re-exporting the four files beside it under the names callers use.
 pub mod service_land_side_reference_write;
 
 /// The batch whose own scratch reference the write did not prove:
