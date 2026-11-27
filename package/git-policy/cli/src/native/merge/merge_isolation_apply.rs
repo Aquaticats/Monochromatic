@@ -49,11 +49,6 @@ use crate::merge_isolation_apply_stops::{
     a_clear_that_met_newer_bytes,
     the_end_of_a_failed_step,
 };
-/// The person's own work in the paths the merge changes:
-/// the clear before Git's update,
-/// the carry after it,
-/// and the ref that keeps their bytes.
-use crate::merge_isolation_carry::drop_capture_ref;
 use crate::merge_isolation_carry_apply::{
     CarryFailure,
     LockWait,
@@ -67,6 +62,11 @@ use crate::merge_isolation_carry_landed::{
     landed_of,
     write_landed_record,
 };
+/// The person's own work in the paths the merge changes:
+/// the clear before Git's update,
+/// the carry after it,
+/// and the ref that keeps their bytes.
+use crate::merge_isolation_carry_ref::drop_capture_ref;
 /// The raw differences between the two commits of the merge.
 use crate::merge_isolation_changes::Change;
 /// Owned operating-system text.
