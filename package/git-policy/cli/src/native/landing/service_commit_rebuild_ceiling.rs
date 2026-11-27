@@ -16,7 +16,10 @@
 
 use crate::service_messages::rebuild_notice;
 /// Standard error as a stream whose lines a thread of their own writes.
-use crate::standard_error_off_the_calling_thread::StandardErrorOffTheCallingThread;
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 use crate::wait_ceilings::MOVED_BRANCH_REBUILD_CEILING;
 
 /// The environment variable that sets the ceiling of the rebuilding in whole seconds,
@@ -73,7 +76,7 @@ fn say_rebuilding(
     // What: The line goes to the thread that writes standard error.
     // Why:  A closed terminal is not a reason to stop the commit, and neither is a reader that
     //       stopped draining (`standard_error_off_the_calling_thread.rs`).
-    let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> =
+    let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> =
         StandardErrorOffTheCallingThread::new();
     let _written = std::io::Write::write_all(
         &mut notes,

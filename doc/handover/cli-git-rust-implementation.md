@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T09:17:55-05:00
+## The state at 2026-11-27T10:22:35-05:00
 
-`main` was `04dbc235e1`.
+`main` was `be93c14734`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 183 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 200 more by this time.
 
 ### Rounds running
 
@@ -125,8 +125,6 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- `issue-6586-test-process-never-provisions-on-the-accounts-service-manager`
-  ("What the rounds found");
 - for the wrapper package's lint,
   which was red on `main` with nothing running it,
   three rounds for the guest scripts of issue 6581
@@ -136,63 +134,98 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the round for the `perf/` and service-manager scripts is merged as `2218beae78`,
   and `lint:oxlint` then reported 594 errors,
   all in those guest scripts);
-- `issue-6587-service-manager-proofs-run-to-their-end`,
-  the issue's second round,
-  `issue-6594-container-start-sites-ledger-scans-rust-sources`
-  and `issue-6596-scratch-root-removal-test-owns-the-process-it-names`
+- `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
   ("What the rounds found");
-- four rounds for the wrapper's alpha.48 release pass ("Releases of 2026-11-27"),
-  each named `wrapper-alpha-48-release-pass-<what>`:
-  `slot-refusals-read-a-shell-alias-and-say-true-words`,
-  `a-notice-record-outlives-a-line-that-was-not-written`,
-  `merge-pass-reaches-a-last-line-without-a-newline`
-  and `four-small-points-outside-the-slot-route`;
-- `issue-6583-gate-suite-container-gets-a-measured-memory-bound`,
-  which runs gates of its own;
-- five rounds for controls that failed once under load,
-  each named `issue-<number>-<the control>-...`:
-  6589 (`commit::commit_preparation::tests::a_scratch_commit_the_kernel_never_releases_is_ended_with_a_message`,
-  held 31.9 s by a `gpg` in an uninterruptible wait),
-  6590 (`push::child_watch::tests::a_step_that_finishes_inside_its_ceiling_is_answered`,
-  whose child read "the system refused a thread"),
-  6591 (`push::push_minimum_rate_socket_tests::a_transfer_that_meets_the_floor_is_work_however_slow`,
-  stopped at its two-second window),
-  6592 (`commit::native_commit_waiting_notice::tests::the_notice_reports_the_programs_that_ran_below_the_step`,
-  whose `sleep` ended between two looks)
-  and 6593 (`worktree::worktree_snapshot_index_step::tests::the_index_a_source_with_changes_installs_keeps_the_fields_that_prove_an_edit`,
-  two change times that read alike).
-  The first four failed in the gates issue 6562's round ran under a load average of 48 to 96,
-  and the fifth in issue 6582's wide run;
+- four rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
+  each named `wrapper-alpha-48-release-pass-<what>`.
+  For the behaviour pass:
+  `four-small-points-outside-the-slot-route`;
+  its other three are merged
+  (the slot refusals read every shell alias the guard can follow,
+  `cd62517318`;
+  the merge pass reaches a last line with no line end,
+  `f583a0d9bf`,
+  where a generated control also found and fixed a correct merge that was refused;
+  a notice's record stays until its line is known written,
+  `be93c14734`,
+  kept in 20 of 20 runs with the reader gone against none of 20 on `main`,
+  at a cost no run could measure with a reader that keeps up).
+  For the splits pass:
+  `splits-keep-the-reach-and-the-platform-gates-items-had`,
+  `readme-layout-numbers-and-the-shutdown-unmount-help-row`
+  and `list-guards-name-the-files-the-splits-made`,
+  started once issue 6598's walk was on `main` (`da3d1505ef`:
+  the control that held 890 MiB now holds 29 MiB);
+- three rounds for what issue 6586's round met in its threaded runs:
+  `issue-6602-moved-log-control-owns-the-claim-it-reads`,
+  `issue-6603-size-read-deadline-control-states-the-clock-it-is-judged-by`
+  and `issue-6604-no-control-changes-the-test-process-sigpipe-disposition`
+  (a threaded run of ten library modules in one process died of `SIGPIPE`);
 - in `cargo-shadow`,
-  the last round for its alpha.11 release pass,
-  `cargo-shadow-alpha-11-release-pass-stop-report-says-only-what-it-found`.
-  Its other two are merged (`d134b5f836`,
-  `ea51cd2290`),
-  and `0.1.5-alpha.12` is released once this one is.
+  `issue-6599-recycled-time-namespace-control-builds-its-own-schedule`
+  and two rounds for its alpha.12 release pass ("Releases of 2026-11-27"):
+  `cargo-shadow-alpha-12-release-pass-the-retire-costs-an-ordinary-run-nothing-and-stops-no-live-scope`
+  and `cargo-shadow-alpha-12-release-pass-the-refusals-branches-and-the-listing-bound-are-held-by-controls`.
+  Issue 6578's second round is merged (`6de3eee877`):
+  the units left loaded came from one test that killed its launcher before the manager attached it;
+  the issue stays open for the unit a killed shadow leaves,
+  whose choices are `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
+- in `mpm-shadow`,
+  two rounds for its alpha.13 release pass,
+  `mpm-shadow-alpha-13-release-pass-a-refused-or-vanished-start-says-only-what-is-known`
+  and `mpm-shadow-alpha-13-release-pass-the-no-retry-record-claims-only-what-was-traced`,
+  and `issue-6600-republish-killed-between-its-two-renames-leaves-a-working-version`.
 
-Until issue 6586 merges,
-a brief for a round that runs the wrapper's Rust tests on the host tells it to give each test run
-a runtime directory of its own and no session-bus address
-(`env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder> cargo test ...`),
-and the coordinator's own module runs do the same.
+Issue 6586 is merged (`7d6bd90c92`).
+A build made for tests now reads the session's runtime directory and bus address only from two switches a control sets,
+and offers the account's service manager no program,
+so a library test run from a tree that holds that merge needs no fixture runtime directory.
+A run of a built wrapper executable on the host still does
+(a release binary in a pass,
+a binary-target test):
+`env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Three release passes also run,
-as background agents of the coordinating session,
-each a Claude Sonnet read
+One read runs as a background agent of the coordinating session,
+a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review)
 that writes `keep/review.md` under its scratch folder:
 the linter's `0.5.2-alpha.19`
-(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`),
-the wrapper's `0.6.1-alpha.48` read for the claim that the splits,
-the loop breaks and the reformat change no behaviour
-(`~/temp/agent/git-policy-cli-alpha-48-release-review-splits-and-moves-2026-11-27/`),
-and `mpm-shadow`'s `0.2.7-alpha.13`
-(`~/temp/agent/mpm-shadow-alpha-13-release-review-2026-11-27/`).
-A pass that runs a wrapper binary starts each run with throwaway XDG folders and
-`env --unset=DBUS_SESSION_BUS_ADDRESS`,
-for the reason issue 6586 records.
-The coordinator rewrites what lasts from each into this file before scratch expires.
+(`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`).
+The coordinator rewrites what lasts from it into this file before scratch expires.
+
+The whole gate on `main` at `ff1ae3e5c7` passed
+(unit `gpc-gate-wrapper-next-alpha-on-ff1ae3e5c7-20261127T095035-0500`,
+started 2026-11-27T09:50:35-05:00,
+`gate-exit-status=0`):
+`Summary [1143.818s] 12125 tests run: 12125 passed (8 slow), 51 skipped`
+and "Clippy passed beside the test run.".
+It is the first since the suite's container got a bound of its own (4 GiB,
+issue 6583)
+and since issue 6586 changed release code.
+It does not hold the merges after that commit:
+the slot refusals behind a shell alias,
+the merge pass's last line,
+the notice record,
+the shared source walk,
+and what the rounds still running will bring.
+One more whole gate runs before `0.6.1-alpha.49` is released.
+Beside it,
+on the same tip:
+`lint:types` exited 0;
+`package/container-limit/core`'s `test:unit` exited 0;
+the package's `test:unit` exited 0 at `fdd9ce0e83` in a scope whose caps did not bind
+(17 s,
+`pids.peak` 420,
+`memory.peak` 2,040 MiB,
+at a load average of 36).
+`native:ts-checks` itself exited 2 with six unit tests failed,
+because its scope allows 400 tasks and the suite reaches 420:
+a refused `spawn` read as failing tests (issue 6605).
+The three feature Clippy arms exited 0,
+but Rust merges landed under them,
+so they are void and are run again in the gate's worktree,
+a tree no merge moves.
 
 Round 3 of the crate split's order is done but for three lines.
 Every folder's file loops are broken and merged,
@@ -441,6 +474,138 @@ with no High finding:
   the conversion environment's precedence,
   the service-only changes.
 
+`cargo-shadow` `0.1.5-alpha.12` followed:
+release commit `581f7754a8`,
+locked (`e3c3dd43f1`) and installed.
+Over alpha.11 it holds issue 6578's retirement of a run's scope unit when the run ends (`5daa8810b9`),
+a refusal that lists the members of every control group below the scope,
+each read through a pidfd,
+within a bound of 500 ms beside its measurement (`c59a4f5fd5`),
+and the manifest and surface tidy (`d134b5f836`).
+Its release note's last clause is wrong
+(it names issue 6576,
+a test-only change that alpha.11 already held);
+a comment on the release commit corrects it.
+Before a release note is written,
+`git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
+
+What the wrapper's alpha.48 splits pass found,
+with no High finding.
+Its verdict:
+"no change of behaviour" is not demonstrated.
+Of the items compared at both ends,
+97.9 percent have identical text,
+no test-only switch is in either release binary,
+no static became two and no trait impl was lost;
+but 318 of the 344 refactor commits carry changed lines that are not moves,
+and the pass read three of them in full.
+Neither pass ran `git commit` in a release binary,
+because without a session bus every commit form stops at one refusal,
+so for the service paths the evidence is the reading,
+the gate,
+and the service-manager install proof,
+which issue 6587's second round ran to its end (`fdd9ce0e83`):
+alpha.48 installed over alpha.47 in a container of the gate image,
+and the proof printed
+
+```text
+THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once
+```
+
+
+- Medium:
+  at least 31 definitions became nameable from outside the crate,
+  seven of them private helpers a split made bare `pub`
+  (one removes directories).
+- Medium:
+  the extract-function refactors are unread but for ten commits.
+  A second read of the seven the pass named first,
+  all on the client's and the service's commit paths,
+  found each equivalent by reading
+  (`e90482f100`,
+  `dde5c4be3b`,
+  `bad45d0420`,
+  `01c2f32e2c`,
+  `6a24c6342b`,
+  `f4e8d2fb9b`,
+  `8af8f56255`),
+  with one guard that now covers less
+  (`source_guard/hook_self_invocation_tests.rs` reads 263 of the 699 code lines the commit preparation spans),
+  which the list-guards round takes first.
+  About three hundred refactor commits stay unread.
+- Medium:
+  71 pairs of a source guard and a file it names,
+  where code left the file in a split and the guard does not name where it went.
+  Two were checked and neither was a hole.
+- Low:
+  the sweep's warnings carry four new log tags;
+  a commit labelled `docs` changed the `shutdown-unmount` help row (`066e33a47d`,
+  noted on the commit);
+  the panic notice's source locations moved;
+  34 items lost a platform gate on split-off files,
+  with no effect on x86_64 Linux;
+  tag constants are copied into more files;
+  the README's allow-list counts are stale;
+  two commits in the range cannot build alone;
+  the linter the binary carries moved four alphas.
+- Its count of tests that run under the gate's build is the gate's own,
+  12,115.
+
+What `mpm-shadow`'s alpha.13 pass found,
+with no High finding:
+
+- The new message for a start refused as busy says an upgrade or an install is the usual cause,
+  which the release's own record contradicts;
+  it says "the program's file" when the held file can be a script's interpreter;
+  and it promises the same command works afterwards,
+  which is false after a writer that died half way.
+- "Every writer this tool starts publishes by rename" is false for `go install` across file systems
+  (the pass traced it writing the published path in place for about 4 ms),
+  though neither the shadow nor the launcher starts that path;
+  `uv tool upgrade`,
+  which the self-upgrade runs,
+  was read and not traced.
+- "No measured window" leaves out windows this repository measured,
+  0.5 to 3 ms while a forked child holds a copied write descriptor.
+  So the pick not to repeat such a start is before the owner again
+  (`doc/handover/questions-for-the-owner.md`).
+- A program that vanishes during a start is reported three ways,
+  one of which repeats advice the release removed.
+- An installer killed between the two renames of a republish leaves the version missing
+  until the next install (issue 6600).
+- Right as claimed:
+  43 commands compared between the two binaries,
+  41 identical and two differing only in the version string.
+
+What `cargo-shadow`'s alpha.12 pass found,
+with no High finding:
+
+- "Never what is decided" holds by reading:
+  both releases refuse exactly when the direct child was not reaped or the report is not empty,
+  and nothing in release code reads the report's words.
+- The retire of a run's unit makes the release slower.
+  A trivial shadow call took 1.52 times alpha.11's time at the median
+  (range 0.89 to 2.17 over 18 interleaved rounds,
+  against 1.00 and 0.68 to 1.25 for a same-binary control),
+  about 15 to 27 ms more per scoped run:
+  in ten of ten logged retires the manager had already collected the unit,
+  so both questions to it bought nothing.
+  With a manager that does not answer,
+  each run's end waits two five-second bounds.
+- The retire's gate reads a missing scope directory as empty without the proof the stop itself requires,
+  so it could stop a unit the same run refused as possibly still writing.
+  Read from the source,
+  not reproduced.
+- No control reaches the decision for two of the leftovers a stop can report,
+  so an edit that accepted such a run would stay green;
+  the listing's bound is looked at only between reads and has no control.
+- A program that outlives its run is treated alike by both releases:
+  killed on the scope path,
+  left alive on the process-group fallback.
+- Right as claimed:
+  41 commands compared between the two binaries,
+  identical but for the version line.
+
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
 `cargo:monochromatic-cargo-shadow`,
@@ -497,7 +662,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6597,
+  issues 6524 to 6605,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -600,17 +765,44 @@ and the two `truepeak` files wait on their branch.
 - `package/container-limit/core`'s ledger of scripts that name `podman` fell behind again and is brought up to date (`f69208a309`);
   its scan reads no Rust file,
   which issue 6594 holds.
-- The service-manager install proof now passes its Git step (`6b1a8e91f4`) and stopped at the next:
-  the commit service's landing failed because this host's Git profile refused the marks file
-  `git fast-import` writes beside the journal when the service cannot hand it an unnamed scratch file,
+- The service-manager install proof passes end to end (issue 6587,
+  `6b1a8e91f4` and `fdd9ce0e83`).
+  Two things stopped it:
+  Git wrote `/work` as a user that did not own it,
+  and this host's Git profile refused the marks file `git fast-import` writes beside the journal
+  when the service cannot hand it an unnamed scratch file,
   as in a container's root home.
-  The profile grants that name now
+  The coordinator's first rule for that name matched nothing
+  (`@{int}` stops at ten digits and the marks carry sixteen);
+  the corrected rule is proved with a refused control name
   (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
-  seventeenth batch),
-  and the issue's second round reruns both proofs.
-  `test:service-manager`'s control arm needs a release from before the remedy of 2026-11-12,
-  which this host does not hold;
-  that round writes the choice as a proposal.
+  seventeenth batch).
+  The reload proof's control arm cannot pass:
+  it needs a release from before the remedy of 2026-11-12,
+  and its choices are
+  `doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`,
+  ranked C > A > B there.
+- The gate's suite container peaked at 1,486.0 MiB in a measured run,
+  and 892 MiB of it was one control for 25 seconds,
+  `service::service_main::tests::the_service_setup_and_its_words_are_used_only_by_the_service_mode`,
+  which reads the source tree with a walk of its own that follows the `uses/` links (issue 6598).
+  The suite's bound is 4 GiB since `2da7ccd13a`,
+  beside that measurement.
+- The five controls that failed once under load are each fixed by what the control owns
+  (issues 6589 to 6593,
+  merged `69b4c4dc3e` to `c6e5d5846c`),
+  each with its failure planted and not waited for.
+  Two left proposals:
+  `doc/planning/cli-git-notice-of-a-stopped-step-keeps-promising-a-stop.md`
+  and `doc/planning/git-policy-cli-a-step-whose-watch-cannot-start.md`.
+- The container ledger reads Rust sources now (`ff1ae3e5c7`,
+  issue 6594):
+  four Rust files name the tool and none starts a container.
+- A round's `edit` tool wrote a planning file into the main checkout and not its worktree
+  (issue 6586's round,
+  twice seen untracked there,
+  gone later).
+  The branch that fences a run's writes is held (issue 6378).
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

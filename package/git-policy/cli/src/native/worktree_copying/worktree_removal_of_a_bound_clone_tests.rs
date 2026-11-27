@@ -199,7 +199,8 @@ fn nothing_is_mounted() -> ScriptedMountTable {
     return ScriptedMountTable::holding(&[row(1, 0, "/", "/", "zfs", "tank/ROOT")]);
 }
 
-/// A mount table no control may read: asking it for one fails the test.
+/// A mount table no control may read:
+/// asking it for one fails the test.
 /// Why:
 ///  The refusal answers nothing for a repository with no record folder,
 ///  and a table that fails when read proves it never looked.
@@ -1100,5 +1101,105 @@ fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
     );
     assert!(plain.is_dir(), "the plain worktree stands");
     assert!(bound.slot.is_dir(), "the bound slot stands");
+    remove(bound.root.as_path());
+}
+
+/// What:
+///  The unreadable record's sentence names no command this release lacks,
+///  and each piece of advice beside it does what the sentence says:
+///  restoring the record from a copy brings the proof back,
+///  and deleting it makes the removal Git's own,
+///  which removes the registration and the slot folder for a slot nothing then
+///  proves.
+/// Why:
+///  The sentence used to say "settle it",
+/// and no management grammar of this
+///  release admits the settling command
+///  (`git monochromatic-git-policy-cli settle-worktree-clone-record` answers the
+///  usage text with exit 2,
+/// as the sibling sentences changed by `5defef5371`
+///  say);
+///  the record's own reason offers "delete it and run the command again",
+/// and
+///  the sentence now says what that costs.
+#[test]
+fn restoring_or_deleting_an_unreadable_record_does_what_the_sentence_says() {
+    let bound: RegisteredSlot = bound_slot("removal-advice-after-an-unreadable-record");
+    let home: PathBuf = crate::worktree_clone_binding_record::registration_home::home_folder(
+        bound.common.as_path(),
+    );
+    std::fs::create_dir_all(home.as_path()).expect("the fixture home");
+    let record: PathBuf = home.join("one.binding");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let copy: PathBuf = bound.root.join("one.binding.copy");
+    std::fs::copy(record.as_path(), copy.as_path()).expect("the record is copied");
+    std::fs::write(record.as_path(), b"not a record\n").expect("the record is overwritten");
+    // The ladder's own fast removal stays out, so the run below is Git's own removal once the refusal answers
+    //  nothing.
+    let mut facts: CopyFacts = facts_of(&bound);
+    facts.remove_plan = None;
+    let stderr: String = refusal_of(&facts, RemovalReads::Unreadable(NO_POOL_WAS_ASKED));
+    assert!(stderr.contains("cannot be read"), "{stderr}");
+    assert!(
+        !stderr.contains("settle it"),
+        "the sentence sends nobody to a settling command: {stderr}"
+    );
+    assert!(
+        !stderr.contains("settle-worktree-clone-record"),
+        "and names none: {stderr}"
+    );
+    assert!(
+        stderr.contains("Deleting it makes the removal Git's own"),
+        "the sentence says what deleting the record does: {stderr}"
+    );
+    assert!(
+        stderr.contains("reachable by nobody"),
+        "and what a clone bound to the slot then loses: {stderr}"
+    );
+    // "restore it from a copy": the record reads again, and the refusal is the one a whole clone gets.
+    std::fs::copy(copy.as_path(), record.as_path()).expect("the record is restored");
+    let restored: String = refusal_of(&facts, RemovalReads::Unreadable(NO_POOL_WAS_ASKED));
+    assert!(
+        restored.contains("a whole managed clone is bound to this slot"),
+        "the restored record proves the slot again: {restored}"
+    );
+    // "delete it and run the command again": nothing files under the slot name and nothing is mounted at it,
+    //  so the refusal answers nothing and Git's own removal ends well.
+    std::fs::remove_file(record.as_path()).expect("the record goes");
+    let words: Vec<OsString> = [
+        "-C",
+        bound.repository.to_str().expect("utf-8"),
+        "worktree",
+        "remove",
+        "-f",
+        "-f",
+        "one",
+    ]
+    .iter()
+    .map(|word| return OsString::from(word))
+    .collect();
+    let run: crate::worktree_copy_forward::ForwardedRun =
+        crate::worktree_copy_forward::run_forwarded_git(
+            Path::new(crate::test_support::REAL_GIT),
+            words.as_slice(),
+            crate::test_support::isolated_overlay().as_slice(),
+            Some(&facts),
+        );
+    assert_eq!(
+        run,
+        crate::worktree_copy_forward::ForwardedRun::Ran(0),
+        "Git's own removal ends well once no record proves the slot"
+    );
+    assert!(!bound.slot.exists(), "Git removed the slot folder");
+    assert!(!bound.registration.exists(), "and its registration");
     remove(bound.root.as_path());
 }
