@@ -20,13 +20,24 @@
 
 import { join, } from 'node:path';
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { host, } from '../guest-host/host-side-commands.ts';
+import {
+  requireMarkers,
+} from '../../bin/mvm-guest-arm-log.ts';
+import {
+  shellQuote,
+} from '../../bin/mvm-guest-command-line.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  host,
+} from '../../bin/mvm-guest-host-command.ts';
 import {
   readLog,
-  requireMarkers,
-  shellQuote,
-} from '../guest-host/guest-host-rules-fixture.ts';
+} from '../../bin/mvm-guest-step-command.ts';
+
+
+
 import {
   armTimeoutMilliseconds,
   crateDirectory,
@@ -78,7 +89,7 @@ const scanArmTimeoutMilliseconds = armTimeoutMilliseconds * scanArmBounds;
 export async function holderScanArms({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The arm itself, against a checkout and a clone parent the arm makes for
@@ -112,8 +123,8 @@ export async function holderScanArms({
     chosen,
     script,
     log: armStepLog,
-    timeout: scanArmTimeoutMilliseconds,
-    finishTimeout: scanArmTimeoutMilliseconds + finishMarginMilliseconds,
+    timeoutMilliseconds: scanArmTimeoutMilliseconds,
+    finishTimeoutMilliseconds: scanArmTimeoutMilliseconds + finishMarginMilliseconds,
   },);
   /**
    The host's copy of the arm's log, which the pull below writes.
@@ -140,7 +151,7 @@ export async function holderScanArms({
    */
   const pulled = await readLog({ path: pulledPath, },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedScanMarkers,
     subject: 'the pulled holder-scan log',
     because: 'the guest ran the arm without performing it',

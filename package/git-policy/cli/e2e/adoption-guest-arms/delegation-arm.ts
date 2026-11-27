@@ -20,9 +20,18 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
-import { requireMarkers, } from '../guest-host/guest-host-rules-fixture.ts';
+import {
+  requireMarkers,
+} from '../../bin/mvm-guest-arm-log.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
+
 import {
   armTimeoutMilliseconds,
   delegationAccount,
@@ -61,7 +70,7 @@ const openZfsLibrary = '/opt/openzfs-2.4.4/lib';
 export async function delegation({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The attempts, in the order the design's grants allow or refuse them: the
@@ -147,10 +156,10 @@ export async function delegation({
     chosen,
     script: attempts,
     log: delegationLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedDelegationMarkers,
     subject: 'the delegation log',
     because: 'the guest ran the attempt without proving it',

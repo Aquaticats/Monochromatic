@@ -37,19 +37,27 @@ import {
   FOLDER_MODE,
   HOST_COMMAND_TIMEOUT_MS,
 } from '../bin/mvm-guest-bounds.ts';
-import { GuestDriverError, } from '../bin/mvm-guest-error.ts';
+import {
+  GuestDriverError,
+} from '../bin/mvm-guest-error.ts';
 import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
   pushWorktreeSnapshot,
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
-import { holdsGuestName, } from '../bin/mvm-guest-listing.ts';
 import {
-  type GuestDriverOptions,
+  holdsGuestName,
+} from '../bin/mvm-guest-listing.ts';
+import {
   guestDriverOptions,
+  type GuestDriverOptions,
 } from '../bin/mvm-guest-options.ts';
-import { guest, } from '../bin/mvm-guest-script.ts';
-import { runWholeGuestRun, } from '../bin/mvm-guest-whole-run.ts';
+import {
+  guest,
+} from '../bin/mvm-guest-script.ts';
+import {
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
 
 //region Constants
 

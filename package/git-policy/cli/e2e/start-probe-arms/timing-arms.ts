@@ -15,9 +15,18 @@
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
-import { statusOf, } from '../guest-host/logged-command.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+import {
+  statusOf,
+} from '../../bin/mvm-guest-step-command.ts';
+
+
+
 import {
   armTimeoutMilliseconds,
   longArmTimeoutMilliseconds,
@@ -73,7 +82,7 @@ const rebootTimeoutMilliseconds = 60_000;
 export async function timings({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The arm: five warm rounds, three cold ones with the page cache dropped, then
@@ -120,7 +129,7 @@ export async function timings({
     chosen,
     script,
     log: timingsLog,
-    timeout: longArmTimeoutMilliseconds,
+    timeoutMilliseconds: longArmTimeoutMilliseconds,
   },);
 }
 
@@ -140,7 +149,7 @@ export async function timings({
 export async function timingsBootFirst({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   await statusOf({
     command: 'mvm',
@@ -152,7 +161,7 @@ export async function timingsBootFirst({
       '--',
       'systemctl reboot',
     ],
-    timeout: rebootTimeoutMilliseconds,
+    timeoutMilliseconds: rebootTimeoutMilliseconds,
   },);
   /**
    Whether the guest answered before the polls ran out.
@@ -190,7 +199,7 @@ export async function timingsBootFirst({
     chosen,
     script,
     log: bootFirstLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }
 
@@ -213,7 +222,7 @@ async function waitForTheGuestToAnswer({
   chosen,
   attemptsLeft,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
   readonly attemptsLeft: number;
 },): Promise<boolean> {
   if (attemptsLeft <= 0) return false;
@@ -230,7 +239,7 @@ async function waitForTheGuestToAnswer({
       '--',
       'true',
     ],
-    timeout: rebootPollTimeoutMilliseconds,
+    timeoutMilliseconds: rebootPollTimeoutMilliseconds,
   },);
   if (status === 0) return true;
   await wait(rebootPollPauseMilliseconds,);

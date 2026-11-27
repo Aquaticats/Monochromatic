@@ -23,13 +23,25 @@ import {
   resolve,
 } from 'node:path';
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
-import { host, } from '../guest-host/host-side-commands.ts';
+import {
+  requireMarkers,
+} from '../../bin/mvm-guest-arm-log.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  host,
+} from '../../bin/mvm-guest-host-command.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
 import {
   readLog,
-  requireMarkers,
-} from '../guest-host/guest-host-rules-fixture.ts';
+} from '../../bin/mvm-guest-step-command.ts';
+
+
+
+
 import {
   armTimeoutMilliseconds,
   expectedFsyncMarkers,
@@ -82,7 +94,7 @@ const probeInGuest = '/mnt/shared/probe-reaches-storage.py';
 export async function storeDataset({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The pool, the store's dataset and the probe's dataset, each created only when
@@ -104,7 +116,7 @@ export async function storeDataset({
     chosen,
     script,
     log: storeDatasetLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }
 
@@ -126,7 +138,7 @@ export async function storeDataset({
 export async function publicationFsync({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The probe itself, in the package's own `doc` folder, which this arms folder
@@ -176,8 +188,8 @@ export async function publicationFsync({
     chosen,
     script,
     log: fsyncStepLog,
-    timeout: armTimeoutMilliseconds,
-    finishTimeout: armTimeoutMilliseconds + finishMarginMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
+    finishTimeoutMilliseconds: armTimeoutMilliseconds + finishMarginMilliseconds,
   },);
   /**
    The probe's own log, which its step wrote beside the step's log.
@@ -204,7 +216,7 @@ export async function publicationFsync({
    */
   const pulled = await readLog({ path: pulledPath, },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedFsyncMarkers,
     subject: 'the pulled publication-fsync log',
     because: 'the guest ran the probe without that arm',

@@ -26,13 +26,23 @@
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
-import { runWithAGuestThatIsDestroyed, } from './guest-host/guest-run-lifecycle.ts';
-import { recipe, } from './guest-host/host-side-commands.ts';
-import type { GuestRun, } from './guest-host/guest-run.ts';
 import {
-  type RunArguments,
+  type GuestFacts,
+} from '../bin/mvm-guest-guest-facts.ts';
+import {
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
+import {
   runArguments,
-} from './guest-host/guest-host-rules-fixture.ts';
+  type RunArguments,
+} from '../bin/mvm-guest-options.ts';
+import {
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
+
+
+
+
 import { buildInGuest, } from './step-22-arms/crate-build.ts';
 import { measureTheHolderScan, } from './step-22-arms/holder-scan-arm.ts';
 import {
@@ -125,7 +135,7 @@ function options({
  await create(chosen);
  ```
  */
-async function create(chosen: GuestRun,): Promise<void> {
+async function create(chosen: GuestFacts,): Promise<void> {
   await recipe({
     chosen,
     step: 'create',
@@ -144,7 +154,7 @@ async function create(chosen: GuestRun,): Promise<void> {
  await prepare(chosen);
  ```
  */
-async function prepare(chosen: GuestRun,): Promise<void> {
+async function prepare(chosen: GuestFacts,): Promise<void> {
   await recipe({
     chosen,
     step: 'prepare',
@@ -164,7 +174,7 @@ async function prepare(chosen: GuestRun,): Promise<void> {
  await run(chosen);
  ```
  */
-async function run(chosen: GuestRun,): Promise<void> {
+async function run(chosen: GuestFacts,): Promise<void> {
   await buildInGuest({ chosen, },);
   await layThePools({ chosen, },);
   await measureStep22({ chosen, },);
@@ -183,7 +193,7 @@ async function run(chosen: GuestRun,): Promise<void> {
  await destroy(chosen);
  ```
  */
-async function destroy(chosen: GuestRun,): Promise<void> {
+async function destroy(chosen: GuestFacts,): Promise<void> {
   await recipe({
     chosen,
     step: 'destroy',
@@ -203,43 +213,41 @@ async function destroy(chosen: GuestRun,): Promise<void> {
  await all(chosen);
  ```
  */
-async function all(chosen: GuestRun,): Promise<void> {
-  /**
-   The guest this run creates, which `create` refuses to make twice.
-   */
-  function createThisGuest(): Promise<void> {
-    return create(chosen,);
-  }
-
-  /**
-   Everything the guest was created for: its preparation and the measurement arm.
-   */
-  async function prepareAndMeasure(): Promise<void> {
-    await prepare(chosen,);
-    await run(chosen,);
-  }
-
-  /**
-   The guest's destruction, which happens whatever the work did.
-   */
-  function destroyThisGuest(): Promise<void> {
-    return destroy(chosen,);
-  }
-
-  await runWithAGuestThatIsDestroyed({
-    name: chosen.name,
-    subject: 'git-policy step 22 guest',
+async function all(chosen: GuestFacts,): Promise<void> {
+  await runWholeGuestRun({
+    label: 'git-policy step 22 guest',
+    chosen,
     keepGuest: false,
-    create: createThisGuest,
-    run: prepareAndMeasure,
-    destroy: destroyThisGuest,
+    steps: {
+      create: async function createTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'create',
+        },);
+      },
+      prepare: async function prepareTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'prepare',
+        },);
+      },
+      work: async function runAndMeasure({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await run(facts,);
+      },
+      destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'destroy',
+        },);
+      },
+    },
   },);
 }
 
 /**
  The steps this driver knows, and nothing else.
  */
-const steps: ReadonlyMap<string, (chosen: GuestRun,) => Promise<void>> = new Map([
+const steps: ReadonlyMap<string, (chosen: GuestFacts,) => Promise<void>> = new Map([
   [
     'create',
     create,

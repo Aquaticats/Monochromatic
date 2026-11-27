@@ -306,19 +306,26 @@ export async function pullGuestLog({
 /**
  How one driver learns that a detached script has ended.
 
+ @param chosen - the run's guest and log folder, which a reader asking the guest agent needs
+
  @param file - the log's name inside the guest's shared folder
 
  @returns the log's last line, which is the status line once the script has ended
 
  @example
  ```ts
- const line = await lastLine({ file: 'build.log' });
+ const line = await lastLine({ chosen, file: 'build.log' });
  ```
  */
-export type LastLine = (argumentsRead: { readonly file: string },) => Promise<string>;
+export type LastLine = (argumentsRead: {
+  readonly chosen: GuestFacts;
+  readonly file: string;
+},) => Promise<string>;
 
 /**
  How one driver brings a detached script's log onto this host.
+
+ @param chosen - the run's guest and log folder
 
  @param file - the log's name inside the guest's shared folder
 
@@ -328,10 +335,11 @@ export type LastLine = (argumentsRead: { readonly file: string },) => Promise<st
 
  @example
  ```ts
- const pulled = await pull({ file: 'build.log', log: 'host-pull-build.log' });
+ const pulled = await pull({ chosen, file: 'build.log', log: 'host-pull-build.log' });
  ```
  */
 export type Pull = (argumentsRead: {
+  readonly chosen: GuestFacts;
   readonly file: string;
   readonly log: string;
 },) => Promise<string>;
@@ -353,10 +361,12 @@ export type Pull = (argumentsRead: {
  ```
  */
 async function endedWithin({
+  chosen,
   lastLine,
   file,
   deadline,
 }: {
+  readonly chosen: GuestFacts;
   readonly lastLine: LastLine;
   readonly file: string;
   readonly deadline: number;
@@ -366,13 +376,17 @@ async function endedWithin({
   /**
    The log's last line, as the host answered this look.
    */
-  const line = await lastLine({ file, },);
+  const line = await lastLine({
+    chosen,
+    file,
+  },);
   if (endedLineHolds({ text: line, },))
     return true;
   await wait(POLL_INTERVAL_MS,);
   // Each look waits for the one before it, so the next look is asked for here rather than by a loop around both: a loop
   // holding an `await` would read as work that could have run beside itself, and this one cannot.
   return await endedWithin({
+    chosen,
     lastLine,
     file,
     deadline,
@@ -421,9 +435,12 @@ export async function awaitDetachedGuestScript({
    How this run learns the script has ended, which asks the guest agent unless the driver named its own reader.
    */
   const readLastLine: LastLine = lastLine
-    ?? function ofThisGuest({ file, }: { readonly file: string },): Promise<string> {
+    ?? function ofThisGuest({ chosen: facts, file }: {
+      readonly chosen: GuestFacts;
+      readonly file: string;
+    },): Promise<string> {
       return lastLineFromTheGuest({
-        chosen,
+        chosen: facts,
         file,
       },);
     };
@@ -431,12 +448,13 @@ export async function awaitDetachedGuestScript({
    How this run brings the log onto the host, which is `mvm`'s own copy unless the driver named its own.
    */
   const readPull: Pull = pull
-    ?? function ofThisGuest({ file, log: pullLog }: {
+    ?? function ofThisGuest({ chosen: facts, file, log: pullLog }: {
+      readonly chosen: GuestFacts;
       readonly file: string;
       readonly log: string;
     },): Promise<string> {
       return pullGuestLog({
-        chosen,
+        chosen: facts,
         file,
         log: pullLog,
       },);
@@ -445,6 +463,7 @@ export async function awaitDetachedGuestScript({
    Whether the script had written its status line before the host stopped asking.
    */
   const finished = await endedWithin({
+    chosen,
     lastLine: readLastLine,
     file: log,
     deadline: Date.now() + finishTimeoutMilliseconds,
@@ -453,6 +472,7 @@ export async function awaitDetachedGuestScript({
    What the script wrote, which is the whole of its pulled log.
    */
   const pulled = await readPull({
+    chosen,
     file: log,
     log: `host-pull-${log}`,
   },);

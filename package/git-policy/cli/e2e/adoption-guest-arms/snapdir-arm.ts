@@ -21,9 +21,18 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
-import { requireMarkers, } from '../guest-host/guest-host-rules-fixture.ts';
+import {
+  requireMarkers,
+} from '../../bin/mvm-guest-arm-log.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
+
 import {
   armTimeoutMilliseconds,
   delegationAccount,
@@ -70,7 +79,7 @@ const snapdirImage = '/home/snapdir-matrix.img';
 export async function snapdirMatrix({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The matrix: one fresh pool, then each value of the property read as the
@@ -141,10 +150,10 @@ export async function snapdirMatrix({
     chosen,
     script,
     log: snapdirLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedSnapdirMarkers,
     subject: 'the snapdir log',
     because: 'the guest ran the arm without proving it',

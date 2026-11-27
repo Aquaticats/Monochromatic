@@ -14,9 +14,18 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
-import { pushWorktreeSnapshot, } from '../guest-host/host-side-commands.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  pushWorktreeSnapshot,
+} from '../../bin/mvm-guest-host-command.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
+
 import {
   crateBuildTimeoutMilliseconds,
   crateDirectory,
@@ -42,7 +51,7 @@ const buildLog = 'guest-crate-build.log';
 export async function buildInGuest({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   await pushWorktreeSnapshot({ chosen, },);
   /**
@@ -66,6 +75,6 @@ export async function buildInGuest({
     chosen,
     script,
     log: buildLog,
-    timeout: crateBuildTimeoutMilliseconds,
+    timeoutMilliseconds: crateBuildTimeoutMilliseconds,
   },);
 }

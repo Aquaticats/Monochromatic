@@ -22,9 +22,18 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { swapGibibytes, } from '../guest-host/guest-host-bounds.ts';
-import { pushWorktreeSnapshot, } from '../guest-host/host-side-commands.ts';
+import {
+  SWAP_GIBIBYTES,
+} from '../../bin/mvm-guest-bounds.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  pushWorktreeSnapshot,
+} from '../../bin/mvm-guest-host-command.ts';
+
+
+
 import {
   buildFinishMarginMilliseconds,
   crateBuildTimeoutMilliseconds,
@@ -52,7 +61,7 @@ const buildLog = 'guest-crate-build.log';
 export async function buildInGuest({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   await pushWorktreeSnapshot({ chosen, },);
   /**
@@ -67,7 +76,7 @@ export async function buildInGuest({
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${crateDirectory}`,
     `cd ${crateDirectory}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${swapGibibytes} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked --features test-only-switches > /root/adoption-build.log 2>&1',
     'tail --lines=3 /root/adoption-build.log',
   ].join('\n',);
@@ -75,7 +84,7 @@ export async function buildInGuest({
     chosen,
     script,
     log: buildLog,
-    timeout: crateBuildTimeoutMilliseconds,
-    finishTimeout: crateBuildTimeoutMilliseconds + buildFinishMarginMilliseconds,
+    timeoutMilliseconds: crateBuildTimeoutMilliseconds,
+    finishTimeoutMilliseconds: crateBuildTimeoutMilliseconds + buildFinishMarginMilliseconds,
   },);
 }

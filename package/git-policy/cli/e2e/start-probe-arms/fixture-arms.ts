@@ -13,8 +13,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   account,
   armTimeoutMilliseconds,
@@ -58,7 +64,7 @@ const probeDatasetLog = 'guest-probe-dataset.log';
 export async function red({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The arm: the handler run, and its answer read as the absence of the mode.
@@ -80,7 +86,7 @@ export async function red({
     chosen,
     script,
     log: redLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }
 
@@ -100,7 +106,7 @@ export async function red({
 export async function probeDatasetArm({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The fixture: one file-backed pool, the probe dataset and the encrypted one
@@ -137,6 +143,6 @@ export async function probeDatasetArm({
     chosen,
     script,
     log: probeDatasetLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }

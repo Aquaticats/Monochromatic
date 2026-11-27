@@ -36,16 +36,20 @@ import {
   host,
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
-import { guest, } from '../bin/mvm-guest-script.ts';
 import {
-  type GuestDriverOptions,
+  guest,
+} from '../bin/mvm-guest-script.ts';
+import {
   guestDriverOptions,
+  type GuestDriverOptions,
 } from '../bin/mvm-guest-options.ts';
 import {
   FOLDER_MODE,
   HOST_COMMAND_TIMEOUT_MS,
 } from '../bin/mvm-guest-bounds.ts';
-import { shellQuote, } from '../bin/mvm-guest-command-line.ts';
+import {
+  shellQuote,
+} from '../bin/mvm-guest-command-line.ts';
 
 /**
  Where the crate is unpacked and built inside the guest, which every account may traverse.

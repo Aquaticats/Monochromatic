@@ -29,10 +29,12 @@ import {
   host,
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
-import { guest, } from '../bin/mvm-guest-script.ts';
 import {
-  type GuestDriverOptions,
+  guest,
+} from '../bin/mvm-guest-script.ts';
+import {
   guestDriverOptions,
+  type GuestDriverOptions,
 } from '../bin/mvm-guest-options.ts';
 import {
   FOLDER_MODE,
@@ -42,8 +44,12 @@ import {
   holdsLineStartingWith,
   missingMarkers,
 } from '../bin/mvm-guest-arm-log.ts';
-import { holdsGuestName, } from '../bin/mvm-guest-listing.ts';
-import { captureHostCommand, } from '../bin/mvm-guest-step-command.ts';
+import {
+  holdsGuestName,
+} from '../bin/mvm-guest-listing.ts';
+import {
+  captureHostCommand,
+} from '../bin/mvm-guest-step-command.ts';
 
 //region Constants
 

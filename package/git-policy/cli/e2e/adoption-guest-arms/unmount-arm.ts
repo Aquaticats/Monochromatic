@@ -16,13 +16,24 @@
 
 import { join, } from 'node:path';
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { host, } from '../guest-host/host-side-commands.ts';
+import {
+  requireMarkers,
+} from '../../bin/mvm-guest-arm-log.ts';
+import {
+  shellQuote,
+} from '../../bin/mvm-guest-command-line.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  host,
+} from '../../bin/mvm-guest-host-command.ts';
 import {
   readLog,
-  requireMarkers,
-  shellQuote,
-} from '../guest-host/guest-host-rules-fixture.ts';
+} from '../../bin/mvm-guest-step-command.ts';
+
+
+
 import {
   armTimeoutMilliseconds,
   crateDirectory,
@@ -67,7 +78,7 @@ const unmountArmTimeoutMilliseconds = armTimeoutMilliseconds * 2;
 export async function unmountArms({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The arm itself, which stages and kills its own mounts inside the guest.
@@ -94,8 +105,8 @@ export async function unmountArms({
     chosen,
     script,
     log: armStepLog,
-    timeout: unmountArmTimeoutMilliseconds,
-    finishTimeout: unmountArmTimeoutMilliseconds + finishMarginMilliseconds,
+    timeoutMilliseconds: unmountArmTimeoutMilliseconds,
+    finishTimeoutMilliseconds: unmountArmTimeoutMilliseconds + finishMarginMilliseconds,
   },);
   /**
    The host's copy of the arm's log, which the pull below writes.
@@ -122,7 +133,7 @@ export async function unmountArms({
    */
   const pulled = await readLog({ path: pulledPath, },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedUnmountMarkers,
     subject: 'the pulled unmount-arm log',
     because: 'the guest ran the arm without performing it',

@@ -36,15 +36,29 @@ import {
   resolve,
 } from 'node:path';
 
-import type { GuestRun, } from './guest-host/guest-run.ts';
-import { runWithAGuestThatIsDestroyed, } from './guest-host/guest-run-lifecycle.ts';
-import { recipe, } from './guest-host/host-side-commands.ts';
 import {
-  readLog,
   requireMarkers,
+} from '../bin/mvm-guest-arm-log.ts';
+import {
+  type GuestFacts,
+} from '../bin/mvm-guest-guest-facts.ts';
+import {
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
+import {
   runArguments,
   type RunArguments,
-} from './guest-host/guest-host-rules-fixture.ts';
+} from '../bin/mvm-guest-options.ts';
+import {
+  readLog,
+} from '../bin/mvm-guest-step-command.ts';
+import {
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
+
+
+
+
 import { buildInGuest, } from './start-probe-arms/crate-build.ts';
 import {
   probeDatasetArm,
@@ -181,7 +195,7 @@ function options({
  await create(chosen);
  ```
  */
-async function create(chosen: GuestRun,): Promise<void> {
+async function create(chosen: GuestFacts,): Promise<void> {
   await recipe({
     chosen,
     step: 'create',
@@ -200,7 +214,7 @@ async function create(chosen: GuestRun,): Promise<void> {
  await prepare(chosen);
  ```
  */
-async function prepare(chosen: GuestRun,): Promise<void> {
+async function prepare(chosen: GuestFacts,): Promise<void> {
   await recipe({
     chosen,
     step: 'prepare',
@@ -219,7 +233,7 @@ async function prepare(chosen: GuestRun,): Promise<void> {
  await destroy(chosen);
  ```
  */
-async function destroy(chosen: GuestRun,): Promise<void> {
+async function destroy(chosen: GuestFacts,): Promise<void> {
   await recipe({
     chosen,
     step: 'destroy',
@@ -229,7 +243,7 @@ async function destroy(chosen: GuestRun,): Promise<void> {
 /**
  One arm of the run: what it needs is the guest and where its logs go.
  */
-type Arm = (armArguments: { readonly chosen: GuestRun; }) => Promise<void>;
+type Arm = (armArguments: { readonly chosen: GuestFacts; }) => Promise<void>;
 
 /**
  Build the handler in the guest unless this run was told the guest holds it, then
@@ -296,37 +310,39 @@ async function everyArm(chosen: Options,): Promise<void> {
  ```
  */
 async function all(chosen: Options,): Promise<void> {
-  /**
-   The guest this run creates, which `create` refuses to make twice.
-   */
-  function createThisGuest(): Promise<void> {
-    return create(chosen,);
-  }
-
-  /**
-   Everything the guest was created for: its preparation, the handler's build and
-   every arm.
-   */
-  async function prepareBuildAndRunEveryArm(): Promise<void> {
-    await prepare(chosen,);
-    await buildInGuest({ chosen, },);
-    await everyArm(chosen,);
-  }
-
-  /**
-   The guest's destruction, which happens whatever the work did.
-   */
-  function destroyThisGuest(): Promise<void> {
-    return destroy(chosen,);
-  }
-
-  await runWithAGuestThatIsDestroyed({
-    name: chosen.name,
-    subject: 'git-policy probe guest',
+  await runWholeGuestRun({
+    label: 'git-policy probe guest',
+    chosen,
     keepGuest: chosen.keepGuest,
-    create: createThisGuest,
-    run: prepareBuildAndRunEveryArm,
-    destroy: destroyThisGuest,
+    steps: {
+      create: async function createTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'create',
+        },);
+      },
+      prepare: async function prepareTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'prepare',
+        },);
+      },
+      work: async function buildAndRunEveryArm({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await buildInGuest({ chosen: facts, },);
+        await everyArm({
+          ...facts,
+          step: chosen.step,
+          keepGuest: chosen.keepGuest,
+          noBuild: true,
+        },);
+      },
+      destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'destroy',
+        },);
+      },
+    },
   },);
 }
 
@@ -486,7 +502,7 @@ async function proveTheArmRan(chosen: Options,): Promise<void> {
       noConfigurationLog,
     ), },);
     requireMarkers({
-      pulled,
+      text: pulled,
       markers: noConfigurationMarkers,
       subject: 'the no-configuration log',
       because: 'the guest ran the arm without proving it',
@@ -501,7 +517,7 @@ async function proveTheArmRan(chosen: Options,): Promise<void> {
       greenLog,
     ), },);
     requireMarkers({
-      pulled,
+      text: pulled,
       markers: greenMarkers,
       subject: 'the green log',
       because: 'the guest ran the arm without proving it',

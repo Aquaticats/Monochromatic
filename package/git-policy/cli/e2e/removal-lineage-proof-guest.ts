@@ -44,14 +44,18 @@ import {
   holdsLineStartingWith,
   requireMarkers,
 } from '../bin/mvm-guest-arm-log.ts';
-import { GuestDriverError, } from '../bin/mvm-guest-error.ts';
+import {
+  GuestDriverError,
+} from '../bin/mvm-guest-error.ts';
 import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
   pushWorktreeSnapshot,
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
 import type { GuestDriverOptions, } from '../bin/mvm-guest-options.ts';
-import { guestDriverOptions, } from '../bin/mvm-guest-options.ts';
+import {
+  guestDriverOptions,
+} from '../bin/mvm-guest-options.ts';
 import {
   awaitDetachedGuestScript,
   pullGuestLog,
@@ -64,7 +68,9 @@ import {
   armScript,
   buildScript,
 } from './removal-lineage-proof-guest-arm-scripts.ts';
-import { runWholeGuestRun, } from '../bin/mvm-guest-whole-run.ts';
+import {
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
 
 //region Constants
 

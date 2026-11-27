@@ -11,7 +11,10 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+
 import { detachedStep, } from './detached-step.ts';
 import { pullSharedLog, } from './host-shared-log.ts';
 import {
@@ -53,7 +56,7 @@ const scanPoolVariable = 'CLI_GIT_ZFS_SCAN_POOL';
 export async function measureTheHolderScan({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The arm: the built test target's holder-scan measurements, run against a
@@ -79,8 +82,8 @@ export async function measureTheHolderScan({
     chosen,
     script,
     log: holderScanStepLog,
-    timeout: armTimeoutMilliseconds,
-    finishTimeout: armTimeoutMilliseconds + finishMarginMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
+    finishTimeoutMilliseconds: armTimeoutMilliseconds + finishMarginMilliseconds,
   },);
   /**
    The arm's own log, which its script copied into the guest's shared folder and

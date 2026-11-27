@@ -1,52 +1,25 @@
 /**
- One detached guest script whose end the host reads through the guest agent, by
- asking the guest for the last line of the script's log, and whose file it then
- pulls with `mvm pull`.
+ One detached guest script, whose end the host reads through the guest agent: start it, wait for the status line the
+ guest appends, pull its log with `mvm`'s own copy, and refuse a status that is not zero.
 
- The adoption guest's build and its arms run for minutes, and the guest agent has
- lost the status of a long `exec`, so the work runs detached and ends by
- appending `DONE=<status>` to its own log. Asking the guest for that line is what
- this driver does rather than reading the shared folder from the host, and the
- pull afterwards is `mvm`'s own, so the log a person reads is the one `mvm` copied
- out.
+ The adoption guest's build and its arms run for minutes, and the guest agent has lost the status of a long `exec`, so
+ the work runs detached and says how it ended in its own log, which the host reads by asking the guest for that log's
+ last line.
+
+ This driver's launcher carries the guest-name check, so a run that reached another machine refuses before the step file
+ is started at all: that is why `nameCheck` is `launcher` here and `step` in the step 22 driver.
 
  @example
  ```ts
- const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeout: 900_000, finishTimeout: 1_020_000 });
+ const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeoutMilliseconds: 900_000, finishTimeoutMilliseconds: 1_020_000 });
  ```
  */
 
 import {
-  type execFile,
-  execFile as execFileProgram,
-} from 'node:child_process';
-import { join, } from 'node:path';
-import { promisify, } from 'node:util';
-
-import {
-  startDetachedScript,
-  waitForDoneLine,
-} from '../guest-host/guest-side-scripts.ts';
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { hostCommandTimeoutMilliseconds, } from '../guest-host/guest-host-bounds.ts';
-import { host, } from '../guest-host/host-side-commands.ts';
-import {
-  detachedScriptFiles,
-  doneStatusOf,
-  readLog,
-} from '../guest-host/guest-host-rules-fixture.ts';
-
-/**
- `execFile` with a promise result, typed through Node's own adapter contract,
- because the generic `promisify(execFile)` form trips `strict-void-return`
- (`doc/troubleshooting/oxlint-promisify-void-return.md`).
- */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
-
-/**
- Runs a program without a shell and waits for it to end or for its deadline.
- */
-const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFileProgram,);
+  awaitDetachedGuestScript,
+  startDetachedGuestScript,
+} from '../../bin/mvm-guest-detached-script.ts';
+import type { GuestFacts, } from '../../bin/mvm-guest-guest-facts.ts';
 
 /**
  Start one detached guest script, wait for its own end, and pull its log.
@@ -57,9 +30,9 @@ const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFileP
 
  @param log - the log's name inside the guest's shared folder
 
- @param timeout - milliseconds the script may take inside the guest
+ @param timeoutMilliseconds - milliseconds the script may take inside the guest
 
- @param finishTimeout - milliseconds the host waits for the script to end
+ @param finishTimeoutMilliseconds - milliseconds the host waits for the script to end
 
  @returns the pulled log, written into the run's log folder
 
@@ -67,197 +40,32 @@ const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFileP
 
  @example
  ```ts
- const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeout: 900_000, finishTimeout: 1_020_000 });
+ const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeoutMilliseconds: 900_000, finishTimeoutMilliseconds: 1_020_000 });
  ```
  */
 export async function detachedStep({
   chosen,
   script,
   log,
-  timeout,
-  finishTimeout,
+  timeoutMilliseconds,
+  finishTimeoutMilliseconds,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
   readonly script: string;
   readonly log: string;
-  readonly timeout: number;
-  readonly finishTimeout: number;
+  readonly timeoutMilliseconds: number;
+  readonly finishTimeoutMilliseconds: number;
 },): Promise<string> {
-  /**
-   The step and the launcher the guest runs, with the launcher doing the naming
-   check so a wrong guest refuses before the script starts.
-   */
-  const files = detachedScriptFiles({
+  await startDetachedGuestScript({
     chosen,
     script,
     log,
-    timeout,
-    hostnameCheckInLaunch: true,
+    timeoutMilliseconds,
+    nameCheck: 'launcher',
   },);
-  await startDetachedScript({
+  return await awaitDetachedGuestScript({
     chosen,
-    step: files.step,
-    launch: files.launch,
     log,
+    finishTimeoutMilliseconds,
   },);
-  /**
-   The host's copy of the log, which the pull below writes.
-   */
-  const pulledPath = join(
-    chosen.logDir,
-    log,
-  );
-  /**
-   Whether the script ended inside the host's bound, which the guest's own last
-   line answers.
-   */
-  const finished = await waitForDoneLine({
-    answer: function answer(): Promise<string> {
-      return lastLineInGuest({
-        chosen,
-        log,
-      },);
-    },
-    timeout: finishTimeout,
-  },);
-  await host({
-    chosen,
-    command: 'mvm',
-    args: [
-      '--backend',
-      'libvirt',
-      'pull',
-      chosen.name,
-      `/mnt/shared/${log}`,
-      pulledPath,
-    ],
-    log: `host-pull-${log}`,
-  },);
-  /**
-   The log as `mvm` copied it out.
-   */
-  const pulled = await readLog({ path: pulledPath, },);
-  if (!finished)
-    throw new Error(`${log}: the guest script did not finish inside ${String(finishTimeout)} ms; see ${log}`);
-  /**
-   The status the script wrote into its own log.
-   */
-  const status = doneStatusOf({ pulled, },);
-  if (!(status.found && (status.status === '0')))
-    throw new Error(`${log}: the guest script ended ${status.found ? status.status : 'without a status'}; see ${log}`);
-  return pulled;
-}
-
-/**
- The last line of one guest script's log, asked of the guest itself.
-
- A guest that cannot answer, because its agent is busy or the file is not there
- yet, is no line yet: the caller is waiting for a `DONE=` line that has not
- arrived, and refusing here would fail a run whose script is still working.
-
- @param chosen - the run's guest and log folder
-
- @param log - the log's name inside the guest's shared folder
-
- @returns the log's last line as the guest prints it, or empty text
-
- @example
- ```ts
- await lastLineInGuest({ chosen, log: 'guest-crate-build.log' });
- ```
- */
-async function lastLineInGuest({
-  chosen,
-  log,
-}: {
-  readonly chosen: GuestRun;
-  readonly log: string;
-},): Promise<string> {
-  try {
-    /**
-     What the guest printed for the log's last line.
-     */
-    const answer = await execFileAsync(
-      'mvm',
-      [
-        '--backend',
-        'libvirt',
-        'exec',
-        chosen.name,
-        '--',
-        'tail',
-        '--lines=1',
-        `/mnt/shared/${log}`,
-      ],
-      {
-        encoding: 'utf8',
-        timeout: hostCommandTimeoutMilliseconds,
-      },
-    );
-    /**
-     The line with the answer's own journal noise trimmed away.
-     */
-    const line = ((typeof answer.stdout) === 'string') ? answer.stdout : '';
-    return line.trim();
-  }
-  catch (caught) {
-    // A guest that cannot answer yet is no `DONE=` line yet, so the caught
-    // value is not read here; the wait's own bound names the log it gave up on.
-    return '';
-  }
-}
-
-/**
- Pull one guest log into the run's own log folder, with `mvm`'s own copy, and read
- it back.
-
- The step's own log holds what the guest printed, which for an arm is the tail of
- the arm's log; the arm's own log is the file the run keeps as its evidence, so it
- is pulled by name and the markers are stated against it.
-
- @param chosen - the run's guest and log folder
-
- @param file - the log's name inside the guest's shared folder
-
- @param log - the name of the pull's own host log
-
- @returns the log's whole text, as `mvm` copied it out
-
- @throws Error naming the command that refused
-
- @example
- ```ts
- const pulled = await pullGuestLog({ chosen, file: 'adoption-arm.log', log: 'host-pull-adoption.log' });
- ```
- */
-export async function pullGuestLog({
-  chosen,
-  file,
-  log,
-}: {
-  readonly chosen: GuestRun;
-  readonly file: string;
-  readonly log: string;
-},): Promise<string> {
-  /**
-   The host's copy of the guest's log, which the pull writes.
-   */
-  const pulledPath = join(
-    chosen.logDir,
-    file,
-  );
-  await host({
-    chosen,
-    command: 'mvm',
-    args: [
-      '--backend',
-      'libvirt',
-      'pull',
-      chosen.name,
-      `/mnt/shared/${file}`,
-      pulledPath,
-    ],
-    log,
-  },);
-  return readLog({ path: pulledPath, },);
 }

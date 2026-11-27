@@ -10,8 +10,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   armTimeoutMilliseconds,
   probeScript,
@@ -42,7 +48,7 @@ const busyLog = 'guest-m9-busy.log';
 export async function gateSkip({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The arm: the mode in a unit whose `/dev/zfs` is inaccessible, then the record
@@ -66,7 +72,7 @@ export async function gateSkip({
     chosen,
     script,
     log: skipLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }
 
@@ -86,7 +92,7 @@ export async function gateSkip({
 export async function m9Busy({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The arm: one run with the switch on, and one with it off.
@@ -107,6 +113,6 @@ export async function m9Busy({
     chosen,
     script,
     log: busyLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }

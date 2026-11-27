@@ -1,34 +1,87 @@
 /**
- One detached guest script whose answer the host reads from the guest's shared
- folder: start it, wait for its own `DONE=` line, pull its log into the run's
- folder, and refuse a status that is not zero.
+ One detached guest script whose answer the host reads from the guest's shared folder: start it, wait for its own
+ `DONE=` line, pull its log into the run's folder, and refuse a status that is not zero.
 
- A guest build and a guest arm run for minutes, and the guest agent has lost the
- status of a long `exec`, so the work runs detached and says how it ended in its
- own log. The answer is read from the host side of the shared folder, which is a
- folder `mvm` mounts in the guest, so a busy agent does not hide a finished
- script.
+ A guest build and a guest arm run for minutes, and the guest agent has lost the status of a long `exec`, so the work
+ runs detached and says how it ended in its own log. The answer is read from the host side of the shared folder, which
+ is a folder `mvm` mounts in the guest, so a busy agent does not hide a finished script.
+
+ This driver's step file carries the guest-name check rather than the launcher, which is the shape it has always sent
+ and why `nameCheck` is `step` here and `launcher` in the adoption driver.
 
  @example
  ```ts
- const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeout: 900_000, finishTimeout: 1_020_000 });
+ const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeoutMilliseconds: 900_000, finishTimeoutMilliseconds: 1_020_000 });
  ```
  */
 
 import {
-  startDetachedScript,
-  waitForDoneLine,
-} from '../guest-host/guest-side-scripts.ts';
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import {
-  detachedScriptFiles,
-  doneStatusOf,
-} from '../guest-host/guest-host-rules-fixture.ts';
+  type LastLine,
+  type Pull,
+  awaitDetachedGuestScript,
+  startDetachedGuestScript,
+} from '../../bin/mvm-guest-detached-script.ts';
+import type { GuestFacts, } from '../../bin/mvm-guest-guest-facts.ts';
 import {
   lastLineWithText,
   pullSharedLog,
   sharedFile,
 } from './host-shared-log.ts';
+
+/**
+ The last line of a detached script's log, read from the host's own side of the guest's shared folder.
+
+ @param chosen - the run's guest and log folder
+
+ @param file - the log's name inside the guest's shared folder
+
+ @returns the log's last line with text in it, or empty text while the script still works
+
+ @example
+ ```ts
+ await lastLineOfTheSharedFolder({ chosen, file: 'guest-crate-build.log' });
+ ```
+ */
+const lastLineOfTheSharedFolder: LastLine = async function lastLineOfTheSharedFolder({
+  chosen,
+  file,
+}) {
+  return await lastLineWithText({
+    path: sharedFile({
+      name: chosen.name,
+      file,
+    },),
+  },);
+};
+
+/**
+ The log as the guest left it, copied out of the host's own side of its shared folder into the run's folder.
+
+ @param chosen - the run's guest and log folder
+
+ @param file - the log's name inside the guest's shared folder
+
+ @param log - the name of the pull's own host log, which this copy keeps no separate record of
+
+ @returns the log's whole text, as the guest left it
+
+ @throws Error when the shared folder does not hold the file
+
+ @example
+ ```ts
+ await pullFromTheSharedFolder({ chosen, file: 'adoption-arm.log', log: 'host-pull-arm.log' });
+ ```
+ */
+const pullFromTheSharedFolder: Pull = async function pullFromTheSharedFolder({
+  chosen,
+  file,
+}) {
+  return await pullSharedLog({
+    name: chosen.name,
+    file,
+    logDir: chosen.logDir,
+  },);
+};
 
 /**
  Start one detached guest script, wait for its own end, and pull its log.
@@ -39,9 +92,9 @@ import {
 
  @param log - the log's name inside the guest's shared folder
 
- @param timeout - milliseconds the script may take inside the guest
+ @param timeoutMilliseconds - milliseconds the script may take inside the guest
 
- @param finishTimeout - milliseconds the host waits for the script to end
+ @param finishTimeoutMilliseconds - milliseconds the host waits for the script to end
 
  @returns the pulled log, written into the run's log folder
 
@@ -49,77 +102,34 @@ import {
 
  @example
  ```ts
- const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeout: 900_000, finishTimeout: 1_020_000 });
+ const pulled = await detachedStep({ chosen, script: 'id', log: 'guest-id.log', timeoutMilliseconds: 900_000, finishTimeoutMilliseconds: 1_020_000 });
  ```
  */
 export async function detachedStep({
   chosen,
   script,
   log,
-  timeout,
-  finishTimeout,
+  timeoutMilliseconds,
+  finishTimeoutMilliseconds,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
   readonly script: string;
   readonly log: string;
-  readonly timeout: number;
-  readonly finishTimeout: number;
+  readonly timeoutMilliseconds: number;
+  readonly finishTimeoutMilliseconds: number;
 },): Promise<string> {
-  /**
-   The step and the launcher the guest runs, with the step carrying the naming
-   check, which is the shape this driver has always sent.
-   */
-  const files = detachedScriptFiles({
+  await startDetachedGuestScript({
     chosen,
     script,
     log,
-    timeout,
-    hostnameCheckInLaunch: false,
+    timeoutMilliseconds,
+    nameCheck: 'step',
   },);
-  await startDetachedScript({
+  return await awaitDetachedGuestScript({
     chosen,
-    step: files.step,
-    launch: files.launch,
     log,
+    finishTimeoutMilliseconds,
+    lastLine: lastLineOfTheSharedFolder,
+    pull: pullFromTheSharedFolder,
   },);
-  /**
-   The host's path to the log the guest appends to.
-   */
-  const path = sharedFile({
-    name: chosen.name,
-    file: log,
-  },);
-  /**
-   The log's last line, which is the `DONE=` line once the script has ended.
-
-   @returns the last line of the guest's log, or empty text when it has none
-   */
-  function answer(): Promise<string> {
-    return lastLineWithText({ path, },);
-  }
-
-  /**
-   Whether the script ended inside the host's bound.
-   */
-  const finished = await waitForDoneLine({
-    answer,
-    timeout: finishTimeout,
-  },);
-  /**
-   The log as the guest left it, copied into the run's folder.
-   */
-  const pulled = await pullSharedLog({
-    name: chosen.name,
-    file: log,
-    logDir: chosen.logDir,
-  },);
-  if (!finished)
-    throw new Error(`${log}: the guest script did not finish inside ${String(finishTimeout)} ms; see ${log}`);
-  /**
-   The status the script wrote into its own log.
-   */
-  const status = doneStatusOf({ pulled, },);
-  if (!(status.found && (status.status === '0')))
-    throw new Error(`${log}: the guest script ended ${status.found ? status.status : 'without a status'}; see ${log}`);
-  return pulled;
 }

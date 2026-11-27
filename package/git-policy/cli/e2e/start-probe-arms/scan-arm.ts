@@ -15,8 +15,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   armTimeoutMilliseconds,
   probeDataset,
@@ -43,7 +49,7 @@ const scanLog = 'guest-m7-scan.log';
 export async function m7Scan({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The arms: the baseline scans, a source held before the run, a mount that lands
@@ -105,6 +111,6 @@ export async function m7Scan({
     chosen,
     script,
     log: scanLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }

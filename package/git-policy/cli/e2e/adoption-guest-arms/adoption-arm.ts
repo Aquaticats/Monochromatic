@@ -14,12 +14,18 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
 import {
   holdsLineStartingWith,
   requireMarkers,
+} from '../../bin/mvm-guest-arm-log.ts';
+import {
   shellQuote,
-} from '../guest-host/guest-host-rules-fixture.ts';
+} from '../../bin/mvm-guest-command-line.ts';
+import {
+  type GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+
+
 import {
   adoptionGuestVariable,
   armTimeoutMilliseconds,
@@ -27,10 +33,8 @@ import {
   expectedMarkers,
   finishMarginMilliseconds,
 } from './adoption-fixture.ts';
-import {
-  detachedStep,
-  pullGuestLog,
-} from './detached-step.ts';
+import { pullGuestLog, } from '../../bin/mvm-guest-detached-script.ts';
+import { detachedStep, } from './detached-step.ts';
 
 /**
  The log the adoption arm writes inside the guest's shared folder.
@@ -59,7 +63,7 @@ const armStepLog = 'guest-adoption.log';
 export async function runTheAdoption({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<string> {
   /**
    The arm itself: the built test target's adoption and store controls, run
@@ -85,8 +89,8 @@ export async function runTheAdoption({
     chosen,
     script,
     log: armStepLog,
-    timeout: armTimeoutMilliseconds,
-    finishTimeout: armTimeoutMilliseconds + finishMarginMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
+    finishTimeoutMilliseconds: armTimeoutMilliseconds + finishMarginMilliseconds,
   },);
   /**
    The arm's own log, which the step copied into the guest's shared folder and
@@ -98,13 +102,13 @@ export async function runTheAdoption({
     log: 'host-pull-adoption.log',
   },);
   requireMarkers({
-    pulled,
+    text: pulled,
     markers: expectedMarkers,
     subject: 'the pulled arm log',
     because: 'the guest ran the arm without performing it',
   },);
   if (holdsLineStartingWith({
-    pulled,
+    text: pulled,
     word: 'SKIPPED',
   },))
     throw new Error('the pulled arm log holds a SKIPPED line, so the adoption arm did not run');
