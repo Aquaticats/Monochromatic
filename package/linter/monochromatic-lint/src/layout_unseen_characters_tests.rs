@@ -70,7 +70,10 @@ fn both_ends_of_every_range_print_as_nothing() {
 #[test]
 fn a_code_point_outside_every_range_prints_as_something() {
     for (from, to) in DEFAULT_IGNORABLE_CODE_POINTS.iter() {
-        for letter in [char::from_u32(*from as u32 - 1), char::from_u32(*to as u32 + 1)] {
+        for letter in [
+            char::from_u32(*from as u32 - 1),
+            char::from_u32(*to as u32 + 1),
+        ] {
             let Some(letter) = letter else {
                 continue;
             };
@@ -105,8 +108,8 @@ fn a_format_character_is_spelled_and_a_readable_one_is_shown() {
     // What: code points a reader meets in a line copied from a word processor or a web page.
     // Why: these are the faults the release review found printed raw, so each is a case a message must spell.
     for letter in [
-        '\u{200e}', '\u{200f}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}', '\u{2066}',
-        '\u{2069}', '\u{180e}', '\u{fe0f}', '\u{34f}', '\u{7f}',
+        '\u{200e}', '\u{200f}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}', '\u{202e}',
+        '\u{2066}', '\u{2069}', '\u{180e}', '\u{fe0f}', '\u{34f}', '\u{7f}',
     ] {
         assert!(
             prints_as_nothing(letter),
@@ -116,7 +119,9 @@ fn a_format_character_is_spelled_and_a_readable_one_is_shown() {
     }
     // What: characters a reader sees, including one that looks like the mark beside it.
     // Why: a combining accent a reader sees is no format character, and a space between two words is no fault.
-    for letter in ['a', '\u{301}', ' ', '\t', '\u{a0}', '\u{e9}', '\u{4e00}', '\u{378}'] {
+    for letter in [
+        'a', '\u{301}', ' ', '\t', '\u{a0}', '\u{e9}', '\u{4e00}', '\u{378}',
+    ] {
         assert!(
             !prints_as_nothing(letter),
             "U+{:04X} prints as something",

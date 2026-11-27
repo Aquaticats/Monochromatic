@@ -1175,25 +1175,50 @@ fn a_six_word_file_use_line_names_the_folder_its_words_name() {
     // What: the tree each line is written for, the line, and the folder its refusal must name.
     // Why: a doubled gap and an arrow-named folder each sent the reader to a sentence about the word count.
     for (folders, line, named) in [
-        (&["src/c d"][..], "file-uses src/c d one.rs  -> two.rs\n", "src/c d"),
-        (&["src/c d"][..], "file-uses  src/c d one.rs -> two.rs\n", "src/c d"),
-        (&["src/c d"][..], "file-uses src/c d  one.rs -> two.rs\n", "src/c d"),
-        (&["src/c\td"][..], "file-uses\t src/c\td one.rs -> two.rs\n", "src/c\\u{9}d"),
-        (&["src/c\td"][..], "file-uses  src/c\td one.rs -> two.rs\n", "src/c\\u{9}d"),
-        (&["src/x -> y"][..], "file-uses src/x -> y one.rs -> two.rs\n", "src/x -> y"),
-        (&["src/p ->"][..], "file-uses src/p -> one.rs -> two.rs\n", "src/p ->"),
+        (
+            &["src/c d"][..],
+            "file-uses src/c d one.rs  -> two.rs\n",
+            "src/c d",
+        ),
+        (
+            &["src/c d"][..],
+            "file-uses  src/c d one.rs -> two.rs\n",
+            "src/c d",
+        ),
+        (
+            &["src/c d"][..],
+            "file-uses src/c d  one.rs -> two.rs\n",
+            "src/c d",
+        ),
+        (
+            &["src/c\td"][..],
+            "file-uses\t src/c\td one.rs -> two.rs\n",
+            "src/c\\u{9}d",
+        ),
+        (
+            &["src/c\td"][..],
+            "file-uses  src/c\td one.rs -> two.rs\n",
+            "src/c\\u{9}d",
+        ),
+        (
+            &["src/x -> y"][..],
+            "file-uses src/x -> y one.rs -> two.rs\n",
+            "src/x -> y",
+        ),
+        (
+            &["src/p ->"][..],
+            "file-uses src/p -> one.rs -> two.rs\n",
+            "src/p ->",
+        ),
     ] {
         let fixture: Fixture = Fixture::new();
         for folder in folders {
             std::fs::create_dir_all(fixture.path.join(folder))
                 .expect("create the folder the line is written for");
         }
-        let error: String = parse_allow_list(
-            line,
-            Path::new("allow-list.txt"),
-            fixture.path.as_path(),
-        )
-        .expect_err("no line can carry a folder name that holds whitespace");
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), fixture.path.as_path())
+                .expect_err("no line can carry a folder name that holds whitespace");
         assert!(
             error.contains(format!("the folder `{named}`").as_str()),
             "`{line}` must name the folder `{named}`: {error}"
@@ -1219,12 +1244,9 @@ fn a_five_word_file_use_line_whose_fourth_word_is_no_arrow_names_that_word() {
         ("file-uses -> src/ab one.rs two.rs\n", "one.rs"),
         ("file-uses src/ab one.rs two.rs ->\n", "two.rs"),
     ] {
-        let error: String = parse_allow_list(
-            line,
-            Path::new("allow-list.txt"),
-            fixture.path.as_path(),
-        )
-        .expect_err("the fourth word is no arrow");
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), fixture.path.as_path())
+                .expect_err("the fourth word is no arrow");
         assert!(
             error.contains("the fourth word must be `->`"),
             "`{line}` must say which word belongs there: {error}"
@@ -1245,14 +1267,14 @@ fn a_file_use_line_missing_words_says_how_many_it_holds() {
     for (line, counted) in [
         ("file-uses\n", "this line is one word"),
         ("file-uses src/ab\n", "this line is 2 words"),
-        ("file-uses src/ab one.rs -> two.rs extra\n", "this line is 6 words"),
+        (
+            "file-uses src/ab one.rs -> two.rs extra\n",
+            "this line is 6 words",
+        ),
     ] {
-        let error: String = parse_allow_list(
-            line,
-            Path::new("allow-list.txt"),
-            fixture.path.as_path(),
-        )
-        .expect_err("the line holds the wrong number of words");
+        let error: String =
+            parse_allow_list(line, Path::new("allow-list.txt"), fixture.path.as_path())
+                .expect_err("the line holds the wrong number of words");
         assert!(
             error.contains(counted),
             "`{line}` must say `{counted}`: {error}"
@@ -1402,7 +1424,11 @@ fn the_help_of_a_dead_line_names_every_character_its_gap_kept() {
 fn the_refusal_of_a_folder_whose_name_holds_whitespace_names_that_character() {
     for (folder, spelled, named) in [
         ("src/c\td", "src/c\\u{9}d", "a tab (`\\u{9}`)"),
-        ("src/c\u{a0}d", "src/c\\u{a0}d", "a no-break space (`\\u{a0}`)"),
+        (
+            "src/c\u{a0}d",
+            "src/c\\u{a0}d",
+            "a no-break space (`\\u{a0}`)",
+        ),
         (
             "src/e\u{202f}f",
             "src/e\\u{202f}f",
@@ -1432,9 +1458,8 @@ fn the_refusal_of_a_folder_whose_name_holds_whitespace_names_that_character() {
 fn a_dead_line_quotes_its_spelled_text_and_no_other_part_of_the_message() {
     let (message, _) = one_dead_line("uses src/a\u{200b} -> src/b\n", &["src/a", "src/b"]);
     assert!(
-        message.starts_with(
-            "The allow-list entry `uses src/a\\u{200b} -> src/b` in allow-list.txt "
-        ),
+        message
+            .starts_with("The allow-list entry `uses src/a\\u{200b} -> src/b` in allow-list.txt "),
         "the quote is the entry's own text, spelled: {message}"
     );
 }
