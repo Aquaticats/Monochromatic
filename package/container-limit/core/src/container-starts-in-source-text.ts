@@ -9,6 +9,10 @@
 
  A mention whose first argument is not one of the verbs is not a start: `podman image exists` inspects an image, and
  `spawn('podman', args)` starts whatever its caller's arguments say, which the paired ledger role covers.
+
+ A Rust source names the program in a call and passes the arguments in the calls chained after it
+ (`Command::new("podman").args(["run", ...])`), so a Rust mention is a start only where that call shape carries a verb:
+ `podman run` inside a Rust string is a message, or a sample line of another file.
  */
 
 import {
