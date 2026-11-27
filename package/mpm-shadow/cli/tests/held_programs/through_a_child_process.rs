@@ -40,6 +40,8 @@ use std::process::{
     Command,
     Stdio,
 };
+/// Imports the span of time a timed hold lasts.
+use std::time::Duration;
 
 /// What:
 /// A child process that holds one file open for writing,
@@ -120,6 +122,108 @@ pub fn hold_open_for_writing(path: &Path) -> HeldOpenForWriting {
         .expect("read the holder's report");
     assert_eq!(line, "held\n", "the holder did not report the open file");
     return HeldOpenForWriting {
+        holder,
+    };
+}
+
+/// What:
+/// A child process that holds one file open for writing for a stated time and then lets it go,
+/// released early when this value is dropped.
+/// Why:
+/// A control that bounds what a refused start does needs a hold with an end it can state:
+/// a start that repeated the attempt would still be holding the file when the program became
+/// startable, so it would start the program instead of being refused again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HoldingUntil = { holder: ChildProcess; stillHolding(): boolean };
+/// ```
+pub struct HeldOpenUntil {
+    /// The `sh` process whose descriptor number three is the file open for writing.
+    holder: Child,
+}
+
+impl HeldOpenUntil {
+    /// What:
+    /// `still_holding()` answers whether the holder is still running,
+    /// and so still holds the file open.
+    /// Why:
+    /// A control that asks this after a refused start proves the start gave up while the file was
+    /// still being written, never that it waited for the write to end.
+    pub fn still_holding(&mut self) -> bool {
+        // What:     `try_wait()` returns `Some(status)` once the child ended and `None` while it runs.
+        // Why:      The holder ends when its `sleep` finishes, which closes its descriptor.
+        return self.holder.try_wait().expect("ask the holder").is_none();
+    }
+}
+
+/// What:
+/// `impl Drop for HeldOpenUntil` waits for the holder to end.
+/// Why:
+/// A holder that outlived its test would keep the program unstartable for every later test that
+/// starts the same file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // registered in the fixture's teardown: holder.waitSync();
+/// ```
+impl Drop for HeldOpenUntil {
+    /// Waits for the holder's own `sleep` to end.
+    fn drop(&mut self) {
+        let _ = self.holder.wait();
+    }
+}
+
+/// What:
+///     `fn hold_open_until(path, hold)` starts a `sh` that opens `path` for appending,
+///     keeps it open for `hold` seconds and then exits,
+///     and returns once the file really is open.
+/// Why:
+///     The control states its bound from this hold:
+///     a refused start has to end while the hold lasts,
+///     and a start that waited for the file to be free would end after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function holdOpenUntil(path: string, hold: Duration): HoldingUntil
+/// ```
+pub fn hold_open_until(
+    path: &Path,
+    hold: Duration,
+) -> HeldOpenUntil {
+    // What:     The holder's own `sleep` takes whole seconds in every `sh`, so a fractional hold
+    //           is refused here rather than silently shortened.
+    // Why:      A silently shortened hold would weaken the bound the control states from it.
+    assert_eq!(
+        hold.subsec_nanos(),
+        0,
+        "the hold is stated in whole seconds: {hold:?}"
+    );
+    // What:     `Command::new("/bin/sh")` starts a shell whose arguments after the script are
+    //           `sh` (its own `$0`), `path` (its `$1`) and the number of seconds (its `$2`).
+    // Why:      `exec 3>>"$1"` opens the file for appending on descriptor three of the shell itself,
+    //           so the descriptor belongs to a process of the test's own and never to the test.
+    let mut holder: Child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("exec 3>>\"$1\" || exit 9; printf 'held\\n'; sleep \"$2\"")
+        .arg("sh")
+        .arg(path)
+        .arg(hold.as_secs().to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("start the holder of the program file for a stated time");
+    // What:     `.stdout.take()` moves the reporting pipe out of the child record.
+    // Why:      The line `held` is the proof the file is open before the test starts anything,
+    //           so no test races the holder.
+    let reporting: ChildStdout = holder.stdout.take().expect("the holder's report");
+    let mut reader: BufReader<ChildStdout> = BufReader::new(reporting);
+    let mut line: String = String::new();
+    reader
+        .read_line(&mut line)
+        .expect("read the holder's report");
+    assert_eq!(line, "held\n", "the holder did not report the open file");
+    return HeldOpenUntil {
         holder,
     };
 }

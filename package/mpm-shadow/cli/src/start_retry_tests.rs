@@ -181,3 +181,38 @@ fn a_start_refused_because_the_program_is_being_written_is_not_retried() {
     assert!(pauses.is_empty(), "{pauses:?}");
     assert_eq!(report.refusals, 0);
 }
+
+/// `ETXTBSY` on Linux is errno 26 (named here,
+/// not in the assertions).
+#[cfg(target_os = "linux")]
+const LINUX_ETXTBSY: i32 = 26;
+
+/// The same rule for the refusal as the system really reports it:
+/// a `Text file busy` error built from the real errno carries the kind and the number,
+/// and neither of them is the lack of processes that is retried.
+/// A retry that keyed on the raw number instead of the kind would pass the test above,
+/// because an error built from a kind alone carries no number.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_systems_own_text_file_busy_is_never_retried() {
+    let error: Error = Error::from_raw_os_error(LINUX_ETXTBSY);
+    assert_eq!(error.kind(), ErrorKind::ExecutableFileBusy, "{error}");
+    assert!(!is_refusal(&error), "{error}");
+    let mut pauses: Vec<Duration> = Vec::new();
+    let mut attempts: u32 = 0;
+    let (outcome, report) = retry_refused_start_with(
+        START_RETRY_BUDGET,
+        &mut |delay: Duration| pauses.push(delay),
+        &mut || -> std::io::Result<()> {
+            attempts += 1;
+            return Err(Error::from_raw_os_error(LINUX_ETXTBSY));
+        },
+    );
+    assert_eq!(
+        outcome.expect_err("not retried").kind(),
+        ErrorKind::ExecutableFileBusy
+    );
+    assert_eq!(attempts, 1, "the start is tried once and explained");
+    assert!(pauses.is_empty(), "{pauses:?}");
+    assert_eq!(report.refusals, 0);
+}

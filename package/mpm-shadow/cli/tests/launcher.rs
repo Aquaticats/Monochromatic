@@ -18,6 +18,12 @@ use std::process::{
     Command,
     Output,
 };
+/// Imports `Instant`,
+/// the point in time a timed start is measured from.
+use std::time::{
+    Duration,
+    Instant,
+};
 
 use mpm_shadow::constants::{
     EXEC_FAILED_EXIT_CODE,
@@ -44,11 +50,28 @@ mod through_a_child_process;
 #[path = "held_programs/through_a_child_process.rs"]
 mod held_programs;
 
-use held_programs::hold_open_for_writing;
+use held_programs::{
+    hold_open_for_writing,
+    hold_open_until,
+};
 use through_a_child_process::{
+    assert_compiled,
     copy_program,
     write_program,
 };
+
+/// A compiled program that is neither a script nor a shadow.
+/// The control below needs a compiled program:
+/// a script's first line names an interpreter,
+/// so the message names the interpreter instead of the program.
+const COMPILED_PROGRAM: &str = "/usr/bin/true";
+
+/// How long the control's stand-in holds the program open for writing.
+/// A start under load ends millions of times sooner than this;
+/// a start that repeated the refused attempt until the retry budget ran out
+/// would still be inside the hold when the stand-in let the file go,
+/// so it would replace itself with the program instead of being refused again.
+const HELD_FOR: Duration = Duration::from_secs(3);
 
 /// The tool the fixtures install.
 const TOOL_ID: &str = "cargo:monochromatic-demo-tool";
@@ -259,11 +282,17 @@ fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_
     );
     for expected in [
         &format!("could not start {}:", tree.real().display()),
-        "is open for writing by another program",
+        "is open for writing by some other process",
+        "the interpreter named on the program's first line",
+        "cannot tell which process holds that file",
         "run the same command again",
     ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");
     }
+    assert!(
+        !stderr.contains("usual cause"),
+        "no measurement shows a usual cause, so the message names none: {stderr}"
+    );
     assert!(
         !stderr.contains("by hand"),
         "the advice names a step that shows nothing once the file is closed: {stderr}"
@@ -274,6 +303,128 @@ fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_
         Some(0),
         "the same command works once the write is over: {}",
         String::from_utf8_lossy(&after.stderr)
+    );
+}
+
+/// What:
+/// Replaces the tree's tool with a compiled program,
+/// which this launcher checks and then starts by its path.
+/// Why:
+/// The refusal control below needs a compiled program:
+/// a `#!/bin/sh` tool's first line names an interpreter,
+/// so the message would name the interpreter instead of the program.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function replaceTheToolWithACompiledProgram(tree: Tree): void {
+///   copyProgram(COMPILED_PROGRAM, tree.real());
+/// }
+/// ```
+fn replace_the_tool_with_a_compiled_program(tree: &Tree) {
+    // What:     The program is copied by a child process, so this process holds no write descriptor on it.
+    // Why:      A descriptor here would be inherited by a child another test thread forks, and that
+    //           child's own start would then be refused (issue 6527).
+    copy_program(Path::new(COMPILED_PROGRAM), &tree.real());
+    assert_compiled(&tree.real());
+}
+
+/// What:
+/// A launcher that replaces itself with a compiled program whose file another process holds open for
+/// writing is refused once,
+/// inside the time the holder states,
+/// with the same words the shadow mode prints.
+/// Why:
+/// `execve` meets the refusal in launcher mode as well,
+/// and a launcher that repeated the attempt would still be holding the file when the holder let it go,
+/// so it would replace itself with the program instead of being refused again.
+#[test]
+fn a_refused_start_of_a_compiled_program_is_refused_once_inside_the_hold_with_the_words() {
+    let tree = Tree::new("0.4.4", "0.4.4");
+    replace_the_tool_with_a_compiled_program(&tree);
+
+    let mut holder = hold_open_until(&tree.real(), HELD_FOR);
+    let started: Instant = Instant::now();
+    let refused: Output = run(&tree.launcher(), &["x"], &[]);
+    let elapsed: Duration = started.elapsed();
+
+    let stderr: String = String::from_utf8_lossy(&refused.stderr).to_string();
+    assert_eq!(
+        refused.status.code(),
+        Some(EXEC_FAILED_EXIT_CODE),
+        "{stderr}"
+    );
+    assert!(refused.stdout.is_empty(), "{stderr}");
+    for expected in [
+        &format!("could not start {}:", tree.real().display()),
+        "Text file busy",
+        "is open for writing by some other process",
+        "the interpreter named on the program's first line",
+        "cannot tell which process holds that file",
+        "run the same command again",
+        "writes a whole new copy into place",
+    ] {
+        assert!(stderr.contains(expected), "{expected}: {stderr}");
+    }
+    assert!(
+        !stderr.contains("usual cause"),
+        "no measurement shows a usual cause, so the message names none: {stderr}"
+    );
+    assert!(
+        !stderr.contains("by hand"),
+        "the advice names a step that shows nothing once the file is closed: {stderr}"
+    );
+    assert_eq!(
+        stderr.matches("Text file busy").count(),
+        1,
+        "the refusal is reported once, not once per attempt: {stderr}"
+    );
+    assert!(
+        elapsed < HELD_FOR,
+        "the start ended {elapsed:?} after it began, and the holder states it keeps the file open for {HELD_FOR:?}: a start that waited for the write to end would end after the hold"
+    );
+    assert!(
+        holder.still_holding(),
+        "the start waited for the holder to release the file instead of giving up at once"
+    );
+}
+
+#[test]
+fn a_real_program_whose_interpreter_is_gone_is_reported_as_gone_with_one_remedy_and_no_advice_to_run_it_by_hand()
+ {
+    let tree = Tree::new("0.4.4", "0.4.4");
+    // What:     A program that is a file at the launcher's check and names an interpreter that does not exist.
+    // Why:      This is the one way the start's own `No such file or directory` is reached without a race:
+    //           `execve` reports a missing program and a missing interpreter with the same answer,
+    //           and the message has to be true for both.
+    write_program(&tree.real(), b"#!/nonexistent/interpreter\n");
+
+    let launched: Output = run(&tree.launcher(), &["x"], &[]);
+
+    let stderr: String = String::from_utf8_lossy(&launched.stderr).to_string();
+    assert_eq!(
+        launched.status.code(),
+        Some(NOT_FOUND_EXIT_CODE),
+        "{stderr}"
+    );
+    assert!(launched.stdout.is_empty(), "{stderr}");
+    for expected in [
+        &format!("could not start {}:", tree.real().display()),
+        "the program is gone, or the interpreter named on its first line",
+        "it was there when this launcher checked the path",
+        &format!(
+            "run `mpm install` in {} to make this tree's links again",
+            tree.directory.path().display()
+        ),
+    ] {
+        assert!(stderr.contains(expected), "{expected}: {stderr}");
+    }
+    assert!(
+        !stderr.contains("no program named"),
+        "the program is there, so the launcher must not say it was not found: {stderr}"
+    );
+    assert!(
+        !stderr.contains("by hand"),
+        "a program that cannot start shows nothing when it is run by hand: {stderr}"
     );
 }
 

@@ -111,20 +111,25 @@ fn a_program_without_permission_names_the_execute_bit_and_the_directory_search_b
 
 #[cfg(target_os = "linux")]
 #[test]
-fn a_refusal_because_the_program_is_being_written_names_the_write_the_usual_cause_and_the_command_to_repeat()
- {
+fn a_refusal_because_the_program_is_being_written_says_what_the_refusal_proves_and_what_to_do() {
     let error = Error::from_raw_os_error(LINUX_ETXTBSY);
     assert_eq!(error.kind(), ErrorKind::ExecutableFileBusy, "{error}");
     let text = message(&["i", "-g"], &error, no_retry(), 0);
     assert_has_the_common_parts(&text);
     assert!(text.contains("Text file busy"), "{text}");
     for expected in [
-        "is open for writing by another program",
-        "An upgrade or an install of that program is the usual cause",
+        "is open for writing by some other process",
+        "the interpreter named on the program's first line",
+        "cannot tell which process holds that file",
         "run the same command again",
+        "writes a whole new copy into place",
     ] {
         assert!(text.contains(expected), "{expected}: {text}");
     }
+    assert!(
+        !text.contains("usual cause"),
+        "no measurement shows a usual cause, so the message names none: {text}"
+    );
     assert!(
         !text.contains("by hand"),
         "running the program by hand shows nothing once the write is over: {text}"
@@ -132,7 +137,7 @@ fn a_refusal_because_the_program_is_being_written_names_the_write_the_usual_caus
 }
 
 #[test]
-fn a_program_that_vanished_or_has_a_missing_interpreter_says_which_to_check() {
+fn a_program_that_vanished_or_has_a_missing_interpreter_gets_one_cause_and_one_remedy() {
     let text = message(
         &["i", "-g"],
         &Error::from(ErrorKind::NotFound),
@@ -140,10 +145,18 @@ fn a_program_that_vanished_or_has_a_missing_interpreter_says_which_to_check() {
         0,
     );
     assert_has_the_common_parts(&text);
-    assert!(text.contains("interpreter"), "{text}");
+    for expected in [
+        "the interpreter named on its first line",
+        "is not there",
+        "moved it aside",
+        "run the same command again",
+        "install it again",
+    ] {
+        assert!(text.contains(expected), "{expected}: {text}");
+    }
     assert!(
-        text.contains("no longer exists") || text.contains("does not exist"),
-        "{text}"
+        !text.contains("by hand"),
+        "a file that is not there shows nothing when it is run by hand: {text}"
     );
 }
 
