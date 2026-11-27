@@ -4,7 +4,8 @@
 //!  the five feature requests,
 //!  and the error every other method answers with.
 
-/// The loop's state, whose method this is.
+/// The loop's state,
+/// whose method this is.
 use super::Session;
 /// The answers this dispatch hands off to.
 use super::answers::{

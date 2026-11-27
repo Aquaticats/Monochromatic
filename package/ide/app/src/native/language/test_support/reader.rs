@@ -44,7 +44,8 @@ use ide_app::{
     },
     workspace::Workspace,
 };
-/// `SharedString` is Slint's reference-counted text type (siblings: Rust's owned `String`
+/// `SharedString` is Slint's reference-counted text type (siblings:
+/// Rust's owned `String`
 ///       and its borrowed `&str`);
 ///  `Timer` is the toolkit's repeating timer,
 ///  and `ComponentHandle` gives the window's own handle.

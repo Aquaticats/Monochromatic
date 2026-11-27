@@ -18,7 +18,8 @@ use holds::Hold;
 
 /// The holds on a server's unversioned pushes.
 mod holds;
-/// What a pull answer does to the stored sets.
+/// What a pull answer does to the stored sets,
+///  and which result identifier the next pull request carries.
 mod pulled;
 /// What a lifecycle event and a pushed set do to the stored sets.
 mod pushes;

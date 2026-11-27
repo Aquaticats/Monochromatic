@@ -12,7 +12,8 @@ use super::{
     TEXT_LEFT,
     TEXT_TOP,
 };
-/// Key events, as the other window tests send them.
+/// Key events,
+/// as the other window tests send them.
 use crate::native::find_tests::{
     chord,
     key,

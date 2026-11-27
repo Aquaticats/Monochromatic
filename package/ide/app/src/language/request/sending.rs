@@ -16,7 +16,9 @@ use super::super::session::allowed;
 use super::super::status::ServerState;
 /// The worker whose state these steps change.
 use super::super::worker::Worker;
-/// The answer, the ticket, and the futures they travel in.
+/// The answer,
+/// the ticket,
+/// and the futures they travel in.
 use super::{
     Answer,
     Ask,

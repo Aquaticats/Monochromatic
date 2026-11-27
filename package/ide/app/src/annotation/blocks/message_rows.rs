@@ -16,6 +16,10 @@ use crate::virtual_row::{
     cap_message_rows,
 };
 
+/// What:
+///  The rows of one line's messages broken so that each fits `limit` logical pixels,
+///  capped again at [`crate::virtual_row::MESSAGE_ROWS`] rows for each message by the one cap,
+///  with the number of rows that had to be broken by shaping.
 ///  `widths` holds the shaped width of every row of `rows`;
 ///  only a row wider than the limit is shaped again.
 /// Why:

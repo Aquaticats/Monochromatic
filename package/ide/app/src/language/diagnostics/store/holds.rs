@@ -93,6 +93,30 @@ pub(super) struct Hold {
 ///  which one ends when,
 ///  and what a hold kept.
 impl DiagnosticStore {
+    /// What:
+    ///  End every hold for which `ends` returns true,
+    ///  and show the set each kept.
+    ///       `impl Fn(&Hold) -> bool` is any function that judges a borrowed hold;
+    ///  `drain` empties
+    ///       the list and hands out each hold by value.
+    ///  Returns how many holds ended.
+    /// Why:
+    ///  A hold ends when the server answers for the new text or when its fixed delay
+    ///      passes.
+    ///  Either way its kept set is the server's latest set for this revision.
+    ///  A set
+    ///      that arrived after it never meets it here:
+    ///  an accepted push removes the kept set.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// endHolds(ends: (hold: Hold) => boolean): number {
+    ///   const ending = this.holds.filter(ends);
+    ///   this.holds = this.holds.filter(hold => !ends(hold));
+    ///   for (const hold of ending) if (hold.kept) this.storePushed(hold.server, hold.kept, 'unversioned');
+    ///   return ending.length;
+    /// }
+    /// ```
     fn end_holds(
         &mut self,
         ending: Ending<'_>,

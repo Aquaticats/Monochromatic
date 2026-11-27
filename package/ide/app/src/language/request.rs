@@ -70,7 +70,8 @@ mod sending;
 mod worker_asks;
 /// The worker loop hands finished requests to this function.
 pub(super) use answer::finish;
-/// The merged hints of every server, or nothing while none answered.
+/// The merged hints of every server,
+/// or nothing while none answered.
 pub(super) use hints_snapshot::hints_snapshot;
 /// The worker loop hands position requests and due retries to these functions.
 pub(super) use route::{

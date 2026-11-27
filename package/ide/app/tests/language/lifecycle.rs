@@ -24,7 +24,8 @@ use serde_json::Value;
 /// A crash fails the pending request and the next open starts a new one.
 #[path = "lifecycle/crash_and_restart.rs"]
 mod crash_and_restart;
-/// Another file goes to the same server; a file outside the project starts nothing.
+/// Another file goes to the same server;
+/// a file outside the project starts nothing.
 #[path = "lifecycle/file_switching.rs"]
 mod file_switching;
 /// A refused or unpreparable launch is reported and nothing is spawned.

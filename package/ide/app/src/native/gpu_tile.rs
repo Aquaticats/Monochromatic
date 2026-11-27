@@ -30,8 +30,8 @@ mod slice;
 /// rendered into textures that stack.
 mod source;
 /// The textures,
-/// the pictures,
-/// and the outcome of a step.
+///  the pictures,
+///  and the outcome of a step.
 mod types;
 /// The window the textures are shown in.
 use super::AppWindow;
@@ -62,7 +62,9 @@ use std::{
 /// How often the window was given a new list of textures.
 #[cfg(test)]
 pub(super) use types::SLICE_LISTS_SET;
-/// What a frame is drawn into.
+/// The small types,
+///  shared with the slice and the source tile:
+///  the tile textures and what a frame is drawn into.
 use types::{
     StackTexture,
     Target,
@@ -70,6 +72,19 @@ use types::{
 /// Vello's renderer and its settings.
 use vello::Renderer;
 
+/// What:
+///  Everything the notifier and the window thread share:
+///  the device once Slint has one,
+///  the renderer,
+///  the textures,
+///  and the scenes waiting to be drawn.
+/// Why:
+///  The window thread hands a scene over at any time and the notifier draws it at the next frame,
+///  so both reach the same state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Gpu = { device?: Device; renderer?: Renderer; targets: (Target | undefined)[]; pending: Scene[] };
 /// ```
 #[derive(Default)]
 struct Inner {
