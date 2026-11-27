@@ -17,6 +17,7 @@ use crate::lean_test_support::{
     NOW,
     add_incremental,
     add_old_unit,
+    length_bytes,
     make_profile,
     real_environment,
 };
@@ -38,6 +39,7 @@ fn cap(
         cap_bytes,
         grace_seconds: GRACE,
         deadline: Deadline::after(Duration::from_secs(60)),
+        count_bytes: length_bytes,
     };
     let mut log: Vec<String> = Vec::new();
     return apply_removals(
@@ -60,7 +62,7 @@ fn the_oldest_entries_go_first_until_the_directory_fits() {
     let newest: Vec<PathBuf> = add_old_unit(&profile, "c", "00000000000000c3", 7, NOW - 10 * DAY);
     let mut two_units: u64 = 0;
     for path in middle.iter().chain(newest.iter()) {
-        two_units += tree_bytes(path, &Deadline::after(Duration::from_secs(60))).bytes;
+        two_units += tree_bytes(path, &Deadline::after(Duration::from_secs(60)), length_bytes).bytes;
     }
     // The cap fits the two newer units exactly,
     // so the oldest must go and nothing more.
@@ -111,7 +113,7 @@ fn old_incremental_state_is_evicted_with_the_units_by_age() {
     let old_incremental: PathBuf = add_incremental(&profile, "a-1", NOW - 40 * DAY);
     let mut unit_bytes: u64 = 0;
     for path in &unit {
-        unit_bytes += tree_bytes(path, &Deadline::after(Duration::from_secs(60))).bytes;
+        unit_bytes += tree_bytes(path, &Deadline::after(Duration::from_secs(60)), length_bytes).bytes;
     }
     // The cap fits the unit exactly and not the incremental directory beside it.
     let outcome: ProfileOutcome = cap(&profile, unit_bytes);

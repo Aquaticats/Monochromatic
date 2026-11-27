@@ -64,6 +64,8 @@ use crate::lean_rustup_toolchains::{
     installed_toolchains,
     retire_nightlies,
 };
+/// Imports the names this file uses from `crate::lean_removal`.
+use crate::lean_removal::allocated_bytes_of;
 /// Imports the names this file uses from `crate::lean_size_caps`.
 use crate::lean_size_caps::SizeCap;
 /// Imports the names this file uses from `crate::lean_sweep_plan`.
@@ -171,6 +173,7 @@ pub fn sweep_and_cap(
                 cap_bytes: *cap,
                 grace_seconds: GRACE_SECONDS,
                 deadline: *deadline,
+                count_bytes: allocated_bytes_of,
             },
             environment,
             now,
