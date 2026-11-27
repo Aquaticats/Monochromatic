@@ -269,8 +269,11 @@ Each rule is the project's own requirement.
   a start-up file whose credential line the driver cannot read exactly,
   or an age identity the machine declares and this code cannot read.
   "Not there" and "could not be read" are told apart by the operating system's own answer alone,
-  so a folder that denies the way is a stop, never "nothing there",
-  and the message names the file and, for a start-up file, the line.
+  so a folder that denies the way is a stop,
+  never "nothing there",
+  and the message names the file and,
+  for a start-up file,
+  the line.
 - A run that resumes a session masks it into a copy first and resumes that copy;
   the session file it was given is left exactly as it was,
   which is the stated limit of resuming:
@@ -279,12 +282,15 @@ Each rule is the project's own requirement.
   A free-form Pi argument that names or resumes a session is refused,
   because only the driver's own `--session` is masked before the start.
 - What a run's Pi masks for you
-  (the driver reads these values once, in its own process,
+  (the driver reads these values once,
+  in its own process,
   and never writes them anywhere):
   every value the checkout's `.env.local.json` declares,
   the provider keys of Pi's own `~/.pi/agent/auth.json` and `~/.pi/agent/models.json`,
   a token the shell start-up files export
-  (`~/.bashrc`, `~/.bash_profile`, `~/.profile`),
+  (`~/.bashrc`,
+  `~/.bash_profile`,
+  `~/.profile`),
   the age key that decrypts the store,
   and a credential-named variable of the driver's own environment.
   They are replaced in each tool result,
@@ -333,7 +339,8 @@ Each rule is the project's own requirement.
   and was closed as `idle` 129 seconds later.
   The driver now keeps the run while it can see work the agent left running,
   and sends the agent back to read the result when that work ends.
-  The default idle window is `0`: when Pi has settled and nothing else holds the run,
+  The default idle window is `0`:
+  when Pi has settled and nothing else holds the run,
   the driver does not wait for a new steering message.
   If the next step needs a result from work the driver cannot detect,
   run that work as a foreground command with a bound of its own.
