@@ -1364,6 +1364,18 @@ A recovery that fails does not stop the install that follows it:
 the tool is installed from the network when the network is there,
 the recovery's message is then a warning in the report,
 and when that install fails too the report names both causes in one failure.
+That warning ends with what the run then did,
+because the recovery's own last clause says the copy is still where a later run would publish it from,
+which is false once this run installed the version itself.
+A recovery that failed is a warning,
+and not a failure,
+whenever this tree's lock is satisfied after the run:
+the install that followed put the version there,
+another install had already done so,
+or a newer version runs,
+and that run ends 0.
+The run ends 1 only when the locked version is not at its name afterwards,
+which is when the install that followed failed too.
 A publish that finds a copy at the version's name in the instant between its own check and its rename replaces it,
 in the same step it uses for a copy that was there all along,
 so a second install's put-back costs no finished copy.
@@ -1460,9 +1472,13 @@ A finished copy of that version whose marker records the lock's row stays with i
 one whose marker the lock does not vouch for is removed instead,
 since no install can ever publish it.
 After a recovery that does put a version at its name,
-`install` removes every version directory older than the newest finished one,
-as it does after an install,
-and the report names each version it removed that way.
+`install` points `current` at the newest finished version and then removes every version directory older than it,
+the order an install keeps,
+so a start between those two steps runs the newest finished version,
+and a run killed there leaves a `current` that resolves.
+The report names each version it removed that way and says what that version was in this run:
+the one the recovery published,
+or one that was installed before the run.
 
 `prune --toolchain` also reports and removes hidden directories whose installer has provably ended,
 except a vouched finished copy of a version some known lock names,
@@ -2397,6 +2413,9 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
   download
   or lookup failed,
   or `list` found drift.
+  A recovery whose own publish failed is a warning rather than a failure when the lock is satisfied afterwards
+  (see "What a kill leaves and what the next install does about it"),
+  so that case ends 0.
 - `2`:
   a bad command line,
   or a plan or lock file that cannot be read.
