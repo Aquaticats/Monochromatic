@@ -104,7 +104,11 @@ use std::path::Path;
 /// ```
 use std::time::Duration;
 
-/// What the reading of the members found.
+/// What the reading of the members found,
+/// and the one order every listing names the members in:
+/// the scope's own group first,
+/// then each group below it depth first with the greatest name first,
+/// and the processes of one group in ascending process id order.
 pub(crate) enum Listing {
     /// Every group of the scope,
     /// and every group below it,
@@ -112,7 +116,7 @@ pub(crate) enum Listing {
     /// these are the members that were left.
     Read(
         /// The members the read found,
-        /// in process id order.
+        /// in the order `Listing` states.
         Vec<MemberListing>,
     ),
     /// The listing's own bound passed before every member was read:
@@ -120,7 +124,7 @@ pub(crate) enum Listing {
     /// and the rest were not named.
     Cut(
         /// The members the read reached before its bound passed,
-        /// in process id order.
+        /// in the order `Listing` states.
         Vec<MemberListing>,
     ),
     /// The scope's own directory was gone when its members were read,
@@ -131,7 +135,7 @@ pub(crate) enum Listing {
     /// and the reason it failed.
     Unreadable(
         /// The members the read reached before it failed,
-        /// in process id order.
+        /// in the order `Listing` states.
         Vec<MemberListing>,
         /// Why the rest could not be read.
         String,

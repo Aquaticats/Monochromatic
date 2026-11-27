@@ -7,7 +7,8 @@
 //! a listing cut after it read one,
 //! a group below the scope that could not be read,
 //! a member whose threads were not all read within the bound,
-//! and a listing that read no member while the kernel said the scope was populated.
+//! a listing that read no member while the kernel said the scope was populated,
+//! and the order the listing names the groups of a scope in.
 //! Why:
 //! Release read of `0.1.5-alpha.12` (Medium 2 and Medium 3,
 //! 2026-11-27):
@@ -246,30 +247,34 @@ fn moved_into(
 }
 
 /// What:
-/// `fn a_group_below_the_scope(group: &ControlGroup) -> GroupBelowTheScope` makes `nested` below the scope and moves a
-/// member into it.
+/// `fn a_group_below_the_scope(group: &ControlGroup, name: &str) -> GroupBelowTheScope` makes a group of that name below
+/// the scope and moves a member into it.
 /// Why:
 /// The listing walks the groups below the scope,
 /// so a group below it that cannot be read,
-/// and a cut before that group's
+/// a cut before that group's
 /// members are read,
-/// are both cases this control must be able to make.
+/// and the order two such groups are named in
+/// are all cases a control must be able to make.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function aGroupBelowTheScope(group: ControlGroup): GroupBelowTheScope
+/// function aGroupBelowTheScope(group: ControlGroup, name: string): GroupBelowTheScope
 /// ```
-fn a_group_below_the_scope(group: &ControlGroup) -> GroupBelowTheScope {
-    // What:     `let nested: PathBuf = group.directory().join("nested")` is the group made below the scope.
+fn a_group_below_the_scope(
+    group: &ControlGroup,
+    name: &str,
+) -> GroupBelowTheScope {
+    // What:     `let below: PathBuf = group.directory().join(name)` is the group made below the scope.
     // Why:      `populated` counts a descendant group's threads, so a refusal's listing walks into it.
-    let nested: PathBuf = group.directory().join("nested");
-    fs::create_dir(&nested)
-        .unwrap_or_else(|error| panic!("{} cannot be made ({error})", nested.display()));
+    let below: PathBuf = group.directory().join(name);
+    fs::create_dir(&below)
+        .unwrap_or_else(|error| panic!("{} cannot be made ({error})", below.display()));
     let member: MovedMember = MovedMember::started();
-    moved_into(&member, &nested);
+    moved_into(&member, &below);
     return GroupBelowTheScope {
         member,
-        path: nested,
+        path: below,
     };
 }
 
@@ -454,7 +459,7 @@ fn a_listing_cut_after_one_member_names_it_and_refuses_the_run() {
     let mut scope: TestScope = a_program_in_a_scope();
     let member: MovedMember = MovedMember::started();
     moved_into(&member, scope.group.directory());
-    let below: GroupBelowTheScope = a_group_below_the_scope(&scope.group);
+    let below: GroupBelowTheScope = a_group_below_the_scope(&scope.group, "nested");
     let ended: Reaped = the_direct_child_has_ended(&mut scope);
     arm(Point::ContainmentStopStuck);
     arm(Point::ContainmentMemberEndedAtRead);
@@ -501,7 +506,7 @@ fn a_group_below_the_scope_that_cannot_be_read_keeps_the_members_already_read() 
     let mut scope: TestScope = a_program_in_a_scope();
     let member: MovedMember = MovedMember::started();
     moved_into(&member, scope.group.directory());
-    let below: GroupBelowTheScope = a_group_below_the_scope(&scope.group);
+    let below: GroupBelowTheScope = a_group_below_the_scope(&scope.group, "nested");
     below.deny_the_read();
     let ended: Reaped = the_direct_child_has_ended(&mut scope);
     arm(Point::ContainmentStopStuck);
@@ -619,5 +624,81 @@ fn a_listing_that_read_no_member_while_the_kernel_said_populated_refuses_the_run
         !refusal.contains(&member.pid().to_string()),
         "the refusal names the member the listing did not read ({}): {refusal}",
         member.pid()
+    );
+}
+
+/// Release read of `0.1.5-alpha.13`,
+/// Low "The refusal's listing":
+/// the listing names the scope's own group first,
+/// then each group below it with the greatest name first,
+/// and the processes of one group ascending by process number,
+/// which is the order `Listing` states.
+/// The numbers are compared before the order is judged:
+/// the group below the scope whose name is read last holds the member started first,
+/// so a listing in process number order would name these four the other way round.
+#[test]
+fn the_listing_names_the_scope_s_own_group_first_and_the_groups_below_it_greatest_name_first() {
+    this_test_needs_a_delegated_scope();
+    let mut scope: TestScope = a_program_in_a_scope();
+    let at_home: MovedMember = MovedMember::started();
+    moved_into(&at_home, scope.group.directory());
+    let alpha: GroupBelowTheScope = a_group_below_the_scope(&scope.group, "alpha");
+    let beta: GroupBelowTheScope = a_group_below_the_scope(&scope.group, "beta");
+    let second_in_beta: MovedMember = MovedMember::started();
+    moved_into(&second_in_beta, &beta.path);
+    let ended: Reaped = the_direct_child_has_ended(&mut scope);
+    arm(Point::ContainmentStopStuck);
+
+    let report: StopReport = scope
+        .group
+        .stop(QUIESCE_BOUND)
+        .expect("the stop of a scope that exists answers a report");
+    let refusal: String = the_refusal_of(&report, &scope.group, &ended)
+        .expect("a scope whose listed members are alive is not one shown empty");
+
+    assert!(
+        !crate::failpoints::fires(Point::ContainmentStopStuck),
+        "the stop never reached the report this control arms, so the refusal has another cause"
+    );
+    assert!(
+        at_home.pid() < alpha.member.pid()
+            && alpha.member.pid() < beta.member.pid()
+            && beta.member.pid() < second_in_beta.pid(),
+        "this host handed these numbers out in another order than the members were started in, so this control cannot \
+         tell one listing order from the other: {} {} {} {}",
+        at_home.pid(),
+        alpha.member.pid(),
+        beta.member.pid(),
+        second_in_beta.pid()
+    );
+    // Each needle is the member's own words, so a number inside another number or inside the scope's path cannot answer for it.
+    let at_home_at: usize = refusal
+        .find(&format!("{} (", at_home.pid()))
+        .unwrap_or_else(|| {
+            panic!("the refusal does not name the member of the scope's own group: {refusal}")
+        });
+    let in_beta_at: usize = refusal
+        .find(&format!("{} in beta (", beta.member.pid()))
+        .unwrap_or_else(|| panic!("the refusal does not name the member in beta: {refusal}"));
+    let second_in_beta_at: usize = refusal
+        .find(&format!("{} in beta (", second_in_beta.pid()))
+        .unwrap_or_else(|| {
+            panic!("the refusal does not name the second member in beta: {refusal}")
+        });
+    let in_alpha_at: usize = refusal
+        .find(&format!("{} in alpha (", alpha.member.pid()))
+        .unwrap_or_else(|| panic!("the refusal does not name the member in alpha: {refusal}"));
+
+    assert!(
+        at_home_at < in_beta_at
+            && in_beta_at < second_in_beta_at
+            && second_in_beta_at < in_alpha_at,
+        "the refusal does not name the scope's own group first, then the groups below it with the greatest name first, \
+         and one group's members ascending: it names {} at {at_home_at}, {} at {in_beta_at}, {} at {second_in_beta_at}, {} at \
+         {in_alpha_at}: {refusal}",
+        at_home.pid(),
+        beta.member.pid(),
+        second_in_beta.pid(),
+        alpha.member.pid()
     );
 }

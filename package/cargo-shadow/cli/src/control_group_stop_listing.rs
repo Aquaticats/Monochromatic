@@ -229,7 +229,7 @@ impl ControlGroup {
                         pending.push((path, Some(path_below)));
                     }
                 }
-                // The same answer as above: the members read before this group are kept.
+                // The same answer as above: the members read so far are kept, this group's own included.
                 Err(reason) => return Listing::Unreadable(members, reason),
             }
         }
