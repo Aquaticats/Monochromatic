@@ -715,8 +715,21 @@ this repository's own records measure a window of 0.5 to 3 ms in which a forked 
 the round's probe was single-threaded and could not see it,
 and `go install` writes its published path in place across file systems,
 though no start of the shadow or the launcher resolves that path.
-A round corrects the record and ends it with these options written out;
-this entry is revised when it lands.
+The record is corrected since
+(`doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`),
+and it ends with the same two options and the same ranking.
+What its round measured:
+with one thread writing a program and another forking,
+5 to 12 of 20 starts were refused,
+and none of 20 without the forking thread;
+`go install` held its published path open for 3.5 ms across file systems,
+and a prober starting that path was refused seven times in that interval;
+`uv tool upgrade`,
+which the self-upgrade runs,
+stages the script and renames it.
+Its counter-argument stands beside the ranking:
+the window is measured in probes and test processes,
+never in a production writer.
 
 - B:
   repeat the start within a bound sized from the measured windows,

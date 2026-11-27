@@ -6,7 +6,7 @@ or replacing itself with a recorded tool (its launcher mode),
 exits 126 with `the operating system could not start the program (Text file busy (os error 26))`
 when another process holds the program's file open for writing.
 This record measures which writers can put a program in that state,
-and says why the refusal is explained rather than retried.
+and says what the evidence supports about repeating the refused start.
 It is the durable half of issue 6585.
 
 ## Symptom
@@ -28,15 +28,10 @@ mpm-shadow: the real `mpm` could not be started, so `mpm refresh x` did not run.
 The paths are the reproduction's,
 and the wording is alpha.12's,
 before this change.
-
-Two things were wrong with that text,
-whichever writer caused the refusal.
-The advice cannot be followed:
-the holder has closed the file by the time a person types `mpm --version`,
-so the step shows nothing,
-and "fix what it reports" names no fix that exists.
-Nothing said the file was being replaced,
-which is the one thing that makes the same command work again.
+Alpha.13 replaced the cause and the advice;
+the words themselves are the other half of issue 6585
+and are pinned by the crate's tests,
+not by this record.
 
 The launcher mode printed the same refusal as one bare line
 (`mpm-shadow: could not start <path>: Text file busy (os error 26)`),
@@ -50,7 +45,7 @@ and the page on this machine is `/usr/share/man/man2/execve.2.gz`:
 
 ```text
 ETXTBSY
-       The specified executable was  open  for  writing  by  one  or  more
+       The specified executable was  open  for  writing  by  one or more
        processes.
 ```
 
@@ -59,191 +54,539 @@ one process has that exact inode open for writing.
 `mpm-shadow` starts the real `mpm` through `Command::spawn`
 (`src/shim.rs`,
 `VettedSpawn::attempt`),
-and `start_retry::is_refusal` counted only `ErrorKind::WouldBlock`,
+and `start_retry::is_refusal` counts only `ErrorKind::WouldBlock`,
 the system's refusal to create another process (`EAGAIN`).
 `ErrorKind::ExecutableFileBusy` is errno 26,
-and it therefore reached the catch-all arm of `start_failure::cause_and_remedy`,
+and it therefore reaches the catch-all arm of `start_failure::cause_and_remedy`,
 which is written for a cause nobody has classified.
 
-## Which writers can produce it
+There are two ways the file comes to be open for writing:
 
-A start is refused only while the file at the path a start resolves is open for writing.
-Read from the code,
-a writer that builds the new program under another name and then renames it into place
-never opens the published path for writing:
-`rename` replaces the directory entry,
-and the write descriptor of the old inode belongs to a name no `execve` resolves.
-The arms below measure that on the same syscall shapes,
-for a writer that does it one way and a writer that does it the other.
-They do not run this tool's installer end to end against a real download,
-and the real `mpm`'s own upgrade was not run at all.
+- a writer holds it for as long as its own work takes;
+- a `fork` copies a write descriptor out of the process that opened it,
+  and the child holds that copy from its `fork` to its own `execve`,
+  which the section "The window a single-threaded probe cannot see" measures.
 
-Measured 2026-11-27 on this machine,
-each writer below ran under `strace -f -ttt`
-while an execve prober started the published path in a loop,
-so every arm has both the syscall that opened the file and the starts it met.
-The prober is `measurements-of-a-start-refused-because-the-program-is-being-written/start_probe.rs`
-beside this record.
-It counts `ETXTBSY` refusals,
-`ENOENT` starts and successes.
+## What this tool starts, and how each writer publishes
 
-Its positive control holds the published file open for writing for 200 ms
-(`sh -c 'exec 3>>"$1"; sleep 0.2'`),
-and the probe reports:
+Every program this tool starts that writes a file is named here,
+with how it puts the file it writes into place.
+The read-only runs (`uv tool list`,
+`rustup which`,
+`rustc --version`,
+`bin list`,
+`gh auth token`)
+write no program that a start resolves,
+and are not listed again.
+Each entry says whether that was traced in a throwaway root on this machine
+(`strace --follow-forks`,
+an absolute timestamp on every line,
+with a prober starting the published path throughout)
+or read from the producer's source and not run.
+The date is 2026-11-27.
 
-```text
-START_PROBE path=arms/published/mpm span_ms=500 pause_us=200 ran=201 refused=589 absent=0 first_refusal_us=59068 last_refusal_us=261634
-```
+In the quotes below the fixture's own root is written `<fixture>`,
+its relative parts are kept,
+and the tracer's path decoding is left out where it only repeats the open's argument.
 
-with one write open in the trace:
+### `uv tool upgrade --all`, and `uv tool install --force`
 
-```text
-openat(AT_FDCWD, "arms/published/mpm", O_WRONLY|O_CREAT|O_APPEND, 0666) = 3
-```
-
-So the instrument does see the refusal when there is one,
-and a zero below is a zero it could have shown.
-
-### The launcher placement
-
-`src/toolchain/launcher/making_the_launcher.rs`,
-`place_binary`:
-a hard link or an `fs::copy` to `.<name>.<pid>.bin`,
-then an `fs::rename`.
-
-```text
-openat(AT_FDCWD, "arms/published/.program.4242.bin", O_WRONLY|O_CREAT|O_EXCL, 0755) = 4
-close(4) = 0        # 1795786497.171771 to .181404: 9.6 ms
-```
-
-```text
-START_PROBE path=arms/published/program span_ms=400 pause_us=200 ran=395 refused=0 absent=0
-```
-
-### The plain and the gunzipped download
-
-`src/toolchain/install_archive.rs`:
-`unpack_into` copies with `fs::copy`,
-and `gunzip_to` uses `File::create` plus `io::copy`.
-Both write the hidden staging directory only.
-The copy shape,
-twice:
-
-```text
-openat(AT_FDCWD, "arms/tools/other/.1.0.0.staging.4243/program", O_WRONLY|O_CREAT|O_EXCL, 0755) = 4
-close(4) = 0        # .006602 to .009468: 2.9 ms
-```
-
-```text
-START_PROBE path=arms/tools/other/1.0.0/program span_ms=500 pause_us=200 ran=470 refused=0 absent=11
-```
-
-The gunzip shape ran on the same 5.5 MB program,
-packed into a 2.3 MB archive,
-as `gunzip --stdout archive > staged/program`:
-that opens the staged file `O_WRONLY|O_CREAT|O_TRUNC` and keeps it open while it decompresses.
-
-```text
-START_PROBE path=arms/tools/gunzipped/1.0.0/program span_ms=600 pause_us=200 ran=500 refused=0 absent=8
-```
-
-The open is at `1795787188.803482` and the writing process exits at `.830150`,
-so 26.7 ms under the trace.
-Three runs of the same decompression without a trace took 202 ms (cold),
-18 ms and 17 ms.
-
-### The extraction by `tar`
-
-`src/toolchain/install_support.rs`,
-`extract_archive`.
-
-```text
-openat(4, "program", O_WRONLY|O_CREAT|O_EXCL|O_NOCTTY|O_NONBLOCK|O_CLOEXEC, 0755) = 5
-close(5) = 0        # .116390 to .136531: 20.1 ms
-```
-
-```text
-START_PROBE path=arms/tools/tarred/1.0.0/program span_ms=600 pause_us=200 ran=621 refused=0 absent=6
-```
-
-### The `uv` install of `mpm` itself
-
-This tool installs `mpm` with `uv tool install`
-(`src/toolchain/install_managers.rs`,
+Routes:
+`mpm-uvx` (`src/toolchain/install_managers.rs`,
 `install_mpm_uvx`),
-and an `mpm` self-upgrade goes through the same mechanism:
-`managers/uv.py` of the installed 8.3.0 wheel returns `tool upgrade --all` from `upgrade_all_cli`
-and `tool upgrade <specs>` from `upgrade_cli`.
+which is how `mpm` itself is installed from the lock's wheel,
+and the mechanism `mpm upgrade` uses for a uv-installed tool:
+the installed 8.3.0 `meta-package-manager` wheel's `managers/uv.py` returns
+`tool upgrade --all` from `upgrade_all_cli` and `tool upgrade <specs>` from `upgrade_one_cli`.
+Traced,
+with uv 0.13.8,
+a hand-built wheel `mpmprobe` installed at `0.0.1` and upgraded to `0.0.2`
+from a local wheel directory,
+offline,
+in a throwaway `HOME`,
+`UV_TOOL_DIR`,
+`UV_TOOL_BIN_DIR` and `UV_CACHE_DIR`.
 
-The entry point is written under a temporary name in `bin/` and renamed.
-The trace of a second `--force` install of the same wheel shows both halves:
-
-```text
-openat(AT_FDCWD, ".../tools/mpmprobe/lib/python3.14/site-packages/../../../bin/.tmpiLCgCG", O_RDWR|O_CREAT|O_EXCL|O_CLOEXEC, 0666) = 12
-```
-
-```text
-rename(".../tools/mpmprobe/lib/python3.14/site-packages/../../../bin/.tmpMtsI37", ".../tools/mpmprobe/lib/python3.14/site-packages/../../../bin/mpmprobe") = 0
-```
-The environment it lives in is removed and rebuilt first,
-so a concurrent start finds the program absent rather than busy:
-
-```text
-START_PROBE path=arms/uv/bin/mpmprobe span_ms=2500 pause_us=300 ran=225 refused=0 absent=34
-```
+The environment's console script is written under a temporary name and renamed,
+and the advertised entry point is a symbolic link that is removed and made again:
 
 ```text
-START_PROBE path=arms/uv/tools/mpmprobe/bin/mpmprobe span_ms=2000 pause_us=300 ran=185 refused=0 absent=13
+unlink("<fixture>/uv/tools/mpmprobe/lib/python3.14/site-packages/../../../bin/mpmprobe") = 0
+openat(AT_FDCWD, "<fixture>/uv/tools/mpmprobe/lib/python3.14/site-packages/../../../bin/.tmpTetV0W", O_RDWR|O_CREAT|O_EXCL|O_CLOEXEC, 0666) = 12
+rename("<fixture>/uv/tools/mpmprobe/lib/python3.14/site-packages/../../../bin/.tmpTetV0W", "<fixture>/uv/tools/mpmprobe/lib/python3.14/site-packages/../../../bin/mpmprobe") = 0
+unlink("<fixture>/uv/bin/mpmprobe") = 0
+symlink("<fixture>/uv/tools/mpmprobe/bin/mpmprobe", "<fixture>/uv/bin/mpmprobe") = 0
 ```
 
-### The absence a concurrent start does meet
+- The console script is open from `09:57:39.310429` to its rename at `09:57:39.310620`:
+  191 us.
+- The old console script is unlinked at `09:57:39.265949` and the new one renamed in at
+  `09:57:39.310620`:
+  the file the `bin` link resolves to is **absent for 44.7 ms**.
+- The `bin` link itself is removed at `09:57:39.313733` and made again at `09:57:39.315059`:
+  1.3 ms.
+
+No process opened the published path for writing at any point.
+The two probers running throughout saw the absence and no refusal:
+
+```text
+START_PROBE path=<fixture>/uv/bin/mpmprobe span_ms=4000 pause_us=300 ran=287 refused=0 absent=67 other=[] first_refusal_us=- last_refusal_us=-
+START_PROBE path=<fixture>/uv/tools/mpmprobe/bin/mpmprobe span_ms=4000 pause_us=300 ran=288 refused=0 absent=62 other=[] first_refusal_us=- last_refusal_us=-
+```
+
+A second `uv tool install --force` of the same wheel,
+probed the same way,
+also counted no refusal and 15 and 27 absent starts.
+
+The shape of the real `mpm` on this machine is the same one:
+`ls -l ~/.local/bin/mpm` prints
+`mpm -> /home/user/.local/share/uv/tools/meta-package-manager/bin/mpm`,
+and that file is a script whose first line names the tool environment's `python`.
+So a start of `/home/user/.local/bin/mpm` resolves to
+`~/.local/share/uv/tools/meta-package-manager/bin/mpm`,
+which is the file uv stages and renames.
+
+### `go install`
+
+Route:
+`go-install` (`src/toolchain/install_managers.rs`,
+`install_go_install`),
+which runs `go install <module>@v<version>` with `GOBIN` set to
+`<toolchain root>/<id>/<version>/bin` (`src/toolchain/layout/install_directories.rs`,
+`go_bin_dir_of`).
+Traced,
+with Go 1.27.4,
+on a local module (`go install .`,
+no network),
+`GOBIN` on this machine's ZFS home and Go's build directory in a tmpfs,
+which is the cross-device case.
+
+Go renames its build output into `GOBIN` and,
+across file systems,
+falls back to copying it into place:
+
+```text
+renameat(AT_FDCWD, "<tmpfs>/go-build/work/b001/exe/a.out", AT_FDCWD, "<fixture>/go/gobin/hello") = -1 EXDEV (Invalid cross-device link)
+openat(AT_FDCWD, "<fixture>/go/gobin/hello", O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC, 0777) = 8
+close(8<<fixture>/go/gobin/hello>) = 0
+```
+
+`09:59:25.436332` to `09:59:25.439863`:
+the published path is open for writing
+for **3.531 ms** while a 2.4 MB program is copied into it.
+The prober starting that path saw the refusal:
+
+```text
+START_PROBE path=<fixture>/go/gobin/hello span_ms=4000 pause_us=300 ran=1528 refused=7 absent=994 other=[] first_refusal_us=570481 last_refusal_us=573269
+```
+
+Seven refusals between 570.481 ms and 573.269 ms of the probe's span:
+2.788 ms of refusals,
+which is inside the 3.531 ms the writer held the file.
+
+The fallback is Go's,
+not this route's:
+`moveOrCopyFile` tries `os.Rename` and then `CopyFile`
+(`/usr/lib/go/src/cmd/go/internal/work/shell.go`),
+and `CopyFile` opens the destination `O_WRONLY|O_CREATE|O_TRUNC`.
+Two more runs of the same arm show what the fallback depends on:
+with Go's work directory on the same file system it renamed instead
+(`renameat(...) = 0`),
+and with the target already up to date it wrote nothing at all.
+
+### `pnpm add --global`
+
+Route:
+`mpm-pnpm` (`src/toolchain/install_managers.rs`,
+`install_mpm_pnpm`).
+Traced,
+with pnpm 12.21.0,
+a hand-built package installed globally from a local tarball,
+offline,
+in a throwaway `PNPM_HOME` and store.
+
+The published shim is written in place:
+
+```text
+unlink("<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm") = 0
+openat(AT_FDCWD, "<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm", O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC, 0666) = 10
+write(10<<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm>, "#!/bin/sh\n# Resolve $0 through s"..., 5176) = 5176
+close(10<<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm>) = 0
+```
+
+`10:01:23.424865` to `10:01:23.424959`:
+**0.094 ms** open for writing,
+with no temporary name and no rename.
+The same run then removed the shim again,
+which is why this arm has no refusal count to quote:
+
+```text
+openat(AT_FDCWD, "<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm", O_RDONLY|O_CLOEXEC) = 10
+unlink("<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm") = 0
+unlink("<fixture>/pnpm/global-bin/bin/mpmprobe-pnpm") = -1 ENOENT (No such file or directory)
+```
+
+A first install of `0.0.1` left the shim in place;
+the two later installs over a different version wrote it and then removed it,
+so nothing was published at the end of either,
+and the prober's counts over those runs are absences of two different causes
+and are not quoted here.
+
+### `cargo install`
+
+Route:
+`cargo-git` (`src/toolchain/install_cargo.rs`,
+`install_cargo_git`),
+`cargo install --git <url> --rev <revision> --root <install dir>`.
+The same `cargo install` writes the program for a registry route the plan does not use here.
+Traced,
+with the toolchain's cargo
+(1.102.0-nightly),
+on a local crate (`cargo install --path .`,
+no network,
+`CARGO_NET_OFFLINE=true`).
+
+It stages the program in a temporary directory under the target's `bin`,
+writes it there,
+and renames it into place:
+
+```text
+mkdir("<fixture>/cargo-install/root/bin/cargo-install0HL2Sh", 0777) = 0
+openat(AT_FDCWD, "<fixture>/cargo-install/root/bin/cargo-install0HL2Sh/mpmprobe-cargo", O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC, 0100755) = 7
+close(7<<fixture>/cargo-install/root/bin/cargo-install0HL2Sh/mpmprobe-cargo>) = 0
+rename("<fixture>/cargo-install/root/bin/cargo-install0HL2Sh/mpmprobe-cargo", "<fixture>/cargo-install/root/bin/mpmprobe-cargo") = 0
+```
+
+`10:02:26.287813` to `10:02:26.312798`:
+24.985 ms open for writing,
+under the temporary name only,
+with the rename at `10:02:26.313301`.
+The prober saw no refusal:
+
+```text
+START_PROBE path=<fixture>/cargo-install/root/bin/mpmprobe-cargo span_ms=9000 pause_us=200 ran=5575 refused=0 absent=1038 other=[] first_refusal_us=- last_refusal_us=-
+```
+
+The 1038 absent starts are the same absence the archive install has:
+before the first install there is no program at that path.
+
+### `cargo binstall`
+
+Route:
+`cargo` (`src/toolchain/install_cargo.rs`,
+`install_cargo_binstall`),
+`cargo binstall --root <version directory>`,
+which is how a repository-published tool is installed.
+Read,
+not run:
+no crate archive can be fetched offline,
+and no release archive for a crate of this repository is on this machine.
+
+`cargo-binstall`'s `atomic-file-install` crate (`atomic_install`)
+calls `fs::rename` first.
+Its cross-file-system fallback copies into a `NamedTempFile` made in the
+destination's own directory and then `persist`s it,
+which is a rename,
+so the published path is never opened for writing there either.
+This is the crate's `main` branch on 2026-11-27,
+not the version pinned by the lock,
+and binstall's own call site was not read.
+
+### `bin install`, `android sdk install`, `rustup`
+
+Read from this tool's code only,
+not run,
+and their producers' publish steps were not read:
+
+- `bin install --force <tag url>` (`src/toolchain/install_bin.rs`,
+  `install_bin_sourced`)
+  installs into `<toolchain bin dir>` through the `bin` CLI,
+  and that CLI's own write is unread.
+- `android sdk install <packages>` (`src/toolchain/install_rust_android.rs`,
+  `install_android_sdk`)
+  runs the SDK manager behind the installed `android` CLI with `ANDROID_HOME`
+  set to the toolchain's SDK root,
+  and needs the network.
+- `rustup toolchain install`,
+  `rustup component add` and `rustup target add`
+  (`src/toolchain/install_rust_android.rs`,
+  `install_rust_toolchain` and `install_rust_components`)
+  write under rustup's own home,
+  which is not a path a start through this tool resolves.
+
+### The writers inside this tool
+
+Read from the code,
+and traced on the same syscall shapes
+(`cp`,
+`mv`,
+`tar` and `gunzip`,
+GNU's,
+in the same directories the code uses;
+the code's own calls differ in the flags the standard library adds,
+such as `O_CLOEXEC`,
+and `fs::rename` in place of `mv`'s `renameat2`):
+
+- The launcher placement (`src/toolchain/launcher/making_the_launcher.rs`,
+  `place_binary`):
+  a hard link,
+  or `fs::copy`,
+  to `.<name>.<pid>.bin`,
+  then `fs::rename`.
+
+  ```text
+  openat(AT_FDCWD<<fixture>/arms/published>, ".program.4242.bin", O_WRONLY|O_CREAT|O_EXCL, 0755) = 4<<fixture>/arms/published/.program.4242.bin>
+  close(4<<fixture>/arms/published/.program.4242.bin>) = 0
+  renameat2(AT_FDCWD<<fixture>/arms/published>, ".program.4242.bin", AT_FDCWD<<fixture>/arms/published>, "program", 0) = 0
+  ```
+
+  `09:59:53.990774` to `09:59:53.993776`:
+  3.002 ms,
+  on the temporary name.
+
+  ```text
+  START_PROBE path=<fixture>/arms/published/program span_ms=1500 pause_us=200 ran=1037 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+  ```
+
+- The plain copy (`src/toolchain/install_archive.rs`,
+  `unpack_into`:
+  `fs::copy`)
+  and the gunzip (`gunzip_to`:
+  `File::create` plus `io::copy`),
+  both into the hidden staging directory.
+
+  ```text
+  openat(AT_FDCWD<<fixture>/arms/tools/other/.1.0.0.staging.4243>, "program", O_WRONLY|O_CREAT|O_EXCL, 0755) = 4<<fixture>/arms/tools/other/.1.0.0.staging.4243/program>
+  close(4<<fixture>/arms/tools/other/.1.0.0.staging.4243/program>) = 0
+  ```
+
+  `10:00:13.533651` to `10:00:13.534171`:
+  0.520 ms,
+  because GNU `cp` copies this file with `copy_file_range` after one 65536-byte write,
+  so the interval is a property of this file (5.5 MB of it is zeros this machine's ZFS compresses)
+  and not a figure to carry elsewhere.
+
+  ```text
+  START_PROBE path=<fixture>/arms/tools/other/1.0.0/program span_ms=1200 pause_us=200 ran=728 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+  ```
+
+  The gunzip shape,
+  `gunzip --stdout <archive> > staged/program`:
+
+  ```text
+  openat(AT_FDCWD<<fixture>/arms/tools/gunzipped/.1.0.0.staging.4245>, "program", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3<<fixture>/arms/tools/gunzipped/.1.0.0.staging.4245/program>
+  ```
+
+  from `10:00:35.526280` to the writer's exit at `10:00:35.563339`:
+  37.059 ms,
+  on the staged name.
+
+  ```text
+  START_PROBE path=<fixture>/arms/tools/gunzipped/1.0.0/program span_ms=1200 pause_us=200 ran=541 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+  ```
+
+- The extraction by `tar` (`src/toolchain/install_support.rs`,
+  `extract_archive`,
+  `--directory` the staging directory).
+
+  ```text
+  openat(AT_FDCWD<<fixture>/arms/tools/tarred/.1.0.0.staging.4244>, "program", O_WRONLY|O_CREAT|O_EXCL|O_NOCTTY|O_NONBLOCK|O_CLOEXEC, 0755) = 4<<fixture>/arms/tools/tarred/.1.0.0.staging.4244/program>
+  close(4<<fixture>/arms/tools/tarred/.1.0.0.staging.4244/program>) = 0
+  ```
+
+  `10:00:29.007274` to `10:00:29.040386`:
+  33.112 ms,
+  on the staged name.
+
+  ```text
+  START_PROBE path=<fixture>/arms/tools/tarred/1.0.0/program span_ms=1200 pause_us=200 ran=602 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+  ```
+
+- The download (`src/toolchain/install_support.rs`,
+  `download_verified`)
+  writes `<name>.download` and renames it,
+  and the archive publish (`src/toolchain/archive_staging.rs`,
+  `publish_staged`)
+  moves the old version directory aside and renames the staging directory in.
+  Read from the code;
+  the renames were traced in the absence arm below.
+
+## Which of those paths a start through this tool resolves
+
+The shadow starts one program:
+the real `mpm` it found on `PATH`
+(`src/shim.rs`,
+`start_and_wait`).
+The launcher starts one program:
+the path its record names (`src/toolchain/launcher/starting_it.rs`,
+the record's `real` field),
+which for a tool this repository publishes is that tool's installed program.
+
+For those two paths the writers are:
+
+- the real `mpm`:
+  `uv tool install --force` from the `mpm` wheel,
+  traced above,
+  which stages the console script and renames it,
+  and swaps the `bin` link;
+- a launcher's program:
+  `cargo binstall` (read),
+  `cargo install` (traced) and this tool's archive install (traced shapes).
+
+`go install` and `pnpm add --global` write a published path in place,
+and neither writes a path a start through this tool resolves:
+a Go-route tool is linked straight into the exposure directory
+(`src/toolchain/exposure.rs`,
+`exposed_target`:
+only a repository-published tool gets a launcher),
+and a pnpm global shim is not a path this tool starts either.
+
+So the sentence this record used to carry,
+that every writer this tool starts or stands in front of renames,
+is false as it stood:
+`go install` and `pnpm add --global` are both writers this tool starts and both open a
+published path for writing.
+What is true is narrower,
+and it is what the decision rests on:
+the writers of the two paths a start through this tool resolves
+stage the file and rename it into place.
+
+## The window a single-threaded probe cannot see
+
+The prober
+(`measurements-of-a-start-refused-because-the-program-is-being-written/start_probe.rs`)
+holds no descriptor open for writing on anything it starts,
+so no child of its own can inherit one,
+and it sees only a holder that lives in a process for as long as that process writes.
+A `fork` copies the descriptor table,
+so a child another thread forks while a descriptor is open for writing
+holds that copy from the fork to its own `execve`,
+and the published file is refused to any start in that interval.
+This repository measured that interval before this round:
+
+- `doc/troubleshooting/shadow-tests-that-write-a-program-and-start-it-are-refused-with-etxtbsy.md`
+  (this crate,
+  2026-11-27):
+  the hold is "from that `fork` to its own `execve` (about 1 to 3 ms)",
+  a threaded probe was refused in 4 of 20 and 1 of 20 attempts,
+  and before the fix the test binaries that write a program they start failed on it.
+- `doc/troubleshooting/git-policy-cli-a-fixture-git-is-refused-with-etxtbsy.md`
+  (2026-11-26):
+  the holder "released its descriptor 554 us after the refused start",
+  and a scan of every process's descriptors at the moment of the error found none.
+- `doc/handover/cli-git-native-foundation.md`
+  "Intermittent test failure":
+  74 of 400 repeated test runs failed before the fix,
+  68 of them with "Text file busy",
+  at 16 test threads and from a child another test thread forked.
+- `doc/planning/cargo-shadow-guarantees.md`
+  "Limits that stay" lists an `ETXTBSY` refusal while a writer holds the file
+  as not covered.
+
+A threaded arm was added to the prober:
+
+```sh
+# one write of the program, held open, then closed and started; a second thread forks throughout
+start_probe forked-holder <program> <attempts> [hold-microseconds] [forker-pause-microseconds]
+# the same loop with no forking thread, its control
+start_probe writer-only <program> <attempts> [hold-microseconds]
+```
+
+The writer is the prober's own main thread,
+so no descriptor of it outlives the write,
+and the forking thread starts `/bin/true` in a loop,
+so each of its children holds a copy of that descriptor from its own fork to its own start.
+Two runs of the arm,
+and two of its control:
+
+```text
+START_PROBE mode=forked-holder path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=37 elapsed_us=92034 ran=15 refused=5 absent=0 other=[] first_refusal_us=2433 last_refusal_us=69857
+START_PROBE mode=forked-holder path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=38 elapsed_us=95862 ran=10 refused=10 absent=0 other=[] first_refusal_us=21687 last_refusal_us=90170
+START_PROBE mode=writer-only path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=0 elapsed_us=104159 ran=20 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+START_PROBE mode=writer-only path=<fixture>/arms/published/control attempts=20 hold_us=2000 forks=0 elapsed_us=100771 ran=20 refused=0 absent=0 other=[] first_refusal_us=- last_refusal_us=-
+```
+
+Five and ten of twenty starts were refused with the forking thread,
+and none of twenty in either control run,
+on the same file,
+in the same loop,
+with the same 2 ms hold.
+The counts move with how many forks the host lets the forking thread make in the same span
+(37 and 38 here,
+51 and 67 in two earlier runs of the same arm,
+which were refused 8 and 12 of 20),
+so the figure to keep is the shape and not the count:
+the cause needs a fork while the descriptor is open,
+and it refuses a start when one lands.
+
+What this does and does not show:
+
+- It shows the cause the sibling records describe is reachable in this crate's own shape,
+  and that a copy of a descriptor into a child of another thread is enough:
+  nothing wrote the published path at the moment of the refusal.
+- It does not show which production writer produces it.
+  None of the traced writers above forks while it holds a file open for writing,
+  and `uv`,
+  `go`,
+  `cargo` and `pnpm` are separate processes whose children are their own.
+  The holder in the two sibling records is a test process that starts programs,
+  and the holder in issue 6585's reproduction was made by hand.
+- It does not size the window for a production program.
+  The 1 to 3 ms is the sibling record's figure for a script's start;
+  a bigger program spends longer between `fork` and `execve`,
+  and that was not measured.
+
+## The absence a concurrent start meets
 
 The archive install publishes a version by moving the old version directory aside
 and renaming the staging directory in
 (`src/toolchain/archive_staging.rs`,
 `publish_staged`),
-with two renames rather than one exchange:
+with two renames rather than one exchange.
+Traced on the same shape (`mv`,
+which uses `renameat2` with `RENAME_NOREPLACE`):
 
 ```text
-renameat2(AT_FDCWD, "arms/tools/other/1.0.0", AT_FDCWD, "arms/tools/other/.1.0.0.replaced.4243", RENAME_NOREPLACE) = 0
-renameat2(AT_FDCWD, "arms/tools/other/.1.0.0.staging.4243", AT_FDCWD, "arms/tools/other/1.0.0", RENAME_NOREPLACE) = 0
+renameat2(AT_FDCWD<<fixture>/arms/tools/other>, "1.0.0", AT_FDCWD<<fixture>/arms/tools/other>, ".1.0.0.replaced.4246", RENAME_NOREPLACE) = 0
+renameat2(AT_FDCWD<<fixture>/arms/tools/other>, ".1.0.0.staging.4246", AT_FDCWD<<fixture>/arms/tools/other>, "1.0.0", RENAME_NOREPLACE) = 0
 ```
 
-Between them the program does not exist,
-which is what the `absent=` counts above are:
-11 starts in 3.5 ms for the copy arm,
-6 in 2.6 ms for the `tar` arm,
-8 for the gunzip arm,
-and 13 and 34 for the two `uv` arms while the environment was rebuilt.
+`10:00:50.666269` to `10:00:50.671294`:
+the program does not exist for **5.025 ms**,
+which is what the `absent=` counts in the arms above are.
+
+```text
+START_PROBE path=<fixture>/arms/tools/other/1.0.0/program span_ms=1200 pause_us=200 ran=720 refused=0 absent=8 other=[] first_refusal_us=- last_refusal_us=-
+```
+
 `ErrorKind::NotFound` is a different branch of the message,
 and it is not this refusal.
+The uv arms meet the same absence for longer:
+62 and 67 absent starts while uv rebuilt the tool environment in place.
 
 ## What does not work
 
-Retrying the start within a bound has no window to carry,
-which is why issue 6585's first option was not taken.
+Retrying the start has nothing to carry from the traced writers,
+but it is no longer true that nothing measured is a window it could carry:
+the fork-held descriptor is a measured window in this crate's own tests,
+1 to 3 ms at the sibling record's figures,
+and a single-threaded prober cannot see it.
 
-Every writer above is a writer this tool starts or stands in front of,
-and none of them ever has the published path open for writing.
-The writers that do hold it open are outside this tool:
+For a writer this tool starts or stands in front of,
+no traced or read one opens the two paths a start resolves:
+they stage and rename.
+The writers that do hold a published path open are:
+`go install` across file systems (3.531 ms,
+traced,
+and a refusal it caused),
+`pnpm add --global` (0.094 ms,
+traced),
+and,
+outside this tool,
 a person's `cp` over the file,
 an editor,
-an installer that writes in place.
-Each holds it for as long as its own work takes,
-which no bound measured here can cover.
-
-A retry would therefore add a stall for a writer nobody measured,
-and `AGENTS.md` rule `HLD` refuses a wait that names no recorded failure it prevents.
-`START_RETRY_BUDGET` keeps its own cause,
-a shortage of processes,
-whose window is a process limit that clears in moments.
-
-The measurement does not settle what an outside writer's window is,
-because it did not measure one.
-The launcher arm's `cp` of the 5.5 MB program over the published path took 9.6 ms,
-and a `pip install --upgrade` into a live virtual environment rewrites its console script in place.
-Neither is what this tool runs,
-and neither was measured.
+an installer that writes in place,
+each for as long as its own work takes.
 
 ## What the code does instead
 
@@ -257,7 +600,7 @@ the system's refusal says only that some process holds the file open for writing
 `src/shim.rs` and `src/toolchain/launcher/starting_it.rs` both print those words,
 because `spawn` and `exec` meet the same refusal.
 
-`start_retry::is_refusal` still counts only `WouldBlock`,
+`start_retry::is_refusal` counts only `WouldBlock`,
 and a unit test pins that the busy-file kind is not retried.
 
 The post-run cleanup stays skipped after a start that never started anything.
@@ -271,7 +614,8 @@ A superseded copy an earlier run left,
 including one a killed run left,
 stays until the next run that starts,
 which is the behaviour the README's shadow-mode section already states.
-The shim test `a_start_refused_because_the_program_is_being_written_says_the_file_is_being_replaced`
+The shim test
+`a_start_refused_because_the_program_is_being_written_says_the_file_is_being_replaced`
 compares the file set before and after,
 and pins that.
 
@@ -283,43 +627,148 @@ a temporary file beside the target for one program,
 a hidden staging directory beside a version directory for an archive.
 A writer that opens the published path for writing makes every start of that program fail with
 `ETXTBSY` for as long as it holds it,
-whether the start is this tool's or any other program's.
+whether the start is this tool's or any other program's,
+and two of the writers this tool starts do exactly that today
+(`go install` and `pnpm add --global`),
+for paths no start through this tool resolves.
 
 ## What this record rests on
 
-- The kernel rule:
-  `man 2 execve`,
-  quoted above.
-- The code claims:
-  the repo-relative paths named beside them.
-- The figures:
-  the `strace` timestamps and the probe lines quoted above,
-  from the run recorded in this round's `keep/` folder,
-  on this machine,
-  2026-11-27.
-- The `mpm` upgrade mechanism:
-  `managers/uv.py` of the installed 8.3.0 wheel,
-  read at
-  `~/.local/share/uv/tools/meta-package-manager/lib/python3.14/site-packages/meta_package_manager/managers/uv.py`.
-- The `uv` arm:
-  a hand-built wheel (`mpmprobe-0.0.1-py3-none-any.whl`,
-  one `console_scripts` row in its `entry_points.txt`),
-  installed into a throwaway `UV_TOOL_DIR`,
-  `UV_TOOL_BIN_DIR`,
-  `UV_CACHE_DIR` and `HOME`.
-  The real `mpm`,
-  its toolchain root and the real home are not to be touched,
-  and no `meta-package-manager` wheel was on disk to install.
+Each figure above is derived from the trace line or the prober line quoted beside it,
+and every quoted line comes from a run this round made in a throwaway root on this machine,
+2026-11-27.
+The prober source is beside this record;
+the traces and the prober's output lines are quoted here,
+and nothing here cites a scratch folder that a later reader cannot open.
 
-The reproduction is in the package's test suite:
-`tests/shim/a_start_that_fails_and_the_nesting_bound.rs` holds the real program's file open for
-writing from a child process of the test's own
-(`tests/held_programs/through_a_child_process.rs`),
-and starts the shadow in front of it in a fixture home.
+Read,
+not run:
+`cargo-binstall`'s `atomic-file-install` (`main` branch,
+2026-11-27),
+the messages and the route code named beside each claim,
+and the installed 8.3.0 `meta-package-manager` wheel's `managers/uv.py`
+(`~/.local/share/uv/tools/meta-package-manager/lib/python3.14/site-packages/meta_package_manager/managers/uv.py`).
+
+The kernel rule:
+`man 2 execve`,
+quoted above.
+
+What was not run or read:
+
+- `cargo binstall` itself:
+  no crate archive can be fetched offline,
+  and no release
+  archive for a crate of this repository is on this machine.
+- `bin install`:
+  the `bin` CLI's own publish step.
+- `android sdk install` and the SDK manager behind it:
+  it needs the network.
+- `rustup`'s own writes.
+- `unzip`'s extraction;
+  only `tar`'s was traced.
+- The writers named under "What does not work" as outside this tool:
+  no in-place writer's window was measured here.
+- A start of the real `mpm` while `uv tool upgrade` replaces it:
+  the mechanism was traced,
+  the end-to-end start was not.
+- Windows and macOS.
+
+Corrections this version carries:
+
+- It said every writer this tool starts or stands in front of renames its file into place.
+  Traced on 2026-11-27,
+  `go install` across file systems and `pnpm add --global` open a published path for writing,
+  though neither writes a path a start through this tool resolves.
+- It said there was no measured window a retry could carry.
+  The fork-held descriptor is one,
+  measured in two sibling records and now in this record's own threaded arm.
+- Its figures now come from the lines quoted here.
+  A range that omitted the gunzip arm,
+  a copy figure taken from one excerpt and quoted as two,
+  and a 9.6 ms that was the copy to the hidden name rather than a copy over the published path
+  are gone.
+  The millisecond figures for the copies are not carried as figures to reuse:
+  the copy arm's interval depends on the file and the copy method
+  (0.520 ms here with `copy_file_range` over a file this machine's ZFS compresses).
+- The uv section quoted one command's trace and said the other used the same mechanism.
+  Both are traced here,
+  and the self-upgrade command `mpm` runs is the one traced.
+
+## What the evidence says about repeating a refused start
+
+Two options,
+with what each costs.
+Neither is chosen here:
+the pick recorded with issue 6585 is before the owner again,
+and this record only says what the measurements now support.
+
+### Explain only, as released
+
+The refusal is reported at once with the cause and the advice alpha.13 prints,
+and nothing is started twice.
+
+Pros:
+
+- No added latency for either kind of holder:
+  an outside writer that holds the file for a second gives its message in the same second.
+- The code path stays the one the tests pin,
+  and `is_refusal` keeps one meaning for one cause.
+- Nothing is claimed about a window that a production writer was not shown to have:
+  no traced writer of a path a start resolves opens it for writing.
+
+Cons:
+
+- The measured fork-held window,
+  1 to 3 ms in two sibling records and 5 to 10 of 20 attempts here,
+  reaches a person as a hard failure with advice to run the command again,
+  when a few milliseconds of waiting would have started the program.
+  That is the transient a busy session meets,
+  and it is the one the sibling records show is common in threaded test runs.
+- The decision then rests on a claim about writers,
+  while the failure can come from something that is not a writer at all.
+
+### Repeat within a bound sized from the measured windows, then explain
+
+The start is tried again,
+pausing between tries,
+for a budget sized from the measured hold (1 to 3 ms,
+three orders of magnitude below `START_RETRY_BUDGET`'s 5 s),
+and the alpha.13 message is printed if the budget runs out.
+
+Pros:
+
+- It carries the one measured transient,
+  and the number it carries has two records and this round's arm behind it.
+- A start that met a fork-held descriptor stops being a failure a person has to understand.
+- The wait names a recorded failure it prevents,
+  which is what `AGENTS.md` rule `HLD` asks of a wait.
+
+Cons:
+
+- It adds the budget to every holder that does not clear in time,
+  which is every outside writer:
+  a person's `cp` over the file,
+  an editor,
+  an in-place installer.
+  The bound has to be small for that reason,
+  and a small bound does not cover a writer that takes 20 ms or more,
+  so the message arrives later and still arrives.
+- It makes a refusal that is real look like a stall for the length of the budget.
+- It needs the busy-file kind to be retried,
+  which changes what `is_refusal` means,
+  and the tests that pin the current rule have to be rewritten with it.
+- No production writer was shown to produce the window it carries,
+  so it would be sized from test-process and probe evidence alone.
+
+Ranking:
+repeat within a bound > explain only,
+because the only measured window is 1 to 3 ms and refusing it is a failure a person cannot act on,
+while the cost of the bound falls on a holder that ends in the same message either way.
+The counter-argument,
+which the owner may weigh the other way,
+is that the window is measured in probes and test processes and never in a production writer,
+so the bound would be sized from evidence that is not about the tool's own work.
 
 This record is unapproved and non-final.
 What was done is recorded here and in the commits.
-What is open is the owner's review,
-the in-place writers named under "What does not work" that no measurement covers yet,
-and the `dylint` rule `rust/avoidable-closure`,
-which this package's lint run could not load.
+What is open is the owner's review and the choice between the two options above.
