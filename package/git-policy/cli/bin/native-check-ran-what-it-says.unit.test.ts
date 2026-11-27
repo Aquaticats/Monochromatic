@@ -172,6 +172,8 @@ await describe({
             '[debug] [2026-11-27T17:18:33.609Z] [a test] [PASS] (13ms)',
             suiteLine({ name: 'second', }),
             'a test said [PASS] somewhere in its own text',
+            // A line that opens like an `info` record and closes nothing is no suite line either.
+            '[info] [no stamp and no tag at all',
             '',
           ],
         });
@@ -392,6 +394,18 @@ await describe({
           worktree: import.meta.dirname,
         });
         expect(ran,).toEqual({
+          lines: [],
+          refused: false,
+        },);
+        /**
+         What a task name that holds no task part earns, which is the same nothing.
+         */
+        const unnamed = await ranWhatItSaysOf({
+          task: '//package/a',
+          output: '',
+          worktree: import.meta.dirname,
+        });
+        expect(unnamed,).toEqual({
           lines: [],
           refused: false,
         },);
