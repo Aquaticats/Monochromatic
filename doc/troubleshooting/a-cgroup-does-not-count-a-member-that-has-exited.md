@@ -22,7 +22,8 @@ and the parent never waited for it:
   the zombie's id was absent,
   and the zombie's `/proc/<pid>/stat` still read `Z`.
 - A nested group below the scope
-  (`mkdir` in the scope's directory, the zombie moved into it,
+  (`mkdir` in the scope's directory,
+  the zombie moved into it,
   so it was the group's only task)
   read `populated 0` in its `cgroup.events`,
   `nr_subsys_pids 0` in its `cgroup.stat`,
@@ -41,7 +42,9 @@ and the parent never waited for it:
 Read `populated 0` from `cgroup.events` as "no thread of this group or its descendants is left":
 a process whose last thread has ended is gone from the kernel's count at once,
 whether or not some process has reaped it yet.
-So a stop that waits for `populated 0` never waits for, or refuses on, a member that has only exited,
+So a stop that waits for `populated 0` never waits for,
+or refuses on,
+a member that has only exited,
 and a zombie seen in `ps` is not the cause of such a refusal.
 
 `cgroup.procs` is the right place to look for process ids,
