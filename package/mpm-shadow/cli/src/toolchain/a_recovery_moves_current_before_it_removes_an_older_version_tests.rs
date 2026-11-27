@@ -136,6 +136,7 @@ use super::published_archive::{
 /// the lock that pins one version,
 /// the finished copy and the release a fake network serves,
 /// a digest no lock has to vouch for,
+/// the unfinished copy a kill during the unpacking leaves,
 /// and the context built over a rig.
 use super::published_archive_tests::{
     A_TEST_SHA256,
@@ -147,6 +148,7 @@ use super::published_archive_tests::{
     release_digest,
     release_folder,
     serve_releases,
+    unmarked_archive,
 };
 /// Imports the request a fake `tar` answers.
 use super::runner::RunRequest;
@@ -166,6 +168,12 @@ use super::sync::{
     holding_the_next_instant,
     sync_tools,
 };
+/// Imports the text `install` prints for a report,
+/// which is where the warning a failed recovery becomes is read.
+use super::sync_report_text::format_sync_report;
+/// Imports the text of a directory's own name,
+/// which a control's publish reads its version from.
+use super::util::file_name_text;
 
 /// The version these tests install before the killed upgrade,
 /// which the recovery then removes as the older one.
@@ -346,25 +354,25 @@ fn the_killed_installs_finished_copy(
 }
 
 /// What:
-/// The claim a failed recovery left in the tool's directory,
-/// found by the version and the purpose its name carries.
+/// The hidden name a failed recovery left, found by the version and the purpose its name carries.
 /// Why:
 /// The name also carries the pair of the process that made it,
 /// which this file cannot know,
-/// so the claim is found rather than built.
+/// so the name is found rather than built.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function theClaimTheFailedRecoveryLeft(rig: Rig, version: string): string {
-///   return readdirSync(theToolDirectory(rig.scope.toolchainRoot)).find((name) => name.startsWith(`.${version}.recovered.`));
+/// function theHiddenNameAFailedRecoveryLeft(rig: Rig, version: string, purpose: string): string {
+///   return readdirSync(theToolDirectory(rig.scope.toolchainRoot)).find((name) => name.startsWith(`.${version}.${purpose}.`));
 /// }
 /// ```
-fn the_claim_the_failed_recovery_left(
+fn the_hidden_name_a_failed_recovery_left(
     rig: &Rig,
     version: &str,
+    purpose: &str,
 ) -> PathBuf {
     let tool_dir: PathBuf = the_tool_directory(&rig.scope.toolchain_root);
-    let prefix: String = format!(".{version}.recovered.");
+    let prefix: String = format!(".{version}.{purpose}.");
     for entry in fs::read_dir(&tool_dir)
         .expect("the tool's directory")
         .flatten()
@@ -375,9 +383,29 @@ fn the_claim_the_failed_recovery_left(
         }
     }
     panic!(
-        "the failed recovery left no claim in {}",
+        "the failed recovery left no {purpose} name in {}",
         tool_dir.display()
     );
+}
+
+/// What:
+/// The claim a failed recovery left in the tool's directory,
+/// found by the version the purpose `recovered` carries.
+/// Why:
+/// The warning for a failed publish names the claim,
+/// and every one of those tests reads that name from disk.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theClaimTheFailedRecoveryLeft(rig: Rig, version: string): string {
+///   return theHiddenNameAFailedRecoveryLeft(rig, version, 'recovered');
+/// }
+/// ```
+fn the_claim_the_failed_recovery_left(
+    rig: &Rig,
+    version: &str,
+) -> PathBuf {
+    return the_hidden_name_a_failed_recovery_left(rig, version, RECOVERED_PURPOSE);
 }
 
 /// What:
@@ -890,7 +918,7 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         .warnings
         .iter()
         .find(|warning| {
-            return warning.contains("running the command again publishes it without downloading");
+            return warning.contains("the finished copy this run holds is still at");
         })
         .unwrap_or_else(|| panic!("the recovery's own words are not reported: {report:?}"));
     assert!(
@@ -900,7 +928,11 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         "the warning says what the run then did: {warning}"
     );
     assert!(
-        !warning.ends_with("and running the command again publishes it without downloading"),
+        warning.contains("so a later run publishes nothing from that copy and removes it"),
+        "the warning says what the next run does with the copy this run replaced: {warning}"
+    );
+    assert!(
+        !warning.contains("running the command again publishes it without downloading"),
         "no line says the next run publishes a copy this run already replaced: {warning}"
     );
     assert!(
@@ -936,6 +968,336 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         "only the first run downloaded, so the later one published nothing: {:?}",
         rig.http.requests()
     );
+}
+
+/// What:
+/// The locked version finished at the version's name,
+/// which is what another install's publish leaves there.
+/// Why:
+/// A second install can give the version its name between this publish's check of that name and the rename that moves
+/// whatever is there aside,
+/// and the copy moved aside then reads as finished;
+/// the plant makes that instant exact instead of timed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function anotherInstallPublishesTheVersionAtItsName(_staging: string, versionDir: string): void {
+///   const version = basename(versionDir);
+///   writeProgram(join(versionDir, releaseFolder(version), BIN), shellScript());
+///   writeCompleteMarker(versionDir, ID, version, releaseDigest(version));
+/// }
+/// ```
+fn another_install_publishes_the_version_at_its_name(
+    _staging: &Path,
+    version_dir: &Path,
+) {
+    let version: String = file_name_text(version_dir);
+    fs::create_dir_all(version_dir.join(release_folder(&version)))
+        .expect("make the folder a release archive unpacks into");
+    write_program(
+        &version_dir.join(release_folder(&version)).join(BIN),
+        format!("#!/bin/sh\necho '{}'\n", what_the_program_prints(&version)).as_bytes(),
+    );
+    write_complete_marker(version_dir, ID, &version, &release_digest(&version))
+        .expect("write the completion marker last");
+}
+
+/// What:
+/// The state a failed publish is built in:
+/// the killed install's finished copy of the locked version under the hidden name a kill leaves it at,
+/// and, when the run before the kill had unpacked into the version's name, that unfinished copy there too.
+/// Why:
+/// Which of those two the version's name holds decides which rename of the publish the plant's refusal reaches,
+/// and each of those has its own sentence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aKillThatLeftAFinishedCopy(rig: Rig, version: string, unfinishedCopyAtTheName: boolean): string {
+///   const toolDir = theKilledInstallsFinishedCopy(rig, version);
+///   if (unfinishedCopyAtTheName) unmarkedArchive(rig.scope.toolchainRoot, version);
+///   return toolDir;
+/// }
+/// ```
+fn a_kill_that_left_a_finished_copy(
+    rig: &Rig,
+    version: &str,
+    unfinished_copy_at_the_name: bool,
+) -> PathBuf {
+    let tool_dir: PathBuf = the_killed_installs_finished_copy(rig, version);
+    if unfinished_copy_at_the_name {
+        unmarked_archive(&rig.scope.toolchain_root, version);
+    }
+    return tool_dir;
+}
+
+/// What:
+/// What the next run did with the copy a failed recovery's warning named.
+/// Why:
+/// The warning says what a later run does with that copy,
+/// and only a second run can say whether it was so:
+/// it must publish nothing from the copy and remove it,
+/// and the version must be the one this run installed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theNextRunPublishesNothingFromTheKeptCopy(rig: Rig, lock: Lock, version: string): void {
+///   const ended = asAfterTheClaimingRunEnded(rig, version);
+///   const later = syncTools(contextOf(rig, rig.scope, lock));
+///   expect(later.failed).toEqual([]);
+///   expect(later.recovered).toHaveLength(1);
+///   expect(later.recovered[0]).toMatch(/^removed 1 hidden directory .* a second finished copy of/);
+///   expect(existsSync(ended)).toBe(false);
+///   expect(rig.http.requests()).toHaveLength(1);
+/// }
+/// ```
+fn the_next_run_publishes_nothing_from_the_kept_copy(
+    rig: &Rig,
+    lock: &Lock,
+    version: &str,
+) {
+    let ended: PathBuf = as_after_the_claiming_run_ended(rig, version);
+    let later: SyncReport = sync_tools(&context_of(rig, &rig.scope, lock), None);
+    assert!(later.failed.is_empty(), "{later:?}");
+    assert_eq!(
+        later.recovered.len(),
+        1,
+        "the next run says what it removed and nothing else: {later:?}"
+    );
+    let sentence: &String = &later.recovered[0];
+    assert!(
+        sentence.starts_with(&format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a second finished copy of {version}"
+        )),
+        "the next run publishes nothing from that copy and removes it: {sentence}"
+    );
+    assert!(
+        sentence.contains(&format!(
+            "{version} holds its completion marker and its program at its name"
+        )),
+        "the next run says what it read at the version's name: {sentence}"
+    );
+    assert!(
+        !ended.exists(),
+        "the copy the warning named is gone: {}",
+        ended.display()
+    );
+    assert_eq!(
+        rig.http.requests().len(),
+        1,
+        "only the first run downloaded, so the next one published nothing: {:?}",
+        rig.http.requests()
+    );
+}
+
+#[test]
+fn a_failed_publish_of_a_name_that_holds_nothing_says_what_the_next_run_does() {
+    let rig = Rig::new();
+    let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    // A kill between the two renames leaves the version's name holding nothing and the finished copy beside it.
+    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, false);
+    serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
+    plant_these_steps(Plant {
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    clear_the_plant();
+    assert_eq!(
+        report.installed,
+        vec![ID.to_string()],
+        "the install that follows the failed recovery puts the version at its name: {report:?}"
+    );
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED);
+    let claim: PathBuf = the_claim_the_failed_recovery_left(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let printed: String = format_sync_report(&report);
+    assert!(
+        printed.contains(&format!(
+            "toolchain install: warning: cannot move the finished install to {}: Input/output error (os error 5); \
+             the finished copy this run holds is still at {}; \
+             the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
+             so a later run publishes nothing from that copy and removes it, \
+             and the run does not fail for it\n",
+            version_dir.display(),
+            claim.display()
+        )),
+        "the warning says what the next run does with the copy: {printed}"
+    );
+    assert!(
+        !printed.contains("running the command again publishes it without downloading"),
+        "no line promises a publish this run made instead: {printed}"
+    );
+    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+}
+
+#[test]
+fn a_failed_exchange_says_what_the_next_run_does_with_the_copy_it_kept() {
+    let rig = Rig::new();
+    let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    // A kill during the unpacking left the version's name unfinished, and the finished copy beside it.
+    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
+    plant_these_steps(Plant {
+        answer_the_exchange_with: Some(AN_INPUT_OUTPUT_ERROR),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    clear_the_plant();
+    assert_eq!(
+        report.installed,
+        vec![ID.to_string()],
+        "the install that follows the failed recovery puts the version at its name: {report:?}"
+    );
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED);
+    let claim: PathBuf = the_claim_the_failed_recovery_left(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let printed: String = format_sync_report(&report);
+    assert!(
+        printed.contains(&format!(
+            "toolchain install: warning: cannot put the finished install in place of the copy at {}: Input/output error (os error 5); \
+             that copy is as it was, the finished copy this run holds is still at {}; \
+             the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
+             so a later run publishes nothing from that copy and removes it, \
+             and the run does not fail for it\n",
+            version_dir.display(),
+            claim.display()
+        )),
+        "the warning says what the next run does with the copy: {printed}"
+    );
+    assert!(
+        !printed.contains("running the command again publishes it without downloading"),
+        "no line promises a publish this run made instead: {printed}"
+    );
+    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+}
+
+#[test]
+fn a_failed_aside_rename_says_what_the_next_run_does_with_the_copy_it_kept() {
+    let rig = Rig::new();
+    let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
+    plant_these_steps(Plant {
+        refuse_the_exchange: true,
+        refuse_the_rename: Some((RenameRefused::MovesTheCopyAside, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    clear_the_plant();
+    assert_eq!(
+        report.installed,
+        vec![ID.to_string()],
+        "the install that follows the failed recovery puts the version at its name: {report:?}"
+    );
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED);
+    let claim: PathBuf = the_claim_the_failed_recovery_left(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let printed: String = format_sync_report(&report);
+    assert!(
+        printed.contains(&format!(
+            "toolchain install: warning: cannot move the copy at {} aside to install over it: Input/output error (os error 5); \
+             that copy is as it was, the finished copy this run holds is still at {}; \
+             the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
+             so a later run publishes nothing from that copy and removes it, \
+             and the run does not fail for it\n",
+            version_dir.display(),
+            claim.display()
+        )),
+        "the warning says what the next run does with the copy: {printed}"
+    );
+    assert!(
+        !printed.contains("running the command again publishes it without downloading"),
+        "no line promises a publish this run made instead: {printed}"
+    );
+    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+}
+
+#[test]
+fn a_failed_rename_into_a_name_put_back_says_what_the_next_run_does_with_the_kept_copy() {
+    let rig = Rig::new();
+    let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
+    plant_these_steps(Plant {
+        refuse_the_exchange: true,
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    clear_the_plant();
+    assert_eq!(
+        report.installed,
+        vec![ID.to_string()],
+        "the install that follows the failed recovery puts the version at its name: {report:?}"
+    );
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED);
+    let claim: PathBuf = the_claim_the_failed_recovery_left(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let printed: String = format_sync_report(&report);
+    assert!(
+        printed.contains(&format!(
+            "toolchain install: warning: cannot move the finished install to {}: Input/output error (os error 5); \
+             the copy that was there is back at {}, the finished copy this run holds is still at {}; \
+             the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
+             so a later run publishes nothing from that copy and removes it, \
+             and the run does not fail for it\n",
+            version_dir.display(),
+            version_dir.display(),
+            claim.display()
+        )),
+        "the warning says what the next run does with the copy: {printed}"
+    );
+    assert!(
+        !printed.contains("running the command again publishes it without downloading"),
+        "no line promises a publish this run made instead: {printed}"
+    );
+    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+}
+
+#[test]
+fn a_failed_put_back_of_a_finished_copy_says_what_the_next_run_does_with_the_kept_copy() {
+    let rig = Rig::new();
+    let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
+    plant_these_steps(Plant {
+        refuse_the_exchange: true,
+        another_install_publishes_before_the_aside_rename: Some(
+            another_install_publishes_the_version_at_its_name,
+        ),
+        refuse_the_rename: Some((RenameRefused::PutsTheCopyBack, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
+    clear_the_plant();
+    assert_eq!(
+        report.installed,
+        vec![ID.to_string()],
+        "the install that follows the failed recovery puts the version at its name: {report:?}"
+    );
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED);
+    let claim: PathBuf = the_claim_the_failed_recovery_left(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let aside: PathBuf = the_hidden_name_a_failed_recovery_left(
+        &rig,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+        REPLACED_PURPOSE,
+    );
+    let printed: String = format_sync_report(&report);
+    assert!(
+        printed.contains(&format!(
+            "toolchain install: warning: cannot put the finished install that was at {} back from {}: Input/output error (os error 5); \
+             the finished copy this run holds is still at {}; \
+             the install this run went on to make put {ID} {THE_VERSION_A_KILL_LEFT_FINISHED} at its name, \
+             so a later run publishes nothing from that copy and removes it, \
+             and the run does not fail for it\n",
+            version_dir.display(),
+            aside.display(),
+            claim.display()
+        )),
+        "the warning says what the next run does with the copy: {printed}"
+    );
+    assert!(
+        !printed.contains("running the command again publishes it without downloading"),
+        "no line promises a publish this run made instead: {printed}"
+    );
+    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
 }
 
 /// What:
