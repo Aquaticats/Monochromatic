@@ -557,11 +557,18 @@ async function main(): Promise<number> {
       fallback: defaultDeadlineSeconds,
     },) * millisecondsPerSecond,
   },);
+  /**
+   How the recording ended: every container's end, or the deadline with some still running.
+   */
+  const ending = outcome.rolesStillRunning
+    .length
+    === 0
+    ? 'every container ended'
+    : `the deadline came with ${outcome.rolesStillRunning
+      .join(', ')} still running`;
   console.log(`${String(outcome.samples)} samples of ${outcome.rolesRead
     .join(', ')
-    || 'no container'} written to ${outPath}; still running at the deadline: ${outcome.rolesStillRunning
-      .join(', ')
-      || 'none'}`,);
+    || 'no container'} written to ${outPath}; ${ending}`,);
   return 0;
 }
 
