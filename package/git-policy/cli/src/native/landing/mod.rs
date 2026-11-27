@@ -381,6 +381,10 @@
 //!   the state folders of the work queue,
 //!   the names of claim files,
 //!   and the listing of a folder oldest first.
+//! - `work_item_holding_the_verdicts_and_the_promotion.rs`:
+//!   the verdicts written into a held record,
+//!   the promotion that makes the record runnable,
+//!   and the two ways a record leaves the queue.
 //! - `work_item.rs`:
 //!   the durable work-item record for asynchronous work (review,
 //!   push,
@@ -577,6 +581,11 @@ pub mod work_item_recovery;
 /// to the queue,
 /// and finding what is already there.
 pub mod work_item_enqueue;
+
+/// The verdicts written into a held record,
+/// the promotion that makes the record runnable,
+/// and the two ways a record leaves the queue.
+pub mod work_item_holding_the_verdicts_and_the_promotion;
 
 /// The steps of a work item that waits for its producer's approval.
 pub mod work_item_holding;
