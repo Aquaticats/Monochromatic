@@ -1205,14 +1205,31 @@ and an HTTP 429 is retried after its `Retry-After`.
   issue 6528;
   `doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
   so a `git` left as a zombie does not fail an install.
-  A later run settles the journal such a refusal kept:
-  the leftover lockfile is kept when its new versions pass the policy
-  (otherwise it is saved as `Cargo.lock.refused` and the snapshot put back),
-  the journal is removed,
-  and that run goes on to its own check
-  (`the_next_run_settles_the_journal_of_a_run_that_could_not_be_settled`,
+  A later run settles the journal such a refusal kept,
+  and only some kinds of run are that later run:
+  a run that resolves dependencies,
+  or `cargo-shadow update`,
+  reads the kept journal before it does anything else,
+  keeps the leftover lockfile when its new versions pass the policy
+  (otherwise it saves it as `Cargo.lock.refused` and puts the snapshot back),
+  removes the journal,
+  and goes on to its own check
+  (`an_ordinary_run_after_a_refusal_settles_the_kept_journal_and_says_what_it_kept`,
+  `an_update_after_a_refusal_settles_the_kept_journal`,
   measured 2026-11-27,
   issue 6528).
+  A command that resolves nothing (`cargo fmt`,
+  `cargo --version`)
+  and a run that is frozen (`--locked`,
+  `--frozen`,
+  or `CI`)
+  never enter that step,
+  so they leave the journal for one of those runs and print nothing about it
+  (`a_pass_through_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  `a_frozen_run_after_a_refusal_leaves_the_kept_journal_and_says_nothing`,
+  measured 2026-11-27).
+  No run reminds the person of a kept journal it leaves:
+  that would be a change of what those runs print, which nobody has decided.
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
   Two runs of one process do not wait for each other and share no lock:

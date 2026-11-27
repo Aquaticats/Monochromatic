@@ -498,7 +498,7 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         };
         return Err(InstallError::Unsettled {
             message: format!(
-                "cargo-shadow: a process started by cargo could not be stopped, so it may still write the lockfiles{shortfall}; they were not rolled back or accepted, the journal of this run was kept and the next run settles it, and the command was not run"
+                "cargo-shadow: a process started by cargo could not be stopped, so it may still write the lockfiles{shortfall}; they were not rolled back or accepted, the journal of this run was kept and a later run that resolves dependencies or runs `cargo-shadow update` settles it once it reads the recorded scope gone, while a command that resolves nothing (`cargo fmt`, `cargo --version`) and a frozen run (`--locked`, `--frozen`, or `CI`) leave it to such a run and print nothing about it, and the command was not run"
             ),
         });
     }

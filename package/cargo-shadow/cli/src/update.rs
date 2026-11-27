@@ -268,7 +268,7 @@ pub fn update_rust_lockfiles(
             None => String::new(),
         };
         return Err(other_text(format!(
-            "a process started by cargo could not be stopped, so it may still write the lockfiles and manifests{shortfall}; they were not rolled back or accepted, the journal of this run was kept and the next run settles it",
+            "a process started by cargo could not be stopped, so it may still write the lockfiles and manifests{shortfall}; they were not rolled back or accepted, the journal of this run was kept and a later run that resolves dependencies or runs `cargo-shadow update` settles it once it reads the recorded scope gone, while a command that resolves nothing (`cargo fmt`, `cargo --version`) and a frozen run (`--locked`, `--frozen`, or `CI`) leave it to such a run and print nothing about it",
         )));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.

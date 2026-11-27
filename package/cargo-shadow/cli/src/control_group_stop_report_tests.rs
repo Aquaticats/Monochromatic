@@ -802,6 +802,20 @@ fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
         said.contains("settles it by itself once it reads the recorded scope gone"),
         "the refusal does not say what the next run does with the kept journal: {said}"
     );
+    // The sentence names the runs that settle the journal and the runs that leave it: a run that resolves dependencies and
+    // `cargo-shadow update` read a kept journal, and a command that resolves nothing and a frozen run never reach the step
+    // (`refusal_journal_next_runs_tests` holds each of the four at a real refusal).
+    assert!(
+        said.contains(
+            "a later run of this workspace that resolves dependencies or runs `cargo-shadow update` settles it"
+        ),
+        "the refusal does not name the runs that settle the kept journal: {said}"
+    );
+    assert!(
+        said.contains("a command that resolves nothing (`cargo fmt`, `cargo --version`)")
+            && said.contains("a frozen run (`--locked`, `--frozen`, or `CI`) leave it"),
+        "the refusal does not name the runs that leave the kept journal: {said}"
+    );
     assert!(
         said.contains("cargo-shadow acknowledge")
             && said.contains(
