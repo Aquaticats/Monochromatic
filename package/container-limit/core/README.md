@@ -97,13 +97,15 @@ no process option and no disk weight).
 the program name as an array literal first element,
 a call that returns the arguments,
 a shell command line with its continuations joined,
-or the calls chained after the one that named the program, which is how a Rust source passes them),
+or the calls chained after the one that named the program,
+which is how a Rust source passes them),
 `src/defined-text-in-source-text.ts` and `src/imported-module-by-name.ts` follow the names that text uses to where
 the arguments are written,
 and `src/source-text-without-comments.ts` blanks each language's comments so a mention in one is not a start.
 A Rust source is blanked by `src/rust-comments-in-source-text.ts`,
-because Rust's block comments nest and its raw strings, char literals and lifetimes hold quotes and apostrophes
-that another language's reader pairs with each other.
+because its block comments nest,
+and because its literals hold quotes and apostrophes
+that a reader of another language's strings pairs together.
 
 A Rust source starts a container through `Command::new("podman")`
 followed by `.args([...])` or by one `.arg(...)` per argument,
