@@ -1,7 +1,8 @@
 # mpm-shadow: a start that cannot happen says what is known about it
 
 `mpm-shadow` prints one message for a real `mpm` that never ran
-(`src/start_failure.rs`).
+(`src/start_failure.rs`,
+whose arms are the sentences in `src/start_failure/cause_and_remedy.rs`).
 Which words it prints is chosen by what happened,
 and this record lists every refusal that can reach it,
 what became of each,
@@ -37,7 +38,7 @@ and is pinned by the crate's tests rather than by this record
 
 `StartFailure.refusal` says which of two things happened,
 and `cause_and_remedy` picks the cause and the remedy from it
-(`src/start_failure.rs`):
+(`src/start_failure/cause_and_remedy.rs`):
 
 - `StartRefusal::System`:
   the system answered the open or the start with an error,
@@ -214,7 +215,8 @@ because the link that loops keeps looping.
   the realistic case is a system's own linker being replaced during an upgrade.
   The being-written arm names the interpreter and says the shadow cannot tell which of the two files is held.
   The not-there arm goes further when the program is still there:
-  with its own file readable, and the interpreter that file names gone,
+  with its own file readable,
+  and the interpreter that file names gone,
   it says which interpreter is missing and the remedy installs that file.
   Reproduced 2026-11-27 in a fixture:
   a compiled program linked against a copy of the system's own linker
@@ -232,7 +234,8 @@ because the link that loops keeps looping.
   that the same path was not a shadow when the lookup read it a moment earlier,
   and the remedies:
   run the command again,
-  the list of every `mpm` on PATH in lookup order, which the message prints itself,
+  the list of every `mpm` on PATH in lookup order,
+  which the message prints itself,
   and `mpm install` in a launcher's tree for a record that names a shadow.
   The sentence used to name `command -v -a mpm`,
   which bash refuses (`command: -a: invalid option`) and zsh refuses (`command not found: -v`);
@@ -267,7 +270,8 @@ because the link that loops keeps looping.
 - The last arm keeps the system's own words and names no step that cannot show the error:
   the hand run of the program is gone,
   because it cannot reproduce a refusal of this start,
-  and for `E2BIG`, `ENAMETOOLONG` and `ELOOP` the arm says that running the same command again cannot succeed
+  and for `E2BIG`,
+  `ENAMETOOLONG` and `ELOOP` the arm says that running the same command again cannot succeed
   and names what to change instead.
   The other refusals keep the advice to run the command again,
   with the reason it can work (a shortage passes),
@@ -278,7 +282,9 @@ because the link that loops keeps looping.
 
 ## When the lookup finds no real `mpm`
 
-The shadow's other message, for a `PATH` that holds no real `mpm` at all, exits 127
+The shadow's other message,
+for a `PATH` that holds no real `mpm` at all,
+exits 127
 (`src/shim.rs`).
 It said `mpm` is not installed,
 that every `mpm` on `PATH` is this shadow or a launcher of one,
@@ -295,18 +301,21 @@ and alpha.13's shorter sentence ("no real mpm found on PATH") was true but named
 
 The lookup now keeps every candidate it saw with the reason it passed it over
 (`SkipReason` in `src/real_binary.rs`),
-and the message prints that list in `PATH` order and builds the remedy from it:
+and the message prints that list in `PATH` order
+(`src/start_failure/path_commands.rs`) and builds the remedy from it:
 `chmod +x <path>` for a file without its execute bit,
 replacing a directory of that name or taking its directory off `PATH`,
 pointing a symbolic link that leads nowhere at the real `mpm`,
 and installing the real `mpm` only where nothing named `mpm` is there at all.
 A directory on `PATH` that holds no `mpm` adds no line:
-the list is of programs found, not of directories read.
+the list is of programs found,
+not of directories read.
 The status stays 127 and standard output stays empty.
 
 Measured on the same fixture with the changed binary:
 the mode-644 case names the file and its mode and prints the `chmod`,
-and a run with a directory named `mpm`, a mode-644 file and a link to no file names all three with their own repairs.
+and a run with a directory named `mpm`,
+a mode-644 file and a link to no file names all three with their own repairs.
 
 Nothing else changed:
 `start_retry::is_refusal` is untouched and still counts `WouldBlock` alone,
@@ -336,7 +345,8 @@ so whether a refused start is repeated is unchanged and stays before the owner
   `src/named_interpreter.rs` and its tests,
   and a fixture run of both the alpha.14 binary and the changed one on the same files:
   a compiled program built with `gcc -Wl,--dynamic-linker=<a copy of the system's own linker>`,
-  that copy held open for writing by a separate process (append mode, so its bytes never change),
+  that copy held open for writing by a separate process (append mode,
+  so its bytes never change),
   and then renamed away.
   `src/program_bytes.rs` builds the same shapes by hand for the unit tests,
   so no test depends on what a program on this machine happens to name.
