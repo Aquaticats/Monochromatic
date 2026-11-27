@@ -62,7 +62,9 @@ use std::path::{
 ///   The pass was split into sibling modules so each file stays a size a reader can hold,
 /// and the glob-free re-export keeps every caller and the sidecar's `use super::*` unchanged.
 /// Gotcha:
-///   Only the names this file itself uses, or the sidecar reads, are listed;
+///   Only the names this file itself uses,
+///  or the sidecar reads,
+///  are listed;
 ///  a name the making of one copy uses is imported there instead.
 ///
 /// In TS you'd write (pseudocode):

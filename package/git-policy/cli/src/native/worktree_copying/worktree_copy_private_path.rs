@@ -5,8 +5,9 @@
 //!  private,
 //!  and of the kind its role says.
 //! Why:
-//!  A journal, a stage container or a stage claim that another account can write,
-//!  or that a link redirects,
+//!  A journal,
+//!  a stage container or a stage claim that another account can write,
+//!  or one that a link redirects,
 //!  is never acted on,
 //!  so every reader of the copy's records asks this one question.
 //!

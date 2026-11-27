@@ -1,11 +1,11 @@
 //! What:
 //!  How one owed copy is made:
 //!  the checks that must still hold before anything is staged,
-//!  the staging, journaling and installation under the journal,
+//!  the staging and journaling under the journal,
 //!  and the record of an unfilled worktree when the copy cannot be made.
 //! Why:
-//!  The copy is the same staging, journaling and installation a creating command makes,
-//!  so its never-overwrite rule, its records and its resumption are the proven ones;
+//!  The copy is the same staging and installation a creating command makes,
+//!  so its never-overwrite rule and its resumption are the proven ones;
 //!  this file adds the decision that the copy is still owed and that its destination is unchanged,
 //!  and turns a copy that cannot be made into a record every later command names.
 //!  The pass that finds the adds that owe one is in `worktree_copy_owed_copy.rs`,

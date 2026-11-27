@@ -9,7 +9,9 @@
 //!  every record is written under a temporary beside its final name and renamed into place once whole,
 //!  and the writer's owner is part of the temporary's name,
 //!  so a sweep removes only a dead writer's temporaries and can never delete one a live writer is about to rename.
-//!  What one journal says, and the phase it names, are in `worktree_copy_journal.rs`.
+//!  What one journal record says,
+//!  and the phase that record names,
+//!  are in `worktree_copy_journal.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
