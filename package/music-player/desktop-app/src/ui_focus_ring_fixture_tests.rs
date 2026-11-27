@@ -21,6 +21,13 @@
 //! cut" is proved here,
 //! where a clip is placed on purpose.
 
+// What: rustc's `deprecated` lint, allowed for this test module only.
+// Why: Slint 1.19 reports "no `#[edition]` is set" as a `#[deprecated]` constant inside the
+// `slint!` macro's expansion, so `-D warnings` fails the build. Rust refuses `#[allow]` on a macro
+// call, so the level goes on the module. Adopting edition 1.19 would also adopt its language
+// behaviour changes, which these fixtures' pixel baselines were not measured with.
+#![allow(deprecated)]
+
 use slint::ComponentHandle;
 
 use crate::ui_focus_ring_tests::{

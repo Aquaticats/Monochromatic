@@ -337,8 +337,9 @@ jobs:
       OS: ${{ matrix.os }}
       ARCH: ${{ matrix.arch }}
       VERSION: ${{ needs.detect.outputs.version }}
-      # The Slint UI uses experimental builtins (FlexboxLayout); also set by the repository's .cargo/config.toml.
-      SLINT_ENABLE_EXPERIMENTAL_FEATURES: '1'
+      # The Slint UI names one experimental language feature (`internal-types`, for `SlintInternal`); Slint 1.19.0
+      # rejects the former boolean `1`. Also set by the repository's .cargo/config.toml.
+      SLINT_ENABLE_EXPERIMENTAL_FEATURES: 'internal-types'
       # The oldest macOS the app declares in macos/Info.plist (LSMinimumSystemVersion).
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       # The license notices the notices job wrote. build.rs embeds them (music-player --licenses prints them) and
@@ -873,7 +874,7 @@ jobs:
           --volume "$RUNNER_TEMP/target:/target" \
           --volume "$GITHUB_WORKSPACE/$NOTICES:/notices/THIRD-PARTY-LICENSES.txt:ro" \
           --env CARGO_HOME=/cargo --env CARGO_TARGET_DIR=/target \
-          --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 \
+          --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types \
           --env MUSIC_PLAYER_THIRD_PARTY_LICENSES=/notices/THIRD-PARTY-LICENSES.txt \
           --env MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES=true \
           --workdir /src/desktop-app \
@@ -1473,7 +1474,7 @@ jobs:
             --volume "$CI_CACHE/target-app:/target" \
             --env CARGO_HOME=/cargo --env CARGO_TARGET_DIR=/target \
             --env CARGO_INCREMENTAL=0 --env CARGO_PROFILE_DEV_DEBUG=0 \
-            --env SLINT_EMIT_DEBUG_INFO=1 --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 \
+            --env SLINT_EMIT_DEBUG_INFO=1 --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types \
             --workdir /src/desktop-app \
             music-player-alpine-build \
             cargo nextest run --locked --features alsa-fallback --no-fail-fast
@@ -1488,7 +1489,7 @@ jobs:
             --volume "$CI_CACHE/target-app:/target" \
             --env CARGO_HOME=/cargo --env CARGO_TARGET_DIR=/target \
             --env CARGO_INCREMENTAL=0 --env CARGO_PROFILE_DEV_DEBUG=0 \
-            --env SLINT_EMIT_DEBUG_INFO=1 --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=1 \
+            --env SLINT_EMIT_DEBUG_INFO=1 --env SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types \
             --workdir /src/desktop-app \
             music-player-alpine-build \
             cargo build --locked --features alsa-fallback
@@ -1639,9 +1640,10 @@ jobs:
     permissions:
       contents: read
     env:
-      # The Slint UI uses experimental builtins (FlexboxLayout); the package task.ts sets this for its tasks.
+      # The Slint UI names one experimental language feature (`internal-types`, for `SlintInternal`); Slint 1.19.0
+      # rejects the former boolean `1`. The package task.ts sets this for its tasks.
       # SLINT_EMIT_DEBUG_INFO makes the ElementHandle UI tests find their elements (the test task sets it too).
-      SLINT_ENABLE_EXPERIMENTAL_FEATURES: '1'
+      SLINT_ENABLE_EXPERIMENTAL_FEATURES: 'internal-types'
       SLINT_EMIT_DEBUG_INFO: '1'
       # Lean cache entries and fast cold builds: no incremental directories, no debug info in dependencies.
       CARGO_INCREMENTAL: '0'

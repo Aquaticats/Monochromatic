@@ -87,7 +87,7 @@ step,
 and increment,
 decrement,
 and set-value actions;
-Slint 1.18.1 has no splitter or separator role.
+Slint 1.19.1 has no splitter or separator role.
 A pointer press never takes keyboard focus.
 
 The divider is a 1 px line with no strip beside it.
@@ -129,7 +129,7 @@ The exception does not extend to any other element.
 What the zone covers,
 measured in `ui/tree.slint`,
 `ui/app.slint`,
-and the toolkit's fluent scroll bar (Slint 1.18.1 `widgets/fluent/scrollview.slint`):
+and the toolkit's fluent scroll bar (Slint 1.19.1 `widgets/fluent/scrollview.slint`):
 
 - Tree columns `W-2` and `W-1`.
   Rows span the whole tree width,
@@ -625,8 +625,8 @@ The find text and the search query are edited in `QueryInput` (`ui/query-input.s
 a single-line box built on the toolkit's `TextInput` item.
 It replaces the toolkit's fluent `LineEdit` because of that widget's clear control:
 a cell 16 px wide whose width cannot be set from outside
-(Slint 1.18.1 `widgets/fluent/lineedit.slint` lines 58 to 67,
-`widgets/common/lineedit-base.slint` lines 189 to 196).
+(Slint 1.19.1 `widgets/fluent/lineedit.slint` lines 58 to 67,
+`widgets/common/lineedit-base.slint` lines 188 to 194).
 The user decided on 2026-10-05 to keep the control and give it a click target of at least 48 px by 48 px.
 
 The box also differs in the ink of selected text.
@@ -695,7 +695,7 @@ The toolkit's control is not exposed to them at all.
 
 ### Behavior kept from the toolkit box
 
-Read from `widgets/common/lineedit-base.slint` and `widgets/fluent/lineedit.slint` of Slint 1.18.1:
+Read from `widgets/common/lineedit-base.slint` and `widgets/fluent/lineedit.slint` of Slint 1.19.1:
 
 - The placeholder shows while the text and any input-method composition are both empty.
 - Selected text has the palette's selection fill;
@@ -716,7 +716,7 @@ Read from `widgets/common/lineedit-base.slint` and `widgets/fluent/lineedit.slin
   undo,
   redo,
   and input-method composition are `TextInput`'s own
-  (`i-slint-core` 1.18.1 `items/text.rs`),
+  (`i-slint-core` 1.19.1 `items/text.rs`),
   so they are the same in both boxes.
 - Focus is marked by a 2 px accent line along the bottom edge and a different fill.
 - Accessibility tools see a `text-input` with its label,
@@ -782,7 +782,7 @@ and actions of both boxes and both clear controls are tested under [Accessibilit
 the same accessible properties and actions the toolkit hands to the platform accessibility bridge.
 The user allowed the dependency on 2026-10-06.
 It is internal to Slint and has no semver guarantee,
-so `Cargo.toml` requires exactly `=1.18.1`,
+so `Cargo.toml` requires exactly `=1.19.1`,
 the resolved `slint` version;
 both must be raised together.
 It was already in `Cargo.lock` through `slint`,
@@ -2131,7 +2131,7 @@ and a result built before an edit is discarded.
 
 A wheel command of many notches is not a placement.
 The toolkit's `Flickable` eases the whole delta in a fixed 180 ms
-(`WHEEL_SCROLL_DURATION` in Slint 1.18.1 `items/flickable.rs`),
+(`WHEEL_SCROLL_DURATION` in Slint 1.19.1 `items/flickable.rs`),
 60 logical px for a notch,
 and the speed at the start of that ease is twice the mean:
 200 px/ms for 300 notches,
@@ -5957,7 +5957,7 @@ the GPU turns outlines and paths into pixels.
   and `show_slices` (`src/native/gpu_tile/types.rs`) chooses between the two by the number of rows,
   which for the tile is the number of its textures.
   The rule is Slint's and is measured in `src/native/repeater_frame_tests.rs`;
-  the trace through Slint 1.18.1's source is in
+  the trace through Slint 1.19.1's source is in
   `doc/troubleshooting/slint-repeater-model-change-inside-rendering-notifier.md`.
   So `GpuTile::submit_tile` makes the textures and gives the window the slices when the tile is handed over,
   outside any frame (`Inner::prepare_tile`,
