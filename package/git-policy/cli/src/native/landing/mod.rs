@@ -10,6 +10,11 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `service_messages_the_failures_a_person_can_meet.rs`:
+//!   every failure the client can meet,
+//!   and the facts its text names.
+//! - `service_messages_what_a_failure_gives_a_person.rs`:
+//!   the commands and words a failure hands a person to act on.
 //! - `conclusion_state_copy.rs`:
 //!   the copy the service keeps of the conclusion state a landed commit removes.
 //! - `earlier_service_look_paths.rs`:
@@ -526,6 +531,13 @@
 //! ```ts
 //! // landing/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// Every failure the client can meet,
+/// and the facts its text names.
+pub mod service_messages_the_failures_a_person_can_meet;
+
+/// The commands and words a failure hands a person to act on.
+pub mod service_messages_what_a_failure_gives_a_person;
 
 /// The landing location a forwarded index writer coordinates with:
 ///  the real index and the registry.
