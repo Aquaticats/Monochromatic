@@ -202,10 +202,6 @@ file-uses src/native/merge merge_isolation_recovery_steps.rs -> merge_isolation_
 file-uses src/native/merge merge_isolation_take_asides.rs -> merge_isolation_kept_copies_decisions.rs
 file-uses src/native/merge merge_isolation_take_asides.rs -> merge_isolation_recovery_steps.rs
 file-uses src/native/merge merge_isolation_worktree_entry.rs -> merge_isolation_carry.rs
-file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_git_lines.rs
-file-uses src/native/merge merge_second_pass.rs -> merge_second_pass_report.rs
-file-uses src/native/merge merge_second_pass_git_lines.rs -> merge_second_pass.rs
-file-uses src/native/merge merge_second_pass_report.rs -> merge_second_pass.rs
 file-uses src/native/process open_file_of_a_descriptor.rs -> open_file_of_a_descriptor_in_a_child.rs
 file-uses src/native/process open_file_of_a_descriptor_in_a_child.rs -> open_file_of_a_descriptor.rs
 file-uses src/native/process signal_relay.rs -> signal_report.rs

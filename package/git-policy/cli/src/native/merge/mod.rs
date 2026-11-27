@@ -234,6 +234,11 @@
 //!   the blob of a merged file,
 //!   the index record that stages it as resolved,
 //!   and the tree a merge from objects is carried by.
+//! - `merge_second_pass_git_lines.rs`:
+//!   the line merge Git makes for one candidate file,
+//!   and the word pass over the regions it leaves.
+//! - `merge_second_pass_report.rs`:
+//!   the words that list a merged part and the journal entry for a merged file.
 //! - `merge_second_pass.rs`:
 //!   the conflicted files a merge left,
 //!   which of them the word pass may re-merge,
@@ -265,11 +270,6 @@
 //! - `merge_isolation_carry_plans.rs`:
 //!   what one captured path's writes are,
 //!   once the merge's change is known.
-//! - `merge_second_pass_git_lines.rs`:
-//!   the line merge Git makes for one candidate file,
-//!   and the word pass over the regions it leaves.
-//! - `merge_second_pass_report.rs`:
-//!   the words that list a merged part and the journal entry for a merged file.
 //! - `merge_second_pass_tree_attributes.rs`:
 //!   the tree a merge computed from objects reads its `merge` attribute from,
 //!   and the attribute source that merge names.
