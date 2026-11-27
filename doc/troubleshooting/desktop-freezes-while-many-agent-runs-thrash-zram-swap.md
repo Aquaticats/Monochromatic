@@ -687,7 +687,10 @@ and only the compile failed at the 2 GiB bound, never a test.
 Each run was its own `systemd-run --user` scope with a fixture tmpfs and
 `CLI_GIT_TEST_ROOT`, the gate's own fixture layout.
 The logs are in
-`~/temp/agent/fix-preflight-dirty-source-test-without-dev-zfs-2026-11-24/keep/`.
+`~/temp/agent/fix-preflight-dirty-source-test-without-dev-zfs-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 What this does not measure is the gate's build itself:
 that container's swap allowance and its own peak were not read here,
 so the numbers bound a recompile in a run container and not the build.
@@ -703,6 +706,9 @@ one whole container gate,
 and Rust builds inside several Pi rounds
 (`counters-at-the-start-of-the-load-of-2026-11-23-evening.txt` in
 `~/temp/agent/desktop-froze-under-agent-runs-memory-stall-2026-11-22/keep/`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Its end read was taken at 2026-11-23T19:42:03-05:00,
 just after the gate ended,
 with both settings still in force
@@ -1165,7 +1171,10 @@ with the condition that it is kept only if the reclaim and swap rates drop.
 Four windows of 120 seconds,
 each after five seconds on its setting,
 alternated the host's setting (A) and the chosen one (B);
-the raw readings are in `~/temp/agent/thp-defrag-and-compaction-measured-2026-11-25/keep/`:
+the raw readings are in `~/temp/agent/thp-defrag-and-compaction-measured-2026-11-25/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 
 1.  A from 13:45:51-05:00:
     `pgsteal_kswapd` 23.70 GiB, `pswpout` 18.22 GiB, `pswpin` 12.17 GiB, stall 5.0 s,
@@ -1324,7 +1333,10 @@ and `p7` is 134217728 sectors (64 GiB) from 3866578944,
 PARTUUID `4762e2b4-dd7b-4505-8161-6e989d53e40c`, type Linux data, so nothing swaps on it raw.
 `p6` reopened maps 877355073536 bytes over btrfs's 875207589888, superblock checksum `[match]`.
 The tables before, intended and as written, and the LUKS2 header area, are in
-`~/temp/agent/old-nvme-p6-shrink-for-zram-writeback-2026-11-25/keep/`.
+`~/temp/agent/old-nvme-p6-shrink-for-zram-writeback-2026-11-25/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ### The encrypted writeback device
 
@@ -1453,7 +1465,10 @@ and the runs after it wrote 20759 and then 289 pages, each finishing within the 
 So the stall was memory, and how much the heavy writeback runs added to it is not shown by these numbers:
 the means span hours and the 5 s sample fell between runs.
 A sampler records the minute after each run's start and a control minute 150 s later, for three hours from 20:31,
-in `~/temp/agent/zram-writeback-stall-sampling-2026-11-25/keep/writeback-runs-and-control-minutes.log`,
+in `~/temp/agent/zram-writeback-stall-sampling-2026-11-25/keep/writeback-runs-and-control-minutes.log`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 so the next heavy runs real load brings are measured against their own control.
 By 21:09 it held seven runs, which wrote between 56 thousand and 1.4 million pages each (`bd_stat` writes 43211870 at 20:34:03 to 46312496 at 21:04:17).
 Over the 467 sampled seconds of run minutes, IO "full" avg10 averaged 1.89 against 0.50 over 420 seconds of control minutes, and memory "full" 1.11 against 0.43;
@@ -1536,6 +1551,9 @@ Each of these is a question with the measurement that answers it.
     77 MiB of it swapped and 76 MiB of it `shmem`
     (`~/temp/agent/apparmor-rules-for-the-wrapper-work-2026-11-23/keep/gate-container-memory-native-RxZa1T-reading-1.jsonl`,
     read by `read-a-gate-runs-container-memory.ts` beside it).
+    (scratch,
+    deleted on 2026-11-27;
+    what this record uses from it is stated here).
     That is one reading late in a run,
     not the gate's peak,
     and how many gates ran at the freeze is not recorded here.
