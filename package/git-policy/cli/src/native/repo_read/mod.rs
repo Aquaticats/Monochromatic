@@ -136,9 +136,18 @@
 //! - `repo_read_query_quiet.rs`:
 //!   in-process repository reads:
 //!   the exit status of `diff-index --cached --quiet`.
+//! - `the_environment_and_config_a_content_answer_needs.rs`:
+//!   the environment and the configuration a content answer needs to be plain,
+//!   and the proof that no configuration file Git reads moves the answer.
+//! - `the_answers_about_the_index_and_the_working_tree.rs`:
+//!   in-process repository reads:
+//!   the staged and unmerged listings and the two cached differences.
+//! - `the_answers_about_commits_trees_and_objects.rs`:
+//!   in-process repository reads:
+//!   the tree and commit listings and the batch of object contents.
 //! - `repo_read_query.rs`:
 //!   in-process repository reads:
-//!   answers to the exact read-only command lines the wrapper issues.
+//!   the one entry point that gives each exact read-only command line its answer.
 //! - `repo_read_hook.rs`:
 //!   in-process repository reads:
 //!   the two runner entry points that try the answers before starting Git.
@@ -422,9 +431,24 @@ pub mod repo_read_refs;
 pub mod repo_read_config_list;
 
 /// In-process repository reads:
-/// answers to the exact read-only command lines the wrapper issues.
+/// the one entry point that gives each exact read-only command line its answer.
 #[cfg(unix)]
 pub mod repo_read_query;
+
+/// The environment and the configuration a content answer needs to be plain,
+/// and the proof that no configuration file Git reads moves the answer.
+#[cfg(unix)]
+pub mod the_environment_and_config_a_content_answer_needs;
+
+/// In-process repository reads:
+/// the staged and unmerged listings and the two cached differences.
+#[cfg(unix)]
+pub mod the_answers_about_the_index_and_the_working_tree;
+
+/// In-process repository reads:
+/// the tree and commit listings and the batch of object contents.
+#[cfg(unix)]
+pub mod the_answers_about_commits_trees_and_objects;
 
 /// What the in-process Git queries share:
 /// the request,
