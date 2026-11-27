@@ -43,6 +43,7 @@ import {
   runTokenOfScopes,
   type ScopeOutcome,
 } from './native-capped-scope-command.ts';
+import { commitLinesOf, } from './native-check-commit-line.ts';
 import { boundLinesOf, } from './native-check-scope-bound-lines.ts';
 import { ranWhatItSaysOf, } from './native-check-ran-what-it-says.ts';
 import { NativeGateError } from './native-gate-error.ts';
@@ -50,12 +51,6 @@ import {
   printLine,
   runGateMain,
 } from './native-gate-main.ts';
-import {
-  gitDeadlineMilliseconds,
-  gitProgram,
-  promptlessGitSettings,
-} from './native-gate-paths.ts';
-import { runGateCommand } from './native-gate-run.ts';
 import { localStamp } from './native-gate-unit-name.ts';
 
 /**
@@ -447,44 +442,6 @@ function checkCapsFromOptions({ options }: { readonly options: ReturnType<typeof
 }
 
 /**
- The commit the checkout the checks run in points at, or empty text when it has none.
-
- A throwaway checkout of a test is not a commit, and neither is a folder outside every checkout; the answer is printed
- beside the checks so a log says what was checked when the folder name does not.
-
- @param worktree - the checkout the checks run in
-
- @returns the short commit, or empty text
-
- @example
- ```ts
- await commitOf({ worktree: '/repo/.claude/worktrees/a' });
- ```
- */
-async function commitOf({ worktree }: { readonly worktree: string; }): Promise<string> {
-  /**
-   What `git rev-parse` answered.
-   */
-  const answered = await runGateCommand({
-    program: gitProgram,
-    args: [
-      '-C',
-      worktree,
-      'rev-parse',
-      '--short=10',
-      'HEAD',
-    ],
-    deadlineMilliseconds: gitDeadlineMilliseconds,
-    environment: {
-      ...process.env,
-      ...promptlessGitSettings,
-    },
-  });
-  return answered.status === 0 ? answered.stdout
-    .trim() : '';
-}
-
-/**
  Run every check at once and print one line per check, in the order the caller named them.
 
  @returns zero when every check passed, {@link checkFailedExitCode} when one did not or ran past its deadline
@@ -589,10 +546,12 @@ async function main(): Promise<number> {
     },);
   }));
   /**
-   The commit the checkout points at, printed so a log says what was checked.
+   The line naming the checkout and the commit it points at, or why no commit could be read, printed so a log says what
+   was checked.
    */
-  const commit = await commitOf({ worktree, });
-  printLine(`${worktree}${commit === '' ? '' : ` at ${commit}`}`);
+  const commitLines = await commitLinesOf({ worktree, });
+  for (const line of commitLines)
+    printLine(line);
   for (const result of results)
     for (const line of result.lines)
       printLine(line);
