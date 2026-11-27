@@ -616,16 +616,6 @@ and the record says how the measurement was made.
   The round measured the listing at 37.5 to 45.6 ms for a scope of three thousand threads,
   and the value sits beside that measurement in `src/control_group_stop.rs`.
   It is the only delay a refusal adds after its own bound.
-- `mpm-shadow` explains a start refused with "Text file busy" and does not repeat it (issue 6585,
-  `c513ee060c`).
-  Every writer the tool starts publishes by rename,
-  measured for five of them.
-  Not measured:
-  writers outside the tool that hold a published file open
-  (a person's `cp` over it,
-  an editor,
-  `pip install --upgrade` in a live virtual environment).
-  A retry for those needs a bound measured on them first.
 - A notice's record outlives a line that could not be written.
   `package/git-policy/cli/SPEC.md` says two things about the record of a failed push or a kept worktree:
   that one "whose words could not be written stays for the next command",
@@ -647,6 +637,133 @@ to be added here when it lands:
 what proves the reload remedy once no release from before it exists (issue 6587's second round),
 and what the slot refusals do with a shell alias the wrapper cannot read
 (the round `wrapper-alpha-48-release-pass-slot-refusals-read-a-shell-alias-and-say-true-words`).
+
+## Open: five choices and three proposals from the rounds that ended by 09:45 on 2026-11-27 (recorded 2026-11-27T09:53:22-05:00)
+
+None holds a merge or a release.
+
+### Whether `mpm-shadow` repeats a start refused as busy
+
+`0.2.7-alpha.13` explains a start refused with "Text file busy" and does not repeat it (issue 6585,
+`c513ee060c`).
+That was recorded here as a pick,
+on the round's finding that every writer the tool starts publishes by rename.
+The release pass of alpha.13 then showed the grounds were wider than the evidence:
+this repository's own records measure a window of 0.5 to 3 ms in which a forked child holds a copied write descriptor
+(`doc/troubleshooting/shadow-tests-that-write-a-program-and-start-it-are-refused-with-etxtbsy.md`,
+`doc/troubleshooting/git-policy-cli-a-fixture-git-is-refused-with-etxtbsy.md`),
+the round's probe was single-threaded and could not see it,
+and `go install` writes its published path in place across file systems,
+though no start of the shadow or the launcher resolves that path.
+A round corrects the record and ends it with these options written out;
+this entry is revised when it lands.
+
+- B:
+  repeat the start within a bound sized from the measured windows,
+  then explain.
+  The one cause anyone measured ends by itself in milliseconds,
+  so the person's command works with no second try.
+  It needs a bound with its measurement beside it,
+  and a start held by a real writer waits that bound before it is explained.
+- A:
+  explain only,
+  as released.
+  Nothing waits;
+  the person runs the command again by hand for a cause that was gone before they read the line.
+
+Ranking:
+B > A,
+because B turns the only measured cause into a start that works and still explains the rest,
+and A hands a transient to the person.
+
+### What the five seconds of the start retry rest on
+
+`START_RETRY_BUDGET` is five seconds in `mpm-shadow` and in the wrapper's `push/start_retry.rs`:
+how long a start the system refused for want of a process is repeated.
+It came with the design `doc/planning/cli-git-spawn-and-sync-reduction.md`,
+"Process-start retry (slice R)",
+which gives no measurement,
+and no decision record names it (issue 6597).
+The repository's rule asks a shipped bound to cite a measurement or a decision.
+How long such a refusal lasts here cannot be measured on purpose,
+since making that load is banned.
+
+- C:
+  both,
+  in this order:
+  record five seconds as decided now,
+  and size it again from the first refusal met in ordinary work.
+- A:
+  record five seconds as decided,
+  and leave it.
+- B:
+  leave it uncited until a refusal is met and measured.
+
+Ranking:
+C > A > B.
+C beats A because it keeps the value answerable to a measurement when one exists.
+A beats B because B leaves a shipped bound resting on nothing for an unknown time.
+
+### Which program may provision the account's commit service
+
+Issue 6586's round made a test build unable to offer itself to the account's service manager (`7d6bd90c92`),
+and wrote the wider question as a proposal:
+`doc/planning/cli-git-provisioning-from-a-program-that-is-not-an-installed-wrapper.md`.
+Today whatever wrapper program runs points the account's shared link at itself,
+and this machine's link names a build from `main`,
+not an installation.
+Its options:
+A keeps that,
+B refuses unless the program is the installed wrapper,
+C refuses unless the build was made as a release,
+D keeps it and prints which program the link now names.
+Its ranking is A > D > B > C,
+with the reason for each pair and five questions at its end.
+B and C would refuse this machine's current practice.
+
+### What the waiting notice says after a step's bound has come
+
+Issue 6589's round found that the notice keeps promising a stop in the future tense after the stop was sent,
+while a child in an uninterruptible wait holds the step
+(a `gpg` held one 31.9 s under load).
+`doc/planning/cli-git-notice-of-a-stopped-step-keeps-promising-a-stop.md` gives four options,
+ranked A > B > C > D:
+A says the stop was sent and that the command still waits for the kernel to let the child go.
+
+### What a push does when its step's watch cannot start
+
+Issue 6590's round found that a watch whose runtime is late reads as a refused thread,
+and that the answer waits for a scan that names a leftover program.
+`doc/planning/git-policy-cli-a-step-whose-watch-cannot-start.md` separates two choices:
+for the watch,
+A1 > A2 > A3
+(A1 waits,
+bounded,
+for a runtime that is coming);
+for the scan,
+B1 > B3 > B2
+(B1 moves it off the answer's path).
+
+### Picks made, veto open
+
+- The gate's suite container is bounded at 4 GiB (`2da7ccd13a`,
+  issue 6583),
+  2.76 times the 1,486.0 MiB peak one measured run reached,
+  with that measurement beside the value.
+  A gate at its bounds then holds 12 GiB at once.
+- The container ledger lists Rust test files that name `podman`
+  (two of the four Rust entries),
+  where it skips TypeScript test files:
+  a Rust test that starts a real container is then read for its limits (issue 6594).
+- The ledger does not read a container start written through a shell in a Rust string
+  (`Command::new("sh").arg("-c").arg("podman run ...")`).
+  The file is still listed by the program name it holds,
+  and its role is read by hand.
+- Nothing that runs on `main` after a merge runs the ledger's test,
+  so a file that names `podman` lands unlisted until someone runs it (issue 6588).
+  This waits on the same answer as issue 6584's entry,
+  "where the wrapper package's TypeScript unit tests and lint run":
+  whichever place is chosen should run `package/container-limit/core`'s `test:unit` too.
 
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
