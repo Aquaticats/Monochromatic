@@ -91,12 +91,15 @@ fn split_top_level(text: &str) -> Vec<&str> {
 /// so it is not a test gate;
 /// reading it as release is the safe direction (the scan reads more,
 /// not less).
+/// Gotcha:
+///  This is the one reading of a test gate, for a `mod` line and for an item alike,
+///  so a predicate is never a test gate in one place and release code in another.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function isTestGate(predicate: string): boolean
 /// ```
-fn is_test_gate(predicate: &str) -> bool {
+pub(crate) fn is_test_gate(predicate: &str) -> bool {
     let trimmed: &str = predicate.trim();
     if trimmed == "test" {
         return true;

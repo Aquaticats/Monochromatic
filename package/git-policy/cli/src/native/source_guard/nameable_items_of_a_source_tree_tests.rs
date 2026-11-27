@@ -2,8 +2,10 @@
 //!  The names another crate can reach through a library root,
 //!  read from the source text:
 //!  every bare `pub` item whose module the `pub mod` chain from the library root reaches,
-//!  every bare `pub` field or method of a type that chain publishes,
-//!  and every name a `pub use` carries out of a module that chain does not reach.
+//!  every bare `pub` field, method or constant of a type that chain publishes,
+//!  and every name a `pub use` publishes that the chain does not already reach:
+//!  a name carried out of a module it does not reach,
+//!  and a name a re-export spells differently from the name it re-exports.
 //! Why:
 //!  A `mod` line and a `use` line decide reachability in two different ways,
 //!  and a reader of one file sees neither:
@@ -13,28 +15,22 @@
 //!  Every name is keyed by the module path that publishes it,
 //!  `<module path> <kind> <name>`,
 //!  so two items of one kind and name in two modules are two published names.
-//!  A field or a method is keyed by the type it belongs to,
+//!  A member is keyed by the type it belongs to,
 //!  `<module path> field <Type>::<field>`,
+//!  `<module path> fn <Type>::<method>` or `<module path> const <Type>::<NAME>`,
 //!  because a member is nameable through its type.
 //!
 //! What this reading cannot see,
 //! and why:
 //!  - A `pub` field inside a tuple-like struct's parentheses
 //!    (`pub struct PlanError(pub String);` and `pub PathBuf,` one to a line).
-//!    Thirteen types hold fourteen such fields today:
-//!    eight written on the declaration line,
-//!    and six written one to a line.
 //!    Such a field is reached as `.0`,
 //!    and this scan keys a member by the name the declaration writes,
 //!    which a paren body does not write.
 //!  - A member of a type published only through a `pub use` facade:
 //!    the type's own `pub` declaration sits in a module no `pub mod` chain reaches,
 //!    and this scan reads a type as published only where such a chain reaches its declaration.
-//!    Four types today publish fourteen `pub` members that way
-//!    (`ReadinessFileRefusal`,
-//!    `StoredIdentity`,
-//!    `TheRecordsProof` and `WhatTheRecordsProve`),
-//!    which a consumer can reach through the facade and this scan reads nothing of.
+//!    A consumer can reach such a member through the facade and this scan reads nothing of it.
 //!  - A `pub trait`'s methods and a `pub enum`'s variants:
 //!    both are published with no `pub` of their own,
 //!    so a new one changes the published surface without a line here.
@@ -45,6 +41,13 @@
 //!    the glob is listed as `pub use <module>::*` and carries every name that module holds.
 //!    Every glob of this crate today names a module the chain reaches,
 //!    so it carries nothing.
+//!  - A second path to a name a `pub use` re-exports under the name it already has,
+//!    where the target's own module is one the chain reaches:
+//!    the name is published where its target is declared,
+//!    so no entry names the path the re-export adds.
+//!    A re-export that spells the name differently publishes a new name and takes a line.
+//!  - A signature or a value that changes under a name that stays:
+//!    the entry names the name and nothing of its shape or its value.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -56,6 +59,7 @@ use super::modules_a_library_root_reaches_tests::{
     chain_the_target_reaches,
     read_the_tree,
 };
+use crate::source_scan_tests::declaration::is_test_gate;
 use std::collections::{
     BTreeMap,
     BTreeSet,
@@ -74,6 +78,10 @@ const QUALIFIERS: &[&str] = &["async", "unsafe", "extern", "default"];
 
 /// The kinds whose body publishes a field.
 const KINDS_WITH_FIELDS: &[&str] = &["struct", "union"];
+
+/// The kinds an `impl` body publishes a name under,
+/// which are the ones an inherent `impl` may write with a `pub` of its own.
+const KINDS_AN_IMPL_PUBLISHES: &[&str] = &["fn", "const"];
 
 /// The kinds whose name another crate can reach,
 /// so that a `pub` method of an `impl` of one publishes a name through it.
@@ -100,13 +108,14 @@ pub(crate) struct NameableItem {
 }
 
 /// What:
-///  `pub(crate) struct CarriedName` is one name a `pub use` statement hands out of a module
-///  no `pub mod` chain reaches:
-///  the entry the list writes for it,
-///  and the file holding the statement.
+///  `pub(crate) struct CarriedName` is one name a `pub use` statement publishes
+///  that the `pub mod` chain does not already reach:
+///  a name carried out of a module the chain does not reach,
+///  or a name the statement spells differently from the name it re-exports.
 /// Why:
 ///  A `pub use` publishes one name per name it lists,
-///  so a second name added to a listed statement is a second published name.
+///  so a second name added to a listed statement is a second published name,
+///  and an `as` rename publishes a name the target's own module does not hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -134,7 +143,7 @@ pub(crate) struct Surface {
     /// Every `pub` item the `pub mod` chain reaches,
     /// and every `pub` member of a type it publishes.
     pub(crate) items: Vec<NameableItem>,
-    /// Every name a `pub use` carries out of a module that chain does not reach.
+    /// Every name a `pub use` publishes that the chain does not already reach.
     pub(crate) carried: Vec<CarriedName>,
 }
 
@@ -186,6 +195,29 @@ fn words_of(line: &str) -> Vec<&str> {
 }
 
 /// What:
+///  `fn fn_follows(words: &[&str], from: usize) -> bool` answers whether `fn` is the next word after the
+///  qualifiers that start at `from`.
+/// Why:
+///  `pub const fn f` publishes a function while `pub const NAME` publishes a constant,
+///  and the qualifiers between the two may be more than one (`const unsafe`, `const extern "C"`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fnFollows = (words: string[], from: number): boolean =>
+///   words.slice(from).filter((w) => QUALIFIERS.includes(w))[0] === 'fn' || words[from] === 'fn'
+/// ```
+fn fn_follows(
+    words: &[&str],
+    from: usize,
+) -> bool {
+    let mut index: usize = from;
+    while index < words.len() && QUALIFIERS.contains(&words[index]) {
+        index += 1;
+    }
+    return words.get(index) == Some(&"fn");
+}
+
+/// What:
 ///  `fn declaration_after_pub(rest: &str) -> Option<(String, String)>` answers the kind and the name
 ///  a declaration writes after its `pub `,
 ///  whatever qualifiers stand in between.
@@ -194,6 +226,8 @@ fn words_of(line: &str) -> Vec<&str> {
 /// `pub const fn`,
 /// `pub unsafe fn` and `pub extern "C" fn` publish a function,
 ///  and a reader that took the word after `pub` for the kind read none of them.
+///  `const` is the one word that is both a kind and a qualifier,
+///  so it names a kind only where no `fn` follows it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -201,17 +235,17 @@ fn words_of(line: &str) -> Vec<&str> {
 /// ```
 fn declaration_after_pub(rest: &str) -> Option<(String, String)> {
     let words: Vec<&str> = words_of(rest);
-    let first: &&str = words.first()?;
-    if *first == "const" {
-        // What: `const` names a kind of its own unless `fn` follows it, where it qualifies one.
-        // Why: `pub const fn` publishes a function and `pub const NAME: T` publishes a constant.
-        if words.get(1) == Some(&"fn") {
-            return Some((String::from("fn"), String::from(*words.get(2)?)));
-        }
-        return Some((String::from("const"), String::from(*words.get(1)?)));
-    }
     let mut index: usize = 0;
-    while index < words.len() && QUALIFIERS.contains(&words[index]) {
+    while index < words.len() {
+        let word: &str = words[index];
+        // What: `const` names a kind of its own unless `fn` follows the qualifiers after it.
+        // Why: `pub const NAME: T` publishes a constant and `pub const unsafe fn f` publishes a function.
+        if word == "const" && !fn_follows(&words, index + 1) {
+            return Some((String::from("const"), String::from(*words.get(index + 1)?)));
+        }
+        if !QUALIFIERS.contains(&word) && word != "const" {
+            break;
+        }
         index += 1;
     }
     let kind: &str = *words.get(index)?;
@@ -231,11 +265,16 @@ fn declaration_after_pub(rest: &str) -> Option<(String, String)> {
 /// Why:
 ///  A `#[cfg(test)]` item is compiled for the tests alone and publishes nothing,
 ///  so the list must not hold a line for it.
+/// Gotcha:
+///  A predicate that names `test` inside a negation (`all(not(test), unix)`) keeps the item out of the
+///  test build alone,
+///  so it publishes one;
+///  the one reading of a test gate decides that for this scan and the `mod` line alike.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const isATestOnlyAttribute = (attribute: string): boolean =>
-///   attribute === '#[cfg(test)]' || (attribute.startsWith('#[cfg(all(') && attribute.includes('test'))
+///   attribute.startsWith('#[cfg(') && attribute.endsWith(')]') && isTestGate(attribute.slice(6, -2))
 /// ```
 fn is_a_test_only_attribute(attribute: &str) -> bool {
     let Some(predicate) = attribute
@@ -244,7 +283,7 @@ fn is_a_test_only_attribute(attribute: &str) -> bool {
     else {
         return false;
     };
-    return predicate == "test" || (predicate.starts_with("all(") && predicate.contains("test"));
+    return is_test_gate(predicate);
 }
 
 /// What:
@@ -404,9 +443,10 @@ fn attribute_only_for_tests(line: &str) -> bool {
 ///  `fn member_of_body(trimmed: &str, methods: bool) -> Option<(String, String)>` answers the kind and the
 ///  name a member line writes:
 ///  `field` and the name before its `:` in a struct's body,
-///  and `fn` and the name after its `fn` in an `impl`'s body.
+///  and the kind and the name of a declaration in an `impl`'s body,
+///  which is a function or a constant.
 /// Why:
-///  A field and a method are both written `pub` one level in,
+///  A field, a method and an associated constant are all written `pub` one level in,
 ///  and only the body they stand in says which they are.
 ///
 /// In TS you'd write (pseudocode):
@@ -430,7 +470,7 @@ fn member_of_body(
         return Some((String::from("field"), name.to_owned()));
     }
     let (kind, name) = declaration_after_pub(rest)?;
-    if kind != "fn" {
+    if !KINDS_AN_IMPL_PUBLISHES.contains(&kind.as_str()) {
         return None;
     }
     return Some((kind, name));
@@ -438,14 +478,18 @@ fn member_of_body(
 
 /// What:
 ///  `fn members_of(text: &str, published_types: &BTreeSet<String>) -> Vec<(String, String)>` lists the
-///  `(kind, member)` of every bare `pub` field and method of a type `published_types` holds.
+///  `(kind, member)` of every bare `pub` field and every bare `pub` declaration of an `impl` of a type
+///  `published_types` holds.
 /// Why:
 ///  A member is nameable through its type,
-///  so a `pub` field of a published struct and a `pub fn` of an `impl` of one publish a name too,
+///  so a `pub` field of a published struct,
+///  a `pub fn` of an `impl` of one and a `pub const` of one publish a name too,
 ///  and a split that writes one publishes without touching any line the first-column scan reads.
 /// Gotcha:
 ///  The scan reads a member one level inside the body its declaration opened,
 ///  so a member of a tuple-like struct's parentheses is read by nothing here.
+///  A declaration whose body opens on a later line is held as the opening it still waits for,
+///  because this crate writes the generics of a type or an `impl` over several lines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -457,10 +501,26 @@ fn members_of(
 ) -> Vec<(String, String)> {
     let mut found: Vec<(String, String)> = Vec::new();
     let mut body: Option<(String, bool)> = None;
+    let mut opening: Option<(String, bool)> = None;
     let mut remaining: i32 = 0;
     let mut only_for_tests: bool = false;
     for line in text.lines() {
         if line.trim_start().starts_with("//") {
+            continue;
+        }
+        // What: A declaration whose body has not opened yet takes this line as its header, even at the
+        // first column, because a type's or an `impl`'s generics and `where` clause are written there.
+        // Why: Only the line holding the body's `{` opens it, and a header that ends in `;` has no body.
+        if let Some((owner, methods)) = opening.take() {
+            remaining += brace_delta(line);
+            if line.contains('{') {
+                body = Some((owner, methods));
+                if remaining <= 0 {
+                    body = None;
+                }
+            } else if !(line.contains(';') || remaining < 0) {
+                opening = Some((owner, methods));
+            }
             continue;
         }
         let at_first_column: bool = !line.is_empty() && !line.starts_with(char::is_whitespace);
@@ -473,20 +533,25 @@ fn members_of(
             let declared: Option<(String, String)> = line
                 .strip_prefix("pub ")
                 .and_then(|rest| return declaration_after_pub(rest));
-            let opened: Option<(String, bool)> = match declared {
+            let declared_body: Option<(String, bool)> = match declared {
                 Some((kind, name)) if KINDS_WITH_FIELDS.contains(&kind.as_str()) => {
                     Some((name, false))
                 }
                 _ => self_type_of(line).map(|owner| return (owner, true)),
             };
-            match opened {
-                Some((owner, methods))
-                    if line.contains('{') && published_types.contains(owner.as_str()) =>
-                {
-                    body = Some((owner, methods));
-                    remaining = brace_delta(line);
-                    if remaining <= 0 {
-                        body = None;
+            match declared_body {
+                Some((owner, methods)) if published_types.contains(owner.as_str()) => {
+                    if line.contains('{') {
+                        remaining = brace_delta(line);
+                        if remaining > 0 {
+                            body = Some((owner, methods));
+                        }
+                    } else if !line.contains(';') {
+                        // What: The declaration names its type but writes no `;` and no `{` yet, so its
+                        // body waits for a later line.
+                        // Why: `pub struct Unit;` writes a `;` and has no body at all.
+                        remaining = 0;
+                        opening = Some((owner, methods));
                     }
                 }
                 _ => {}
@@ -560,21 +625,23 @@ fn use_statements(text: &str) -> Vec<String> {
 }
 
 /// What:
-///  `fn carried_of_statement(statement: &str) -> Vec<(String, String)>` lists the `(module, name)` pairs one
-///  `pub use` statement names,
-///  with every `as` rename applied and the module written as the statement writes it.
+///  `fn carried_of_statement(statement: &str) -> Vec<(String, String, bool)>` lists the
+///  `(module, name, renamed)` triples one `pub use` statement names,
+///  with every `as` rename applied and the module written as the statement writes it,
+///  and `renamed` true where the statement spells the name differently from the name it re-exports.
 /// Why:
 ///  The name a statement publishes is the name after its `as`,
 /// not the one it started from,
+///  so an `as` publishes a name its target's module does not hold;
 ///  and a glob publishes every name of the module it names,
 ///  which is one entry with no name of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function carriedOfStatement(statement: string): [string, string][]
+/// function carriedOfStatement(statement: string): [string, string, boolean][]
 /// ```
-fn carried_of_statement(statement: &str) -> Vec<(String, String)> {
-    let mut found: Vec<(String, String)> = Vec::new();
+fn carried_of_statement(statement: &str) -> Vec<(String, String, bool)> {
+    let mut found: Vec<(String, String, bool)> = Vec::new();
     let mut prefixes: Vec<String> = vec![String::new()];
     let mut piece: String = String::new();
     let mut depth: usize = 0;
@@ -625,7 +692,11 @@ fn carried_of_statement(statement: &str) -> Vec<(String, String)> {
         if published.is_empty() {
             continue;
         }
-        found.push((module.to_owned(), published.to_owned()));
+        found.push((
+            module.to_owned(),
+            published.to_owned(),
+            entry.contains(" as "),
+        ));
     }
     return found;
 }
@@ -651,20 +722,20 @@ fn name_of<'a>(
 }
 
 /// What:
-///  `fn carried_names(text: &str) -> Vec<(String, String)>` lists every `(module, name)` pair the text's
-///  `pub use` statements carry,
+///  `fn carried_names(text: &str) -> Vec<(String, String, bool)>` lists every `(module, name, renamed)` triple
+///  the text's `pub use` statements publish,
 ///  however many lines each statement spans.
 /// Why:
-///  The caller decides which of them leave a module the `pub mod` chain does not reach;
+///  The caller decides which of them the `pub mod` chain does not already reach;
 ///  this reads the text once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const carriedNames = (text: string): [string, string][] =>
+/// const carriedNames = (text: string): [string, string, boolean][] =>
 ///   useStatements(text).flatMap(carriedOfStatement)
 /// ```
-fn carried_names(text: &str) -> Vec<(String, String)> {
-    let mut found: Vec<(String, String)> = Vec::new();
+fn carried_names(text: &str) -> Vec<(String, String, bool)> {
+    let mut found: Vec<(String, String, bool)> = Vec::new();
     for statement in use_statements(text) {
         found.extend(carried_of_statement(statement.as_str()));
     }
@@ -742,13 +813,13 @@ pub(crate) fn surface_of(root: &Path) -> Result<Surface, String> {
                 file: module.file.clone(),
             });
         }
-        for (target, name) in carried_names(text.as_str()) {
+        for (target, name, renamed) in carried_names(text.as_str()) {
             let reached: Option<String> =
                 chain_the_target_reaches(&modules, chain, target.as_str());
             let public: bool = reached
                 .and_then(|found| return modules.get(found.as_str()))
                 .is_some_and(|found| return found.public && !found.test_only);
-            if !public {
+            if !public || renamed {
                 carried.push(CarriedName {
                     key: format!("{written} pub use {target}::{name}"),
                     file: module.file.clone(),
