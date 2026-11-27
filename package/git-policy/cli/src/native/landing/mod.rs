@@ -499,6 +499,42 @@
 //! - `service_land_finish.rs`:
 //!   the batches a restart finishes or drops,
 //!   and what it reports about each.
+//! - `service_land_attempt_values.rs`:
+//!   the values one attempt of a landing carries from step to step,
+//!   and the checks that a batch may land at all.
+//! - `service_land_attempt_reads.rs`:
+//!   what one attempt reads before it writes anything:
+//!   the commit the branch names,
+//!   the parents an amend replaces,
+//!   the places that still want their commit,
+//!   and whether their content is still there.
+//! - `service_land_attempt_batch_built.rs`:
+//!   the commits of one attempt's batch,
+//!   the commit its branch is about to name,
+//!   the row its move writes in the reflog,
+//!   and the record the journal holds of it.
+//! - `service_land_attempt_index_lock.rs`:
+//!   the index lock of one attempt,
+//!   the checked-out branch read again under it,
+//!   and the places whose client went away while the lock was awaited.
+//! - `service_land_attempt_owed_and_witness.rs`:
+//!   what one attempt's batch owes,
+//!   and the index file the landing saw,
+//!   recorded under the lock before the branch moves.
+//! - `service_land_attempt_branch_move.rs`:
+//!   the one branch write of an attempt:
+//!   the scratch reference's removal,
+//!   the transaction,
+//!   and the words that say what the write is doing.
+//! - `service_land_attempt_refused_move.rs`:
+//!   what an attempt does when its branch write did not happen:
+//!   wait out the lock that refused it,
+//!   hold the commit behind that lock,
+//!   or build the batch again because the branch moved.
+//! - `service_land_attempt_after_the_move.rs`:
+//!   the head read again,
+//!   the index installed,
+//!   and the answer every landed place gets.
 //! - `service_land_batch_body.rs`:
 //!   the landing itself:
 //!   one batch written,
@@ -900,6 +936,35 @@ pub mod service_land_context;
 /// how many times its batch may be built again,
 /// and what it reads once.
 pub mod service_land_settings;
+
+/// The values one attempt of a landing carries from step to step,
+/// and the checks that a batch may land at all.
+pub mod service_land_attempt_values;
+
+/// What one attempt of a landing reads before it writes anything.
+pub mod service_land_attempt_reads;
+
+/// The commits of one attempt's batch and the record the journal holds of it.
+pub mod service_land_attempt_batch_built;
+
+/// The index lock of one attempt,
+/// and the two questions asked with it held.
+pub mod service_land_attempt_index_lock;
+
+/// What one attempt's batch owes,
+/// and the index file the landing saw.
+pub mod service_land_attempt_owed_and_witness;
+
+/// The one branch write of an attempt.
+pub mod service_land_attempt_branch_move;
+
+/// What an attempt does when its branch write did not happen.
+pub mod service_land_attempt_refused_move;
+
+/// The head read again after the move,
+/// the index installed,
+/// and the answer.
+pub mod service_land_attempt_after_the_move;
 
 /// The landing itself:
 /// one batch written,
