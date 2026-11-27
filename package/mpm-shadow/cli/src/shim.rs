@@ -122,9 +122,11 @@ use crate::shadow_notice::{
     top_level_request,
     version_line,
 };
-/// Imports the messages for a start that did not happen.
+/// Imports the messages for a start that did not happen,
+/// and the two reasons one does not happen.
 use crate::start_failure::{
     StartFailure,
+    StartRefusal,
     command_line,
     describe_nesting_refusal,
     describe_start_failure,
@@ -188,10 +190,10 @@ pub fn run_program(
             ..
         } => Ok(code),
         ProgramRun::NotStarted {
-            error,
+            refusal,
             ..
-        }
-        | ProgramRun::WaitFailed {
+        } => Err(refusal.into_error()),
+        ProgramRun::WaitFailed {
             error,
         } => Err(error),
     };
@@ -210,7 +212,7 @@ pub fn run_program(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ProgramRun = { kind: 'finished'; code: number; retry: RetryReport } | { kind: 'not-started'; error: Error; retry: RetryReport } | { kind: 'wait-failed'; error: Error };
+/// type ProgramRun = { kind: 'finished'; code: number; retry: RetryReport } | { kind: 'not-started'; refusal: StartRefusal; retry: RetryReport } | { kind: 'wait-failed'; error: Error };
 /// ```
 #[derive(Debug)]
 pub enum ProgramRun {
@@ -224,7 +226,7 @@ pub enum ProgramRun {
     /// The program could not be started.
     NotStarted {
         /// Why.
-        error: std::io::Error,
+        refusal: StartRefusal,
         /// What the retrying of the start did before giving up.
         retry: RetryReport,
     },
@@ -286,17 +288,22 @@ pub fn start_and_wait(
             error,
         }) => {
             return ProgramRun::NotStarted {
-                error,
+                refusal: StartRefusal::System {
+                    error,
+                },
                 retry: RetryReport::default(),
             };
         }
         // What:     A shadow (or a launcher that leads to one) found at the moment of the start.
-        // Why:      Starting it would start a shadow, so the start is reported as refused.
+        // Why:      Starting it would start a shadow, so the start is reported as refused, and the
+        //           refusal keeps its own reason: the message for it is not the one for a program fault.
         Err(VetRefusal::LeadsToShadow {
             sentence,
         }) => {
             return ProgramRun::NotStarted {
-                error: std::io::Error::other(sentence),
+                refusal: StartRefusal::Shadow {
+                    sentence,
+                },
                 retry: RetryReport::default(),
             };
         }
@@ -311,7 +318,9 @@ pub fn start_and_wait(
         Ok(child) => child,
         Err(error) => {
             return ProgramRun::NotStarted {
-                error,
+                refusal: StartRefusal::System {
+                    error,
+                },
                 retry,
             };
         }
@@ -497,13 +506,13 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
             return code;
         }
         ProgramRun::NotStarted {
-            error,
+            refusal,
             retry,
         } => {
             let failure = StartFailure {
                 outer: &arguments,
                 program: &program,
-                error: &error,
+                refusal: &refusal,
                 retry,
                 depth,
             };

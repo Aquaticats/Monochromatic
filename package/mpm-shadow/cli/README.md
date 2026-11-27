@@ -1584,6 +1584,12 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   A launcher sets no arrival marker and checks none:
   a launcher in front of a shadow is the intended arrangement (`.cache/cargo-shadow-bin/cargo`),
   and the shadow behind it decides (it stops when a shadow that started the launcher's process is the one that reached it).
+  It makes no check for a shadow either:
+  `install` links `mpm` to a launcher whose record names that tree's `mpm-shadow` binary,
+  so a record naming a shadow is the arrangement,
+  not a loop,
+  and the words for a refused shadow belong to the check the shadow makes on its own start
+  (`tests/never_start_another_shadow/launchers_that_must_not_start_themselves.rs` runs the pair through).
   A tree that has not run `install` since these rules shipped still has the launcher binary it had,
   and such a binary exits 127 for a record that names a deleted folder until `mise run toolchain:install`
   or `mpm install` runs in that tree
@@ -2037,6 +2043,21 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   or a launcher whose record leads to one,
   without starting it,
   and the start checks the open file again.
+  A start that check refuses says what was found,
+  never the words for a program fault:
+  the path the lookup chose,
+  the shadow the file is or leads to,
+  why starting it would run a shadow instead of `mpm`
+  (a shadow looks for the real `mpm` again,
+  and two shadows that each stood first for the other started each other without end
+  when this was measured on 2026-11-07:
+  about 105 starts a second),
+  the fact that the same path was not a shadow when the lookup read it a moment earlier,
+  so the file there or a launcher record beside it changed in between,
+  and what repairs it:
+  `command -v -a mpm` lists every `mpm` on PATH in the order the lookup reads them,
+  the shadow's own directory belongs first and the real `mpm`'s after it,
+  and `mpm install` in a launcher's tree writes a record that names a shadow again.
   A shadow that finds `MONOCHROMATIC_SHADOW_STARTED_BY` left for its own process or its direct parent
   was started by a shadow:
   it does nothing,
@@ -2131,11 +2152,26 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   missing permission,
   a missing program or interpreter,
   a program whose file another program is writing,
+  a file the kernel will not start as a program,
+  a program that is this tool's own shadow or leads to one,
   or the system's own words),
   what to do,
   the exit status (126) and why the command reports it,
   and what had completed (nothing of the command ran,
   and the post-run cleanup does not run).
+  Each cause is one arm chosen by what happened,
+  so a refused shadow is never read as a program fault,
+  and the arm that names the program says what it turned out to be rather than "the first `mpm` on PATH that is not this shadow".
+  An error no arm classifies keeps the system's own words and says what a hand run can and cannot show:
+  the same words when the program's own file is at fault,
+  and something else or nothing when a limit of the machine,
+  a limit of the shadow's own process,
+  or the shape of the command line is the cause,
+  because a shell may run a file the kernel refuses as a script rather than report the refusal.
+  The file the kernel will not start has an arm of its own for that reason.
+  Every error that can still reach the last arm,
+  with what a hand run shows for each,
+  is listed in `doc/troubleshooting/mpm-shadow-a-start-that-does-not-happen-says-what-is-known.md`.
 - Shows that it is a shadow in the two places a person looks,
   after mpm's own output and only after a successful run:
   a top-level `mpm --version` prints mpm's version text,
@@ -2201,6 +2237,7 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
   or a plan or lock file that cannot be read.
 - `126`:
   (shadow mode) the real `mpm` was found but could not be started,
+  the shadow refused to start it because the program was or led to a shadow,
   or the shadow refused to start it because too many shadows were nested.
 - `127`:
   (shadow mode) no real `mpm` on `PATH`.
