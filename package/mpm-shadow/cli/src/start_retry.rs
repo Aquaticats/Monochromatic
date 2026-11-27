@@ -28,6 +28,9 @@
 //! and keeps it for as long as its own work takes,
 //! so there is no measured window a retry could carry;
 //! `start_failure` explains that refusal instead of hiding it behind a stall.
+//! The arms,
+//! the probe and the syscall timestamps are in
+//! `doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -1995,6 +1995,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   A writer that does hold the published file open is outside this tool
   and keeps it for as long as its own work takes,
   which is why the refusal is explained rather than hidden behind a stall.
+  The arms,
+  the probe and the syscall timestamps are in
+  `doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`.
 - Explains a start that fails for good,
   instead of one bare line:
   the command that was run,
