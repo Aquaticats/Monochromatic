@@ -25,6 +25,9 @@
 //!   and the permission bits a person set on their own entry.
 //! - `merge_isolation_changes.rs`:
 //!   the raw differences of an isolated merge and the worktree state of each changed path.
+//! - `merge_isolation_a_directory_the_branch_explains.rs`:
+//!   whether a directory standing where the merge puts a file holds only files the merge deletes,
+//!   judged through every directory below it.
 //! - `merge_isolation_the_merges_paths_judged.rs`:
 //!   the judgement of each path a merge changes:
 //!   how the worktree stands at it against the two sides,
@@ -61,6 +64,7 @@
 //!   and the raw changes between two commits.
 //! - `merge_isolation_a_directory_the_merge_replaces.rs`:
 //!   a directory standing where the merge puts a file,
+//!   whether it holds only what the merge deletes,
 //!   which no layer of the carry can hold,
 //!   and the sentence that stops the merge before anything is written.
 //! - `merge_isolation_ignored_paths.rs`:
@@ -328,6 +332,10 @@ pub mod merge_isolation_the_merges_paths_judged;
 /// the directory every command starts in,
 /// and the repository's common Git directory.
 pub mod merge_isolation_recovery_place;
+
+/// Whether a directory standing where the merge puts a file holds only files the merge deletes,
+/// judged through every directory below it.
+pub mod merge_isolation_a_directory_the_branch_explains;
 
 /// The write of a merge into the index and the worktree,
 /// and what it does when the checkout changed under it.

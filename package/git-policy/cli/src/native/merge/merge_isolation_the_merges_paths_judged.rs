@@ -16,6 +16,8 @@
 /// The jobs of the blocking pool this judgement makes,
 /// so a disk that makes a look or a walk wait holds no worker of the runtime.
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+/// Whether a directory standing where the merge adds a path holds only what the merge deletes.
+use crate::merge_isolation_a_directory_the_branch_explains::the_directory_holds_only_what_the_merge_deletes;
 /// The paths the merge changes and what the worktree holds at each.
 use crate::merge_isolation_changes::{
     Change,
@@ -206,20 +208,28 @@ pub async fn judge_changes_awaiting(
         //  and a walk of the worktree: one job of the blocking pool makes both, and one job covers every such path of the merge.
         let changes_for_the_job: Vec<Change> = changes.to_vec();
         let root_for_the_job: PathBuf = root.to_path_buf();
-        let decided: Result<Vec<(usize, bool)>, crate::blocking_job::BlockingJobError> = run_blocking_job_within_the_budget(move || {
-            let mut answers: Vec<(usize, bool)> = Vec::new();
-            for index in candidates {
-                let change: &Change = &changes_for_the_job[index];
-                let location: PathBuf = worktree_path(root_for_the_job.as_path(), change.path.as_slice());
-                let stands_as_a_directory: bool = std::fs::symlink_metadata(location.as_path()).map(is_a_directory).unwrap_or(false);
-                let only_the_branchs: bool = stands_as_a_directory
-                    && the_branchs_files_stand_below(change, changes_for_the_job.as_slice())
-                    && crate::merge_isolation_changes::the_directory_holds_only_what_the_merge_deletes(change, changes_for_the_job.as_slice(), root_for_the_job.as_path());
-                answers.push((index, only_the_branchs));
-            }
-            return answers;
-        })
-        .await;
+        let decided: Result<Vec<(usize, bool)>, crate::blocking_job::BlockingJobError> =
+            run_blocking_job_within_the_budget(move || {
+                let mut answers: Vec<(usize, bool)> = Vec::new();
+                for index in candidates {
+                    let change: &Change = &changes_for_the_job[index];
+                    let location: PathBuf =
+                        worktree_path(root_for_the_job.as_path(), change.path.as_slice());
+                    let stands_as_a_directory: bool = std::fs::symlink_metadata(location.as_path())
+                        .map(is_a_directory)
+                        .unwrap_or(false);
+                    let only_the_branchs: bool = stands_as_a_directory
+                        && the_branchs_files_stand_below(change, changes_for_the_job.as_slice())
+                        && the_directory_holds_only_what_the_merge_deletes(
+                            change,
+                            changes_for_the_job.as_slice(),
+                            root_for_the_job.as_path(),
+                        );
+                    answers.push((index, only_the_branchs));
+                }
+                return answers;
+            })
+            .await;
         match decided {
             Ok(answers) => {
                 for (index, holds_only_the_branchs) in answers {
