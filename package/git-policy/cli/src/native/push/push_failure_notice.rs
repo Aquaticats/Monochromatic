@@ -106,9 +106,9 @@ use crate::lfs_output_mask::mask_url_secrets_text;
 /// which makes the directory and replaces the file in one rename.
 use crate::private_storage::{
     create_private_directory_all,
-    replace_private_file_unsynced,
     write_private_file_unsynced,
 };
+use crate::private_storage_replacing_a_record::replace_private_file_unsynced;
 /// Import the name a command holds a record under while it shows it,
 /// and who may take one over.
 use crate::push_failure_notice_claimed_by_one_command::{
