@@ -123,6 +123,8 @@
 //! - `probe_mode_words.rs`:
 //!   the verdict line,
 //!   the source readings and the skipped record.
+//! - `probe_mode_holder_answers.rs`:
+//!   the mode's answers to the worker's two holder requests.
 //! - `probe_mode.rs`:
 //!   the mode itself and its one deadline.
 //!
@@ -168,6 +170,8 @@ pub mod probe_holder_control;
 pub mod probe_line_refusal;
 /// The mode itself.
 pub mod probe_mode;
+/// The mode's answers to the worker's two holder requests.
+pub mod probe_mode_holder_answers;
 /// The mode's words and readings.
 pub mod probe_mode_words;
 /// The namespace,
