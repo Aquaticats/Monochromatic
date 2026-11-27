@@ -161,7 +161,12 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("service/earlier_unix_sockets_that_listen.rs", 2, "system"),
     ("service/service_journal.rs", 4, "own-record"),
     ("service/service_journal_record_age.rs", 1, "own-record"),
-    ("service/service_provision.rs", 2, "own-record"),
+    ("service/service_provision.rs", 1, "own-record"),
+    (
+        "service/service_provision_what_is_already_in_place.rs",
+        1,
+        "own-record",
+    ),
     (
         "service/service_provision_earlier_service_retirement.rs",
         1,
