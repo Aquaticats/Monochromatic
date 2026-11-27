@@ -354,6 +354,12 @@ mod plan_insert_tests;
 #[cfg(test)]
 mod exposure_tests;
 
+/// The controls of this repository's own `rust` row:
+/// an install of it names no unresolved bin,
+/// and a bin no route provides is still named.
+#[cfg(test)]
+mod the_repository_rust_row_names_no_unresolved_bin_tests;
+
 /// The unit tests of the `github:` resolver's `tagPrefix` option.
 #[cfg(test)]
 mod update_github_prefix_tests;
