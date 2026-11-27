@@ -1,5 +1,47 @@
 //! Scratch directories for the unit tests,
 //! placed beside the build output so no test writes under `/tmp`.
+//! It also holds the one walk a guard reads this crate's sources through,
+//! `source_tree_files`,
+//! because the crate root's code lines are at their limit (`rust/max-lines`,
+//! 300):
+//! a module declared in `src/lib.rs` would put the root over it,
+//! which is the same reason `fixture_root_taking_any_name` lives here.
+
+/// What:
+/// `mod source_tree_files;` declares the one walk a guard reads this crate's sources through:
+/// every regular file below a folder,
+/// each once,
+/// and never through a symbolic link.
+/// Why:
+/// The guards of this crate read the sources with it,
+/// and `AGENTS.md` rules `LYD`,
+/// `LYL` and `LYF` put a `uses/` folder of links in a crate's source folders,
+/// so a walk that followed a link would read one file once per chain of links above it
+/// (measured for the wrapper package on 2026-11-27,
+/// issue 6580:
+/// 165,978 entries and 163,498 `.rs` names where the tree holds 4,234 entries and 3,905 Rust sources).
+/// It sits under this module because the crate root is at its code-line limit,
+/// and it is a test's support rather than a tool the binary runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // test-scratch/source-tree-files.ts, imported by the guards that read the sources
+/// ```
+pub(crate) mod source_tree_files;
+/// What:
+/// `mod source_tree_files_tests;` declares the control of that walk:
+/// a folder link is never entered,
+/// a file link is never read as a file of its own,
+/// and a folder this user may not read is an error.
+/// Why:
+/// This crate's `src` holds no link on 2026-11-27,
+/// so the control is what holds the rule for the guards that read the sources.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // test-scratch/source-tree-files.unit.test.ts
+/// ```
+mod source_tree_files_tests;
 
 /// What:
 /// `mod fixture_root_taking_any_name;` declares the question whether this fixture root takes a name that is not UTF-8,
