@@ -1318,7 +1318,7 @@ fn the_client_speaks_through_zbus_and_no_longer_writes_the_wire_itself() {
     let stale: Vec<String> = entries_that_match_nothing(holding.as_slice(), MAY_HOLD);
     assert!(
         stale.is_empty(),
-        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        "an entry names a line that no longer holds its text, so the list can only shrink:\n{}",
         stale.join("\n")
     );
     let client: &(String, String) = sources

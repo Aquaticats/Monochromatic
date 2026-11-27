@@ -364,6 +364,7 @@ const SPELLINGS_OF_A_LINK: &[&str] = &[
     "let _ = std::os::unix::fs::hard_link::<_, _>(from, to);",
     "let f = std::fs::hard_link;",
     "use std::fs::hard_link as make_link;",
+    "use std::fs::{hard_link as make_link};",
     "let _ = rustix::fs::linkat(rustix::fs::CWD, from, rustix::fs::CWD, to, rustix::fs::AtFlags::empty());",
 ];
 

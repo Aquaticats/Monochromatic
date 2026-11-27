@@ -195,8 +195,9 @@ pub(crate) fn lines_holding_one_of(
 ///  once for each call it spells.
 ///  A call is spelled as its bare name (`symlink(`),
 ///  as the last segment of a path (`fs::symlink`),
-///  or with its types written out (`symlink::<`,
-///  `),
+///  with its types written out,
+///  a turbofish between the name and its `(`,
+///  or as the name a rename takes (`symlink as make_link`),
 ///  and it is read only where no byte of a longer name touches the name.
 /// Why:
 ///  A ban on a call has to fail on every spelling of it in one line,
@@ -207,8 +208,10 @@ pub(crate) fn lines_holding_one_of(
 ///  So the path's last segment is a finding too:
 ///  a rename's import (`use std::os::unix::fs::symlink as make_link;`) and a function taken as a value
 ///  (`let f = std::os::unix::fs::symlink;`) spell the path,
-///  while the call they then make (`make_link(a,
-///  b)`) cannot be told from any other call.
+///  while the call they then make (`make_link(`) cannot be told from any other call,
+///  so the name a rename takes is a spelling of its own:
+///  `use std::os::unix::fs::symlink as make_link;` and
+///  `use std::os::unix::fs::{symlink as make_link};` are both findings.
 ///  The name alone is the tail of names a file may use freely:
 ///  `link` ends `hard_link`,
 ///  `read_link` and `unlink`,
@@ -218,7 +221,8 @@ pub(crate) fn lines_holding_one_of(
 ///  A macro written outside the scope that expands to the call is not read:
 ///  its body is in another file and the call site spells the macro's name,
 ///  so a ban over a scope says that in its top doc.
-///  A glob import (`use super::*;`) puts a name in scope without writing it, and is named there too.
+///  A glob import (`use super::*;`) puts a name in scope without writing it,
+///  and is named there too.
 ///  A call whose name and `(` are split across two lines is not read:
 ///  the scan reads one line at a time.
 pub(crate) fn lines_calling_one_of(
@@ -369,15 +373,19 @@ fn continues_a_name_byte(byte: u8) -> bool {
 /// What:
 ///  `writes_the_call(bytes, start, end)` says whether those bytes write the name as a path's last segment,
 ///  a call with its types written out,
-///  or a call.
+///  a call,
+///  or the name a rename takes.
 /// Why:
-///  The three spellings a line holds are the whole answer:
+///  The four spellings a line holds are the whole answer:
 ///  `::name` is the path a call is made by,
 ///  imported,
 ///  or taken as a value from,
 ///  `name::<` is the call with its types written out,
-///  and `name (` is the call,
-///  with the whitespace Rust allows before its arguments.
+///  `name (` is the call,
+///  with the whitespace Rust allows before its arguments,
+///  and `name as` is the rename a `use` list writes,
+///  in braces or after the path,
+///  which is how a name reaches a call under another name.
 fn writes_the_call(
     bytes: &[u8],
     start: usize,
@@ -395,7 +403,10 @@ fn writes_the_call(
     while at < bytes.len() && bytes[at] == b' ' {
         at += 1;
     }
-    return at < bytes.len() && bytes[at] == b'(';
+    if at < bytes.len() && bytes[at] == b'(' {
+        return true;
+    }
+    return bytes[at..].starts_with(b"as ") || bytes[at..] == b"as"[..];
 }
 
 /// What:
@@ -569,7 +580,9 @@ const SPELLINGS_OF_A_CALL: &[&str] = &[
     "let _ = std::os::unix::fs::symlink(from, to);",
     "let _ = libc::symlink(from, to);",
     "let _ = std::os::unix::fs::symlink::<_, _>(from, to);",
+    "let _ = symlink::<_, _>(from, to);",
     "use std::os::unix::fs::symlink as make_link;",
+    "use std::os::unix::fs::{symlink as make_link};",
     "let f = std::os::unix::fs::symlink;",
     "let _ = std::os::unix::fs::symlink (from, to);",
 ];

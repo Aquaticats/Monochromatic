@@ -33,7 +33,8 @@
 //! and the sentence a refused summary leaves.
 //! The handle is banned by its name where a line spells the call or the path (`std::io::stderr(`,
 //! `io::stderr(`,
-//! `use std::io::stderr as say;`) and where a type position names it (`Stderr`).
+//! `use std::io::stderr as say;`,
+//! `use std::io::{stderr as say};`) and where a type position names it (`Stderr`).
 //! What this ban does not see is a call a macro of another file expands to,
 //! and a name a glob import (`use super::*;`) brings into scope;
 //! a reader checks each of those in a file that adds one.
@@ -249,7 +250,7 @@ fn every_entry_of_the_list_still_excuses_a_line() {
     );
     assert!(
         stale.is_empty(),
-        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        "an entry names a line that no longer holds its text, so the list can only shrink:\n{}",
         stale.join("\n")
     );
 }

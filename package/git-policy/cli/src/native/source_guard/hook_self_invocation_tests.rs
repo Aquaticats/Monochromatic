@@ -32,8 +32,10 @@
 //! and `MAY_HOLD` records each use by the line it is written on and the reason it may.
 //! A link is banned by its name where a line spells it as a call,
 //! as a path's last segment,
-//! or with its types written out,
-//! so a rename's import (`use std::os::unix::fs::symlink as make_link;`) and a function taken as a value
+//! with its types written out,
+//! or as the name a rename takes,
+//! so a rename's import (`use std::os::unix::fs::symlink as make_link;`,
+//! and the braced `use std::os::unix::fs::{symlink as make_link};`) and a function taken as a value
 //! are findings too.
 //! What this ban does not see is a call a macro of another file expands to,
 //! a name a glob import (`use super::*;`) or a type alias brings into scope,
@@ -388,7 +390,7 @@ fn every_entry_of_the_list_still_excuses_a_line() {
     let stale: Vec<String> = entries_that_match_nothing(holding.as_slice(), MAY_HOLD);
     assert!(
         stale.is_empty(),
-        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        "an entry names a line that no longer holds its text, so the list can only shrink:\n{}",
         stale.join("\n")
     );
 }
@@ -459,8 +461,10 @@ const SPELLINGS_OF_A_LINK: &[&str] = &[
     "let _ = std::fs::link(from, to);",
     "let _ = libc::linkat(from, to, at);",
     "let _ = std::os::unix::fs::symlink::<_, _>(from, to);",
+    "let _ = symlink::<_, _>(from, to);",
     "let _ = std::os::unix::fs::symlink (from, to);",
     "use std::os::unix::fs::symlink as make_link;",
+    "use std::os::unix::fs::{symlink as make_link};",
     "let f = std::os::unix::fs::symlink;",
 ];
 

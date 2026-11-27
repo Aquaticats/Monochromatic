@@ -970,6 +970,9 @@ That is what makes a rename's import (`use std::os::unix::fs::symlink as make_li
 value (`let f = std::os::unix::fs::symlink;`) findings:
 the call they then make cannot be told from any other call,
 and the line that brings the name into scope can.
+A `use` list may also write that rename in braces (`use std::os::unix::fs::{symlink as make_link};`),
+where the name follows a brace rather than a path,
+so `name as` is read as a spelling of the call.
 A ban on a name no other use shares is `lines_naming_one_of`,
 which reads it wherever the line writes it,
 so a type in a signature and in a `use` list is a finding too;

@@ -306,7 +306,7 @@ fn the_commit_command_hands_its_waiting_notices_to_this_stream() {
     let stale: Vec<String> = entries_that_match_nothing(held.as_slice(), MAY_HOLD);
     assert!(
         stale.is_empty(),
-        "an entry excuses a file that no longer holds the text, so the list can only shrink:\n{}",
+        "an entry names a line that no longer holds its text, so the list can only shrink:\n{}",
         stale.join("\n")
     );
 }
@@ -414,5 +414,16 @@ fn the_entry_names_the_use_the_stream_s_file_holds() {
         imported.len(),
         1,
         "a rename's import is the line the renamed call leaves visible"
+    );
+    let braced: Vec<(String, String)> = vec![(
+        String::from("landing/a_note.rs"),
+        String::from(
+            "use crate::service::service_client_send_and_wait::{submit_traced as send};\n",
+        ),
+    )];
+    assert_eq!(
+        lines_calling_one_of(braced.as_slice(), &[THE_CALL_THAT_WRITES]).len(),
+        1,
+        "a rename written in braces with the path is a finding too"
     );
 }
