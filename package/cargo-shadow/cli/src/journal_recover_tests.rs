@@ -80,10 +80,13 @@ fn run_recovery(root: &Path) -> Vec<String> {
 /// A journal that crashed while its manifests were being journaled:
 /// snapshots written,
 /// no ready record.
+/// `manifest` is the path the index names,
+/// which is the crate's own `Cargo.toml` except where a case needs another name.
 fn unready_journal_with_manifest(
     root: &Path,
     lock: &str,
     manifest_before: &str,
+    manifest: &Path,
 ) -> PathBuf {
     let transaction = begin(root, &[snapshot(lock)], true).expect("begin");
     drop(transaction);
@@ -93,7 +96,7 @@ fn unready_journal_with_manifest(
         journal.join("manifests.txt"),
         format!(
             "v1\n{CRATE_DIR}\t{}\nend 1\n",
-            crate::journal_transaction::encode_path(&root.join(CRATE_DIR).join("Cargo.toml"))
+            crate::journal_transaction::encode_path(manifest)
         ),
     )
     .expect("manifest index");
@@ -105,7 +108,12 @@ fn unready_journal_with_manifest(
 #[test]
 fn an_unready_journal_whose_manifest_differs_from_its_snapshot_is_kept() {
     let root = repository("same lock", "manifest after");
-    let journal = unready_journal_with_manifest(root.path(), "same lock", "manifest before");
+    let journal = unready_journal_with_manifest(
+        root.path(),
+        "same lock",
+        "manifest before",
+        root.path().join(CRATE_DIR).join("Cargo.toml").as_path(),
+    );
 
     let messages = run_recovery(root.path());
 
@@ -120,7 +128,12 @@ fn an_unready_journal_whose_manifest_differs_from_its_snapshot_is_kept() {
 #[test]
 fn an_unready_journal_that_lost_its_index_but_holds_snapshots_is_kept() {
     let root = repository("same lock", "manifest");
-    let journal = unready_journal_with_manifest(root.path(), "same lock", "manifest");
+    let journal = unready_journal_with_manifest(
+        root.path(),
+        "same lock",
+        "manifest",
+        root.path().join(CRATE_DIR).join("Cargo.toml").as_path(),
+    );
     fs::remove_file(journal.join("index.txt")).expect("lose the index");
 
     let messages = run_recovery(root.path());
@@ -136,7 +149,12 @@ fn an_unready_journal_that_lost_its_index_but_holds_snapshots_is_kept() {
 #[test]
 fn an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable() {
     let root = repository("same lock", "manifest");
-    let journal = unready_journal_with_manifest(root.path(), "same lock", "manifest");
+    let journal = unready_journal_with_manifest(
+        root.path(),
+        "same lock",
+        "manifest",
+        root.path().join(CRATE_DIR).join("Cargo.toml").as_path(),
+    );
     crate::failpoints::arm(crate::failpoints::Point::RecoverDurability);
 
     let messages = run_recovery(root.path());
@@ -155,6 +173,79 @@ fn an_unready_journal_is_kept_when_the_live_files_cannot_be_made_durable() {
     assert!(
         journal.exists(),
         "the durable copy was deleted before the live files were durable: {messages:?}"
+    );
+
+    // Control: the same state without the fault completes, so the retention above is the barrier's and not a refusal of the state.
+    let again = run_recovery(root.path());
+    assert!(
+        !journal.exists(),
+        "the redundant journal was not removed once the barrier succeeded: {again:?}"
+    );
+}
+
+/// Issue 6550:
+/// the live manifest of an unready journal is made durable by the path it really has,
+/// so a manifest whose name is not UTF-8 keeps its journal when that barrier fails.
+/// A recovery that carries the live paths as text asks for a barrier on a name no file has instead:
+/// the file there is skipped as absent,
+/// or a different file is synced where a directory with the name that text spells exists,
+/// and the journal then goes while the live manifest was never made durable,
+/// which is what the extra directory below makes this case report.
+#[test]
+fn an_unready_journal_of_a_manifest_that_is_not_utf8_is_kept_when_that_manifest_cannot_be_made_durable()
+ {
+    use std::os::unix::ffi::OsStringExt;
+    // What:    `in_a_fixture_root_taking_any_name` answers whether this half may make the odd name here, and where the
+    //  file system refuses it, starts this same test again inside a user and mount namespace with a tmpfs at the
+    //  scratch root.
+    // Why: the dataset behind this build folder refuses a name that is not UTF-8 (issue 6550).
+    if !crate::test_scratch::fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
+        crate::test_scratch::scratch_root().as_path(),
+    ) {
+        return;
+    }
+    // What: the bytes of the directory this case's manifest lives in, the last of which starts no character.
+    // Why: the manifest this case is about is the one whose name is not text.
+    let odd_name: &[u8] = b"odd-\xff-dir";
+    let root = repository("same lock", "manifest");
+    // What: `from_vec` builds an operating-system name out of raw bytes.
+    // Why: `Path::join` with a `&str` could not spell this directory.
+    let odd: PathBuf = root
+        .path()
+        .join(std::ffi::OsString::from_vec(odd_name.to_vec()));
+    fs::create_dir_all(&odd).expect("a directory whose name is not UTF-8");
+    let manifest: PathBuf = odd.join("Cargo.toml");
+    fs::write(&manifest, "manifest").expect("the live manifest");
+    // What: the same directory under the name a lossy conversion of those bytes spells, from that same conversion.
+    // Why: a recovery that carried the manifest as text would sync this other file and call the barrier done,
+    //  so the case has to hold one for that recovery to reach its own wrong answer here.
+    let mangled: PathBuf = root
+        .path()
+        .join(String::from_utf8_lossy(odd_name).into_owned());
+    fs::create_dir_all(&mangled).expect("the directory the text of that name spells");
+    fs::write(mangled.join("Cargo.toml"), "manifest").expect("the file there");
+    let journal =
+        unready_journal_with_manifest(root.path(), "same lock", "manifest", manifest.as_path());
+    crate::failpoints::arm_output_file_sync_of(manifest.as_path());
+
+    let messages = run_recovery(root.path());
+
+    // The barrier is armed for the manifest's own bytes, so a recovery that reached it disarmed it.
+    let (file_armed, directory_armed) = crate::failpoints::path_targets_armed();
+    assert!(
+        !file_armed && !directory_armed,
+        "the live manifest's own barrier was never reached, so the recovery asked for a name this file does not have: \
+         {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|message| {
+            return message.contains("could not be made durable");
+        }),
+        "{messages:?}"
+    );
+    assert!(
+        journal.exists(),
+        "the durable copy was deleted before the live manifest was durable: {messages:?}"
     );
 
     // Control: the same state without the fault completes, so the retention above is the barrier's and not a refusal of the state.
@@ -482,7 +573,12 @@ fn an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_rep
         (Point::FinishCleanup, false),
     ] {
         let root = repository("same lock", "manifest");
-        let journal = unready_journal_with_manifest(root.path(), "same lock", "manifest");
+        let journal = unready_journal_with_manifest(
+            root.path(),
+            "same lock",
+            "manifest",
+            root.path().join(CRATE_DIR).join("Cargo.toml").as_path(),
+        );
         arm(fault);
 
         let report = crate::journal::recover_report(

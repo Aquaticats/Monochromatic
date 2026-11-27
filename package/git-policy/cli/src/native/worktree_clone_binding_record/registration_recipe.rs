@@ -25,6 +25,20 @@ use super::registration_removals::{
     remove_the_ref_store,
     remove_the_slot_pointer,
 };
+
+// What: `pub use` of the names a run works from and of the refusal a stopped run
+//       answers, from the file that now holds them.
+// Why: every caller names them at this path, and this file's own run needs the
+//      same two items, so one line serves both.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// export { RecipeRefusal, ToClear } from './registration_removals.ts';
+// ```
+pub use super::registration_removals::{
+    RecipeRefusal,
+    ToClear,
+};
 use crate::fs_beneath::{
     open_directory_at,
     remove_at,
@@ -74,35 +88,6 @@ pub const REMOVAL_STEPS: &[RemovalStep] = &[
 ];
 
 /// What:
-///  The names one recipe run works from,
-///  each a name below a descriptor the caller already holds.
-/// Why:
-///  A path read at the wrong moment names another object,
-///  so the walk never leaves the two pinned parents.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ToClear = { slotParent: fd; slotName: string; slot: string; worktreesParent: fd; registrationName: string; registration: string };
-/// ```
-pub struct ToClear<'a> {
-    /// The `.claude/worktrees` parent's descriptor.
-    pub slot_parent: &'a std::fs::File,
-    /// The slot's own name below that parent,
-    /// and the file the pointer is removed from.
-    pub slot_pointer_name: &'a OsStr,
-    /// The slot's path,
-    /// which the pointer's bytes must name this registration from.
-    pub slot: &'a Path,
-    /// The `worktrees` parent's descriptor.
-    pub worktrees_parent: &'a std::fs::File,
-    /// The registration's name below that parent.
-    pub registration_name: &'a OsStr,
-    /// The registration's path,
-    /// which the slot's pointer must name.
-    pub registration: &'a Path,
-}
-
-/// What:
 ///  The two moments a control may stand at,
 ///  which the design's re-reads require.
 /// Why:
@@ -133,55 +118,6 @@ impl RecipeSeams for NoSeams {
     /// Nothing stands before the lock.
     fn before_the_lock(&mut self) -> std::io::Result<()> {
         return Ok(());
-    }
-}
-
-/// What:
-///  Why a recipe run stopped without finishing.
-/// Why:
-///  Every stop names the name it refused and the way forward,
-///  and nothing it removed is put back:
-///  the row that stands is one the finder still recognises.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Refusal = { message: string };
-/// ```
-#[derive(Debug)]
-pub enum RecipeRefusal {
-    /// The slot's pointer names another registration,
-    /// so it is not this add's to remove.
-    PointerNamesAnother {
-        /// The pointer's words.
-        found: String,
-    },
-    /// A name still stands where the recipe expected an empty registration.
-    EntryLeft {
-        /// The name that stands.
-        name: String,
-    },
-    /// The system refused a call.
-    Io(std::io::Error),
-}
-
-impl RecipeRefusal {
-    /// The sentence a person reads.
-    pub fn message(&self) -> String {
-        return match self {
-            RecipeRefusal::PointerNamesAnother {
-                found,
-            } => format!(
-                "the slot's `.git` holds `{found}` and not this add's registration, so nothing was removed. Ways forward: inspect the registration it names and remove the entry by hand if it is not a worktree."
-            ),
-            RecipeRefusal::EntryLeft {
-                name,
-            } => format!(
-                "the registration still holds `{name}` after the recipe removed the names it knew, so it was not removed. Nothing else was changed. Ways forward: inspect the entry, remove what it is once you know, and run the command again."
-            ),
-            RecipeRefusal::Io(error) => format!(
-                "a removal was refused ({error}), so the recipe stopped at that name and changed nothing else. Ways forward: fix the refusal and run the command again."
-            ),
-        };
     }
 }
 

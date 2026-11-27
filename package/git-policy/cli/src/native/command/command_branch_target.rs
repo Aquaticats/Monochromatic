@@ -37,15 +37,15 @@ use crate::command_checkout_table::{
     STAGE,
     TRACK,
 };
-use crate::command_options::{
-    Boundary,
-    ParsedOptions,
-};
 use crate::command_options_query::{
     is_enabled,
     is_stated,
     last_occurrence,
     positional_tokens,
+};
+use crate::command_options_types::{
+    Boundary,
+    ParsedOptions,
 };
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;

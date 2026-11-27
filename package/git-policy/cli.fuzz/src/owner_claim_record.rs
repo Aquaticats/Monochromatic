@@ -9,7 +9,7 @@
 //! lets a second command work on the item another one holds;
 //! a claim read as nobody's lets recovery take a live command's item.
 //! The decoder lives in
-//!  `package/git-policy/cli/src/native/lock/single_owner_claim.rs`
+//!  `package/git-policy/cli/src/native/lock/single_owner_claim_record.rs`
 //! and is reached here through its own `decode` and `ClaimRecord`.
 //!
 //! In TS you'd write (pseudocode):
