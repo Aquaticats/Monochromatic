@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:30:36-05:00
+## The state at 2026-11-27T14:04:49-05:00
 
-`main` was `ab3fd39416`.
+`main` was `2f5cc0aeb7`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 243 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 246 more by this time.
 
 ### Rounds running
 
@@ -154,18 +154,65 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (346 folders named `*-scratch` under `~/temp/agent`,
   counted 2026-11-27T13:26);
 - for the wrapper's `0.6.1-alpha.49` behaviour pass,
-  four rounds started 2026-11-27T13:02:42-05:00 from one list,
+  two rounds started 2026-11-27T13:02:42-05:00 from one list still run,
   each named `wrapper-alpha-49-release-pass-` and then:
-  `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`;
-  `every-sentence-that-names-a-process-shows-its-name-safely`;
-  `two-deletions-of-repeated-lines-never-write-back-a-line-a-side-removed`;
-  and `four-small-points-of-the-behaviour-read`;
+  `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`
+  and `four-small-points-of-the-behaviour-read`.
+  The round on process names is merged (`946cbeb0a2`):
+  it found eighteen places that printed a name another program chose with no escape,
+  where the read named five,
+  and each now escapes for what wraps the name in its sentence,
+  parentheses or backticks,
+  through one function;
+  the weaker second escaper is gone,
+  and its masking of a URL's user name stays as its own function;
+  a guard lists the eighteen sentences and fails on a `format!` that reads such a name without the escape.
+  With a program named to close the parenthesis and erase the line,
+  the released alpha.49 printed the name raw in one of two sentences of one wait,
+  and the branch's build escapes it in both.
+  The whole `source_guard` module passed on the pinned tree at `946cbeb0a2`,
+  203 of 203,
+  which is the first run of the three merged rounds' guards together.
+  The round on the merge pass is merged (`739bccb167`):
+  the merge pass no longer writes back a line a side removed when both sides only deleted lines.
+  It refuses an answer that holds more copies of a line than both sides hold,
+  or whose lines are in an order one side does not hold,
+  and keeps both sides between markers.
+  The read's three searches reproduced on `main` to the case
+  (6 of 75,
+  32 of 199 and 47 of 521 resolved answers out of bounds);
+  with the fix 82 of them became conflicts,
+  none moved the other way,
+  and no answer within bounds became a conflict.
+  The three left over are Git's own answers,
+  where no conflict reaches the pass.
+  The cause was the rule's shape:
+  it fired only where one side held the line as often as the base did,
+  and it counted inside the region Git left.
+  No timing was taken;
+  `native:check` passed on the pinned tree after the merge;
 - for the wrapper's `0.6.1-alpha.49` structure pass,
-  two rounds started 2026-11-27T13:05:58-05:00 from one list,
-  each named `wrapper-alpha-49-release-pass-` and then:
-  `the-surface-control-sees-every-shape-of-published-name`
-  and `the-list-guards-ban-every-spelling-and-excuse-uses-not-files`.
-  One whole gate on `main` and then `0.6.1-alpha.50` follow the merges of these six rounds;
+  `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`,
+  started 2026-11-27T13:05:58-05:00.
+  The other round of that pass is merged (`e8d3ba3736`):
+  the hook ban fails on every spelling of a call that makes a link,
+  and on no call that only reads one;
+  an excuse names how many uses of its text its file holds,
+  so a use added to an excused file fails;
+  two guards read a whole folder where they read a name prefix;
+  each guard's top doc says what a file would have to look like to be missed;
+  the package guide holds the rules the two merges brought;
+  and the README says which targets the release builds.
+  Each of the read's plants was first run against the Rust guards on `main`,
+  and each finding held.
+  Two scopes stay open by the round's own account:
+  a link written outside `commit/`,
+  `landing/` and the three named files is no finding,
+  and the commit path's notes guard is chosen by the words a file names.
+  `native:check`,
+  which compiles every target,
+  passed on the pinned tree at `e8d3ba3736`.
+  One whole gate on `main` and then `0.6.1-alpha.50` follow the merges of the five rounds still out;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -185,14 +232,16 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   both reads of it have returned.
-- nothing for `cargo-shadow`:
-  every round of its `0.1.5-alpha.13` pass is merged,
-  and `0.1.5-alpha.14` is released
+- for `cargo-shadow`'s `0.1.5-alpha.14` read,
+  two rounds started 2026-11-27T13:36:24-05:00 from one list,
+  each named `cargo-shadow-alpha-14-release-pass-` and then:
+  `the-retire-gates-new-decision-is-held-through-retire-and-its-words-say-what-was-read`
+  and `the-refusal-says-which-next-run-settles-the-journal-and-the-records-are-exact`;
+  `0.1.5-alpha.15` follows their merges.
+  `0.1.5-alpha.14` is released
   (release commit `8673ec1309`),
   locked (`c652b74260`) and installed,
-  with the session's `git` link put back at 2026-11-27T12:54:30-05:00.
-  A Claude Sonnet read of it runs as a background agent of the coordinating session
-  (`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`).
+  and every round of the `0.1.5-alpha.13` pass is merged.
   The round on the retire's gate is merged (`67103f2285`):
   seven controls,
   each shown red by the edit it guards and reading the real gate through a group directory of its own;
@@ -380,13 +429,51 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
-each a Claude Sonnet read
+One read runs as a background agent of the coordinating session,
+a Claude Sonnet read of `mpm-shadow`'s `0.2.7-alpha.15`
 (same vendor as some of the authors,
-so a second pass and not an independent review):
-`cargo-shadow`'s `0.1.5-alpha.14` and `mpm-shadow`'s `0.2.7-alpha.15`,
-at the paths this section gives beside each release.
-The coordinator rewrites what lasts from each into this file before scratch expires.
+so a second pass and not an independent review),
+at the path this section gives beside that release.
+Its first agent was cut off by a usage limit with twenty transcripts kept and no review written
+(its last write was at 2026-11-27T13:55:43-05:00);
+a second agent,
+started 2026-11-27T14:04:19-05:00,
+checks those transcripts,
+does the items they leave open and writes the review.
+The coordinator rewrites what lasts from it into this file before scratch expires.
+
+What `cargo-shadow`'s alpha.14 read found
+(`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
+no High finding,
+two Medium and ten Low,
+and no decision or output that differs from alpha.13 beyond what the merges name.
+The manager is asked two questions a call in alpha.11,
+alpha.13 and alpha.14 alike,
+over 260 timed calls;
+the cost of a call against alpha.11 had a median ratio of 1.021 for alpha.14
+(0.409 to 2.072 over 20 rounds),
+with a byte-identical copy of alpha.11 as the control at 0.907
+(0.457 to 2.019),
+so the harness tells alpha.14 from neither alpha.13 nor alpha.11.
+Its Medium findings,
+each with a round:
+the refusal says the next run settles the kept journal by itself,
+while a pass-through run such as `cargo fmt --check` and a frozen run under `CI=true` leave it and print nothing
+(shown with a journal a killed run left,
+not with a real refusal);
+and the release's one new decision,
+a `pids.peak` read that fails because the group's directory went away,
+is held only at its helper,
+so putting alpha.13's behaviour back would pass every test
+(argued from the test files;
+the round applies the edit once to settle it).
+Its Low findings are sentences that say more than was read
+(two warnings of the retire gate,
+four sentences of the README,
+one of which gives a ratio outside its own control's range),
+two controls that stay green under named edits,
+and a state outside these merges:
+a scope that does not exist yet may be read as collected and its unit left loaded in silence.
 
 What the linter's alpha.20 read found
 (`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`):

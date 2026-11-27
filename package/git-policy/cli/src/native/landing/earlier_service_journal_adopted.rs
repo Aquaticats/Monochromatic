@@ -120,6 +120,13 @@ use crate::service_land::{
     recover_instance_without_drops,
 };
 use crate::service_timing::log_entry;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the backticks that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::transaction_git::GitContext;
 /// How long that look may take.
 use crate::wait_ceilings::PROCESS_LOOK_CEILING;
@@ -297,10 +304,19 @@ pub fn hold_on_earlier_helper(
 /// its process,
 /// the program,
 /// the journal folder it names and why the folder was not resolved.
-fn program_note(program: &UnsureProgram) -> String {
+pub(crate) fn program_note(program: &UnsureProgram) -> String {
     return format!(
         " (process {}, program `{}`, journal folder `{}`: {}; its other arguments are not logged)",
-        program.pid, program.program, program.journal_word, program.reason
+        program.pid,
+        shown_so_it_cannot_rewrite_the_line(
+            program.program.as_str(),
+            TheWrappingAroundTheName::Backticks
+        ),
+        shown_so_it_cannot_rewrite_the_line(
+            program.journal_word.as_str(),
+            TheWrappingAroundTheName::Backticks
+        ),
+        program.reason
     );
 }
 

@@ -1048,3 +1048,83 @@ fn a_held_batch_the_command_finishes_is_named_in_its_output() {
     );
     remove(world.root.as_path());
 }
+
+/// What:
+///  The sentences that name the program behind a hold whose `--journal` folder could not be resolved.
+/// Why:
+///  Both names in them are another program's text (its command line),
+///  so a backtick inside either would end the backticks that show it,
+///  and an escape or a line break would move the cursor or start a line of the message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unsureProgramSentences(holding({ program: 'x` FORGED\u001b[2K', journalWord: 'y` z\nsecond' }));
+/// ```
+#[test]
+fn a_name_that_would_end_the_backticks_cannot_rewrite_the_unsure_program_sentences() {
+    let holding: crate::earlier_service_process_look_answers::Holding =
+        crate::earlier_service_process_look_answers::Holding {
+            because: Hold::HelperUnsure,
+            program: Some(UnsureProgram {
+                pid: 42,
+                program: String::from("x` FORGED\u{1b}[2K"),
+                journal_word: String::from("y` z\nsecond line"),
+                journal_word_is_relative: false,
+                reason: String::from("No such file or directory (os error 2)"),
+            }),
+            unreadable: None,
+        };
+    let sentences: String = unsure_program_sentences(&holding);
+    assert!(
+        sentences.contains("running `x\\` FORGED\\u{1b}[2K` (its other arguments are not shown"),
+        "{sentences:?}"
+    );
+    assert!(
+        sentences
+            .contains("`--journal` option names, `y\\` z\\nsecond line`, and the system answered"),
+        "{sentences:?}"
+    );
+    assert_eq!(
+        sentences.matches('\n').count(),
+        0,
+        "the message stays one line: {sentences:?}"
+    );
+}
+
+/// What:
+///  The sentence that names the process whose command line could not be read,
+///  by the name the kernel keeps for it.
+/// Why:
+///  The name comes from `/proc/<pid>/comm`,
+///  which the program sets to any bytes it likes,
+///  so a backtick in it would end the backticks that show it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unreadableProcessSentences(holding({ unreadable: { pid: 42, program: 'x` FORGED\u001b[2K', reason: 'denied' } }));
+/// ```
+#[test]
+fn a_name_that_would_end_the_backticks_cannot_rewrite_the_unreadable_process_sentence() {
+    let holding: crate::earlier_service_process_look_answers::Holding =
+        crate::earlier_service_process_look_answers::Holding {
+            because: Hold::CannotLook,
+            program: None,
+            unreadable: Some(
+                crate::earlier_service_command_line_read::UnreadableProcess {
+                    pid: 42,
+                    program: String::from("x` FORGED\u{1b}[2K"),
+                    reason: String::from("Permission denied (os error 13)"),
+                },
+            ),
+        };
+    let sentences: String = unreadable_process_sentences(&holding);
+    assert!(
+        sentences.contains("which the kernel calls `x\\` FORGED\\u{1b}[2K`"),
+        "{sentences:?}"
+    );
+    assert_eq!(
+        sentences.matches('\n').count(),
+        0,
+        "the message stays one line: {sentences:?}"
+    );
+}

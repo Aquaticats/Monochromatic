@@ -34,17 +34,40 @@ use crate::index_lock_evidence_words::{
     unproven_wait_line,
 };
 use crate::service_index_found::open_by_text;
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use std::path::Path;
 use std::time::Duration;
 
-/// The words for the process holding the lock,
-/// from the evidence Git's lock leaves.
+/// What:
+///  The holder a service's answer names,
+///  from the evidence Git's lock leaves:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///  The name is the one the program chose for itself (`/proc/<pid>/comm`),
+///  and a person reads it to find what holds the lock:
+///  an escape in it would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = (pid, command) => `Process ${pid} (${shownSoItCannotRewriteTheLine(command, TheWrappingAroundTheName.Parentheses)})`;
+/// ```
 pub(crate) fn holder_words(
     pid: i64,
     command: Option<&str>,
 ) -> String {
     return match command {
-        Some(name) => format!("Process {pid} ({name})"),
+        Some(name) => format!(
+            "Process {pid} ({})",
+            shown_so_it_cannot_rewrite_the_line(name, TheWrappingAroundTheName::Parentheses)
+        ),
         None => format!("Process {pid}"),
     };
 }
@@ -207,3 +230,8 @@ pub(crate) fn look_at_holder(
         },
     };
 }
+
+/// Controls of the holder field stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_holder_look_tests.rs"]
+mod tests;

@@ -27,6 +27,13 @@ use crate::service_index_identity::{
     holder_state,
     marker_of,
 };
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use std::path::Path;
 use std::time::{
     Duration,
@@ -96,7 +103,8 @@ fn state_word(state: HolderState) -> &'static str {
 /// never its arguments or its environment,
 /// which can hold a token;
 /// the scan reads nothing else,
-/// and the description is quoted when it is written into a line.
+/// and each name is escaped for the parentheses and the list it is written into,
+/// so a name cannot end them or add an entry of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,7 +118,14 @@ pub fn open_by_text(seen: Option<&HolderEvidence>) -> Option<String> {
     let mut names: Vec<String> = Vec::new();
     for holder in holders.iter() {
         names.push(match holder.command.as_ref() {
-            Some(command) => format!("{} ({command})", holder.pid),
+            Some(command) => format!(
+                "{} ({})",
+                holder.pid,
+                shown_so_it_cannot_rewrite_the_line(
+                    command.as_str(),
+                    TheWrappingAroundTheName::Parentheses
+                )
+            ),
             None => holder.pid.to_string(),
         });
     }
@@ -174,3 +189,8 @@ pub fn describe_lock(lock: &Path) -> String {
         None => format!("foreign no-marker size={} age_ms={age_ms}", metadata.len()),
     };
 }
+
+/// Controls of the open-by field stay out of the release executable.
+#[cfg(test)]
+#[path = "service_index_found_tests.rs"]
+mod tests;

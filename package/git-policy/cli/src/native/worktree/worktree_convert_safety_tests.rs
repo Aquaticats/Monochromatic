@@ -1235,3 +1235,80 @@ fn a_journal_write_sweeps_the_temporary_file_of_a_killed_conversion() {
     let root: PathBuf = admin.parent().expect("root").to_path_buf();
     remove(root.as_path());
 }
+
+/// What:
+///  A name another program chose for a process that is working inside a tree a conversion would destroy:
+///  a closing parenthesis that would end the parentheses around it,
+///  an escape that would erase the line,
+///  a line break that would start a line this program never wrote,
+///  and a right-to-left override that would reorder it.
+/// Why:
+///  Every refusal and every line of a conversion that names such a process shows the name the kernel keeps
+///  (`/proc/<pid>/comm`),
+///  which the program sets to any bytes it likes,
+///  so one list of shapes keeps the three controls below on the same text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NAME_A_PROGRAM_CHOSE = 'x) FORGED\u001b[2K\n\u202e';
+/// const SHOWN_NAME = 'x\\) FORGED\\u{1b}[2K\\n\\u{202e}';
+/// ```
+const NAME_A_PROGRAM_CHOSE: &str = "x) FORGED\u{1b}[2K\n\u{202e}";
+
+/// The name `NAME_A_PROGRAM_CHOSE` as a sentence shows it.
+const SHOWN_NAME: &str = "x\\) FORGED\\u{1b}[2K\\n\\u{202e}";
+
+/// The refusal of a swap names a process still using the worktree,
+/// and the name it got back cannot end the parentheses around it or start a line.
+#[test]
+fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_swap_refusal() {
+    let line: String = crate::worktree_convert_swap_and_removal::a_process_using_the_worktree_line(
+        4242,
+        Some(NAME_A_PROGRAM_CHOSE),
+    );
+    assert_eq!(
+        line,
+        format!("process 4242 ({SHOWN_NAME}) is using the worktree")
+    );
+    assert_eq!(line.matches('\n').count(), 0, "{line:?}");
+}
+
+/// The line that keeps the converted tree for a process still inside it
+/// names that process the same way.
+#[test]
+fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_removal_line() {
+    let line: String =
+        crate::worktree_convert_swap_and_removal::a_process_in_the_converted_tree_line(
+            4242,
+            Some(NAME_A_PROGRAM_CHOSE),
+        );
+    assert_eq!(line, format!("process 4242 ({SHOWN_NAME})"));
+    assert_eq!(line.matches('\n').count(), 0, "{line:?}");
+}
+
+/// The refusal of a conversion names a process working inside the tree,
+/// and the name it got back cannot end the parentheses around it or start a line.
+#[test]
+fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_conversion_refusal() {
+    let line: String = crate::worktree_convert_inspection::a_process_inside_the_tree_refusal(
+        4242,
+        Some(NAME_A_PROGRAM_CHOSE),
+    );
+    assert_eq!(
+        line,
+        format!("process 4242 ({SHOWN_NAME}) has its working directory or an open file inside it")
+    );
+    assert_eq!(line.matches('\n').count(), 0, "{line:?}");
+}
+
+/// The line that keeps a stage or an abandoned tree for a process inside it
+/// names that process the same way.
+#[test]
+fn a_name_that_would_end_the_parentheses_cannot_rewrite_the_abandon_line() {
+    let line: String = crate::worktree_convert_abandon::a_process_inside_the_directory_line(
+        4242,
+        Some(NAME_A_PROGRAM_CHOSE),
+    );
+    assert_eq!(line, format!("process 4242 ({SHOWN_NAME})"));
+    assert_eq!(line.matches('\n').count(), 0, "{line:?}");
+}
