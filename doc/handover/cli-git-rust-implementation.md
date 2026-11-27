@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:48:40-05:00
+## The state at 2026-11-27T12:53:14-05:00
 
-`main` was `9ea0d98dda`.
+`main` was `239b91c5ee`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 234 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 237 more by this time.
 
 ### Rounds running
 
@@ -125,28 +125,22 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- nothing for the wrapper package's lint,
-  which is clean on `main` and whose issue 6581 is closed ("What the rounds found").
-  Its rounds left three sets of shared guest-step helpers,
+- `issue-6612-the-guest-drivers-share-one-set-of-helpers`,
+  started 2026-11-27T12:52:40-05:00:
+  the lint rounds of issue 6581 left three sets of shared guest-step helpers,
   `bin/guest-route-*.ts`,
   `bin/mvm-guest-*.ts` and `e2e/guest-host/`,
-  which issue 6612 joins into one.
-  No round holds it yet:
-  it touches every guest driver,
-  so it starts when issue 6611's round,
-  which holds the managed-lock driver,
-  has merged.
+  and this round joins them into one,
+  runs every driver's main step in its guest,
+  runs the three start-probe arms nobody ran after the rewrite,
+  narrows the managed-lock driver's build to the target its arm runs,
+  and measures whether two build jobs fit the three guests that use two.
   Issue 6615
   (the adoption driver's holder-scan arm cannot run twice in one guest,
   and its `snapdir` arm's pattern matches any character where it means a dot)
-  starts after issue 6612;
-- for what part 2's report left,
-  `issue-6611-managed-lock-guest-driver-builds-within-its-guests-memory`
-  (the driver's build at four jobs is killed in its 8 GiB guest,
-  so its arm has not run on the current tree;
-  it and the Sanoid driver also get a `mise` task each),
-  started 2026-11-27T11:40:23-05:00.
-  Its two siblings are merged ("What the rounds found");
+  has no round:
+  it changes a driver this round moves,
+  so it starts when this round has merged;
 - `issue-6617-a-typescript-check-prints-the-commit-it-ran-on`,
   started 2026-11-27T12:44:52-05:00
   (`native:ts-checks` prints no commit when started inside the package folder,
@@ -175,10 +169,20 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   two reads of it run.
-- for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  one round started 2026-11-27T12:00:02-05:00,
-  `cargo-shadow-alpha-13-release-pass-the-retire-gates-fallback-and-its-words-are-held-by-controls`;
-  `0.1.5-alpha.14` follows its merge.
+- nothing for `cargo-shadow`:
+  every round of its `0.1.5-alpha.13` pass is merged and `0.1.5-alpha.14` is released
+  (release commit `8673ec1309`,
+  started 2026-11-27T12:50,
+  to be locked,
+  installed and read by a Claude Sonnet pass once published).
+  The round on the retire's gate is merged (`67103f2285`):
+  seven controls,
+  each shown red by the edit it guards and reading the real gate through a group directory of its own;
+  a group without `pids.peak` is asked about once,
+  and the README names the kernel that file came in;
+  the warning says only what was read;
+  the comment beside the reap grace says what the code polls;
+  and the README and the troubleshooting file say the manager can lose the notification an ordinary run relies on.
   The round on the refusal's listing is merged (`cf3210724e`):
   the last leftover a stop can report reaches the refusal's decision in a control that rests on no race;
   a branch no input could reach is gone;
@@ -1093,6 +1097,25 @@ and the two `truepeak` files wait on their branch.
   because only the first ends a role in the recorder.
   No real gate has run on it yet:
   the next whole gate is its first.
+- The managed-lock guest driver builds within its guest and its arm ran to its end (`239b91c5ee`,
+  issue 6611):
+  at four jobs the guest's kernel killed a `rustc` at 6.67 GiB of resident memory in an 8 GiB guest with no swap;
+  at one job with the 6 GiB swap file the sibling drivers add,
+  the build's peak was 7,019,956 kB of 8,131,780 kB,
+  with 7,216 kB of swap used,
+  in 22 minutes;
+  the arm printed its 15 markers and passed.
+  The driver and the Sanoid driver each have a `mise` task
+  (`e2e:managed-git-lock`,
+  `e2e:sanoid-coverage`),
+  and the readings are under `doc/planning/mvm-guest-memory-held-for-a-rounds-life-evidence/`.
+- Since 2026-11-27T12:49 a hook another session merged (`88632f16aa`,
+  the owner's "Clamp + prefix (Recommended)") moves a main-session Bash command that runs past two seconds to the background,
+  and its result arrives as a task notification;
+  `doc/planning/claude-code-bash-caller-timeout-cap.md` holds the design and the probes.
+  A wait loop is started with `run_in_background: true`,
+  and a step that depends on a merge or a commit is issued after that command's notification,
+  never beside it.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
