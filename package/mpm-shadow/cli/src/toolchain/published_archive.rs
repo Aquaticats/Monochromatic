@@ -29,12 +29,6 @@
 
 /// Imports `Ordering` from `std::cmp`.
 use std::cmp::Ordering;
-/// Imports `BTreeMap`
-/// and `BTreeSet` from `std::collections`.
-use std::collections::{
-    BTreeMap,
-    BTreeSet,
-};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `ErrorKind` from `std::io`.
@@ -45,15 +39,6 @@ use std::path::{
     PathBuf,
 };
 
-/// Imports `serde_json::Value`,
-/// the shape a lock's text is read as when only a few fields matter.
-use serde_json::Value;
-
-/// Imports what this module uses from `crate::constants`.
-use crate::constants::{
-    OWN_CRATE_PREFIX,
-    OWN_REPOSITORY_SOURCE,
-};
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 
@@ -72,68 +57,27 @@ use super::layout::{
     tool_downloads_dir,
     tool_install_dir,
 };
-/// Imports what this module uses from `super::model`.
-use super::model::{
-    LockedTool,
-    Request,
-    Route,
-};
-/// Imports `PresentVersion` from `super::prune_cargo`.
-use super::prune_cargo::PresentVersion;
-/// Imports the name checks from `super::segment`.
-use super::segment::{
-    check_bin_name,
-    check_tool_id,
-    check_version,
-};
+/// Imports `LockedTool` from `super::model`.
+use super::model::LockedTool;
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
-/// Whether a tag prefix starts the way every release tag of this repository does.
-fn starts_with_own_crate_prefix(prefix: &str) -> bool {
-    return prefix.starts_with(OWN_CRATE_PREFIX);
-}
+/// The archive tools one lock names,
+/// their present versions and the prune's plan.
+mod what_a_lock_names;
+/// What counts as a release archive of this repository.
+mod what_counts_as_a_release_of_this_repository;
 
-/// Whether a request source and a tag prefix name releases of this repository:
-/// the source is `OWN_REPOSITORY_SOURCE` apart from letter case
-/// (GitHub owner and repository names are case-insensitive,
-/// and the names are ASCII),
-/// and the prefix starts with `monochromatic-`.
-fn names_own_releases(
-    request_source: &str,
-    tag_prefix: Option<&str>,
-) -> bool {
-    return request_source.eq_ignore_ascii_case(OWN_REPOSITORY_SOURCE)
-        && tag_prefix.is_some_and(starts_with_own_crate_prefix);
-}
-
-/// What:
-/// Whether a tool is an archive-route tool published by this repository:
-/// the `archive` route,
-/// a request for `github:Aquaticats/Monochromatic` (in any letter case),
-/// and an `options.tagPrefix` that starts with `monochromatic-`.
-/// Why:
-/// The tag prefix is what names one program's releases in this repository's many tags,
-/// and this repository tags every program it publishes that way (`OWN_CRATE_PREFIX`,
-/// the rule that already marks its crates),
-/// so the plan needs no second list that could drift from the releases.
-/// The prefix alone would also match a tool of another repository that happens to start its tags the same way,
-/// and the owner's rule ("no older repo-maintained tools") is about this repository's tools,
-/// so the request has to name this repository too.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function isPublishedArchive(tool: LockedTool): boolean
-/// ```
-pub fn is_published_archive(tool: &LockedTool) -> bool {
-    if tool.declaration.route != Route::Archive {
-        return false;
-    }
-    return names_own_releases(
-        &tool.declaration.request.source,
-        tool.declaration.options.tag_prefix.as_deref(),
-    );
-}
+/// Re-exports the lock reading,
+/// the present versions and the prune's plan.
+pub use self::what_a_lock_names::{
+    NamedArchive,
+    named_archives,
+    plan_archive_prune,
+    present_archive_versions,
+};
+/// Re-exports the check for a release archive of this repository.
+pub use self::what_counts_as_a_release_of_this_repository::is_published_archive;
 
 /// `<toolchain root>/<tool id>/current`;
 /// refuses an id that is not one plain directory name.
@@ -351,175 +295,4 @@ pub fn remove_older_archives(
         removed.push(directory);
     }
     return Ok(removed);
-}
-
-/// One archive-route repository-published tool a lock names:
-/// the versions it pins and the program that shows an install finished.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct NamedArchive {
-    /// Versions some known lock pins for the tool.
-    pub versions: BTreeSet<String>,
-    /// The tool's first declared bin.
-    pub first_bin: String,
-}
-
-/// The `options.tagPrefix` of a lock entry.
-fn tag_prefix_of(entry: &Value) -> Option<&str> {
-    let options: &Value = entry.get("options")?;
-    return options.get("tagPrefix")?.as_str();
-}
-
-/// The first declared bin of a lock entry.
-fn first_bin_of(entry: &Value) -> Option<&str> {
-    let bins: &Vec<Value> = entry.get("bins")?.as_array()?;
-    return bins.first()?.as_str();
-}
-
-/// What:
-/// The archive-route repository-published tools one lock names,
-/// by tool id,
-/// read from its JSON text without decoding the rest of the model.
-/// A tool whose id,
-/// version or first bin is not one plain directory name refuses the whole read,
-/// naming `origin` (the lock's path) and the entry.
-/// Why:
-/// Other worktrees may sit on a commit whose lock is in an older format;
-/// such a lock has no `options.tagPrefix` and names no archive tool,
-/// which is the safe reading for a cleanup.
-/// A lock that names a repository release under an id like `..` is not an older format but a crafted one,
-/// and the id would be joined onto the toolchain root and listed and deleted from,
-/// so the cleanup stops instead of judging it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function namedArchives(lockText: string, origin: string): Map<string, NamedArchive>  // throws
-/// ```
-pub fn named_archives(
-    lock_text: &str,
-    origin: &str,
-) -> Result<BTreeMap<String, NamedArchive>, ToolchainError> {
-    let mut named: BTreeMap<String, NamedArchive> = BTreeMap::new();
-    let Ok(lock) = serde_json::from_str::<Value>(lock_text) else {
-        return Ok(named);
-    };
-    let Some(tools) = lock.get("tools").and_then(Value::as_object) else {
-        return Ok(named);
-    };
-    for (id, entry) in tools {
-        if entry.get("route").and_then(Value::as_str) != Some("archive") {
-            continue;
-        }
-        let source: String = match entry
-            .get("request")
-            .and_then(Value::as_str)
-            .map(Request::parse)
-        {
-            Some(Ok(request)) => request.source,
-            _ => String::new(),
-        };
-        let own: bool = names_own_releases(&source, tag_prefix_of(entry));
-        let Some(version) = entry.get("version").and_then(Value::as_str) else {
-            continue;
-        };
-        if !own {
-            continue;
-        }
-        // A tool that declares no bin finishes on its marker alone; its first bin is the empty name.
-        let first_bin: &str = first_bin_of(entry).unwrap_or("");
-        let bin_check: Result<(), String> = if first_bin.is_empty() {
-            Ok(())
-        } else {
-            check_bin_name(first_bin)
-        };
-        for checked in [check_tool_id(id), check_version(version), bin_check] {
-            if let Err(message) = checked {
-                return Err(ToolchainError::failure(format!(
-                    "{origin} names a release archive that cannot be judged safely, so nothing was deleted; tools.{id}: {message}"
-                )));
-            }
-        }
-        let slot: &mut NamedArchive = named.entry(id.clone()).or_default();
-        slot.versions.insert(version.to_string());
-        slot.first_bin = first_bin.to_string();
-    }
-    return Ok(named);
-}
-
-/// What:
-/// The version directories under each named tool's directory,
-/// with whether each finished.
-/// Why:
-/// Only tools some known lock names as repository-published are looked at:
-/// an archive directory nothing names is never judged,
-/// because its owner cannot be told from a third-party tool's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function presentArchiveVersions(root: string, named: Map<string, NamedArchive>): Map<string, PresentVersion[]>
-/// ```
-pub fn present_archive_versions(
-    toolchain_root: &Path,
-    named: &BTreeMap<String, NamedArchive>,
-) -> BTreeMap<String, Vec<PresentVersion>> {
-    let mut present: BTreeMap<String, Vec<PresentVersion>> = BTreeMap::new();
-    for (id, archive) in named {
-        let mut found: Vec<PresentVersion> = Vec::new();
-        for version in version_names(toolchain_root, id) {
-            let Ok(directory) = tool_install_dir(toolchain_root, id, &version) else {
-                continue;
-            };
-            let finished: bool = is_finished(&directory, &archive.first_bin);
-            found.push(PresentVersion {
-                version,
-                finished,
-            });
-        }
-        if !found.is_empty() {
-            present.insert(id.clone(), found);
-        }
-    }
-    return present;
-}
-
-/// What:
-/// The `(tool id, version)` pairs of repository-published archive tools to delete:
-/// everything older than the newest finished version;
-/// when no version finished,
-/// nothing.
-/// Why:
-/// Pure over plain maps,
-/// so tests feed it allowed and rejected cases without a file system.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function planArchivePrune(present: Map<string, PresentVersion[]>): [string, string][]
-/// ```
-pub fn plan_archive_prune(
-    present: &BTreeMap<String, Vec<PresentVersion>>
-) -> Vec<(String, String)> {
-    let mut removals: Vec<(String, String)> = Vec::new();
-    for (id, versions) in present {
-        let mut newest: Option<&str> = None;
-        for candidate in versions {
-            if !candidate.finished {
-                continue;
-            }
-            let is_newer: bool = match newest {
-                Some(kept) => compare_versions(&candidate.version, kept).is_gt(),
-                None => true,
-            };
-            if is_newer {
-                newest = Some(&candidate.version);
-            }
-        }
-        let Some(kept) = newest else {
-            continue;
-        };
-        for candidate in versions {
-            if compare_versions(&candidate.version, kept).is_lt() {
-                removals.push((id.clone(), candidate.version.clone()));
-            }
-        }
-    }
-    return removals;
 }

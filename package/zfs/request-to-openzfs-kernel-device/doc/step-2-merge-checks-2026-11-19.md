@@ -28,6 +28,9 @@ brief that asked for the run,
 which is
 `/home/user/temp/agent/zfs-step-2-integration-pass-findings-fixed-2026-11-19/keep/round-evidence/`,
 and this file cites them by name.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## The gate image and its checks
 
@@ -125,6 +128,9 @@ taken between
 2026-11-20T01:16:38-05:00,
 with the linter's own reruns after them,
 whose times `container-checks-summary.log` holds.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 - nextest exits 0,
   `178 tests run: 178 passed, 30 skipped`;

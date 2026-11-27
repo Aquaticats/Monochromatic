@@ -19,6 +19,20 @@
 //! ```
 
 /// What:
+/// `use crate::registry::{Registry, sparse_index_path};` imports the trait this file implements and the index path of one crate.
+/// Why:
+/// The answers are the trait's methods,
+/// and the sparse index address is built from that path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Registry, sparse_index_path } from 'crate/registry';
+/// ```
+use super::{
+    Registry,
+    sparse_index_path,
+};
+/// What:
 /// `use crate::dump::fill_histories_from_dump;` imports the one streaming pass over the database dump.
 /// Why:
 /// It fills the cache for every uncached crate at once,
@@ -55,20 +69,6 @@ use crate::http::{
 /// import { VersionRecord } from 'crate/policy';
 /// ```
 use crate::policy::VersionRecord;
-/// What:
-/// `use crate::registry::{Registry, sparse_index_path};` imports the trait this file implements and the index path of one crate.
-/// Why:
-/// The answers are the trait's methods,
-/// and the sparse index address is built from that path.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Registry, sparse_index_path } from 'crate/registry';
-/// ```
-use crate::registry::{
-    Registry,
-    sparse_index_path,
-};
 /// What:
 /// `use crate::registry_record_reading::{history_to_json, parse_index_pubtimes, parse_index_yanked, parse_owner_ids, parse_version_history, read_cached_history};`
 /// imports the readers of the answers this file fetches and the one writer of the cache file.

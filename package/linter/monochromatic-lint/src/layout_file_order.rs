@@ -255,9 +255,9 @@ fn list_findings(
     let mut findings: Vec<LayoutFinding> = Vec::<LayoutFinding>::new();
     // The line a missing entry is reported on: the marker, or the first doc line when there is no list at all.
     let list_line: usize = doc.marker_line.unwrap_or(doc.first_line);
+    // The marker broken after its comma, which is where the Markdown rule breaks it, and where both helps below write it.
+    let (head, tail) = LIST_MARKER.split_once(", ").unwrap_or((LIST_MARKER, ""));
     if doc.marker_line.is_none() {
-        // The help shows the marker broken after its comma, which is where the Markdown rule breaks it.
-        let (head, tail) = LIST_MARKER.split_once(", ").unwrap_or((LIST_MARKER, ""));
         findings.push(LayoutFinding {
             file: index.to_path_buf(),
             line: doc.first_line,
@@ -269,6 +269,30 @@ fn list_findings(
                 "Add the two lines `//! {head},` and `//! {tail}` to the top doc, so the marker is wrapped where the Markdown rule `markdown/semantic-line-breaks` breaks it (it may wrap at any other word too), then one line `//! - `name.rs`: what it does` per file, each file after the files it uses."
             )),
             key: format!("no-file-list {}", key_path(index, base)),
+        });
+    }
+    // A doc that spells the marker nearly is read as having no list at all.
+    // One finding for each such place names the doc, the line, the words found and the marker expected,
+    // so the person fixing it sees the cause, where the missing-list finding and every missing entry name only its effects.
+    for near in &doc.near_misses {
+        // What: where the words sit, naming both lines when a paragraph break splits them.
+        // Why: the finding itself points at the one line the words start on, and the message spells out the rest.
+        let place: String = match near.continues_at {
+            Some(second) => format!("line {} and line {second}", near.line),
+            None => format!("line {}", near.line),
+        };
+        findings.push(LayoutFinding {
+            file: index.to_path_buf(),
+            line: near.line,
+            message: format!(
+                "The top doc of {} nearly spells the file-list marker at {place}: it reads `{}` where the marker is `{LIST_MARKER}`, so the list after that text is read as no list at all.",
+                shown(index, base),
+                near.text
+            ),
+            help: Some(format!(
+                "Write the marker's words exactly: `//! {head},` then `//! {tail}` on the next line, which is where the Markdown rule `markdown/semantic-line-breaks` breaks it, with no blank line, plain comment or inner attribute inside it."
+            )),
+            key: format!("near-miss-marker {}", key_path(index, base)),
         });
     }
     // A doc with no list still owes the reader one, so every unlisted file is reported on its own:

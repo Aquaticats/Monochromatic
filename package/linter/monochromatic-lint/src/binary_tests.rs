@@ -4405,6 +4405,50 @@ fn run_with_its_printed_keys(
     return (keys, second);
 }
 
+/// A top doc that spells the marker nearly reports a finding of its own,
+///  and the keys the run prints are the lines the list reads back.
+#[test]
+fn layout_the_printed_keys_tolerate_a_near_miss_marker() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FILE_RULES);
+    fixture.write(
+        "src/lib.rs",
+        "//! Files in this folder,\n//! each using only the files listed before it:\n//! - `one.rs`: one.\nmod one;\n",
+    );
+    fixture.write("src/one.rs", "");
+    fixture.write("file.txt", "");
+    let reported: Run = run(&fixture.path, &["src"], b"");
+    assert_eq!(reported.status, 1, "{}", reported.stderr);
+    for part in [
+        "nearly spells the file-list marker at line 1",
+        "Files in this folder, each using only the files listed before it:",
+    ] {
+        assert!(
+            reported.stdout.contains(part),
+            "{part} missing in {}",
+            reported.stdout
+        );
+    }
+    // The keys the run printed are the list's lines, and the next run reports nothing.
+    let (keys, held): (Vec<String>, Run) = run_with_its_printed_keys(&fixture, "file.txt");
+    assert!(
+        keys.iter()
+            .any(|key| return key == "near-miss-marker src/lib.rs"),
+        "{keys:?}"
+    );
+    assert_eq!(
+        (held.status, held.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        held.stdout,
+        held.stderr
+    );
+}
+
 /// A deterministic stand-in for a random generator,
 ///  so a control over many generated packages builds the same packages on every run.
 struct Rolls {

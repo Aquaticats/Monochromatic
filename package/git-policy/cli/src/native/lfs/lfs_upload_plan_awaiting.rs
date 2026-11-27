@@ -26,15 +26,6 @@ use crate::lfs_destination_confirms_tracking_refs::{
     DestinationHeads,
     tracking_refs_confirmed_by_awaiting,
 };
-use crate::lfs_upload_plan::{
-    Source,
-    UploadPlan,
-    directory_of,
-    lfs_server_of,
-    names_of,
-    refspec_source,
-    star_split,
-};
 /// What the arguments and the configuration decide before Git is asked anything.
 use crate::lfs_upload_plan_arguments::{
     Destinations,
@@ -48,6 +39,19 @@ use crate::lfs_upload_plan_arguments::{
     the_plan,
     unique_refs,
     uploads_nothing,
+};
+/// The server the upload is connected to.
+use crate::lfs_upload_plan_destination::lfs_server_of;
+/// What an upload sends.
+use crate::lfs_upload_plan_itself::UploadPlan;
+/// One refspec's source,
+/// and the refs and places a spec names.
+use crate::lfs_upload_refspecs::{
+    Source,
+    directory_of,
+    names_of,
+    refspec_source,
+    star_split,
 };
 /// The configuration the plan reads.
 use crate::lfs_upload_settings::{

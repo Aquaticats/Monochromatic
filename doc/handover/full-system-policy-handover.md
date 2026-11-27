@@ -489,6 +489,9 @@ all 570 repo manifests,
 and all 24,756 tracked repo files.
 Complete private JSON reports are retained under
 `/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/keep/installed-system-and-repo-inventory/`.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## Remaining work
 
