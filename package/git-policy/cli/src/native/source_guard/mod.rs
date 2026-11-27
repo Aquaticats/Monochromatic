@@ -137,6 +137,14 @@ mod no_control_reads_the_preparation_steps_in_the_run_tests;
 #[path = "no_control_reads_the_commit_ledgers_in_the_run_tests.rs"]
 mod no_control_reads_the_commit_ledgers_in_the_run_tests;
 
+/// The ban on a control folding one earlier log twice in the process the run holds:
+/// the fold's journal lock is dropped as the fold answers,
+/// so such a control starts a child of its own first,
+/// which forks nothing while the lock is held.
+#[cfg(test)]
+#[path = "no_control_folds_a_log_twice_in_the_run_tests.rs"]
+mod no_control_folds_a_log_twice_in_the_run_tests;
+
 /// The ban on a control recording,
 /// preparing or reading the service's stop in the process the run holds:
 /// such a control starts a child of its own first,

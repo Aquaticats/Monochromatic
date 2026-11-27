@@ -1,11 +1,30 @@
 //! Controls for the fold of an earlier log into the current log,
 //! each in its own disposable folder.
+//!
+//! A control here that folds one log twice runs its body in a child of its own:
+//! the fold takes the journal's `flock` for one fold and drops it as it answers,
+//! so the second fold takes that one lock again,
+//! and a fork copies every open descriptor while the lock lasts until every copy of the open file description is
+//! closed.
+//! A child another test's thread forked while the lock was held keeps it after the control closed its own,
+//! so beside its neighbours the second fold answers `LogFold::Busy` where the control asserts `LogFold::Folded`
+//! (measured on 2026-11-27 for issue 6602:
+//! `left: Busy right: Folded` in a threaded run of ten modules,
+//! and `ok. 17 passed` for the module alone).
+//! The writer of the earlier log that a control keeps open across two folds is copied the same way,
+//! and the fold reads the copy as a program still holding the moved log open,
+//! so it leaves the fold for a later command where that control expects `Folded`.
+//! `source_guard/no_control_folds_a_log_twice_in_the_run_tests.rs` refuses a control that folds twice without the
+//! child.
 
 use super::*;
 use crate::earlier_log_lines_journal_held_and_recorded::{
     journal_text,
     parse_journal,
 };
+/// Starting a control's body in a child of its own,
+/// for the controls whose subject is the one lock of a fold.
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
 /// Writing the lines a straggling program adds to a log.
 use std::io::Write;
@@ -98,22 +117,36 @@ fn assert_clean(root: &Path) {
 /// the moved log and the journal are gone.
 #[test]
 fn the_earlier_logs_bytes_end_the_current_log_and_nothing_is_left() {
-    let root: PathBuf = fixture("appends");
-    plant(root.as_path());
-    let done: LogFold =
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold");
-    assert_eq!(done, LogFold::Folded);
-    assert_eq!(
-        current_text(root.as_path()),
-        format!("{CURRENT_LINES}{EARLIER_LINES}")
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why), so beside its
+    //  neighbours this control's second fold answered `Busy` where it asserts `Folded` (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "the_earlier_logs_bytes_end_the_current_log_and_nothing_is_left", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_earlier_logs_bytes_end_the_current_log_and_nothing_is_left",
+        || {
+            let root: PathBuf = fixture("appends");
+            plant(root.as_path());
+            let done: LogFold =
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold");
+            assert_eq!(done, LogFold::Folded);
+            assert_eq!(
+                current_text(root.as_path()),
+                format!("{CURRENT_LINES}{EARLIER_LINES}")
+            );
+            assert_clean(root.as_path());
+            assert_eq!(
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("again"),
+                LogFold::Nothing,
+                "a second fold has nothing to do"
+            );
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+        },
     );
-    assert_clean(root.as_path());
-    assert_eq!(
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("again"),
-        LogFold::Nothing,
-        "a second fold has nothing to do"
-    );
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// A last line without a newline gets one,
@@ -138,7 +171,7 @@ fn a_last_line_without_a_newline_is_ended_before_the_next_begins() {
 /// each line of both logs is in the current log exactly once.
 #[test]
 fn a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line() {
-    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line",
         || {
@@ -190,38 +223,52 @@ fn a_kill_at_any_step_then_a_second_fold_loses_and_repeats_no_line() {
 ///  the earlier bytes once.
 #[test]
 fn a_line_appended_between_the_kill_and_the_restart_stays() {
-    let root: PathBuf = fixture("append-between");
-    plant(root.as_path());
-    let stopped: LogFold = fold_log(
-        root.as_path(),
-        COMMIT_TIMING_LOG,
-        &mut StopAfter {
-            limit: 4,
-            seen: 0,
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why), so beside its
+    //  neighbours this control's second fold answered `Busy` where it asserts `Folded` (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "a_line_appended_between_the_kill_and_the_restart_stays", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_appended_between_the_kill_and_the_restart_stays",
+        || {
+            let root: PathBuf = fixture("append-between");
+            plant(root.as_path());
+            let stopped: LogFold = fold_log(
+                root.as_path(),
+                COMMIT_TIMING_LOG,
+                &mut StopAfter {
+                    limit: 4,
+                    seen: 0,
+                },
+            )
+            .expect("first");
+            assert!(matches!(stopped, LogFold::Stopped(_)), "{stopped:?}");
+            let mut log = std::fs::OpenOptions::new()
+                .append(true)
+                .open(root.join(COMMIT_TIMING_LOG.current))
+                .expect("current log");
+            log.write_all(b"{\"from\":\"another program\"}\n")
+                .expect("their line");
+            fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
+            let text: String = current_text(root.as_path());
+            assert_eq!(text.matches("another program").count(), 1, "{text}");
+            assert_eq!(
+                text.matches("\"from\":\"earlier\",\"n\":2").count(),
+                1,
+                "{text}"
+            );
+            assert_eq!(
+                text.matches("\"from\":\"earlier\",\"n\":1").count(),
+                2,
+                "one in each log: {text}"
+            );
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
         },
-    )
-    .expect("first");
-    assert!(matches!(stopped, LogFold::Stopped(_)), "{stopped:?}");
-    let mut log = std::fs::OpenOptions::new()
-        .append(true)
-        .open(root.join(COMMIT_TIMING_LOG.current))
-        .expect("current log");
-    log.write_all(b"{\"from\":\"another program\"}\n")
-        .expect("their line");
-    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
-    let text: String = current_text(root.as_path());
-    assert_eq!(text.matches("another program").count(), 1, "{text}");
-    assert_eq!(
-        text.matches("\"from\":\"earlier\",\"n\":2").count(),
-        1,
-        "{text}"
     );
-    assert_eq!(
-        text.matches("\"from\":\"earlier\",\"n\":1").count(),
-        2,
-        "one in each log: {text}"
-    );
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// A line that a program with the moved log still open adds after the move is added too.
@@ -281,31 +328,45 @@ const LATE_LINE: &[u8] = b"{\"time\":\"2026-11-07T10:00:00.000Z\",\"from\":\"lat
 /// the fold never removes a log a writer still holds open.
 #[test]
 fn a_line_written_after_the_last_size_check_by_a_writer_that_opened_before_the_move_is_not_lost() {
-    let root: PathBuf = fixture("late-writer");
-    plant(root.as_path());
-    let log = std::fs::OpenOptions::new()
-        .append(true)
-        .open(root.join(COMMIT_TIMING_LOG.earlier))
-        .expect("earlier log opened by the writer");
-    let mut writer: LateWriterWithTheLogOpen = LateWriterWithTheLogOpen {
-        log,
-        line: LATE_LINE,
-        wrote: false,
-    };
-    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut writer).expect("first fold");
-    assert!(
-        writer.wrote,
-        "the control reached the step after the last size check"
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why), so beside its
+    //  neighbours this control's second fold answered `Busy` where it asserts `Folded` (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "a_line_written_after_the_last_size_check_by_a_writer_that_opened_before_the_move_is_not_lost", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_line_written_after_the_last_size_check_by_a_writer_that_opened_before_the_move_is_not_lost",
+        || {
+            let root: PathBuf = fixture("late-writer");
+            plant(root.as_path());
+            let log = std::fs::OpenOptions::new()
+                .append(true)
+                .open(root.join(COMMIT_TIMING_LOG.earlier))
+                .expect("earlier log opened by the writer");
+            let mut writer: LateWriterWithTheLogOpen = LateWriterWithTheLogOpen {
+                log,
+                line: LATE_LINE,
+                wrote: false,
+            };
+            fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut writer).expect("first fold");
+            assert!(
+                writer.wrote,
+                "the control reached the step after the last size check"
+            );
+            drop(writer);
+            fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                .expect("fold after the writer closed the file");
+            let text: String = current_text(root.as_path());
+            let late: &str = std::str::from_utf8(LATE_LINE).expect("text");
+            assert_eq!(text.matches(late).count(), 1, "{text}");
+            assert!(text.starts_with(CURRENT_LINES), "{text}");
+            assert_clean(root.as_path());
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+        },
     );
-    drop(writer);
-    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
-        .expect("fold after the writer closed the file");
-    let text: String = current_text(root.as_path());
-    let late: &str = std::str::from_utf8(LATE_LINE).expect("text");
-    assert_eq!(text.matches(late).count(), 1, "{text}");
-    assert!(text.starts_with(CURRENT_LINES), "{text}");
-    assert_clean(root.as_path());
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// The next append of the current log rotated it after the kill:
@@ -314,33 +375,47 @@ fn a_line_written_after_the_last_size_check_by_a_writer_that_opened_before_the_m
 ///  add them again.
 #[test]
 fn bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again() {
-    let root: PathBuf = fixture("rotated");
-    plant(root.as_path());
-    let stopped: LogFold = fold_log(
-        root.as_path(),
-        COMMIT_TIMING_LOG,
-        &mut StopAfter {
-            limit: 5,
-            seen: 0,
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why), so beside its
+    //  neighbours this control's second fold answered `Busy` where it asserts `Folded` (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again",
+        || {
+            let root: PathBuf = fixture("rotated");
+            plant(root.as_path());
+            let stopped: LogFold = fold_log(
+                root.as_path(),
+                COMMIT_TIMING_LOG,
+                &mut StopAfter {
+                    limit: 5,
+                    seen: 0,
+                },
+            )
+            .expect("first");
+            assert!(
+                matches!(stopped, LogFold::Stopped("before-remove-moved-log")),
+                "{stopped:?}"
+            );
+            let current: PathBuf = root.join(COMMIT_TIMING_LOG.current);
+            let rotated: String = format!("{}.1", COMMIT_TIMING_LOG.current);
+            std::fs::rename(current.as_path(), root.join(rotated.as_str())).expect("rotation");
+            std::fs::write(current.as_path(), "fresh line\n").expect("fresh log");
+            fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
+            assert_eq!(current_text(root.as_path()), "fresh line\n");
+            assert_eq!(
+                std::fs::read_to_string(root.join(rotated.as_str())).expect("older copy"),
+                format!("{CURRENT_LINES}{EARLIER_LINES}")
+            );
+            assert_clean(root.as_path());
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
         },
-    )
-    .expect("first");
-    assert!(
-        matches!(stopped, LogFold::Stopped("before-remove-moved-log")),
-        "{stopped:?}"
     );
-    let current: PathBuf = root.join(COMMIT_TIMING_LOG.current);
-    let rotated: String = format!("{}.1", COMMIT_TIMING_LOG.current);
-    std::fs::rename(current.as_path(), root.join(rotated.as_str())).expect("rotation");
-    std::fs::write(current.as_path(), "fresh line\n").expect("fresh log");
-    fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second");
-    assert_eq!(current_text(root.as_path()), "fresh line\n");
-    assert_eq!(
-        std::fs::read_to_string(root.join(rotated.as_str())).expect("older copy"),
-        format!("{CURRENT_LINES}{EARLIER_LINES}")
-    );
-    assert_clean(root.as_path());
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// Another process holds the journal's lock:
@@ -356,7 +431,7 @@ fn bytes_already_added_and_rotated_into_an_older_copy_are_not_added_again() {
 #[cfg(unix)]
 #[test]
 fn a_fold_that_another_process_holds_is_left_alone() {
-    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_fold_that_another_process_holds_is_left_alone",
         || {
@@ -518,53 +593,70 @@ fn journal_path(root: &Path) -> PathBuf {
 /// and nothing is reported as folded.
 #[test]
 fn a_writer_still_open_at_the_end_leaves_the_moved_log_and_the_journal_and_adds_the_lines_once() {
-    let root: PathBuf = fixture("writer-stays-open");
-    plant(root.as_path());
-    let writer = std::fs::OpenOptions::new()
-        .append(true)
-        .open(root.join(COMMIT_TIMING_LOG.earlier))
-        .expect("writer");
-    let left: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
-        .expect("fold with the writer open");
-    assert_eq!(left, LogFold::LeftForALaterCommand);
-    assert_eq!(
-        current_text(root.as_path()),
-        format!("{CURRENT_LINES}{EARLIER_LINES}")
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why), and this control
+    //  keeps a writer of the earlier log open across three folds, whose descriptor every fork copies as well (issue
+    //  6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "a_writer_still_open_at_the_end_leaves_the_moved_log_and_the_journal_and_adds_the_lines_once", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_writer_still_open_at_the_end_leaves_the_moved_log_and_the_journal_and_adds_the_lines_once",
+        || {
+            let root: PathBuf = fixture("writer-stays-open");
+            plant(root.as_path());
+            let writer = std::fs::OpenOptions::new()
+                .append(true)
+                .open(root.join(COMMIT_TIMING_LOG.earlier))
+                .expect("writer");
+            let left: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                .expect("fold with the writer open");
+            assert_eq!(left, LogFold::LeftForALaterCommand);
+            assert_eq!(
+                current_text(root.as_path()),
+                format!("{CURRENT_LINES}{EARLIER_LINES}")
+            );
+            assert_eq!(
+                std::fs::read_to_string(waiting_path(root.as_path())).expect("moved log"),
+                EARLIER_LINES
+            );
+            let journal: String =
+                std::fs::read_to_string(journal_path(root.as_path())).expect("journal");
+            let end: u64 = EARLIER_LINES.len() as u64;
+            assert_eq!(
+                parse_journal(journal.as_str()).map(|round| return (round.from, round.to)),
+                Some((end, end)),
+                "{journal}"
+            );
+            let again: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                .expect("second fold with the writer open");
+            assert_eq!(again, LogFold::LeftForALaterCommand);
+            assert_eq!(
+                std::fs::read_to_string(journal_path(root.as_path())).expect("journal"),
+                journal,
+                "a second command with no growth adds no journal line"
+            );
+            assert_eq!(
+                current_text(root.as_path()),
+                format!("{CURRENT_LINES}{EARLIER_LINES}")
+            );
+            drop(writer);
+            assert_eq!(
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                    .expect("fold after close"),
+                LogFold::Folded
+            );
+            assert_eq!(
+                current_text(root.as_path()),
+                format!("{CURRENT_LINES}{EARLIER_LINES}")
+            );
+            assert_clean(root.as_path());
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+        },
     );
-    assert_eq!(
-        std::fs::read_to_string(waiting_path(root.as_path())).expect("moved log"),
-        EARLIER_LINES
-    );
-    let journal: String = std::fs::read_to_string(journal_path(root.as_path())).expect("journal");
-    let end: u64 = EARLIER_LINES.len() as u64;
-    assert_eq!(
-        parse_journal(journal.as_str()).map(|round| return (round.from, round.to)),
-        Some((end, end)),
-        "{journal}"
-    );
-    let again: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
-        .expect("second fold with the writer open");
-    assert_eq!(again, LogFold::LeftForALaterCommand);
-    assert_eq!(
-        std::fs::read_to_string(journal_path(root.as_path())).expect("journal"),
-        journal,
-        "a second command with no growth adds no journal line"
-    );
-    assert_eq!(
-        current_text(root.as_path()),
-        format!("{CURRENT_LINES}{EARLIER_LINES}")
-    );
-    drop(writer);
-    assert_eq!(
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold after close"),
-        LogFold::Folded
-    );
-    assert_eq!(
-        current_text(root.as_path()),
-        format!("{CURRENT_LINES}{EARLIER_LINES}")
-    );
-    assert_clean(root.as_path());
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// A writer that keeps the log open across several commands and adds lines between them:
@@ -574,34 +666,50 @@ fn a_writer_still_open_at_the_end_leaves_the_moved_log_and_the_journal_and_adds_
 /// when the writer finally closes.
 #[test]
 fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
-    let root: PathBuf = fixture("writer-between-commands");
-    plant(root.as_path());
-    let mut writer = std::fs::OpenOptions::new()
-        .append(true)
-        .open(root.join(COMMIT_TIMING_LOG.earlier))
-        .expect("writer");
-    let lines: [&str; 3] = [
-        "{\"from\":\"writer\",\"n\":1}\n",
-        "{\"from\":\"writer\",\"n\":2}\n",
-        "{\"from\":\"writer\",\"n\":3}\n",
-    ];
-    let mut expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}");
-    for line in lines {
-        let left: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
-            .expect("fold with the writer open");
-        assert_eq!(left, LogFold::LeftForALaterCommand);
-        assert_eq!(current_text(root.as_path()), expected);
-        writer.write_all(line.as_bytes()).expect("writer's line");
-        expected.push_str(line);
-    }
-    drop(writer);
-    assert_eq!(
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("fold after close"),
-        LogFold::Folded
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why), and this control
+    //  keeps a writer of the earlier log open across four folds, whose descriptor every fork copies as well (issue
+    //  6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "a_writer_that_adds_lines_between_commands_has_each_line_added_once", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_writer_that_adds_lines_between_commands_has_each_line_added_once",
+        || {
+            let root: PathBuf = fixture("writer-between-commands");
+            plant(root.as_path());
+            let mut writer = std::fs::OpenOptions::new()
+                .append(true)
+                .open(root.join(COMMIT_TIMING_LOG.earlier))
+                .expect("writer");
+            let lines: [&str; 3] = [
+                "{\"from\":\"writer\",\"n\":1}\n",
+                "{\"from\":\"writer\",\"n\":2}\n",
+                "{\"from\":\"writer\",\"n\":3}\n",
+            ];
+            let mut expected: String = format!("{CURRENT_LINES}{EARLIER_LINES}");
+            for line in lines {
+                let left: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                    .expect("fold with the writer open");
+                assert_eq!(left, LogFold::LeftForALaterCommand);
+                assert_eq!(current_text(root.as_path()), expected);
+                writer.write_all(line.as_bytes()).expect("writer's line");
+                expected.push_str(line);
+            }
+            drop(writer);
+            assert_eq!(
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                    .expect("fold after close"),
+                LogFold::Folded
+            );
+            assert_eq!(current_text(root.as_path()), expected);
+            assert_clean(root.as_path());
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+        },
     );
-    assert_eq!(current_text(root.as_path()), expected);
-    assert_clean(root.as_path());
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// A kill at every step of a fold that a writer keeps open,
@@ -611,7 +719,7 @@ fn a_writer_that_adds_lines_between_commands_has_each_line_added_once() {
 /// each line is in the current log once.
 #[test]
 fn a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line() {
-    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+    run_the_body_in_a_child_of_its_own(
         module_path!(),
         "a_kill_at_any_step_with_a_writer_open_then_later_folds_loses_and_repeats_no_line",
         || {
@@ -689,62 +797,79 @@ fn a_reader_of_the_earlier_log_does_not_keep_the_fold_from_finishing() {
 #[test]
 fn a_moved_log_that_keeps_growing_ends_the_command_at_the_round_bound_and_the_next_command_finishes()
  {
-    /// Adds a line to the moved log after every append,
-    /// then closes it again.
-    struct GrowsEveryRound {
-        /// The moved log.
-        waiting: PathBuf,
-        /// How many lines were added.
-        added: usize,
-    }
-    impl FoldSteps for GrowsEveryRound {
-        fn may_continue(
-            &mut self,
-            step: &'static str,
-        ) -> bool {
-            if step == "after-append" {
-                self.added += 1;
-                let mut log = std::fs::OpenOptions::new()
-                    .append(true)
-                    .open(self.waiting.as_path())
-                    .expect("moved log");
-                log.write_all(format!("{{\"from\":\"grower\",\"n\":{}}}\n", self.added).as_bytes())
-                    .expect("grower line");
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why): this control's
+    //  first fold holds it for eight rounds and drops it, and the second fold then answered `Busy` where the control
+    //  asserts `Folded` in a threaded run of ten modules (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "a_moved_log_that_keeps_growing_ends_the_command_at_the_round_bound_and_the_next_command_finishes", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_moved_log_that_keeps_growing_ends_the_command_at_the_round_bound_and_the_next_command_finishes",
+        || {
+            /// Adds a line to the moved log after every append,
+            /// then closes it again.
+            struct GrowsEveryRound {
+                /// The moved log.
+                waiting: PathBuf,
+                /// How many lines were added.
+                added: usize,
             }
-            return true;
-        }
-    }
-    let root: PathBuf = fixture("keeps-growing");
-    plant(root.as_path());
-    let mut grower: GrowsEveryRound = GrowsEveryRound {
-        waiting: waiting_path(root.as_path()),
-        added: 0,
-    };
-    let left: LogFold =
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut grower).expect("bounded fold");
-    assert_eq!(left, LogFold::LeftForALaterCommand);
-    assert_eq!(
-        grower.added, ROUNDS_PER_COMMAND,
-        "one added line per round, and no round past the bound"
+            impl FoldSteps for GrowsEveryRound {
+                fn may_continue(
+                    &mut self,
+                    step: &'static str,
+                ) -> bool {
+                    if step == "after-append" {
+                        self.added += 1;
+                        let mut log = std::fs::OpenOptions::new()
+                            .append(true)
+                            .open(self.waiting.as_path())
+                            .expect("moved log");
+                        log.write_all(
+                            format!("{{\"from\":\"grower\",\"n\":{}}}\n", self.added).as_bytes(),
+                        )
+                        .expect("grower line");
+                    }
+                    return true;
+                }
+            }
+            let root: PathBuf = fixture("keeps-growing");
+            plant(root.as_path());
+            let mut grower: GrowsEveryRound = GrowsEveryRound {
+                waiting: waiting_path(root.as_path()),
+                added: 0,
+            };
+            let left: LogFold =
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut grower).expect("bounded fold");
+            assert_eq!(left, LogFold::LeftForALaterCommand);
+            assert_eq!(
+                grower.added, ROUNDS_PER_COMMAND,
+                "one added line per round, and no round past the bound"
+            );
+            let finished: LogFold = fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped)
+                .expect("next command");
+            assert_eq!(finished, LogFold::Folded);
+            let text: String = current_text(root.as_path());
+            assert!(
+                text.starts_with(format!("{CURRENT_LINES}{EARLIER_LINES}").as_str()),
+                "{text}"
+            );
+            for number in 1..=grower.added {
+                assert_eq!(
+                    text.matches(format!("\"grower\",\"n\":{number}}}\n").as_str())
+                        .count(),
+                    1,
+                    "line {number}: {text}"
+                );
+            }
+            assert_clean(root.as_path());
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
+        },
     );
-    let finished: LogFold =
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("next command");
-    assert_eq!(finished, LogFold::Folded);
-    let text: String = current_text(root.as_path());
-    assert!(
-        text.starts_with(format!("{CURRENT_LINES}{EARLIER_LINES}").as_str()),
-        "{text}"
-    );
-    for number in 1..=grower.added {
-        assert_eq!(
-            text.matches(format!("\"grower\",\"n\":{number}}}\n").as_str())
-                .count(),
-            1,
-            "line {number}: {text}"
-        );
-    }
-    assert_clean(root.as_path());
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
 
 /// A journal left by a finished fold,
@@ -754,37 +879,52 @@ fn a_moved_log_that_keeps_growing_ends_the_command_at_the_round_bound_and_the_ne
 /// which would skip the bytes before it.
 #[test]
 fn a_stale_journal_is_not_resumed_against_a_new_moved_log() {
-    let root: PathBuf = fixture("stale-journal");
-    plant(root.as_path());
-    let stale: Round = Round {
-        offset: 1,
-        from: 40,
-        to: 40,
-    };
-    std::fs::write(journal_path(root.as_path()), journal_text(stale)).expect("stale journal");
-    // Steps: the journal lock, the journal's clearing, the move, then the stop at the record that follows the move.
-    let stopped: LogFold = fold_log(
-        root.as_path(),
-        COMMIT_TIMING_LOG,
-        &mut StopAfter {
-            limit: 3,
-            seen: 0,
+    // What:     the body runs in a child of this test binary that holds this one test, and the parent never runs it.
+    // Why:      the journal's `flock` is a fact of the whole process (this file's top doc says why), so beside its
+    //  neighbours this control's second fold answered `Busy` where it asserts `Folded` (issue 6602).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyInAChildOfItsOwn(module_path!(), "a_stale_journal_is_not_resumed_against_a_new_moved_log", () => { ...the body... });
+    // ```
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_stale_journal_is_not_resumed_against_a_new_moved_log",
+        || {
+            let root: PathBuf = fixture("stale-journal");
+            plant(root.as_path());
+            let stale: Round = Round {
+                offset: 1,
+                from: 40,
+                to: 40,
+            };
+            std::fs::write(journal_path(root.as_path()), journal_text(stale))
+                .expect("stale journal");
+            // Steps: the journal lock, the journal's clearing, the move, then the stop at the record that follows the move.
+            let stopped: LogFold = fold_log(
+                root.as_path(),
+                COMMIT_TIMING_LOG,
+                &mut StopAfter {
+                    limit: 3,
+                    seen: 0,
+                },
+            )
+            .expect("first");
+            assert_eq!(stopped, LogFold::Stopped("before-journal-record"));
+            assert!(
+                waiting_path(root.as_path()).exists(),
+                "the kill came after the move"
+            );
+            assert_eq!(
+                fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second"),
+                LogFold::Folded
+            );
+            assert_eq!(
+                current_text(root.as_path()),
+                format!("{CURRENT_LINES}{EARLIER_LINES}")
+            );
+            assert_clean(root.as_path());
+            std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
         },
-    )
-    .expect("first");
-    assert_eq!(stopped, LogFold::Stopped("before-journal-record"));
-    assert!(
-        waiting_path(root.as_path()).exists(),
-        "the kill came after the move"
     );
-    assert_eq!(
-        fold_log(root.as_path(), COMMIT_TIMING_LOG, &mut NeverStopped).expect("second"),
-        LogFold::Folded
-    );
-    assert_eq!(
-        current_text(root.as_path()),
-        format!("{CURRENT_LINES}{EARLIER_LINES}")
-    );
-    assert_clean(root.as_path());
-    std::fs::remove_dir_all(root.as_path()).expect("remove only the fixture");
 }
