@@ -167,6 +167,10 @@
 //!   after the second pass resolved every conflicted file.
 //! - `merge_second_pass_git_runner.rs`:
 //!   how the word-level second pass starts Git.
+//! - `merge_second_pass_stage_line_places.rs`:
+//!   where a run of lines sits in one stage of a file:
+//!   the byte offset of a line's text at or after a place,
+//!   and the lines counted between two places.
 //! - `merge_second_pass_line_regions.rs`:
 //!   the line merge Git makes for a conflicted file,
 //!   cut into the text it settled and the regions it left.
@@ -269,6 +273,11 @@ pub mod word_merge_invented_text;
 /// which of them the word pass may re-merge,
 /// and the lines that list each merged part.
 pub mod merge_second_pass;
+
+/// Where a run of lines sits in one stage of a file:
+/// the byte offset of a line's text at or after a place,
+/// and the lines counted between two places.
+pub mod merge_second_pass_stage_line_places;
 
 /// The line merge Git makes for a conflicted file,
 /// cut into the text it settled and the regions it
