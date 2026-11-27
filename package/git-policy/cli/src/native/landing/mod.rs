@@ -224,6 +224,10 @@
 //! - `service_prepare_own_git_steps.rs`:
 //!   the two Git steps a service preparation starts itself,
 //!   with the face a task of the runtime asks.
+//! - `service_pruned_tree_closures.rs`:
+//!   whether a tree, a tree below it or a blob in any of them is gone from the object store,
+//!   for every root of a batch,
+//!   and what that walk cost.
 //! - `service_pruned.rs`:
 //!   how a commit headed for the service notices that its prepared content was removed before it landed.
 //! - `service_replay_capture_order.rs`:
@@ -1176,6 +1180,11 @@ pub mod service_head;
 /// What a commit Git built adds to the branch,
 /// answered from the object store without starting Git.
 pub mod service_built_checks;
+
+/// Whether a tree, a tree below it or a blob in any of them is gone from the object store,
+/// for every root of a batch,
+/// and what that walk cost.
+pub mod service_pruned_tree_closures;
 
 /// How a commit headed for the service notices that its prepared content was removed before it landed.
 pub mod service_pruned;
