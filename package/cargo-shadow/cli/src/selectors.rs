@@ -168,3 +168,21 @@ pub fn prune_selectors(
     }
     return kept;
 }
+
+/// What:
+/// `#[cfg(test)] mod selectors_tests;` declares the tests in `src/selectors_tests.rs`;
+/// the attribute compiles it only for test builds (a TS test file that production code never imports).
+/// Why:
+/// Its header says:
+/// "The unit tests of the selector syntax,"
+/// so the behavior of `selectors` is pinned where a change shows up as a red test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // selectors_tests.test.ts, run by the test runner only
+/// ```
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "selectors_tests.rs"]
+mod selectors_tests;

@@ -540,3 +540,10 @@ pub fn identities_of_existing(paths: &[PathBuf]) -> Vec<Identity> {
     }
     return found;
 }
+
+/// The tests of the process scan and of what it cannot read.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_proc_scan_tests.rs"]
+mod lean_proc_scan_tests;

@@ -2,7 +2,7 @@
 //! Whether a control's fixture root takes a name that is not valid UTF-8,
 //! and the re-execution that puts the control on a tmpfs where the root refuses such a name.
 //! Why:
-//! `journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
+//! `journal::journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` makes a directory whose name is not UTF-8,
 //! and a file system may refuse that name:
 //! the dataset behind this crate's build folder does,
 //! under `utf8only=on`,
@@ -361,7 +361,7 @@ fn mount_a_tmpfs(root: &Path) {
 /// What:
 /// The name this test runs under,
 /// as the runner gave it:
-/// `journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` and the like.
+/// `journal::journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly` and the like.
 /// Why:
 /// The child is started for exactly this test,
 /// so the name comes from the running thread instead of a second copy of it in the source,

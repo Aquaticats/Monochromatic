@@ -627,7 +627,7 @@ fn the_record_sync_is_given_to_the_kernel_after_the_write() {
         .args([
             "--ignored",
             "--exact",
-            "bounded_run_tests::record_sync_fixture",
+            "bounded_run::bounded_run_tests::record_sync_fixture",
             "--nocapture",
         ])
         .env(FIXTURE_RECORD_FILE, &record)

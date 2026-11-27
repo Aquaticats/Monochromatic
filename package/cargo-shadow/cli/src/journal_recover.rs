@@ -343,3 +343,10 @@ fn recover_messages(
     }
     return messages;
 }
+
+/// The round 6 tests of the recovery of unready journals and of the ready record.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "journal_recover_tests.rs"]
+mod journal_recover_tests;
