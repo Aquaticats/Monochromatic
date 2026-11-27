@@ -44,10 +44,6 @@ use crate::discard_audit::{
 use crate::discarded_nested_repository::set_nested_repositories_aside;
 /// The limits of the folder of saved copies.
 use crate::discarded_prune::Limits;
-use crate::policy_checks::{
-    clean,
-    rejected,
-};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
@@ -64,6 +60,11 @@ use crate::rule_linked_worktree_nested_repository_messages::{
     NotSaved,
     nested_repository_not_saved_message,
     saved_nested_repository_notice,
+};
+/// Two of the three endings every check shares.
+use crate::the_answers_a_policy_gives::{
+    clean,
+    rejected,
 };
 /// The Git directories of an identity,
 ///  for naming the place saved copies live and the worktree the paths are below.

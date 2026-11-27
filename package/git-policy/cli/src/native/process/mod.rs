@@ -29,6 +29,9 @@
 //!   process start times for lock owners,
 //!   read from `/proc`,
 //!   `ps` or the Windows process table.
+//! - `process_tree_thread_child_lists.rs`:
+//!   the process numbers below one process,
+//!   read from the kernel's per-thread child lists.
 //! - `process_tree.rs`:
 //!   the processes below one process,
 //!   read before it is stopped and signalled only while they are still the ones found.
@@ -119,6 +122,11 @@
 //!   the wait for a step a ceiling stopped and the kernel has not released:
 //!   the reap of that step,
 //!   and the line that says it for as long as the wait lasts.
+//! - `waiting_for_a_step_the_kernel_holds.rs`:
+//!   the wait for a step the kernel holds in a call a signal cannot end:
+//!   its bound,
+//!   the one line that says why it lasts,
+//!   and its three ends.
 //! - `child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`:
 //!   an owned child awaited until it exits,
 //!   or ended and reaped here when its step's ceiling comes,
@@ -230,6 +238,10 @@ pub mod open_file_of_a_descriptor;
 /// for a mount whose file system this process cannot ask in its own name.
 pub mod open_file_of_a_descriptor_in_a_child;
 
+/// The process numbers below one process,
+/// read from the kernel's per-thread child lists.
+pub mod process_tree_thread_child_lists;
+
 /// The processes below one process,
 /// read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
@@ -293,6 +305,12 @@ pub mod stop_of_the_service_noticed_by_its_children;
 /// An owned child awaited until it exits,
 /// or ended and reported when the service's stop is told first.
 pub mod child_awaited_until_it_exits_or_the_service_is_stopped;
+
+/// The wait for a step the kernel holds in a call a signal cannot end:
+///  its bound,
+///  the one line that says why it lasts,
+///  and its three ends.
+pub mod waiting_for_a_step_the_kernel_holds;
 
 /// An owned child awaited until it exits,
 /// or ended and reaped here when its step's ceiling comes,
