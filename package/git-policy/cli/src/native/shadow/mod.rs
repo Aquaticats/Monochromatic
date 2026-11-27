@@ -57,6 +57,10 @@
 //!   and the starts made again after one was cut or refused.
 //! - `shadow_links.rs`:
 //!   the shadow repository links to the real shared entries.
+//! - `shadow_pool_sweeps.rs`:
+//!   where a worktree's pool folder is named from,
+//!   what proves a name on its path is this wrapper's own,
+//!   and the two sweeps of pools and half-made members nothing can claim.
 //! - `shadow_drawn.rs`:
 //!   the finished shadows the service draws out of the pool ahead of the commits that ask for one.
 //! - `shadow_pool.rs`:
@@ -180,6 +184,11 @@ pub mod shadow_pool;
 
 /// What a member of that pool must be for one invocation to take it.
 pub mod shadow_pool_member;
+
+/// Where a worktree's pool folder is named from,
+/// what proves a name on its path is this wrapper's own,
+/// and the two sweeps.
+pub mod shadow_pool_sweeps;
 
 /// The finished shadows the service draws out of the pool ahead of the commits that ask for one.
 pub mod shadow_drawn;
