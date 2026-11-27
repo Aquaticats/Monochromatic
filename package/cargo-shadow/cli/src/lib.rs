@@ -84,6 +84,9 @@ pub mod journal_manifests;
 /// a journal held by a lock for the life of a run.
 pub mod journal_transaction;
 
+/// The workspace lock, the journal's unique name and its ready record (split out of the journal transaction module).
+pub mod journal_transaction_creation;
+
 /// The completion marker of a journal (split out of the journal transaction module).
 pub mod journal_done_marker;
 
