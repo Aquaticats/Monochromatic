@@ -203,6 +203,32 @@ and a control that read it asserted on the cap the run happened to carry rather 
 (issue 6537;
 the quota's effect on `available_parallelism` is measured in
 `doc/troubleshooting/container-nproc-ignores-cpu-quota.md`).
+A round's widths are that same answer,
+and its memory figure is the one a control trips over:
+`HostResources::read` takes the free bytes of this process's control group,
+and the page cache a build wrote inside that group is charged to it,
+so a run in a capped scope reads no headroom at all and every batch runs one item at a time
+(measured for issue 6567:
+a threaded `landing::` run whose build filled a 10 GB cap read `memory_available: Some(0)`,
+and both side-by-side controls of `landing/service_work_items_side_by_side_tests.rs` then saw one item inside the
+handler;
+the same run with a warm build read 23.5 GB free and passed,
+`doc/troubleshooting/cgroup-free-memory-counts-the-page-cache-a-build-wrote.md`).
+So the batches are sized by a host the caller states:
+`drain_pending_awaiting` and `drain_the_slow_work_awaiting` take it,
+the shipped round reads the machine once and hands that one reading to every batch it drains,
+and a control that needs two items beside each other states a host of its own
+(`A_HOST_THAT_BOUNDS_NO_BATCH`),
+as a control whose subject is a batch that keeps its turn states one that puts a single item at a time
+(`A_HOST_THAT_RUNS_ONE_ITEM_AT_A_TIME`),
+both in `landing/service_work_items_side_by_side.rs`.
+A width a control states for the whole process
+(`hold_the_width_to`,
+`landing/service_work_items_side_by_side.rs`)
+is a measurement's alone,
+because every other test of the run reads it too:
+that value was held at one by `a_round_starts_no_housekeeping_item_of_a_batch_after_its_slice_is_spent`
+while the side-by-side controls of the same process read it (issue 6567).
 
 The service's stop is one such fact
 (`process/stop_of_the_service_noticed_by_its_children.rs`):
@@ -510,6 +536,38 @@ beside the module of the file you changed.
 The fix for issue 6421 (`700a6e4c02`) rewrote the line that starts the commit's notice stream
 and left `the_commit_command_hands_its_waiting_notices_to_this_stream` asserting the line it replaced,
 so the whole container gate on `main` at `132843d9d1` failed in a module that fix never ran.
+
+The search a merge owes is wider than that grep:
+a control may also read a source file while it runs
+(`std::fs::read_to_string` of a path under `src/native`).
+Four test files outside `source_guard` do that as of 2026-11-27.
+
+A call a control requires belongs to the folder that asks it and not to one file of that folder
+because a split moves the call into a sibling file and leaves behind the file it left.
+The round for issue 6540 moved `output_of_within_bound` out of `repo_read/git_system_config.rs`
+into `repo_read/git_system_config_asking.rs` (`e58254244d`).
+A control that still named the file it left failed the whole gate on `main` (issue 6573).
+`process/captured_child_run_to_its_end_callers_tests.rs` finds the call across the module now:
+`source_root()` and `real_roots()` and `classified_sources()` of `source_guard/source_scan_tests.rs`
+list the files the build itself reaches.
+The control requires the call in one of the folder's release files
+and refuses `Command::output` in any of them.
+That fails when the call leaves the folder or a caller goes back to `Command::output`
+and passes when a split moves the call between the folder's files.
+That move is what the claim is about.
+
+No check over this text can replace running those modules.
+A needle a control requires may also be a sentence the program prints
+and so a scan cannot tell a pin over source from an assertion about a running program.
+The search of 2026-11-27 that guessed from literal needles found 58 places where a required
+literal was absent from the file read and every one of those modules passes.
+Reading the splits of 2026-11-26 and 2026-11-27 against every control that reads a source file
+found one stale control:
+22 test files `include_str!` a source file (65 file-and-needle pairs)
+and 4 more read one at run time outside `source_guard`
+and the rest are in `source_guard` whose whole module runs.
+Each of those 26 modules ran once and threaded
+and only the control above was stale.
 
 ## A filtered run counts only when it ran the tests you meant
 

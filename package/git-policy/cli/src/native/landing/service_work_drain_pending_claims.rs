@@ -121,6 +121,7 @@ use std::time::Duration;
 /// and the records it holds keep their lease.
 ///  A round starts housekeeping only while `housekeeping` has room,
 /// asked as each housekeeping item starts rather than once for a batch of them,
+///  sizes every batch it runs by the CPUs and memory of `host`,
 /// and answers how soon to look at this directory again:
 /// the earliest of what it left for a later look and the end of the earliest claim still held in this directory,
 ///  so a claim it keeps is looked at again when its lease runs out even though no other wake names this directory.
@@ -131,7 +132,7 @@ use std::time::Duration;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, now, lease, renewal, replanning, kinds, housekeeping) // Duration | undefined
+/// await drainPendingAwaiting(gitDir, handlers, now, lease, renewal, replanning, kinds, housekeeping, host) // Duration | undefined
 /// ```
 pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
@@ -142,6 +143,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     replanning: &mut Replanning,
     kinds: &'static [WorkKind],
     housekeeping: Duration,
+    host: &HostResources,
 ) -> Option<Duration> {
     let work_dir: PathBuf = work_directory(git_dir);
     // What this look's caller must look at this directory again for, gathered as the look goes.
@@ -194,8 +196,6 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             Some(back) => held = back,
             None => break 'round,
         }
-        // The host's CPUs and memory, read once for every batch of this round, so a round's widths are one reading.
-        let host: HostResources = HostResources::read();
         let ClaimsByKind {
             pushes,
             trashes,
@@ -214,7 +214,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             git_dir,
             handlers,
             pushes,
-            &host,
+            host,
             replanning,
         )
         .await;
@@ -261,7 +261,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 }
                 None => break 'round,
             };
-        let relinks_wide: usize = slow_items_side_by_side(relinked.len(), &host);
+        let relinks_wide: usize = slow_items_side_by_side(relinked.len(), host);
         match run_and_settle_side_by_side(
             held,
             work_dir.as_path(),
@@ -288,7 +288,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 }
                 None => break 'round,
             };
-        let prewarms_wide: usize = slow_items_side_by_side(prewarmed.len(), &host);
+        let prewarms_wide: usize = slow_items_side_by_side(prewarmed.len(), host);
         let mut may_start_prewarm_now = || {
             return may_start_housekeeping(&slice, &mut housekeeping_has_started);
         };
@@ -320,7 +320,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 }
                 None => break 'round,
             };
-        let reviews_wide: usize = slow_items_side_by_side(reviewed.len(), &host);
+        let reviews_wide: usize = slow_items_side_by_side(reviewed.len(), host);
         match run_and_settle_side_by_side(
             held,
             work_dir.as_path(),
@@ -364,7 +364,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 }
                 None => break 'round,
             };
-        let trashes_wide: usize = slow_items_side_by_side(trashed.len(), &host);
+        let trashes_wide: usize = slow_items_side_by_side(trashed.len(), host);
         let mut may_start_trash_now = || {
             return may_start_housekeeping(&slice, &mut housekeeping_has_started);
         };
