@@ -20,12 +20,12 @@
 //! await Promise.race([exited, stopped, flood, stall]);
 //! ```
 
-/// The error a run that cannot be started or read reports.
-use crate::auto_push_single_flight::SingleFlightError;
 /// The child a wait awaits through its pidfd.
 use crate::child_awaited_through_a_pidfd::OwnedChild;
 /// The diagnostic log of the wrapper.
 use crate::diagnostic_log::warn;
+/// The error a run that cannot be started or read reports.
+use crate::one_push_attempt_and_its_failure::SingleFlightError;
 /// How long a run may show nothing before it is stopped,
 /// and the window a connected one gets.
 use crate::push_deadline_and_patience_settings::Patience;

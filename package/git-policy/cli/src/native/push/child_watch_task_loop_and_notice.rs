@@ -13,7 +13,6 @@
 //! for await (const mark of marksUntilTimeout()) { if (stoppable && clock.stalled()) await stop(pid); else if (ticker.due(elapsed)) await notice(); }
 //! ```
 
-use crate::bounded_push::StopCause;
 use crate::child_watch_clock_marks_and_stopping::{
     Mark,
     Marks,
@@ -26,6 +25,7 @@ use crate::push_progress::{
     Clock,
     SAMPLE_INTERVAL,
 };
+use crate::stop_cause_and_words::StopCause;
 use crate::stop_of_the_service_noticed_by_its_children::StopArm;
 use crate::stopped_git_locks::LockLedger;
 use crate::wait_progress::{

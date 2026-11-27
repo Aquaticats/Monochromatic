@@ -8001,6 +8001,27 @@ in order:
     one commit per loop of the list above,
     folder by folder from the bottom,
     with the allow-list lines deleted as each use goes.
+    Note of 2026-11-27T06:20-05:00,
+    from the `lock` and `process` round of that branch
+    (`refactor/git-policy-cli-break-wrapper-file-loops-in-lock-and-process`):
+    the five loops of those two folders are closed,
+    one commit each,
+    and the 22 `file-uses` lines they held are deleted,
+    so `src/native/lock` and `src/native/process` have none left.
+    Two of the moves above no longer fitted today's tree and were replaced:
+    the loop of 6 in `lock` also had to take `Proof` (which `Verdict` names)
+    and `pid_named_by`'s two reads
+    (`pid_named_in`,
+    `pid_file_contents`),
+    and the loop of 2 of `index_lock_evidence` and `index_lock_evidence_words` closed
+    by deleting the evidence's re-export of the ten sentences
+    and re-pointing its callers,
+    not by moving the evidence types into a file of sentences.
+    The `process` list now puts `open_file_of_a_descriptor_in_a_child` before
+    `open_file_of_a_descriptor`,
+    because `opened_file_of` calls into the child for an overlay mount;
+    the file rows of `cli-git-source-layout-target-tree-files.md` list them the other way,
+    and the call change of item 4 below is what could put them back.
 4.  `refactor/git-policy-cli-split-call-changes`:
     step 4's five call changes,
     one commit each:

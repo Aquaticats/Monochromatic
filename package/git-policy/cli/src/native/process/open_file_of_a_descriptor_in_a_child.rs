@@ -31,7 +31,7 @@
 //! const opened = openedFileInAChild({ process: '/proc/1234', fd: '3' }); // { device, inode }, or a refusal at the ceiling
 //! ```
 
-use super::open_file_of_a_descriptor::OpenedFile;
+use super::the_file_a_descriptor_holds_open::OpenedFile;
 use crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon_pid;
 /// `CString` and `CStr` are the names a system call takes.
 use std::ffi::{

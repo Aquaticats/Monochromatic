@@ -47,7 +47,7 @@ use crate::worktree_copy_stage_claim::{
     DESTINATION_SUFFIX,
     claim_names,
 };
-use crate::worktree_copy_stage_claim_reaping::read_claim;
+use crate::worktree_copy_stage_claim_record::read_claim;
 use std::path::{
     Path,
     PathBuf,

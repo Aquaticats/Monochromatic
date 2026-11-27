@@ -24,7 +24,8 @@
 //! `service_index_holder_look.rs`,
 //! and this file serves them.
 
-use crate::index_lock_evidence::{
+/// The sentences a wait's ceiling and an unproven removal are reported in.
+use crate::index_lock_evidence_words::{
     ceiling_line,
     unproven_removal_advice,
 };
