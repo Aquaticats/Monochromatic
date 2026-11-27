@@ -15,6 +15,9 @@ use crate::test_support::{
     repository,
 };
 use crate::testing::fixture_root_taking_any_name_of_unit_tests::in_a_fixture_root_taking_any_name;
+/// The one way a control runs its body in a child of its own, with an environment of the fixture's naming.
+#[cfg(target_os = "linux")]
+use crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own;
 /// What is left to do once a created worktree holds its ignored state.
 use crate::worktree_copy_after_lock::AfterLock;
 /// The entry point of the lifecycle and the creating command it hands its work to,
@@ -436,53 +439,100 @@ fn creation_from(
 /// the record is what makes the trash
 ///  the service's work,
 /// and the trash that still stands is the proof that nothing deleted it here.
+/// The body runs in a child of this test binary that names a runtime directory of the fixture's own and no
+///  session bus,
+/// so the hand-over finds no service and asks none of this account's (issue 6582).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends() {
-    use crate::fs_beneath::ObjectId;
-    use crate::worktree_trash::TrashManifest;
-    let root: PathBuf = fixture("lifecycle-trash-hand-over");
-    let (main, common) = source(root.as_path());
-    let pending: PendingTrash = PendingTrash {
-        destination: main.clone(),
-        common_dir: common.clone(),
-        manifest: TrashManifest {
-            name: "ab".repeat(20),
-            trash: ObjectId {
-                device: 7,
-                inode: 1,
-                birth: None,
-            },
-            entries: Vec::new(),
+    // What:     a fixture directory the child names as its runtime directory, so the hand-over finds no socket
+    //           and no session bus to provision one through.
+    // Why:      a process's environment is the fact the route reads, and a threaded run shares one process.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const runtime = fixture('lifecycle-trash-hand-over-runtime');
+    // ```
+    let runtime: PathBuf = fixture("lifecycle-trash-hand-over-runtime");
+    // What:     the one variable the child is given, as a name and a value of raw operating-system text.
+    // Why:      the runtime directory is where the route looks for the service's socket, so naming the fixture's
+    //           keeps every reach of this body inside the fixture.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const named = [['XDG_RUNTIME_DIR', runtime]];
+    // ```
+    let named: [(&str, &std::ffi::OsStr); 1] = [("XDG_RUNTIME_DIR", runtime.as_os_str())];
+    // What:     the body, run in a child of this test binary whose environment is `named` and which inherits no
+    //           session bus address.
+    // Why:      a fixture's own runtime directory does not keep a program off this account's bus, because the
+    //           address is inherited: a child that kept it would still ask this account's manager, and every
+    //           test of the run is one process, so the body cannot unset it here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // runTheBodyWithAnEnvironmentOfItsOwn(modulePath(), 'a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends', named, ['DBUS_SESSION_BUS_ADDRESS'], () => { /* the body below */ });
+    // ```
+    run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        "a_snapshot_trash_is_handed_over_within_the_add_and_still_stands_when_it_ends",
+        named.as_slice(),
+        &["DBUS_SESSION_BUS_ADDRESS"],
+        || {
+            use crate::fs_beneath::ObjectId;
+            use crate::worktree_trash::TrashManifest;
+            let root: PathBuf = fixture("lifecycle-trash-hand-over");
+            let (main, common) = source(root.as_path());
+            let pending: PendingTrash = PendingTrash {
+                destination: main.clone(),
+                common_dir: common.clone(),
+                manifest: TrashManifest {
+                    name: "ab".repeat(20),
+                    trash: ObjectId {
+                        device: 7,
+                        inode: 1,
+                        birth: None,
+                    },
+                    entries: Vec::new(),
+                },
+                taken_over: 0,
+                quiet: true,
+            };
+            let after: AfterLock = AfterLock {
+                source_root: None,
+                created: Vec::new(),
+                trash: Some(pending.clone()),
+            };
+            let invocation: Invocation =
+                creation_from(main.as_path(), common.as_path(), Some(main.as_path()));
+            let mut stderr: Vec<u8> = Vec::new();
+            finish_trash_and_repair(&invocation, &after, &mut stderr);
+            assert_eq!(
+                stderr,
+                Vec::<u8>::new(),
+                "a quiet add says nothing, and a hand-over that fails is a warning of its own"
+            );
+            let record: PathBuf = crate::work_item::state_directory(
+                crate::service_work::work_directory(common.as_path()).as_path(),
+                crate::work_item::PENDING,
+            )
+            .join(format!("trash-{}", pending.manifest.name));
+            assert!(
+                record.exists(),
+                "the record that names the trash outlives the command: {}",
+                record.display()
+            );
+            remove(root.as_path());
         },
-        taken_over: 0,
-        quiet: true,
-    };
-    let after: AfterLock = AfterLock {
-        source_root: None,
-        created: Vec::new(),
-        trash: Some(pending.clone()),
-    };
-    let invocation: Invocation =
-        creation_from(main.as_path(), common.as_path(), Some(main.as_path()));
-    let mut stderr: Vec<u8> = Vec::new();
-    finish_trash_and_repair(&invocation, &after, &mut stderr);
-    assert_eq!(
-        stderr,
-        Vec::<u8>::new(),
-        "a quiet add says nothing, and a hand-over that fails is a warning of its own"
     );
-    let record: PathBuf = crate::work_item::state_directory(
-        crate::service_work::work_directory(common.as_path()).as_path(),
-        crate::work_item::PENDING,
-    )
-    .join(format!("trash-{}", pending.manifest.name));
-    assert!(
-        record.exists(),
-        "the record that names the trash outlives the command: {}",
-        record.display()
-    );
-    remove(root.as_path());
+    // What:     the runtime directory goes once the child that named it has ended.
+    // Why:      a fixture that nobody removes is left under this run's fixture root for every later run to meet.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // remove(runtime);
+    // ```
+    remove(runtime.as_path());
 }
 
 /// The names the private journal root holds right now,

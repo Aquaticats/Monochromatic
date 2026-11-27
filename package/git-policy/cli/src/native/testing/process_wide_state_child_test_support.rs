@@ -215,6 +215,84 @@ pub(crate) fn run_the_body_in_a_child_of_its_own(
 }
 
 /// What:
+///  Run `body` in a child of this test binary that holds the one test `name` of `module`,
+///  with `environment` added to the child's environment and `cleared` removed from it,
+///  and fail this call with the child's own words when that child's one test did not pass.
+///  The siblings a reader might expect are `run_the_body_in_a_child_of_its_own`, which adds one marker and
+///  inherits everything else, and `run_the_body_under_umask`, which sets one fact in the child's `fork`.
+/// Why:
+///  The environment belongs to a process, and three things here read it and act outside the fixture when it
+///  names this account's places: the route a hand-over finds its service by reads `XDG_RUNTIME_DIR`, the
+///  session bus it may provision through is named by `DBUS_SESSION_BUS_ADDRESS`, and a program started for
+///  the fixture inherits both. A control whose subject needs another environment runs its body here, and the
+///  child's own environment names the fixture's places and nothing of this account's.
+///  A control cannot set this in its own process: a variable of the test process reaches every other test of
+///  a threaded run.
+/// Gotcha:
+///  `environment` is added to what the child inherits, so a name the parent set must also be listed in
+///  `cleared` when the child must see none of it; the child of this file is recognised by its own marker, so
+///  the body runs only in the process this call started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runTheBodyWithAnEnvironmentOfItsOwn(module: string, name: string, environment: [string, string][], cleared: string[], body: () => void): void {
+///   if (thisProcessIsTheChild()) { body(); return; }
+///   passed({ exactTest: thePathLibtestAnswersTo(module, name), environment: [[CHILD_VARIABLE, path], ...environment], clearedEnvironment: cleared });
+/// }
+/// ```
+pub(crate) fn run_the_body_with_an_environment_of_its_own(
+    module: &str,
+    name: &str,
+    environment: &[(&str, &OsStr)],
+    cleared: &[&str],
+    body: impl FnOnce(),
+) {
+    // What:     the child of this call runs the body, which is the process whose environment names the fixture.
+    // Why:      the parent never runs it, so the variables the body needs reach no other test of the run.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (thisProcessIsTheChild()) { body(); return; }
+    // ```
+    if this_process_is_the_child() {
+        body();
+        return;
+    }
+    // What:     the path libtest answers to, which is the one test the child runs.
+    // Why:      `--exact` matches this text and nothing else, so a path that is wrong would run no test at all.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const path = thePathLibtestAnswersTo(module, name);
+    // ```
+    let path: String = the_path_libtest_answers_to(module, name);
+    // What:     the child's variables: the marker that makes it a child, then everything the caller named.
+    // Why:      the marker goes first so one list holds the whole environment this file hands the child, and a
+    //           caller cannot drop it by accident.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const childEnvironment = [[CHILD_VARIABLE, path], ...environment];
+    // ```
+    let mut child_environment: Vec<(&str, &OsStr)> = Vec::new();
+    child_environment.push((CHILD_VARIABLE, OsStr::new(path.as_str())));
+    child_environment.extend_from_slice(environment);
+    // What:     the one call that starts the child, with the environment the caller states and the names it clears.
+    // Why:      the parent's whole assertion is this child's result, and a child that ran no test fails here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // passed({ exactTest: path, environment: childEnvironment, clearedEnvironment: cleared, ...plainRequest() });
+    // ```
+    let _output = passed(ChildTest {
+        exact_test: path.as_str(),
+        environment: child_environment.as_slice(),
+        cleared_environment: cleared,
+        ..ChildTest::default()
+    });
+}
+
+/// What:
 ///  Run `body` in a child of this test binary that holds the one measurement `name` of `module`,
 ///  and print what that child printed,
 ///  so the figures of a measurement for the record reach the run that asked for them.

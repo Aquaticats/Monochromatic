@@ -102,6 +102,28 @@ so two controls of a threaded run cannot both have theirs,
 and a run that shares one process left eight of them deadlocked holding each other's places (issue 6487).
 The setters refuse in any other process and name the starter,
 as the descriptor limit's setter does.
+The environment is one of those facts,
+and a control that changes what it names runs its body through
+`run_the_body_with_an_environment_of_its_own`
+in the same file,
+which adds the variables the control states and removes the ones it names.
+The route a hand-over finds the commit service by reads two of them:
+`XDG_RUNTIME_DIR` names the socket and the bus,
+and `DBUS_SESSION_BUS_ADDRESS` names the session bus a service is provisioned through.
+So a control whose body hands a trash over through the release path reaches this account's own manager as soon
+as another control of the same process has resolved the real Git,
+because resolving it remembers the running executable
+(`service_route.rs`, `OWN_EXECUTABLE`),
+which in a test process is the test binary:
+the hand-over wrote that fixture worktree's units into `/run/user/<n>/systemd/user/`,
+pointed the account-wide program link at the test binary,
+and asked the manager to start a unit for the fixture,
+which failed five times on libtest's `error: Unrecognized option: 'journal'` until the start limit hit,
+while the add printed its own starting notice into the control's captured standard error (issue 6582).
+Such a control names a fixture `XDG_RUNTIME_DIR` and clears `DBUS_SESSION_BUS_ADDRESS`,
+so the route answers nothing and the hand-over fails with "no commit service can be started from this
+session",
+which is the world those controls are about.
 A child also inherits the records its parent holds,
 so a control whose body reads the chain record closes the record it inherited before it makes its own
 (`invocation/started_as_git_tests.rs`,
