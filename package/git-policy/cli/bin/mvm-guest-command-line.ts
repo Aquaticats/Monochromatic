@@ -3,24 +3,25 @@
 
  A guest driver's own work is a command and the guest's answer to it. The text between the two is string work with no
  command in it: quoting one script so a guest's `sh -ec` reads it as a single word, the command line that quotes it, the
- files a detached script is started from, and the two answers a driver reads back out of a pulled log. Those live here,
- and each driver's own file keeps only the steps it performs.
+ two files a detached script is started from, and the answers a driver reads back out of a log. The three sets of guest
+ helpers each held a copy of these (`bin/guest-route-shell-quote.ts`, `bin/guest-route-guest-command.ts`,
+ `bin/mvm-guest-command-line.ts` and `e2e/guest-host/guest-host-rules-fixture.ts`), and they agreed byte for byte; what
+ survived is the shape each question was answered best in.
+
+ A detached script is the one place the three did not agree, and the difference is kept: one driver's scripts carry the
+ guest's name check in the step file and the other two carry it in the launcher, and the two scripts are identical only
+ with that distinction (`{@link detachedScriptFiles}`'s `hostnameCheckInLaunch`).
  */
 
-/**
- Milliseconds in one second, so a bound stated in milliseconds becomes the seconds a shell's `timeout` takes.
- */
-export const MILLISECONDS_PER_SECOND = 1_000;
+import {
+  GUEST_TIMEOUT_MARGIN_SECONDS,
+  MILLISECONDS_PER_SECOND,
+} from './mvm-guest-bounds.ts';
 
 /**
  The first word of the line a detached guest script writes when it ends, followed by its exit status.
  */
 const ENDED_MARK = 'DONE=';
-
-/**
- Where a word that is not in a list of words stands: minus one, the answer `indexOf` gives.
- */
-const ABSENT_INDEX = -1;
 
 /**
  Char code of the digit `0`, the first of the decimal digits a status word may hold.
@@ -55,6 +56,8 @@ export function secondsOf({ milliseconds, }: { readonly milliseconds: number; },
  Quote one block of shell so a guest's `sh -ec` reads it as a single word.
 
  A single quote ends the quoted word, so each one in the script is closed, escaped and reopened: `'` becomes `'\''`.
+ A driver's guest script holds quotes of its own (a path a pool's listing prints, a marker line it greps for), so the
+ word the guest's shell reads is the script byte for byte, which a bare pair of quotes around it would not give.
 
  @param script - the shell script to quote whole
 
@@ -62,10 +65,10 @@ export function secondsOf({ milliseconds, }: { readonly milliseconds: number; },
 
  @example
  ```ts
- shellQuote({ script: "echo 'hi'" }); // 'echo '\''hi'\'''
+ shellQuote("echo 'hi'"); // 'echo '\''hi'\'''
  ```
  */
-export function shellQuote({ script, }: { readonly script: string; },): string {
+export function shellQuote(script: string,): string {
   /**
    The script with each of its own single quotes closed, escaped and reopened.
    */
@@ -80,11 +83,13 @@ export function shellQuote({ script, }: { readonly script: string; },): string {
  The command line a guest runs: the guest's own name checked first, then the script under the guest's `timeout`.
 
  The name check is what keeps a script from opening the host's `/dev/zfs`: a run outside the guest it was made for reads
- a different hostname and stops before the script's first word.
+ a different hostname and stops before the script's first word. The guest's `timeout` fires
+ {@link GUEST_TIMEOUT_MARGIN_SECONDS} before the bound the host gives `mvm`, so an overrun is a line in the guest's log
+ instead of a lost run.
 
  @param name - the guest's name, which its own hostname must answer
 
- @param guestTimeoutSeconds - whole seconds the guest's `timeout` gives the script
+ @param timeoutMilliseconds - the bound the host gives the command, which the guest's `timeout` is sized from
 
  @param script - the shell script the guest runs
 
@@ -92,79 +97,128 @@ export function shellQuote({ script, }: { readonly script: string; },): string {
 
  @example
  ```ts
- guestCommandLine({ name: 'git-policy-lock', guestTimeoutSeconds: 1740, script: 'zpool list' });
+ guestCommandLine({ name: 'git-policy-lock', timeoutMilliseconds: 1_800_000, script: 'zpool list' });
  ```
  */
 export function guestCommandLine({
   name,
-  guestTimeoutSeconds,
+  timeoutMilliseconds,
   script,
 }: {
   readonly name: string;
-  readonly guestTimeoutSeconds: number;
+  readonly timeoutMilliseconds: number;
   readonly script: string;
 },): string {
-  return `test "$(hostname)" = ${name} && timeout ${String(guestTimeoutSeconds,)} sh -ec ${shellQuote({ script, },)}`;
+  return `test "$(hostname)" = ${name} && timeout ${String(guestSecondsOf({ timeoutMilliseconds, },),)} sh -ec ${shellQuote(script,)}`;
 }
 
 /**
- The step file a detached guest script is started from: its bound, its one log, and the status line it ends with.
+ The whole seconds the guest's own `timeout` is given, which fires the margin before the host's bound.
 
- The status line is why a detached script can be judged at all: the host reads it out of the shared folder after the
- script has gone, so a script that outlived the command that started it still reports what it did.
+ @param timeoutMilliseconds - the bound the host gives the command
 
- @param guestTimeoutSeconds - whole seconds the guest's `timeout` gives the script
-
- @param script - the shell script the guest runs
-
- @param log - the log's name inside the guest's shared folder
-
- @returns the file's whole text, ending in a newline
+ @returns the whole seconds the guest's `timeout` takes
 
  @example
  ```ts
- await writeFile(stepPath, detachedStepText({ guestTimeoutSeconds: 1740, script, log: 'build.log' }));
+ guestSecondsOf({ timeoutMilliseconds: 900_000 }); // 840
  ```
  */
-export function detachedStepText({
-  guestTimeoutSeconds,
+export function guestSecondsOf({ timeoutMilliseconds, }: { readonly timeoutMilliseconds: number; },): number {
+  return secondsOf({ milliseconds: timeoutMilliseconds, },) - GUEST_TIMEOUT_MARGIN_SECONDS;
+}
+
+/**
+ The two files one detached guest script runs from.
+ */
+export type DetachedScriptFiles = {
+  /**
+   The bounded script itself, which runs detached inside the guest.
+   */
+  readonly step: string;
+  /**
+   The launcher the host starts, which returns as soon as the script is detached.
+   */
+  readonly launch: string;
+};
+
+/**
+ The step and launcher files one detached guest script runs from.
+
+ The status line is why a detached script can be judged at all: the host reads it out of the guest's shared folder after
+ the script has gone, so a script that outlived the command that started it still reports what it did.
+
+ The launcher is what the host starts, and the step is what it runs detached: both are pushed into the guest's shared
+ folder under their own names, which is where the launcher looks for the step. A step file started in the foreground
+ would end with the `mvm exec` that started it, and the guest's own job control would take its output with it, so
+ `setsid nohup` leaves it holding neither the command's terminal nor its pipes.
+
+ The guest-name check is carried by one of the two files and not by both, and which one it is is the distinction the
+ drivers already made:
+
+ - `hostnameCheckInLaunch` true puts `test "$(hostname)" = NAME || exit 1` first in the launcher, which refuses a
+   command that reached another machine before the step file is started at all;
+ - false puts `test "$(hostname)" = NAME` first in the step file, so the script refuses itself.
+
+ @param name - the guest's name, which its own hostname must answer
+
+ @param script - the shell script to run inside the guest
+
+ @param log - the log's name inside the shared folder, which also names the step file
+
+ @param timeoutMilliseconds - the bound the host gives the script, which the guest's `timeout` is sized from
+
+ @param hostnameCheckInLaunch - whether the launcher carries the guest's name check rather than the step file
+
+ @returns the two files' whole text, each ending in a newline
+
+ @throws never: the text is built from the inputs alone
+
+ @example
+ ```ts
+ const files = detachedScriptFiles({ name: 'guest-a', script: 'id', log: 'build.log', timeoutMilliseconds: 900_000, hostnameCheckInLaunch: false });
+ ```
+ */
+export function detachedScriptFiles({
+  name,
   script,
   log,
+  timeoutMilliseconds,
+  hostnameCheckInLaunch,
 }: {
-  readonly guestTimeoutSeconds: number;
+  readonly name: string;
   readonly script: string;
   readonly log: string;
-},): string {
-  return [
-    `timeout ${String(guestTimeoutSeconds,)} sh -ec ${shellQuote({ script, },)} > /mnt/shared/${log} 2>&1`,
+  readonly timeoutMilliseconds: number;
+  readonly hostnameCheckInLaunch: boolean;
+},): DetachedScriptFiles {
+  /**
+   The check that the command reached the guest it names, in whichever file carries it.
+   */
+  const hostnameCheck = `test "$(hostname)" = ${name}`;
+  /**
+   The bounded script, which is what runs detached.
+   */
+  const stepLines = [
+    ...(hostnameCheckInLaunch ? [] : [hostnameCheck,]),
+    `timeout ${String(guestSecondsOf({ timeoutMilliseconds, },),)} sh -ec ${shellQuote(script,)} > /mnt/shared/${log} 2>&1`,
     'status=$?',
     `echo "${ENDED_MARK}$status" >> /mnt/shared/${log}`,
     '',
-  ].join('\n',);
-}
-
-/**
- The launcher a detached guest script is started from: the step file, in a session of its own, with nothing held open.
-
- A step file started in the foreground would end with the `mvm exec` that started it, and the guest's own job control
- would take its output with it. `setsid nohup` leaves it holding neither the command's terminal nor its pipes, so the
- host is free to ask the shared folder how the run went.
-
- @param log - the log's name inside the guest's shared folder, which names the step file beside it
-
- @returns the file's whole text, ending in a newline
-
- @example
- ```ts
- await writeFile(launchPath, detachedLaunchText({ log: 'build.log' }));
- ```
- */
-export function detachedLaunchText({ log, }: { readonly log: string; },): string {
-  return [
+  ];
+  /**
+   The launcher, which is what the host starts and which returns at once.
+   */
+  const launchLines = [
+    ...(hostnameCheckInLaunch ? [`${hostnameCheck} || exit 1`,] : []),
     `setsid nohup sh /mnt/shared/${log}.step.sh < /dev/null > /dev/null 2>&1 &`,
     'exit 0',
     '',
-  ].join('\n',);
+  ];
+  return {
+    step: stepLines.join('\n',),
+    launch: launchLines.join('\n',),
+  };
 }
 
 /**
@@ -187,121 +241,72 @@ export function endedLineHolds({ text, }: { readonly text: string; },): boolean 
 }
 
 /**
- The exit status a detached guest script wrote, read out of its whole pulled log.
+ Whether one detached guest script said how it ended.
+ */
+export type DoneStatus = {
+  /**
+   True for a log whose `DONE=` line names a status.
+   */
+  readonly found: true;
+  /**
+   The digits that line holds, as text, so a status of zero is not `0` alone.
+   */
+  readonly status: string;
+} | {
+  /**
+   True for a log with no `DONE=` line naming a status.
+   */
+  readonly found: false;
+};
+
+/**
+ The status a detached guest script ended with, read from the `DONE=` line it appends to its own log.
 
  The line is found the way the drivers always found it: the first line of the log that is the mark followed by decimal
- digits and nothing else. A log that holds no such line answers empty text, which a caller reports as a script that
- ended without a status.
+ digits and nothing else. Anything else, including no line at all, is a script that ended without saying, which a caller
+ reports as a script that ended without a status.
 
  @param text - the whole log the guest wrote
 
- @returns the digits of the status, or empty text when the log holds no status line
+ @returns whether the log names a status, and the digits it names
 
  @example
  ```ts
- endedStatusText({ text: 'building\nDONE=1\n' }); // '1'
+ doneStatusOf({ text: 'arm output\nDONE=0\n' });
  ```
  */
-export function endedStatusText({ text, }: { readonly text: string; },): string {
-  for (const line of text.split('\n',)) {
-    /**
-     The status this line carries, empty when the line is not a status line at all.
-     */
-    const status = statusOfLine({ line, },);
-    if (status !== '')
-      return status;
-  }
-  return '';
-}
-
-/**
- The value one flag was given on the command line, or the fallback when the flag is absent or holds no value.
-
- A flag written last, with nothing after it, is absent for this purpose: the drivers always fell back rather than
- reading an empty name, and an empty guest name would be a different guest.
-
- @param argumentWords - the command line's words after the step
-
- @param flag - the flag whose value is read, spelled out such as `--name`
-
- @param fallback - what is answered when the flag holds no value
-
- @returns the flag's value, or the fallback
-
- @example
- ```ts
- flagValue({ argumentWords: ['--name', 'guest-a'], flag: '--name', fallback: 'default' }); // 'guest-a'
- ```
- */
-export function flagValue({
-  argumentWords,
-  flag,
-  fallback,
-}: {
-  readonly argumentWords: readonly string[];
-  readonly flag: string;
-  readonly fallback: string;
-},): string {
+export function doneStatusOf({ text, }: { readonly text: string; },): DoneStatus {
   /**
-   Where the flag stands in the command line, or minus one when it is absent.
+   The digits of every `DONE=` line that names a whole number, in the order the log holds them.
    */
-  const at = argumentWords.indexOf(flag,);
-  if (at === ABSENT_INDEX)
-    return fallback;
-  return argumentWords[at + 1] ?? fallback;
-}
-
-/**
- Whether one flag was written on the command line at all.
-
- @param argumentWords - the command line's words after the step
-
- @param flag - the flag whose presence is asked, spelled out such as `--keep-guest`
-
- @returns true when the flag is one of the words
-
- @example
- ```ts
- flagGiven({ argumentWords: ['--keep-guest'], flag: '--keep-guest' }); // true
- ```
- */
-export function flagGiven({
-  argumentWords,
-  flag,
-}: {
-  readonly argumentWords: readonly string[];
-  readonly flag: string;
-},): boolean {
-  return argumentWords.includes(flag,);
-}
-
-/**
- The status one log line carries, empty when the line is not a status line.
-
- @param line - one line of a detached script's log
-
- @returns the digits after the mark, or empty text
-
- @example
- ```ts
- statusOfLine({ line: 'DONE=0' }); // '0'
- ```
- */
-function statusOfLine({ line, }: { readonly line: string; },): string {
-  if (!line.startsWith(ENDED_MARK,))
-    return '';
+  const named = text
+    .split('\n',)
+    .filter(function isDoneLine(line: string,): boolean {
+      return line.startsWith(ENDED_MARK,);
+    },)
+    .map(function digitsOfDoneLine(line: string,): string {
+      return line.slice(ENDED_MARK.length,);
+    },)
+    .filter(function namesAStatus(word: string,): boolean {
+      return holdsOnlyDigits({ word, },);
+    },);
   /**
-   What stands after the mark, which is the status when it is decimal digits and nothing else.
+   The first status the log names, absent when it names none.
    */
-  const status = line.slice(ENDED_MARK.length,);
-  return holdsOnlyDigits({ word: status, },) ? status : '';
+  const [status,] = named;
+  if (status === undefined)
+    return { found: false, };
+  return {
+    found: true,
+    status,
+  };
 }
 
 /**
  Whether one word is decimal digits and nothing else.
 
- The scan is one pass over the word with no regular expression and no copy of it: a pulled log is the guest's own
- output and has no bound, and this reads only the short word between a mark and the line's end.
+ The scan is one pass over the word with no regular expression and no copy of it: a pulled log is the guest's own output
+ and has no bound, and this reads only the short word between a mark and the line's end.
 
  @param word - the word to read
 
