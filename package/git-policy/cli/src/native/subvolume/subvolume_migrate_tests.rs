@@ -22,7 +22,10 @@ use crate::subvolume_arguments::{
 };
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_platform::Platform;
-use crate::subvolume_preflight::layout_of;
+use crate::subvolume_preflight::{
+    Layout,
+    layout_of,
+};
 use crate::subvolume_run::Run;
 use crate::subvolume_sync_attrs::make_fifo;
 use crate::subvolume_test_support::{
@@ -40,6 +43,7 @@ use crate::test_support::{
     remove,
 };
 use std::os::unix::fs::MetadataExt;
+use std::path::PathBuf;
 
 /// The exit status the command gives a finished,
 /// previewed or already finished migration.

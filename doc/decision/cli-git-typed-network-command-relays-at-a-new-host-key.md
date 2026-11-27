@@ -3,7 +3,11 @@
 Status: decided by the owner on 2026-11-25T19:07-05:00, answering three questions put from the proposal
 `doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md` (seventh revision, `5c63224dbb`), with
 its scoped gate read's corrections
-(`~/temp/agent/gate-review-host-key-next-step-seventh-revision-2026-11-25/keep/review.md`) folded into the questions:
+(`~/temp/agent/gate-review-host-key-next-step-seventh-revision-2026-11-25/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+Folded into the questions:
 
 - "When a typed network command (clone, fetch, pull, push over ssh) meets a new host key, or a key no agent can unlock,
   how should the wrapper give the person the next step?" with "Relay (Recommended)".

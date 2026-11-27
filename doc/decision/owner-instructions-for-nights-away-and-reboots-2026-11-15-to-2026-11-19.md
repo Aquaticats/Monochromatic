@@ -140,7 +140,10 @@ moved verbatim on 2026-11-23:
   a copy of the scratch's irreplaceable text on the other drive;
   how to start again written here;
   this session's own units stopped.
-  The scripts and their outputs are in `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/`.
+  The scripts and their outputs are in `~/temp/agent/getting-the-machine-ready-for-a-reboot-2026-11-16/`
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 From lines 1967 to 1982 of the old handover
 (`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
@@ -162,7 +165,10 @@ I'm going to bed."
   (the owner:
   "You have passwordless sudo."),
   every system file put back and checked,
-  and probe scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/`.
+  and probe scripts and outputs under `~/temp/agent/zfs-fast-route-design-facts-2026-11-17/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   Findings that changed the earlier questions:
   an anchored-regex sudoers rule (sudo 1.9.17p2 here) allows exactly
   mount and unmount of a child of the parent and refused every variant tried,

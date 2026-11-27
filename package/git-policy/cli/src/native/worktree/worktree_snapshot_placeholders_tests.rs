@@ -33,6 +33,7 @@ use crate::worktree_ladder_test_support::{
     subvolume_repository,
 };
 use crate::worktree_snapshot::take_snapshot;
+use crate::worktree_snapshot_placeholders_entries::is_an_empty_stand_in;
 use crate::worktree_snapshot_source::{
     SnapshotSource,
     choose_snapshot_source,
@@ -43,6 +44,8 @@ use crate::worktree_trash::{
     entry_name,
     prune_snapshot,
 };
+use std::ffi::OsStr;
+use std::os::unix::fs::PermissionsExt;
 
 /// A main checkout that is a subvolume with `count` worktrees in its worktree folder,
 /// each a subvolume of its own,

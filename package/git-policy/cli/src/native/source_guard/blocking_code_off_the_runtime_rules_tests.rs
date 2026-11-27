@@ -487,6 +487,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the client's pause before it asks the unit manager for the service",
     },
     Allowed {
+        file: "service/service_client_reach_service_the_waits_own_steps.rs",
+        rule: "blocking-sleep",
+        why: "the same pause of the client, in the file the wait it takes it in lives in",
+    },
+    Allowed {
         file: "service/service_provision_earlier_service_retirement.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at an earlier service's retirement",

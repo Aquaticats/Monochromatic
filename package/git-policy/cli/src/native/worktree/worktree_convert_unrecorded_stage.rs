@@ -21,7 +21,7 @@ use crate::worktree_convert_journal::{
     Journal,
     Phase,
 };
-use crate::worktree_convert_phases::stage_identity_of;
+use crate::worktree_convert_stage_identity::stage_identity_of;
 use std::path::{
     Path,
     PathBuf,
