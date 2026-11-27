@@ -682,7 +682,7 @@
     },
     "cargo:monochromatic-cargo-shadow": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.1.5-alpha.13",
+      "version": "0.1.5-alpha.14",
       "route": "archive",
       "bins": [
         "cargo-shadow"
@@ -704,20 +704,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.13/monochromatic-cargo-shadow-0.1.5-alpha.13-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "5b8af4bfcfca509b6ef0ef0ec5b86660c5fedcab9a91d406d9aa0e2ab50fa3b1"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.14/monochromatic-cargo-shadow-0.1.5-alpha.14-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "e3daf39360fd87e307dfed033d22c38944052aabc771c90eb06f47c5457d33fa"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.13/monochromatic-cargo-shadow-0.1.5-alpha.13-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "5b8af4bfcfca509b6ef0ef0ec5b86660c5fedcab9a91d406d9aa0e2ab50fa3b1"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.14/monochromatic-cargo-shadow-0.1.5-alpha.14-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "e3daf39360fd87e307dfed033d22c38944052aabc771c90eb06f47c5457d33fa"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.13/monochromatic-cargo-shadow-0.1.5-alpha.13-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "2efe2eb44de76a9a69e3c5d0c8e9affca1c0df56b66df13a592cad3b1dd3d3db"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.14/monochromatic-cargo-shadow-0.1.5-alpha.14-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "5d31951ddfa01fa7cb630146213c2c7eb5a1add74620e1b8f82f338266a161a8"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.13/monochromatic-cargo-shadow-0.1.5-alpha.13-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "2efe2eb44de76a9a69e3c5d0c8e9affca1c0df56b66df13a592cad3b1dd3d3db"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-cargo-shadow-v0.1.5-alpha.14/monochromatic-cargo-shadow-0.1.5-alpha.14-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "5d31951ddfa01fa7cb630146213c2c7eb5a1add74620e1b8f82f338266a161a8"
         }
       }
     },
@@ -1682,5 +1682,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:424e47c95f84a87ff9828e890e0e746efe951a8b23152f94e1c2e0b0f3b37fd9"
+  "digest": "sha256:32b69834f9a80d557bc5e34308f7015ad5a0429db82599b00abec1a223ab65fe"
 }
