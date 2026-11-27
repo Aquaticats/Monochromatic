@@ -84,17 +84,46 @@
 //!   creates,
 //!   directory calls and the rename,
 //!   which the act and the progress file both make.
+//! - `the_childs_report.rs`:
+//!   how one child's piece of the act ended,
+//!   the mount table it read afterwards,
+//!   the bounded text that carries them,
+//!   and why no report came back.
 //! - `mount_namespace_child.rs`:
 //!   the single-threaded child that enters one holder namespace and runs one
-//!   piece of the act there,
-//!   and the bounded report it hands back.
+//!   piece of the act there.
+//! - `the_mount_table_the_act_reads.rs`:
+//!   the kernel's mount table as the act reads it inside a holder's namespace,
+//!   one row per mount and the topmost mount at a path.
 //! - `the_copy_taken_out_of_a_namespace.rs`:
-//!   the act itself, in two stages:
-//!   the structural stage that proves the copy and makes way 7's directory,
-//!   and the unmount stage that takes the copy out by the handle or by the move.
+//!   the shapes the act speaks in:
+//!   one holder namespace's copy,
+//!   what the structural stage left,
+//!   what the unmount stage took out,
+//!   why the act stopped,
+//!   and the word a failed child's report becomes.
+//! - `the_structural_stage.rs`:
+//!   the act's first stage in both halves:
+//!   prove the copy and the checkout's own mount,
+//!   and for way 7 stop the parent propagating and make the directory.
+//! - `the_unmount_stage.rs`:
+//!   the act's second stage in both halves:
+//!   take the copy out by the handle,
+//!   or move it onto way 7's directory and unmount it there.
+//! - `the_progress_file_lines.rs`:
+//!   the five lines one progress file holds,
+//!   with the writer that makes them and the reader that takes them apart.
 //! - `removal_progress_file.rs`:
-//!   the progress file the handler advances while the act lives,
-//!   and the reads the wrapper makes of it.
+//!   one progress file's folder,
+//!   whose request it answers and how often its counter moves,
+//!   and the proof of the folder every read and write makes first.
+//! - `the_progress_file_reads.rs`:
+//!   what the wrapper reads out of a progress file,
+//!   and whether a counter that stopped reads as a dead handler.
+//! - `the_progress_file_writes.rs`:
+//!   the first stage and the heartbeat that starts with it,
+//!   one word per stage the act reaches,
+//!   and the staging sibling every publish renames over the file.
 //! - `forced_receipt.rs`:
 //!   the receipt the act files for its own answer.
 //! - `the_acts_journal_lines.rs`:
@@ -152,14 +181,35 @@ pub mod recorded_handle;
 /// The descriptor-relative calls the act and the progress file make.
 pub mod descriptor_calls;
 
+/// The report one child hands back.
+pub mod the_childs_report;
+
 /// The child that enters one holder namespace and runs one piece of the act.
 pub mod mount_namespace_child;
 
-/// The act on one holder namespace's copy, in its two stages.
+/// The kernel's mount table as the act reads it.
+pub mod the_mount_table_the_act_reads;
+
+/// The shapes the act speaks in, and the word a failed child's report becomes.
 pub mod the_copy_taken_out_of_a_namespace;
 
-/// The progress file the handler advances while the act lives.
+/// The act's first stage, in both halves.
+pub mod the_structural_stage;
+
+/// The act's second stage, in both halves.
+pub mod the_unmount_stage;
+
+/// The five lines one progress file holds and the two halves of their grammar.
+pub mod the_progress_file_lines;
+
+/// One progress file, and the proof of the folder every read and write makes first.
 pub mod removal_progress_file;
+
+/// What the wrapper reads out of a progress file.
+pub mod the_progress_file_reads;
+
+/// What the handler writes into a progress file.
+pub mod the_progress_file_writes;
 
 /// The receipt the act files for its own answer.
 pub mod forced_receipt;
@@ -285,13 +335,7 @@ pub use holder_scan_file::{
     ScanFileRefusal,
 };
 /// The child that enters one holder namespace and runs one piece of the act.
-pub use mount_namespace_child::{
-    ActOutcome,
-    ActReport,
-    ChildRefusal,
-    MAXIMUM_HEADER_BYTES,
-    run_in,
-};
+pub use mount_namespace_child::run_in;
 /// The user namespace that owns a mount namespace.
 pub use namespace_owner::{
     NamespaceOwner,
@@ -338,17 +382,10 @@ pub use recorded_handle::{
     name_the_handle,
     open_from_the_handle,
 };
-/// The progress file the handler advances while the act lives.
+/// One progress file and its words.
 pub use removal_progress_file::{
-    MAXIMUM_PROGRESS_BYTES,
-    PROGRESS_KIND,
-    PROGRESS_VERSION,
     ProgressFile,
-    ProgressReading,
     ProgressRefusal,
-    ProgressWriting,
-    parse_progress,
-    progress_text,
 };
 /// The refusal of a command the service manager started.
 pub use started_by_the_service_manager::{
@@ -380,19 +417,39 @@ pub use the_acts_journal_lines::{
     dataset_word,
     quoted,
 };
-/// The act on one holder namespace's copy.
+/// The report one child hands back.
+pub use the_childs_report::{
+    ActOutcome,
+    ActReport,
+    ChildRefusal,
+    MAXIMUM_HEADER_BYTES,
+};
+/// The shapes the act speaks in and the word a failed child's report becomes.
 pub use the_copy_taken_out_of_a_namespace::{
     CopyRefusal,
     DESTINATION_MODE,
     NamespaceCopy,
     Ready,
     WayOut,
-    make_the_way_ready,
+};
+/// The kernel's mount table as the act reads it.
+pub use the_mount_table_the_act_reads::{
     row_of,
     rows_of,
-    take_the_copy_out,
     topmost_at,
 };
+/// The five lines one progress file holds.
+pub use the_progress_file_lines::{
+    MAXIMUM_PROGRESS_BYTES,
+    PROGRESS_KIND,
+    PROGRESS_VERSION,
+    parse_progress,
+    progress_text,
+};
+/// What the wrapper reads out of a progress file.
+pub use the_progress_file_reads::ProgressReading;
+/// What the handler writes into a progress file.
+pub use the_progress_file_writes::ProgressWriting;
 /// The sentences a forced removal prints.
 pub use the_refusal_sentences::{
     TheHolder,
@@ -402,3 +459,7 @@ pub use the_refusal_sentences::{
     caller_holds_in_its_working_directory,
     the_callers_namespace_holds,
 };
+/// The act's first stage.
+pub use the_structural_stage::make_the_way_ready;
+/// The act's second stage.
+pub use the_unmount_stage::take_the_copy_out;
