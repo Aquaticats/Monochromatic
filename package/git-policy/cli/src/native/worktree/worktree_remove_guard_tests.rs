@@ -34,8 +34,8 @@ use crate::test_support::{
     repository,
 };
 use crate::worktree_command_facts::RemovePlan;
+use crate::worktree_removal_finishes_an_interrupted_destroy::finish_interrupted_destroys;
 use crate::worktree_removal_interrupted_destroy::{
-    finish_interrupted_destroys,
     record_destroy_with_owner,
     record_destroyed,
 };
