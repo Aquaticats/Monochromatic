@@ -117,9 +117,9 @@ fn nesting_note(depth: u32) -> String {
 /// ```
 pub fn being_written_cause_and_remedy(error: &Error) -> (String, String) {
     let cause: String = format!(
-        "the program's file is being written by another program ({error}): the system does not start a file that any process holds open for writing, so an upgrade or an install is replacing the program at the moment the shadow tried to start it"
+        "the program's file is open for writing by another program ({error}): the system does not start a file that any process holds open for writing. An upgrade or an install of that program is the usual cause, because it writes the new copy there before anything can start it"
     );
-    let remedy: String = "run the same command again once the program's file is no longer being written: the replacement is already underway, so nothing is broken and no configuration has to change".to_string();
+    let remedy: String = "run the same command again once that write has finished: nothing of this command ran, and the same command works as soon as the program's file is no longer being written".to_string();
     return (cause, remedy);
 }
 

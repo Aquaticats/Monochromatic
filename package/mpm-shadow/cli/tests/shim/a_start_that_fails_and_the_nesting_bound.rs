@@ -181,7 +181,7 @@ fn a_start_refused_because_the_program_is_being_written_says_the_file_is_being_r
     assert!(stderr.contains("Text file busy"), "{stderr}");
     for expected in [
         "mpm installed",
-        "is being written by another program",
+        "is open for writing by another program",
         "run the same command again",
         "126",
     ] {

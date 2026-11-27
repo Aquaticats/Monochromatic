@@ -14,16 +14,17 @@
 //! (`ETXTBSY`,
 //! `ErrorKind::ExecutableFileBusy`) is not retried,
 //! and `is_refusal` stays what its name says.
-//! Every writer this tool starts or stands in front of publishes the program by naming a finished
-//! file or a finished directory into place with a rename,
-//! so none of them ever writes the path a start resolves:
-//! measured 2026-11-27,
+//! Read from the code,
+//! every writer this tool starts or stands in front of gives the new program a name of its own
+//! and names the finished file or the finished directory into place with a rename,
+//! so none of them ever writes the path a start resolves.
+//! Measured 2026-11-27 on the same syscall shapes,
 //! the launcher placement,
 //! the gunzipped download,
 //! the plain download and the `tar` extraction held the file they were writing open
 //! for 2.9 to 20.1 ms and never at the published path,
 //! and `uv tool install --force` wrote the entry point under a temporary name in `bin/`
-//! and published it by rename.
+//! and renamed it.
 //! A writer that does hold the published file open is outside this tool
 //! and keeps it for as long as its own work takes,
 //! so there is no measured window a retry could carry;

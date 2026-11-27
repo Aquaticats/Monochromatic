@@ -111,7 +111,7 @@ fn a_program_without_permission_names_the_execute_bit_and_the_directory_search_b
 
 #[cfg(target_os = "linux")]
 #[test]
-fn a_refusal_because_the_program_is_being_written_says_a_replacement_is_underway_and_names_no_step_that_shows_nothing()
+fn a_refusal_because_the_program_is_being_written_names_the_write_the_usual_cause_and_the_command_to_repeat()
  {
     let error = Error::from_raw_os_error(LINUX_ETXTBSY);
     assert_eq!(error.kind(), ErrorKind::ExecutableFileBusy, "{error}");
@@ -119,8 +119,8 @@ fn a_refusal_because_the_program_is_being_written_says_a_replacement_is_underway
     assert_has_the_common_parts(&text);
     assert!(text.contains("Text file busy"), "{text}");
     for expected in [
-        "is being written by another program",
-        "an upgrade or an install is replacing the program",
+        "is open for writing by another program",
+        "An upgrade or an install of that program is the usual cause",
         "run the same command again",
     ] {
         assert!(text.contains(expected), "{expected}: {text}");

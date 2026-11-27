@@ -259,7 +259,7 @@ fn a_real_program_whose_file_is_being_written_is_explained_and_the_same_command_
     );
     for expected in [
         &format!("could not start {}:", tree.real().display()),
-        "is being written by another program",
+        "is open for writing by another program",
         "run the same command again",
     ] {
         assert!(stderr.contains(expected), "{expected}: {stderr}");

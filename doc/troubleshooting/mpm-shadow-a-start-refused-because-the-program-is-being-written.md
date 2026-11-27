@@ -68,10 +68,15 @@ which is written for a cause nobody has classified.
 ## Which writers can produce it
 
 A start is refused only while the file at the path a start resolves is open for writing.
-A writer that builds the new program under another name and then renames it into place
+Read from the code,
+a writer that builds the new program under another name and then renames it into place
 never opens the published path for writing:
 `rename` replaces the directory entry,
 and the write descriptor of the old inode belongs to a name no `execve` resolves.
+The arms below measure that on the same syscall shapes,
+for a writer that does it one way and a writer that does it the other.
+They do not run this tool's installer end to end against a real download,
+and the real `mpm`'s own upgrade was not run at all.
 
 Measured 2026-11-27 on this machine,
 each writer below ran under `strace -f -ttt`
@@ -242,11 +247,13 @@ and neither was measured.
 
 ## What the code does instead
 
-`start_failure::being_written_cause_and_remedy` says the program's file is being written by another
+`start_failure::being_written_cause_and_remedy` says the program's file is open for writing by another
 program,
-that an upgrade or an install is replacing the program,
+that an upgrade or an install of that program is the usual cause,
 and that the same command works once the write has finished.
-It names no step that cannot show the error again.
+It names no step that cannot show the error again,
+and it does not claim a replacement is certainly in progress:
+the system's refusal says only that some process holds the file open for writing.
 `src/shim.rs` and `src/toolchain/launcher/starting_it.rs` both print those words,
 because `spawn` and `exec` meet the same refusal.
 
@@ -260,6 +267,10 @@ read from the install records and the registry
 not from what the command did.
 A command that never ran superseded nothing,
 so the skipped cleanup leaves the cargo home exactly as it found it.
+A superseded copy an earlier run left,
+including one a killed run left,
+stays until the next run that starts,
+which is the behaviour the README's shadow-mode section already states.
 The shim test `a_start_refused_because_the_program_is_being_written_says_the_file_is_being_replaced`
 compares the file set before and after,
 and pins that.
