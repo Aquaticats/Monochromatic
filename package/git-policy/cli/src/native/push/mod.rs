@@ -172,6 +172,15 @@
 //! - `bounded_query.rs`:
 //!   read-only Git queries of the auto-push,
 //!   each with a deadline and separate output streams.
+//! - `auto_push_destination_settings.rs`:
+//!   the settings that decide where one branch is pushed,
+//!   read from one listing of the configuration.
+//! - `auto_push_destination_by_push_default.rs`:
+//!   the ref `push.default` sends one branch to,
+//!   or the note that says why Git sends it nowhere.
+//! - `auto_push_destination_by_refspecs.rs`:
+//!   where the configured push refspecs send one branch,
+//!   judged from one answer about the local refs.
 //! - `auto_push_destination.rs`:
 //!   where a plain `git push` of one named branch goes,
 //!   from the configuration and the local refs.
@@ -400,6 +409,18 @@ pub mod tcp_sockets;
 /// The real Git of a push,
 /// its query runner and the failure types of a push.
 pub mod auto_push_single_flight;
+
+/// The settings that decide where one branch is pushed,
+/// read from one listing of the configuration.
+pub mod auto_push_destination_settings;
+
+/// The ref `push.default` sends one branch to,
+/// or the note that says why Git sends it nowhere.
+pub mod auto_push_destination_by_push_default;
+
+/// Where the configured push refspecs send one branch,
+/// judged from one answer about the local refs.
+pub mod auto_push_destination_by_refspecs;
 
 /// Where a plain `git push` of one named branch goes,
 /// from the configuration and the local refs.
