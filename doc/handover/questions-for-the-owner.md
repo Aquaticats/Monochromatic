@@ -3739,3 +3739,115 @@ and the person still commits it.
 The issue asked that the sentence stay only where nothing corrects the bytes,
 which is what the round did;
 saying more there was not built.
+
+## Veto open: three things the round on the driver's watch cases chose (recorded 2026-11-27T18:11:08-05:00)
+
+The round of issue 6631 merged as `ae937863bc`.
+The coordinating session read its report whole and wrote this entry.
+None holds a release.
+
+### How long a case waits for its event
+
+A case of the driver's suite waited three polls,
+900 ms,
+for an event that takes two looks,
+and one whole run of the suite left it 177 ms of room.
+
+- A bound from the looks a case needs (taken):
+  each look is counted with the longest wait a look can be handed,
+  so no loaded host decides these cases.
+  The cost:
+  a watch that reaches its event only after seconds still passes,
+  and one that never reaches it is reported after as long as 181.8 s,
+  where it took about a second.
+- A clock each case owns,
+  as `wait-for-an-answer.unit.test.ts` has:
+  the case ends at its event with no figure in milliseconds at all,
+  and a slow watch is caught.
+  The cost is a stand-in clock and its driver in twenty-one cases,
+  and the record's silence window reads that clock too.
+
+Ranking,
+the coordinating session's:
+the owned clock > the bound from looks,
+because it catches a slow watch and the bound does not.
+The round built the bound because it is the smaller change to a file it only had to make hold.
+
+### Two cases that assert the wall clock keep their poll counts
+
+One of them needs its first look before its clock,
+so a timer that fires about 285 ms late still fails it.
+
+- Leave them (taken):
+  no failure of either is on record.
+- Give those two the owned clock:
+  the exposure goes.
+  The cost is a round on two cases.
+
+Ranking,
+the coordinating session's:
+the owned clock > leave them,
+for the same reason,
+and the two questions are one round if the first is taken.
+
+### Where the cause is written down
+
+The round wrote it into `doc/troubleshooting/testing.md`,
+as the next cause of a bug whose other causes are written there.
+`AGENTS.md` asks that a fact about one package go in that package's docs.
+
+- Leave it beside the bug's other causes (taken).
+- Move the whole bug,
+  with every cause,
+  into the driver's own docs:
+  the rule is kept and the causes stay together.
+- Move this cause alone:
+  the rule is kept for it and the bug is split over two files.
+
+Ranking,
+the coordinating session's:
+move the whole bug > leave it > move this cause alone,
+because the first keeps the rule and the record whole,
+and the last trades one for the other.
+
+## Veto open: whether a command the linter prints may spell a name it must hold raw (recorded 2026-11-27T18:17:40-05:00)
+
+The Claude Sonnet read of the linter's `0.5.2-alpha.22` found that the loop message,
+the missing-link message and the command that message gives
+(`mkdir --parents <folder>/uses && ln --symbolic ...`)
+print a folder's name raw when it holds a character that prints as nothing,
+a right-to-left override among them.
+The list reader's own messages spell such a character since alpha.22.
+No round builds any of this yet;
+the read's other findings went to a round.
+
+- Sentences spell the name,
+  and a command keeps it raw and says in words that it holds such a character (the coordinating session's pick):
+  the command works when copied.
+  The cost:
+  the raw character still reaches the terminal inside the command's text.
+- Spell the name everywhere,
+  commands too:
+  nothing raw reaches a terminal.
+  The cost:
+  the copied command names a folder that is not there,
+  so the message has to say how to type the real name.
+- Leave the messages as they are:
+  no work.
+  The cost:
+  the module's own comment says every message spells such a character,
+  which is then not so.
+
+Ranking,
+the coordinating session's:
+sentences spell and commands stay raw > spell everywhere > leave them,
+because the first keeps the command usable and the second gives a command that fails,
+and because the second still tells a person what the name holds where the third prints it unseen.
+
+The Braille blank,
+U+2800,
+prints as an empty cell and is printed raw by both releases:
+Unicode does not count it among the characters that print as nothing.
+The pick is to leave it;
+the other way is to add it to the set by hand,
+which ties the set to a list of the linter's own beside Unicode's.

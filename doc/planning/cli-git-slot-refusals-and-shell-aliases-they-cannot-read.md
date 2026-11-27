@@ -87,12 +87,23 @@ runs:
 
 Still unread, and reaching Git unchanged as option C describes:
 `!sh -c '...'`,
-a value whose bytes hold a quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
+a value holding a byte the shell gives a meaning of its own,
+which the reader keeps as the allow-list of the bytes it reads:
+letters,
+digits,
+the ten bytes `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+and the two blanks,
+so a quote,
+a backslash,
+a `$`,
+a backtick,
+a glob,
+a brace,
+a parenthesis,
+`~`,
+`#`,
+a redirection,
+a separator and every non-ASCII byte leave the value unread,
 a value whose own words name a global option,
 a chain of ordinary aliases past 64 links,
 and a chain of `!` aliases past four shells.
@@ -144,11 +155,83 @@ so all three spellings are refused by the slot reading as it stands and no
 release code changed.
 At `warn` the rule's finding and its warn-unsafe line are printed before a
 removal's refusal,
-and a move's refusal carries its own sentence alone:
-the move's refusal is built without the text the planning had already printed
+and the move's refusal carried its own sentence alone:
+the move's refusal was built without the text the planning had already printed
 (`entry_zfs_slot_commands::move_refusal_of`).
 The round left that difference as it found it and wrote it into `SPEC.md`'s
 "Removal of a ZFS worktree clone" passage.
+The alpha.50 release pass answered it (issue 6624) and the section below says how.
+
+## What the alpha.50 release pass measured and changed
+
+A third pass over `0.6.1-alpha.50` (release commit `3458afd18e`) against
+`0.6.1-alpha.49`,
+run on 2026-11-27,
+unapproved,
+by another agent of the same vendor,
+so a second pass and not an independent review.
+What this file asks for is unchanged:
+a shell alias the wrapper cannot read still reaches Git,
+and the choice among the three options below is still the owner's.
+Four things beside that choice were measured and are settled here.
+Every claim below rests on the controls this repository now holds.
+
+A bare `!git` whose caller's words carry `-C`,
+`--git-dir` or `--work-tree` is judged for the worktree and the repository those
+words name.
+Git hands the caller's own words to the same nested Git
+(`git.c:401` to `git.c:402`),
+and the guard and the slot refusals judged the caller's own worktree:
+from a clean linked worktree,
+`-c alias.x=!git x -C <main> reset --hard` reset a dirty main checkout while the
+direct spelling was refused,
+and from the main checkout `-C <linked worktree>` was refused where Git would
+have reset the clean linked worktree.
+`GuardedForwarded` now carries the globals that place the command Git runs,
+`global_arguments::names_the_place_the_command_acts` is the one reading of which
+globals name a place,
+and `entry` builds every repository fact from those globals,
+so the guard and the slot refusals judge the same worktree and read the same
+repository's slot records.
+`entry_shell_alias_judged_where_its_words_point_tests` compares every guarded
+command behind the alias with the direct spelling of the same target,
+in both directions of that finding,
+for the plain `-C` spelling and for `--git-dir`/`--work-tree` separated and
+attached.
+
+A removal,
+a move or a prune behind a `!` alias whose shell's directory Git could not be
+asked for is refused,
+naming what could not be read,
+and never forwarded in silence.
+That is the reading the coordinating session took of the owner's four answers of
+2026-11-26 and the owner may veto:
+`alias_run_directory` answered nothing,
+the slot's start was nothing,
+and the removal reached Git with no refusal read at all.
+The other way is to forward it and print a line saying the directory could not be
+asked,
+which costs the same person the same protection and leaves a bound slot's
+registration to Git.
+A shell alias the wrapper cannot read at all is untouched by this and stays as it
+is on `main`.
+
+The bytes the reading trusts are stated as the allow-list the code reads,
+in `SPEC.md` twice and `README.md` once,
+rather than as a list of the bytes it leaves unread,
+which named fewer bytes than `is_plain_shell_byte` refuses
+(`invocation/alias_value.rs`).
+`every_byte_the_shell_does_not_pass_through_leaves_a_git_value_unread` names every
+byte of the alphabet,
+so a widening of that list is a row that fails.
+
+A refused `git worktree move` now prints what the policy stage printed before it,
+in the order a removal prints it (#6624),
+and so do the prune's refusal and every other ending of
+`invocation/entry_zfs_slot_commands.rs` and its siblings that was built from a
+sentence alone:
+`failure_after` and the configuration ending of
+`invocation/entry_forward_action_planning.rs` carry those lines too.
 
 ## Options
 

@@ -5,6 +5,7 @@
 //! each read from one command line.
 
 use super::*;
+use crate::entry_zfs_slot_commands_the_unread_place::unplaced_refusal_of;
 use crate::forwarded_command::Route;
 use crate::test_support::{
     fixture,
@@ -21,7 +22,8 @@ use crate::testing::fixture_zfs_binding_record::{
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use std::ffi::OsString;
 
-/// One real registration of one slot, which Git writes.
+/// One real registration of one slot,
+/// which Git writes.
 fn slot(name: &str) -> RegisteredSlot {
     return a_registered_slot(name);
 }
@@ -39,6 +41,91 @@ fn command_of(values: &[&str]) -> ResolvedCommand {
         route: Route::Direct,
         shell_command: None,
     };
+}
+
+/// One command line as the wrapper resolved it,
+///  with the global options Git reads before the command word.
+fn command_after_globals(
+    globals: &[&str],
+    values: &[&str],
+) -> ResolvedCommand {
+    let mut arguments: Vec<OsString> = globals
+        .iter()
+        .map(|value| return OsString::from(*value))
+        .collect();
+    arguments.extend(values.iter().map(|value| return OsString::from(*value)));
+    return ResolvedCommand {
+        arguments,
+        subcommand_index: globals.len(),
+        subcommand: values.first().map(|value| return OsString::from(*value)),
+        route: Route::Direct,
+        shell_command: None,
+    };
+}
+
+/// What:
+///  A slot command the wrapper read and could not place is refused,
+///  and the three words that read a slot are the ones refused:
+///  `remove` and `move` always,
+///  and `prune` only when its own words name a place of their own.
+/// Why:
+///  Git runs a `!` alias's shell at the top of the working tree
+///  (`git.c:388` to `git.c:407`),
+///  so a removal or a move reads its operand from a directory this wrapper must ask Git for;
+///  a command nothing placed may act on a bound slot in a repository nothing here read
+///  (the alpha.50 review's L2).
+///  A prune reads no operand and no directory,
+///  so the caller's own repository is the one its records belong to unless the command
+///  names another with `-C`,
+/// `--git-dir` or `--work-tree`.
+#[test]
+fn a_slot_command_the_wrapper_could_not_place_is_refused() {
+    for (globals, values) in [
+        (&[][..], &["worktree", "remove", "-f", "-f", "one"][..]),
+        (&[][..], &["worktree", "move", "one", "../moved"][..]),
+        (&["-C", "elsewhere"][..], &["worktree", "prune"][..]),
+        (
+            &["--git-dir", "elsewhere/.git"][..],
+            &["worktree", "prune"][..],
+        ),
+    ] {
+        let ending: Action = unplaced_refusal_of(&command_after_globals(globals, values), "")
+            .unwrap_or_else(|| panic!("{values:?} reads a slot, so it is refused unplaced"));
+        match ending {
+            Action::Exit {
+                code,
+                stderr: refusal,
+                ..
+            } => {
+                assert_eq!(code, REFUSAL_STATUS);
+                assert!(
+                    refusal.contains("could not be asked where that alias's shell runs"),
+                    "{refusal}"
+                );
+                assert!(
+                    refusal.contains(format!("`git worktree {}` is refused", values[1]).as_str()),
+                    "{refusal}"
+                );
+            }
+            other => panic!("a refusal ends this file's commands: {other:?}"),
+        }
+    }
+    // A prune whose own words name no place reads the caller's own records, which the planning read,
+    //  and a word that reads no slot is not this refusal's.
+    assert!(
+        unplaced_refusal_of(&command_after_globals(&[], &["worktree", "prune"]), "").is_none(),
+        "a prune that names no place of its own is left to the pass over the caller's records"
+    );
+    for values in [
+        &["worktree", "list"][..],
+        &["status"][..],
+        &["worktree", "repair", "one"][..],
+    ] {
+        assert!(
+            unplaced_refusal_of(&command_of(values), "").is_none(),
+            "{values:?} reads no slot"
+        );
+    }
 }
 
 /// What:
@@ -67,6 +154,7 @@ fn a_move_of_a_bound_slot_is_refused_at_the_command() {
         &command_of(&["worktree", "move", "one", "../moved"]),
         Some(bound.common.as_path()),
         Some(std::path::Path::new("/")),
+        "",
     );
     match ending {
         Some(Action::Exit {
@@ -90,7 +178,8 @@ fn a_move_of_a_bound_slot_is_refused_at_the_command() {
         move_refusal_of(
             &command_of(&["worktree", "move", "one", "../moved"]),
             Some(other.common.as_path()),
-            Some(std::path::Path::new("/"))
+            Some(std::path::Path::new("/")),
+            ""
         )
         .is_none()
     );
@@ -250,7 +339,8 @@ fn a_repository_without_records_gets_nothing() {
         move_refusal_of(
             &command_of(&["worktree", "move", "one", "two"]),
             Some(common.as_path()),
-            Some(std::path::Path::new("/"))
+            Some(std::path::Path::new("/")),
+            ""
         )
         .is_none()
     );
@@ -369,6 +459,7 @@ fn a_plain_same_leaf_worktree_moves_and_the_slot_stays_refused() {
         ]),
         Some(bound.common.as_path()),
         Some(std::path::Path::new("/")),
+        "",
     );
     assert!(
         plain.is_none(),
@@ -383,6 +474,7 @@ fn a_plain_same_leaf_worktree_moves_and_the_slot_stays_refused() {
         ]),
         Some(bound.common.as_path()),
         Some(std::path::Path::new("/")),
+        "",
     );
     assert!(
         the_slot.is_some(),
@@ -391,7 +483,9 @@ fn a_plain_same_leaf_worktree_moves_and_the_slot_stays_refused() {
     remove(bound.root.as_path());
 }
 
-/// The slot's pointer gone, as an account that deleted it leaves it, whatever an earlier arm of a control wrote.
+/// The slot's pointer gone,
+/// as an account that deleted it leaves it,
+/// whatever an earlier arm of a control wrote.
 fn leave_the_pointer_gone(pointer: &Path) {
     if pointer.exists() {
         std::fs::remove_file(pointer).expect("the pointer goes");
@@ -406,8 +500,10 @@ fn leave_the_pointer_gone(pointer: &Path) {
 ///  Every spelling Git's own parser reads as a dry run writes nothing,
 ///  and the spelling that turns the dry run back off writes the pointer.
 /// Why:
-///  A dry run must not write, and Git accepts abbreviations of `--dry-run` and
-///  `--no-dry-run` (its `parse-options.c` matches any unique prefix), so a pass
+///  A dry run must not write,
+/// and Git accepts abbreviations of `--dry-run` and
+///  `--no-dry-run` (its `parse-options.c` matches any unique prefix),
+/// so a pass
 ///  that read only the exact words wrote the pointer on a command Git pruned
 ///  nothing for.
 #[test]

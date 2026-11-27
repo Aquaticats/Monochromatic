@@ -815,8 +815,10 @@ fn a_stale_current_in_the_winning_root_is_repaired_before_another_scope_links_th
     );
 }
 
-/// The link's target is a version this run deletes, so the guard that leaves a newer link alone must not hold:
-/// the link has to end on the finished version that survives, or commands through `current/bin` fail.
+/// The link's target is a version this run deletes,
+/// so the guard that leaves a newer link alone must not hold:
+/// the link has to end on the finished version that survives,
+/// or commands through `current/bin` fail.
 #[test]
 fn prune_points_current_at_the_finished_survivor_when_the_link_named_a_newer_deletion() {
     let duo = Duo::new();
@@ -863,8 +865,10 @@ fn prune_points_current_at_the_finished_survivor_when_the_link_named_a_newer_del
     assert!(fs::metadata(&link).is_ok(), "and the link resolves");
 }
 
-/// Only an unfinished version survives because the other root forwards to it, and the link names the version this
-/// run deletes: the link must go rather than outlive its target,
+/// Only an unfinished version survives because the other root forwards to it,
+/// and the link names the version this
+/// run deletes:
+/// the link must go rather than outlive its target,
 /// since an unfinished install is not something `current` may name.
 #[test]
 fn prune_removes_a_link_that_names_its_own_deletion_when_only_an_unfinished_version_stays() {
@@ -913,8 +917,10 @@ fn prune_removes_a_link_that_names_its_own_deletion_when_only_an_unfinished_vers
     );
 }
 
-/// A version the other root forwards to stays while a newer one is pruned, because no lock names the crate:
-/// `current` must name the newest version that stays, never the newest installed one,
+/// A version the other root forwards to stays while a newer one is pruned,
+/// because no lock names the crate:
+/// `current` must name the newest version that stays,
+/// never the newest installed one,
 /// or a successful prune leaves it naming a directory it just removed.
 #[test]
 fn prune_points_current_at_the_newest_version_that_stays_not_the_newest_installed_one() {

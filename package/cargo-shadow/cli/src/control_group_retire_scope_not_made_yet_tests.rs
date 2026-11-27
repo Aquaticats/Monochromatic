@@ -9,8 +9,10 @@
 //! which asks the manager nothing and says nothing,
 //! and the unit stays loaded with no member and no warning.
 //! The control below makes that state and measures which answer the look gives,
-//! because `README.md` claims that "a group that is gone was collected, and asks nothing either"
-//! and the claim was read in the source, never observed at a run's end
+//! because `README.md` claims that "a group that is gone was collected,
+//! and asks nothing either"
+//! and the claim was read in the source,
+//! never observed at a run's end
 //! (`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`,
 //! "A directory that was never made reads as a collected scope").
 //!
@@ -28,7 +30,8 @@ use std::path::{
     Path,
     PathBuf,
 };
-/// Starts a real program in a real scope, and reads the manager's answer for its unit.
+/// Starts a real program in a real scope,
+/// and reads the manager's answer for its unit.
 use std::process::Command;
 
 /// The scope this control starts the way a run starts one,
@@ -44,7 +47,8 @@ use crate::control_group::retire::{
     RETIRE_BOUND,
     retire,
 };
-/// A directory of this control's own, beside the build output.
+/// A directory of this control's own,
+/// beside the build output.
 use crate::test_scratch::scratch;
 
 /// What:
@@ -77,7 +81,8 @@ fn recording_systemctl(directory: &Path) -> (String, PathBuf) {
 }
 
 /// What:
-/// `fn calls(log: &Path) -> String` is what the recording program logged, or the empty text.
+/// `fn calls(log: &Path) -> String` is what the recording program logged,
+/// or the empty text.
 /// Why:
 /// An empty log is the claim that no question was asked.
 ///
@@ -90,9 +95,11 @@ fn calls(log: &Path) -> String {
 }
 
 /// What:
-/// `fn active_state(unit: &str) -> String` is the manager's own `ActiveState` for a unit, trimmed.
+/// `fn active_state(unit: &str) -> String` is the manager's own `ActiveState` for a unit,
+/// trimmed.
 /// Why:
-/// The unit's state is the manager's fact, not a stand-in's,
+/// The unit's state is the manager's fact,
+/// not a stand-in's,
 /// and "left loaded" is about that state.
 ///
 /// In TS you'd write (pseudocode):
@@ -115,7 +122,8 @@ fn active_state(unit: &str) -> String {
 }
 
 /// The control:
-/// a scope unit that is loaded, read at a directory that was never made,
+/// a scope unit that is loaded,
+/// read at a directory that was never made,
 /// is a scope the manager collected:
 /// the look answers no warning and asks the manager nothing.
 /// The unit is a real one with a real member in it,

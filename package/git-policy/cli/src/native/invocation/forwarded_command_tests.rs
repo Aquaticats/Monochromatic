@@ -651,6 +651,95 @@ fn a_shell_alias_the_reading_cannot_follow_is_left_unread() {
 }
 
 /// What:
+///  The bytes the shell reads as they are:
+///  the letters,
+///  the digits,
+///  the ten bytes of ordinary arguments,
+///  and the two blanks,
+///  which separate two words rather than standing in one.
+///  Written out here rather than read from the reader,
+///  so a widening of that list is a row that fails.
+/// Why:
+///  The table below is the whole alphabet,
+///  and a set taken from `is_plain_shell_byte` would agree with whatever that function says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const READ = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.:/=@+, \t';
+/// ```
+const BYTES_THE_SHELL_READS: &[u8] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.:/=@+, \t";
+
+/// What:
+///  One `!git` value that holds the byte inside its second word,
+///  where the shell would keep the byte in that word if it passed the byte through.
+/// Why:
+///  A byte at the end of a value would leave it unread for the value's shape and not for the byte,
+///  so the row would pass whatever the byte meant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const valueHolding = (byte) => new TextEncoder().encode(`!git reset --har${String.fromCharCode(byte)}d`);
+/// ```
+fn a_git_value_holding(byte: u8) -> Vec<u8> {
+    let mut value: Vec<u8> = b"!git reset --har".to_vec();
+    value.push(byte);
+    value.extend_from_slice(b"d");
+    return value;
+}
+
+/// What:
+///  Every byte of the alphabet is read or left unread as the shell would read it:
+///  the letters,
+/// digits and the ten bytes of ordinary arguments are read,
+///  and every other byte leaves the value unread.
+/// Why:
+///  `is_plain_shell_byte` is the one list of bytes the shell-alias reading trusts,
+///  so a widening by any byte decides about a command nobody runs:
+///  a quote,
+/// a backslash,
+/// a brace,
+/// a parenthesis,
+/// `~`,
+/// `#`,
+/// a carriage return or a line feed
+///  left the old controls green (the alpha.50 review's L3).
+///  This table names every byte,
+///  so a widening shows as the rows whose byte is now read and a narrowing as the row that is
+///  no longer read:
+///  with one byte widened into the list,
+/// that byte's row fails and no other row does.
+///  A blank byte splits the value into two words rather than standing in one,
+///  and the value is read either way,
+///  which `a_shell_alias_is_read_in_every_form_the_shell_passes_through` holds for the two
+///  blanks the shell separates on.
+#[test]
+fn every_byte_the_shell_does_not_pass_through_leaves_a_git_value_unread() {
+    // Every offending byte is collected before the claim is made, so one widening reports each byte
+    //  it read and the table it broke, rather than stopping at the first.
+    let mut read_through: Vec<u8> = Vec::new();
+    let mut left_unread: Vec<u8> = Vec::new();
+    for byte in 0..=u8::MAX {
+        let value: Vec<u8> = a_git_value_holding(byte);
+        let read: bool = crate::alias_value::shell_git_words(value.as_slice()).is_some();
+        if read && !BYTES_THE_SHELL_READS.contains(&byte) {
+            read_through.push(byte);
+        }
+        if !read && BYTES_THE_SHELL_READS.contains(&byte) {
+            left_unread.push(byte);
+        }
+    }
+    assert!(
+        read_through.is_empty(),
+        "each of these bytes means something to the shell, so a value holding one stays unread: {read_through:?}"
+    );
+    assert!(
+        left_unread.is_empty(),
+        "each of these bytes is read as it is, so a value holding one is read: {left_unread:?}"
+    );
+}
+
+/// What:
 ///  Every spelling made only of forms the shell passes through is read as Git runs
 ///  it,
 ///  and real Git is asked the same shape beside each reading.

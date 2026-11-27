@@ -153,7 +153,8 @@ fn line_leading(
     return leading.to_string();
 }
 
-/// The indentation of one entry in the object whose `{` is at `brace`, when no entry is there to copy it from.
+/// The indentation of one entry in the object whose `{` is at `brace`,
+/// when no entry is there to copy it from.
 fn indent_below(
     source: &str,
     brace: usize,
@@ -162,9 +163,11 @@ fn indent_below(
 }
 
 /// What:
-/// Where the new entry goes, read from the text between the last member's value and the object's closing brace.
+/// Where the new entry goes,
+/// read from the text between the last member's value and the object's closing brace.
 /// Why:
-/// The comma, the whitespace and any comment beside that entry are the person's,
+/// The comma,
+/// the whitespace and any comment beside that entry are the person's,
 /// and the only question is where the new text goes around them.
 ///
 /// In TS you'd write (pseudocode):

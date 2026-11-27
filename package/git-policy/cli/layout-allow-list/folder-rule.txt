@@ -81,6 +81,7 @@ group-file src/native/invocation entry_repository_link_stop.rs
 group-file src/native/invocation entry_rules_text_change_warm.rs
 group-file src/native/invocation entry_run_forwarded_actions.rs
 group-file src/native/invocation entry_zfs_slot_commands.rs
+group-file src/native/invocation entry_zfs_slot_commands_the_unread_place.rs
 group-file src/native/invocation escape_hatch.rs
 group-file src/native/invocation exit_report_written.rs
 group-file src/native/invocation external_git_command.rs
