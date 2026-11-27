@@ -77,6 +77,9 @@ use crate::shadow_identity::{
 /// Imports the function that lowers the disk priority.
 use crate::priority::lower_disk_priority;
 
+/// Imports the line a refused start prints.
+use crate::refused_start::describe_refused_start;
+
 /// Imports the PATH lookup that finds the real tool.
 use crate::real_binary::find_in_path;
 
@@ -263,6 +266,6 @@ pub fn run_shim(
     // A returned value here means the launch failed; success replaced the process. `&real` and `&arguments` lend the
     // path and the argument list without giving them away.
     let error = replace_process(&real, &arguments);
-    eprintln!("search-shadow: could not start {}: {error}", real.display());
+    eprintln!("{}", describe_refused_start(&real, &error.to_string()));
     return EXEC_FAILED_EXIT_CODE;
 }

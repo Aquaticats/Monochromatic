@@ -60,6 +60,11 @@ pub mod notice_marker;
 /// The PATH lookup that finds the real `pnpm` while skipping the shadow itself.
 pub mod real_binary;
 
+/// What a refused start gives its callers:
+/// the one line the shadow prints,
+/// and the error it hands a caller that reports a start it could not make.
+pub mod refused_start;
+
 /// The text the shadow writes to standard error.
 pub mod report;
 
@@ -124,6 +129,10 @@ mod shadow_notice_tests;
 /// The unit tests of the child launch and exit-status mapping.
 #[cfg(test)]
 mod shim_tests;
+
+/// The unit tests of what a refused start prints and hands on.
+#[cfg(test)]
+mod refused_start_tests;
 
 /// The unit tests of the command-word rules.
 #[cfg(test)]

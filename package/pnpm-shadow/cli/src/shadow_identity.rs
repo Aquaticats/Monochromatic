@@ -37,7 +37,8 @@
 //! because the four crates share no dependency and a crates.io footprint that stays small is the owner's decision
 //! (`doc/planning/one-release-each-batch-2026-11.md`,
 //! "What the owner decided").
-//! `tests/shadow_identity_copies.rs` of `search-shadow` fails when the copies differ.
+//! Each crate's own `tests/shadow_identity_copies.rs` fails when the copies differ,
+//! so the copy that changed alone fails the suite of the crate it was changed in.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -103,8 +104,11 @@ pub use self::launcher_chain::{
 };
 /// Re-exports the comparison of two paths by the file they name.
 pub use self::same_file::is_same_file;
-/// Re-exports the checked program and the check.
+/// Re-exports the checked program,
+/// the check,
+/// and the reasons the check hands nothing back.
 pub use self::vetted_program::{
+    VetRefusal,
     Vetted,
     vet,
 };

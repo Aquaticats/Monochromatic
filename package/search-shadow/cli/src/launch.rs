@@ -57,6 +57,8 @@ use std::path::Path;
 /// the builder for starting another program.
 use std::process::Command;
 
+/// Imports the error a refusal becomes for the caller that prints it.
+use crate::refused_start::into_error;
 /// Imports the check of the chosen program and the arrival marker of its start.
 use crate::shadow_identity::{
     StartMode,
@@ -97,7 +99,9 @@ pub fn replace_process(
     // ```
     let vetted: Vetted = match vet(program) {
         Ok(checked) => checked,
-        Err(reason) => return io::Error::other(reason),
+        // What:     `Err(refusal)` is the start check's refusal, handed on as the error this function returns.
+        // Why:      The caller prints one line for both shapes, and a program that is gone keeps the system's `NotFound`.
+        Err(refusal) => return into_error(refusal),
     };
     let mut command: Command = vetted.command();
 
