@@ -164,8 +164,10 @@ name which ask failed and what it said.
 The five attempts span 0.800 s,
 which is the figure the measurement below gives them;
 they were three attempts fifty milliseconds apart (0.100 s) until 2026-11-27.
-Since issue 6629 the asking again is kept for one case only:
+Since issue 6629 the asking again is kept for the case it is for:
 a manager that can be reached and did not answer for a moment.
+A host whose socket file or whose manager's own directory is still there is read the same way,
+because at the instant an ask fails that is what a manager in a reexec looks like.
 Where no user manager can be reached at all,
 the discovery reads that in its own process at the first failed ask
 (`src/control_group_route_manager_reach.rs`,

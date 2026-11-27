@@ -413,8 +413,10 @@ const ASKING_AGAIN_ATTEMPTS: u32 = 5;
 /// 2026-11-27),
 /// so that four waits of this length hold the question open past the end of one however early in it the first ask fell,
 /// and a copy of each figure is in `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
-/// This wait is spent on one case only:
-/// a manager that can be reached and did not answer for a moment.
+/// This wait is spent where a manager can be reached and did not answer for a moment,
+/// and that includes a host whose socket file or manager directory is still there with nothing behind it:
+/// at the instant an ask fails,
+/// that is what a manager in a reexec looks like.
 /// An ask that spent its own deadline inside its bound is not made again (see `ask_where_the_slice_is`),
 /// and an ask that failed where no user manager can be reached is not made again either,
 /// because nothing here could carry a second one (`control_group_route_manager_reach`),
