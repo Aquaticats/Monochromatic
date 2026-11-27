@@ -2036,37 +2036,6 @@ which is the same way out that the paragraph above describes.
 The wrapper adds one namespace to Git.
 
 ```sh
-
-From lines 37869 to 37893 of the old handover
-(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
-moved verbatim on 2026-11-23:
-
-Open:
-the 8 unmapped instances have neither a note nor a journal record that hashes to them
-(units of worktrees that never landed a commit before this release,
-or whose repository was deleted whole),
-so they stay.
-An instance is a one-way 128-bit FNV-1a hash of the worktree's real Git directory (`service_instance.rs`),
-and neither the unit file nor the running process names that directory,
-so nothing can map one of them back;
-the three answers open to the owner,
-with the coordinator's ranking:
-leave them (`doctor` counts them and names them,
-no live service is ever cut;
-today's answer),
-stop the units of an unmapped instance whose socket file is older than a bound
-(a live but idle worktree's socket is just as old,
-because a socket unit has no idle exit,
-so this is a blind stop that cuts a live worktree's service mid-commit),
-or stop every unmapped instance's units once
-(the same risk,
-now,
-with no age to argue from).
-Ranking:
-leave > age-out > stop once,
-because everything past the first interrupts a commit somebody asked for,
-and 8 leftovers are a small price for never failing one.
-
 # Check or fix the whole repository, or the named pathspecs.
 git monochromatic-git-policy-cli check --all
 git monochromatic-git-policy-cli fix -- docs/ README.md
@@ -9738,3 +9707,35 @@ moved verbatim on 2026-11-23:
   while later answers took 6 to 13 ms at both sizes,
   so a start's read grows with the records and the landing's lookup does not.
   The resident set after a commit was 34.6 to 34.9 MiB at 1024 and 46.7 MiB at 10,240.
+
+From lines 37869 to 37893 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23.
+It stood inside the `Commands` code block from that day until 2026-11-27, where a reader met it as part of the
+command listing; the listing is the code block above, and this passage is the record of an open owner question.
+
+Open:
+the 8 unmapped instances have neither a note nor a journal record that hashes to them
+(units of worktrees that never landed a commit before this release,
+or whose repository was deleted whole),
+so they stay.
+An instance is a one-way 128-bit FNV-1a hash of the worktree's real Git directory (`service_instance.rs`),
+and neither the unit file nor the running process names that directory,
+so nothing can map one of them back;
+the three answers open to the owner,
+with the coordinator's ranking:
+leave them (`doctor` counts them and names them,
+no live service is ever cut;
+today's answer),
+stop the units of an unmapped instance whose socket file is older than a bound
+(a live but idle worktree's socket is just as old,
+because a socket unit has no idle exit,
+so this is a blind stop that cuts a live worktree's service mid-commit),
+or stop every unmapped instance's units once
+(the same risk,
+now,
+with no age to argue from).
+Ranking:
+leave > age-out > stop once,
+because everything past the first interrupts a commit somebody asked for,
+and 8 leftovers are a small price for never failing one.
