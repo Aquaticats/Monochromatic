@@ -178,6 +178,51 @@ fn a_use_line_reads_the_two_sides_of_its_arrow() {
     assert!(!spelled.covers_use(Path::new("src/x"), Path::new("a")));
 }
 
+/// A name before the arrow that ends in whitespace is an error that names its line,
+///  because no folder name of a tree the rules accept can end in whitespace:
+///  a name whose last character the reader trims is refused before any check,
+///  so such a line is always a misspelling rather than a use of a folder that no tree holds.
+#[test]
+fn a_name_before_the_arrow_that_ends_in_whitespace_is_an_error() {
+    for line in ["uses src/a  -> src/b\n", "uses src/a\t -> src/b\n"] {
+        let error: String = error_of(line);
+        assert!(error.contains("Line 1"), "{error}");
+        assert!(error.contains("ends in whitespace"), "{error}");
+        assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+    }
+    // The control: the same use set off with one space each is the use it spells.
+    let list: AllowList = parsed("uses src/a -> src/b\n");
+    assert!(list.covers_use(Path::new("src/a"), Path::new("src/b")));
+}
+
+/// A line holds no name before its arrow when the word and the arrow are set off by two spaces,
+///  so the line is a misspelling of the shape.
+#[test]
+fn a_use_line_with_no_name_before_its_arrow_is_an_error() {
+    let error: String = error_of("uses  -> src/b\n");
+    assert!(error.contains("Line 1"), "{error}");
+    assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+}
+
+/// A run of two spaces in front of a name reads as that name's own leading space,
+///  which the rule prints for a folder whose first name part begins with one,
+///  so the four words alone never decide where a name starts.
+#[test]
+fn a_run_of_two_spaces_in_front_of_a_name_reads_as_its_own_leading_space() {
+    let list: AllowList = parsed("uses  src/a -> src/b\n");
+    assert!(list.covers_use(Path::new(" src/a"), Path::new("src/b")));
+    assert!(!list.covers_use(Path::new("src/a"), Path::new("src/b")));
+}
+
+/// A `..` inside a path reads back over the folder before it,
+///  so a line that climbs and comes back names the folder the walk names.
+#[test]
+fn a_climb_inside_a_path_reads_back_over_the_folder_before_it() {
+    let list: AllowList = parsed("uses src/a/../b -> src/c\nuses ../a/../b -> src/d\n");
+    assert!(list.covers_use(Path::new("src/b"), Path::new("src/c")));
+    assert!(list.covers_use(Path::new("../b"), Path::new("src/d")));
+}
+
 /// A `uses` line whose arrow the reader cannot place is an error,
 ///  because a folder name holds no arrow of its own.
 #[test]
