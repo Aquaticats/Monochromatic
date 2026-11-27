@@ -1075,7 +1075,7 @@ fn processes_of_this_control_group() -> (u64, Option<u64>) {
         .expect("the kernel answers this process's control group");
     let path: &str = groups
         .lines()
-        .find_map(|line| line.strip_prefix("0::"))
+        .find_map(|line| return line.strip_prefix("0::"))
         .expect("this process is in a cgroup v2 group of its own");
     let directory: std::path::PathBuf = std::path::PathBuf::from(format!("/sys/fs/cgroup{path}"));
     let current: u64 = std::fs::read_to_string(directory.join("pids.current"))
@@ -1147,7 +1147,7 @@ fn the_thread_a_watch_is_refused_is_no_limit_this_process_reached() {
                 "the stand-in let a task run, so nothing here stood in for a system that refused a thread"
             );
             assert!(
-                max_processes.is_none_or(|most| of_this_account < most),
+                max_processes.is_none_or(|most| return of_this_account < most),
                 "the limit `ulimit -u` names refused the thread: this account held {of_this_account} tasks, of the \
                  {of_this_machine} this machine held, against the `Max processes` row of `/proc/self/limits`, \
                  {max_processes:?}; the stand-in refused the thread in this process at that moment"
@@ -1159,7 +1159,7 @@ fn the_thread_a_watch_is_refused_is_no_limit_this_process_reached() {
                  of them while the stand-in refused the thread"
             );
             assert!(
-                most_in_this_group.is_none_or(|most| in_this_group < most),
+                most_in_this_group.is_none_or(|most| return in_this_group < most),
                 "the control group's own limit refused the thread: this group held {in_this_group} processes against \
                  its `pids.max`, {most_in_this_group:?}, while this account held {of_this_account} tasks of the \
                  {of_this_machine} this machine held"
