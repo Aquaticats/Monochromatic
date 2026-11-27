@@ -117,7 +117,7 @@ pub(super) async fn run_awaiting(
 }
 
 /// The failure a Git step that did not succeed stands for.
-pub fn classify(output: &GitOutput) -> FailureCode {
+pub(crate) fn classify(output: &GitOutput) -> FailureCode {
     let text: String = output.error_text().to_lowercase();
     if text.contains("no space left") || text.contains("quota exceeded") {
         return FailureCode::RepositoryFull;
