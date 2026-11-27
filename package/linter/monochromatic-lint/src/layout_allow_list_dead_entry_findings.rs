@@ -475,10 +475,12 @@ fn the_characters_a_dead_line_kept(entry: &AllowEntry) -> Vec<String> {
     // Why: the whitespace at either end is the character the line kept, and its place says which one to remove.
     let from_text: String = from.display().to_string();
     let to_text: String = to.display().to_string();
-    // What: the part of each name a reader sees, which is the folder the line was trying to name.
-    // Why: the sentence names that folder so its reader knows which of two identical spaces the phrase is about.
-    let from_name: &str = from_text.trim();
-    let to_name: &str = to_text.trim();
+    // What: the part of each name a reader sees, which is the folder the line was trying to name,
+    // with every character a reader cannot see spelled.
+    // Why: the sentence names that folder so its reader knows which of two identical spaces the phrase is about,
+    // and the sentence that follows it says the same name holds that character, which a raw name would print as nothing.
+    let from_name: String = spelled_unreadable(from_text.trim());
+    let to_name: String = spelled_unreadable(to_text.trim());
     // What: the run of whitespace at each place a separator belongs, and the phrase that names it.
     // Why: a line can keep a run on each side of the arrow, and each run needs its own edit.
     let mut kept: Vec<String> = Vec::<String>::new();

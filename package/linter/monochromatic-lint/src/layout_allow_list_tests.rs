@@ -1422,6 +1422,28 @@ fn a_key_that_begins_with_the_word_is_not_told_to_take_a_character_out() {
     assert!(!help.contains("Take that character out"), "{help}");
 }
 
+/// The help of a dead line spells the name it says the gap stands before,
+///  because that sentence goes on to say the name holds a character a reader cannot see,
+///  and a right-to-left override prints nothing while it reorders what follows it.
+#[test]
+fn the_help_of_a_dead_line_spells_the_name_it_says_the_gap_stands_before() {
+    // What: a doubled gap in front of a name holding U+202E, absent from the fixture package.
+    // Why: the absent folder is what earns the help that names the gap and the folder it stands before.
+    let (message, help) = one_dead_line("uses  src/a\u{202e}b -> src/c\n", &["src/c"]);
+    assert!(
+        help.contains("before `src/a\\u{202e}b`"),
+        "the name is spelled where the gap is named: {help}"
+    );
+    assert!(
+        !help.contains('\u{202e}'),
+        "the override itself is not printed: {help}"
+    );
+    assert!(
+        message.contains("`\\u{20}src/a\\u{202e}b`"),
+        "the quote spells it too: {message}"
+    );
+}
+
 /// The help of a dead line names every whitespace character its gap kept,
 ///  not the first one,
 ///  because a gap of three characters leaves a dead line for anyone who removes one.
