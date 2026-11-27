@@ -112,6 +112,14 @@ const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
         include_str!("../landing/service_commit.rs"),
     ),
     (
+        "landing/service_commit_attempt_values.rs",
+        include_str!("../landing/service_commit_attempt_values.rs"),
+    ),
+    (
+        "landing/service_commit_the_answers_of_the_service.rs",
+        include_str!("../landing/service_commit_the_answers_of_the_service.rs"),
+    ),
+    (
         "landing/service_native.rs",
         include_str!("../landing/service_native.rs"),
     ),

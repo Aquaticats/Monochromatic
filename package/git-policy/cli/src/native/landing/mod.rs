@@ -757,6 +757,14 @@
 //!   what a commit does when the service answered without landing it:
 //!   the words for content a prune removed,
 //!   and the aftermath of a service that failed or went silent.
+//! - `service_commit_attempt_values.rs`:
+//!   the values one commit command carries from the first attempt of its loop to the last.
+//! - `service_commit_the_answers_of_the_service.rs`:
+//!   what one commit does with the answer the service gave:
+//!   a landed commit,
+//!   a commit held behind a reference lock,
+//!   an attempt to prepare again,
+//!   and the two ways the service says nothing landed.
 //! - `service_commit.rs`:
 //!   the commit command's path through the commit service.
 //! - `service_round.rs`:
@@ -1286,6 +1294,12 @@ pub mod service_index_wait;
 
 /// A forwarded index writer started again when the commit service took the index before its Git did.
 pub mod service_hold_retry;
+
+/// The values one commit command carries from the first attempt of its loop to the last.
+pub mod service_commit_attempt_values;
+
+/// What one commit does with the answer the service gave.
+pub mod service_commit_the_answers_of_the_service;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
