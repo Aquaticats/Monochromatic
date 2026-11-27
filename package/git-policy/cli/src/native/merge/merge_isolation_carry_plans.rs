@@ -37,8 +37,8 @@ use crate::merge_isolation_carry_reads::{
     file_form_awaiting,
     raw_bytes_awaiting,
 };
-use crate::merge_isolation_carry_writes::{
-    CarryFailure,
+use crate::merge_isolation_carry_write_failures::CarryFailure;
+use crate::merge_isolation_carry_write_forms::{
     FileWrite,
     IndexWrite,
 };
