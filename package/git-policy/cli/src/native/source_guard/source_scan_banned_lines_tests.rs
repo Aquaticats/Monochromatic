@@ -119,6 +119,7 @@ pub(crate) struct HoldingLine {
 ///  and a file whose excused line is reflowed or moved to another line
 ///  keeps the count it had and passes,
 ///  which is the case a list of lines would fail for no reason.
+///  The count is of uses, so a second use written on the line that already holds one is a second use.
 pub(crate) struct MayHold {
     /// The file's `/`-separated identity under `src/native`.
     pub(crate) file: &'static str,
@@ -260,7 +261,8 @@ fn continues_a_name(byte: u8) -> bool {
 ///  each as `file:line (banned text) the line`.
 ///  An entry covers a line only where its file,
 ///  its text and its count all hold:
-///  the file holds exactly as many uses of that text as the entry names.
+///  the file holds exactly as many uses of that text as the entry names,
+///  where a line that holds the text twice counts twice.
 /// Why:
 ///  This is the finding list a ban's control asserts empty,
 ///  and it names the line and the text so a reader opens the place rather than searching for it.
@@ -268,6 +270,8 @@ fn continues_a_name(byte: u8) -> bool {
 ///  added beside the one it recorded,
 ///  so the count is asked of both sides and a line whose count disagrees is a finding
 ///  that says what the file holds and what the entry names.
+///  The uses are counted rather than the lines,
+///  because a second use written on the line that already holds one is a second use.
 pub(crate) fn lines_no_entry_excuses(
     found: &[HoldingLine],
     may_hold: &[MayHold],
@@ -279,7 +283,8 @@ pub(crate) fn lines_no_entry_excuses(
             .filter(|other| {
                 return other.file == holding.file && other.text == holding.text;
             })
-            .count();
+            .map(|other| return other.line.matches(holding.text).count())
+            .sum();
         let entry: Option<&MayHold> = may_hold.iter().find(|entry| {
             return entry.file == holding.file && entry.text == holding.text;
         });

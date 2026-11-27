@@ -547,4 +547,23 @@ fn the_ban_reads_a_receiver_of_the_split_and_counts_the_uses_one_entry_names() {
         "a second link in an excused file fails, and the finding says what the file holds: {two:?}"
     );
     assert_eq!(two.len(), 2, "both uses are findings: {two:?}");
+    let one_line: Vec<(String, String)> = vec![(
+        String::from("commit/conclusion_copy.rs"),
+        String::from(
+            "fn copied(from: &std::path::Path, to: &std::path::Path) { let _ = std::fs::symlink(from, to); let _ = std::fs::symlink(from, to); }\n",
+        ),
+    )];
+    let twice_on_one_line: Vec<String> = lines_no_entry_excuses(
+        lines_the_commit_path_may_not_hold(one_line.as_slice()).as_slice(),
+        MAY_HOLD,
+    );
+    assert_eq!(
+        twice_on_one_line.len(),
+        1,
+        "the line that holds both links is the one finding: {twice_on_one_line:?}"
+    );
+    assert!(
+        twice_on_one_line[0].contains("holds 2 use(s)"),
+        "a second link on the line that already holds one is a second use: {twice_on_one_line:?}"
+    );
 }
