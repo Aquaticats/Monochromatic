@@ -18,6 +18,8 @@ use crate::lean_identity::{
     Deadline,
     now_seconds,
 };
+/// Imports the names this file uses from `crate::lean_removal`.
+use crate::lean_removal::allocated_bytes_of;
 /// Imports the names this file uses from `crate::lean_run_records`.
 use crate::lean_run_records::{
     RecordsOutcome,
@@ -57,6 +59,7 @@ pub fn sweep_records_directory(
         now_seconds(),
         dry_run,
         deadline,
+        allocated_bytes_of,
         &mut log,
     );
     return outcome;

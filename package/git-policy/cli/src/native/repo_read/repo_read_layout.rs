@@ -57,7 +57,6 @@ use crate::repo_read_config_typed::{
     environment_is_accepted,
     outer_scopes_are_accepted,
 };
-use crate::repo_read_hook::enabled;
 pub(crate) use crate::repo_read_layout_disk_and_directory_facts::start_directory;
 use crate::repo_read_layout_disk_and_directory_facts::{
     device_of,
@@ -83,6 +82,7 @@ use crate::repo_read_layout_repository_format::{
     worktree_entries,
 };
 pub use crate::repo_read_object_format::ObjectFormat;
+use crate::the_switch_that_turns_the_answers_off::enabled;
 use std::ffi::OsString;
 use std::path::{
     Path,
