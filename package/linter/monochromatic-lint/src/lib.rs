@@ -52,6 +52,9 @@ pub use directive_findings::{
 mod closure_cargo;
 /// The offline check that the Dylint driver exists or can be built from the cargo cache.
 mod closure_driver;
+/// Where this machine keeps its Dylint driver,
+///  and what it reports about the driver and the cargo cache.
+mod closure_driver_probe;
 /// Mapping of compiler reports to findings with the configured severity.
 mod closure_findings;
 /// The per-package prerequisite manifest of the closure check.
@@ -69,6 +72,9 @@ mod closure_probe_platform;
 mod closure_report;
 /// The closure check as a step of a lint run.
 mod closure_step;
+/// One package's outcome of the closure check,
+///  with the skip and failure words it carries.
+mod closure_step_package;
 /// Internal data-shape checks,
 ///  including duplicate decoded keys.
 mod config_data;
@@ -252,6 +258,9 @@ pub mod markdown_semantic_breaks;
 /// Internal native Markdown/MDX parser interface.
 #[doc(hidden)]
 pub mod markdown_source;
+/// Bounded ancestor and descendant walks over one parsed document,
+///  beside the parse whose fields they read.
+mod markdown_source_walk;
 /// Pipe-table reporting.
 #[doc(hidden)]
 pub mod markdown_tables;
@@ -411,6 +420,9 @@ pub mod shell_scan;
 mod shell_scan_cmd;
 /// The POSIX-family and fish scanner.
 mod shell_scan_posix;
+/// The state a POSIX-family or fish scan keeps,
+///  and the movement its steps share.
+mod shell_scan_posix_state;
 /// The PowerShell scanner.
 mod shell_scan_powershell;
 
@@ -424,6 +436,9 @@ mod workflow_run;
 mod workflow_shape;
 /// The structural walk that finds every step of a workflow or composite action.
 mod workflow_walk;
+/// The keys and sequence items one workflow walk keeps open,
+///  and how a line moves that stack.
+mod workflow_walk_frames;
 
 /// Disposable native filesystem helpers used only by tests.
 #[cfg(test)]

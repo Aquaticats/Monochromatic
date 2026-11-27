@@ -133,6 +133,10 @@ so the gap bypasses the skip and the first `run_dylint` call turns it into `core
 (`closure_step.rs`,
 `check_package`,
 the `!run.success` branch).
+The split of 2026-11-27 moved `check_package` to
+`package/linter/monochromatic-lint/src/closure_step_package.rs`
+with the other per-package steps;
+`closure_step.rs` keeps the selection of which packages run.
 The README of `package/linter/monochromatic-lint-closure` says the driver cache lives in `~/.dylint_drivers`
 and the planning notes record "the first-build cost and its network use were not measured"
 (`doc/planning/closure-lint-everywhere.md:760`):
@@ -428,6 +432,10 @@ C and D change the files named in each.
 
 `monochromatic-lint` now probes the driver before the first package of each library
 (`package/linter/monochromatic-lint/src/closure_driver.rs`).
+The probe reads and the machine facts it reads moved to
+`package/linter/monochromatic-lint/src/closure_driver_probe.rs` on 2026-11-27,
+with the split under the 300-code-line budget;
+`closure_driver.rs` keeps the verdict one library gets from them.
 It mirrors `driver_builder.rs`:
 the toolchain is the first word of `rustup show active-toolchain` in the library directory,
 the driver is `<DYLINT_DRIVER_PATH or ~/.dylint_drivers>/<toolchain>/dylint-driver`,
