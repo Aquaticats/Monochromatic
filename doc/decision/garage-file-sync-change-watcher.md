@@ -79,7 +79,21 @@ systemd merges the trigger's requests into at most one follow-up run.
 
 The hourly timer became a five-minute timer, the sync unit gained a second pass,
 and the alert script moved from `~/.local/bin/rclone-bisync-garage-alert.ts` into the package.
-The files they replaced are kept in `~/temp/agent/garage-live-units-before-sync-on-change-2026-11-25/`.
+The files they replaced are kept in `~/temp/agent/garage-live-units-before-sync-on-change-2026-11-25/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
+That folder held the four unit files the rollback restores,
+`rclone-bisync-garage.timer`,
+`rclone-bisync-garage.service`,
+`rclone-bisync-garage-alert@.service` and its `service.d/60-alert-on-failure.conf`,
+and the earlier `rclone-bisync-garage-alert.ts`.
+The timer they restore runs `OnCalendar=hourly` with `Persistent=true` and `RandomizedDelaySec=120`;
+the service is the single-pass bisync with `TimeoutStartSec=3000`;
+the template runs `/usr/bin/node %h/.local/bin/rclone-bisync-garage-alert.ts %i`;
+and the drop-in holds `OnFailure=rclone-bisync-garage-alert@%n.service`.
+The repository holds none of those four files:
+`package/garage-file-sync/linux-client/systemd/` carries this migration's units.
 
 ## Exit and rollback
 

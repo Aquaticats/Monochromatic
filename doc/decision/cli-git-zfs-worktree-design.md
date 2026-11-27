@@ -90,8 +90,22 @@ and at the check before the head destroy with the batch's snapshots named),
 so that sentence no longer waits on a measurement;
 forcing the removal of a held clone is measured for the holder kinds a guest could show
 (the forced arm round's guest arm, an extension of VM items 15 and 4,
-`~/temp/agent/zfs-step-17-forced-removal-arm-2026-11-25/keep/results-forced-arm.md`),
+`~/temp/agent/zfs-step-17-forced-removal-arm-2026-11-25/keep/results-forced-arm.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 and the kinds it could not show are refused, under the plan's "once the owed measurement shows it works";
+that guest ran Ubuntu 24.04.5 on kernel `6.8.0-147-generic`
+with `zfs-2.2.2-0ubuntu9.5` on a 2 GiB file-backed pool.
+It ended a path holder by `SIGTERM` then `SIGKILL`,
+the holder that traps `SIGTERM` dying of `signal 9` after the 10 s wait;
+it took a copy in a holder's own mount namespace out in place by the recorded handle,
+and that act left the host's own copy at the slot standing,
+where a shared parent sends the design to the move-and-unmount way instead;
+and it refused a locked holder,
+whose mount namespace another user namespace owns.
+Its kernel's `listns` answered `ENOSYS`,
+so no taskless namespace ran.
 its decision half is built and unwired (`64a71a4c9b`),
 the half that ends holders and unmounts (the kernel calls) is not,
 and its waits stay unset until plan step 22 sizes them
@@ -143,7 +157,10 @@ moved verbatim on 2026-11-23:
   `chattr +i` or `mountpoint=legacy` with the descriptor attach) and a rule for nested
   datasets such as `zpcachyos/nosnap/vm-builder-output` under the checkout.
   Corrections of 2026-11-18 from the Sonnet
-  gate review of the proposal (`~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/review.md`,
+  gate review of the proposal (`~/temp/agent/zfs-worktree-design-proposal-gate-review-2026-11-18/review.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   check B):
   item 7's sequence never ran end to end (the probe snapshotted before registering and mounted with `mount -t zfs`;
   dated note in the clones document);
@@ -181,7 +198,10 @@ moved verbatim on 2026-11-23:
   reading its own log of the planted-link probes;
   its VM probes had all run,
   with results in
-  `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`,
+  `~/temp/agent/zfs-nested-checkout-mounts-2026-11-18-scratch/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  not kept),
   no guest left and nothing committed;
   resumed from
   its session to write the document,

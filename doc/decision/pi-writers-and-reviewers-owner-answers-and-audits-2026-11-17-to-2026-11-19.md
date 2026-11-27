@@ -83,7 +83,10 @@ moved verbatim on 2026-11-23:
 **GPT dropped as the writer (2026-11-19,
 the coordinator's decision under the owner's delegation,
 open to veto).**
-The cross-topic audit (`~/temp/agent/writer-reliability-by-model-across-topics-2026-11-19/keep/report.md`,
+The cross-topic audit (`~/temp/agent/writer-reliability-by-model-across-topics-2026-11-19/keep/report.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 Sonnet,
 low confidence) found no correctness difference:
 unbacked program-output fixtures on the same remote-API topic GPT 3 of
@@ -150,7 +153,10 @@ moved verbatim on 2026-11-23:
 **Fixture provenance audit by model (Sonnet,
 read-only,
 2026-11-18T23:13 to 23:46-05:00;
-`~/temp/agent/fixture-provenance-audit-by-model-2026-11-19/keep/report.md`,
+`~/temp/agent/fixture-provenance-audit-by-model-2026-11-19/keep/report.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 saved by the coordinator from the agent's
 returned text because the harness refused its file write).**
 GPT 6.2 Sol,
@@ -191,7 +197,10 @@ moved verbatim on 2026-11-23:
 
 Through the question tool,
 after the reviewer bench was put to the owner as a challenge (scoring report
-`~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+`~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here);
 of Sonnet's 17 findings a reader of the code and brief could reach,
 DeepSeek's two runs per case found 3;
 DeepSeek made
@@ -237,7 +246,10 @@ moved verbatim on 2026-11-23:
   review.
   Scored by a Claude Sonnet subagent (a second pass,
   same vendor as one side):
-  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`;
+  `~/temp/agent/reviewer-bench-deepseek-against-sonnet-2026-11-17/keep/scoring-of-the-six-deepseek-reviews-against-sonnet.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here);
   of Sonnet's 26 headed findings over 52 run pairs DeepSeek found 3,
   partly 2,
   missed 47 (7 of them read and called
