@@ -119,7 +119,6 @@ push/bounded_query_tests.rs | the push folder is not moved yet; a later round ta
 push/bounded_query_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/child_watch_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
-push/push_minimum_rate_socket_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/push_progress_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/stop_of_a_push_and_sweep_of_its_locks_tests.rs | the push folder is not moved yet; a later round takes it folder by folder
 push/stop_of_a_push_and_sweep_of_its_locks_tests.rs | the push folder is not moved yet; a later round takes it folder by folder

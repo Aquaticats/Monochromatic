@@ -235,7 +235,9 @@ fn a_thread_is_refused_now() -> Option<std::io::Error> {
 
 /// What:
 ///  A control's window on the notice:
-///  the ceiling it plants and the look it waits for.
+///  the ceiling it plants,
+///  the stretch it states between two looks of one step,
+///  and the looks that found the step it waits for.
 /// Why:
 ///  It is the watching thread's own state,
 ///  so it lives beside that thread (`native_commit_waiting_notice_watch.rs`),
