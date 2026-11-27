@@ -9,8 +9,8 @@
 //! and one round is `merge_isolation_round.rs`;
 //! the steps that move the checkout are a file of their own that they import and that imports nothing from them.
 //!  The record written before any byte changes,
-//! the look at `index.lock`, the merge commit and the lines that name the files the word pass merged are files of
-//! their own as well,
+//! the look at `index.lock`,
+//! the merge commit and the lines that name the files the word pass merged are files of their own as well,
 //! so each file here stays inside the code-line limit.
 //!
 //! In TS you'd write (pseudocode):

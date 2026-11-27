@@ -9,7 +9,8 @@ use super::*;
 use crate::child_environment::environment_with_overlay;
 use crate::forwarded_command::ResolvedCommand;
 use crate::forwarded_command::Route;
-/// The entry an isolated merge comes through, which lives in the file that loops over rounds.
+/// The entry an isolated merge comes through,
+/// which lives in the file that loops over rounds.
 use crate::merge_isolation::run_isolated_merge;
 use crate::merge_isolation_git_reads::unsaved_paths;
 use crate::merge_isolation_journal::{
