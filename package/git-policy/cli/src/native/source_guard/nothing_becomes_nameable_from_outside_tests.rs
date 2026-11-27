@@ -14,10 +14,15 @@
 //!  and publishes nothing,
 //!  so the list is where publishing becomes a decision a reader sees.
 //!  The reading is wider than the one the first version of this check made:
-//!  a function whose kind is qualified (`pub async fn`),
-//!  a field and a method of a published type,
+//!  a function whose kind carries any count of qualifiers,
+//!  as `pub async fn` and `pub const unsafe fn` do,
+//!  a field,
+//!  a method and an associated constant of a published type,
+//!  a member whose declaration opens its body on a later line than its header,
 //!  an item of a kind and name another module already publishes (keyed by its module path),
-//!  and a `pub use` written over several lines are all read now,
+//!  a re-export written over several lines or under a name of its own,
+//!  and an item a gate keeps out of the test build alone
+//!  are all read now,
 //!  because a split writes all of them and the first version saw none
 //!  (review M1:
 //! 154 published `async` names,
@@ -128,7 +133,7 @@ fn the_findings(listed: &BTreeSet<String>) -> Vec<String> {
         carried.insert(site.key.clone());
         if !listed.contains(site.key.as_str()) {
             findings.push(format!(
-                "CARRIED BUT NOT LISTED: `{}` in {} publishes a name out of a module that `pub mod` does not reach",
+                "CARRIED BUT NOT LISTED: `{}` in {} publishes a name the `pub mod` chain does not already reach",
                 site.key, site.file
             ));
         }
@@ -136,7 +141,7 @@ fn the_findings(listed: &BTreeSet<String>) -> Vec<String> {
     for entry in listed.iter().filter(|entry| return is_carried(entry)) {
         if !carried.contains(entry) {
             findings.push(format!(
-                "LISTED BUT NOT CARRIED: {entry} no longer re-exports a name out of a private module: delete its line from the list"
+                "LISTED BUT NOT CARRIED: {entry} no longer publishes a name the `pub mod` chain does not already reach: delete its line from the list"
             ));
         }
     }

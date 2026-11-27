@@ -385,7 +385,9 @@ impl FailureCode {
 
     /// Every code,
     /// so a test reaches all of them.
-    pub const ALL: &[Self] = &[
+    /// It is read by the controls beside this file,
+    /// so `pub(super)` is the reach it needs.
+    pub(super) const ALL: &[Self] = &[
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
         Self::PermissionDenied,
