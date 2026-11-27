@@ -307,15 +307,15 @@
 //! - `worktree_removal_clears_the_ahead_pool.rs`:
 //!   the snapshots this program made ahead of an add,
 //!   taken out of a worktree's administrative directory before that worktree is removed.
+//! - `worktree_removal_snapshot_promotion.rs`:
+//!   what a removal snapshot kept,
+//!   promoted to the notices every worktree shows.
 //! - `worktree_removal_rescue_removal_state.rs`:
 //!   whether the worktree a removal snapshot was taken for is gone,
 //!   refused,
 //!   or still on its way,
 //!   judged from the Git directory,
 //!   the processes that took the snapshot and the checkout.
-//! - `worktree_removal_snapshot_promotion.rs`:
-//!   what a removal snapshot kept,
-//!   promoted to the notices every worktree shows.
 //! - `worktree_removal_rescue.rs`:
 //!   what becomes of the unshown push notices and unfinished pushes of a linked worktree that Git removes.
 //! - `worktree_removal_finishes_an_interrupted_destroy.rs`:
@@ -933,6 +933,13 @@ pub mod worktree_convert_leftover_stage_record;
 /// What a removal snapshot kept,
 /// promoted to the notices every worktree shows.
 pub mod worktree_removal_snapshot_promotion;
+
+/// Whether the worktree a removal snapshot was taken for is gone,
+/// refused,
+/// or still on its way,
+/// judged from the Git directory,
+/// the processes that took the snapshot and the checkout.
+pub mod worktree_removal_rescue_removal_state;
 
 /// The finish of a removal whose destroy happened and whose registration did not go.
 pub mod worktree_removal_interrupted_destroy;
