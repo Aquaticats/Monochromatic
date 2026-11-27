@@ -5,6 +5,9 @@
 //!  so the walk tracks the key path by indentation and reads a `run:` only where a step's key sits.
 //!  Forms it cannot place are refused,
 //!  so the rules never pass a step they could not read.
+//!  The keys and sequence items that stay open between lines are kept in
+//!  `workflow_walk_frames`,
+//!  which this file asks instead of moving that stack itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -23,7 +26,6 @@ use crate::workflow_lines::{
 /// Import the records the walk fills in.
 use crate::workflow_model::{
     Job,
-    Step,
     WalkError,
     Workflow,
 };
@@ -37,31 +39,11 @@ use crate::workflow_shape::{
     Shape,
     shape,
 };
-
-/// One open key or sequence item.
-struct Frame {
-    /// Column of the key or dash.
-    indent: usize,
-    /// The key,
-    ///  or `#` for a sequence item.
-    name: String,
-}
-
-/// The walk's state.
-struct Walker<'a> {
-    /// The lines of the file.
-    lines: Vec<Line<'a>>,
-    /// Open keys and sequence items.
-    frames: Vec<Frame>,
-    /// What has been found.
-    found: Workflow,
-    /// The open `runs-on` key as job index and column,
-    ///  while deeper lines still belong to it.
-    runs_on: Option<(usize, usize)>,
-    /// Whether any content line has been read,
-    ///  to refuse a second document.
-    content_seen: bool,
-}
+/// Import the open keys and the state that one walk keeps.
+use crate::workflow_walk_frames::{
+    Frame,
+    Walker,
+};
 
 /// Build a refusal at a workflow byte offset.
 fn refuse(
@@ -72,90 +54,6 @@ fn refuse(
         offset,
         message: String::from(message),
     };
-}
-
-/// Frame bookkeeping.
-impl Walker<'_> {
-    /// The names of the open keys,
-    ///  outermost first.
-    fn path(&self) -> Vec<&str> {
-        let mut names: Vec<&str> = Vec::new();
-        for frame in &self.frames {
-            names.push(frame.name.as_str());
-        }
-        return names;
-    }
-
-    /// Close every frame at or right of `column`.
-    fn close_from(
-        &mut self,
-        column: usize,
-    ) {
-        loop {
-            let Some(top) = self.frames.last() else {
-                return;
-            };
-            if top.indent < column {
-                return;
-            }
-            self.frames.pop();
-        }
-    }
-
-    /// Open the sequence items for the dashes of a line,
-    ///  starting a step when the first dash sits under a `steps` key.
-    fn open_dashes(
-        &mut self,
-        dashes: &[usize],
-        offset: usize,
-    ) {
-        let Some(first) = dashes.first() else {
-            return;
-        };
-        loop {
-            let Some(top) = self.frames.last() else {
-                break;
-            };
-            // Deeper frames close, and an earlier sequence item at the same column closes.
-            if top.indent <= *first && !(top.name == "#" && top.indent == *first) {
-                break;
-            }
-            self.frames.pop();
-        }
-        let owner: Option<Option<usize>> = match self.path().as_slice() {
-            ["jobs", _, "steps"] => Some(Some(self.found.jobs.len().saturating_sub(1))),
-            ["runs", "steps"] => Some(None),
-            _ => None,
-        };
-        if let Some(job) = owner {
-            self.found.steps.push(Step {
-                anchor: offset + *first,
-                job,
-                body: None,
-                shell: None,
-            });
-        }
-        for dash in dashes {
-            self.frames.push(Frame {
-                indent: *dash,
-                name: String::from("#"),
-            });
-        }
-    }
-
-    /// Whether an unread key form at `column` sits where the walk needs a plain key.
-    fn odd_key_matters(
-        &self,
-        column: usize,
-    ) -> bool {
-        let mut names: Vec<&str> = Vec::new();
-        for frame in &self.frames {
-            if frame.indent < column {
-                names.push(frame.name.as_str());
-            }
-        }
-        return crate::workflow_shape::odd_key_matters(&names);
-    }
 }
 
 /// Reading one line.

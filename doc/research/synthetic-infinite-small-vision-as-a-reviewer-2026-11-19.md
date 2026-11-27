@@ -30,7 +30,10 @@ as Synthetic's `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`).
 Benchmark going (unit
 `reviewer-speed-infinite-small-vision-against-qwen-20261119`,
 script and results in
-`~/temp/agent/reviewer-speed-infinite-small-vision-against-qwen-deepseek-2026-11-19/keep/`):
+`~/temp/agent/reviewer-speed-infinite-small-vision-against-qwen-deepseek-2026-11-19/keep/`)
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 one fixed read-only review
 task (two `git show` reads at `7d10dc5f88`,
 three questions),
@@ -59,6 +62,9 @@ moved verbatim on 2026-11-23:
 four interleaved rounds,
 model time from the feeds' prompt-sent to settled,
 `keep/runs.jsonl`):**
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Qwen-plan DeepSeek 9.4,
 10.8,
 6.3,

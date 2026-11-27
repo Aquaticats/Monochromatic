@@ -54,6 +54,12 @@ derived:
 `probes-summary.json`,
 and the `summarise-*.txt` / `fit-scaling.txt` printouts.
 `results/` from round one is untouched.
+The folder the commands name,
+`/home/user/temp/agent/optique-measure-2026-11-12`,
+(scratch,
+deleted on 2026-11-27;
+not kept),
+holds neither its scripts nor its results now.
 
 ## Part 1: scaling, one factor at a time
 

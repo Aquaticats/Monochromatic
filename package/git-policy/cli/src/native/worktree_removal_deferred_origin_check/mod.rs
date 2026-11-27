@@ -31,15 +31,17 @@
 //!   the fields a plan must carry,
 //!   the object each cause names,
 //!   the three message forms and what a refusal leaves.
+//! - `planned_origin.rs`:
+//!   the identities a removal planned,
+//!   each cause a check refuses with,
+//!   and the refusal of a plan that lacks one.
 //! - `origin_refusal.rs`:
-//!   each cause as a typed value,
-//!   with the fields its message names.
+//!   the refusal's name,
+//!   re-exported from the file that holds it.
 //! - `origin_refusal_causes.rs`:
 //!   the part of a message that names the cause,
 //!   its object,
 //!   its field and the mark's two counts.
-//! - `planned_origin.rs`:
-//!   the identities a removal planned, and the refusal of a plan that lacks one.
 //! - `origin_verdict.rs`:
 //!   the check at both call sites, the look before the unmount, and the three reads.
 //! - `removal_history.rs`:
@@ -70,10 +72,10 @@ pub mod removal_history;
 /// The fields a plan must carry, the objects and forms a message names, and what a refusal leaves.
 pub mod origin_refusals;
 
-/// The identities a removal planned, and the refusal of a plan that lacks one.
+/// The identities a removal planned, each cause a check refuses with, and the refusal of a plan that lacks one.
 pub mod planned_origin;
 
-/// Each cause as a typed value, with the fields its message names.
+/// The refusal's name, re-exported from the file that holds it.
 pub mod origin_refusal;
 
 /// Each cause's step word, form, record rule and message.

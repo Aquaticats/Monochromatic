@@ -1,6 +1,22 @@
 //! Scratch directories for the unit tests,
 //! placed beside the build output so no test writes under `/tmp`.
 
+/// What:
+/// `mod fixture_root_taking_any_name;` declares the question whether this fixture root takes a name that is not UTF-8,
+/// and the re-execution that mounts a tmpfs there when it does not.
+/// Why:
+/// A control that makes such a name cannot run where the file system refuses it,
+/// as this host's build dataset does under `utf8only=on` (issue 6550),
+/// and a control that quietly skipped there would pass a run in which it never ran.
+/// It is a submodule of this one because the folder it asks about is this module's own,
+/// and because the crate root's code lines are at their limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // test-scratch/fixture-root-taking-any-name.test-support.ts, imported by the tests that make such a name
+/// ```
+pub(crate) mod fixture_root_taking_any_name;
+
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
 use std::path::{
@@ -14,7 +30,10 @@ use std::path::{
 /// the package's build directory in the current Cargo layout),
 /// never the system temporary
 /// directory.
-fn scratch_root() -> PathBuf {
+/// Why it is not private to this module:
+/// `fixture_root_taking_any_name` asks this very directory whether it takes a name that is not UTF-8,
+/// and mounts a tmpfs there when it does not (issue 6550).
+pub(crate) fn scratch_root() -> PathBuf {
     let target: Option<PathBuf> = std::env::current_exe().ok().and_then(|executable| {
         return executable.ancestors().nth(3).map(Path::to_path_buf);
     });
