@@ -352,6 +352,7 @@ fn the_lane_runs_the_slow_kinds_the_round_left() {
         &counted,
         HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
+        &HostResources::read(),
     ));
     assert_eq!(
         counted.trashes.load(Ordering::SeqCst),
@@ -956,6 +957,7 @@ fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_run
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
+        &HostResources::read(),
     ));
     let waited: Duration = answered.unwrap_or_else(|| {
         panic!("the look that keeps a claim answers when it runs out, or nothing looks at it again")
@@ -980,6 +982,7 @@ fn a_slow_item_that_answers_a_retryable_answer_is_tried_again_when_its_claim_run
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
+        &HostResources::read(),
     ));
     assert_eq!(
         asked.load(Ordering::SeqCst),
@@ -1035,6 +1038,7 @@ fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_o
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
+        &HostResources::read(),
     ));
     let waited: Duration = answered.unwrap_or_else(|| {
         panic!("the look that could not settle a claim answers when it runs out")
@@ -1059,6 +1063,7 @@ fn a_claim_whose_settling_could_not_run_is_looked_at_again_when_its_lease_runs_o
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
+        &HostResources::read(),
     ));
     assert_eq!(
         asked.load(Ordering::SeqCst),
@@ -1110,6 +1115,7 @@ fn the_lanes_look_at_a_bare_repositorys_common_records_answers_the_end_of_a_clai
         &handlers,
         HOUSEKEEPING_OF_ONE_ROUND,
         A_LEASE_A_CONTROL_WAITS_OUT,
+        &HostResources::read(),
     ));
     let waited: Duration = answered.unwrap_or_else(|| {
         panic!("the look at a bare repository's common records answers when its claim runs out")
@@ -1157,7 +1163,7 @@ fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
         return Verdict::Done;
     });
     let drained = crate::merge_second_pass::tests::await_it(
-        crate::service_work::drain_planned_with_awaiting(
+        crate::service_work_drains_awaiting::drain_planned_with_awaiting(
             world.common.as_path(),
             &handlers,
             &ClaimTime::read(),
@@ -1165,6 +1171,7 @@ fn the_rounds_drain_answers_the_end_of_a_claim_it_keeps() {
             Renewal::Timed,
             &Retrying::none(),
             SERVICE_KINDS,
+            &HostResources::read(),
         ),
     );
     let waited: Duration = drained
@@ -1272,6 +1279,7 @@ fn a_slow_item_that_stops_unexpectedly_ends_its_own_record_and_not_the_look() {
         &StoppingOnOne,
         HOUSEKEEPING_OF_ONE_ROUND,
         crate::service_work::CLAIM_LEASE,
+        &HostResources::read(),
     ));
     assert!(
         record_of(&world, FAILED, WorkKind::Trash, THE_STOPPING_TRASH),
@@ -1456,6 +1464,7 @@ fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
             },
             HOUSEKEEPING_OF_ONE_ROUND,
             crate::service_work::CLAIM_LEASE,
+            &HostResources::read(),
         )),
     );
     assert_eq!(

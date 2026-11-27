@@ -745,7 +745,7 @@ pub(crate) fn keep_unlanded(
     };
     let stays: String = match the_batch_reference_names(git, repository, held, tip) {
         true => format!("so it stays at {held} (see it with `git log {held}`)"),
-        false => crate::service_land_without_its_scratch_reference::the_words_for_a_commit_no_reference_names(tip),
+        false => crate::the_clause_a_commit_no_reference_proves::the_words_for_a_commit_no_reference_names(tip),
     };
     return AKeptCommit {
         named: false,
@@ -795,7 +795,7 @@ pub(crate) async fn keep_unlanded_awaiting(
     };
     let stays: String = match the_reference_itself_names_awaiting(git, repository, held, tip).await {
         true => format!("so it stays at {held} (see it with `git log {held}`)"),
-        false => crate::service_land_without_its_scratch_reference::the_words_for_a_commit_no_reference_names(tip),
+        false => crate::the_clause_a_commit_no_reference_proves::the_words_for_a_commit_no_reference_names(tip),
     };
     return AKeptCommit {
         named: false,

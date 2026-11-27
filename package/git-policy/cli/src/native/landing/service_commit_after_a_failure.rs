@@ -27,9 +27,9 @@ use crate::commit_transaction::{
 use crate::policy_events::PolicyEvent;
 use crate::service_amend_replayed::AmendedCommit;
 use crate::service_client::ClientConfig;
-use crate::service_commit::ServiceCommit;
 use crate::service_commit_input_notes_and_embedded_commit::Embedded;
 use crate::service_commit_looking_for_what_landed::journal_of_request;
+use crate::service_landed_aftermath::ServiceCommit;
 use crate::service_landed_aftermath::{
     LandedAftermath,
     after_a_silent_or_failed_service,

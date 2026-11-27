@@ -48,15 +48,18 @@ use crate::push_retry::{
     RetryChange,
     Retrying,
 };
-use crate::service_work::{
-    CLAIM_LEASE,
-    Drained,
-    PUSH_KINDS,
-    WorkHandlers,
-    common_directory_of,
+use crate::service_work::CLAIM_LEASE;
+use crate::service_work_common_directory::common_directory_of;
+use crate::service_work_drained_and_replanning::Drained;
+use crate::service_work_drains_awaiting::{
     drain_common_records_planned_awaiting,
     drain_planned_awaiting,
 };
+use crate::service_work_handlers_and_verdicts::WorkHandlers;
+use crate::service_work_kinds_and_a_wake::PUSH_KINDS;
+#[cfg(test)]
+use crate::the_memory_one_round_keeps::MEASURED_REPOSITORY_PEAK;
+use crate::the_memory_one_round_keeps::REPOSITORY_MEMORY;
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use std::collections::HashMap;
 use std::future::Future;
@@ -67,31 +70,6 @@ use std::path::{
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-
-/// The 90th percentile of `MemoryPeak` over the 28 commit-service units of this host that `systemctl --user show 'cli-git@*.service'
-///  --property=MemoryPeak` reported on 2026-11-03 (the units' peaks since each one's last start;
-/// the Git processes a service
-///  starts are inside the unit):
-/// 130,482,176 bytes.
-/// The median was 33,000,000 bytes,
-/// the 75th percentile 49,000,000 bytes,
-/// and the
-///  largest 1,073,766,400 bytes,
-/// a unit that had run under the one-gibibyte cap this build no longer sets.
-/// A unit serves one
-///  worktree for its whole life,
-/// so a unit's peak is an upper bound of what one repository's drain holds at once.
-pub const MEASURED_REPOSITORY_PEAK: u64 = 130_482_176;
-
-/// The bytes the drain of one repository holds at its peak:
-/// `MEASURED_REPOSITORY_PEAK` rounded up to a power of two,
-/// as
-///  `CONVERSION_MEMORY` rounds its measurement.
-/// The coordinator's pick under the owner's delegation,
-/// open to the owner's veto
-///  (`doc/planning/cli-git-shipped-limits-audit.md`,
-/// "Parallelism caps and memory estimates").
-pub const REPOSITORY_MEMORY: u64 = MEASURED_REPOSITORY_PEAK.next_power_of_two();
 
 /// What:
 ///  One directory of a round,
@@ -301,6 +279,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
     handlers: &H,
     now: &ClaimTime,
     assignment: &Assignment,
+    host: &HostResources,
 ) -> (Option<Duration>, Vec<RetryChange>) {
     let own: Drained = drain_planned_awaiting(
         assignment.directory.as_path(),
@@ -309,6 +288,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
         CLAIM_LEASE,
         &assignment.retrying,
         PUSH_KINDS,
+        host,
     )
     .await;
     let common: Drained = drain_common_records_planned_awaiting(
@@ -318,6 +298,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
         CLAIM_LEASE,
         &assignment.retrying,
         PUSH_KINDS,
+        host,
     )
     .await;
     let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
@@ -351,6 +332,13 @@ struct DrainEachDirectory<H> {
     handlers: Arc<H>,
     /// The time the drain judges leases and retries by.
     now: ClaimTime,
+    /// The CPUs and memory every batch of this round is sized by,
+    /// which the caller of the round stated.
+    /// Why:
+    ///   The batches of a directory would otherwise read the machine again,
+    /// and a control would then depend on what the machine answers rather than on what it states
+    /// (issue 6567).
+    host: HostResources,
 }
 
 impl<H: WorkHandlers + Sync + Send>
@@ -364,7 +352,7 @@ impl<H: WorkHandlers + Sync + Send>
         _say: LinesToTheConsumer<(Option<Duration>, Vec<RetryChange>)>,
     ) -> Pin<Box<dyn Future<Output = (Option<Duration>, Vec<RetryChange>)> + Send + 'a>> {
         return Box::pin(async move {
-            return drain_one(self.handlers.as_ref(), &self.now, assignment).await;
+            return drain_one(self.handlers.as_ref(), &self.now, assignment, &self.host).await;
         });
     }
 }
@@ -469,6 +457,8 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
             work: Arc::new(DrainEachDirectory {
                 handlers: Arc::clone(&request.handlers),
                 now: now.clone(),
+                // The round's own reading, so the batches of every directory it drains are sized by one host.
+                host: *host,
             }),
             on_event: &mut CollectWaitsAndChanges {
                 directories,

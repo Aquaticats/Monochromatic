@@ -64,7 +64,7 @@ use git_policy_cli::worktree_copy_stage_binding::{
     stage_binding_reading,
 };
 use git_policy_cli::worktree_copy_stage_claim::claim_stage_for_add_as;
-use git_policy_cli::worktree_copy_stage_claim_reaping::{
+use git_policy_cli::worktree_copy_stage_claim_record::{
     ClaimFile,
     claim_file_reading,
 };

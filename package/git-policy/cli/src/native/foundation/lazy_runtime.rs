@@ -29,6 +29,13 @@
 //! const result = await runOnRuntime(async () => { ... });
 //! ```
 
+/// The pause a control asks a build to wait before it starts,
+/// named only by the control that proves a build without the test-only switches reads none of them
+/// (`testing/no_switch_is_read_without_its_feature_tests.rs`),
+/// which a build with the switches does not compile,
+/// so that build declares no name here to leave unused.
+#[cfg(all(test, not(feature = "test-only-switches")))]
+pub(crate) use crate::the_build_of_the_process_runtime::the_pause_a_control_asks_for;
 /// The build of the process's runtime:
 /// the deadline it is given,
 /// the pause a control gives that build,
@@ -47,15 +54,13 @@ pub(crate) use crate::the_build_of_the_process_runtime::{
     error_text,
     multi_thread,
 };
-/// The pause a control asks a build to wait before it starts,
-/// the build a control orders to finish after its deadline,
+/// The build a control orders to finish after its deadline,
 /// and the two moments a control holds a build and its caller in.
 #[cfg(test)]
 pub(crate) use crate::the_build_of_the_process_runtime::{
     THE_BUILD_STOPS_BEFORE_KEEPING,
     THE_CALLER_STOPS_WAITING,
     build_with_deadline_and,
-    the_pause_a_control_asks_for,
 };
 /// The runtime and how it came to be what it is,
 /// as a build produces them and as a caller reads them.

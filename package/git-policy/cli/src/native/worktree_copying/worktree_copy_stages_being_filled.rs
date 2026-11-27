@@ -23,7 +23,7 @@ use crate::worktree_copy_owner::{
     token_owner_is_dead,
 };
 use crate::worktree_copy_stage_claim::claim_names;
-use crate::worktree_copy_stage_claim_reaping::read_claim;
+use crate::worktree_copy_stage_claim_record::read_claim;
 use std::path::{
     Path,
     PathBuf,

@@ -18,7 +18,6 @@ use super::{
     Clearing,
     Settled,
     all,
-    kept_reference,
     one,
 };
 use crate::held_commit_record::{
@@ -27,6 +26,7 @@ use crate::held_commit_record::{
     hold,
     path_of,
 };
+use crate::held_commit_settle_move::kept_reference;
 use crate::service_journal::{
     Intent,
     OPEN_EXTENSION,
@@ -761,7 +761,11 @@ fn the_line_about_a_settled_hold_names_its_repository_and_says_the_commit_is_kep
         .expect("the intent this control wrote");
     let mut report: Option<crate::service_land_finish::RecoveryReport> = None;
     let entries = crate::service_timing::capture::entries_of(|| {
-        report = super::settle_a_recorded_hold(&context, held.journal.as_path(), &intent);
+        report = crate::service_land_finish::settle_a_recorded_hold(
+            &context,
+            held.journal.as_path(),
+            &intent,
+        );
     });
     assert!(
         report.is_some(),

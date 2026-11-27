@@ -2011,7 +2011,9 @@ fn scene_with_bytes(
 }
 
 /// The claim reader of the release installed before the line of hexadecimal bytes,
-/// copied from `read_claim` in `worktree_copy_stage_claim_reaping.rs` at commit 9462675cd8.
+/// copied from `read_claim`,
+/// which commit `9462675cd8` had in `worktree_copy_stage_claim_reaping.rs`,
+/// and which now lives in `worktree_copy_stage_claim_record.rs`.
 /// Why:
 ///  A record this build writes must still be read by that release when the path is text,
 ///  and must make it refuse rather than act on the replacement character when it is not.
