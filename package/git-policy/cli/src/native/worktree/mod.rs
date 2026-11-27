@@ -17,7 +17,13 @@
 //!   and the words a person reads for it.
 //! - `add_standing_notice.rs`:
 //!   the line a `git worktree add` prints while it is still running,
-//!   naming the step it is in.
+//!   the thread that prints it,
+//!   and the step it is in.
+//! - `add_timing_record.rs`:
+//!   the accounting of one add's steps and the JSON line written for it.
+//! - `add_timing_steps.rs`:
+//!   the recording one thread runs for its add,
+//!   and the steps it publishes as it enters and leaves them.
 //! - `add_timing.rs`:
 //!   the record of where one wrapped `git worktree add` spent its time,
 //!   step by step,
@@ -562,6 +568,13 @@ pub mod add_standing_notice_step_words;
 /// The line a `git worktree add` prints while it is still running,
 /// naming the step it is in.
 pub mod add_standing_notice;
+
+/// The accounting of one add's steps and the JSON line written for it.
+pub mod add_timing_record;
+
+/// The recording one thread runs for its add,
+/// and the steps it publishes as it enters and leaves them.
+pub mod add_timing_steps;
 
 /// The record of where one wrapped `git worktree add` spent its time,
 /// step by step,
