@@ -136,14 +136,66 @@ impl DrivenRenewal {
 #[cfg(test)]
 pub static RENEWALS_MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// How many renewal tasks have ended,
-/// for the controls;
-/// nothing in the release executable.
+/// What:
+///  `TaskEndings` is the count of the endings of one renewal's task:
+/// a counter the renewal makes for the task it starts,
+/// and a share of that counter for the control that started the renewal.
+///  Its siblings a reader might expect are one counter for the whole process,
+/// which a task another control started moves under this control's read,
+/// and the one-shot the stop waits on,
+/// which the stop takes and a control that only counts cannot keep.
 /// Why:
-///   A control of "the renewal is gone when it is dropped" otherwise waits and hopes,
-/// where the task itself can say it returned.
+///  A control of "the task ended before the stop did" otherwise reads a count every renewal of the test process
+/// counts on,
+/// and `cargo test` runs a module's tests as threads of one process (issue 6526).
+/// The count is made for this task alone,
+/// so what a control reads is that task's own endings and nothing else.
+///  Nothing here is in the release executable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TaskEndings { #count = 0; counted(): void; count(): number }
+/// ```
 #[cfg(test)]
-pub static TASKS_ENDED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+#[derive(Clone, Debug, Default)]
+pub struct TaskEndings(
+    /// The shared count: the task adds one as it ends,
+    /// and the control that started the renewal reads it.
+    std::sync::Arc<std::sync::atomic::AtomicUsize>,
+);
+
+/// Methods over the count of one renewal task's endings.
+#[cfg(test)]
+impl TaskEndings {
+    /// What:
+    ///  `counted` adds one ending to this count,
+    ///  which the task of the renewal calls as it returns.
+    /// Why:
+    ///  The task is the only one that knows it ended,
+    ///  and an ending is what the control of that renewal waits to see.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// this.#count += 1;
+    /// ```
+    fn counted(&self) {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// What:
+    ///  `count` is how many times the task of this renewal has ended.
+    /// Why:
+    ///  A control compares the count before and after what it does,
+    ///  so it needs the number the task wrote as one value.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// get count(): number { return this.#count; }
+    /// ```
+    pub fn count(&self) -> usize {
+        return self.0.load(std::sync::atomic::Ordering::SeqCst);
+    }
+}
 
 /// How many renewal tasks have begun,
 /// for the controls;
@@ -177,6 +229,11 @@ pub struct ClaimRenewal {
     ended: Option<Receiver<()>>,
     /// How long a stop waits for the task to end.
     stop_ceiling: Duration,
+    /// What the endings of this renewal's own task are counted on,
+    /// which the control that started it reads;
+    /// nothing in the release executable.
+    #[cfg(test)]
+    endings: TaskEndings,
 }
 
 /// Does what a controller asked of the renewal task;
@@ -287,27 +344,46 @@ fn due_after(interval: Duration) -> Instant {
     return Instant::now() + interval;
 }
 
-/// Starts the task of a renewal on the process's runtime;
-/// nothing back when the runtime has no worker to run it,
+/// What:
+///  Start the task of one renewal and give back the renewal that controls it,
+///  stops it and waits for it.
+/// Why:
+///  The signal the stop waits on and the count of that same task's ending belong to one task,
+/// so one call makes both and hands them back together,
+/// and nothing a second renewal counts on is involved.
+///  A renewal whose task could not start says nothing when it is stopped,
 /// where the claims expire with their lease,
 /// as for a service that died.
 fn start_task(
     renewer: Renewer,
     requests: UnboundedReceiver<Control>,
+    control: UnboundedSender<Control>,
     every: Option<Duration>,
-) -> Option<Receiver<()>> {
+) -> ClaimRenewal {
     let (ended_sender, ended) = oneshot_channel::<()>();
+    // The count of this one task's endings, which the control that started the renewal reads.
+    #[cfg(test)]
+    let endings: TaskEndings = TaskEndings::default();
+    // The same count, which the task adds to as it returns.
+    #[cfg(test)]
+    let counted: TaskEndings = endings.clone();
     let started = spawn_on_runtime(async move {
         renew_until_stopped(renewer, requests, every).await;
         // The task says it returned before it says so on the channel the drop waits on, so a control can read that it ended.
         #[cfg(test)]
-        TASKS_ENDED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        counted.counted();
         let _told = ended_sender.send(());
     });
     if started.is_none() {
         crate::service_error!("no worker to renew claims on, so they expire with their lease");
     }
-    return if started.is_some() { Some(ended) } else { None };
+    return ClaimRenewal {
+        control,
+        ended: if started.is_some() { Some(ended) } else { None },
+        stop_ceiling: RENEWAL_STOP_CEILING,
+        #[cfg(test)]
+        endings,
+    };
 }
 
 /// Methods over a renewal.
@@ -320,12 +396,7 @@ impl ClaimRenewal {
         every: Duration,
     ) -> ClaimRenewal {
         let (control, requests) = unbounded_channel::<Control>();
-        let ended: Option<Receiver<()>> = start_task(renewer, requests, Some(every));
-        return ClaimRenewal {
-            control,
-            ended,
-            stop_ceiling: RENEWAL_STOP_CEILING,
-        };
+        return start_task(renewer, requests, control, Some(every));
     }
 
     /// Start the task of a driven renewal:
@@ -337,12 +408,7 @@ impl ClaimRenewal {
     ) -> ClaimRenewal {
         let (control, requests) = unbounded_channel::<Control>();
         driver.attach(control.clone());
-        let ended: Option<Receiver<()>> = start_task(renewer, requests, None);
-        return ClaimRenewal {
-            control,
-            ended,
-            stop_ceiling: RENEWAL_STOP_CEILING,
-        };
+        return start_task(renewer, requests, control, None);
     }
 
     /// `driven` with the wait of the stop set by the control,
@@ -356,6 +422,21 @@ impl ClaimRenewal {
         let mut renewal: ClaimRenewal = ClaimRenewal::driven(renewer, driver);
         renewal.stop_ceiling = stop_ceiling;
         return renewal;
+    }
+
+    /// What:
+    ///  The count of the endings of this renewal's own task.
+    /// Why:
+    ///  A control proves the task ended without reading a count the rest of the test process moves:
+    ///  this one is made for this task alone (issue 6526).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const endings = renewal.endings; // this renewal's task only
+    /// ```
+    #[cfg(test)]
+    pub fn endings(&self) -> TaskEndings {
+        return self.endings.clone();
     }
 
     /// What:

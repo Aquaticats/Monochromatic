@@ -6,6 +6,9 @@
 
 use super::*;
 
+/// Imports the point-in-time type the tests build their timelines from.
+use std::time::Instant;
+
 /// What:
 /// `start` is the fixed origin every test measures from.
 /// Why:

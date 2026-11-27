@@ -75,9 +75,14 @@
 //!   given to the descriptor under a ceiling.
 //! - `scan_awaited_under_a_ceiling.rs`:
 //!   a scan of the processes run on the blocking pool and awaited under a ceiling.
+//! - `earlier_service_process_look_answers.rs`:
+//!   what the look at an earlier commit service answers with,
+//!   and the words of a service's start it reads.
+//! - `earlier_service_process_start_arguments.rs`:
+//!   which earlier commit service one command line of a process names.
 //! - `earlier_service_process_look.rs`:
-//!   the look at the running processes that tells whether a commit service of an earlier release may still run for a
-//!   worktree.
+//!   the look at the running processes and the sockets that tells whether a commit service of an earlier release may
+//!   still run or may start for a worktree.
 //! - `service_captures.rs`:
 //!   the service's memory of when the bytes of the commits it landed were captured,
 //!   per worktree.
@@ -281,9 +286,17 @@
 //! - `service_scratch_abandonment.rs`:
 //!   which commit scratch trees a later command takes for abandoned,
 //!   and which it leaves alone because their owner still runs.
+//! - `service_scratch_ref_names_and_values.rs`:
+//!   the names of a landing's side references,
+//!   how a reference's value is read,
+//!   the one write of a side reference,
+//!   and the line that says one was left where it is.
 //! - `service_scratch_ref_of_a_dropped_batch.rs`:
-//!   the two side references of a landing,
-//!   and the scratch reference a restart removes once a batch it dropped has its commit kept.
+//!   the face a caller on a thread asks of the removal of a batch's scratch reference,
+//!   once the commit it holds is kept.
+//! - `service_scratch_ref_of_a_dropped_batch_awaiting.rs`:
+//!   the same removals as the face a task of the runtime awaits,
+//!   every Git child and every look at an intent a job of the pool.
 //! - `held_commit_words.rs`:
 //!   what the wrapper says about a commit that a reference lock keeps off its branch.
 //! - `held_commit_settle_outcomes.rs`:
@@ -354,6 +367,9 @@
 //!   by a rename and a second look.
 //! - `service_index_staging.rs`:
 //!   the staging files of the index lock.
+//! - `service_index_holder_look.rs`:
+//!   what one look at the held index lock proves,
+//!   and the words the person is told about its holder.
 //! - `service_index_attempts.rs`:
 //!   the attempts and the wait of an acquisition of the index lock.
 //! - `service_index_claim_files.rs`:
@@ -442,16 +458,35 @@
 //!   the state folders of the work queue,
 //!   the names of claim files,
 //!   and the listing of a folder oldest first.
+//! - `work_item_record.rs`:
+//!   the durable work-item record of asynchronous work (review,
+//!   push,
+//!   maintenance) left for a resident consumer:
+//!   its fields,
+//!   its one JSON line and the reader of that line.
+//! - `work_item_claim_taking.rs`:
+//!   the steps that take one pending record out of the queue,
+//!   and the stamp that keeps a claim's lease readable.
+//! - `work_item_settling.rs`:
+//!   moving a held item's claim to its state,
+//!   starting the claim's lease again,
+//!   and the age of the oldest pending item.
 //! - `work_item_holding_the_verdicts_and_the_promotion.rs`:
 //!   the verdicts written into a held record,
 //!   the promotion that makes the record runnable,
 //!   and the two ways a record leaves the queue.
 //! - `work_item.rs`:
-//!   the durable work-item record for asynchronous work (review,
-//!   push,
-//!   maintenance) left for a resident consumer.
+//!   the one name a caller uses for the record,
+//!   the steps that take and settle it,
+//!   and the files they are declared beside.
 //! - `owed_index_update.rs`:
 //!   the record of an index update a landed batch owes.
+//! - `service_land_finish_after_the_move.rs`:
+//!   the conclusion state and the index update that follow a batch's branch move,
+//!   recorded so that a restart never replays the index over what another program staged.
+//! - `service_land_finish_replay_gate.rs`:
+//!   whether a restart may replay an open batch's index update,
+//!   and the two words a settlement comes to.
 //! - `held_commit_settle.rs`:
 //!   moving the branch of a held commit once nothing stands in the way,
 //!   and finishing what the landing owes after the move.
@@ -462,7 +497,8 @@
 //!   its driver for controls,
 //!   and its stop.
 //! - `service_land_finish.rs`:
-//!   the answers service land finish holds.
+//!   the batches a restart finishes or drops,
+//!   and what it reports about each.
 //! - `service_land_batch_body.rs`:
 //!   the landing itself:
 //!   one batch written,
@@ -585,6 +621,8 @@
 //! - `service_handoff_queued_push_words.rs`:
 //!   the words a waiting push record is named with:
 //!   the bound a running service looks in and how long the record has waited.
+//! - `service_handoff_push_notices.rs`:
+//!   what a command says about the pushes this worktree holds and the pushes it queued.
 //! - `service_handoff.rs`:
 //!   the wrapper's side of after-commit work:
 //!   records and the wake.
@@ -598,8 +636,14 @@
 //!   and the line one answer that is done writes.
 //! - `service_work_run_round.rs`:
 //!   runs one round of the service's work over several directories.
+//! - `service_work_storage_step_awaited.rs`:
+//!   how one storage step of a drain runs as a job of the blocking pool,
+//!   and the words a step that got no place is refused with.
+//! - `service_work_storage_claims_awaited.rs`:
+//!   the storage steps that touch the queue's own records,
+//!   from the claim of a directory to the claims another instance let run out.
 //! - `service_work_storage_awaited.rs`:
-//!   the storage steps of one drain of work,
+//!   the storage steps of one drain that leave a push's record for the person,
 //!   each a job of the blocking pool awaited by a task.
 //! - `service_work_drains_a_snapshot_ahead.rs`:
 //!   the drain of the snapshots the commit service makes ahead of the next add,
@@ -666,9 +710,25 @@ pub mod maintenance_decision;
 /// then `git maintenance run --auto`.
 pub mod maintenance_run;
 
-/// The durable work-item record for asynchronous work (review,
+/// The durable work-item record of asynchronous work (review,
 /// push,
-/// maintenance) left for a resident consumer.
+/// maintenance) left for a resident consumer:
+/// its fields,
+/// its one JSON line and the reader of that line.
+pub mod work_item_record;
+
+/// The steps that take one pending record out of the queue,
+/// and the stamp that keeps a claim's lease readable.
+pub mod work_item_claim_taking;
+
+/// Moving a held item's claim to its state,
+/// starting the claim's lease again,
+/// and the age of the oldest pending item.
+pub mod work_item_settling;
+
+/// The one name a caller uses for the record,
+/// the steps that take and settle it,
+/// and the files they are declared beside.
 pub mod work_item;
 
 /// The digest a push's id carries for its branch,
@@ -815,7 +875,15 @@ pub mod earlier_service_command_line_read;
 /// and the identity of each earlier journal that exists.
 pub mod earlier_service_look_paths;
 
-/// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
+/// What the look at an earlier commit service answers with,
+/// and the words of a service's start it reads.
+pub mod earlier_service_process_look_answers;
+
+/// Which earlier commit service one command line of a process names.
+pub mod earlier_service_process_start_arguments;
+
+/// The look at the running processes and the sockets that tells whether a commit service of an earlier release may
+/// still run or may start for a worktree.
 pub mod earlier_service_process_look;
 
 /// The description of one running program that the look for an earlier commit service could not rule out,
@@ -922,11 +990,15 @@ pub mod owed_index_entries;
 
 pub mod service_land_start;
 
-/// The commit service's hold on Git's index lock across a landing.
-pub mod service_index_lock;
+/// What one look at the held index lock proves,
+/// and the words the person is told about its holder.
+pub mod service_index_holder_look;
 
 /// The attempts and the wait of an acquisition of the index lock.
 pub mod service_index_attempts;
+
+/// The commit service's hold on Git's index lock across a landing.
+pub mod service_index_lock;
 
 /// The service's warm of the compiled forbidden-strings rules,
 /// off the commit's path.
@@ -1310,7 +1382,15 @@ pub mod service_work_settling_with_words;
 /// as one step of a round.
 pub mod service_work_drains_a_snapshot_ahead;
 
-/// The storage steps of one drain of work,
+/// How one storage step of a drain runs as a job of the blocking pool,
+/// and the words a step that got no place is refused with.
+pub mod service_work_storage_step_awaited;
+
+/// The storage steps that touch the queue's own records,
+/// from the claim of a directory to the claims another instance let run out.
+pub mod service_work_storage_claims_awaited;
+
+/// The storage steps of one drain that leave a push's record for the person,
 /// each a job of the blocking pool awaited by a task.
 pub mod service_work_storage_awaited;
 
@@ -1337,6 +1417,9 @@ pub mod service_round;
 /// The push record a command that moves a branch leaves,
 /// and the hand-off that wakes the service to run it with that command's programs.
 pub mod push_record_of_a_moved_branch;
+
+/// What a command says about the pushes this worktree holds and the pushes it queued.
+pub mod service_handoff_push_notices;
 
 /// The wrapper's side of after-commit work:
 /// records and the wake.
@@ -1392,6 +1475,16 @@ pub mod service_durable;
 /// and the words its answer gives for them.
 pub mod service_durable_syncs;
 
+/// The conclusion state and the index update that follow a batch's branch move,
+/// recorded so that a restart never replays the index over what another program staged.
+pub mod service_land_finish_after_the_move;
+
+/// Whether a restart may replay an open batch's index update,
+/// and the two words a settlement comes to.
+pub mod service_land_finish_replay_gate;
+
+/// The batches a restart finishes or drops,
+/// and what it reports about each.
 pub mod service_land_finish;
 
 /// The removal of a stale index lock,
@@ -1419,9 +1512,19 @@ pub mod service_index_claim;
 /// Whether a new index file holds the live index's bytes.
 pub mod service_index_same;
 
-/// The two side references of a landing,
-/// and the scratch reference a restart removes once a batch it dropped has its commit kept.
+/// The names of a landing's side references,
+/// how a reference's value is read,
+/// the one write of a side reference,
+/// and the line that says one was left where it is.
+pub mod service_scratch_ref_names_and_values;
+
+/// The face a caller on a thread asks of the removal of a batch's scratch reference,
+/// once the commit it holds is kept.
 pub mod service_scratch_ref_of_a_dropped_batch;
+
+/// The same removals as the face a task of the runtime awaits,
+/// every Git child and every look at an intent a job of the pool.
+pub mod service_scratch_ref_of_a_dropped_batch_awaiting;
 
 /// The record that names the worktree of a batch's scratch reference,
 /// so a restart can remove a reference whose landing was killed before its intent.

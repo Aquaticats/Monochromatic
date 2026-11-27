@@ -76,7 +76,11 @@ Whether that shortens the `wait_current_trans` share for this workload is what t
 
 ## Timing comparisons that could not rank filesystems
 
-`~/temp/agent/pi-runs/compare-deletes-on-three-filesystems.ts` created and deleted 30,000 files of 1 KiB on 8 GiB no-copy-on-write images behind direct-I/O loop devices on the 860,
+`~/temp/agent/pi-runs/compare-deletes-on-three-filesystems.ts`
+(scratch,
+deleted on 2026-11-27;
+not kept)
+created and deleted 30,000 files of 1 KiB on 8 GiB no-copy-on-write images behind direct-I/O loop devices on the 860,
 and in a folder on the real volume,
 alternating arms under the agents' normal load.
 Each figure is the median of the delete time,
@@ -133,7 +137,11 @@ Metadata `dup` against `single` shows no measurable difference.
 - TRIM:
   "On,
   saved in the service (Recommended)".
-  `~/temp/agent/pi-runs/enable-trim-on-the-860.ts` adds `--allow-discards` and `discard=async` to `mount-860.service`,
+  `~/temp/agent/pi-runs/enable-trim-on-the-860.ts`
+  (scratch,
+  deleted on 2026-11-27;
+  not kept)
+  adds `--allow-discards` and `discard=async` to `mount-860.service`,
   applies both live,
   runs one full trim,
   and samples the drive before and after.
@@ -212,7 +220,10 @@ reading 1,348 MiB and writing 1,503 MiB.
 A `cargo-shadow lean run` started by agent `cargo-shadow-lean-read-only-trees-and-run-deadline` was running;
 its own process read 25 MiB and wrote nothing directly in those 10 seconds,
 so most of the traffic came from btrfs's own threads and other writers.
-The sampler is `~/temp/agent/pi-runs/disk-share-of-one-process.ts`.
+The sampler is `~/temp/agent/pi-runs/disk-share-of-one-process.ts`
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 The owner,
 2026-11-10:

@@ -34,11 +34,11 @@
 //! ```ts
 //! const claimed = await claimAllAwaiting(held, workDir); const [ok, refused] = await acceptableAwaiting(gitDir, claimed); await settleAllAwaiting(held, workDir, refused, FAILED)
 //! ```
+//!
+//! How one step is run is declared in `service_work_storage_step_awaited.rs`,
+//! and the steps that touch the queue's own records in `service_work_storage_claims_awaited.rs`:
+//! this file serves both.
 
-use crate::blocking_jobs_within_the_budget::{
-    TheAnswerOfAJobAwaited,
-    run_a_job_once_awaited_no_longer_than,
-};
 use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::{
     PushOutcome,
@@ -47,20 +47,16 @@ use crate::push_failure_notice::{
     record_push_report,
     record_push_skip,
 };
-use crate::service_claim_renewal::HeldClaims;
 use crate::service_work_handlers_replanning_and_acceptance::{
     MAX_TRIES,
     SkipNotice,
-    is_acceptable,
-    settle_all,
-    still_held,
+};
+use crate::service_work_storage_step_awaited::{
+    a_storage_step_awaited_no_longer_than,
+    refused,
+    the_claim_steps_ceiling,
 };
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
-use crate::work_item::{
-    Claimed,
-    WorkKind,
-    claim_all_of,
-};
 use crate::work_item_recovery::{
     Recovered,
     next_claim_expiry,
@@ -72,291 +68,22 @@ use std::path::{
 };
 use std::time::Duration;
 
-/// What:
-///  Say that a storage step of the drain was refused,
-/// and what that leaves for the next round.
-/// Why:
-///   A step that changed nothing and a step that may still be finishing are both said plainly
-/// (`a_storage_step_awaited_no_longer_than`),
-/// and a caller told nothing would read the silence as a drain that did all of it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const refused = (said) => serviceWarn(`${said}; the records it would have moved keep their lease`)
-/// ```
-fn refused(said: &str) {
-    crate::service_warn!(
-        "{said}; the records it would have moved keep their lease, so the next round finds them"
-    );
-}
-
-/// What:
-///  Run one storage step of a drain as a job of the process's blocking pool,
-/// awaiting the place and the job no longer than `ceiling`,
-/// and give its answer or the words it is refused with,
-/// which name the step and what it left undone.
-/// Why:
-///   A place of the process's bound is held by the job that took it until that job ends,
-/// and a job whose read outlasted its ceiling is left behind holding the place
-/// (`blocking_jobs_within_the_budget.rs`).
-/// A step that awaited a place without an end would then wait for a place nothing gives back:
-/// the round would never end,
-/// so no later push or upkeep round ran and the service never exited idle
-/// (finding 4 of the review of `5686c7bb29`,
-/// "nothing should ever wait forever or indefinitely").
-/// The ceiling is the caller's so that a control can reach a step's bound in a moment,
-/// as `restored_within` does for the journal's read;
-/// every step the drain runs passes the ceiling the after-commit work's other state steps take.
-/// Each answer is said as what it is:
-/// no place within the ceiling proves the step did not run and changed nothing,
-/// while a step that outlasted its own ceiling may still be finishing what it began.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const answer = await aStorageStep(ceiling, 'the settling of the records this round ran', 'no record is settled', job)
-/// ```
-async fn a_storage_step_awaited_no_longer_than<T: Send + 'static>(
-    ceiling: Duration,
-    step: &str,
-    left: &str,
-    job: impl FnOnce() -> T + Send + 'static,
-) -> Result<T, String> {
-    return match run_a_job_once_awaited_no_longer_than(ceiling, job).await {
-        TheAnswerOfAJobAwaited::Ran(value) => Ok(value),
-        TheAnswerOfAJobAwaited::NotRun => Err(format!(
-            "{step} did not run, because no place of the process's bound and no thread came within {ceiling:?}, so {left}"
-        )),
-        TheAnswerOfAJobAwaited::NoAnswer => Err(format!(
-            "{step} gave no answer within {ceiling:?}, so {left}, and what it began may still be being written"
-        )),
-    };
-}
-
-/// What:
-///  Claim every pending record of `work_dir` of the kinds `kinds` names.
-/// Why:
-///   The listing and the renames are storage,
-/// and the answer is the drain's first step of a round.
-/// The kinds are the drain's own:
-/// the round that holds the service claims the pushes alone,
-/// and the slow lane claims the rest
-///  (`landing/service_work_slow_lane.rs`).
-/// An error is the reason the directory could not be claimed,
-///  which ends the round where it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const claimed = await claimAllAwaiting(workDir, kinds)
-/// ```
-pub(crate) async fn claim_all_awaiting(
-    work_dir: &Path,
-    kinds: &'static [WorkKind],
-) -> Result<Vec<Claimed>, String> {
-    return claim_all_within_awaiting(the_claim_steps_ceiling(), work_dir, kinds).await;
-}
-
-/// The ceiling a control stated for the claim steps of this process,
-/// in milliseconds,
-/// or nothing when it stated none.
-/// The release executable keeps nothing of it.
+/// A control states the ceiling its own claim step takes.
 #[cfg(test)]
-static A_CLAIM_CEILING_FOR_A_CONTROL: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
-
+pub(crate) use crate::service_work_storage_claims_awaited::claim_all_within_awaiting;
 /// What:
-///  State the ceiling the next claim steps of this process take,
-///  so a control reaches the bound a round keeps in a moment instead of the sixty seconds a shipped step waits.
-/// Why:
-///   A round whose claim step got no place must ask to be looked at again,
-/// and only a control can reach that answer without waiting the shipped ceiling out;
-/// `claim_all_within_awaiting` states it for one caller instead.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// holdTheClaimStepsTo(20); // the next claim steps take 20 ms
-/// ```
+///  The steps that touch the queue's own records,
+/// declared beside this file and served by it,
+/// so the paths its callers name stay the ones they named.
+pub(crate) use crate::service_work_storage_claims_awaited::{
+    acceptable_awaiting,
+    claim_all_awaiting,
+    settle_all_awaiting,
+    still_held_awaiting,
+};
+/// A control states the ceiling the claim steps of this process take.
 #[cfg(test)]
-pub(crate) fn hold_the_claim_steps_to(ceiling: Duration) {
-    A_CLAIM_CEILING_FOR_A_CONTROL.store(
-        u64::try_from(ceiling.as_millis()).unwrap_or(u64::MAX),
-        std::sync::atomic::Ordering::SeqCst,
-    );
-}
-
-/// The ceiling this process's claim steps take:
-/// the one a control stated,
-/// or `AFTER_COMMIT_STATE_CEILING`,
-/// which is what the after-commit work's own state steps take.
-fn the_claim_steps_ceiling() -> Duration {
-    #[cfg(test)]
-    {
-        let stated: u64 = A_CLAIM_CEILING_FOR_A_CONTROL.load(std::sync::atomic::Ordering::SeqCst);
-        if stated > 0 {
-            return Duration::from_millis(stated);
-        }
-    }
-    return AFTER_COMMIT_STATE_CEILING;
-}
-
-/// `claim_all_awaiting` with the ceiling its place and its job are given,
-/// so a control can reach the bound this step keeps in a moment (`service_round_tests.rs`).
-pub(crate) async fn claim_all_within_awaiting(
-    ceiling: Duration,
-    work_dir: &Path,
-    kinds: &'static [WorkKind],
-) -> Result<Vec<Claimed>, String> {
-    let directory: PathBuf = work_dir.to_path_buf();
-    return match a_storage_step_awaited_no_longer_than(
-        ceiling,
-        "the look for this directory's pending records",
-        "none was claimed",
-        move || {
-            return claim_all_of(directory.as_path(), kinds);
-        },
-    )
-    .await
-    {
-        Ok(claimed) => claimed,
-        Err(said) => Err(said),
-    };
-}
-
-/// What:
-///  Split the claimed records into those this service may act on and those it may not.
-/// Why:
-///   Which of them is acceptable is a look at the repository's own directories,
-/// which is storage like the rest.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [acceptable, refused] = await acceptableAwaiting(gitDir, claimed)
-/// ```
-pub(crate) async fn acceptable_awaiting(
-    git_dir: &Path,
-    claimed: Vec<Claimed>,
-) -> (Vec<Claimed>, Vec<Claimed>) {
-    let directory: PathBuf = git_dir.to_path_buf();
-    return match a_storage_step_awaited_no_longer_than(
-        AFTER_COMMIT_STATE_CEILING,
-        "the look that decides which records are acceptable",
-        "no record is decided either way",
-        move || {
-            let mut acceptable: Vec<Claimed> = Vec::new();
-            let mut refused_here: Vec<Claimed> = Vec::new();
-            for item in claimed {
-                if is_acceptable(&item.item, directory.as_path()) {
-                    acceptable.push(item);
-                } else {
-                    refused_here.push(item);
-                }
-            }
-            return (acceptable, refused_here);
-        },
-    )
-    .await
-    {
-        Ok((acceptable, refused_here)) => (acceptable, refused_here),
-        // Nothing is decided on a job that did not run, so no record is failed for a reason the service did not read.
-        Err(said) => {
-            refused(said.as_str());
-            (Vec::new(), Vec::new())
-        }
-    };
-}
-
-/// What:
-///  Move the claims of `claimed` to `state` and stop renewing them,
-/// and hand the claim set back to its owner.
-/// Why:
-///   A settlement renames a file and finds it by its generation,
-/// so it is storage,
-/// and the set it reads is the owner's,
-///  which the job takes and gives back.
-/// A claim another instance took over is said and left to it,
-/// as the synchronous step does.
-/// A job the system refuses a thread for does not run,
-/// so the set goes with it and nothing is answered:
-/// the caller ends the round rather than holding a set it cannot settle.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const back = await settleAllAwaiting(held, workDir, claimed, state); // null when the job could not run
-/// ```
-pub(crate) async fn settle_all_awaiting(
-    held: HeldClaims,
-    work_dir: &Path,
-    claimed: Vec<Claimed>,
-    state: &'static str,
-) -> Option<HeldClaims> {
-    if claimed.is_empty() {
-        return Some(held);
-    }
-    let directory: PathBuf = work_dir.to_path_buf();
-    let settling: Vec<Claimed> = claimed;
-    return match a_storage_step_awaited_no_longer_than(
-        AFTER_COMMIT_STATE_CEILING,
-        "the settling of the records this round ran",
-        "no record is settled",
-        move || {
-            settle_all(directory.as_path(), &held, settling.as_slice(), state);
-            return held;
-        },
-    )
-    .await
-    {
-        Ok(back) => Some(back),
-        Err(said) => {
-            refused(said.as_str());
-            None
-        }
-    };
-}
-
-/// What:
-///  The claims of `claimed` that this instance still holds,
-/// before their work starts,
-/// with the claim set handed back to its owner.
-/// Why:
-///   A claim whose file is gone under its generation was taken over,
-/// so its work is another instance's now;
-/// the look at the
-///  directory is storage,
-/// and the set is the owner's,
-/// which the job takes and gives back.
-/// A job that did not run answers nothing,
-///  so no work starts on a claim the service could not confirm.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [back, mine] = await stillHeldAwaiting(held, workDir, claimed) ?? [null, []]
-/// ```
-pub(crate) async fn still_held_awaiting(
-    held: HeldClaims,
-    work_dir: &Path,
-    claimed: Vec<Claimed>,
-) -> Option<(HeldClaims, Vec<Claimed>)> {
-    if claimed.is_empty() {
-        return Some((held, Vec::new()));
-    }
-    let directory: PathBuf = work_dir.to_path_buf();
-    return match a_storage_step_awaited_no_longer_than(
-        AFTER_COMMIT_STATE_CEILING,
-        "the look that finds a claim taken over",
-        "no claim is checked",
-        move || {
-            let mine: Vec<Claimed> = still_held(&held, directory.as_path(), claimed);
-            return (held, mine);
-        },
-    )
-    .await
-    {
-        Ok(answered) => Some(answered),
-        Err(said) => {
-            refused(said.as_str());
-            None
-        }
-    };
-}
+pub(crate) use crate::service_work_storage_step_awaited::hold_the_claim_steps_to;
 
 /// What:
 ///  Forget this branch's push failures written before `since`,
@@ -399,7 +126,8 @@ pub(crate) async fn clear_push_failures_before_awaiting(
 /// Why:
 ///   The record is a file written into the repository's directory,
 /// which can wait on storage like any other write.
-/// A refusal is answered with the words it refused, in the journal:
+/// A refusal is answered with the words it refused,
+/// in the journal:
 /// a caller leaves the work unsettled so that a later try says it again,
 /// and a journal is what a
 ///  person reading the log has until then.
@@ -457,7 +185,8 @@ pub(crate) async fn record_push_failure_awaiting(
 /// and it is the only copy of what the server and the reconcile said:
 /// nothing makes an accepted push say it again.
 ///  A refusal is said in the journal with the words it refused,
-/// and the caller keeps the item out of `done`, because nothing makes an accepted push say them again
+/// and the caller keeps the item out of `done`,
+/// because nothing makes an accepted push say them again
 /// (`service_work_settling_a_verdict.rs`).
 ///
 /// In TS you'd write (pseudocode):
@@ -605,7 +334,8 @@ pub(crate) async fn next_claim_expiry_awaiting(
 ///  The answer is the same one the claim step gives the round:
 /// a step that got no place claimed nothing,
 ///  and every pending record of this directory then waits for a wake nothing sends unless the round names its own pause.
-///  It takes the ceiling the claim steps take, which is `AFTER_COMMIT_STATE_CEILING` unless a control states another,
+///  It takes the ceiling the claim steps take,
+/// which is `AFTER_COMMIT_STATE_CEILING` unless a control states another,
 /// because taking a claim back is one of them.
 ///
 /// In TS you'd write (pseudocode):

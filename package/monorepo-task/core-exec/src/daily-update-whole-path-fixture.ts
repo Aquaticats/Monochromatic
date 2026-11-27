@@ -32,10 +32,18 @@ import {
 } from './daily-update-notification-recorder-fixture.ts';
 import {
   directoryOf,
+  run,
+} from './daily-update-whole-path-programs-fixture.ts';
+import {
+  readCommits,
+  readDependencyFileTexts,
+  readTextOrEmpty,
+  type RecordedCommit,
+} from './daily-update-whole-path-recorded-state-fixture.ts';
+import {
   layOutRepository,
   put,
   putExecutable,
-  run,
 } from './daily-update-whole-path-repository-fixture.ts';
 import {
   FAKE_CARGO_SHADOW,
@@ -103,6 +111,14 @@ export type WholePathResult = {
    */
   readonly commitSubjects: readonly string[];
   /**
+   Every commit of the repository, newest first, with the repository-relative paths it landed.
+   */
+  readonly commits: readonly RecordedCommit[];
+  /**
+   Text every Dependency file the update's third group may change holds after the run, by repository-relative path.
+   */
+  readonly dependencyFileTexts: Readonly<Record<string, string>>;
+  /**
    Text of the pending issues file, empty when the run wrote none.
    */
   readonly pendingText: string;
@@ -121,36 +137,13 @@ export type WholePathOptions = {
    the tail leaves behind.
    */
   readonly pnpmSkipsLockfileWrite: boolean;
+  /**
+   Whether the stand-in `cargo-shadow` reports a successful plain install while leaving `package/a/broken-crate`'s lock at
+   the release it held before the floor moved. This stands in for an install that reports success and writes nothing; it is
+   a fault the fixture injects, not a defect of the real `cargo-shadow`, whose install fails and restores every lock.
+   */
+  readonly cargoShadowSkipsLockWrite: boolean;
 };
-
-/**
- Reads a text file, answering the empty string when it does not exist.
-
- @param path - absolute path
-
- @returns the text, or the empty string when the file is absent
-
- @throws Error when the file exists but cannot be read
-
- @example
- ```ts
- const text = await readTextOrEmpty('/r/.cache/pending.json',);
- ```
- */
-export async function readTextOrEmpty(path: string,): Promise<string> {
-  try {
-    return await readFile(
-      path,
-      'utf8',
-    );
-  }
-  catch (error) {
-    if ((Error.isError(error,)) && ('code' in error)
-      && (error.code === 'ENOENT'))
-      return '';
-    throw error;
-  }
-}
 
 /**
  Reads one line the stand-in `gh` recorded.
@@ -204,18 +197,22 @@ export function parseGhCall(line: string,): RecordedGhCall {
 
  @param pnpmSkipsLockfileWrite - whether the stand-in `pnpm` leaves the lock as it was on a plain install
 
+ @param cargoShadowSkipsLockWrite - whether the stand-in `cargo-shadow` reports a successful plain install and leaves one
+   crate's lock stale
+
  @returns what the run printed, which commits it made, what `gh` was asked, and what it kept for later
 
  @throws Error when `mise` or `node` is not on `PATH` or a step of the fixture fails
 
  @example
  ```ts
- const result = await runWholePath({ ghExitCode: 0, pnpmSkipsLockfileWrite: false, },);
+ const result = await runWholePath({ cargoShadowSkipsLockWrite: false, ghExitCode: 0, pnpmSkipsLockfileWrite: false, },);
  ```
  */
 export async function runWholePath({
   ghExitCode,
   pnpmSkipsLockfileWrite,
+  cargoShadowSkipsLockWrite,
 }: WholePathOptions,): Promise<WholePathResult> {
   /**
    The disposable folder that holds the whole run, removed when the function ends.
@@ -326,6 +323,7 @@ export async function runWholePath({
     FIXTURE_GH_LOG: ghLog,
     FIXTURE_GH_EXIT: String(ghExitCode,),
     FIXTURE_PNPM_SKIPS_LOCKFILE_WRITE: pnpmSkipsLockfileWrite ? '1' : '0',
+    FIXTURE_CARGO_SHADOW_SKIPS_LOCK_WRITE: cargoShadowSkipsLockWrite ? '1' : '0',
     FIXTURE_GLOBAL_LOCK: globalLock,
   };
   // Only the program folders the fixture names are on `PATH`: the folder that holds `mise` also holds the repository's
@@ -410,15 +408,10 @@ export async function runWholePath({
     environment,
   },);
   /**
-   The repository's commit subjects.
+   Every commit with the paths it landed, newest first.
    */
-  const log = await run({
-    program: 'git',
-    args: [
-      'log',
-      '--format=%s',
-    ],
-    directory: root,
+  const commits = await readCommits({
+    root,
     environment,
   },);
   /**
@@ -429,6 +422,10 @@ export async function runWholePath({
     '.cache',
     'toolchain-daily-update-pending-issues.json',
   ),);
+  /**
+   Text every dependency file holds after the run, so a restored group can be told from a landed one.
+   */
+  const dependencyFileTexts = await readDependencyFileTexts(root,);
   return {
     exitCode: update.exitCode,
     journal: update.stderr,
@@ -442,11 +439,11 @@ export async function runWholePath({
       },)
       .map(parseGhCall,),
     notifications: parseNotificationLog(await readTextOrEmpty(notificationLog,),),
-    commitSubjects: log.stdout
-      .split('\n',)
-      .filter(function nonEmpty(line,) {
-        return line !== '';
-      },),
+    commitSubjects: commits.map(function subjectOf(commit,) {
+      return commit.subject;
+    },),
+    commits,
+    dependencyFileTexts,
     pendingText,
   };
 }

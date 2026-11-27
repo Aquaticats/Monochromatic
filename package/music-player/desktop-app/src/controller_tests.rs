@@ -8,6 +8,12 @@
 // Why:      Tests directly inspect `Controller` fields and helper methods.
 use super::*;
 
+// What:     `use crate::command::Command;`. The UI-to-engine message enum the
+//           dispatch tests send into `handle_command`.
+// Why:      Those tests name `Command` directly, and the controller module no
+//           longer imports it: the dispatch moved to `controller/command_dispatch.rs`.
+use crate::command::Command;
+
 // What:     `use std::path::PathBuf;`. Owned filesystem path buffer.
 // Why:      The skip-current sweep test builds a queue of owned fixture paths.
 use std::path::PathBuf;

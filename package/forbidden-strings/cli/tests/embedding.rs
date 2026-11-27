@@ -3,6 +3,9 @@
 //! Why:
 //!  Private matcher fixtures do not prove exported loading,
 //!  cache warnings or native rule-file paths work.
+//!  Where the file system under the build directory refuses a name that is not valid UTF-8,
+//!  the driver re-runs itself inside a namespace of its own with a tmpfs there,
+//!  so the native rule-file control still runs instead of failing or skipping (issue 6491).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,12 +19,53 @@ use forbidden_strings::{
     ScanFinding,
     Scanner,
 };
+/// What:
+///  `Cow` is "a borrowed value or an owned one",
+/// which reads the same either way;
+///  the siblings a reader might expect are `String` (always owned,
+/// so always a copy) and `&str` (borrowed only).
+/// Why:
+///  A child's output is usually valid UTF-8 and so is borrowed from the bytes already read,
+///  and only an output with an invalid byte is copied and repaired.
+use std::borrow::Cow;
 /// Import native filesystem and child-process primitives for disposable verification.
 use std::path::{
     Path,
     PathBuf,
 };
 use std::process::Command;
+
+/// What:
+///  The fixture-root question this control asks before it makes a rule file whose name is not valid UTF-8,
+///  and the re-execution that puts the control on a tmpfs where the root refuses that name.
+/// Why:
+///  `CARGO_TARGET_TMPDIR` sits on this host's home dataset,
+/// which refuses such a name under `utf8only=on`
+///  and answers `EILSEQ` (issue 6491),
+///  so the control would fail for a file system's reason rather than the scanner's;
+///  the mechanism lives in its own file so this driver reads as what it checks.
+#[cfg(unix)]
+#[path = "support/fixture_root_taking_any_name.rs"]
+mod fixture_root_taking_any_name;
+
+/// What:
+///  The name libtest answers to for this file's driver control,
+/// which is the function's own name.
+/// Why:
+///  The half that runs where the fixture root refuses the byte name starts that same test by this name,
+/// with `--exact`,
+///  and a platform whose paths are not bytes asks nothing,
+/// so the name is only written where a path is bytes.
+#[cfg(unix)]
+const THE_DRIVER_CONTROL: &str = "public_embedding_runs_without_real_user_state";
+
+/// What:
+///  The line the native rule-file control prints once it has run.
+/// Why:
+///  A control that returned early on a file system that refuses its name would leave the line out,
+///  and the driver fails on its absence instead of passing a run in which the control never ran.
+#[cfg(unix)]
+const NATIVE_RULE_PATH_CONTROL_RAN: &str = "NATIVE RULE-FILE NAME CONTROL RAN";
 
 /// Child consumer selected explicitly by the driver;
 ///  ordinary test enumeration performs no state mutation here.
@@ -100,6 +144,9 @@ fn native_rule_path(root: &Path) {
     let cached: Scanner =
         Scanner::load(path.as_path(), false, true).expect("native rules cache reuse");
     assert!(cached.cache_warnings().is_empty());
+    eprintln!(
+        "{NATIVE_RULE_PATH_CONTROL_RAN}: the rule file kept its bytes through the cache repair"
+    );
 }
 
 /// This byte-construction control is Unix-specific;
@@ -109,10 +156,23 @@ fn native_rule_path(_root: &Path) {}
 
 /// The actual driver proves the public consumer runs with an isolated cache,
 ///  not just an early-returning probe.
+///  Where `CARGO_TARGET_TMPDIR` refuses a name that is not valid UTF-8,
+///  this test re-runs itself in a namespace of its own with a tmpfs there
+///  (`fixture_root_taking_any_name`),
+/// so the native rule-file control still runs.
 #[test]
 fn public_embedding_runs_without_real_user_state() {
-    let root: PathBuf = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("scanner-embedded-{}", std::process::id()));
+    let fixture_root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+    // What: ask whether the file system under the build directory takes the byte name the native control writes.
+    // Why: where it does not, this half has been replaced by one that mounted a tmpfs there and ran this test.
+    #[cfg(unix)]
+    if !fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
+        fixture_root.as_path(),
+        THE_DRIVER_CONTROL,
+    ) {
+        return;
+    }
+    let root: PathBuf = fixture_root.join(format!("scanner-embedded-{}", std::process::id()));
     std::fs::create_dir(&root).expect("fresh disposable fixture");
     std::fs::write(root.join("rules.txt"), "EMBEDDED_NEEDLE_LONG\n").expect("runtime rules");
     let executable: PathBuf = std::env::current_exe().expect("test consumer executable");
@@ -123,11 +183,18 @@ fn public_embedding_runs_without_real_user_state() {
         .env("HOME", &root)
         .output()
         .expect("spawn isolated public consumer");
+    let said: Cow<'_, str> = String::from_utf8_lossy(output.stdout.as_slice());
+    let heard: Cow<'_, str> = String::from_utf8_lossy(output.stderr.as_slice());
     std::fs::remove_dir_all(&root).expect("remove only this fixture");
+    assert!(output.status.success(), "{said}\n{heard}");
     assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        said.contains("1 passed"),
+        "the child ran no single passing test:\n{said}\n{heard}"
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+    #[cfg(unix)]
+    assert!(
+        heard.contains(NATIVE_RULE_PATH_CONTROL_RAN),
+        "the native rule-file control did not run in the child, so a file system that refuses its name would go \
+         unnoticed:\n{said}\n{heard}"
+    );
 }

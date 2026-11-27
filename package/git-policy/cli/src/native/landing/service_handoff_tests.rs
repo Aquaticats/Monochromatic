@@ -1,6 +1,13 @@
 //! Controls for the wrapper's side of after-commit work.
 
 use super::*;
+use crate::held_push_commit_on_the_remote::OnTheRemote;
+use crate::held_push_holder_and_verdict::{
+    Holding,
+    Verdict,
+    holding_in,
+    pid_of,
+};
 use crate::service_client::Activation;
 use crate::service_messages::Platform;
 use crate::service_server::Bind;

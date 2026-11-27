@@ -24,14 +24,15 @@ import { POOL_LIMITS_VARIABLE, } from './pool-limits.ts';
 export const BATCH_UNIT_SECONDS = 172_800;
 
 /**
- The processor share the batch's unit gets, in percent. The launchers only link dependencies and wait; the agents run in units of
+ The processor share the batch's unit gets, in percent. The launchers only make a worktree and wait; the agents run in units of
  their own, so the batch needs room to read its list and start the next launcher, not room for the work itself.
  */
 export const BATCH_UNIT_CPU_PERCENT = 400;
 
 /**
- The memory the batch's unit may hold. Launchers link dependencies with `pnpm install --offline`, which fits in this several times
- over, and the runs they start are bounded by their own units.
+ The memory the batch's unit may hold. It was sized while every launcher ran `pnpm install --offline` in the worktree it had
+ just made; a launcher now only waits while the wrapper's `git worktree add` copies the checkout's ignored files, so the value
+ is kept as it was, and what that copy needs is not measured here. The runs they start are bounded by their own units.
  */
 export const BATCH_UNIT_MEMORY = '16G';
 
