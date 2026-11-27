@@ -1306,6 +1306,16 @@ fn an_unreadable_or_truncated_manifest_index_keeps_the_journal() {
 fn a_manifest_path_that_is_not_utf8_is_recovered_exactly() {
     use crate::manifest_edit::ManifestEdit;
     use std::os::unix::ffi::OsStringExt;
+    // What:    `in_a_fixture_root_taking_any_name` answers whether this half may make the odd name here, and where the
+    //  file system refuses it, starts this same test again inside a user and mount namespace with a tmpfs at the
+    //  scratch root.
+    // Why: the dataset behind this build folder refuses a name that is not UTF-8 (issue 6550), and a control that
+    //  skipped there would pass a run in which the recovery was never exercised.
+    if !crate::fixture_root_taking_any_name::in_a_fixture_root_taking_any_name(
+        crate::test_scratch::scratch_root().as_path(),
+    ) {
+        return;
+    }
     let root = repository("unchecked output of the killed run");
     // What:     `.to_vec()` copies a borrowed slice (`&[T]`) into a new owned growable `Vec<T>`.
     // Why:      The result can be stored or modified independently of the slice it came from.

@@ -14,7 +14,10 @@ use std::path::{
 /// the package's build directory in the current Cargo layout),
 /// never the system temporary
 /// directory.
-fn scratch_root() -> PathBuf {
+/// Why it is open to the rest of the crate:
+/// `crate::fixture_root_taking_any_name` asks this very directory whether it takes a name that is not UTF-8,
+/// and mounts a tmpfs there when it does not (issue 6550).
+pub(crate) fn scratch_root() -> PathBuf {
     let target: Option<PathBuf> = std::env::current_exe().ok().and_then(|executable| {
         return executable.ancestors().nth(3).map(Path::to_path_buf);
     });
