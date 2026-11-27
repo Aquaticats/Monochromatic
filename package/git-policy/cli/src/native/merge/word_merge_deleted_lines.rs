@@ -194,19 +194,24 @@ pub(super) fn merged_deletions(
 }
 
 /// What:
-///  Whether `merged` writes a line the base held that one side deleted while the other
-/// side left it as it was.
+///  Whether `merged` writes more copies of a line the base held
+///  than the side that deleted copies of it still holds,
+///  while the other side left that line as it was.
 /// Why:
-///   Such a line is text neither side holds:
-/// the side that kept it did not ask for it,
-/// and the side that deleted it asked for it to go,
-///  so a merge that writes it has finished a conflict by itself with a line one side deleted
+///   The copies a side deleted are text that side asked to go,
+/// and the other side kept its copies without asking for any:
+///  so a merge that writes more copies than the deleting side still holds
+///  has finished a conflict by itself with a copy one side deleted
 /// (`package/git-policy/cli/SPEC.md`,
 /// "Word-level second merge pass").
+/// The side that deleted may still hold some copies of a line that repeats,
+/// and a merge that writes those is right:
+/// the copies that side kept are text it holds,
+/// so only the copies past its own count are the ones it deleted.
 /// A side that wrote more copies of a line than the base held did not leave that line as it was,
 /// so only a side that holds it as often as the base did,
 /// beside a side that holds it less often,
-/// is the shape refused.
+/// is the shape judged here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,15 +228,13 @@ pub(super) fn keeps_a_deleted_line(
     let theirs_counts: BTreeMap<&[u8], usize> = line_counts(theirs);
     let merged_counts: BTreeMap<&[u8], usize> = line_counts(merged);
     for (line, in_base) in &base_counts {
-        if merged_counts.get(line).copied().unwrap_or(0) == 0 {
-            continue;
-        }
+        let held: usize = merged_counts.get(line).copied().unwrap_or(0);
         let ours_held: usize = ours_counts.get(line).copied().unwrap_or(0);
         let theirs_held: usize = theirs_counts.get(line).copied().unwrap_or(0);
-        if ours_held < *in_base && theirs_held == *in_base {
+        if ours_held < *in_base && theirs_held == *in_base && held > ours_held {
             return true;
         }
-        if theirs_held < *in_base && ours_held == *in_base {
+        if theirs_held < *in_base && ours_held == *in_base && held > theirs_held {
             return true;
         }
     }
