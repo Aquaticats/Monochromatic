@@ -751,11 +751,19 @@ measured where its 900 ms went:
 
 The case needs 600 ms of waiting and 125 ms of its own steps,
 and leaves 177 ms of a 902 ms deadline for a host that is slower than this one.
-A delivery of the same case a whole poll slower
-(`connectionWhosePiAnswersAPollLate` in `watch-pi-run.unit.test.ts`)
-ended it `wall-clock` at 904 ms against that 902 ms deadline,
-on the control as it stood before the fix,
-which is the issue's failure without waiting for luck.
+Two runs show the failure without waiting for the load that made it:
+
+- the stand-in that answers the message (`connectionWhosePiStartedItsOwnTurn` in `watch-pi-run.unit.test.ts`)
+  waiting one poll before it opened its turn,
+  which held the control as it stood on `main`,
+  ended it `wall-clock` at 904 ms against its 902 ms deadline,
+  the failure the issue records;
+- the control this round added,
+  `ends idle when the delivery the watch makes takes a whole poll longer`
+  with its own stand-in `connectionWhosePiAnswersAPollLate`,
+  fails the same way in 912 ms when it is given the bound the file had before the change
+  (`AssertionError: expected 'wall-clock' to equal 'idle'`),
+  and passes with the bound below.
 
 What a control does instead:
 it gives its watch the looks it needs,
@@ -778,13 +786,27 @@ with a stand-in record counting its `turnCount` calls,
 which is one call per look that reaches the work.
 
 The controls that assert the wall clock keep their bounds,
-because the clock is their subject:
-their last look only has to arrive after it,
-and their first look has 300 ms or more of room.
-Measured in the same run of that file,
-`bounds a stalled delivery by what the run has left`
-takes its one look at 315 ms of a 600 ms bound,
-and `takes what Pi answered off the inbox and goes on watching` likewise.
+because the clock is what they assert.
+Two of them need a look to happen before that clock,
+and the rest only need their last look to arrive after it:
+
+- `bounds a stalled delivery by what the run has left`
+  does not need its look's work before the clock:
+  cut to a 330 ms bound,
+  so that the look's arrival at about 315 ms leaves it a few milliseconds of its own work,
+  the case passed in a run of its file on 2026-11-27.
+  The code says why a delivery that runs past the clock still passes:
+  the stand-in answers `no answer before the deadline`,
+  which is the `no answer` the case asserts,
+  and the message is kept aside either way (`stallingConnection` in `watch-pi-run.unit.test.ts`);
+- `takes what Pi answered off the inbox and goes on watching`
+  needs its first look to arrive within the 600 ms it gives the run.
+  A look arrives one poll in,
+  and that case's own run of the file ended at 614 ms of the 600 ms bound,
+  so a timer that fires more than 285 ms late would end the run at its clock before the delivery,
+  and no bound in milliseconds can rule that out.
+  The strict cure is a clock the case owns,
+  as `wait-for-an-answer.unit.test.ts` does for Cause 4.
 
 ### Verification
 

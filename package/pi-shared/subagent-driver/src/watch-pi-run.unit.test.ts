@@ -63,13 +63,12 @@ const RUN_MILLISECONDS = 2 * POLL_MILLISECONDS;
 const HOLD_MILLISECONDS = 3 * POLL_MILLISECONDS;
 
 /**
- Milliseconds a look of the watch may spend on the work between two waits.
+ Milliseconds the longest wait a look of the watch can be handed may take.
 
  A look is one `wait(POLL_MILLISECONDS)` of the watch's loop and then the work before the next look: the reads of the limits, the
- inbox and the feed, and the wait for Pi's answer to a message. Every send inside a look is given the run's own deadline and,
- while that deadline is still ahead, the connection's own bound for an answer, which is `COMMAND_ANSWER_MILLISECONDS`
- (`deliverMessage` in `watch-pi-run.ts`, `answerWithAnotherAttempt` in `answer-a-model-error.ts`). So this is how long the work of
- one look may take.
+ inbox and the feed, the delivery of a message, and the wait for Pi's answer to it. The reads take what the host makes them take.
+ The wait is bounded: every send inside a look is given the run's own deadline and the connection's own bound for an answer, which
+ is `COMMAND_ANSWER_MILLISECONDS` (`deliverMessage` in `watch-pi-run.ts`, `answerWithAnotherAttempt` in `answer-a-model-error.ts`).
 
  Read with {@link patienceOf}, which is where a case's bound comes from.
  */
@@ -77,17 +76,17 @@ const LOOK_WORK_MILLISECONDS = COMMAND_ANSWER_MILLISECONDS;
 
 /**
  Milliseconds a case's watch may run, when the end the case asserts is an event rather than the wall clock: the looks the case
- needs, each with its own wait and the longest work a look may take.
+ needs, each with its own wait and the longest wait a look can be handed.
 
- `looks * POLL_MILLISECONDS` is not that bound, because it counts the looks and leaves every step between two of them out, and those
- steps are not free. Measured in one whole run of this suite on 2026-11-27, the look that delivers an inbox message spent 100 ms
- on its own work out of the 300 ms the two-look bound of the case "delivers an inbox message a turn Pi started after the read can
- take" left over, and a run of it under heavier load ended that case at its wall clock instead of at the idle end it asserts
- (`doc/troubleshooting/testing.md`, "Bug 6", and issue 6631). The same shape ended the wall-clock control beside it on 2026-11-26
- (issue 6506).
+ `looks * POLL_MILLISECONDS` is not that bound, because it counts the waits and leaves every step between two of them out, and those
+ steps are not free. Measured in one whole run of this suite on 2026-11-27, the look that delivers an inbox message spent 100 ms on
+ its own work out of the 300 ms the two-look bound of the case "delivers an inbox message a turn Pi started after the read can take"
+ left over, and a run of that case on a loaded host ended it at its wall clock instead of at the idle end it asserts
+ (`doc/troubleshooting/testing.md`, "Bug 6", and issue 6631).
 
- A case that asserts an event is not measuring the wall clock: the clock is there only to end a watch that never reaches the event,
- so it must not be able to arrive first, and a watch that never reaches the event is still reported rather than hung.
+ A case that asserts an event is not measuring the wall clock, so this is the bound against a watch that never reaches the event:
+ it must not be able to arrive before the event, and a watch that never arrives is reported rather than hung. What it costs is that
+ a watch which reaches its event only after seconds is not caught here, which is the price of a bound no loaded host can decide.
 
  @param looks - how many looks the watch takes before the end the case asserts, counted in a run of the case
 
