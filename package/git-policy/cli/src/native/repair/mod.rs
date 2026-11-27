@@ -8,6 +8,13 @@
 //!
 //! - `package_repair_cargo_concurrent.rs`:
 //!   the runner that does one job for every item of a list on several threads.
+//! - `package_repair_cargo_lock_names.rs`:
+//!   the names a displaced lock's bytes are kept under.
+//! - `package_repair_cargo_lock_keeping_the_bytes.rs`:
+//!   the copy that survives the clean,
+//!   and the staging of the checked-out bytes beside them.
+//! - `package_repair_cargo_lock_never_replacing.rs`:
+//!   putting the checked-out lock back without replacing a file nobody kept.
 //! - `package_repair_cargo_lock.rs`:
 //!   the reading of `Cargo.lock` before a clean and its restoring afterwards.
 //! - `package_repair_prewarm.rs`:
@@ -266,6 +273,16 @@ pub mod package_repair_relink_notice;
 
 /// The runner that does one job for every item of a list on several threads.
 pub mod package_repair_cargo_concurrent;
+
+/// The names a displaced lock's bytes are kept under.
+pub mod package_repair_cargo_lock_names;
+
+/// The copy that survives the clean,
+/// and the staging of the checked-out bytes beside them.
+pub mod package_repair_cargo_lock_keeping_the_bytes;
+
+/// Putting the checked-out lock back without replacing a file nobody kept.
+pub mod package_repair_cargo_lock_never_replacing;
 
 /// The reading of `Cargo.lock` before a clean and its restoring afterwards.
 pub mod package_repair_cargo_lock;
