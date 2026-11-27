@@ -143,7 +143,7 @@ pub(crate) fn is_format_character(letter: char) -> bool {
 /// ```
 pub(crate) fn format_character_name(letter: char) -> Option<&'static str> {
     return match letter {
-        '\u{feff}' => Some("a byte order mark (`\\u{feff}`)"),
+        '\u{feff}' => Some("a byte order mark or zero-width no-break space (`\\u{feff}`)"),
         '\u{200b}' => Some("a zero-width space (`\\u{200b}`)"),
         '\u{200c}' => Some("a zero-width non-joiner (`\\u{200c}`)"),
         '\u{200d}' => Some("a zero-width joiner (`\\u{200d}`)"),
