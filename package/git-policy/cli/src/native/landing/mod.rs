@@ -618,9 +618,6 @@
 //!   and the automatic upkeep.
 //! - `service_work.rs`:
 //!   the service's consumer of after-commit push and upkeep work.
-//! - `push_record_of_a_moved_branch.rs`:
-//!   the push record a command that moves a branch leaves,
-//!   and the hand-off that wakes the service to run it with that command's programs.
 //! - `service_claim_watch_watched_repositories.rs`:
 //!   what the notes of one claim watch say about the repositories they name,
 //!   read without keeping anything.
@@ -699,6 +696,9 @@
 //!   the service's work that can take minutes:
 //!   a lane of its own,
 //!   beside the round that serves the person's pushes.
+//! - `push_record_of_a_moved_branch.rs`:
+//!   the push record a command that moves a branch leaves,
+//!   and the hand-off that wakes the service to run it with that command's programs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
