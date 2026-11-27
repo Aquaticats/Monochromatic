@@ -4,7 +4,10 @@ import {
   realpath,
   writeFile,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import {
@@ -81,14 +84,21 @@ const hangTaskVariable = 'CHECK_TEST_HANG_TASK';
 const gitRootVariable = 'CHECK_TEST_GIT_ROOT';
 
 /**
- Environment variable that says what the stand-in `git` answers: nothing at all, or the checkout's own Git.
+ Environment variable that says what the stand-in `git` answers: the checkout's own commits, no commit at all, or nothing
+ whatsoever.
  */
 const gitAnswerVariable = 'CHECK_TEST_GIT_ANSWER';
 
 /**
- What the stand-in `git` is told to answer when it cannot answer anything.
+ What the stand-in `git` answers when it is told to answer nothing whatsoever, failing as a git that cannot read the
+ repository does.
  */
 const gitAnswersNothing = 'nothing';
+
+/**
+ What the stand-in `git` answers when it is told to name no commit: it exits zero and prints nothing at all.
+ */
+const gitAnswersNoCommit = 'no-commit';
 
 /**
  The reason the stand-in `git` gives when it is told to answer nothing, so a control reads the reason the check printed.
@@ -197,11 +207,15 @@ for (let at = 0; at < args.length; at += 1) {
 // Paths compare by components, which is what the wrapper's rule compares.
 effective = path.resolve(effective);
 const answersNothing = process.env.${gitAnswerVariable} === '${gitAnswersNothing}';
-const refused = (!answersNothing) && (effective !== root);
+const answersNoCommit = process.env.${gitAnswerVariable} === '${gitAnswersNoCommit}';
+const refused = (!answersNothing) && (!answersNoCommit) && (effective !== root);
 fs.appendFileSync(path.join(directory, 'git.jsonl'), JSON.stringify({ args, cwd: process.cwd(), effective, refused }) + '\\n');
 if (answersNothing) {
   process.stderr.write('fatal: ${gitCannotAnswerReason}\\n');
   process.exit(128);
+}
+if (answersNoCommit) {
+  process.exit(0);
 }
 if (refused) {
   const message = 'monochromatic-git-policy-cli: not at the root of the git repository. Repo root is ' + root
@@ -937,6 +951,66 @@ await describe({
         expect(firstLine,).toContain('the commit could not be read',);
         // The reason is git's own, so a person reads why the log holds no commit instead of finding the line missing.
         expect(firstLine,).toContain(gitCannotAnswerReason,);
+      },
+    }),
+    it({
+      name: 'says the commit could not be read when git names no commit, never silence',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        await writeFixtureCheckout({ checkout: scratch.path, });
+        /**
+         How the command ended, with a `git` that exits zero and prints nothing.
+         */
+        const printed = await tsChecks({
+          worktree: scratch.path,
+          args: ['//package/a:b',],
+          environment: await withStandInGit({
+            standIn,
+            root: scratch.path,
+            environment: {
+              ...(await withStandInMise({ standIn, })),
+              [gitAnswerVariable]: gitAnswersNoCommit,
+            },
+          }),
+        });
+        expect(printed.status,).toBe(0,);
+        /**
+         The line the check printed in place of the checkout's path and commit.
+         */
+        const firstLine = printed.stdout.split('\n',)[0] ?? '';
+        expect(firstLine,).toContain('the commit could not be read',);
+        expect(firstLine,).toContain('printed no commit',);
+      },
+    }),
+    it({
+      name: 'says the commit could not be read when git cannot be run at all, and names why',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        await writeFixtureCheckout({ checkout: scratch.path, });
+        /**
+         How the command ended, with `git` on no `PATH` at all and the fixture's own stand-ins on it.
+         */
+        const printed = await tsChecks({
+          worktree: scratch.path,
+          args: ['//package/a:b',],
+          environment: {
+            ...(await withStandInMise({ standIn, })),
+            // The stand-ins are node programs, so node's own folder stays on the path and no folder holding a git does.
+            PATH: `${join(
+              standIn.directory,
+              'path'
+            )}:${dirname(process.execPath,)}`,
+          },
+        });
+        expect(printed.status,).toBe(0,);
+        /**
+         The line the check printed in place of the checkout's path and commit.
+         */
+        const firstLine = printed.stdout.split('\n',)[0] ?? '';
+        expect(firstLine,).toContain('the commit could not be read',);
+        expect(firstLine,).toContain('could not be run',);
       },
     }),
     it({
