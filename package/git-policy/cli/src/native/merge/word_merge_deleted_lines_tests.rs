@@ -13,6 +13,7 @@ use super::{
 };
 use crate::merge::word_merge::{
     WordMerge,
+    keep_both,
     merge_by_word,
     merged_word_text,
 };
@@ -541,5 +542,319 @@ fn a_region_whose_side_lost_its_last_line_end_keeps_both_sides() {
             WordMerge::Conflict { .. }
         ),
         "the b this side wrote once cannot appear twice"
+    );
+}
+
+/// The seed of the generated regions in which one side also writes a line,
+/// so a failure names the region it read.
+const AN_ADDED_LINE_SEED: u64 = 20_261_129;
+
+/// How many generated regions that search reads.
+const AN_ADDED_LINE_CASES: usize = 400;
+
+/// The records a side may write of its own:
+/// two the base may hold, so a merge may hold a copy the other side does not,
+/// and one the base never holds.
+const WRITTEN_RECORDS: &[&str] = &["alpha", "beta", "delta"];
+
+/// What:
+///  The run `places` keeps of `records`,
+///  with `written` written at `at`.
+/// Why:
+///   A side that deleted records and wrote one of its own is the shape the review found a wrong answer in:
+///  the copy it wrote may be a record the base wrote several times,
+///  which is what lifts one line's count above the other side's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runWithAWrittenRecord = (records, places, at, written) => { const kept = places.map((place) => records[place]); kept.splice(at, 0, written); return kept.join('\n'); };
+/// ```
+fn run_with_a_written_record(
+    records: &[&str],
+    places: &[usize],
+    at: usize,
+    written: &str,
+) -> String {
+    let mut kept: Vec<&str> = places.iter().map(|place| return records[*place]).collect();
+    kept.insert(at, written);
+    return kept.join("\n");
+}
+
+/// What:
+///  The first line `merged` writes more copies of than the two sides leave,
+///  or nothing when it writes none.
+/// Why:
+///   This is the bound the alpha.50 release review states:
+///  a line at most as often as the side that deleted copies of it holds it,
+///  while at most one side wrote more copies of that line than the base held.
+/// A side that wrote copies of its own is where no bound over the two sides is right,
+/// and a line the base never held is no line of the base to count.
+/// The counts are read over the whole answer,
+/// which is the unit the merge resolves:
+/// a region that holds more copies than its own two sides leave can be right
+/// when another region holds fewer of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pastWhatTheSidesLeave(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array, merged: Uint8Array): string | undefined;
+/// ```
+fn past_what_the_sides_leave(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    merged: &[u8],
+) -> Option<String> {
+    let base_counts: BTreeMap<&[u8], usize> = count_bodies(base);
+    let ours_counts: BTreeMap<&[u8], usize> = count_bodies(ours);
+    let theirs_counts: BTreeMap<&[u8], usize> = count_bodies(theirs);
+    for (line, held) in count_bodies(merged) {
+        let in_base: usize = base_counts.get(line).copied().unwrap_or(0);
+        let ours_held: usize = ours_counts.get(line).copied().unwrap_or(0);
+        let theirs_held: usize = theirs_counts.get(line).copied().unwrap_or(0);
+        if in_base == 0 || (ours_held > in_base && theirs_held > in_base) {
+            continue;
+        }
+        let most: usize = if ours_held <= in_base && theirs_held <= in_base {
+            ours_held.min(theirs_held)
+        } else {
+            ours_held.max(theirs_held)
+        };
+        if held > most {
+            return Some(format!(
+                "the line {line:?} appears {held} times, where the two sides leave {most}"
+            ));
+        }
+    }
+    return None;
+}
+
+/// What:
+///  No answer the merge resolves for a region in which one side also wrote a line
+///  writes more copies of a base line than the two sides leave.
+/// Why:
+///   A resolved answer replaces a conflict a person would have read,
+///  so an answer that holds a copy of a line one side deleted lands with no marker
+/// (`src/native/merge/word_merge.rs`,
+/// the module's own words,
+/// the owner's request of 2026-11-10 that wrong text land less often).
+/// The search draws regions whose base writes records more than once,
+/// deletes records from each side,
+/// and writes one record of a side's own,
+/// so the shape that escaped the rule over two sides that only deleted lines is what it reads:
+/// seed `AN_ADDED_LINE_SEED`,
+/// 400 cases.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let case_ = 0; case_ < CASES; case_ += 1) { const { base, ours, theirs } = draw(); const merged = mergeByWord(base, ours, theirs); if (merged.kind !== 'resolved') continue; expect(pastWhatTheSidesLeave(base, ours, theirs, merged.bytes)).toBeUndefined(); }
+/// ```
+#[test]
+fn no_answer_of_a_region_with_a_written_line_writes_past_the_copies_the_sides_leave() {
+    let mut state: u64 = AN_ADDED_LINE_SEED;
+    let mut resolved: usize = 0;
+    let mut conflicted: usize = 0;
+    let mut written_beside = 0_usize;
+    let mut written_of_its_own = 0_usize;
+    for case in 0..AN_ADDED_LINE_CASES {
+        let size: usize = LEAST_LINES + next(&mut state, MOST_LINES - LEAST_LINES + 1);
+        let records: Vec<&str> = (0..size)
+            .map(|_| {
+                return REPEATED_RECORDS[next(&mut state, REPEATED_RECORDS.len())];
+            })
+            .collect();
+        let base: String = records.join("\n");
+        let ours: String =
+            run_of_records(records.as_slice(), kept_places(&mut state, size).as_slice());
+        let places: Vec<usize> = kept_places(&mut state, size);
+        let at: usize = next(&mut state, places.len() + 1);
+        let written: &str = WRITTEN_RECORDS[next(&mut state, WRITTEN_RECORDS.len())];
+        let theirs: String =
+            run_with_a_written_record(records.as_slice(), places.as_slice(), at, written);
+        if records.contains(&written) {
+            written_beside += 1;
+        } else {
+            written_of_its_own += 1;
+        }
+        let WordMerge::Resolved {
+            merged,
+            ..
+        } = merge_by_word(base.as_bytes(), ours.as_bytes(), theirs.as_bytes())
+        else {
+            conflicted += 1;
+            continue;
+        };
+        resolved += 1;
+        assert_eq!(
+            past_what_the_sides_leave(
+                base.as_bytes(),
+                ours.as_bytes(),
+                theirs.as_bytes(),
+                merged.as_slice(),
+            ),
+            None,
+            "case {case} of seed {AN_ADDED_LINE_SEED}: the answer wrote past what the two sides leave: \
+             base {base:?}, ours {ours:?}, theirs {theirs:?}, merged {:?}",
+            String::from_utf8_lossy(merged.as_slice())
+        );
+    }
+    assert!(
+        resolved > 0,
+        "the search resolved no region with a written line"
+    );
+    assert!(
+        conflicted > 0,
+        "the search left every region with a written line, so the bound it reads refused nothing"
+    );
+    assert!(
+        written_beside > 0 && written_of_its_own > 0,
+        "the search wrote no copy of a record the base held beside one it does not: \
+         {written_beside} beside, {written_of_its_own} of its own"
+    );
+}
+
+/// What:
+///  The smallest region the alpha.50 release review found a wrong answer in,
+///  where one side also wrote a line,
+///  keeps both sides.
+/// Why:
+///   The base writes `a` four times,
+///  this side kept three of them and dropped a `b`,
+///  the other side kept one `a` and wrote a second `b`,
+///  so at most one `a` is left:
+/// no copy of that line is a copy both sides kept.
+/// The word pass wrote three and both the alpha.49 and the alpha.50 release resolved it
+/// (`merge2-minimal-with-an-added-line.json`,
+/// `min3`,
+/// of the alpha.50 release review).
+#[test]
+fn the_smallest_region_with_a_written_line_keeps_no_copy_a_side_deleted() {
+    let base: &[u8] = b"c\nb\nb\na\na\na\na\nb\n";
+    let ours: &[u8] = b"c\na\na\na\nb\n";
+    let theirs: &[u8] = b"b\nb\nb\na\nb\n";
+    assert_eq!(
+        merge_by_word(base, ours, theirs),
+        WordMerge::Conflict {
+            unresolved: 1
+        },
+        "three copies of a are not the one copy the other side kept"
+    );
+}
+
+/// What:
+///  The text a carried layer writes for a file the whole-answer rule refuses
+///  holds both sides of every region the two sides disagree about.
+/// Why:
+///   `merge_by_word` reads one walk's count and `keep_both` reads the same walk's bytes,
+///  so a refusal the second walk could not carry would leave the refused answer in the file
+///  with no marker in it
+/// (`src/native/merge/word_merge.rs`,
+/// `walk`).
+/// The file here is the one the rule refuses for the order of its lines,
+/// and the walk that resolves it settles every region,
+/// so the text without the second walk carries no marker at all.
+#[test]
+fn the_text_a_refused_file_keeps_holds_both_sides() {
+    let base: &[u8] = b"c\na\na\na\nc\nc\n";
+    let ours: &[u8] = b"a\nc\n";
+    let theirs: &[u8] = b"c\na\n";
+    assert!(
+        matches!(
+            merge_by_word(base, ours, theirs),
+            WordMerge::Conflict { .. }
+        ),
+        "the answer is no run the other side holds"
+    );
+    let kept: Vec<u8> = keep_both(base, ours, theirs, ("ours", "theirs"));
+    let text: String = String::from_utf8_lossy(kept.as_slice()).into_owned();
+    assert!(
+        text.contains("<<<<<<< ours\n") && text.contains(">>>>>>> theirs\n"),
+        "the file a carried layer keeps shows both sides: {text}"
+    );
+}
+
+/// What:
+///  An answer whose lines are in an order the first side does not hold them in keeps both sides.
+/// Why:
+///   The base writes `c` twice and `a` three times,
+///  this side kept `c` then `a`,
+///  the other side kept `a` then `c`,
+///  and the word pass wrote `a` then `c`,
+///  which is a run of the other side and no run this side holds:
+/// the answer is wrong for this side alone, so only this side's order can refuse it.
+#[test]
+fn an_answer_in_an_order_the_first_side_does_not_hold_keeps_both_sides() {
+    let base: &[u8] = b"c\na\na\na\nc\nc\n";
+    let ours: &[u8] = b"c\na\n";
+    let theirs: &[u8] = b"a\nc\n";
+    assert_eq!(
+        merge_by_word(base, ours, theirs),
+        WordMerge::Conflict {
+            unresolved: 1
+        },
+        "this side holds c before a"
+    );
+}
+
+/// What:
+///  A file whose last line has no line end resolves when a side lost the line end of the record
+///  that is the same record.
+/// Why:
+///   A person reads `b` and `b` with a carriage return and a line feed before it as the same record,
+/// so a side that lost its last line end deleted no record,
+/// and the merge of the two sides is right.
+/// A check that kept the carriage return counted the base's `b` and that side's `b` as two records,
+/// held the answer's one copy against the side that holds none of the base's spelling,
+/// and refused a correct merge
+/// (`merge2-replay-of-own-seeds` of the alpha.50 release review,
+/// `crlf-noeol-seed606-00437`).
+#[test]
+fn a_region_whose_side_lost_its_last_line_end_reads_a_record_by_its_text() {
+    let base: &[u8] = b"a\r\nb\r\na\r\na\r\nb\r\nb";
+    let ours: &[u8] = b"b";
+    let theirs: &[u8] = b"b\r\n";
+    let WordMerge::Resolved {
+        merged,
+        ..
+    } = merge_by_word(base, ours, theirs)
+    else {
+        panic!("both sides kept the one b, so the merge of the file resolves")
+    };
+    assert_eq!(
+        String::from_utf8_lossy(merged.as_slice()),
+        "b\r\n",
+        "the merge writes the bytes the base had"
+    );
+}
+
+/// What:
+///  A file whose regions each leave one side as it was keeps both sides
+///  when the answer those regions compose writes more copies of a line than the two sides leave.
+/// Why:
+///   No region of this file is one the word pass had to merge:
+///  every one of them is a region one side left as it was,
+///  and the answer the walk settles them to still holds one `b` more than the side that kept fewer of
+///  them holds.
+/// A refusal the second walk carried only over the regions the word pass would have merged
+/// would leave that answer in the file with no marker in it
+/// (`src/native/merge/word_merge.rs`,
+/// `walk`).
+/// The file is `del-add-seed202-00045` of the alpha.50 release review's seeds.
+#[test]
+fn the_answer_of_regions_a_side_left_as_it_was_keeps_both_sides() {
+    let base: &[u8] = b"a\nb\nb\nb\nc\nc\nb\nb\nc\n";
+    let ours: &[u8] = b"b\nb\nc\nc\nb\nc\n";
+    let theirs: &[u8] = b"b\nb\nc\nc\nb\nb\nb\nc\n";
+    assert!(
+        matches!(
+            merge_by_word(base, ours, theirs),
+            WordMerge::Conflict { .. }
+        ),
+        "the answer holds four copies of b where this side kept three"
+    );
+    let kept: Vec<u8> = keep_both(base, ours, theirs, ("ours", "theirs"));
+    let text: String = String::from_utf8_lossy(kept.as_slice()).into_owned();
+    assert!(
+        text.contains("<<<<<<< ours\n") && text.contains(">>>>>>> theirs\n"),
+        "the file a carried layer keeps shows both sides: {text}"
     );
 }

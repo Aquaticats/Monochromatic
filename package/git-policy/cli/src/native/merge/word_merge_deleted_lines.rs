@@ -19,14 +19,15 @@
 //!  so such a region keeps both sides rather than resolve to an answer no union of the deletions leaves.
 //! A region one side also wrote a line into is read by word,
 //! and there the same pairing can still happen,
-//! so a word merge that writes more copies of a line the base held
-//! than the side that deleted copies of it still holds is refused.
+//! so an answer that writes more copies of a line the base held
+//! than the copies the two sides leave is refused there too.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const answer = mergedDeletions(base, ours, theirs); // Uint8Array | undefined
 //! const kept = keepsADeletedLine(base, ours, theirs, merged); // boolean
-//! const past = writesPastTheUnionOfTwoDeletions(base, ours, theirs, merged); // boolean
+//! const pastCopies = writesPastTheCopiesTheSidesLeave(base, ours, theirs, merged); // boolean
+//! const past = writesPastWhatTheSidesLeave(base, ours, theirs, merged); // boolean
 //! ```
 
 /// What:
@@ -381,51 +382,99 @@ pub(super) fn keeps_a_deleted_line(
 }
 
 /// What:
-///  Whether `merged` writes text no union of two sides that only deleted lines leaves:
-///  more copies of a line than both sides hold,
-///  or its lines in an order one side does not hold them in.
+///  Whether `merged` writes more copies of a line the base held
+///  than the two sides leave,
+///  where at most one of them wrote more copies of that line than the base held.
 /// Why:
-///   A region whose base writes one line twice cannot tell which copy a side deleted,
-/// so the word pass pairs one side's deleted line with the other side's kept line and keeps it
-/// (issue 6529).
-/// `keeps_a_deleted_line` refuses that where the other side left the line as it was;
-/// here both sides hold fewer copies of the line than the base did,
-/// which is the shape that rule leaves,
-/// and the word pass can also write the two sides' lines in an order neither side holds.
-/// A resolved answer replaces a conflict a person would have read,
-/// so a region whose two sides each only deleted lines is kept as a conflict
-/// when its answer holds a copy or an order that no union of the two deletions does.
-/// A region one side also wrote a line into is not judged here:
-/// a side that added a line holds one the other side does not,
-/// so the bounds over the two sides say nothing about a merge that is right.
+///   A resolved answer replaces a conflict a person would have read,
+/// so an answer that holds a copy of a line one side deleted is text that side asked to go,
+/// landing with no marker
+/// (`package/git-policy/cli/SPEC.md`,
+/// "Word-level second merge pass").
+/// The copies of a line two sides leave are at most the copies the side that kept fewer of them holds,
+/// and that is the bound whenever neither side wrote a copy of its own:
+/// every copy of the answer that neither side deleted is a copy both sides kept.
+/// A side that wrote more copies of a line than the base held wrote text of its own,
+/// so an answer may hold up to that side's copies;
+/// and where both sides wrote copies of the same line no bound over the two sides is right,
+/// so that line is not judged here.
+/// A line the base never held is no line of the base to count:
+/// either side may write it.
+/// The bound is read over a whole answer because a region that holds more copies of a line than its own
+/// two sides leave can be right when another region holds fewer of them,
+/// and the merge that a person would have judged is the whole answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function writesPastTheUnionOfTwoDeletions(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array, merged: Uint8Array): boolean;
+/// function writesPastTheCopiesTheSidesLeave(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array, merged: Uint8Array): boolean;
 /// ```
-pub(super) fn writes_past_the_union_of_two_deletions(
+pub(super) fn writes_past_the_copies_the_sides_leave(
     base: &[u8],
     ours: &[u8],
     theirs: &[u8],
     merged: &[u8],
 ) -> bool {
+    let base_counts: BTreeMap<&[u8], usize> = body_counts(base);
+    let ours_counts: BTreeMap<&[u8], usize> = body_counts(ours);
+    let theirs_counts: BTreeMap<&[u8], usize> = body_counts(theirs);
+    for (line, held) in body_counts(merged) {
+        let in_base: usize = base_counts.get(line).copied().unwrap_or(0);
+        let ours_held: usize = ours_counts.get(line).copied().unwrap_or(0);
+        let theirs_held: usize = theirs_counts.get(line).copied().unwrap_or(0);
+        if in_base == 0 || (ours_held > in_base && theirs_held > in_base) {
+            continue;
+        }
+        let most: usize = if ours_held <= in_base && theirs_held <= in_base {
+            ours_held.min(theirs_held)
+        } else {
+            ours_held.max(theirs_held)
+        };
+        if held > most {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether `merged` writes text no union of the two sides leaves:
+///  more copies of a line than the sides leave,
+///  or, where each side only deleted lines,
+///  its lines in an order one side does not hold them in.
+/// Why:
+///   A region whose base writes one line twice cannot tell which copy a side deleted,
+/// so the word pass pairs one side's deleted line with the other side's kept line and keeps it
+/// (issue 6529).
+/// `keeps_a_deleted_line` refuses that where the other side left the line as it was;
+/// `writes_past_the_copies_the_sides_leave` refuses the copies both sides deleted,
+/// and here the word pass can also write the two sides' lines in an order neither side holds.
+/// A resolved answer replaces a conflict a person would have read,
+/// so a region whose two sides each only deleted lines is kept as a conflict
+/// when its answer holds a copy or an order that no union of the two deletions does.
+/// The copies bound is read for every shape, a region one side also wrote a line into included:
+/// a line that side added only lifts the bound of that line.
+/// The order bound is read only where both sides only deleted lines,
+/// because a side that wrote a line of its own holds an order of lines the other side does not,
+/// so the orders over the two sides say nothing about a merge that is right.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function writesPastWhatTheSidesLeave(base: Uint8Array, ours: Uint8Array, theirs: Uint8Array, merged: Uint8Array): boolean;
+/// ```
+pub(super) fn writes_past_what_the_sides_leave(
+    base: &[u8],
+    ours: &[u8],
+    theirs: &[u8],
+    merged: &[u8],
+) -> bool {
+    if writes_past_the_copies_the_sides_leave(base, ours, theirs, merged) {
+        return true;
+    }
     let places: BTreeMap<&[u8], Vec<usize>> = places_of_lines(base);
     if places_in_a_repeating_base(&places, ours).is_none()
         || places_in_a_repeating_base(&places, theirs).is_none()
     {
         return false;
-    }
-    let ours_counts: BTreeMap<&[u8], usize> = body_counts(ours);
-    let theirs_counts: BTreeMap<&[u8], usize> = body_counts(theirs);
-    for (line, held) in body_counts(merged) {
-        let both_hold: usize = ours_counts
-            .get(line)
-            .copied()
-            .unwrap_or(0)
-            .min(theirs_counts.get(line).copied().unwrap_or(0));
-        if held > both_hold {
-            return true;
-        }
     }
     return !holds_the_lines_in_order(merged, ours) || !holds_the_lines_in_order(merged, theirs);
 }
