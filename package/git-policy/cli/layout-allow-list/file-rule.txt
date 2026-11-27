@@ -241,12 +241,10 @@ file-uses src/native/push push_wait_until_done.rs -> auto_push_single_flight.rs
 file-uses src/native/push push_wait_until_done.rs -> push_progress.rs
 file-uses src/native/push stacked_merge_push.rs -> push_stacking.rs
 file-uses src/native/worktree worktree_removal_clears_the_ahead_pool.rs -> worktree_remove_hand_over.rs
-file-uses src/native/worktree worktree_removal_clears_the_ahead_pool.rs -> worktree_snapshot_ahead.rs
 file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_clears_the_ahead_pool.rs
 file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_interrupted_destroy.rs
 file-uses src/native/worktree worktree_removal_interrupted_destroy.rs -> worktree_removal_finishes_an_interrupted_destroy.rs
 file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_interrupted_destroy.rs
-file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_remove_hand_over.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs
