@@ -32,12 +32,6 @@ file-uses src/native/foundation diagnostic_log.rs -> diagnostic_lines_off_the_ca
 file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.rs
 file-uses src/native/foundation private_storage.rs -> private_storage_replacing_a_record.rs
 file-uses src/native/foundation private_storage_replacing_a_record.rs -> private_storage.rs
-file-uses src/native/invocation/typed_network_command_relay git_error_stream_relayed_as_it_arrives.rs -> the_relayed_bytes.rs
-file-uses src/native/invocation/typed_network_command_relay the_options_before_the_remote.rs -> the_remote_a_typed_command_names.rs
-file-uses src/native/invocation/typed_network_command_relay the_relayed_bytes.rs -> git_error_stream_relayed_as_it_arrives.rs
-file-uses src/native/invocation/typed_network_command_relay the_remote_a_typed_command_names.rs -> the_options_before_the_remote.rs
-file-uses src/native/kept_references kept_reference_log.rs -> kept_reference_pass.rs
-file-uses src/native/kept_references kept_reference_pass.rs -> kept_reference_log.rs
 file-uses src/native/landing held_commit_settle.rs -> held_commit_settle_move.rs
 file-uses src/native/landing held_commit_settle.rs -> service_land_finish.rs
 file-uses src/native/landing held_commit_settle_move.rs -> held_commit_settle.rs
@@ -404,8 +398,6 @@ file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash.rs
 file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_dispose.rs
 file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_hand_over.rs
 file-uses src/native/worktree worktree_trash_unaccounted.rs -> worktree_trash_own_manifest.rs
-file-uses src/native/worktree_clone_binding_record registration_recipe.rs -> registration_removals.rs
-file-uses src/native/worktree_clone_binding_record registration_removals.rs -> registration_recipe.rs
 file-uses src/native/worktree_copying worktree_copy_install_log.rs -> worktree_copy_journal.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim.rs
 file-uses src/native/worktree_copying worktree_copy_interrupted_add_settlement.rs -> worktree_copy_stage_claim_pointer_presence.rs
@@ -504,10 +496,6 @@ file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> wor
 file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_stage_made_object.rs
 file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_unfilled_record.rs
 file-uses src/native/worktree_copying worktree_copy_unreadable_records.rs -> worktree_copy_unreadable_record_aside.rs
-file-uses src/native/worktree_removal_deferred_origin_check origin_refusal.rs -> planned_origin.rs
-file-uses src/native/worktree_removal_deferred_origin_check planned_origin.rs -> origin_refusal.rs
-file-uses src/native/zfs_mounted_dataset mounted_dataset_refusal.rs -> the_designs_datasets_in_the_mount_table.rs
-file-uses src/native/zfs_mounted_dataset the_designs_datasets_in_the_mount_table.rs -> mounted_dataset_refusal.rs
 index-item src/native/invocation/typed_network_command_relay/mod.rs enum-TypedNetworkCommandEnding
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-relay_when_ssh_carries
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-sentence_after_a_refused_probe_of_a_push
