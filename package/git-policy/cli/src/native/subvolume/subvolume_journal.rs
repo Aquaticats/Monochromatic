@@ -27,23 +27,29 @@
 //! ```ts
 //! const journal = await loadJournal(path); await journal.mark('copy', 'started'); ... await journal.mark('copy', 'done');
 //! ```
+//!
+//! The names a killed write may leave beside the journal are `subvolume_journal_leftover_names.rs`,
+//! and the durable writes that replace it are `subvolume_journal_writes.rs`.
 
+use super::subvolume_journal_leftover_names::{
+    TEMPORARY_SUFFIX,
+    is_leftover_name,
+};
+use super::subvolume_journal_writes::{
+    broken_journal,
+    write_and_rename,
+};
 use crate::iso_time::{
     format_iso_milliseconds,
     now_iso,
 };
 use crate::plain_file::read_plain_text;
 use crate::subvolume_error::MigrateError;
-use crate::subvolume_file_write_steps::{
-    sync_directory_to_disk,
-    write_all_then_sync,
-};
 use serde_json::{
     Map,
     Value,
 };
 use std::collections::BTreeMap;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -59,131 +65,6 @@ const SCHEMA: u64 = 1;
 /// so one format carries every name a later
 ///  command must judge before it deletes or exchanges a directory.
 pub const STAGE_ROOT: &str = "stage-root";
-
-/// The permissions of the journal:
-/// its owner reads and writes it.
-const PRIVATE_FILE_MODE: u32 = 0o600;
-
-/// What follows the journal's file name in the name of a temporary file:
-/// releases up to 0.5.20 wrote exactly this suffix,
-/// and
-///  now a process number and a clock reading follow it.
-const TEMPORARY_SUFFIX: &str = ".tmp";
-
-/// What:
-///  Whether `candidate` is a name under which a writer of the journal `journal_name` leaves a temporary file:
-/// the journal's
-///  name,
-/// `.tmp`,
-/// and either nothing (the name of releases up to 0.5.20) or a dot,
-/// a process number,
-/// a dot and a clock reading.
-/// Why:
-///   Any other name beside the journal is not this writer's to remove.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const leftover = new RegExp(`^${escape(journalName)}\\.tmp(\\.\\d+\\.\\d+)?$`).test(candidate);
-/// ```
-fn is_leftover_name(
-    candidate: &[u8],
-    journal_name: &[u8],
-) -> bool {
-    let Some(after_name) = candidate.strip_prefix(journal_name) else {
-        return false;
-    };
-    let Some(rest) = after_name.strip_prefix(TEMPORARY_SUFFIX.as_bytes()) else {
-        return false;
-    };
-    if rest.is_empty() {
-        return true;
-    }
-    let Some(numbers) = rest.strip_prefix(b".") else {
-        return false;
-    };
-    let mut parts = numbers.split(is_dot);
-    let process: Option<&[u8]> = parts.next();
-    let clock: Option<&[u8]> = parts.next();
-    return is_number(process) && is_number(clock) && parts.next().is_none();
-}
-
-/// Whether `byte` is a dot,
-/// the separator inside the numbers of a temporary name.
-fn is_dot(byte: &u8) -> bool {
-    return *byte == b'.';
-}
-
-/// Whether the part exists and is a non-empty run of ASCII digits.
-fn is_number(part: Option<&[u8]>) -> bool {
-    return match part {
-        Some(digits) => !digits.is_empty() && digits.iter().all(u8::is_ascii_digit),
-        None => false,
-    };
-}
-
-/// The error for a journal file that cannot be understood:
-/// it says what is wrong with the file at `path`.
-fn broken_journal(
-    path: &Path,
-    why: &str,
-) -> MigrateError {
-    return MigrateError::Journal(format!(
-        "the journal {} {why}; read it, and delete it only if no migration is in progress",
-        path.display()
-    ));
-}
-
-/// Write `bytes` to a new file at `sibling`,
-/// rename it over `target`,
-/// and make the rename durable with the directory that holds the new name.
-fn write_and_rename(
-    sibling: &Path,
-    target: &Path,
-    bytes: &[u8],
-) -> std::io::Result<()> {
-    write_exclusively(sibling, bytes)?;
-    if let Err(error) = std::fs::rename(sibling, target) {
-        let _removed: std::io::Result<()> = std::fs::remove_file(sibling);
-        return Err(error);
-    }
-    // The rename is made durable with the directory that holds the new name.
-    return match target.parent() {
-        Some(directory) => sync_directory_to_disk(directory),
-        None => Ok(()),
-    };
-}
-
-/// What:
-///  Write `bytes` to a file made for them alone at `path`:
-/// created exclusively,
-/// so a path that already exists (a plain file,
-///  a link,
-/// a dangling link) is refused and never truncated or followed;
-/// synchronized;
-/// removed again when the write fails.
-/// Why:
-///   A fixed temporary name that an earlier run or another user left or planted must not redirect the write.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeFile(path, bytes, { flag: 'wx', mode: 0o600 }); // rejects with EEXIST on anything there, a link included
-/// ```
-fn write_exclusively(
-    path: &Path,
-    bytes: &[u8],
-) -> std::io::Result<()> {
-    let mut file: std::fs::File = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(PRIVATE_FILE_MODE)
-        .open(path)?;
-    let written: std::io::Result<()> = write_all_then_sync(&mut file, bytes);
-    if let Err(error) = written {
-        let _removed: std::io::Result<()> = std::fs::remove_file(path);
-        return Err(error);
-    }
-    return Ok(());
-}
 
 /// What:
 ///  The records of one migration.

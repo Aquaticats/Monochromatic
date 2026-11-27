@@ -296,7 +296,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the renewal of a scratch claim on its own thread while the landing proceeds",
     },
     Allowed {
-        file: "landing/service_work.rs",
+        file: "landing/service_work_worktree_upkeep.rs",
         rule: "thread-start",
         why: "the removal of a whole worktree starts Git, which asks for the runtime this command's waits run on; the refusal is \
               `run_on_runtime`'s `Handle::try_current`, which holds on a thread of the blocking pool, so a job there answers that \
@@ -477,7 +477,7 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause between looks at a stopped service's end, on the synchronous sweep and removal commands, which build no runtime",
     },
     Allowed {
-        file: "service/service_client.rs",
+        file: "service/service_client_send_and_wait.rs",
         rule: "blocking-sleep",
         why: "the client's pause between connects, on the synchronous commit command",
     },
@@ -485,6 +485,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "service/service_client_reach_service.rs",
         rule: "blocking-sleep",
         why: "the client's pause before it asks the unit manager for the service",
+    },
+    Allowed {
+        file: "service/service_client_reach_service_the_waits_own_steps.rs",
+        rule: "blocking-sleep",
+        why: "the same pause of the client, in the file the wait it takes it in lives in",
     },
     Allowed {
         file: "service/service_provision_earlier_service_retirement.rs",

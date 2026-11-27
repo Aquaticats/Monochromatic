@@ -13,6 +13,9 @@ and answers the proposal `doc/planning/cli-git-fence-faster-size-reader.md`
 (at `4ec8aa27f6` on `docs/planning-cli-git-fence-faster-size-reader`)
 and its gate review and recheck
 (`~/temp/agent/gate-review-fence-faster-size-reader-2026-11-21/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## What was decided
 
@@ -73,6 +76,9 @@ after the measurement round's proposal
 (`doc/planning/cli-git-fence-size-read-beside-source-check.md` on `docs/planning-cli-git-fence-size-read-beside-source-check`)
 and its gate review
 (`~/temp/agent/gate-review-fence-size-read-beside-source-check-2026-11-22/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The project answered "B:
 start before the check (Recommended)":
@@ -102,6 +108,9 @@ and the cost goes into the crate's `SPEC.md`.
 Recorded 2026-11-22T17:33:43-05:00,
 after the integration recheck of the build said it was not fit
 (`~/temp/agent/integration-recheck-fence-size-read-beside-source-check-2026-11-22/keep/review.md`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 The build had set `GIT_NO_LAZY_FETCH=1` only when a test saw a promisor remote,
 and the recheck made the read fetch into a source the check had refused where that test misses:
@@ -172,6 +181,9 @@ moved verbatim on 2026-11-23:
   integration branch `integrate/git-policy-cli-fence-size-read-never-fetches-and-abandon-sticks` at `9a6fb83af0`,
   made on `main` at `f4746ec6a0`,
   before issue 6344's merge).
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   It called the branch fit if one cost is accepted:
   on a declined add the step that chooses the rung takes 5.91 ms against `main`'s 0.67 ms,
   about half of it the adding thread freeing a map of 24,634 entries,
@@ -201,5 +213,8 @@ moved verbatim on 2026-11-23:
   the release text corrected,
   the two reaped-id windows closed or reworded,
   the recheck's six new controls taken in).
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
   Then a recheck of the follow-up alone,
   on a new integration branch.

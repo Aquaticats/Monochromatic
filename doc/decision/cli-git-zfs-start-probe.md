@@ -383,7 +383,10 @@ so this record carries nothing for it.
 
 The start probe was built and merged into `main` as `04ecd9e6d3`
 (its integration pass:
-`~/temp/agent/integration-pass-zfs-step-6-start-probe-2026-11-21/keep/review.md`).
+`~/temp/agent/integration-pass-zfs-step-6-start-probe-2026-11-21/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)).
 The pass found three points the records left open,
 and the project answered each in the question tool on 2026-11-21:
 

@@ -1,7 +1,7 @@
 /**
  The worktree launcher's own preflight: a run whose session would find a git that is not this repository's policy wrapper is
  refused before the launcher asks git anything else, so a reader is told the wrong git rather than what that git answered, and
- before it links a dependency or starts a unit.
+ before it makes a worktree or starts a unit.
 
  Two orders of failure are covered: a session whose git is not the wrapper while the base is also unreadable, where the wrapper
  is the reason, and a session whose git is the wrapper while the base names no commit, where the base is.
@@ -600,7 +600,7 @@ await describe({
   name: 'start-pi-run-in-a-worktree',
   children: [
     it({
-      name: 'refuses a run whose session would find a git that is not the policy wrapper before it asks git for the base, links a dependency or starts a unit',
+      name: 'refuses a run whose session would find a git that is not the policy wrapper before it asks git for the base, makes a worktree or starts a unit',
       fn: async () => {
         await using folder = await makeFolder();
         /**
@@ -678,7 +678,8 @@ await describe({
           body: `printf '%s\\n' "$*" >> '${launcherGitLog}'\ncase "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
-         The mise the launcher itself uses, which answers the session's PATH and would record a dependency link.
+         The mise the launcher itself uses, which answers the session's PATH, and would record a question about dependencies if
+         the launcher asked one.
          */
         await writeProgram({
           folder: launcherBin,
@@ -1317,7 +1318,7 @@ await describe({
       },
     },),
     it({
-      name: 'refuses a run that names a closed pool before it makes the worktree, links a dependency or starts a unit, and names the pools to take instead',
+      name: 'refuses a run that names a closed pool before it makes the worktree or starts a unit, and names the pools to take instead',
       fn: async () => {
         /**
          The owner's reason the pool takes no new run, which the refusal carries.
@@ -1561,7 +1562,177 @@ await describe({
       },
     },),
     it({
-      name: 'takes a run that names Pi\'s virtual writer with the pair it named, and says the pools its router may take have room',
+      name: 'makes the worktree and starts the run without an install of its own, because the wrapper\'s add copies node_modules and relinks it (issue 6339)',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         Where the stand-ins of the launcher's own search path live.
+         */
+        const launcherBin = join(
+          folder.path,
+          'launcher-bin',
+        );
+        /**
+         Where the stand-in of the session's own search path lives.
+         */
+        const sessionBin = join(
+          folder.path,
+          'session-bin',
+        );
+        /**
+         The checkout the run would work in, which the launcher was told about and where its worktree goes.
+         */
+        const checkout = join(
+          folder.path,
+          'checkout',
+        );
+        /**
+         The folder the run's folder goes in.
+         */
+        const runs = join(
+          folder.path,
+          'runs',
+        );
+        /**
+         The prompt of the run, which can be read.
+         */
+        const prompt = join(
+          folder.path,
+          'prompt.md',
+        );
+        /**
+         Where the launcher's mise stand-in records every question and the folder it was asked in, which is how this test sees
+         whether an install ran in the worktree.
+         */
+        const miseLog = join(
+          folder.path,
+          'mise.log',
+        );
+        /**
+         The folder the process table is read from, which holds only what this test put there.
+         */
+        const processes = join(
+          folder.path,
+          'processes',
+        );
+        /**
+         The marker a unit would leave, which says the launch got past the checks, the worktree and the decision about its
+         dependencies.
+         */
+        const unitMarker = join(
+          folder.path,
+          'unit-started',
+        );
+        await mkdir(
+          checkout,
+          { recursive: true, },
+        );
+        await mkdir(
+          runs,
+          { recursive: true, },
+        );
+        await mkdir(
+          processes,
+          { recursive: true, },
+        );
+        await writeFile(prompt, 'do the work',);
+        /**
+         The git the launcher itself uses, which resolves the checkout's root and the base, makes the folder the worktree add
+         names, and answers the questions a finished run is asked about its worktree. It is a stand-in: no worktree of this
+         repository is made here.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'git',
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\n  *'worktree add'*)\n    for word in "$@"; do\n      case "$word" in\n        '${checkout}'/*)\n          mkdir --parents "$word"\n          ;;\n      esac\n    done\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf '%s\\n' 'refs/heads/fix/the-work'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 0\n`,
+        },);
+        /**
+         The mise the launcher itself uses, which records every question beside the folder it was asked in and answers the
+         session's `PATH`, the node the unit runs, and an install of dependencies with a success it never earned.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'mise',
+          body: `printf '%s\\t%s\\n' "$PWD" "$*" >> '${miseLog}'\ncase "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node'*)\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 0\n`,
+        },);
+        /**
+         The manager this test reads a unit's name from, which is free because no unit holds it. It answers slowly enough that
+         the unit's waiter has ended by the time the launcher looks again, so the wait reads the waiter gone rather than
+         spending its one-minute look interval.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemctl',
+          body: `sleep 0.2\nprintf '%s\\n' 'not-found'\nexit 0\n`,
+        },);
+        /**
+         The unit manager, which leaves the marker, writes what a driver writes for a run that finished its work, and ends with
+         a success.
+         */
+        await writeProgram({
+          folder: launcherBin,
+          name: 'systemd-run',
+          body: `for word in "$@"; do\n  case "$word" in\n    --run-folder=*)\n      runFolder="\${word#--run-folder=}"\n      ;;\n  esac\ndone\nprintf '%s\\n' 'the unit started' > '${unitMarker}'\nprintf '%s\\n' '{"endReason":"idle"}' > "$runFolder/summary.json"\nprintf '%s\\n' 'the run finished its work' > "$runFolder/stderr.log"\nexit 0\n`,
+        },);
+        /**
+         The git the session would find, which answers the policy namespace help as the wrapper does.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'git',
+          body: `printf '%s\\n' '${WRAPPER_HELP_LINE}'\nexit 0\n`,
+        },);
+        /**
+         The Pi the session would find, which loads its extensions and prints its help.
+         */
+        await writeProgram({
+          folder: sessionBin,
+          name: 'pi',
+          body: `printf '%s\\n' 'Usage: pi [options]'\nexit 0\n`,
+        },);
+        /**
+         What the launcher ended with.
+         */
+        const ended = await launch({
+          folder: folder.path,
+          launcherBin,
+          runs,
+          checkout,
+          prompt,
+          branch: 'fix/the-work',
+          provider: OPENCODE_GO.provider,
+          model: OPENCODE_GO.model,
+          environment: { PI_RUNS_PROCESS_FOLDER: processes, },
+        },);
+        /**
+         Every question the launcher asked mise, each as the folder it was asked in and its words.
+         */
+        const asked = (await logIn(miseLog,)).split('\n',)
+          .filter(function isAQuestion(line,) {
+            return line !== '';
+          },);
+        expect(existsSync(unitMarker,),).toBe(true,);
+        // The worktree add reached the stand-in, so the launch got past the worktree and the check below is not silence from a
+        // start that never made one.
+        expect(ended.stdout,).toContain('worktree add: status 0',);
+        expect(asked.some(function installsDependencies(question,) {
+          return question.includes('pnpm install',);
+        },),).toBe(false,);
+        // The two questions the launcher still asks mise are there, so the check above is not an empty log passing for no install.
+        expect(asked.some(function asksTheSessionPath(question,) {
+          return question.endsWith('exec -- printenv PATH',);
+        },),).toBe(true,);
+        expect(asked.some(function asksForTheNode(question,) {
+          return question.includes('command -v node',);
+        },),).toBe(true,);
+        // Where the worktree's node_modules comes from is said once, so a reader of a launch log keeps the answer the old status
+        // line gave.
+        expect(ended.stdout,).toContain('dependencies:',);
+        expect(ended.stdout,).toContain('node_modules',);
+      },
+    },),
+    it({
+      name: 'takes a run that names Pi\'s virtual writer with the pair it named, and says its router may take the members while the run holds no slot in any pool',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
           provider: VIRTUAL_WRITER.provider,
@@ -1573,11 +1744,12 @@ await describe({
         // into one member's pair would pin the run to that member.
         expect(answered.unitWords,).toContain(`--provider=${VIRTUAL_WRITER.provider}`,);
         expect(answered.unitWords,).toContain(`--model=${VIRTUAL_WRITER.model}`,);
-        // The line names every pool the router may take, so a reader sees what this run holds of each.
+        // The line names every pool the router may take, and says the run holds no slot in any of them.
         for (const pool of VIRTUAL_WRITER.memberPools) {
           expect(answered.stdout,).toContain(pool.name,);
         }
         expect(answered.stdout,).toContain(`pool: ${VIRTUAL_WRITER.provider}/${VIRTUAL_WRITER.model},`,);
+        expect(answered.stdout,).toContain('holds no slot in any pool',);
         // The run may last as long as the slowest pool of that order would give it, because the router can land there.
         expect(answered.unitWords,).toContain(`--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({
           wallSeconds: wallSecondsOn({
@@ -1593,7 +1765,7 @@ await describe({
       },
     },),
     it({
-      name: 'counts a run on the virtual writer in every pool its router may take, so a run that fills one of them leaves the next one to a run started after it',
+      name: 'takes the first pool of the order for a run that names no provider while a run on the virtual writer goes, because that run holds no slot in that pool',
       fn: async () => {
         const answered = await launchThroughTheStandIns({
           environment: { [POOL_LIMITS_VARIABLE]: `${QWEN_PLAN_DEEPSEEK.name}=1`, },
@@ -1608,37 +1780,15 @@ await describe({
           ],
         },);
         expect(answered.unitWasReached,).toBe(true,);
-        // A run on the virtual writer holds a slot in the first pool of that order too, so a default run started while it is going
-        // finds that pool full and takes the next one.
-        expect(answered.unitWords,).toContain(`--provider=${OPENCODE_GO.provider}`,);
-        expect(answered.unitWords,).toContain(`--model=${OPENCODE_GO.model}`,);
-        expect(answered.stdout,).toContain(`${QWEN_PLAN_DEEPSEEK.name} 1/1`,);
+        // A run on the virtual writer is counted in no pool, so the first pool's own room is still free for a run whose command
+        // line names no provider.
+        expect(answered.stdout,).toContain(`${QWEN_PLAN_DEEPSEEK.name} 0/1`,);
+        expect(answered.unitWords,).toContain(`--provider=${QWEN_PLAN_DEEPSEEK.provider}`,);
+        expect(answered.unitWords,).toContain(`--model=${QWEN_PLAN_DEEPSEEK.model}`,);
       },
     },),
     it({
-      name: 'refuses a run on the virtual writer when one pool its router may take is full, naming that pool and its count, and starts nothing',
-      fn: async () => {
-        const answered = await launchThroughTheStandIns({
-          provider: VIRTUAL_WRITER.provider,
-          model: VIRTUAL_WRITER.model,
-          environment: { [POOL_LIMITS_VARIABLE]: `${NEURALWATT_DEEPSEEK_FLEX.name}=1`, },
-          otherLaunchers: [
-            {
-              name: 'another-review',
-              pool: NEURALWATT_DEEPSEEK_FLEX,
-            },
-          ],
-        },);
-        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
-        // A pool the router may send the run to has no room, and the run would hold a slot there, so it cannot start.
-        expect(answered.stderr,).toContain(`${NEURALWATT_DEEPSEEK_FLEX.name}: full: 1 going of the 1 it takes`,);
-        expect(answered.stderr,).toContain(`--provider=${VIRTUAL_WRITER.provider} --model=${VIRTUAL_WRITER.model}`,);
-        expect(answered.unitWasReached,).toBe(false,);
-        expect(answered.runsFolderHolds,).toEqual([],);
-      },
-    },),
-    it({
-      name: 'refuses a run on the virtual writer when every pool its router may take is full, naming each one with its count',
+      name: 'starts a run on the virtual writer while every member\'s own room is full, because a run on it holds no slot in any pool',
       fn: async () => {
         /**
          The pools the virtual writer's router may take, each given one slot for this command.
@@ -1663,12 +1813,13 @@ await describe({
             };
           },),
         },);
-        expect(answered.code,).toBe(NO_SLOT_EXIT_STATUS,);
+        expect(answered.unitWasReached,).toBe(true,);
+        expect(answered.code,).not.toBe(NO_SLOT_EXIT_STATUS,);
+        // Each member's own room is full for the runs pinned to it, and the run on the selection starts anyway.
         for (const pool of members) {
-          expect(answered.stderr,).toContain(`${pool.name}: full: 1 going of the 1 it takes`,);
+          expect(answered.stdout,).toContain(`${pool.name} 1/1`,);
         }
-        expect(answered.unitWasReached,).toBe(false,);
-        expect(answered.runsFolderHolds,).toEqual([],);
+        expect(answered.stdout,).toContain('holds no slot in any pool',);
       },
     },),
     it({

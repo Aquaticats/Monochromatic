@@ -35,7 +35,7 @@ and each offers the step it owns:
   and hands the worktree launcher the words the run needs.
 - `start-pi-run-in-a-worktree`:
   makes the worktree,
-  links its dependencies,
+  leaves its copied `node_modules` to the wrapper's relink,
   sizes the turn cap,
   starts the driver as a capped systemd unit,
   and removes the worktree once the run has finished with it.
@@ -283,8 +283,18 @@ Pi's `rate-limit-fallback` plugin publishes two virtual selections,
 `rate-limit-fallback/writer` and `rate-limit-fallback/reviewer`
 (`package/pi-plugin/rate-limit-fallback/README.md`).
 A run on one holds no single pool,
-so the driver counts it in every pool that selection's router may send it to,
-read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
+and the driver counts it in none.
+The owner,
+2026-11-26,
+asked how the driver's pool gate counts a run on the virtual writer:
+"No count (Recommended)".
+So the gate counts only the runs pinned to one pool,
+and a run on `--provider=rate-limit-fallback --model=writer`,
+or on the reviewer selection the same way,
+holds no slot in any member pool,
+because the router moves a refused request on by itself.
+The members each selection's router may take are read from `VIRTUAL_POOLS` in `src/pool-limits.ts`,
+in the order it tries them:
 
 - `rate-limit-fallback/writer`:
   `qwen-plan-deepseek`, `opencode-go`, `neuralwatt-flex`,
@@ -293,18 +303,30 @@ read from `VIRTUAL_POOLS` in `src/pool-limits.ts`:
   the same three pools.
   Its fourth member,
   Synthetic's DeepSeek model,
-  belongs to no pool of this table,
-  so it holds no slot here.
+  belongs to no pool of this table.
 
-While one member has room and another does not, the router's request can land on either,
-so a run on a virtual selection holds a slot in each and starts only while every one of them has room.
-That is what keeps a pool from taking more runs than its room when a member answers `429`
-and the router moves the request, and later the run, to the next member.
-The cost is that the smallest member bounds how many such runs may go at once:
-five qwen runs at the time of writing,
-however much room `opencode-go` and `neuralwatt-flex` have left.
-A refusal names each member pool with its count and its limit,
-and the setting that gives a pool room again.
+No pool's room decides whether a run on a virtual selection may start,
+so it starts whatever any member's own count reads,
+and its router moves each request on when a member refuses with a `429` before any output.
+A member a caller closes with `PI_RUNS_POOL_LIMITS` adds no room to any count,
+and it does not by itself stop a run on the selection,
+because the gate counts no run of it:
+that member's provider refusal is what moves the request on.
+A pool's own room bounds only the runs pinned to it,
+and a run on a virtual selection neither fills a pool nor keeps one from taking a pinned run,
+so a run that names no model of its own may take the first pool of the owner's order
+while virtual-writer runs are going.
+
+The counts line counts the runs pinned to each pool,
+and says nothing about a virtual selection,
+whose runs hold no slot to show.
+A run on a virtual selection gets a line of its own when its launcher places it,
+naming the members its router may take and saying it holds no slot in any pool.
+A refusal names each member pool a run that names no provider may take,
+with its count and the reason it takes no run now,
+and gives the setting that gives a pool room again.
+A run on the reviewer selection is counted the same way,
+from the same three pools.
 
 The member order is the plugin's,
 and this table carries a copy of it because the driver declares no dependency on that package,
@@ -317,8 +339,8 @@ because that pair is what lets the plugin's router move a refused request on;
 rewriting it into one member's pair would pin the run to that member.
 It gets the largest wall factor of those members,
 because the run keeps one wall clock wherever its router lands.
-A run naming a member pool directly is not this case:
-the pool it names takes it, and that pool is the only one it holds.
+A run naming one pool directly is not this case:
+that pool's own room takes it.
 
 ### The room a new run needs
 
@@ -420,7 +442,7 @@ or start a run it would refuse.
 
 `--provider` and `--model` name the pool the run takes.
 A run naming a pool that takes no new run is refused before the worktree,
-before the dependency link and the unit,
+before the unit,
 and before any question is put to the session,
 with the status `5`:
 the refusal names the pool,
@@ -499,6 +521,72 @@ this repository's Git wrapper refuses every command whose folder is not the root
 and a command of this package runs from the package's own folder.
 On 2026-11-11 that refusal ended all ten starts of a batch before any of them made a worktree.
 
+The worktree holds what the checkout held when the add filled it:
+the files the branch has checked out,
+and the checkout's ignored files copied in,
+`node_modules`, the build folders and the toolchain launchers among them
+(`package/git-policy/cli/README.md`,
+"Package-manager state in a new worktree").
+That copy keeps the checkout's own links,
+which name the folder they were made in:
+pnpm's links climb out of the tree by a fixed number of levels,
+Cargo's build state records the paths it was built at,
+and the toolchain launchers name the source's `toolchain.lock.json`.
+So the wrapper's add repairs those links in the new worktree:
+where a commit service answers,
+it hands `pnpm install --offline --frozen-lockfile` and `mpm-shadow install --frozen-lockfile` over
+in a record the service runs after the add returns,
+and where none answers it runs them itself.
+pnpm's relink runs where `pnpm-lock.yaml` and `node_modules` are both there;
+a worktree whose copy ended before it reached them is filled by the next command run in it;
+and a checkout that held no `node_modules` at all has none to copy,
+so its worktree has none for pnpm's relink to rewrite.
+
+This launcher runs no install of its own.
+That relink is the install a copied worktree needs,
+so a second one started in the same window is what left two worktrees on 2026-11-21
+whose ignored-state copy could never finish,
+with a warning about each on every `git` command of every session until they were removed
+(issue 6339).
+It used to run `mise exec -- pnpm install --offline --frozen-lockfile` in the new worktree straight after the add
+and print `dependencies: status <n>`:
+the same install as the wrapper's relink,
+which it could only repeat,
+and its status stopped nothing and named nothing a reader could act on
+(issue 6418).
+It now prints one line saying where the worktree's `node_modules` comes from.
+A worktree this launch found already there took no add of its own,
+so this launch hands no relink over and installs nothing.
+
+For as long as the service has not run that record,
+the worktree holds the copied links,
+which is the state the copy left.
+Nothing tells this launcher, the driver or the run when the relink has finished,
+so a run whose first commands need `node_modules` may read it while it is being rewritten;
+the wrapper's own reading of that cost is in
+`package/git-policy/cli/README.md`,
+"What the hand-over costs you".
+Whether a launcher should wait for the relink is open,
+and the signal it would wait on is part of what issue 6339 records as owed:
+this package waits for no signal it does not have.
+
+Three further cases are open, and no record decides them.
+A checkout that held no `node_modules` when the add filled the worktree
+copies nothing for pnpm's relink to rewrite,
+so the run starts without dependencies;
+the install this launcher ran until 2026-11-27 made them from the offline store
+whenever the store held every tarball.
+A worktree that was already there holds what the add that made it left,
+which nothing here hands a relink over for or checks;
+the install this launcher used to run applied to it as well.
+And the `git` this launcher makes the worktree with is the one its own `PATH` names,
+while the preflight above checks the `git` the session would run:
+a plain `git worktree add` copies no ignored files and relinks nothing,
+so the line this launcher prints would be wrong about such a worktree,
+and the run would start without the dependencies the checkout holds.
+A run that finds something its build needs missing names it in its report
+(`doc/rules-every-pi-brief-carries.md`).
+
 The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to put the run away,
 which is the only bound that reaches a driver stuck in a file system call.
 
@@ -543,7 +631,7 @@ and thirteen runs ended `pi-exited` with no turn before anyone read what Pi had 
 A start that fails one of them prints every reason it found and exits non-zero,
 with no worktree, no run folder and no unit,
 so no provider slot is spent on a run that could not have worked.
-Before this, a launcher took a slot, made a worktree and linked its dependencies,
+Before this, a launcher took a slot, made a worktree and ran an install of its own,
 and only then did the driver find that its prompt file was not there.
 
 ### After the unit ends
@@ -676,7 +764,7 @@ because the slot count reads every `pi-*` unit as a run.
 Its caps are the batch's own:
 four processors,
 16G of memory and 4096 tasks,
-since the launchers only link dependencies and wait while the agents work in units of theirs,
+since the launchers only make worktrees and wait while the agents work in units of theirs,
 and its `RuntimeMaxSec` is two days,
 which bounds the longest run,
 a flex pool's doubled wall clock and the wakes that may resume it.
@@ -969,7 +1057,7 @@ copy-route: unit inactive, launcher 12 started 120 min ago, children 20:systemd-
 A launcher that outlived its unit makes the pool gate answer `ALREADY RUNNING` for that run's name
 and holds that run's slot,
 and it waits on a waiter that never heard the unit end.
-The age matters because a launcher makes a worktree and links dependencies before its unit exists,
+The age matters because a launcher makes a worktree before its unit exists,
 so one younger than the minimum may simply not have got there yet.
 
 `--stop` sends `SIGTERM` to each child before the launcher itself,

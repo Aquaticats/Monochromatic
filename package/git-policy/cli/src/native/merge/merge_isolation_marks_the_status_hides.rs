@@ -45,9 +45,10 @@ use crate::command::rule_worktree_dirty::{
 use crate::lazy_runtime::run_on_runtime;
 use crate::merge_isolation_carry::{
     WorktreeEntry,
-    object_name_awaiting,
     worktree_entry_at,
 };
+/// The name of the object the given bytes make at a path.
+use crate::merge_isolation_carry_objects::object_name_awaiting;
 use crate::merge_isolation_carry_reads::run_bytes_awaiting;
 use crate::merge_isolation_changes::worktree_path;
 /// One path's exact bytes,

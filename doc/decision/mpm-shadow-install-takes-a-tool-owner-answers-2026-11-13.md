@@ -64,6 +64,9 @@ and what a kill between the plan's write and the lock's leaves.
 The run is queued at the head:
 `issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan`,
 branch `feat/mpm-shadow-cli-install-takes-a-tool-and-adds-it-to-the-plan`,
-brief `~/temp/agent/pi-runs/issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan-prompt.md`.
+brief `~/temp/agent/pi-runs/issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan-prompt.md`
+(scratch,
+deleted on 2026-11-27;
+not kept).
 The issue carries a comment with the three answers and the label `ready-for-agent`.
 It meets the cleanup run of the same package in what an install does.

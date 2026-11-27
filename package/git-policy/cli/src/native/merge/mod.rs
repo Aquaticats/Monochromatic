@@ -9,6 +9,11 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `merge_isolation_recovery_place.rs`:
+//!   where recovery runs Git:
+//!   the real Git and its environment,
+//!   the directory every command starts in,
+//!   and the repository's common Git directory.
 //! - `merge_isolation_carry_parts.rs`:
 //!   the person's own work in the paths a merge changes:
 //!   what the worktree and the index held,
@@ -20,6 +25,13 @@
 //!   and the permission bits a person set on their own entry.
 //! - `merge_isolation_changes.rs`:
 //!   the raw differences of an isolated merge and the worktree state of each changed path.
+//! - `merge_isolation_a_directory_the_branch_explains.rs`:
+//!   whether a directory standing where the merge puts a file holds only files the merge deletes,
+//!   judged through every directory below it.
+//! - `merge_isolation_the_merges_paths_judged.rs`:
+//!   the judgement of each path a merge changes:
+//!   how the worktree stands at it against the two sides,
+//!   and a directory the branch's own files explain.
 //! - `merge_isolation_a_special_file_the_merge_changes.rs`:
 //!   a named pipe,
 //!   a socket or a device standing where the merge writes or deletes a path,
@@ -40,8 +52,23 @@
 //!   the index read the way a merge's recovery needs it.
 //! - `merge_isolation_journal.rs`:
 //!   the durable intent record of an isolated merge.
+//! - `merge_isolation_carry_objects.rs`:
+//!   the Git plumbing a capture runs:
+//!   the bytes of one path written as one object,
+//!   the index's own entries,
+//!   and the directory a Git start runs in.
+//! - `merge_isolation_carry_ref.rs`:
+//!   the ref of its own that keeps a capture's objects from `git gc`,
+//!   and the dropping of that ref once nothing needs it.
+//! - `merge_isolation_recovery_refusals.rs`:
+//!   the words a recovery refuses a merge with:
+//!   each names the paths,
+//!   the record and what the person can do.
 //! - `merge_isolation_carry.rs`:
-//!   reading the person's work and keeping it outside the checkout.
+//!   reading the person's own work in the paths a merge changes:
+//!   what stands at one worktree path,
+//!   the mode and permission bits Git records for it,
+//!   and one capture of every layer.
 //! - `merge_isolation_carry_landed.rs`:
 //!   what Git's own update left at each path of a merge,
 //!   which tells its own file from a save that accepts it.
@@ -50,8 +77,12 @@
 //!   the file form and the stored bytes of one object,
 //!   one path's index entry,
 //!   and the raw changes between two commits.
+//! - `merge_isolation_carry_write_failures.rs`:
+//!   why a carry or a clear stopped,
+//!   and the words a write that stopped leaves about the copy it kept.
 //! - `merge_isolation_a_directory_the_merge_replaces.rs`:
 //!   a directory standing where the merge puts a file,
+//!   whether it holds only what the merge deletes,
 //!   which no layer of the carry can hold,
 //!   and the sentence that stops the merge before anything is written.
 //! - `merge_isolation_ignored_paths.rs`:
@@ -96,6 +127,9 @@
 //! - `merge_isolation_kept_copies.rs`:
 //!   the copies of the person's own bytes a merge keeps beside a path,
 //!   and the record of each.
+//! - `merge_isolation_carry_write_batches.rs`:
+//!   which step of a carry a batch of writes is,
+//!   and the test markers each of its steps reaches.
 //! - `merge_isolation_carry_writes.rs`:
 //!   what a carry writes:
 //!   the index records of a batch,
@@ -138,27 +172,68 @@
 //!   the conflicted files of a merge tree and the reading of `git merge-tree` output into conflicts.
 //! - `merge_second_pass_finish_stops.rs`:
 //!   which options make the finish of a stopped operation stop where Git would stop.
+//! - `merge_second_pass_finish_words.rs`:
+//!   the words a finish reads:
+//!   a `branch.<name>.mergeoptions` value split as Git splits it,
+//!   the command that ends the operation,
+//!   and the message without Git's conflict hint.
+//! - `merge_second_pass_finish_nesting.rs`:
+//!   how deep one finish may start the next,
+//!   and the todo lines that bound it.
 //! - `merge_second_pass_finish.rs`:
 //!   the finish of a stopped operation,
 //!   like a clean run,
 //!   after the second pass resolved every conflicted file.
 //! - `merge_second_pass_git_runner.rs`:
 //!   how the word-level second pass starts Git.
+//! - `merge_second_pass_stage_line_places.rs`:
+//!   where a run of lines sits in one stage of a file:
+//!   the byte offset of a line's text at or after a place,
+//!   and the lines counted between two places.
 //! - `merge_second_pass_line_regions.rs`:
 //!   the line merge Git makes for a conflicted file,
 //!   cut into the text it settled and the regions it left.
 //! - `pull_untracked_paths_in_the_way_kept_copies.rs`:
 //!   one such file or link copied beside the Git directory,
 //!   and the numbered folder a pull's copies go into.
+//! - `pull_untracked_paths_in_the_way_kept.rs`:
+//!   what a pull kept of the person's untracked files,
+//!   and what it could not keep.
+//! - `pull_untracked_paths_in_the_way_words.rs`:
+//!   the sentences a pull prints about the copies it kept,
+//!   and the reset Git's own words offer.
 //! - `pull_untracked_paths_in_the_way.rs`:
 //!   the untracked files a pull's branch move would overwrite,
 //!   kept before the failure is worded,
 //!   and the words that name every copy.
+//! - `pull_isolation_options.rs`:
+//!   the options of a pull's command line,
+//!   cut into the words its fetch takes and the words its merge takes.
+//! - `pull_isolation_merge_stated.rs`:
+//!   whether a pull is stated to merge,
+//!   read from its command line and from Git's own reading of the rebase settings.
 //! - `pull_isolation.rs`:
 //!   a pull that merges,
-//!   read as its fetch and its merge of `FETCH_HEAD`.
+//!   read as its fetch and its merge of `FETCH_HEAD`:
+//!   the repository state it is read from,
+//!   the fetch it runs,
+//!   and the merge it hands on.
+//! - `word_merge_tokens.rs`:
+//!   the lines and the words a text is cut into,
+//!   and the diff algorithm that reads two lists of them.
+//! - `word_merge_invented_text.rs`:
+//!   the text a word merge of one region may not write,
+//!   which keeps that region in conflict.
 //! - `word_merge.rs`:
 //!   the three-way merge by line and by word that resolves a conflict Git's line merge reports.
+//! - `merge_second_pass_verdicts.rs`:
+//!   the limits a file is merged under,
+//!   the reasons a conflicted path is left,
+//!   and what became of each path.
+//! - `merge_second_pass_objects.rs`:
+//!   the blob of a merged file,
+//!   the index record that stages it as resolved,
+//!   and the tree a merge from objects is carried by.
 //! - `merge_second_pass.rs`:
 //!   the conflicted files a merge left,
 //!   which of them the word pass may re-merge,
@@ -181,6 +256,10 @@
 //! - `merge_isolation_apply_stops.rs`:
 //!   what a step of an isolated merge that stopped means for the command's ending,
 //!   and what a clear that met newer bytes does about them.
+//! - `merge_isolation_carry_layer_sides.rs`:
+//!   the three sides of one layer of one path:
+//!   the mode and the object each side holds,
+//!   and the mode the layer ends with.
 //! - `merge_isolation_carry_layers.rs`:
 //!   what one layer of one path ends as once the person's work is merged with the merge.
 //! - `merge_isolation_carry_plans.rs`:
@@ -191,6 +270,9 @@
 //!   and the word pass over the regions it leaves.
 //! - `merge_second_pass_report.rs`:
 //!   the words that list a merged part and the journal entry for a merged file.
+//! - `merge_second_pass_tree_attributes.rs`:
+//!   the tree a merge computed from objects reads its `merge` attribute from,
+//!   and the attribute source that merge names.
 //! - `merge_second_pass_tree.rs`:
 //!   the word-level second pass for merges computed from objects,
 //!   and the attribute tree those merges read.
@@ -203,6 +285,9 @@
 //!   the commit and the two-way update.
 //! - `merge_isolation.rs`:
 //!   a true merge completed in isolation while the index holds staged changes.
+//! - `merge_second_pass_worktree_watch.rs`:
+//!   the paths a stopped operation had already left unmerged before it ran,
+//!   and the conflicts the index holds for the paths it created.
 //! - `merge_second_pass_worktree_install.rs`:
 //!   the files a forwarded second pass merged,
 //!   staged as resolved and written to the worktree.
@@ -211,18 +296,22 @@
 //!   a path another command moved while it computed its merge.
 //! - `merge_second_pass_worktree_words.rs`:
 //!   the sentences the word-level second pass ends a stopped operation with.
+//! - `merge_second_pass_worktree_remerge.rs`:
+//!   the awaited re-merge of the conflicts a stopped operation created,
+//!   and the install of every file no other command moved.
 //! - `merge_second_pass_worktree.rs`:
 //!   the word-level second pass after a forwarded merge,
 //!   rebase,
 //!   cherry-pick or revert that Git stopped with a conflict.
-//! - `word_merge_invented_text.rs`:
-//!   the text a word merge of one region may not write,
-//!   which keeps that region in conflict.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // merge/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// The lines and the words a text is cut into,
+/// and the diff algorithm that reads two lists of them.
+pub mod word_merge_tokens;
 
 /// The three-way merge by line and by word that resolves a conflict Git's line merge reports.
 pub mod word_merge;
@@ -231,10 +320,25 @@ pub mod word_merge;
 /// which keeps that region in conflict.
 pub mod word_merge_invented_text;
 
+/// The limits a file is merged under,
+/// the reasons a conflicted path is left,
+/// and what became of each path.
+pub mod merge_second_pass_verdicts;
+
+/// The blob of a merged file,
+/// the index record that stages it as resolved,
+/// and the tree a merge from objects is carried by.
+pub mod merge_second_pass_objects;
+
 /// The conflicted files a merge left,
 /// which of them the word pass may re-merge,
 /// and the lines that list each merged part.
 pub mod merge_second_pass;
+
+/// Where a run of lines sits in one stage of a file:
+/// the byte offset of a line's text at or after a place,
+/// and the lines counted between two places.
+pub mod merge_second_pass_stage_line_places;
 
 /// The line merge Git makes for a conflicted file,
 /// cut into the text it settled and the regions it
@@ -254,6 +358,10 @@ pub mod merge_second_pass_conflicts;
 /// How the word-level second pass starts Git.
 pub mod merge_second_pass_git_runner;
 
+/// The tree a merge computed from objects reads its `merge` attribute from,
+/// and the attribute source that merge names.
+pub mod merge_second_pass_tree_attributes;
+
 /// The word-level second pass for merges computed from objects,
 /// and the attribute tree those merges read.
 pub mod merge_second_pass_tree;
@@ -262,6 +370,14 @@ pub mod merge_second_pass_tree;
 /// rebase,
 /// cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
+
+/// The paths a stopped operation had already left unmerged before it ran,
+/// and the conflicts the index holds for the paths it created.
+pub mod merge_second_pass_worktree_watch;
+
+/// The awaited re-merge of the conflicts a stopped operation created,
+/// and the install of every file no other command moved.
+pub mod merge_second_pass_worktree_remerge;
 
 /// The files a forwarded second pass merged,
 /// staged as resolved and written to the worktree.
@@ -273,6 +389,16 @@ pub mod merge_second_pass_worktree_unchanged;
 
 /// The sentences the word-level second pass ends a stopped operation with.
 pub mod merge_second_pass_worktree_words;
+
+/// The words a finish reads:
+/// a `branch.<name>.mergeoptions` value split as Git splits it,
+/// the command that ends the operation,
+/// and the message without Git's conflict hint.
+pub mod merge_second_pass_finish_words;
+
+/// How deep one finish may start the next,
+/// and the todo lines that bound it.
+pub mod merge_second_pass_finish_nesting;
 
 /// The finish of a stopped operation,
 /// like a clean run,
@@ -292,6 +418,11 @@ pub mod merge_isolation_moved;
 /// The durable intent record of an isolated merge.
 pub mod merge_isolation_journal;
 
+/// The words a recovery refuses a merge with:
+/// each names the paths,
+/// the record and what the person can do.
+pub mod merge_isolation_recovery_refusals;
+
 /// The raw differences of an isolated merge and the worktree state of each changed path.
 pub mod merge_isolation_changes;
 
@@ -309,13 +440,27 @@ pub mod merge_isolation_recovery_carry;
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
 
-/// The write of a merge into the index and the worktree,
-/// and what it does when the checkout changed under it.
-pub mod merge_isolation_recovery_install;
+/// The judgement of each path a merge changes:
+/// how the worktree stands at it against the two sides,
+/// and a directory the branch's own files explain.
+pub mod merge_isolation_the_merges_paths_judged;
+
+/// Where recovery runs Git:
+/// the real Git and its environment,
+/// the directory every command starts in,
+/// and the repository's common Git directory.
+pub mod merge_isolation_recovery_place;
+
+/// Whether a directory standing where the merge puts a file holds only files the merge deletes,
+/// judged through every directory below it.
+pub mod merge_isolation_a_directory_the_branch_explains;
 
 /// Whether the recovery of an interrupted merge may write the index now,
 /// and the clearing of a lock a killed Git left.
 pub mod merge_isolation_recovery_index_lock;
+/// The write of a merge into the index and the worktree,
+/// and what it does when the checkout changed under it.
+pub mod merge_isolation_recovery_install;
 
 /// Finishing a merge from its record:
 /// the install and the branch move,
@@ -349,6 +494,14 @@ pub mod merge_isolation_take_asides;
 /// The proof that no program can write into a file whose last name is about to go.
 pub mod merge_isolation_take_asides_proof;
 
+/// Why a carry or a clear stopped,
+/// and the words a write that stopped leaves about the copy it kept.
+pub mod merge_isolation_carry_write_failures;
+
+/// Which step of a carry a batch of writes is,
+/// and the test markers each of its steps reaches.
+pub mod merge_isolation_carry_write_batches;
+
 /// The copies of the person's own bytes a merge keeps beside a path,
 /// and the record of each.
 pub mod merge_isolation_kept_copies;
@@ -363,9 +516,28 @@ pub mod merge_isolation_kept_copies_words;
 /// The commit message of an isolated merge.
 pub mod merge_isolation_message;
 
+/// The options of a pull's command line,
+/// cut into the words its fetch takes and the words its merge takes.
+pub mod pull_isolation_options;
+
+/// Whether a pull is stated to merge,
+/// read from its command line and from Git's own reading of the rebase settings.
+pub mod pull_isolation_merge_stated;
+
 /// A pull that merges,
-/// read as its fetch and its merge of `FETCH_HEAD`.
+/// read as its fetch and its merge of `FETCH_HEAD`:
+/// the repository state it is read from,
+/// the fetch it runs,
+/// and the merge it hands on.
 pub mod pull_isolation;
+
+/// What a pull kept of the person's untracked files,
+/// and what it could not keep.
+pub mod pull_untracked_paths_in_the_way_kept;
+
+/// The sentences a pull prints about the copies it kept,
+/// and the reset Git's own words offer.
+pub mod pull_untracked_paths_in_the_way_words;
 
 /// The untracked files a pull's branch move would overwrite,
 /// kept before the failure is worded,
@@ -388,7 +560,20 @@ pub mod merge_isolation;
 ///  and a ref of its own keep it.
 pub mod merge_isolation_carry_parts;
 
-/// Reading the person's work and keeping it outside the checkout.
+/// The Git plumbing a capture runs:
+/// the bytes of one path written as one object,
+/// the index's own entries,
+/// and the directory a Git start runs in.
+pub mod merge_isolation_carry_objects;
+
+/// The ref of its own that keeps a capture's objects from `git gc`,
+/// and the dropping of that ref once nothing needs it.
+pub mod merge_isolation_carry_ref;
+
+/// Reading the person's own work in the paths a merge changes:
+/// what stands at one worktree path,
+/// the mode and permission bits Git records for it,
+/// and one capture of every layer.
 pub mod merge_isolation_carry;
 /// What stands at one worktree path, as a merge reads it.
 pub mod merge_isolation_worktree_entry;
@@ -418,6 +603,11 @@ pub mod merge_isolation_carry_writes;
 /// What one captured path's writes are,
 /// once the merge's change is known.
 pub mod merge_isolation_carry_plans;
+
+/// The three sides of one layer of one path:
+/// the mode and the object each side holds,
+/// and the mode the layer ends with.
+pub mod merge_isolation_carry_layer_sides;
 
 /// What one layer of one path ends as once the person's work is merged with the merge.
 pub mod merge_isolation_carry_layers;

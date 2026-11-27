@@ -54,8 +54,9 @@
 //!   the file's GUID name,
 //!   a dataset's name and a snapshot's.
 //! - `removal_stop.rs`:
-//!   every way the removal stops,
-//!   and the sentence each prints.
+//!   every way the removal stops.
+//! - `removal_stop_sentences.rs`:
+//!   the sentence each way of stopping prints.
 //! - `fresh_holder_scan.rs`:
 //!   the fresh all-namespace scan each destroy is preceded by.
 //! - `removal_identities.rs`:
@@ -70,12 +71,15 @@
 //! - `started_moment.rs`:
 //!   the `started` field's shape and value.
 //! - `plan_record.rs`:
-//!   the plan's fields,
-//!   its first write and its bytes.
+//!   the plan's fields and its first write.
+//! - `plan_record_bytes.rs`:
+//!   the bytes a plan publishes.
 //! - `plan_attempt_parse.rs`:
 //!   one attempt region read into one line per attempt.
+//! - `plan_header_fields.rs`:
+//!   the header region read into one plan's fields.
 //! - `plan_parse.rs`:
-//!   the header read into the plan's fields and the two halves joined.
+//!   the header completed into the plan's facts and the two halves joined.
 //! - `plan_reading.rs`:
 //!   the two-stage file read and the folder and owner checks.
 //! - `plan_publication.rs`:
@@ -87,10 +91,10 @@
 //!   owning dataset and `createtxg`.
 //! - `bookmark_rule.rs`:
 //!   the decided rule `A: Live or planned`.
+//! - `removal_snapshot_settlement.rs`:
+//!   the names settled by their GUIDs and the amended plan a new own snapshot takes.
 //! - `removal_head_destroy.rs`:
-//!   the names settled by their GUIDs,
-//!   the amended plan a new own snapshot takes,
-//!   and the head destroy with its absence proof.
+//!   the head destroy with its absence proof.
 //! - `removal_reads.rs`:
 //!   the pool reads the proof makes,
 //!   as a seam with one live implementation over the binding.
@@ -102,18 +106,23 @@
 //!   removed as the last witness.
 //! - `removal_report.rs`:
 //!   the lines a finished removal prints.
-//! - `removal_origin_step.rs`:
-//!   the answers removal origin step holds.
-//! - `removal_settle_step.rs`:
-//!   the Git settle of one removal,
-//!   called only with the proof that this slot's clone is gone.
 //! - `unmount_request.rs`:
 //!   the removal intent and the verified answer.
+//! - `removal_clock.rs`:
+//!   the three process facts a removal's plan records.
 //! - `removal_entry.rs`:
 //!   the one order a removal's proof,
 //!   intent,
 //!   unmount and plan take,
 //!   and every step of it that changes nothing.
+//! - `removal_completion_inputs.rs`:
+//!   everything one whole removal drives,
+//!   as named seams a control answers without a pool.
+//! - `removal_origin_step.rs`:
+//!   the answers removal origin step holds.
+//! - `removal_settle_step.rs`:
+//!   the Git settle of one removal,
+//!   called only with the proof that this slot's clone is gone.
 //! - `removal_destruction.rs`:
 //!   the deferred-origin check before every snapshot request,
 //!   the batch those requests destroy,
@@ -127,6 +136,12 @@
 //!   a fresh entry,
 //!   an adopted kept plan,
 //!   or the head-gone path.
+//! - `plan_names_and_states.rs`:
+//!   the plan's names and the state each one's history ends on.
+//! - `removal_completion_head_present.rs`:
+//!   the steps one removal takes while its clone still stands.
+//! - `removal_completion_head_gone.rs`:
+//!   the steps a removal takes when its plan's head word is already `gone`.
 //! - `removal_completion.rs`:
 //!   the whole order from the plan to the report.
 //!
@@ -144,15 +159,22 @@ pub mod lineage_proof;
 pub mod loss_names;
 pub mod plan_attempt_parse;
 pub mod plan_bounds;
+pub mod plan_header_fields;
 pub mod plan_lines;
 pub mod plan_name;
+pub mod plan_names_and_states;
 pub mod plan_parse;
 pub mod plan_publication;
 pub mod plan_reading;
 pub mod plan_record;
+pub mod plan_record_bytes;
 pub mod plan_refusal;
 pub mod plan_words;
+pub mod removal_clock;
 pub mod removal_completion;
+pub mod removal_completion_head_gone;
+pub mod removal_completion_head_present;
+pub mod removal_completion_inputs;
 pub mod removal_destruction;
 pub mod removal_entry;
 pub mod removal_head_destroy;
@@ -167,7 +189,9 @@ pub mod removal_resume;
 pub mod removal_settle;
 pub mod removal_settle_step;
 pub mod removal_slot_claim;
+pub mod removal_snapshot_settlement;
 pub mod removal_stop;
+pub mod removal_stop_sentences;
 pub mod started_moment;
 pub mod unmount_request;
 
@@ -251,10 +275,12 @@ pub use plan_words::{
     SNAPSHOT_KIND,
     SnapshotOutcome,
 };
-pub use removal_completion::{
-    RemovalCompletion,
-    complete_the_removal,
+pub use removal_clock::{
+    RemovalClock,
+    TheLiveClock,
 };
+pub use removal_completion::complete_the_removal;
+pub use removal_completion_inputs::RemovalCompletion;
 pub use removal_destruction::{
     DestructionUnderway,
     RemovalDestruction,
@@ -262,9 +288,7 @@ pub use removal_destruction::{
 };
 pub use removal_entry::{
     EnteredRemoval,
-    RemovalClock,
     RemovalEntry,
-    TheLiveClock,
     enter_the_removal,
 };
 pub use removal_head_destroy::{

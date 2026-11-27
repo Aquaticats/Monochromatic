@@ -56,10 +56,10 @@ use crate::matching_push_delivered_the_recorded_branch::{
     MatchingPush,
     delivered_although_git_failed_awaiting,
 };
-use crate::push_held_back_by_a_blocked_commit::{
-    WhereThePushStops,
-    where_the_push_stops_awaiting,
-};
+use crate::push_held_back_by_a_blocked_commit::WhereThePushStops;
+/// Where the push of one branch stops when its questions go to a Git awaited on the runtime,
+/// which is what a task of the runtime asks.
+use crate::push_held_back_by_a_blocked_commit_awaiting::where_the_push_stops_awaiting;
 use crate::work_item_holding::BlockedVerdict;
 use std::ffi::OsString;
 use std::io::Write;

@@ -50,15 +50,13 @@ use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{
     DestructionUnderway,
     RemovalDestruction,
     destroy_the_removal,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
-    RemovalEntry,
-    TheLiveClock,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::RecordedBinding;
 use crate::worktree_clone_removal_proof_and_plan::removal_live_fixtures::{
     HookedDevice,

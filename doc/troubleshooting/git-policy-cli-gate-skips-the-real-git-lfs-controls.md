@@ -124,6 +124,9 @@ its skip is keyed on the same absence and reads
   and the same file's controls each ran their push,
   which their journals show
   (`~/temp/agent/end-to-end-push-program-controls-run-in-the-gate-2026-11-24/keep/`).
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   Before that change the red control failed after 120.44 s with the real program answering its push,
   and the restart control failed the same way,
   so the decline had hidden a control that could not run here at all.

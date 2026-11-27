@@ -323,7 +323,8 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
 ///  that is not evidence of a stopped service is no bound at all.
 #[test]
 fn a_running_unit_that_greets_nothing_is_restarted_only_at_the_start_ceiling() {
-    let reach: &str = include_str!("service_client_reach_service.rs");
+    // The wait itself lives in the file the reaching calls, so the control reads that file.
+    let reach: &str = include_str!("service_client_reach_service_the_waits_own_steps.rs");
     assert!(
         reach.contains("(watch.restart)("),
         "the client is what asks for the restart"
@@ -381,17 +382,19 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
 /// and the rung no longer takes one.
 #[test]
 fn an_add_takes_its_own_snapshot_and_waits_for_none_made_ahead() {
-    let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
+    let finish: &str = include_str!("../worktree/worktree_ladder_finish.rs");
+    let snapshot: &str = include_str!("../worktree/worktree_ladder_finish_snapshot.rs");
     assert!(
-        rung.contains("take_snapshot("),
+        snapshot.contains("take_snapshot("),
         "the snapshot rung takes the add's own snapshot"
     );
     assert!(
-        !rung.contains("look_for_a_snapshot_ahead"),
+        !finish.contains("look_for_a_snapshot_ahead")
+            && !snapshot.contains("look_for_a_snapshot_ahead"),
         "the add claims no copy the service made ahead"
     );
     assert!(
-        !rung.contains("SNAPSHOT_AHEAD_CEILING"),
+        !finish.contains("SNAPSHOT_AHEAD_CEILING") && !snapshot.contains("SNAPSHOT_AHEAD_CEILING"),
         "nothing bounds a wait the add does not make"
     );
     let ceilings: &str = include_str!("wait_ceilings.rs");
@@ -419,9 +422,10 @@ fn the_notice_of_a_repair_tool_gives_up_its_stream_at_the_warnings_bound() {
         REPAIR_NOTICE_WRITE_CEILING, WARNING_WRITE_CEILING,
         "one measured pace of a line to a stream serves both"
     );
-    let command: &str = include_str!("../repair/package_repair_command.rs");
+    // The words of a run's notice are the file that builds them, since the run was split by role.
+    let words: &str = include_str!("../repair/package_repair_command_words.rs");
     // The call is read without the blanks rustfmt places when it puts each argument on a line of its own.
-    let code: String = command.split_whitespace().collect();
+    let code: String = words.split_whitespace().collect();
     assert!(
         code.contains("write_within(REPAIR_NOTICE_WRITE_CEILING,StandardErrorDescriptor"),
         "the repair's notice is written within this bound, through the descriptor that holds no lock"

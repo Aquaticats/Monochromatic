@@ -412,6 +412,9 @@ It ran as written on 2026-11-18:
 ```bash
 #!/usr/bin/env bash
 # ~/temp/agent/ydotool-boot-race-doc-2026-11-18/keep/proxy-harness.sh
+# (scratch,
+# deleted on 2026-11-27;
+# what this record uses from it is stated here)
 # Models "ydotoold fails until /dev/uinput access appears" with a flag file.
 # Usage: proxy <unit-name> <seconds-until-access> [systemd-run -p options...]
 # No --collect: a unit that hits its start limit would be garbage-collected,
@@ -787,7 +790,10 @@ Their content was read instead through the GitLab API at the same commit
 `62c3920b955db1d244e5798f65d7ac31dbcedc40`.
 The logs are `gh-links.log`,
 `other-links.log` and `gitlab-api-check.log`
-in `~/temp/agent/ydotool-boot-race-doc-2026-11-18/keep/`.
+in `~/temp/agent/ydotool-boot-race-doc-2026-11-18/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 [client-connect]: https://github.com/ReimuNotMoe/ydotool/blob/57ba7d0af525e82da2de0e275d169477f293b197/Client/ydotool.c#L157-L173
 [daemon-open]: https://github.com/ReimuNotMoe/ydotool/blob/57ba7d0af525e82da2de0e275d169477f293b197/Daemon/ydotoold.c#L265-L270

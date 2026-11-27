@@ -1,10 +1,9 @@
 //! What:
-//!  The table of which configuration keys Git reads at startup and what kind of value each takes:
-//! the word lists,
-//! the key
-//!  lists,
-//! the color words,
-//! the value kinds and the lookup from a key to its kind.
+//!  The kinds of value a configuration key takes,
+//! and the lookup from a key to its kind:
+//!  the plain key tables in `repo_read_config_key_kinds_table.rs`,
+//! the accepted spellings in `repo_read_config_value_words.rs`,
+//!  and the shapes a section has of its own.
 //! Why:
 //!  `repo_read_config_typed.rs` checks whether a value is one Git accepts silently;
 //! the table it checks against is data and
@@ -17,161 +16,25 @@
 //! function kindOf(key: string): Kind | undefined;
 //! ```
 
-/// The words Git reads as true.
-pub(crate) const TRUE_WORDS: &[&str] = &["true", "yes", "on"];
-
-/// The words Git reads as false.
-pub(crate) const FALSE_WORDS: &[&str] = &["false", "no", "off"];
-
-/// Keys whose value is a plain boolean.
-pub(crate) const BOOLEAN_KEYS: &[&str] = &[
-    "color.advice",
-    "color.pager",
-    "commitgraph.readchangedpaths",
-    "core.commitgraph",
-    "core.filemode",
-    "core.ignorecase",
-    "core.ignorestat",
-    "core.lockfilepid",
-    "core.multipackindex",
-    "core.precomposeunicode",
-    "core.protecthfs",
-    "core.protectntfs",
-    "core.quotepath",
-    "core.sparsecheckout",
-    "core.sparsecheckoutcone",
-    "core.symlinks",
-    "core.trustctime",
-    "core.usereplacerefs",
-    "core.warnambiguousrefs",
-    "diff.autorefreshindex",
-    "diff.indentheuristic",
-    "diff.mnemonicprefix",
-    "diff.noprefix",
-    "diff.relative",
-    "diff.suppressblankempty",
-    "diff.trustexitcode",
-    "feature.experimental",
-    "feature.manyfiles",
-    "fetch.writecommitgraph",
-    "format.encodeemailheaders",
-    "fsmonitor.allowremote",
-    "gc.writecommitgraph",
-    "grep.column",
-    "grep.extendedregexp",
-    "grep.fullname",
-    "grep.linenumber",
-    "index.skiphash",
-    "index.sparse",
-    "log.abbrevcommit",
-    "log.follow",
-    "log.mailmap",
-    "log.showroot",
-    "log.showsignature",
-    "pack.readreverseindex",
-    "pack.usebitmapboundarytraversal",
-    "pack.usepathwalk",
-    "pack.usesparse",
-    "sparse.expectfilesoutsideofpatterns",
-    "user.useconfigonly",
-];
-
-/// Keys whose value is any text,
-/// but never a bare name.
-pub(crate) const TEXT_KEYS: &[&str] = &[
-    "attr.tree",
-    "author.email",
-    "author.name",
-    "committer.email",
-    "committer.name",
-    "core.askpass",
-    "core.checkroundtripencoding",
-    "core.editor",
-    "core.untrackedcache",
-    "core.whitespace",
-    "diff.dstprefix",
-    "diff.external",
-    "diff.srcprefix",
-    "diff.wordregex",
-    "format.subjectprefix",
-    "i18n.commitencoding",
-    "i18n.logoutputencoding",
-    "mailmap.blob",
-    "remote.pushdefault",
-    "user.email",
-    "user.name",
-];
-
-/// Keys whose value is a path,
-/// which Git expands (`~/x`,
-/// and `~user/x`,
-/// which fails for an unknown user).
-pub(crate) const PATHNAME_KEYS: &[&str] = &[
-    "core.attributesfile",
-    "core.excludesfile",
-    "core.hookspath",
-    "fsmonitor.socketdir",
-    "mailmap.file",
-];
-
-/// Per-driver keys (`diff.<driver>.<name>`) whose value is a boolean.
-pub(crate) const DRIVER_BOOLEAN_NAMES: &[&str] = &["binary", "cachetextconv", "trustexitcode"];
-
-/// Per-driver keys whose value is text.
-pub(crate) const DRIVER_TEXT_NAMES: &[&str] = &["command", "textconv", "wordregex", "xfuncname"];
-
-/// Per-remote keys (`remote.<name>.<key>`) whose value is a boolean.
-pub(crate) const REMOTE_BOOLEAN_NAMES: &[&str] = &[
-    "mirror",
-    "promisor",
-    "prune",
-    "prunetags",
-    "skipdefaultupdate",
-    "skipfetchall",
-];
-
-/// Per-remote keys whose value is text.
-pub(crate) const REMOTE_TEXT_NAMES: &[&str] = &[
-    "negotiationinclude",
-    "negotiationrestrict",
-    "partialclonefilter",
-    "proxy",
-    "proxyauthmethod",
-    "pushurl",
-    "receivepack",
-    "serveroption",
-    "tagopt",
-    "uploadpack",
-    "url",
-    "vcs",
-];
-
-/// The slots `color.grep.<slot>` knows;
-/// any other slot is a failure in Git.
-pub(crate) const GREP_COLOR_SLOTS: &[&str] = &[
-    "column",
-    "context",
-    "filename",
-    "function",
-    "linenumber",
-    "match",
-    "matchcontext",
-    "matchselected",
-    "selected",
-    "separator",
-];
-
-/// The color words Git reads without a `bright` prefix.
-pub(crate) const PLAIN_COLOR_WORDS: &[&str] = &["normal", "default"];
-
-/// The color words that also exist with a `bright` prefix.
-pub(crate) const BRIGHT_COLOR_WORDS: &[&str] = &[
-    "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
-];
-
-/// The attribute words Git reads (each also with a `no` or `no-` prefix).
-pub(crate) const ATTRIBUTE_WORDS: &[&str] =
-    &["bold", "dim", "ul", "blink", "reverse", "italic", "strike"];
+use crate::repo_read_config_key_kinds_table::{
+    BOOLEAN_KEYS,
+    PATHNAME_KEYS,
+    TEXT_KEYS,
+};
+pub(crate) use crate::repo_read_config_value_words::{
+    ATTRIBUTE_WORDS,
+    BRIGHT_COLOR_WORDS,
+    FALSE_WORDS,
+    PLAIN_COLOR_WORDS,
+    TRUE_WORDS,
+};
+use crate::repo_read_config_value_words::{
+    DRIVER_BOOLEAN_NAMES,
+    DRIVER_TEXT_NAMES,
+    GREP_COLOR_SLOTS,
+    REMOTE_BOOLEAN_NAMES,
+    REMOTE_TEXT_NAMES,
+};
 
 /// How Git reads the value of one key.
 #[derive(Clone, Copy)]

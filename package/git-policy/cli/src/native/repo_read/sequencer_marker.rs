@@ -17,6 +17,9 @@
 //! const maybePresent = names.map((name) => lookupPlaces(layout, name).some(exists) || packedRefs.includes(name));
 //! ```
 
+/// The path of a name Git printed,
+/// read as a path this process can hand to the file system.
+use crate::git_metadata::path_from_git_bytes;
 /// Where one worktree's ref files live and what format they are in.
 use crate::ref_files::RefFilesLayout;
 /// The ref storage backend.
@@ -87,6 +90,28 @@ pub(super) fn something_is_at(path: &Path) -> bool {
     return match std::fs::symlink_metadata(path) {
         Ok(_) => true,
         Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+    };
+}
+
+/// What:
+///  Whether the file at the path Git printed exists,
+///  without following a final link.
+///       `&[u8]` borrows the path bytes.
+/// Why:
+///   Git itself tests these head files with `lstat`,
+///  so a dangling link counts as
+///       present here too,
+///  and the ref-storage reader already answers the same question one `Path` at a time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const exists = (path: Buffer) => { const found = pathFromGitBytes(path); return found !== undefined && somethingIsAt(found); };
+/// ```
+pub(super) fn head_file_exists(path: &[u8]) -> bool {
+    // `match` unpacks "a path or nothing": empty bytes are not a path.
+    return match path_from_git_bytes(path) {
+        Some(found) => something_is_at(found.as_path()),
+        None => false,
     };
 }
 

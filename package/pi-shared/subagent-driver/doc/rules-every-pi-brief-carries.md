@@ -14,8 +14,17 @@ Each rule is the project's own requirement.
   `${HOME}/temp/agent/<the run's name>-scratch`,
   and everything it writes outside its worktree goes there.
   That folder is deleted when the run ends,
-  except its `keep/` subfolder:
-  put the report,
+  except its `keep/` subfolder,
+  and everything under `~/temp` expires a day after its last change,
+  `keep/` included
+  (`AGENTS.md` rule `SXD`;
+  `doc/decision/scratch-expires-after-a-day-and-the-coordinator-keeps-what-lasts.md`).
+  So a finding that must outlast the run goes into the branch's own records
+  (the package's docs,
+  a test,
+  a commit message),
+  and no document the run writes cites a scratch path as its evidence.
+  Put the report,
   the logs and the measurements a reader of the report needs in `keep/`,
   and nothing that a build or a clone recreates
   (build folders,
@@ -40,8 +49,52 @@ Each rule is the project's own requirement.
   `--stress-count`,
   or repeated full test runs;
   cap the test's own container (`--cpus` sized to the test) instead.
+  A loop that runs one module or one filter dozens of times,
+  to show that a failure is rare or that a fix holds,
+  is that repeated load:
+  show a red or a green with a few runs of each arm,
+  and when a failure is too rare to see in a few,
+  find a run shape that makes it common
+  (a trace,
+  a narrower union,
+  a planted delay).
+  On 2026-11-26 the round for issue 6518 ran one module 60,
+  30 and 20 times and the round for issue 6520 ran 30-run loops,
+  although each brief quoted the ban
+  (`doc/planning/pi-round-start-failures-and-what-would-stop-them.md`,
+  "What rounds do inside").
 - Run every command that is not trivial in its own cgroup,
-  as `AGENTS.md` says (rules `RXI` and `RXS`).
+  as `AGENTS.md` says (rules `RXI` and `RXS`),
+  and pass `--slice=agent-work.slice` to every `systemd-run --user`,
+  scope or service:
+  that slice is where agent work on this machine is counted in one place,
+  and a scope without it lands in `app.slice`,
+  outside the count
+  (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+  "Swap capacity was never short;
+  the writeback to disk was capped").
+- Every deletion path is written literally:
+  no variable or substitution in an `rm`,
+  `rmdir`,
+  `unlink`,
+  `shred` or `find -delete`,
+  nor in a script the run writes and runs;
+  a glob or `~` is allowed.
+  An empty variable widens what gets deleted (`AGENTS.md` rule `RLW`),
+  and a hook refuses the rest
+  (`doc/decision/literal-rm-guard-in-claude-code-and-pi.md`).
+- Before the first edit of code,
+  read whole the skill for its language
+  (`.agents/skills/dum-dum-non-ts/SKILL.md` for any language but TypeScript,
+  `.agents/skills/testing-practices/SKILL.md` for TypeScript tests)
+  and the package's own guide to its code and tests where one exists,
+  on `main`
+  (for the git wrapper,
+  `package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`).
+  Rounds briefed without them on 2026-11-25 left two tests sharing one fixture folder,
+  a stand-in child that outlived its test,
+  and a test that signalled its own test binary
+  (`.agents/skills/pi-as-subagent/SKILL.md`).
 - A probe that mounts anything,
   FUSE above all,
   runs in a private mount namespace (`unshare --user --map-root-user --mount --propagation private`),
@@ -70,6 +123,50 @@ Each rule is the project's own requirement.
   and every `systemctl --user` and `systemd-run --user` call in that time went to it.
   A guard now kills any process that takes that name,
   and the run that started it ends with it.
+- Never ask the system service manager to act:
+  no `systemctl` verb that changes or signals a unit unless it carries `--user` and names a unit the run started,
+  no call on the system bus,
+  no `pkexec` or `run0`,
+  and `--no-ask-password` on every `systemctl`.
+  A request that needs authorization does not fail for an account;
+  it puts a password dialog on the desktop and waits:
+  on 2026-11-22 a design run probed with `systemctl kill --signal=KILL systemd-random-seed.service`,
+  and the dialog stood for 25 seconds until the request timed out
+  (`.agents/skills/pi-as-subagent/SKILL.md`).
+  What such a request answers is taken from the source or measured in a guest.
+- A change to this host is the coordinating session's to make,
+  never a run's:
+  no `sudo`,
+  no ZFS-changing command,
+  and no test or probe on the host that opens `/dev/zfs`.
+  This machine's home is on a ZFS pool,
+  and no record authorizes a run to work on it
+  (`doc/decision/cli-git-zfs-start-probe.md`:
+  "nothing here authorizes work on this host's pool").
+  ZFS work runs on a file-backed pool inside a guest of the run's own,
+  and a change the host needs is named in the report.
+- A guest runs only through `mvm`,
+  and the run destroys its guests through `mvm` when it is done.
+  Never run a bare `virsh`,
+  never stop `mvm-libvirt-session.service`,
+  and never run anything inside a guest the run did not create:
+  a bare `virsh` starts the session daemon inside the capped scope of whichever command called it,
+  and every guest on the machine then lives and dies with that scope
+  (`doc/troubleshooting/libvirt-session-daemon-runs-in-the-capped-scope-of-whichever-command-starts-it.md`).
+- AppArmor enforces on this machine.
+  If a command fails with a permission error the run did not expect,
+  write the command,
+  its exact error and the time into the report,
+  and do not route around it by moving the work to another path or tool:
+  the coordinating session widens the profile
+  (`AGENTS.md` rule `AAW`;
+  `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`).
+  Go on with other work meanwhile.
+- Before the run ends,
+  stop every process and `systemd-run` unit it started
+  (check `ps` and `systemctl --user list-units`),
+  and say in the report that none is left
+  (`AGENTS.md` rule `NLD`).
 - Send a signal only to a process your run started,
   named by a process number your own command got back when it started it.
   A number taken from `$PPID`,
@@ -118,8 +215,22 @@ Each rule is the project's own requirement.
   stash,
   reset or revert anyone else's work,
   and edit only the files the task needs.
-  If dependencies are missing,
-  run `mise exec -- pnpm install --offline --frozen-lockfile` in the worktree.
+  Do not run `pnpm install` in the worktree:
+  `git worktree add` copies `node_modules` from the checkout and relinks it,
+  in the commit service after the add returns
+  or in the add itself where no service answers,
+  and the launcher that started the run installs nothing for the same reason.
+  An install started in that window left two worktrees on 2026-11-21 whose copy could never finish,
+  with a warning on every `git` command of every session until they were removed
+  (issue 6339).
+  If something a build needs is missing,
+  name it in the report.
+- Never run `mise run toolchain:install`,
+  not even for one tool in the run's own worktree:
+  it waits for issue 6316
+  (`mpm-shadow` is to prefer the system's package manager on distributions that are not atomic first).
+  If a tool is missing,
+  write the exact error into the report and run what can run without it.
 - Call Git as plain `git`,
   never `/usr/bin/git`:
   an absolute path skips this repository's guards against discarding work.
@@ -146,6 +257,9 @@ Each rule is the project's own requirement.
   and everything a command prints is sent to the model provider.
   To learn one variable,
   name it (`printenv CARGO_TARGET_DIR`).
+  For the same reason,
+  never open a saved Claude Code or Pi session:
+  a scan on 2026-11-14 found secret values in the saved sessions of six Pi runs.
   That ban stands as before,
   and a run does not rely on it alone:
   see the next rule.
@@ -256,7 +370,8 @@ Each rule is the project's own requirement.
   and a run that kept asking it made fourteen turns in seventy minutes.
   Save what a read gave to a scratch file and work from the file.
 - Do not edit `doc/decision/`,
-  or anything `file-enforcer` generates.
+  unless the brief names the file as its task,
+  nor anything `file-enforcer` generates.
 - Nothing may wait forever,
   and that covers the run's own commands:
   run every probe and test harness under `timeout`,
@@ -336,6 +451,11 @@ the producer's source,
 or a stand-in.
 A run cannot ask questions while it works,
 so open questions go in the report.
+Mark the report,
+and any document the run writes,
+unapproved and non-final,
+saying what was done and checked and what is open
+(`AGENTS.md` rule `SGO`).
 
 ## Nothing shows on the desktop
 

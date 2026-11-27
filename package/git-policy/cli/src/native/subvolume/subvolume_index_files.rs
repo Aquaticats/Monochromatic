@@ -41,26 +41,33 @@
 //! ```ts
 //! for (const { adminDirectory, worktree } of linkedWorktrees(root)) refreshIndexFile(join(adminDirectory, 'index'), worktree);
 //! ```
+//!
+//! The code of this module is split by role,
+//! and this file re-exports every name those files hold,
+//! so that a caller writes `subvolume_index_files::refresh_index_file` as it did before:
+//! `subvolume_index_file_stat_fields` reads and compares an entry's stat fields,
+//! `subvolume_index_file_zeroed_stat` installs an index that vouches for no path,
+//! `subvolume_index_file_options` holds what a refresh is told and how it ended,
+//! and `subvolume_index_file_rewrite_and_install` rewrites one index and installs the result.
 
-use crate::plain_file::{
-    SMALL_FILE_LIMIT,
-    read_plain_file,
+use crate::plain_file::read_plain_file;
+pub use crate::subvolume_index_file_options::{
+    IndexLock,
+    RefreshOptions,
+    RefreshReport,
+    RefreshStatus,
+    repository_hash_length,
 };
-use crate::subvolume_file_write_steps::write_all_then_sync;
-use crate::subvolume_index::{
-    HEADER,
-    IndexOutcome,
-    Located,
-    RewriteContext,
-    STAT,
-    StatFields,
-    StatLookup,
-    StatTrust,
-    StoredStat,
-    checksum_kind,
-    rewrite_index_stat_with,
-    walk_entries,
+use crate::subvolume_index_file_rewrite_and_install::{
+    remove_if_same_file,
+    rewrite_and_install,
 };
+pub(crate) use crate::subvolume_index_file_stat_fields::{
+    fields_of,
+    matches_stored,
+    matches_stored_exactly,
+};
+pub use crate::subvolume_index_file_zeroed_stat::with_zeroed_stat;
 pub use crate::subvolume_index_install_into_new_worktree::{
     InstallSeams,
     discard_index_under_a_name,
@@ -70,13 +77,6 @@ pub use crate::subvolume_index_install_into_new_worktree::{
     write_index_under_a_name,
 };
 use crate::subvolume_lock::is_ours;
-use crate::subvolume_sha::{
-    sha1,
-    sha256,
-};
-use std::collections::HashSet;
-use std::ffi::OsStr;
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{
     Path,
@@ -101,69 +101,6 @@ pub use crate::subvolume_registered_worktrees::{
     scan_linked_worktrees,
 };
 
-/// The offset of an entry's mode inside its fixed stat fields.
-/// Why:
-///  it is the one field of the forty that is not stat data,
-///  so zeroing an entry's stat data step keeps the mode.
-const MODE_AT: usize = 24;
-
-/// What:
-///  `bytes` with the stat data of every entry whose path is in `paths` set to zero,
-///  and the checksum made good,
-///  or nothing when the file is not an index this reader knows.
-/// Why:
-///  Git skips a file only when its entry's stat data describes the file it finds
-///  (`read-cache.c`,
-///  `ie_match_stat`),
-///  so an index that must not vouch for a path until Git has written it is installed with that path's
-///  stat data zeroed:
-///  no real file has a zero size,
-///  modification time,
-///  change time or inode,
-///  so the first `git status` hashes the file instead of trusting it.
-/// The entries' object names and modes are untouched,
-///  so Git writes each path from its own blob.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const seed = withZeroedStat(bytes, paths, hashLength) ?? throw new Error('unknown index layout');
-/// ```
-pub fn with_zeroed_stat(
-    bytes: &[u8],
-    paths: &HashSet<Vec<u8>>,
-    hash_length: usize,
-) -> Option<Vec<u8>> {
-    if bytes.len() < HEADER + hash_length {
-        return None;
-    }
-    let (length, zero_checksum): (usize, bool) = checksum_kind(bytes, Some(hash_length)).ok()?;
-    let (entries, _end): (Vec<Located>, usize) = walk_entries(bytes, length)?;
-    let limit: usize = bytes.len().checked_sub(length)?;
-    let mut output: Vec<u8> = bytes[..limit].to_vec();
-    for entry in &entries {
-        if !paths.contains(entry.path.as_slice()) {
-            continue;
-        }
-        let mode_end: usize = entry.start.checked_add(MODE_AT)?;
-        let stat_end: usize = entry.start.checked_add(STAT)?;
-        if stat_end > limit {
-            return None;
-        }
-        output[entry.start..mode_end].fill(0);
-        output[mode_end + 4..stat_end].fill(0);
-    }
-    if zero_checksum {
-        output.extend(std::iter::repeat_n(0u8, length));
-    } else if length == 20 {
-        let digest: [u8; 20] = sha1(output.as_slice());
-        output.extend_from_slice(&digest);
-    } else {
-        let digest: [u8; 32] = sha256(output.as_slice());
-        output.extend_from_slice(&digest);
-    }
-    return Some(output);
-}
-
 /// The call the refresh makes at its seam when no control wants one:
 /// none.
 fn do_nothing() {}
@@ -175,165 +112,8 @@ fn do_nothing() {}
 /// one of its linked worktrees' `.git/worktrees/<name>/index`),
 /// and a gigabyte is that with room for a repository several hundred times larger.
 ///  The merge pass reads an index up to the same bound (`INDEX_LIMIT_BYTES`,
-/// `merge_second_pass_worktree.rs`).
+/// `merge_second_pass_worktree_watch.rs`).
 const INDEX_FILE_LIMIT: u64 = 1 << 30;
-
-/// What:
-///  What `lstat` of `tree/path` reports now,
-/// in index units,
-/// or nothing for a file that cannot be examined.
-/// Why:
-///   The rewrite leaves an entry as Git recorded it when its file is missing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function statFields(tree: string, path: Uint8Array): StatFields | undefined;
-/// ```
-pub(crate) fn stat_fields(
-    tree: &Path,
-    path: &[u8],
-) -> Option<StatFields> {
-    let metadata: std::fs::Metadata =
-        std::fs::symlink_metadata(tree.join(OsStr::from_bytes(path))).ok()?;
-    return Some(fields_of(&metadata));
-}
-
-/// What:
-///  The stat fields of metadata in hand,
-/// in index units.
-/// Why:
-///   A caller that holds the object it made records the fields of that object,
-/// not of whatever its path names later.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function fieldsOf(stats: Stats): StatFields;
-/// ```
-pub(crate) fn fields_of(metadata: &std::fs::Metadata) -> StatFields {
-    return StatFields {
-        ctime_seconds: metadata.ctime() as u32,
-        ctime_nanos: metadata.ctime_nsec() as u32,
-        mtime_seconds: metadata.mtime() as u32,
-        mtime_nanos: metadata.mtime_nsec() as u32,
-        dev: metadata.dev() as u32,
-        ino: metadata.ino() as u32,
-        uid: metadata.uid(),
-        gid: metadata.gid(),
-        size: metadata.size() as u32,
-    };
-}
-
-/// What:
-///  How the rewrite of one index file is protected from a Git command that writes the same index.
-///  `Arc<str>` shares the token of the migration whose lock is already held,
-///  because a rewrite that runs as a job of the blocking pool must own what it reads.
-/// Why:
-///   Git replaces an index through `index.lock`.
-/// A rewrite that runs by itself takes that lock,
-/// as Git does,
-/// before it
-///  reads the index and holds it until the new index is in place.
-/// The migration already holds the lock of every index
-///  while it completes the new checkout,
-/// so its rewrite uses the held lock instead of creating one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type IndexLock = { kind: 'acquire' } | { kind: 'held'; token: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IndexLock {
-    /// Create `index.lock` for the duration of the rewrite and remove it after.
-    Acquire,
-    /// `index.lock` holds this token already;
-    /// leave it in place for its owner to release.
-    Held(std::sync::Arc<str>),
-}
-
-/// What:
-///  What a rewrite of one index file is told beyond the paths.
-///  `&'a [PathBuf]` borrows the list of trees.
-/// Why:
-///   The lock decides how the index is protected,
-/// the references decide which entries Git recorded for the files the
-///  copy was made from,
-/// and the hash length (read from the repository's configuration) decides how an index with an
-///  all-zero checksum is read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RefreshOptions = { lock: IndexLock; references: string[]; hashLength?: number };
-/// ```
-#[derive(Clone, Debug)]
-pub struct RefreshOptions<'a> {
-    /// How the index is locked while it is rewritten.
-    pub lock: IndexLock,
-    /// Trees whose files the index may describe (the tree the copy was made from).
-    /// An entry is refreshed only if the
-    ///  file in one of them still has the stat fields the entry records;
-    /// empty means every entry may be refreshed.
-    pub references: &'a [PathBuf],
-    /// The repository's hash length in bytes,
-    /// when known.
-    pub hash_length: Option<usize>,
-}
-
-/// What:
-///  Whether a file's present stat equals what an entry recorded (the device is not compared:
-/// a subvolume has its own).
-/// Why:
-///   A recorded nanosecond count of zero is what a Git built without nanosecond support wrote for a time it could not
-///  express,
-/// so it matches any present count;
-/// this is Git's own reading of such an entry,
-/// and it is not a proof
-///  that the file holds the bytes the entry names (`matches_stored_exactly` is that proof).
-pub(crate) fn matches_stored(
-    now: &StatFields,
-    stored: &StoredStat,
-) -> bool {
-    return now.size == stored.size
-        && now.ino == stored.ino
-        && now.uid == stored.uid
-        && now.gid == stored.gid
-        && now.ctime_seconds == stored.ctime_seconds
-        && (stored.ctime_nanos == 0 || now.ctime_nanos == stored.ctime_nanos)
-        && now.mtime_seconds == stored.mtime_seconds
-        && (stored.mtime_nanos == 0 || now.mtime_nanos == stored.mtime_nanos);
-}
-
-/// What:
-///  Whether a file's present stat equals what an entry recorded,
-/// with the change and modification times
-///  agreeing to the nanosecond,
-/// so no recorded field was matched as a wildcard and the file is provably the
-///  one the entry described.
-/// Why:
-///   A recorded count of zero is what a Git built without nanosecond support wrote for a time it could not
-///  express,
-/// and the recorded comparison reads zero as any present value;
-/// such an entry equals a file of the
-///  same size,
-/// inode and second even after an edit of the same length,
-/// so a caller that would skip reading the
-///  file must require the counts themselves to agree.
-/// A file whose time is exactly on a second records zero as
-///  well,
-/// and its zero equals the record's,
-/// which is an exact match of what the index holds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// matchesStoredExactly(now, stored); // every recorded field, the nanosecond counts included, is equal
-/// ```
-pub(crate) fn matches_stored_exactly(
-    now: &StatFields,
-    stored: &StoredStat,
-) -> bool {
-    return now.ctime_nanos == stored.ctime_nanos
-        && now.mtime_nanos == stored.mtime_nanos
-        && matches_stored(now, stored);
-}
 
 /// What:
 ///  Rewrite one index file in place and report what happened in one line.
@@ -371,29 +151,6 @@ pub fn refresh_index_file_seamed(
     after_rewrite: &mut dyn FnMut(),
 ) -> String {
     return refresh_index_file_report_seamed(index_path, tree, options, after_rewrite).line;
-}
-
-/// How a refresh ended,
-/// apart from the words that describe it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RefreshStatus {
-    /// The new index was installed.
-    Refreshed,
-    /// There is no index file,
-    /// which is nothing to refresh and no failure.
-    NoIndex,
-    /// The index was left as it was,
-    /// for the reason in the line.
-    Skipped,
-}
-
-/// A refresh's line for the person and its status for the caller.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RefreshReport {
-    /// The one-line report.
-    pub line: String,
-    /// How it ended.
-    pub status: RefreshStatus,
 }
 
 /// `refresh_index_file_with` that says how it ended,
@@ -464,22 +221,6 @@ pub fn refresh_index_file_report_seamed(
     };
 }
 
-/// Remove the file at `path` if it is the very file `held` is open on (same device and inode).
-fn remove_if_same_file(
-    path: &Path,
-    held: &std::fs::File,
-) {
-    let same: bool = match (std::fs::symlink_metadata(path), held.metadata()) {
-        (Ok(named), Ok(own)) => {
-            named.dev() == own.dev() && named.ino() == own.ino() && named.file_type().is_file()
-        }
-        _ => false,
-    };
-    if same {
-        let _removed = std::fs::remove_file(path);
-    }
-}
-
 /// The read,
 /// rewrite and install of one index while its lock is held;
 /// `lock_file` is the lock when this call made it.
@@ -527,213 +268,6 @@ fn rewrite_under_lock(
 }
 
 /// What:
-///  The stat fields of a path as the tree being rewritten reports them now.
-/// Why:
-///   The rewrite asks for each entry's path;
-/// the tree it describes is the only state the answer needs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class StatOfTree implements StatLookup { constructor(readonly tree: string) {} statNow(path) { return statFields(this.tree, path); } }
-/// ```
-struct StatOfTree<'a> {
-    /// The tree the index describes.
-    tree: &'a Path,
-}
-
-impl StatLookup for StatOfTree<'_> {
-    fn stat_now(
-        &mut self,
-        path: &[u8],
-    ) -> Option<StatFields> {
-        return stat_fields(self.tree, path);
-    }
-}
-
-/// What:
-///  Whether an entry still agrees with the trees the checkout was copied from.
-/// Why:
-///   The rewrite trusts an entry's stored fields only for a file that is still the one the copy was made from,
-/// which an
-///  entry that recorded no nanoseconds cannot prove;
-/// such an entry keeps its fields and Git hashes its file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// class AgreeWithReferences implements StatTrust { isTrusted(path, stored) { return agreesWithAReference(this.references, path, stored); } }
-/// ```
-struct AgreeWithReferences<'a> {
-    /// The trees the checkout was copied from,
-    /// one per reference.
-    references: &'a [PathBuf],
-}
-
-impl StatTrust for AgreeWithReferences<'_> {
-    fn is_trusted(
-        &mut self,
-        path: &[u8],
-        stored: &StoredStat,
-    ) -> bool {
-        return agrees_with_a_reference(self.references, path, stored);
-    }
-}
-
-/// The rewrite of the stat fields of `bytes` and the install of the result over `index_path`,
-/// with `paths` naming the index,
-/// the tree it
-///  describes and the lock file.
-fn rewrite_and_install(
-    bytes: &[u8],
-    index_mtime: Option<(u32, u32)>,
-    paths: [&Path; 3],
-    options: &RefreshOptions<'_>,
-    lock_file: Option<&mut std::fs::File>,
-) -> (String, RefreshStatus) {
-    let [index_path, tree, lock_path]: [&Path; 3] = paths;
-    let context: RewriteContext = RewriteContext {
-        hash_length: options.hash_length,
-        index_mtime,
-    };
-    let outcome: IndexOutcome = rewrite_index_stat_with(
-        bytes,
-        &context,
-        &mut StatOfTree {
-            tree,
-        },
-        &mut AgreeWithReferences {
-            references: options.references,
-        },
-    );
-    let (rewritten, updated, total): (Vec<u8>, usize, usize) = match outcome {
-        IndexOutcome::Rewritten {
-            bytes: new_bytes,
-            updated,
-            total,
-        } => (new_bytes, updated, total),
-        IndexOutcome::Skipped(reason) => {
-            return (format!("skipped ({reason})"), RefreshStatus::Skipped);
-        }
-    };
-    // With its own lock the new index is written into the lock file and the lock is renamed over the index, as Git does.
-    // Under a held lock the lock stays, and a sibling file is renamed over the index instead.
-    let installed: std::io::Result<()> = match lock_file {
-        Some(file) => write_sync_rename(file, rewritten.as_slice(), lock_path, index_path),
-        None => stage_and_replace(index_path, rewritten.as_slice()),
-    };
-    if let Err(error) = installed {
-        return (
-            format!("skipped (cannot install the new index: {error})"),
-            RefreshStatus::Skipped,
-        );
-    }
-    return (
-        format!("{updated} of {total} entries refreshed"),
-        RefreshStatus::Refreshed,
-    );
-}
-
-/// Whether some reference tree has the file `path` as the entry `stored` records;
-/// with no reference tree,
-/// every entry agrees.
-///
-/// A reference tree proves which bytes the copy was made from only where the entry recorded its times to the
-///  nanosecond:
-/// an entry that recorded none keeps its own fields,
-/// which no longer match the copy,
-/// so Git hashes the file
-///  instead of trusting fields nothing proved.
-fn agrees_with_a_reference(
-    references: &[PathBuf],
-    path: &[u8],
-    stored: &StoredStat,
-) -> bool {
-    if references.is_empty() {
-        return true;
-    }
-    for reference in references {
-        if let Some(now) = stat_fields(reference.as_path(), path)
-            && matches_stored_exactly(&now, stored)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// Write `bytes` into `file`,
-/// flush it to disk,
-/// then rename `from` over `to`;
-/// each step runs only if the one before it worked.
-fn write_sync_rename(
-    file: &mut std::fs::File,
-    bytes: &[u8],
-    from: &Path,
-    to: &Path,
-) -> std::io::Result<()> {
-    write_all_then_sync(file, bytes)?;
-    return std::fs::rename(from, to);
-}
-
-/// What:
-///  Write `bytes` to a staging file beside `index_path`,
-/// created exclusively,
-/// and rename it over the index.
-/// Why:
-///   Under a held lock no Git command writes the index,
-/// but the staging name is still checked:
-/// it is created with
-///  `O_EXCL`,
-/// which fails on an existing file or link instead of following or truncating it,
-/// written and synced through its
-///  own descriptor,
-/// and renamed only while the name still holds that file.
-/// A staging file that cannot be proven the call's
-///  is left where it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await stageAndReplace(indexPath, bytes);
-/// ```
-fn stage_and_replace(
-    index_path: &Path,
-    bytes: &[u8],
-) -> std::io::Result<()> {
-    let mut sibling_name: std::ffi::OsString = index_path.as_os_str().to_os_string();
-    sibling_name.push(".cli-git-new");
-    let sibling: PathBuf = PathBuf::from(sibling_name);
-    let mut staged: std::fs::File = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&sibling)?;
-    let written: std::io::Result<()> =
-        write_sync_and_rename_if_same(&mut staged, bytes, sibling.as_path(), index_path);
-    if written.is_err() {
-        remove_if_same_file(sibling.as_path(), &staged);
-    }
-    return written;
-}
-
-/// Write `bytes` into `staged`,
-/// flush it,
-/// and rename `sibling` over `index_path` only while `sibling` still names `staged`.
-fn write_sync_and_rename_if_same(
-    staged: &mut std::fs::File,
-    bytes: &[u8],
-    sibling: &Path,
-    index_path: &Path,
-) -> std::io::Result<()> {
-    write_all_then_sync(staged, bytes)?;
-    let named = std::fs::symlink_metadata(sibling)?;
-    let own = staged.metadata()?;
-    if named.dev() != own.dev() || named.ino() != own.ino() {
-        return Err(std::io::Error::other(
-            "the staging file was replaced while the index was written",
-        ));
-    }
-    return std::fs::rename(sibling, index_path);
-}
-
-/// What:
 ///  Rewrite one index file in place under a lock,
 /// trusting every entry;
 /// see `refresh_index_file_with`.
@@ -776,55 +310,6 @@ pub fn refresh_index_file(
     tree: &Path,
 ) -> String {
     return refresh_index_file_locked(index_path, tree, IndexLock::Acquire);
-}
-
-/// What:
-///  The repository's hash length in bytes from its configuration file:
-/// 32 when `extensions.objectformat` is `sha256`,
-///  20 when the file has no such setting,
-/// nothing when the file cannot be read.
-/// Why:
-///   An index does not say which hash it uses;
-/// the configuration does.
-/// The reading is the plain `[section]` and
-///  `key = value` grammar,
-/// case-insensitive for section and key names,
-/// without includes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function repositoryHashLength(gitDirectory: string): 20 | 32 | undefined;
-/// ```
-pub fn repository_hash_length(git_directory: &Path) -> Option<usize> {
-    let text: String = String::from_utf8_lossy(
-        read_plain_file(&git_directory.join("config"), SMALL_FILE_LIMIT)
-            .ok()?
-            .as_slice(),
-    )
-    .into_owned();
-    let mut in_extensions: bool = false;
-    for raw in text.lines() {
-        let line: &str = raw.trim();
-        if let Some(header) = line.strip_prefix('[') {
-            in_extensions = match header.split(']').next() {
-                Some(name) => name.trim().eq_ignore_ascii_case("extensions"),
-                None => false,
-            };
-            continue;
-        }
-        if !in_extensions {
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        if key.trim().eq_ignore_ascii_case("objectformat")
-            && value.trim().eq_ignore_ascii_case("sha256")
-        {
-            return Some(32);
-        }
-    }
-    return Some(20);
 }
 
 /// Index file controls stay out of the release executable.

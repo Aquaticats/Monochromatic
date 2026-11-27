@@ -42,7 +42,10 @@ and where that is recorded" names each act,
 its command and the record that carries it.
 
 This revision answers the diff check of the previous round
-(`~/temp/agent/gate-review-zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/review-diff-check-after-the-answers.md`),
+(`~/temp/agent/gate-review-zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/review-diff-check-after-the-answers.md`;
+scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 which returned "fit after the listed fixes" with one high finding:
 the previous round had written that v262 refuses `reload-or-restart` on a boot unit without `ExecReload=`,
 and called the project's lost-event record unsupported.
@@ -3859,7 +3862,10 @@ with its committer time from `git log --format=%cI`:
   its setup is named as three steps,
   and F31 cites the sibling's heading whole.
   The searches that prove each are
-  `~/temp/agent/zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/proof-of-the-last-fixes.md`.
+  `~/temp/agent/zfs-private-propagation-after-replacement-mount-design-2026-11-22/keep/proof-of-the-last-fixes.md`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - `7bcec9b588`,
   2026-11-22T22:11:13-05:00:
   this list gained the previous tip and this round's own commit.
