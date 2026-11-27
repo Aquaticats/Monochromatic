@@ -1121,8 +1121,8 @@ since the directory's absence is the same answer for both.
 Two exist:
 asking the manager whether the unit is still loaded
 (`systemctl --user show <unit> --property=LoadState --value`),
-which is the second question the alpha.12 release removed because it cost a scoped run a program start
-(see "The cost of the retirement"),
+which the alpha.12 release asked and a later release removed because it cost a scoped run a program start
+(see "What cargo-shadow does now", the measurement of the cost),
 or a record the run makes of the group it made,
 so that an absent directory afterwards is a group the manager collected
 and an absent directory with no such record is one that was never made.
