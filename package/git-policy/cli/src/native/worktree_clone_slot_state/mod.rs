@@ -74,6 +74,7 @@ pub mod slot_state_readings;
 pub mod slot_state_report;
 
 pub use slot_state_classification::{
+    ProofStoppedBy,
     SlotRouteState,
     classify_slot,
     slot_name_of,
