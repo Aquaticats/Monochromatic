@@ -202,6 +202,7 @@ fn stale(
         path: Some(EventPath::display(&path_of(name))),
         location: None,
         fix_available: true,
+        commit_correction: None,
     };
 }
 

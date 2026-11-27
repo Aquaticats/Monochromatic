@@ -104,6 +104,10 @@ pub struct PolicyFinding {
     pub location: Option<FindingLocation>,
     /// Whether the policy proposed a correction for this finding.
     pub fix_available: bool,
+    /// What a commit that takes the bytes this finding names does with them,
+    ///  when the hint of its code has to say it;
+    ///  `None` for a finding whose hint never speaks of a commit.
+    pub commit_correction: Option<crate::event_hints::CommitCorrection>,
 }
 
 /// What:
@@ -560,6 +564,7 @@ pub fn run_policy_stage(
                 path: finding.path,
                 location: finding.location,
                 fix_available: finding.fix_available,
+                commit_correction: finding.commit_correction,
             }));
         }
         // A `warn` that removes the policy's protection is reported even when nothing was found.
