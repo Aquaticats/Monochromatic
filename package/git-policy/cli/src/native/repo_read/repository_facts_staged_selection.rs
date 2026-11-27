@@ -28,16 +28,14 @@
 /// import { stagedSelection } from './repository_facts.ts';
 /// ```
 use crate::git_metadata::MetadataOutput;
-use crate::repository_facts::{
-    GitFacts,
-    RepositoryFacts,
-};
+use crate::repository_facts_git_provider::GitFacts;
 use crate::rule_add_explicit::{
     StagedSelection,
     selection_query_arguments,
     whole_worktree_query_arguments,
 };
 use crate::rule_worktree_dirty::nul_separated_paths;
+use crate::the_facts_a_repository_reads::RepositoryFacts;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 

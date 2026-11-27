@@ -55,6 +55,7 @@ use crate::lean_identity::Deadline;
 /// Imports the names this file uses from `crate::lean_removal`.
 use crate::lean_removal::{
     TRASH_DIRECTORY_NAME,
+    allocated_bytes_of,
     empty_trash,
     modes_named,
 };
@@ -214,7 +215,7 @@ pub fn collect_idle_trees(
             continue;
         }
         if dry_run {
-            let bytes: u64 = tree_bytes(&tree.path, deadline).bytes;
+            let bytes: u64 = tree_bytes(&tree.path, deadline, allocated_bytes_of).bytes;
             emit(
                 log,
                 format!(

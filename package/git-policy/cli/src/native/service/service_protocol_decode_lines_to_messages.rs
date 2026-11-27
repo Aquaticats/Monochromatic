@@ -16,6 +16,9 @@
 //!   one line read as a service message,
 //!   with every number,
 //!   name and figure of a landing checked.
+//! - `service_protocol_forgetting_programs.rs`:
+//!   the one message that names the push records which can no longer run,
+//!   read as a message of its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

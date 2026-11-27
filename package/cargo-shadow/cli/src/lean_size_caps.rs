@@ -27,7 +27,10 @@ use crate::lean_identity::{
     Identity,
 };
 /// Imports the names this file uses from `crate::lean_sizes`.
-use crate::lean_sizes::add_tree_bytes;
+use crate::lean_sizes::{
+    ByteCount,
+    add_tree_bytes,
+};
 /// Imports the names this file uses from `crate::lean_unit_reader`.
 use crate::lean_unit_reader::ProfileUnits;
 /// Imports the names this file uses from `crate::lean_unit_removal`.
@@ -39,12 +42,18 @@ use crate::lean_unit_removal::{
 /// The cap of one profile directory.
 #[derive(Clone, Copy, Debug)]
 pub struct SizeCap {
-    /// The most disk bytes the units and incremental directories of one profile directory may occupy.
+    /// The most bytes the units and incremental directories of one profile directory may occupy,
+    /// as `count_bytes` counts them.
     pub cap_bytes: u64,
     /// Entries touched within this many seconds of now are never evicted.
     pub grace_seconds: i64,
     /// The deadline of the size walks.
     pub deadline: Deadline,
+    /// How the walks count each entry's bytes,
+    /// which the tool sets to the disk's own count (`allocated_bytes_of`)
+    /// and a control sets to the length,
+    /// so its cap and the size the plan measures of the same files do not depend on when the file system accounts them.
+    pub count_bytes: ByteCount,
 }
 
 /// One thing that can be evicted.
@@ -92,13 +101,14 @@ impl Planner for SizeCap {
         for (index, unit) in found.units.iter().enumerate() {
             let mut bytes: u64 = 0;
             for path in &unit.paths {
-                bytes += add_tree_bytes(path, &mut seen, &self.deadline).bytes;
+                bytes += add_tree_bytes(path, &mut seen, &self.deadline, self.count_bytes).bytes;
             }
             total += bytes;
             sized.push((unit.invoked, bytes, Entry::Unit(index)));
         }
         for (index, directory) in found.incremental.iter().enumerate() {
-            let bytes: u64 = add_tree_bytes(&directory.path, &mut seen, &self.deadline).bytes;
+            let bytes: u64 =
+                add_tree_bytes(&directory.path, &mut seen, &self.deadline, self.count_bytes).bytes;
             total += bytes;
             sized.push((directory.modified, bytes, Entry::Incremental(index)));
         }

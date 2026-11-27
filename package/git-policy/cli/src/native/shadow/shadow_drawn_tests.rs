@@ -19,11 +19,9 @@ use crate::service_protocol::{
     ServiceMessage,
     encode_service,
 };
-use crate::shadow_create::{
-    ShadowTemplate,
-    create_shadow_template,
-    may_be_handed_a_tree,
-};
+use crate::shadow_create::may_be_handed_a_tree;
+use crate::shadow_create_template::ShadowTemplate;
+use crate::shadow_create_the_commit_free_parts::create_shadow_template;
 use crate::shadow_pool::{
     fill,
     members,
