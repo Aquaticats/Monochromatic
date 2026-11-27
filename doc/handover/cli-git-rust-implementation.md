@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:03:16-05:00
+## The state at 2026-11-27T13:07:03-05:00
 
-`main` was `b596c35090`.
+`main` was `e937565658`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -152,8 +152,13 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   `a-shell-alias-is-read-from-where-git-runs-it-and-five-more-spellings`;
   `every-sentence-that-names-a-process-shows-its-name-safely`;
   `two-deletions-of-repeated-lines-never-write-back-a-line-a-side-removed`;
-  and `four-small-points-of-the-behaviour-read`.
-  One whole gate on `main` and then `0.6.1-alpha.50` follow their merges and the structure pass's;
+  and `four-small-points-of-the-behaviour-read`;
+- for the wrapper's `0.6.1-alpha.49` structure pass,
+  two rounds started 2026-11-27T13:05:58-05:00 from one list,
+  each named `wrapper-alpha-49-release-pass-` and then:
+  `the-surface-control-sees-every-shape-of-published-name`
+  and `the-list-guards-ban-every-spelling-and-excuse-uses-not-files`.
+  One whole gate on `main` and then `0.6.1-alpha.50` follow the merges of these six rounds;
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -166,13 +171,13 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
   the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
   the items a split had made bare `pub` are narrowed,
-  28 platform gates are back,
+  the seven platform gates the splits dropped are back,
   and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
   a merge record that cannot be read says which file to remove,
   each batch of the service's work reads the room it has when it starts,
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
-  two reads of it run.
+  both reads of it have returned.
 - nothing for `cargo-shadow`:
   every round of its `0.1.5-alpha.13` pass is merged,
   and `0.1.5-alpha.14` is released
@@ -367,13 +372,10 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Three reads run as background agents of the coordinating session,
+Two reads run as background agents of the coordinating session,
 each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review):
-the wrapper's `0.6.1-alpha.49` structure pass,
-of the reach and platform gates and the list guards
-(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`),
 the linter's `0.5.2-alpha.20` and `cargo-shadow`'s `0.1.5-alpha.14`,
 at the paths this section gives beside each release.
 The coordinator rewrites what lasts from each into this file before scratch expires.
@@ -417,6 +419,47 @@ the same in alpha.48,
 in 11 of 199 and 15 of 521 answers of a seeded search over unusually repetitive files.
 That last one lands wrong text with no marker,
 which is what the merge pass's own rule exists to stop.
+
+What the wrapper's alpha.49 structure pass found
+(`~/temp/agent/git-policy-cli-alpha-49-release-review-reach-and-gates-2026-11-27/keep/review.md`),
+on the two merges that claim to change no behaviour (`02d0a6e8e6` and `97d9afb21c`):
+no High finding,
+two Medium and four Low,
+and no change of behaviour on Linux from either merge.
+A Linux release build differs through `02d0a6e8e6` in two ways only,
+argued from the source text and not from a build:
+one unused constant leaves it,
+and one tag constant goes from 141 copies to 123 with every value the same.
+Every file `97d9afb21c` changed compiles only in a test build.
+Of 61 commands run through alpha.48,
+alpha.49 and alpha.49 again as the control,
+57 were identical and the control differed in none;
+the four that differed are the merge pass's intended change.
+Its Medium findings,
+each with a round:
+the control that fails when a name becomes nameable from outside the crate cannot see a function with `async` before `fn`
+(154 of 155 such published names have no line in its list),
+a name another listed item already has,
+a field,
+a method,
+or a `pub use` written over several lines;
+and the guards that now read the folders the splits made gained scope and lost two things:
+the hook ban no longer fails on `libc::symlink(` or on an imported bare `symlink(`,
+and an excuse covers every use of a text in its file.
+Both rest on Python ports of the Rust controls' text,
+not on runs of the controls,
+so each round first plants the shapes against the Rust controls.
+Its Low findings:
+the merge restored seven platform gates
+(seven such attributes in its diff outside tests,
+counted again by the coordinator),
+where the commit says 29 items and this file said 28;
+two merges outside both passes' lists change release code
+(`1cda665610` and `0dda4eccb7`),
+and the behaviour pass read both as identity changes;
+nothing shows that the crate builds on a target other than Linux,
+and the README does not say which targets build;
+and the package guide records none of the rules the two merges brought.
 
 The whole gate on `main` at `97d9afb21c` passed
 (unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
