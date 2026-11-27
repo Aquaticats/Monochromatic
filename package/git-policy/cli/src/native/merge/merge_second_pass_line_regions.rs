@@ -3,6 +3,9 @@
 //! left,
 //! where a region sits in the three stages,
 //! and which of a region's split-shaped lines is Git's own.
+//!  A region's place in its stage,
+//!  and the lines counted between two places,
+//!  are `merge_second_pass_stage_line_places.rs`.
 //! Why:
 //!   The word pass runs on the regions Git could not settle and on nothing else,
 //! so a region has to be split out of Git's answer with its three
@@ -37,6 +40,14 @@
 //! const cut = cut(gitZdiff3Merge, labels); // settled.length === regions.length + 1
 //! const regions = cut.place([base, ours, theirs]); // each region with the place of each side in its stage
 //! ```
+
+/// Where a run of lines sits in one stage,
+/// and the byte that ends a line of it.
+use crate::merge_second_pass_stage_line_places::{
+    LINE_END,
+    is_line_end,
+    offset_from_line,
+};
 
 /// One conflict region of a `--zdiff3` merge,
 /// cut into the three sides Git kept for the person,
@@ -115,9 +126,6 @@ pub struct Cut {
 /// which is Git's default (`merge.conflictStyle` writes `<<<<<<<`).
 const MARKER_WIDTH: usize = 7;
 
-/// The byte that ends a line.
-const LINE_END: u8 = b'\n';
-
 /// The byte that comes before the line end of a file whose lines end with both.
 const CARRIAGE_RETURN: u8 = b'\r';
 
@@ -134,11 +142,6 @@ const CARRIAGE_RETURN: u8 = b'\r';
 /// and only a file whose answer holds more split-shaped lines than this inside regions Git left is refused
 /// and kept as Git left it.
 const SPLIT_TRIES: usize = 256;
-
-/// Whether one byte ends a line.
-fn is_line_end(byte: &u8) -> bool {
-    return *byte == LINE_END;
-}
 
 /// What:
 ///  Which marker line this is:
@@ -507,98 +510,6 @@ impl Cut {
         }
         return Some(placed);
     }
-}
-
-/// What:
-///  The byte offset of `needle` in `text` at or after `from`,
-/// searched only at the start of a line.
-/// Why:
-///   A region's text is a run of whole lines of the stage it came from,
-/// so a search that lands mid-line would name a place the region cannot start at.
-/// An empty needle stands for a region with no line on that side,
-/// which sits exactly where the search starts.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function offsetFromLine(text: Uint8Array, needle: Uint8Array, from: number): number | undefined;
-/// ```
-pub fn offset_from_line(
-    text: &[u8],
-    needle: &[u8],
-    from: usize,
-) -> Option<usize> {
-    if needle.is_empty() {
-        return Some(from);
-    }
-    if needle.len() > text.len() {
-        return None;
-    }
-    let mut at: usize = 0;
-    while at < text.len() {
-        if at >= from && text.len() - at >= needle.len() && &text[at..at + needle.len()] == needle {
-            return Some(at);
-        }
-        let offset: usize = text[at..].iter().position(is_line_end)?;
-        at += offset + 1;
-    }
-    return None;
-}
-
-/// What:
-///  How many lines of `text` end at or after byte `from` and before byte `to`.
-/// Why:
-///   A region's place never moves backwards,
-/// so the lines above it are the ones counted for the region before it plus the ones between the two places,
-/// and a report over many parts costs the stage's lines once:
-/// counting them from the top of the stage for every part cost the stage per part.
-/// A place past the end counts the lines up to the end,
-/// as `lines_before` does.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const linesBetween = (text, from, to) => text.subarray(Math.min(from, text.length), Math.max(Math.min(from, text.length), Math.min(to, text.length))).filter((b) => b === 10).length;
-/// ```
-pub fn lines_between(
-    text: &[u8],
-    from: usize,
-    to: usize,
-) -> usize {
-    let start: usize = from.min(text.len());
-    let end: usize = to.min(text.len()).max(start);
-    let mut lines: usize = 0;
-    for byte in &text[start..end] {
-        if *byte == LINE_END {
-            lines += 1;
-        }
-    }
-    return lines;
-}
-
-/// What:
-///  How many lines of `text` come before byte `start`.
-/// Why:
-///   A region's line span inside the region,
-/// moved to the file,
-/// needs the number of lines the region starts after.
-/// The report counts that incrementally from region to region (`lines_between`),
-/// so this whole-file count is what the controls compare the carried one against.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const linesBefore = (text, start) => text.subarray(0, start).filter((b) => b === 10).length;
-/// ```
-#[cfg(test)]
-pub fn lines_before(
-    text: &[u8],
-    start: usize,
-) -> usize {
-    let mut lines: usize = 0;
-    for byte in &text[..start.min(text.len())] {
-        if *byte == LINE_END {
-            lines += 1;
-        }
-    }
-    return lines;
 }
 
 /// The cutting of an answer into regions with their splits to choose,

@@ -20,18 +20,13 @@
 //! mapping in `crate::row_map`.
 
 /// The diagnostic records and their severities as the Language module reports them.
-use crate::language::diagnostics::{
-    DiagnosticsSnapshot,
-    Severity,
-};
+use crate::language::diagnostics::DiagnosticsSnapshot;
 /// The hint records as the Language module reports them.
 use crate::language::hints::HintsSnapshot;
 /// File generation and content revision of the text a snapshot describes.
 use crate::language::identity::DocumentStamp;
 /// The rows a line shows above its code row.
 use crate::virtual_row::{
-    Block,
-    HintPlace,
     MessageRow,
     message_rows,
 };
@@ -88,9 +83,6 @@ use coverage::Coverage;
 ///  default,
 ///  and the text of one problem.
 mod severity;
-/// The default for an omitted severity,
-///  used when the diagnostics are indexed.
-use severity::shown;
 /// What:
 ///  `pub use` re-exports the severity helpers under this module's name.
 /// Why:
@@ -106,178 +98,49 @@ pub use severity::{
     severity_name,
 };
 
+/// The records of one frame and one store:
+///  marks,
+/// problems,
+/// labels,
+/// visible parts,
+///  held space,
+/// packed rows and assembly work.
+mod records;
+
+/// The flattened diagnostics,
+/// their sort keys,
+///  and the reach index a window search skips by.
+mod problem_index;
+
+/// The sort keys and the reach index one diagnostics snapshot is assembled into.
+use problem_index::{
+    first_reaching,
+    indexed,
+    severity_order,
+};
 /// What:
-///  One diagnostic as a frame underlines it;
-///  `usize` is the character index type Helix ropes use
-///       (siblings `u32`,
-///  `u64`).
-///  `Copy` lets the record be duplicated like a number.
+///  `pub use` re-exports the records under this module's name.
 /// Why:
-///  Underlining needs the range and severity only;
-///  comparing these decides whether pixels change.
+///  Callers written against `annotation` keep their imports while the records live in their own file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Mark = { start: number; end: number; severity: Severity };
+/// export { AssemblyWork, Held, Label, Mark, Problem, Visible } from './records';
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Mark {
-    /// First marked character.
-    pub start: usize,
-    /// Character after the marked range;
-    ///  equal to `start` for a point.
-    pub end: usize,
-    /// Severity,
-    ///  with an omitted severity shown as a warning,
-    ///  as Helix shows it.
-    pub severity: Severity,
-}
-
-/// What:
-///  One diagnostic with the text its message rows show;
-///  `Option<String>` is text or nothing.
-/// Why:
-///  The rows need the source,
-///  code,
-///  and message,
-///  which underlining does not.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Problem = { mark: Mark; source: string; code?: string; message: string };
-/// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Problem {
-    /// Range and severity.
-    pub mark: Mark,
-    /// The `source` the server named,
-    ///  for example `rustc`;
-    ///  empty when it named none.
-    pub source: String,
-    /// The server's rule or error code.
-    pub code: Option<String>,
-    /// The server's message,
-    ///  possibly several lines.
-    pub message: String,
-}
-
-/// One hint label:
-///  the character it annotates and its trimmed text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Label {
-    /// Character offset the server placed the hint before.
-    pub position: usize,
-    /// The server's label without its padding spaces.
-    pub text: String,
-}
-
-/// What:
-///  Everything one frame paints from the snapshots;
-///  `Vec<T>` is a growable list
-///       (siblings:
-///  fixed `[T; N]`,
-///  borrowed `&[T]`).
-///  `Default` builds the empty value.
-/// Why:
-///  Two frames with equal visible annotations have equal annotation pixels,
-///  so this is the frame-stamp key.
-///      Blocks are shared (`Arc`),
-///  so taking the visible part copies pointers,
-///  not labels and messages.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Visible = { blocks: Block[]; marks: Mark[] };
-/// ```
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Visible {
-    /// Blocks of virtual rows of the materialized lines,
-    ///  in line order.
-    pub blocks: Vec<Arc<Block>>,
-    /// Diagnostics touching the materialized rows,
-    ///  in start order.
-    pub marks: Vec<Mark>,
-}
-
-/// What:
-///  Space held open above one line after an external change:
-///  the line and the heights of its former
-///       hint rows and message rows in logical pixels;
-///  `f32` is a 32-bit float (sibling `f64`).
-/// Why:
-///  Hints and messages of the old text are never painted for the new one,
-///  but their space stays until
-///      annotations of the new text arrive,
-///  so the text does not jump when they vanish and again when they return.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Held = { line: number; hints: number; messages: number };
-/// ```
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Held {
-    /// Zero-based line of the new text.
-    pub line: usize,
-    /// Height held for hint rows.
-    pub hints: f32,
-    /// Height held for message rows.
-    pub messages: f32,
-}
-
-/// What:
-///  The hint rows of one line packed at one wrap width.
-/// Why:
-///  A new width makes the packing of a line stale;
-/// the lines near the view are packed again at once,
-///  and the others keep this packing until the view comes near them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Placed = { wrap?: number; rows: number; hints: HintPlace[] };
-/// ```
-#[derive(Clone, Debug)]
-struct Placed {
-    /// The wrap width in logical pixels the line was packed at,
-    /// or nothing while the view had none.
-    wrap: Option<f32>,
-    /// Number of hint rows.
-    rows: usize,
-    /// The hints with their rows and x.
-    hints: Vec<HintPlace>,
-}
-
-/// The message rows of one line broken to one wrap width.
-#[derive(Clone, Debug)]
-struct Fitted {
-    /// The wrap width in logical pixels the rows were broken at.
-    wrap: Option<f32>,
-    /// The rows.
-    rows: Vec<MessageRow>,
-}
-
-/// What:
-///  How much shaping assembling blocks has done so far:
-///  lines whose hints were packed,
-///  message rows whose width was measured,
-///  and message rows that had to be broken to a width.
-/// Why:
-///  Packing and breaking run on the window thread when the text area changes width,
-///  and the structural tests compare these counts before and after to prove what a resize costs.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AssemblyWork = { packed: number; measured: number; broken: number };
-/// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct AssemblyWork {
-    /// Lines whose hints were packed against the shaped line.
-    pub packed: u64,
-    /// Message rows shaped to learn their width.
-    pub measured: u64,
-    /// Message rows wider than the text area,
-    /// broken by shaping.
-    pub broken: u64,
-}
+pub use records::{
+    AssemblyWork,
+    Held,
+    Label,
+    Mark,
+    Problem,
+    Visible,
+};
+/// The packing and breaking records of one line,
+/// which this store alone keeps.
+use records::{
+    Fitted,
+    Placed,
+};
 
 /// What:
 ///  The latest snapshots,
@@ -358,122 +221,6 @@ pub struct Annotations {
     /// version: number;
     /// ```
     version: u64,
-}
-
-/// What:
-///  The sort key that orders problems by start,
-///  then end.
-/// Why:
-///  Window and caret searches binary-search by start.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const positionOrder = (problem: Problem): [number, number] => [problem.mark.start, problem.mark.end];
-/// ```
-fn position_order(problem: &Problem) -> (usize, usize) {
-    return (problem.mark.start, problem.mark.end);
-}
-
-/// What:
-///  The sort key that puts the worst problem first.
-///  `&&Problem` is what a sort over a list of lent problems hands its key function.
-/// Why:
-///  The stable sort keeps position order among equal severities.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const severityOrder = (problem: Problem): number => rank(problem.mark.severity);
-/// ```
-fn severity_order(problem: &&Problem) -> u8 {
-    return rank(problem.mark.severity);
-}
-
-/// What:
-///  The index of the first entry of `reach` that is not below `threshold`.
-///  `reach` never decreases,
-///  so a halving search finds it.
-/// Why:
-///  Window and caret searches skip every diagnostic that ends before the window without reading each one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function firstReaching(reach: number[], threshold: number): number;
-/// ```
-fn first_reaching(
-    reach: &[usize],
-    threshold: usize,
-) -> usize {
-    let mut low = 0;
-    let mut high = reach.len();
-    // Each step halves the candidates between `low` and `high`.
-    while low < high {
-        let middle = low + (high - low) / 2;
-        if reach[middle] < threshold {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
-    }
-    return low;
-}
-
-/// What:
-///  Flatten every group of `diagnostics` into one list ordered by start,
-///  then end,
-///  with the furthest end so
-///       far beside it;
-///  `Option<&DiagnosticsSnapshot>` lends a snapshot or nothing;
-///  the answer is a pair (tuple).
-/// Why:
-///  Groups arrive per source,
-///  so their union is sorted once per snapshot instead of on every frame.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function indexed(diagnostics?: DiagnosticsSnapshot): [Problem[], number[]];
-/// ```
-fn indexed(diagnostics: Option<&DiagnosticsSnapshot>) -> (Vec<Problem>, Vec<usize>) {
-    let mut problems = Vec::new();
-    // What: `if let Some(snapshot) = diagnostics` runs only when a snapshot is present.
-    // Why: Absent diagnostics leave the index empty.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // if (diagnostics) { for (const group of diagnostics.groups) ... }
-    // ```
-    if let Some(snapshot) = diagnostics {
-        for group in &snapshot.groups {
-            for item in &group.items {
-                problems.push(Problem {
-                    mark: Mark {
-                        start: item.start,
-                        // A range the server sent backwards still marks its characters.
-                        end: item.end.max(item.start),
-                        severity: shown(item.severity),
-                    },
-                    // `clone` copies the text so the index owns it independently of the snapshot.
-                    source: group.source.clone(),
-                    code: item.code.clone(),
-                    message: item.message.clone(),
-                });
-            }
-        }
-    }
-    // What: `sort_by_key` orders by the pair `(start, end)` that `position_order` builds.
-    // Why: Window and caret searches binary-search by start.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // problems.sort((a, b) => a.mark.start - b.mark.start || a.mark.end - b.mark.end);
-    // ```
-    problems.sort_by_key(position_order);
-    let mut reach = Vec::new();
-    let mut furthest = 0;
-    for problem in &problems {
-        furthest = furthest.max(problem.mark.end);
-        reach.push(furthest);
-    }
-    return (problems, reach);
 }
 
 /// Build,

@@ -1,11 +1,12 @@
 //! What:
 //!  The steps both the recovery of an interrupted merge and the settling of a merge whose branch moved take:
-//! where
-//!  recovery runs Git,
+//!  the paths the merge changes,
 //! what a recovery decides,
-//! how a path of the merge stands in the index and the worktree,
-//! and how an
-//!  index entry or a file is put back.
+//! whether the index already holds the merge,
+//!  the removal of a record,
+//! and the index and file writes both steps reach.
+//! Where those steps run is `merge_isolation_recovery_place.rs`,
+//! and how they judge one changed path is `merge_isolation_the_merges_paths_judged.rs`.
 //! Why:
 //!  `merge_isolation_recovery.rs` recovers records and imports `merge_isolation_moved.rs`,
 //! which settles a moved branch with
@@ -15,24 +16,17 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const standing = standing(change, state); // 'merged' | 'untouched' | ...
+//! const changes = await mergeChanges({ place, root, intent });
+//! const began = await indexHoldsTheMerge({ place, root, oldOid, changes });
 //! ```
 
-/// The jobs of the blocking pool a judgement makes,
-/// so a disk that makes a look or a walk wait holds no worker of the runtime
-/// (`doc/planning/git-policy-cli-full-tokio.md`,
-/// "Blocking files,
-/// fsync and the runtime's own shutdown").
-use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+/// The process's one runtime,
+/// entered by the synchronous face of a read.
 use crate::lazy_runtime::run_on_runtime;
+/// The paths the merge changes and the raw reading of them.
 use crate::merge_isolation_changes::{
     Change,
-    FileIdentity,
-    WorktreeState,
-    file_identity,
     parse_raw_changes,
-    worktree_path,
-    worktree_state_awaiting,
 };
 /// The index reading,
 /// and the take of a worktree file a merge must replace or delete,
@@ -56,6 +50,9 @@ pub use crate::merge_isolation_recovery_install::{
     install_entries_awaiting,
     remove_empty_parents,
 };
+/// Where recovery runs Git,
+/// named here so a caller of the recovery keeps one path.
+pub use crate::merge_isolation_recovery_place::RecoveryPlace;
 pub use crate::merge_isolation_take_asides::{
     Take,
     TakeFailure,
@@ -67,89 +64,24 @@ pub use crate::merge_isolation_take_asides::{
     restore_what_git_did_not_write_awaiting,
     take_aside_awaiting,
 };
+/// How each path of the merge was judged,
+/// named here so a caller of the recovery keeps one path.
+pub use crate::merge_isolation_the_merges_paths_judged::{
+    Judged,
+    Standing,
+    judge_changes_awaiting,
+    standing,
+};
 use crate::recovery_error::{
     RecoveryError,
     io_failure,
 };
-use crate::transaction_git::{
-    GitContext,
-    GitRequest,
-};
+/// The request one Git command of these steps is written as.
+use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
-use std::path::{
-    Path,
-    PathBuf,
-};
-
-/// What:
-///  Where recovery runs Git:
-/// the real Git and its environment,
-/// the directory every command starts in,
-/// and the
-///  repository's common Git directory.
-/// Why:
-///   Recovery of a merge runs from the process directory with the invocation's global options,
-/// whichever worktree the
-///  record belongs to.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RecoveryPlace = { gitPath: string; effectiveCwd: string; commonDir: string };
-/// ```
-#[derive(Clone, Debug)]
-pub struct RecoveryPlace {
-    /// Real Git and its environment.
-    pub git: GitContext,
-    /// Working directory of every Git command.
-    pub cwd: PathBuf,
-    /// The repository's common Git directory.
-    pub common_dir: PathBuf,
-    /// The Git directory of the worktree whose index recovery writes.
-    pub git_dir: PathBuf,
-}
-
-/// What:
-///  The place recovery runs in when a command that started its own merge has to settle it.
-/// Why:
-///   The two directories stay apart:
-///  the worktree's own Git directory is what recovery writes through,
-///  and the repository's common one is where every worktree of it keeps what they share.
-///  A linked worktree's own Git directory lives under the main repository's `worktrees` directory,
-///  and only its `commondir` file names the repository's own
-///  (`foundation/common_directory_of_a_git_directory.rs`),
-///  so filling the common field with the worktree's directory would point every reader of it
-///  at a directory that goes away with the worktree.
-///  The context carries the invocation's common directory;
-///  one built without it still knows the worktree's Git directory,
-/// whose `commondir` names the rest.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const place = { git, cwd: root, commonDir: context.commonDir ?? commonDirectoryOf(gitDir), gitDir };
-/// ```
-impl RecoveryPlace {
-    /// The place a settling command needs,
-    /// from its context and the two directories.
-    pub fn settling(
-        git: &GitContext,
-        git_dir: &Path,
-        root: &Path,
-    ) -> RecoveryPlace {
-        let common_dir: PathBuf = match git.common_dir.as_ref() {
-            Some(found) => found.clone(),
-            None => crate::common_directory_of_a_git_directory::common_directory_of(git_dir),
-        };
-        return RecoveryPlace {
-            git: GitContext {
-                global_prefix: Vec::new(),
-                ..git.clone()
-            },
-            cwd: root.to_path_buf(),
-            common_dir,
-            git_dir: git_dir.to_path_buf(),
-        };
-    }
-}
+/// `Path` is a borrowed filesystem path;
+/// the steps own no path of their own.
+use std::path::Path;
 
 /// What recovery did for one record.
 ///
@@ -304,262 +236,9 @@ pub async fn index_holds_the_merge_awaiting(
     return Ok(!standings.is_empty() && standings.iter().all(is_the_merges_entry));
 }
 
-/// What the worktree holds at a changed path,
-/// against the two sides of the merge.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Standing = 'old' | 'new' | 'foreign';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Standing {
-    /// The old content,
-    /// or no file where the old side has none.
-    Old,
-    /// The new content,
-    /// or no file where the new side has none.
-    New,
-    /// A directory that stands where the merge puts a file,
-    /// and that holds only files of the branch,
-    /// which the merge itself
-    ///  deletes.
-    /// Nothing of anyone's is there to set aside,
-    /// and the merge's own deletions empty it.
-    Directory,
-    /// Anything else.
-    Foreign,
-}
-
-/// What:
-///  Compare a worktree state with the two sides of a change,
-///  content and the mode Git records for it.
-/// Why:
-///   The old side wins a tie:
-/// a change that does not alter the content is not evidence of a started merge.
-/// A mode is read as part of the file,
-/// because Git records it in the index entry:
-/// a file whose bytes
-///  are the branch's and whose executable bit is not has been changed by someone,
-/// and replacing it would erase
-///  that change
-///  (a cross-vendor review of the ninth round,
-/// its seventh finding).
-/// A repository that records no
-///  executable bit reads no mode difference at all,
-/// as Git does there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function standing(change: Change, state: WorktreeState, recordsFileModes: boolean): Standing;
-/// ```
-pub fn standing(
-    change: &Change,
-    state: &WorktreeState,
-    records_file_modes: bool,
-) -> Standing {
-    let old_matches: bool = match state {
-        WorktreeState::Missing => !change.existed(),
-        WorktreeState::Content {
-            object,
-            mode,
-        } => {
-            change.existed()
-                && *object == change.old_oid
-                && (!records_file_modes || *mode == change.old_mode)
-        }
-        WorktreeState::Other => false,
-    };
-    if old_matches {
-        return Standing::Old;
-    }
-    let new_matches: bool = match state {
-        WorktreeState::Missing => !change.exists_after(),
-        WorktreeState::Content {
-            object,
-            mode,
-        } => {
-            change.exists_after()
-                && *object == change.new_oid
-                && (!records_file_modes || *mode == change.new_mode)
-        }
-        WorktreeState::Other => false,
-    };
-    if new_matches {
-        return Standing::New;
-    }
-    return Standing::Foreign;
-}
-
-/// What:
-///  The judgement of every changed path,
-///  with a directory the branch's own files explain read as the old side.
-/// Why:
-///  `worktree_state` reads a directory as neither side of a change,
-/// so a merge that replaces a directory with a
-///  file was refused for good,
-/// although the directory holds only the branch's files,
-/// which the merge's own
-///  deletions take
-/// (a cross-vendor review of the second round):
-/// a path whose old side has no entry of its own is
-///  the merge's to replace when the branch stores files below it and the merge deletes them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function judgeChanges({ place, root, changes }): Judged[]; // standing(...), then explainedDirectory(...) ? 'directory' : one
-/// ```
-pub async fn judge_changes_awaiting(
-    place: &RecoveryPlace,
-    root: &Path,
-    changes: &[Change],
-) -> Result<Vec<Judged>, RecoveryError> {
-    // Whether a mode is part of the file here is one question for the whole judgement,
-    // and it is the repository's answer, not this
-    //  command's.
-    let records_file_modes: bool =
-        crate::merge_isolation_changes::the_repository_records_file_modes_awaiting(
-            &place.git, root,
-        )
-        .await;
-    // The identity of every path is looked up in one job of the blocking pool, and all of them before any content is read, so a
-    //  file written in between does not match the judgement and is never replaced.
-    let locations: Vec<PathBuf> = changes
-        .iter()
-        .map(|change| return worktree_path(root, change.path.as_slice()))
-        .collect();
-    let looked_up: Result<Vec<Option<FileIdentity>>, crate::blocking_job::BlockingJobError> =
-        run_blocking_job_within_the_budget(move || {
-            return locations
-                .iter()
-                .map(|location| return file_identity(location.as_path()))
-                .collect();
-        })
-        .await;
-    let identities: Vec<Option<FileIdentity>> = match looked_up {
-        Ok(found) => found,
-        // A look the pool never made leaves nothing proven about the worktree, so the command stops rather than judge the merge's
-        //  paths on a guess and replace what it could not see.
-        Err(refused) => {
-            return Err(RecoveryError(format!(
-                "the entries of this merge's paths could not be looked at: {refused}"
-            )));
-        }
-    };
-    let mut judgements: Vec<Judged> = Vec::with_capacity(changes.len());
-    for (index, change) in changes.iter().enumerate() {
-        let state: WorktreeState =
-            worktree_state_awaiting(&place.git, root, change.path.as_slice())
-                .await
-                .map_err(RecoveryError)?;
-        let content: Option<String> = match &state {
-            WorktreeState::Content {
-                object,
-                ..
-            } => Some(object.clone()),
-            WorktreeState::Missing | WorktreeState::Other => None,
-        };
-        judgements.push(Judged {
-            standing: standing(change, &state, records_file_modes),
-            identity: identities[index],
-            content,
-        });
-    }
-    let candidates: Vec<usize> = (0..changes.len())
-        .filter(|index| {
-            let change: &Change = &changes[*index];
-            return judgements[*index].standing == Standing::Foreign
-                && !change.existed()
-                && change.exists_after();
-        })
-        .collect();
-    if !candidates.is_empty() {
-        // Whether a directory stands where the merge adds a file, and whether it holds only the branch's own files, are a look
-        //  and a walk of the worktree: one job of the blocking pool makes both, and one job covers every such path of the merge.
-        let changes_for_the_job: Vec<Change> = changes.to_vec();
-        let root_for_the_job: PathBuf = root.to_path_buf();
-        let decided: Result<Vec<(usize, bool)>, crate::blocking_job::BlockingJobError> = run_blocking_job_within_the_budget(move || {
-            let mut answers: Vec<(usize, bool)> = Vec::new();
-            for index in candidates {
-                let change: &Change = &changes_for_the_job[index];
-                let location: PathBuf = worktree_path(root_for_the_job.as_path(), change.path.as_slice());
-                let stands_as_a_directory: bool = std::fs::symlink_metadata(location.as_path()).map(is_a_directory).unwrap_or(false);
-                let only_the_branchs: bool = stands_as_a_directory
-                    && the_branchs_files_stand_below(change, changes_for_the_job.as_slice())
-                    && crate::merge_isolation_changes::the_directory_holds_only_what_the_merge_deletes(change, changes_for_the_job.as_slice(), root_for_the_job.as_path());
-                answers.push((index, only_the_branchs));
-            }
-            return answers;
-        })
-        .await;
-        match decided {
-            Ok(answers) => {
-                for (index, holds_only_the_branchs) in answers {
-                    if !holds_only_the_branchs {
-                        continue;
-                    }
-                    judgements[index] = Judged {
-                        standing: Standing::Directory,
-                        identity: None,
-                        content: None,
-                    };
-                }
-            }
-            // A walk the pool never made proves nothing about these directories, so each stays foreign and the command refuses it
-            //  rather than replace a path nothing judged.
-            Err(refused) => {
-                crate::diagnostic_log::debug(
-                    "judgeChanges",
-                    format!("the directories standing where the merge adds a path could not be judged: {refused}").as_str(),
-                );
-            }
-        }
-    }
-    return Ok(judgements);
-}
-
 /// Whether an index entry is the merge's own.
 fn is_the_merges_entry(standing: &Standing) -> bool {
     return *standing == Standing::New;
-}
-
-/// Whether one file system entry is a directory.
-fn is_a_directory(found: std::fs::Metadata) -> bool {
-    return found.is_dir();
-}
-
-/// Whether one change deletes a file of the branch below `prefix`.
-fn takes_a_file_below(
-    other: &Change,
-    prefix: &[u8],
-) -> bool {
-    return other.path.starts_with(prefix) && other.existed() && !other.exists_after();
-}
-
-/// What:
-///  Whether the branch stores files below a path that the merge deletes them from,
-///  which is what a directory standing
-///  there means.
-/// Why:
-///   A directory where the merge puts a file is the branch's own only when the merge takes every file in it;
-/// a
-///  directory nobody's files explain stays someone else's and is refused.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// changes.some((other) => other.path.startsWith(`${change.path}/`) && other.existed() && !other.existsAfter());
-/// ```
-fn the_branchs_files_stand_below(
-    change: &Change,
-    changes: &[Change],
-) -> bool {
-    let mut prefix: Vec<u8> = change.path.clone();
-    prefix.push(b'/');
-    for other in changes {
-        if takes_a_file_below(other, prefix.as_slice()) {
-            return true;
-        }
-    }
-    return false;
 }
 
 /// What:
@@ -617,24 +296,4 @@ pub enum Installed {
     /// so nothing was written;
     /// the merge is finished by the next command.
     IndexHeld,
-}
-
-/// What the worktree held at one changed path when recovery judged it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Judged = { standing: Standing; identity?: FileIdentity };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Judged {
-    /// How the path stood against the two sides of the change.
-    pub standing: Standing,
-    /// The file that stood there,
-    /// as the file system named it,
-    /// or nothing when nothing stood there.
-    pub identity: Option<FileIdentity>,
-    /// The object the worktree held there,
-    /// or nothing when it held no file:
-    /// the bytes a take must still find when it finishes the file.
-    pub content: Option<String>,
 }

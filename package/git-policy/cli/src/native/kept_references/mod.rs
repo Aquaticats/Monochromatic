@@ -54,12 +54,21 @@
 //!   the line one pruned kept reference leaves in the repository's log.
 //! - `kept_reference_listing.rs`:
 //!   the text `git monochromatic-git-policy-cli kept-references` prints.
+//! - `kept_reference_pass_bounds.rs`:
+//!   the three bounds one pass is held to,
+//!   with the measurement each rests on.
+//! - `kept_reference_pass_plan.rs`:
+//!   the judgement one reading of a repository's kept references makes of the
+//!   limits.
+//! - `kept_reference_pass_removal.rs`:
+//!   the conditional removal of one kept reference.
 //! - `kept_reference_pass.rs`:
 //!   the pass:
 //!   what the limits make of one reading,
 //!   the conditional removal of each reference,
 //!   and the record and the log line that go with it,
-//!   with the answers it gives in a file of their own.
+//!   with the answers it gives in a file of their own,
+//!   and where it runs by itself.
 //! - `kept_reference_command.rs`:
 //!   the command that prints the listing,
 //!   and the one that runs a pruning when a person asks.
@@ -92,11 +101,21 @@ pub mod kept_reference_record;
 /// and what the objects only they reach weigh.
 pub mod kept_references_reading;
 
+/// The three bounds one pass is held to.
+pub mod kept_reference_pass_bounds;
+
+/// The judgement one reading of a repository's kept references makes.
+pub mod kept_reference_pass_plan;
+
+/// The conditional removal of one kept reference.
+pub mod kept_reference_pass_removal;
+
 /// The pass:
 /// what the limits make of one reading,
 /// the conditional removal of each reference,
 /// and the record and the log line that go with it,
-/// with the answers it gives in a file of their own.
+/// with the answers it gives in a file of their own,
+/// and where it runs by itself.
 pub mod kept_reference_pass;
 
 /// The answers one pass gives about a repository's kept references:

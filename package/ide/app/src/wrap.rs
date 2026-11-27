@@ -326,7 +326,7 @@ fn break_with_indent(
     scale: f32,
     width: f32,
 ) {
-    // The indent applies to every row but the first, and `align` then places each row at its offset.
+    // The indent applies to every row but the first, and `set_alignment` then places each row at its offset.
     layout.set_text_indent(
         indent * scale,
         IndentOptions {

@@ -36,6 +36,8 @@
 //!   the facts a lock's proof needs, read from a record whatever its phase or refusal.
 //! - `dataset_guid_reads.rs`:
 //!   the pool read the mounted arm compares a record's `cloneGuid=` with.
+//! - `registration_proof_two_facts_refusals.rs`:
+//!   which fact of the two-fact proof differed, and the sentence each answers.
 //! - `registration_proof_two_facts.rs`:
 //!   the proof of a registration that needs no pointer.
 //! - `registration_entry_reading.rs`:
@@ -75,6 +77,7 @@ pub mod recorded_lock_facts;
 pub mod registration_entry_reading;
 pub mod registration_finding;
 pub mod registration_proof_two_facts;
+pub mod registration_proof_two_facts_refusals;
 
 pub use binding_record_fields::RecordedFactsRefusal;
 pub use clone_destruction_proof::{
@@ -137,9 +140,9 @@ pub use registration_finding::{
 };
 pub use registration_proof_two_facts::{
     GITDIR_FILE_NAME,
-    TwoFactRefusal,
     prove_the_registration,
 };
+pub use registration_proof_two_facts_refusals::TwoFactRefusal;
 
 /// The throwaway repository and slot the controls are built in.
 #[cfg(test)]

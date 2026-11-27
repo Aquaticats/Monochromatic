@@ -1,11 +1,11 @@
 /**
- What a run on Pi's virtual writer holds, and what the driver answers for it: a slot in every pool that plugin's router may send
- the run to, a start while every one of those pools has room, and a refusal that names each pool without room.
+ What a run on one of Pi's virtual selections holds, and what the driver answers for it: no slot in any pool, a start whatever the
+ members' own counts read, and a line that names the members its router may take.
 
- A virtual selection is the plugin's own (`package/pi-plugin/rate-limit-fallback/README.md`): its router starts every request at
- the first member and moves the request on when a member refuses with a 429 before any output. So the run may be taking any
- member's room at its next request, and the driver counts it in all of them
- (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The virtual writer").
+ The owner, 2026-11-26, asked how the driver's pool gate counts a run on the virtual writer, answered "No count (Recommended)": the
+ gate counts only the runs pinned to one pool, and a run on `--provider=rate-limit-fallback --model=writer`, or on the reviewer
+ selection the same way, holds no slot in any member pool, because the router moves a refused request on by itself
+ (`package/pi-plugin/rate-limit-fallback/README.md`, "Order and refusal policy").
 
  Everything here is read from the pools, the counts and the runs a test hands over, so no unit, no process, no systemd and no disk
  of this machine is involved.
@@ -31,19 +31,21 @@ import {
   OPENCODE_GO,
   PROVIDER_POOLS,
   QWEN_PLAN_DEEPSEEK,
+  QWEN_PLAN_QWEN4_MAX_PREVIEW,
   type PoolGateOptions,
   type PoolMembership,
   type ProviderPool,
   VIRTUAL_POOLS,
   VIRTUAL_REVIEWER,
   VIRTUAL_WRITER,
+  type VirtualPool,
   gateOutcomeOf,
   membershipOfSelection,
   poolChoiceFor,
+  poolHasRoom,
   poolOfARunNamingNoProvider,
   poolOfExecStart,
   poolsWithTheseLimits,
-  poolsWithoutRoom,
   roomIn,
   summaryTextOf,
   talliesOf,
@@ -66,7 +68,7 @@ const VIRTUAL_PROVIDER = 'rate-limit-fallback';
 const A_RUNS_FOLDER = '/runs';
 
 /**
- The names of the pools a selection's router may take, in the selection's own order.
+ The names of a selection's member pools, in the selection's own order.
 
  @param pools - the pools to name
 
@@ -121,7 +123,7 @@ function poolsAt(limits: ReadonlyMap<string, number>,): readonly ProviderPool[] 
 }
 
 /**
- One run going now, which is on a virtual selection.
+ One run going now, which its own command line places on a virtual selection.
 
  @param name - the run's name
 
@@ -131,22 +133,44 @@ function poolsAt(limits: ReadonlyMap<string, number>,): readonly ProviderPool[] 
 
  @example
  ```ts
- const run = aRunOnTheVirtualWriter('copy-route');
+ const run = aRunOnAVirtualSelection('copy-route', VIRTUAL_WRITER);
  ```
  */
-function aRunOnAVirtualSelection(name: string, virtual: typeof VIRTUAL_WRITER,): GoingRun {
-  /**
-   What a run naming that selection holds, read the way the driver reads a run's own command line.
-   */
-  const membership = membershipOfSelection({
-    provider: virtual.provider,
-    model: virtual.model,
-  },);
-  expect(membership.holds,).toBe('some-pools',);
+function aRunOnAVirtualSelection(name: string, virtual: VirtualPool,): GoingRun {
   return {
     name,
-    membership,
+    // What a run naming that selection holds, read the way the driver reads a run's own command line.
+    membership: membershipOfSelection({
+      provider: virtual.provider,
+      model: virtual.model,
+    },),
   };
+}
+
+/**
+ Runs on one virtual selection, named after it so a failure prints which count is wrong.
+
+ @param virtual - the selection they name
+
+ @param count - how many runs to make
+
+ @returns the runs
+
+ @example
+ ```ts
+ const runs = virtualRunsGoing(VIRTUAL_WRITER, 40);
+ ```
+ */
+function virtualRunsGoing(virtual: VirtualPool, count: number,): readonly GoingRun[] {
+  return Array.from(
+    { length: count, },
+    function named(_unused, index,) {
+      return aRunOnAVirtualSelection(
+        `${virtual.model}-${String(index,)}`,
+        virtual,
+      );
+    },
+  );
 }
 
 /**
@@ -334,13 +358,14 @@ await describe({
       name: membershipOfSelection.name,
       children: [
         it({
-          name: 'holds a run that names the virtual writer in every pool its router may take, and a run that names one pool in that pool alone',
+          name: 'holds a run that names the virtual writer in no pool, naming the members its router may take, and a run that names one pool in that pool alone',
           fn: async () => {
             expect(membershipOfSelection({
               provider: VIRTUAL_WRITER.provider,
               model: VIRTUAL_WRITER.model,
             },),).toEqual({
-              holds: 'some-pools',
+              holds: 'a-virtual-selection',
+              virtual: VIRTUAL_WRITER,
               pools: [
                 QWEN_PLAN_DEEPSEEK,
                 OPENCODE_GO,
@@ -361,7 +386,7 @@ await describe({
           },
         },),
         it({
-          name: 'reads the same selection off a unit that names it, which is how a run is counted once its launcher is gone',
+          name: 'reads the same selection off a unit that names it, which is how a run is placed once its launcher is gone',
           fn: async () => {
             expect(poolOfExecStart({
               shown: `{ path=node ; argv[]=node drive-pi-subagent.ts --provider=${VIRTUAL_WRITER.provider} --model=${VIRTUAL_WRITER.model} ; }`,
@@ -377,27 +402,47 @@ await describe({
       name: talliesOf.name,
       children: [
         it({
-          name: 'counts one run on the virtual writer once in every pool its router may take, and in no other pool',
+          name: 'counts one run on the virtual writer in no pool, and counts a run pinned to one pool there alone',
           fn: async () => {
             /**
-             One run on the virtual writer, and one run on a pool no member of it shares.
+             One run on the virtual writer, and one run pinned to the first pool of its order.
              */
             const runs = [
               aRunOnAVirtualSelection('copy-route', VIRTUAL_WRITER,),
-              aRunIn('another-review', QWEN_PLAN_DEEPSEEK,),
+              aRunIn('another-writer', QWEN_PLAN_DEEPSEEK,),
             ];
             /**
              What those runs hold of each pool.
              */
             const tallies = talliesOf({ runs, },);
-            expect(tallies.counts.get(QWEN_PLAN_DEEPSEEK.name,),).toBe(2,);
-            expect(tallies.counts.get(OPENCODE_GO.name,),).toBe(1,);
-            expect(tallies.counts.get(NEURALWATT_DEEPSEEK_FLEX.name,),).toBe(1,);
-            // A pool no member shares, and one only a run naming its own model takes, hold nothing.
+            // Only the pinned run holds a slot: the virtual run is in no pool, so it is counted in none of them.
+            expect(tallies.counts.get(QWEN_PLAN_DEEPSEEK.name,),).toBe(1,);
+            expect(tallies.counts.get(OPENCODE_GO.name,),).toBe(0,);
+            expect(tallies.counts.get(NEURALWATT_DEEPSEEK_FLEX.name,),).toBe(0,);
             expect(tallies.counts.get(NEURALWATT_STANDARD.name,),).toBe(0,);
             expect(tallies.counts.get('qwen-token-plan',),).toBe(0,);
-            // The line a coordinator reads names every pool, so the slot a virtual run holds is visible in each of them.
-            expect(summaryTextOf(tallies,),).toContain(`${OPENCODE_GO.name} 1/${String(roomIn(OPENCODE_GO,),)}`,);
+            // The line names every pool once and says nothing about the selection, which holds no slot to show.
+            expect(summaryTextOf(tallies,).split(', ',).length,).toBe(PROVIDER_POOLS.length,);
+            expect(summaryTextOf(tallies,),).not.toContain(VIRTUAL_PROVIDER,);
+          },
+        },),
+        it({
+          name: 'counts no run on the virtual writer in any pool, however many of them are going',
+          fn: async () => {
+            /**
+             A run on the virtual writer in every slot the members have together, which the gate counts in none of them.
+             */
+            const runs = virtualRunsGoing(VIRTUAL_WRITER, VIRTUAL_WRITER.memberPools
+              .reduce(function roomOf(sum, pool,) {
+                return sum + roomIn(pool,);
+              }, 0,),);
+            /**
+             What those runs hold of each pool.
+             */
+            const tallies = talliesOf({ runs, },);
+            for (const pool of PROVIDER_POOLS) {
+              expect(tallies.counts.get(pool.name,),).toBe(0,);
+            }
           },
         },),
       ],
@@ -406,7 +451,7 @@ await describe({
       name: poolChoiceFor.name,
       children: [
         it({
-          name: 'takes the virtual selection itself while every pool its router may take has room, and gives the run the largest wall factor of those pools',
+          name: 'takes the virtual selection itself with every pool empty, and gives the run the largest wall factor of its members',
           fn: async () => {
             expect(poolChoiceFor({
               requested: membershipOfSelection({
@@ -427,75 +472,136 @@ await describe({
           },
         },),
         it({
-          name: 'takes no run on the virtual writer once the first pool its router may take is full, so that no pool takes more runs than its room when a 429 moves the run there',
-          fn: async () => {
-            expect(poolChoiceFor({
-              requested: membershipOfSelection({
-                provider: VIRTUAL_WRITER.provider,
-                model: VIRTUAL_WRITER.model,
-              },),
-              tallies: talliesOf({ runs: runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit,), },),
-              resumes: false,
-            },),).toEqual({ destination: 'no-room', },);
-          },
-        },),
-        it({
-          name: 'takes no run on the virtual writer once any member pool is full, and names every one of them when all are',
+          name: 'takes the virtual writer whatever the members\' own counts read, because a run on it holds no slot in any of them',
           fn: async () => {
             /**
-             What the virtual writer's router may take, as the driver reads it.
+             Every slot of every member's own room, taken by runs pinned to it.
              */
-            const requested = membershipOfSelection({
-              provider: VIRTUAL_WRITER.provider,
-              model: VIRTUAL_WRITER.model,
-            },);
-            /**
-             Every member pool filled.
-             */
-            const tallies = talliesOf({
-              runs: VIRTUAL_WRITER.memberPools.flatMap(function everySlot(pool,) {
+            const runs = VIRTUAL_WRITER.memberPools
+              .flatMap(function everySlot(pool,) {
                 return runsIn(
                   pool,
                   pool.limit,
                 );
+              },);
+            /**
+             What the gate answers for a run on the virtual writer then.
+             */
+            const choice = poolChoiceFor({
+              requested: membershipOfSelection({
+                provider: VIRTUAL_WRITER.provider,
+                model: VIRTUAL_WRITER.model,
               },),
-            },);
-            expect(poolsWithoutRoom({
-              tallies,
-              membership: requested,
-            },),).toEqual(VIRTUAL_WRITER.memberPools,);
-            expect(poolChoiceFor({
-              requested,
-              tallies,
+              tallies: talliesOf({ runs, },),
               resumes: false,
-            },),).toEqual({ destination: 'no-room', },);
-            // One member with room is not enough: a run holds a slot in the others, and one of them would be over its room.
-            const oneFull = talliesOf({ runs: runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,), },);
-            expect(poolsWithoutRoom({
-              tallies: oneFull,
-              membership: requested,
-            },),).toEqual([NEURALWATT_DEEPSEEK_FLEX,],);
+            },);
+            expect(choice,).toEqual({
+              destination: 'a-virtual-pool',
+              pools: VIRTUAL_WRITER.memberPools,
+              wallFactor: largestWallFactorOf(VIRTUAL_WRITER.memberPools,),
+            },);
+            // The reviewer selection follows the same rule.
+            expect(poolChoiceFor({
+              requested: membershipOfSelection({
+                provider: VIRTUAL_REVIEWER.provider,
+                model: VIRTUAL_REVIEWER.model,
+              },),
+              tallies: talliesOf({ runs, },),
+              resumes: false,
+            },),).toEqual({
+              destination: 'a-virtual-pool',
+              pools: VIRTUAL_REVIEWER.memberPools,
+              wallFactor: largestWallFactorOf(VIRTUAL_REVIEWER.memberPools,),
+            },);
           },
         },),
         it({
-          name: 'counts the pools of a virtual selection as a caller\'s limits leave them, so a pool closed for one command takes no run of it',
+          name: 'takes the virtual writer while a caller has closed a member, and while it has closed every member, because no member\'s room is counted',
           fn: async () => {
             /**
              The shipped table with the last pool of the writer order closed by a caller.
              */
-            const pools = poolsAt(new Map([[NEURALWATT_DEEPSEEK_FLEX.name, 0],]),);
+            const oneClosed = poolsAt(new Map([[NEURALWATT_DEEPSEEK_FLEX.name, 0],]),);
             expect(poolChoiceFor({
               requested: membershipOfSelection({
                 provider: VIRTUAL_WRITER.provider,
                 model: VIRTUAL_WRITER.model,
-                pools,
+                pools: oneClosed,
               },),
               tallies: talliesOf({
                 runs: [],
-                pools,
+                pools: oneClosed,
               },),
               resumes: false,
-            },),).toEqual({ destination: 'no-room', },);
+            },),).toMatchObject({ destination: 'a-virtual-pool', },);
+            /**
+             The shipped table with every member closed by a caller.
+             */
+            const allClosed = poolsAt(new Map([
+              [QWEN_PLAN_DEEPSEEK.name, 0,],
+              [OPENCODE_GO.name, 0,],
+              [NEURALWATT_DEEPSEEK_FLEX.name, 0,],
+            ],),);
+            expect(poolChoiceFor({
+              requested: membershipOfSelection({
+                provider: VIRTUAL_WRITER.provider,
+                model: VIRTUAL_WRITER.model,
+                pools: allClosed,
+              },),
+              tallies: talliesOf({
+                runs: [],
+                pools: allClosed,
+              },),
+              resumes: false,
+            },),).toMatchObject({ destination: 'a-virtual-pool', },);
+          },
+        },),
+        it({
+          name: 'leaves a pool\'s own room to the runs pinned to it, so runs on the virtual writer neither fill a pool nor keep one from taking a pinned run',
+          fn: async () => {
+            /**
+             Only the flex pool open, so the pool's own room is the only question a pinned run asks.
+             */
+            const pools = poolsAt(new Map([
+              [QWEN_PLAN_DEEPSEEK.name, 0,],
+              [OPENCODE_GO.name, 0,],
+              [NEURALWATT_DEEPSEEK_FLEX.name, 2,],
+            ],),);
+            /**
+             More runs on the virtual writer than every member takes together.
+             */
+            const tallies = talliesOf({
+              runs: virtualRunsGoing(VIRTUAL_WRITER, 40,),
+              pools,
+            },);
+            /**
+             The flex pool, as the caller's table holds it.
+             */
+            const flex = pools
+              .find(function isTheFlexPool(pool,) {
+                return pool.name === NEURALWATT_DEEPSEEK_FLEX.name;
+              },);
+            expect(flex,).toBeDefined();
+            if (flex === undefined) {
+              return;
+            }
+            // The pool's own count is nothing, because a run on the virtual writer holds no slot in it.
+            expect(tallies.counts.get(flex.name,),).toBe(0,);
+            expect(poolHasRoom({
+              tallies,
+              pool: flex,
+            },),).toBe(true,);
+            // Once the pool's own room is taken by runs pinned to it, it has none left.
+            expect(poolHasRoom({
+              tallies: talliesOf({
+                runs: [
+                  ...virtualRunsGoing(VIRTUAL_WRITER, 40,),
+                  ...runsIn(flex, roomIn(flex,),),
+                ],
+                pools,
+              },),
+              pool: flex,
+            },),).toBe(false,);
           },
         },),
         it({
@@ -519,28 +625,38 @@ await describe({
       name: gateOutcomeOf.name,
       children: [
         it({
-          name: 'starts a run on the virtual writer with the pair it named and every member pool\'s room, giving it the largest wall factor of those pools',
+          name: 'starts a run on the virtual writer while the first pool of its order is full, with the pair it named and no slot taken in any pool',
           fn: async () => {
             /**
              The wall clock the caller asked for.
              */
             const wallSeconds = 600;
             /**
+             Every slot of the first member's own room, taken by runs pinned to it.
+             */
+            const runs = runsIn(QWEN_PLAN_DEEPSEEK, QWEN_PLAN_DEEPSEEK.limit,);
+            /**
              What the gate answered.
              */
             const outcome: GateOutcome = await gateOutcomeOf({
               options: gateOptionsForTheVirtualWriter({ wallSeconds, },),
-              runs: [],
-              tallies: talliesOf({ runs: [], },),
+              runs,
+              tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
               freeSpace: roomToSpare(),
             },);
             expect(outcome.action,).toBe('start',);
-            // The line names the selection and every pool its router may take, so a reader sees what the run holds.
+            // The line names the selection and every pool its router may take, so a reader sees where a refusal moves the request.
             expect(outcome.lines[0],).toContain(`${VIRTUAL_WRITER.provider}/${VIRTUAL_WRITER.model}`,);
             for (const pool of VIRTUAL_WRITER.memberPools) {
               expect(outcome.lines[0],).toContain(pool.name,);
             }
+            // The counts the line carries are those of the runs pinned to each pool, which is what the gate counts.
+            /**
+             The counts of those pinned runs, as the line prints them.
+             */
+            const countsLine = summaryTextOf(talliesOf({ runs, },),);
+            expect(outcome.lines[0],).toContain(countsLine,);
             /**
              The words the launcher is given.
              */
@@ -553,17 +669,25 @@ await describe({
           },
         },),
         it({
-          name: 'answers no slot with the counts when one pool the virtual writer may take has no room, and starts nothing',
+          name: 'answers no slot for a run pinned to a pool whose own room is full, which is the count the gate still makes',
           fn: async () => {
             /**
-             Every slot of the last pool of the writer order, taken.
+             Every slot of a pool only its own model takes, held by runs pinned to it.
              */
-            const runs = runsIn(NEURALWATT_DEEPSEEK_FLEX, NEURALWATT_DEEPSEEK_FLEX.limit,);
+            const runs = runsIn(QWEN_PLAN_QWEN4_MAX_PREVIEW, QWEN_PLAN_QWEN4_MAX_PREVIEW.limit,);
             /**
-             What the gate answered while that pool was full.
+             What the gate answered for a run that names that pool.
              */
             const outcome = await gateOutcomeOf({
-              options: gateOptionsForTheVirtualWriter({ wallSeconds: 600, },),
+              options: {
+                runsFolder: A_RUNS_FOLDER,
+                countsOnly: false,
+                name: 'another',
+                provider: QWEN_PLAN_QWEN4_MAX_PREVIEW.provider,
+                model: QWEN_PLAN_QWEN4_MAX_PREVIEW.model,
+                wallSeconds: 600,
+                commandLine: ['--name=another',],
+              },
               runs,
               tallies: talliesOf({ runs, },),
               sessionFileOf: aSessionFile,
@@ -571,11 +695,7 @@ await describe({
             },);
             expect(outcome.action,).toBe('no-room',);
             expect((outcome.action === 'no-room') ? outcome.status : 0,).toBe(NO_SLOT_EXIT_STATUS,);
-            /**
-             The counts line the gate printed beside its refusal.
-             */
-            const counts = summaryTextOf(talliesOf({ runs, },),);
-            expect(outcome.lines[0],).toContain(counts,);
+            expect(outcome.lines[0],).toContain(`${QWEN_PLAN_QWEN4_MAX_PREVIEW.name} ${String(QWEN_PLAN_QWEN4_MAX_PREVIEW.limit,)}/${String(roomIn(QWEN_PLAN_QWEN4_MAX_PREVIEW,),)}`,);
           },
         },),
       ],

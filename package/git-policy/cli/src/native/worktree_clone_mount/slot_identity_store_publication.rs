@@ -4,19 +4,18 @@
 //!  the parent folder's first record,
 //!  and the replacement the administrator's adoption publishes.
 //! Why:
-//!  A record must never be visible under its own name holding a prefix of its bytes,
-//!  so a publication fills a staging file and gives it its record's name in one call that replaces nothing.
-//!  `linkat` answers `EEXIST` to the second recorder of one name,
-//!  which is the whole answer to two sweeps meeting on one slot:
-//!  the loser removes its own staging name,
-//!  syncs the folder and reads the record that won,
-//!  and it answers `SlotAlreadyRecorded` carrying that record so the sweep carries on with it.
-//!  A folder that refuses a hard link publishes with `renameat2` and `RENAME_NOREPLACE`,
-//!  which answers `EEXIST` just the same,
-//!  and a folder that refuses both calls refuses the write instead of publishing by a rename that replaces.
-//!  A publication compares `.parent` against the walked parent before it creates anything,
-//!  so no record is taken for a folder reached through a parent no check compared,
-//!  and the setup run's second publication compares the record it finds before it makes any name.
+//!  A publication compares `.parent` against the walked parent before it
+//!  creates anything,
+//!  so no record is taken for a folder reached through a parent no check
+//!  compared,
+//!  and the setup run's second publication compares the record it finds before
+//!  it makes any name.
+//!  Each of them fills a staging file and gives it the record's name in one
+//!  call that replaces nothing,
+//!  which `slot_identity_store_publication_staging_file.rs` and
+//!  `slot_identity_store_publication_one_winner.rs` hold
+//!  (`doc/planning/cli-git-zfs-slot-identity-store-per-slot-files-design.md`,
+//!  "Two writers with two intents").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,8 +28,17 @@ use super::clone_folder_identity::{
     CloneFolderIdentity,
 };
 use super::slot_identity_store::SlotIdentityStore;
-use super::slot_identity_store_control::RECORD_MODE;
-use super::slot_identity_store_reading::RECORD_MAXIMUM_BYTES;
+use super::slot_identity_store_publication_one_winner::{
+    a_forced_answer,
+    link_or_rename,
+};
+use super::slot_identity_store_publication_staging_file::{
+    create_staging_entry,
+    parent_staging_name,
+    record_bytes,
+    remove_own_staging_entry,
+    staging_name,
+};
 use super::slot_identity_store_records::{
     PARENT_RECORD_NAME,
     StoredIdentity,
@@ -40,22 +48,11 @@ use super::slot_identity_store_refusals::{
     write_refusal,
 };
 use super::slot_name::slot_name_refusal;
-use crate::diagnostic_log::{
-    debug,
-    warn,
-};
-use crate::hexadecimal_of_bytes::hexadecimal_of_bytes;
+use crate::diagnostic_log::debug;
 use crate::publishing_entries_in_one_open_folder::{
-    create_new_entry,
-    fill_entry_and_sync,
-    link_entry,
-    link_refused_because_the_folder_makes_none,
-    remove_entry,
-    rename_entry_never_replacing,
     rename_entry_replacing,
     sync_folder,
 };
-use crate::rename_that_never_replaces::rename_unsupported;
 use std::ffi::{
     OsStr,
     OsString,
@@ -64,11 +61,6 @@ use std::path::Path;
 
 /// Module tag for diagnostics.
 const TAG: &str = "slotIdentityStore";
-
-/// How many bytes one staging name's random part is made from:
-/// sixteen,
-/// which is the thirty-two lowercase hexadecimal digits the name holds.
-const STAGING_RANDOM_BYTES: usize = 16;
 
 /// What:
 ///  Publish one slot's first record,
@@ -432,273 +424,6 @@ fn replace_parent_into(
         "replaced the recorded identity of the worktrees parent folder",
     );
     return Ok(());
-}
-
-/// The bytes of one record file:
-/// the header line and the record line,
-/// refused before anything is created when they outgrow one read.
-fn record_bytes(
-    record: &StoredIdentity,
-    store: &Path,
-) -> Result<String, StoreRefusal> {
-    let text: String = format!(
-        "{}\n{}\n",
-        super::slot_identity_store_records::STORE_HEADER,
-        record.encode()
-    );
-    let bytes: u64 = text.len() as u64;
-    if bytes > RECORD_MAXIMUM_BYTES {
-        // The record's key is `-` for the parent folder, which is no file's name; the refusal names the file the
-        // layout files that record under instead.
-        let file_name: &str = match record {
-            StoredIdentity::Parent(_identity) => PARENT_RECORD_NAME,
-            StoredIdentity::Slot {
-                name,
-                ..
-            } => name.as_str(),
-        };
-        return Err(StoreRefusal::RecordTooLarge {
-            path: store.join(file_name),
-            bytes,
-            bound: RECORD_MAXIMUM_BYTES,
-        });
-    }
-    return Ok(text);
-}
-
-/// A slot publication's staging name:
-/// a dot and thirty-two lowercase hexadecimal digits.
-fn staging_name() -> OsString {
-    let mut bytes: [u8; STAGING_RANDOM_BYTES] = [0; STAGING_RANDOM_BYTES];
-    if getrandom::fill(&mut bytes).is_err() {
-        warn(
-            TAG,
-            "the operating system's random source failed, so the staging name is made from this process's clock",
-        );
-        let now: u128 = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|since| return since.as_nanos())
-            .unwrap_or_default();
-        bytes.copy_from_slice(&now.to_le_bytes()[..STAGING_RANDOM_BYTES]);
-    }
-    return OsString::from(format!(".{}", hexadecimal_of_bytes(&bytes)));
-}
-
-/// The parent replacement's staging name,
-/// which is the form `private_storage::staging_beside` makes for `.parent`.
-fn parent_staging_name() -> OsString {
-    let mut staging: OsString = OsString::from("..parent.");
-    staging.push(staging_name().as_os_str());
-    staging.push(".partial");
-    return staging;
-}
-
-/// Create one staging file and fill it,
-/// removing it again when the fill failed.
-fn create_staging_entry(
-    store: &SlotIdentityStore,
-    staging: &OsStr,
-    bytes: &[u8],
-    for_record: &str,
-) -> Result<std::fs::File, StoreRefusal> {
-    let mut file: std::fs::File = create_new_entry(store.folder(), staging, RECORD_MODE)
-        .map_err(|error| return write_refusal(store.path(), error))?;
-    if let Err(error) = fill_entry_and_sync(&mut file, bytes, RECORD_MODE) {
-        remove_own_staging_entry(store, staging);
-        return Err(write_refusal(
-            store.path().join(for_record).as_path(),
-            error,
-        ));
-    }
-    return Ok(file);
-}
-
-/// What:
-///  Publish the staging file under its record name,
-///  by one link,
-///  or by the rename that never replaces where the folder refuses a link.
-/// Why:
-///   The link is the accepted publication;
-///  the rename is the fallback a folder without hard links needs,
-///  and it answers `EEXIST` the same way,
-///  so the one-winner property holds on both.
-///  A folder that refuses both refuses the write,
-///  and nothing falls back to a rename that replaces,
-///  because a publication that may replace another's record is the refresh this layout forbids.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// linkOrRename(store, staging, name); // EEXIST becomes the loser's SlotAlreadyRecorded
-/// ```
-fn link_or_rename(
-    store: &SlotIdentityStore,
-    staging: &OsStr,
-    name: &OsStr,
-    staged: std::fs::File,
-    for_record: &str,
-) -> Result<(), StoreRefusal> {
-    #[cfg(test)]
-    BETWEEN_THE_BYTES_AND_THE_LINK.with(|hook| {
-        // Taken out, so a second publication the hook runs does not run it again.
-        let held = hook.borrow_mut().take();
-        if let Some(between) = held {
-            between();
-        }
-    });
-    drop(staged);
-    #[cfg(test)]
-    let forced_link: Option<i32> = THE_LINK_IS_ANSWERED_WITH.with(|answer| return answer.get());
-    #[cfg(not(test))]
-    let forced_link: Option<i32> = None;
-    let linked: std::io::Result<()> = match a_forced_answer(forced_link) {
-        Some(answer) => Err(answer),
-        None => link_entry(store.folder(), staging, name),
-    };
-    return match linked {
-        Ok(()) => finish_the_publish(store, staging),
-        Err(error) if error.raw_os_error() == Some(libc::EEXIST) => {
-            lose_the_race(store, staging, name)
-        }
-        Err(error) if link_refused_because_the_folder_makes_none(&error) => {
-            publish_by_the_rename(store, staging, name, for_record)
-        }
-        Err(error) => {
-            remove_own_staging_entry(store, staging);
-            Err(StoreRefusal::Write {
-                path: store.path().to_path_buf(),
-                reason: format!(
-                    "the folder refused the link that gives the record its name ({error}), and nothing was published"
-                ),
-            })
-        }
-    };
-}
-
-/// What:
-///  The refusal a control forces in place of one call's own answer,
-///  or nothing in the release executable.
-/// Why:
-///  A folder on a test host makes hard links and the rename that never replaces,
-///  so the two refusals a publication falls back from must be injectable;
-///  the call is skipped rather than overridden afterwards,
-///  because a link that ran would already have published the record.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const forced = forcedAnswer(); // undefined, or the error the control chose
-/// ```
-fn a_forced_answer(answer: Option<i32>) -> Option<std::io::Error> {
-    #[cfg(not(test))]
-    let _ = answer;
-    return answer.map(|code| return std::io::Error::from_raw_os_error(code));
-}
-
-/// Remove the staging name and flush the folder,
-/// so the record's own name is durable and the staging name is gone.
-fn finish_the_publish(
-    store: &SlotIdentityStore,
-    staging: &OsStr,
-) -> Result<(), StoreRefusal> {
-    remove_own_staging_entry(store, staging);
-    return sync_folder(store.folder()).map_err(|error| return write_refusal(store.path(), error));
-}
-
-/// The fallback publication of a folder without hard links.
-fn publish_by_the_rename(
-    store: &SlotIdentityStore,
-    staging: &OsStr,
-    name: &OsStr,
-    for_record: &str,
-) -> Result<(), StoreRefusal> {
-    #[cfg(test)]
-    let forced_rename: Option<i32> = THE_RENAME_IS_ANSWERED_WITH.with(|answer| return answer.get());
-    #[cfg(not(test))]
-    let forced_rename: Option<i32> = None;
-    let renamed: std::io::Result<()> = match a_forced_answer(forced_rename) {
-        Some(answer) => Err(answer),
-        None => rename_entry_never_replacing(store.folder(), staging, name),
-    };
-    return match renamed {
-        Ok(()) => {
-            sync_folder(store.folder()).map_err(|error| return write_refusal(store.path(), error))
-        }
-        Err(error) if error.raw_os_error() == Some(libc::EEXIST) => {
-            lose_the_race(store, staging, name)
-        }
-        Err(error) => {
-            remove_own_staging_entry(store, staging);
-            let unsupported: bool = rename_unsupported(&error);
-            Err(StoreRefusal::Write {
-                path: store.path().join(for_record),
-                reason: if unsupported {
-                    format!(
-                        "the folder refused both the link that gives the record its name and the rename that never replaces ({error}), so nothing was published; the folder makes no hard links and no no-replace rename, and nothing is published by a rename that could replace another run's record"
-                    )
-                } else {
-                    format!(
-                        "the folder refused the rename that never replaces ({error}), and nothing was published"
-                    )
-                },
-            })
-        }
-    };
-}
-
-/// What:
-///  The loser of two recorders meeting on one name:
-///  it removes its own staging name,
-///  flushes the folder,
-///  reads the record that won,
-///  and answers it.
-/// Why:
-///   The kernel answers exactly one writer,
-///  and the winner's record is what every attach compares against,
-///  so the loser carries on with it instead of failing the sweep;
-///  the flush is what makes the winner's name durable before the loser reads it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// loseTheRace(store, staging, name); // throws SlotAlreadyRecorded carrying the winner
-/// ```
-fn lose_the_race(
-    store: &SlotIdentityStore,
-    staging: &OsStr,
-    name: &OsStr,
-) -> Result<(), StoreRefusal> {
-    remove_own_staging_entry(store, staging);
-    sync_folder(store.folder()).map_err(|error| return write_refusal(store.path(), error))?;
-    let slot: String = name.to_string_lossy().into_owned();
-    // `.parent` is the one other name this step can lose on, and its record holds the parent's identity.
-    let winner: CloneFolderIdentity = if slot == PARENT_RECORD_NAME {
-        store.parent()?
-    } else {
-        store.slot(slot.as_str())?
-    };
-    return Err(StoreRefusal::SlotAlreadyRecorded {
-        path: store.path().join(&slot),
-        slot,
-        identity: winner,
-    });
-}
-
-/// Remove one staging name this call made,
-/// and say so when the folder refused.
-fn remove_own_staging_entry(
-    store: &SlotIdentityStore,
-    staging: &OsStr,
-) {
-    match remove_entry(store.folder(), staging) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => warn(
-            TAG,
-            format!(
-                "the staging name {} was left behind: {error}",
-                staging.to_string_lossy()
-            )
-            .as_str(),
-        ),
-    }
 }
 
 #[cfg(test)]
