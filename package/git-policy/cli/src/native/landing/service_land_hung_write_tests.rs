@@ -35,7 +35,12 @@ use crate::test_support::{
     remove,
     while_test_lives,
 };
+use std::io::Write;
 use std::os::unix::net::UnixListener;
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use std::time::{
     Duration,
     Instant,
@@ -68,6 +73,31 @@ const INSIDE_CEILING: Duration = Duration::from_secs(5);
 /// that arrives in seconds is the early answer,
 /// not the ceiling.
 const SECOND_WITHDRAWAL: Duration = Duration::from_secs(45);
+
+/// The words a client is told when its own request is inside the service's write,
+/// which the controls of this module count.
+const INSIDE_THE_WRITE: &str = "this commit is inside a write of the commit service";
+
+/// What:
+///  The longest a control waits for that notice:
+///  thirty times the wait the notice itself waits for before the person's wait has mattered,
+///  which is `STUCK_AFTER`.
+/// Why:
+///  A notice is said only after the service's beat has read the journal and answered,
+///  and after the client's own thread has taken its next look,
+///  so a journal read that waits on storage,
+///  and a host shared with other controls,
+///  can each hold it for seconds.
+///  A control whose own wait is one ceiling away from the notice's own bound loses the notice instead,
+///  and which look it happened to take then decides what its person is told (issue 6524,
+///  and the shape of issue 6519's control,
+///  which waits thirty times the notice's own bound).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NOTICE_DUE_BY = STUCK_AFTER * 30; // the control's wait, never the notice's own promise
+/// ```
+const NOTICE_DUE_BY: Duration = STUCK_AFTER.saturating_mul(30);
 
 /// A Git whose reference update of the landing (`update-ref --stdin`) touches `entered`,
 /// then waits until `release` exists,
@@ -197,6 +227,9 @@ fn client_with_extra_wait(
 pub(super) struct Submitting {
     /// Where the client sends what it ended with and printed.
     ended: std::sync::mpsc::Receiver<(Result<Submitted, ClientFailure>, String)>,
+    /// What the client has said so far,
+    /// which a control reads while the client still waits.
+    pub(super) told: Told,
 }
 
 impl Submitting {
@@ -209,20 +242,100 @@ impl Submitting {
     }
 }
 
-/// A client that submits `request` on a thread of its own.
+/// What:
+///  Where a client's notices are kept while it waits:
+///  one list the client writes into and the control reads,
+///  so the control can see that its person was told before the wait ended.
+/// Why:
+///  A notice is worth its line only while the wait is still on,
+///  and the `String` a client ends with arrives too late to tell a person told at the start from one told at the
+///  ceiling;
+///  the sibling a reader might expect is that `String`,
+///  which says what was said and never when.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const told = new Told(); // told.text() while the client still waits, and the same text after it ends
+/// ```
+#[derive(Clone)]
+pub(super) struct Told(Arc<Mutex<Vec<u8>>>);
+
+impl Told {
+    /// An empty list of notices.
+    fn new() -> Told {
+        return Told(Arc::new(Mutex::new(Vec::new())));
+    }
+
+    /// Everything said so far.
+    fn text(&self) -> String {
+        let said: Vec<u8> = self
+            .0
+            .lock()
+            .expect("the notices of a client are kept here")
+            .clone();
+        return String::from_utf8(said).expect("a client's notices are UTF-8");
+    }
+}
+
+impl Write for Told {
+    /// Appends one notice.
+    fn write(
+        &mut self,
+        bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .expect("the notices of a client are kept here")
+            .extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is held back:
+    /// a notice is complete as soon as it is written.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// A client that submits `request` on a thread of its own,
+/// whose notices the caller can read while it waits.
 pub(super) fn submit_on_a_thread(
     config: ClientConfig,
     request: CommitRequest,
 ) -> Submitting {
     let (sender, ended) = std::sync::mpsc::channel();
+    let told: Told = Told::new();
+    let writing: Told = told.clone();
     std::thread::spawn(move || {
-        let mut notices: Vec<u8> = Vec::new();
+        let mut notices: Told = writing;
         let answered = submit(&config, &request, &mut notices);
-        let _sent = sender.send((answered, String::from_utf8(notices).expect("UTF-8")));
+        let _sent = sender.send((answered, notices.text()));
     });
     return Submitting {
         ended,
+        told,
     };
+}
+
+/// Waits until the client has said `wanted`,
+/// and fails at `bound` with everything it did say.
+fn wait_until_told(
+    told: &Told,
+    wanted: &str,
+    bound: Duration,
+) {
+    let began: Instant = Instant::now();
+    loop {
+        let said: String = told.text();
+        if said.contains(wanted) {
+            return;
+        }
+        assert!(
+            began.elapsed() < bound,
+            "the client never said {wanted:?} within {bound:?}: {said}"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// Waits until `path` exists.
@@ -570,14 +683,17 @@ fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_ear
 }
 
 /// The client whose request is inside the write is told so when the write starts,
-/// not after the write has been stuck for the
-/// service's threshold (sol-1:
+/// not after the write has been stuck for the service's threshold (sol-1:
 /// the seven-second path was missed when the write began near the ceiling):
-/// the control makes that
-/// threshold an hour,
-/// the client still ends at its ceiling plus the extra wait,
+/// the control makes that threshold an hour,
 /// and its person is told of the write once that wait has mattered,
 /// which the control's short `waiting_notice_after` reaches.
+/// The wait for the notice is the control's own,
+/// and not the client's ceiling:
+/// `NOTICE_DUE_BY` is thirty times the notice's own bound,
+/// so a journal read that waits on storage,
+/// or a thread the run holds up,
+/// spends the control's wait and never the notice's own promise.
 #[test]
 fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
     let world: World = world("service-hung-write-told-at-start");
@@ -591,34 +707,34 @@ fn a_client_is_told_it_is_inside_the_write_when_the_write_starts() {
     context.git.real_git = hanging;
     let serving: Serving =
         serve_on_a_thread_stuck_after(context, "told-at-start", Duration::from_secs(3600));
-    let extra_wait: Duration = Duration::from_secs(1);
+    // The client waits longer than the control does for the notice, so the notice is always said while the wait is
+    // still on; the control ends the wait as soon as it has seen it.
     let told_once_the_wait_matters: ClientConfig = ClientConfig {
         waiting_notice_after: STUCK_AFTER,
-        ..client_with_extra_wait(
-            &serving,
-            Duration::from_secs(4),
-            SECOND_WITHDRAWAL,
-            extra_wait,
-        )
+        ..client_with_extra_wait(&serving, NOTICE_DUE_BY, SECOND_WITHDRAWAL, STUCK_AFTER)
     };
+    // The identity names this control's own request, so the note its beat reads is this control's and no other
+    // control's of this module, three of which send a request called `only`.
     let only = submit_on_a_thread(
         told_once_the_wait_matters,
-        request(&world, "only", "only.txt", "only\n"),
+        request(&world, "told-at-start", "only.txt", "only\n"),
     );
     wait_for(entered.as_path());
+    // The notice while the wait is still on: said at the ceiling instead, this fails and prints what the client did
+    // say.
+    wait_until_told(&only.told, INSIDE_THE_WRITE, NOTICE_DUE_BY);
+    // The write returns, so the commit whose request was told lands and its client ends without its ceiling.
+    std::fs::write(&release, b"").expect("let the write go");
     let (answer, notices) = only.join().expect("client");
-    assert!(
-        matches!(answer, Err(ClientFailure::WithdrawalUnconfirmed { .. })),
-        "{answer:?} {notices}"
-    );
     assert_eq!(
-        notices
-            .matches("this commit is inside a write of the commit service")
-            .count(),
+        notices.matches(INSIDE_THE_WRITE).count(),
         1,
         "said once: {notices}"
     );
-    std::fs::write(&release, b"").expect("let the write go");
+    assert!(
+        matches!(answer, Ok(Submitted::Landed { .. })),
+        "the commit whose write returned lands: {answer:?} {notices}"
+    );
     wait_until_settled(&world);
     remove(serving.directory.as_path());
     remove(world.root.as_path());

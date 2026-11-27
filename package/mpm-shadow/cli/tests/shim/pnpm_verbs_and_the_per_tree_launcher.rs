@@ -56,11 +56,12 @@ fn the_per_tree_launcher_of_the_running_shadow_is_not_taken_for_the_real_mpm() {
     let binary: &str = env!("CARGO_BIN_EXE_mpm-shadow");
     let installed: std::path::PathBuf = root.path().join("toolchain/mpm-shadow/bin");
     fs::create_dir_all(&installed).expect("make the install directory");
-    fs::copy(binary, installed.join("mpm-shadow")).expect("install the real shadow binary");
+    // The test starts both copies, so a child process makes them.
+    crate::through_a_child_process::copy_program(Path::new(binary), &installed.join("mpm-shadow"));
     let launchers: std::path::PathBuf = root.path().join("launchers");
     fs::create_dir_all(&launchers).expect("make the launcher directory");
     // A copy, not a hard link: the build directory and the fixture can be on different file systems.
-    fs::copy(binary, launchers.join("mpm-shadow")).expect("make the launcher");
+    crate::through_a_child_process::copy_program(Path::new(binary), &launchers.join("mpm-shadow"));
     let record = LaunchRecord {
         tool_id: "mpm-shadow".to_string(),
         lock_file: root.path().join("toolchain.lock.json"),

@@ -14,6 +14,7 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::worktree_clean::CleanRefusalKind;
 use crate::worktree_ladder_test_support::{
     main_identity,
     plan_to,
