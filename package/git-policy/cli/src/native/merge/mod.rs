@@ -167,8 +167,26 @@
 //!   the bytes a path holds as Git's object store reads them,
 //!   the proof that no program can write into a file whose last name is about to go,
 //!   and the last look a kept copy's removal is decided by.
+//! - `merge_isolation_take_asides_finish.rs`:
+//!   what comes of the files one take moved aside:
+//!   the putting back of the ones no write reached,
+//!   the proof that nothing can write into one any more,
+//!   the removal of the private names once the merge's content is in place,
+//!   and the restore of what Git did not write.
+//! - `merge_isolation_kept_copies_decisions_evidence.rs`:
+//!   the evidence one decision about a kept copy rests on:
+//!   which merge names the copy,
+//!   where else its bytes are kept,
+//!   and whether the file at its path holds them again in the same form.
+//! - `merge_isolation_kept_copies_decisions_outcomes.rs`:
+//!   what one decision does about a copy,
+//!   and the line each of the three prints.
 //! - `merge_isolation_kept_copies_decisions.rs`:
 //!   the one decision every command makes about a copy a merge kept.
+//! - `merge_isolation_kept_copies_decisions_sweep.rs`:
+//!   the copies a command decides all at once:
+//!   every copy this worktree's records name,
+//!   and the copies left beside one path of a merge that still runs.
 //! - `merge_isolation_take_asides.rs`:
 //!   the take of a worktree file a merge must replace or delete,
 //!   and the private names it leaves behind.
@@ -236,6 +254,20 @@
 //!   finishing a merge from its record:
 //!   the install and the branch move,
 //!   with the checks it needs.
+//! - `merge_isolation_recovery_a_merge_the_branch_already_names.rs`:
+//!   the settle of a merge the branch already names:
+//!   the person's own work in its paths is merged with it,
+//!   and the record goes only once every byte of theirs is back.
+//! - `merge_isolation_recovery_the_evidence_of_an_install.rs`:
+//!   what this worktree already holds of a merge,
+//!   read once before anything can refuse,
+//!   and whether it says the merge began.
+//! - `merge_isolation_recovery_a_checkout_for_another_branch.rs`:
+//!   what a recovery does when this worktree has another branch checked out:
+//!   a merge nothing installed is discarded,
+//!   and one with something in this checkout is refused.
+//! - `merge_isolation_recovery_a_branch_that_moved.rs`:
+//!   what a recovery does when the branch is not at the commit the merge was computed on.
 //! - `merge_isolation_recovery.rs`:
 //!   recovery of an isolated merge whose process died.
 //! - `merge_isolation_report.rs`:
@@ -543,6 +575,24 @@ pub mod merge_isolation_recovery_install;
 /// with the checks it needs.
 pub mod merge_isolation_recovery_complete;
 
+/// The settle of a merge the branch already names:
+/// the person's own work in its paths is merged with it,
+/// and the record goes only once every byte of theirs is back.
+pub mod merge_isolation_recovery_a_merge_the_branch_already_names;
+
+/// What this worktree already holds of a merge,
+/// read once before anything can refuse,
+/// and whether it says the merge began.
+pub mod merge_isolation_recovery_the_evidence_of_an_install;
+
+/// What a recovery does when this worktree has another branch checked out:
+/// a merge nothing installed is discarded,
+/// and one with something in this checkout is refused.
+pub mod merge_isolation_recovery_a_checkout_for_another_branch;
+
+/// What a recovery does when the branch is not at the commit the merge was computed on.
+pub mod merge_isolation_recovery_a_branch_that_moved;
+
 /// What the recovery of a merge reads to decide whose checkout this is and whether it began.
 pub mod merge_isolation_recovery_reads;
 
@@ -570,6 +620,13 @@ pub mod merge_isolation_take_asides;
 /// The proof that no program can write into a file whose last name is about to go.
 pub mod merge_isolation_take_asides_proof;
 
+/// What comes of the files one take moved aside:
+/// the putting back of the ones no write reached,
+/// the proof that nothing can write into one any more,
+/// the removal of the private names once the merge's content is in place,
+/// and the restore of what Git did not write.
+pub mod merge_isolation_take_asides_finish;
+
 /// Why a carry or a clear stopped,
 /// and the words a write that stopped leaves about the copy it kept.
 pub mod merge_isolation_carry_write_failures;
@@ -587,8 +644,23 @@ pub mod merge_isolation_carry_write_forms;
 /// and the record of each.
 pub mod merge_isolation_kept_copies;
 
+/// The evidence one decision about a kept copy rests on:
+/// which merge names the copy,
+/// where else its bytes are kept,
+/// and whether the file at its path holds them again in the same form.
+pub mod merge_isolation_kept_copies_decisions_evidence;
+
+/// What one decision does about a copy,
+/// and the line each of the three prints.
+pub mod merge_isolation_kept_copies_decisions_outcomes;
+
 /// The one decision every command makes about a copy a merge kept.
 pub mod merge_isolation_kept_copies_decisions;
+
+/// The copies a command decides all at once:
+/// every copy this worktree's records name,
+/// and the copies left beside one path of a merge that still runs.
+pub mod merge_isolation_kept_copies_decisions_sweep;
 
 /// The lines a kept copy earns,
 /// and the reason it stays when the file at its path holds its bytes.
