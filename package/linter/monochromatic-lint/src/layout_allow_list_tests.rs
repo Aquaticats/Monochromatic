@@ -338,9 +338,17 @@ fn a_use_line_the_reader_cannot_place_names_the_whitespace_it_needs() {
 ///  so the line is a misspelling of the shape.
 #[test]
 fn a_use_line_with_no_name_before_its_arrow_is_an_error() {
-    let error: String = error_of("uses  -> src/b\n");
-    assert!(error.contains("Line 1"), "{error}");
-    assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+    // What: one line with two spaces and one with a single space before the arrow.
+    // Why: the single space reaches the reader's default for a name that is not there, and both hold no name.
+    for line in ["uses  -> src/b", "uses -> src/b"] {
+        let error: String = error_of(format!("{line}\n").as_str());
+        assert!(error.contains("Line 1"), "{error}");
+        assert!(error.contains("uses <folder> -> <folder>"), "{error}");
+        assert!(
+            error.contains("No folder name stands before the arrow"),
+            "`{line}` must be told no name stands there: {error}"
+        );
+    }
 }
 
 /// A run of two spaces in front of a name reads as that name's own leading space,

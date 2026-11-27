@@ -575,6 +575,7 @@ fn arrow_sides(text: &str) -> Option<(&str, &str)> {
     let arrow: usize = arrow_between_whitespace(text)?;
     // What: the name before the arrow and the name after it.
     // Why: the whitespace the arrow was found with is the separator, and what stands beside it is the name.
+    // Gotcha: neither `?` can give nothing here: `arrow_between_whitespace` answered only where a whitespace character stands on both sides of the arrow, so the two strips below always find one.
     let before: &str = text[..arrow].strip_suffix(char::is_whitespace)?;
     let after: &str = text[arrow + ARROW.len()..].strip_prefix(char::is_whitespace)?;
     return Some((before, after));
@@ -644,12 +645,15 @@ fn use_ends(
     // What: the line before the arrow, which begins with the word every `uses` line starts with.
     // Why: the caller dispatched on that word, so only the name and its separator can be missing here.
     let Some(after_the_word) = before_arrow.strip_prefix(FOLDER_USE_WORD) else {
+        // What: a refusal no line reaches: the caller dispatched on this word as the line's first word.
+        // Why: it stays a sentence rather than a panic, so a caller that one day does not dispatch still fails with an answer instead of a crash.
         return Err(format!(
             "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
         ));
     };
     // What: the name before the arrow, with the one whitespace character that sets it off the word taken away.
     // Why: what stands between the word and the arrow is the name, so no whitespace there means no name.
+    // Gotcha: `uses -> src/b` reaches the default, because the arrow's own whitespace is all that follows the word.
     let from: &str = after_the_word
         .strip_prefix(char::is_whitespace)
         .unwrap_or_default();
