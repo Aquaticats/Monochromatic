@@ -8720,7 +8720,8 @@ so today's findings stand in the two allow lists beside this file:
 - `layout-allow-list/file-rule.txt` holds what `rust/file-order-in-folder` still reports:
   a `file-uses <folder> <file> -> <file>` line for the uses inside a file loop,
   and an `index-item <index file> <kind>-<name>` line for an item an index file holds
-  beside its top doc, its `mod` lines and its re-exports,
+  beside its top doc,
+  its `mod` lines and its re-exports,
   such as the function `main.rs` holds beside `fn main`.
 
 Each round deletes the lines of the findings it untangles,

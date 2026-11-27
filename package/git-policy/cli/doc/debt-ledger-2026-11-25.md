@@ -1036,7 +1036,9 @@ Four `SPEC.md` citations name files that do not exist:
 `worktree/worktree_remove_hand_over.rs` near `:995` and `:1118`).
 Two more in `doc/` are historical (`doc/step-5-second-executable-2026-11-20.md:27`,
 `doc/planted-control-and-durable-survivors-resume.md:14`).
-Note, 2026-11-27: all four passages are corrected in `SPEC.md` by `52f55a54db`
+
+Note of 2026-11-27T10:07:58-05:00:
+all four passages are corrected in `SPEC.md` by `52f55a54db`
 (2026-11-25T16:57:53-05:00),
 which rewrote the nested-volume bullet to point at
 `worktree/worktree_removal_goes_around_a_foreign_volume.rs`
@@ -1299,7 +1301,8 @@ The round of 2026-11-25 switched the rules on.
 The two rules now run for the whole crate
 in the block `layout-git-policy-cli` of `monochromatic-lint.config.jsonc`.
 The findings of that day stood in two lists beside the crate,
-and the lists have moved since as rounds untangled them, so read the counts below as that day's:
+and the lists have moved since as rounds untangled them,
+so read the counts below as that day's:
 
 - `layout-allow-list/folder-rule.txt` held 1014 entries:
   524 `uses <folder> -> <folder>` lines for that day's folder and entry loop edges;
