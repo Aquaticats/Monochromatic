@@ -156,9 +156,10 @@ fn the_systems_own_eagain_is_the_refusal_that_is_retried() {
 }
 
 /// A start refused because another program holds the program's file open for writing is not retried:
-/// no writer this tool starts or stands in front of publishes a program that way,
-/// so there is no measured window a pause would cover,
-/// and the message says what the refusal means instead.
+/// no writer of the two paths a start through this tool resolves opens them for writing,
+/// the one window the repository measured is a descriptor a forked child holds for 1 to 3 ms,
+/// and the record sets that window before the owner as a choice.
+/// The message says what the refusal means instead.
 #[test]
 fn a_start_refused_because_the_program_is_being_written_is_not_retried() {
     let error: Error = Error::from(ErrorKind::ExecutableFileBusy);
