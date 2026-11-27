@@ -26,10 +26,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_head_present::publish_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
-use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
-    CloneAbsence,
-    push_a_line,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::CloneAbsence;
 use crate::worktree_clone_removal_proof_and_plan::removal_origin_step::attempt_the_origin_cleanup;
 use crate::worktree_clone_removal_proof_and_plan::removal_records_end::{
     RecordsGone,
@@ -42,6 +39,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_report::{
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::ClaimEnd;
+use crate::worktree_clone_removal_proof_and_plan::removal_snapshot_settlement::push_a_line;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::path::PathBuf;
 /// The head-gone path:

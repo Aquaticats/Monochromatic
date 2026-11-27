@@ -41,10 +41,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_destruction::{
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
     HeadDestroyRequest,
     HeadDestroyed,
-    amend_the_plan,
     destroy_the_head,
-    settle_the_recorded_names,
-    the_new_own_snapshots,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_origin_step::{
     attempt_the_origin_cleanup,
@@ -61,6 +58,11 @@ use crate::worktree_clone_removal_proof_and_plan::removal_report::{
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::ClaimEnd;
+use crate::worktree_clone_removal_proof_and_plan::removal_snapshot_settlement::{
+    amend_the_plan,
+    settle_the_recorded_names,
+    the_new_own_snapshots,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_outcome::BatchOutcome;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_plan::plan_requests;

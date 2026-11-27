@@ -90,10 +90,10 @@
 //!   owning dataset and `createtxg`.
 //! - `bookmark_rule.rs`:
 //!   the decided rule `A: Live or planned`.
+//! - `removal_snapshot_settlement.rs`:
+//!   the names settled by their GUIDs and the amended plan a new own snapshot takes.
 //! - `removal_head_destroy.rs`:
-//!   the names settled by their GUIDs,
-//!   the amended plan a new own snapshot takes,
-//!   and the head destroy with its absence proof.
+//!   the head destroy with its absence proof.
 //! - `removal_reads.rs`:
 //!   the pool reads the proof makes,
 //!   as a seam with one live implementation over the binding.
@@ -184,6 +184,7 @@ pub mod removal_resume;
 pub mod removal_settle;
 pub mod removal_settle_step;
 pub mod removal_slot_claim;
+pub mod removal_snapshot_settlement;
 pub mod removal_stop;
 pub mod removal_stop_sentences;
 pub mod started_moment;
