@@ -106,6 +106,9 @@
 //!   publish it unless a build got there first.
 //! - `package_repair_toolchain_names_and_bounds.rs`:
 //!   the words and size bounds the toolchain repair reads,
+//! - `the_commands_a_repair_prints.rs`:
+//!   the command a person runs to finish a toolchain repair,
+//!   which the repair and the notice of a relink given up on both print.
 //! - `package_repair_toolchain_object_identity.rs`:
 //!   the object a name holds,
 //!   as device,
@@ -113,14 +116,6 @@
 //!   size and write time,
 //! - `package_repair_toolchain_launcher_records.rs`:
 //!   the launcher records of a worktree's launcher directory,
-//! - `package_repair_toolchain.rs`:
-//!   the toolchain repair of a new worktree:
-//!   rebuild the links and launchers that name another checkout's lock.
-//! - `package_repair_toolchain_copy_removal.rs`:
-//!   the removal of the launcher records,
-//!   and the launchers beside them,
-//! - `package_repair_toolchain_install.rs`:
-//!   the answers package repair toolchain install holds.
 //! - `package_repair_touches_only_its_own_worktree.rs`:
 //!   whether a directory a repair deletes from or writes in is inside the worktree it serves,
 //!   once its links are followed.
@@ -141,6 +136,17 @@
 //! - `package_repair_pnpm.rs`:
 //!   the pnpm repair of a new worktree:
 //!   relink the copied `node_modules` offline against the frozen lockfile.
+//! - `package_repair_relink_notice.rs`:
+//!   the notice a relink given up on leaves for the person,
+//!   and the lines a later command in that worktree shows of it.
+//! - `package_repair_toolchain_copy_removal.rs`:
+//!   the removal of the launcher records,
+//!   and the launchers beside them,
+//! - `package_repair_toolchain_install.rs`:
+//!   the answers package repair toolchain install holds.
+//! - `package_repair_toolchain.rs`:
+//!   the toolchain repair of a new worktree:
+//!   rebuild the links and launchers that name another checkout's lock.
 //! - `package_repair_relink_hand_over.rs`:
 //!   the hand-over of a worktree's relink to the commit service,
 //!   and the relink the add does when no service takes it.
@@ -150,9 +156,6 @@
 //!   the service's relinking of that state:
 //!   each tool's own frozen install in the worktree,
 //!   run after the add returned.
-//! - `package_repair_relink_notice.rs`:
-//!   the notice a relink given up on leaves for the person,
-//!   and the lines a later command in that worktree shows of it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -324,6 +327,10 @@ pub mod package_repair_touches_only_its_own_worktree;
 
 /// The Cargo workspaces of a new worktree and the manifests that lead to them.
 pub mod package_repair_cargo_workspaces;
+
+/// The command a person runs to finish a toolchain repair,
+/// which the repair and the notice of a relink given up on both print.
+pub mod the_commands_a_repair_prints;
 
 /// The toolchain repair of a new worktree:
 /// rebuild the links and launchers that name another checkout's lock.

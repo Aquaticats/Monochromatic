@@ -108,7 +108,7 @@ pub use crate::package_repair_cargo_build_state_plan::{
     plan_build_state,
 };
 /// Import the program the person's environment resolves.
-pub(super) use crate::package_repair_cargo_clean_arguments::PROGRAM;
+use crate::package_repair_cargo_clean_arguments::PROGRAM;
 /// Import the clean's arguments and the command a person runs instead,
 /// so the paths their callers already name are unchanged.
 pub use crate::package_repair_cargo_clean_arguments::{
@@ -119,13 +119,10 @@ pub use crate::package_repair_cargo_clean_arguments::{
 /// Import the tag every line of this repair's diagnostic log carries.
 use crate::package_repair_cargo_one_workspace::TAG;
 /// Import the repair of one workspace and what it came to,
-/// so the paths the jobs,
-/// the controls and this file already name are unchanged.
+/// so the paths this file already names are unchanged.
 pub(super) use crate::package_repair_cargo_one_workspace::{
     CargoTool,
     Done,
-    repair_workspace_awaiting,
-    timed_read_workspace_awaiting,
 };
 /// Import the owned,
 /// platform-native string a search path is.
