@@ -1959,9 +1959,10 @@ and every other line stays as it is.
 #### How a list written before alpha.19 maps
 
 No key any rule prints changes shape,
-and no line that reads back today names another use,
-so a list written for alpha.18 needs no new line from this release,
-and a list that holds one use under two spellings needs one line fewer.
+and no line a run printed reads back differently,
+so a list written for alpha.18 needs no new line from this release.
+A list that holds one use under two spellings needs one line fewer,
+and a `file-uses` line that climbs out with `..` and comes back in stops being dead.
 What else changes is which runs stop and what they say.
 
 - A `uses` line whose name before the arrow ends in whitespace is reported dead,
