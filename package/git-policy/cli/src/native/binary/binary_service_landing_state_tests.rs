@@ -35,6 +35,7 @@ use super::service_landing_support::{
     case,
     compare,
     copy_beside,
+    finish_a_landing,
     finished,
     run_native,
     run_served,
@@ -707,7 +708,10 @@ fn a_policy_rewrite_lands_and_reaches_the_worktree() {
     );
     let before: usize = finished(&fixture);
     let native = run_native(&fixture, &base, &entry);
-    let served = run_served(&fixture, &served_repo, name.as_str(), &entry);
+    let served_run = run_served(&fixture, &served_repo, name.as_str(), &entry);
+    // The landing writes its finished record after the index it installs, so the repository is read once that record is
+    // there: a command whose answer was lost reports the commit before it exists (issue 6572).
+    let served = finish_a_landing(&fixture, &served_repo, before, &entry, served_run);
     assert_eq!(served.code, native.code, "{}", served.output);
     for ((label, expected), (_, found)) in native.left.iter().zip(&served.left) {
         assert_eq!(found, expected, "{label}");

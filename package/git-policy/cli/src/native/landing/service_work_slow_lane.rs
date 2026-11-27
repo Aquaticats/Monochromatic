@@ -53,6 +53,7 @@ use crate::housekeeping_of_one_round::{
     HOUSEKEEPING_OF_ONE_ROUND,
     LOOK_AGAIN_AFTER_DEFERRING,
 };
+use crate::parallel_budget::HostResources;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review_key::ReviewKey;
 use crate::service_work::{
@@ -297,11 +298,16 @@ async fn run_awaiting(
                 if let Some(key) = review_key.clone() {
                     keys.insert(git_dir.clone(), key);
                 }
+                // What: the host every batch of this look is sized by, read once for the look.
+                // Why:  a look's widths are one reading of the machine, and a control reaches the same batches by
+                //       stating a host of its own instead of letting the machine decide (issue 6567).
+                let host: HostResources = HostResources::read();
                 if let Some(wait) = a_look_that_may_panic(drain_the_slow_work_awaiting(
                     git_dir.as_path(),
                     &handlers.for_round(keys),
                     housekeeping,
                     lease,
+                    &host,
                 ))
                 .await
                 {
@@ -351,19 +357,23 @@ async fn run_awaiting(
 /// A directory whose look left housekeeping for a later one names the pause it wants (`housekeeping_of_one_round.rs`),
 /// as a claim it keeps names the moment its lease runs out,
 /// and the earlier of the two looks is what the lane waits.
+///  The CPUs and memory `host` names size every batch of both looks,
+/// so a control states a host of its own rather than depending on what the machine answers
+/// (issue 6567).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainSlow(gitDir); if (bareCommon(gitDir)) await drainSlow(common)
+/// await drainSlow(gitDir, housekeeping, lease, host); if (bareCommon(gitDir)) await drainSlow(common, housekeeping, lease, host)
 /// ```
 pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     housekeeping: Duration,
     lease: Duration,
+    host: &HostResources,
 ) -> Option<Duration> {
     let own: Option<Duration> =
-        drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping, lease).await;
+        drain_the_slow_kinds_awaiting(git_dir, handlers, housekeeping, lease, host).await;
     let Some(common) = common_directory_of(git_dir) else {
         return own;
     };
@@ -374,7 +384,7 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
         return own;
     }
     let shared: Option<Duration> =
-        drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping, lease).await;
+        drain_the_slow_kinds_awaiting(common.as_path(), handlers, housekeeping, lease, host).await;
     return match (own, shared) {
         (Some(one), Some(other)) => Some(one.min(other)),
         (one, other) => one.or(other),
@@ -397,13 +407,14 @@ pub(crate) async fn drain_the_slow_work_awaiting<H: WorkHandlers + Sync + ?Sized
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping)
+/// await drainPendingAwaiting(gitDir, handlers, CLAIM_LEASE, Renewal.Timed, { first: undefined, changes: [], plans: undefined }, SLOW_KINDS, housekeeping, host)
 /// ```
 async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(
     git_dir: &Path,
     handlers: &H,
     housekeeping: Duration,
     lease: Duration,
+    host: &HostResources,
 ) -> Option<Duration> {
     let mut nothing_to_plan: Replanning = Replanning {
         first: None,
@@ -419,6 +430,7 @@ async fn drain_the_slow_kinds_awaiting<H: WorkHandlers + Sync + ?Sized>(
         &mut nothing_to_plan,
         SLOW_KINDS,
         housekeeping,
+        host,
     )
     .await;
 }
