@@ -506,6 +506,25 @@ const WRITER_END_GRACE: Duration = Duration::from_secs(5);
 /// How often a running command is asked whether it ended.
 const POLL: Duration = Duration::from_millis(50);
 
+/// How many cargo calls one resolving run makes one after another at most.
+/// Why:
+/// The install step updates the lockfile, updates it again when the first update did not settle it, checks it against its manifests, and
+/// then the user's own command runs: five calls, which is what this file's own fake cargo logged for a fixed run
+/// (`update --workspace --locked --offline`, `update --workspace --offline`, two `metadata` calls, and `check -q`). The program bounds
+/// each of those calls and never the run, and no call of this fixture takes anything like its allowance, so a run that made one call
+/// more would still end far inside the bound below.
+const RUN_CALLS: u64 = 5;
+
+/// How long a run of the built shadow may take here before the control ends it.
+/// Why:
+/// The bound ends a run that hangs, and it must never decide a healthy run's outcome: a control that fails on this machine's speed
+/// measures the machine and not the program. The program allows each cargo call `CARGO_CALL_SECONDS` and allows a run no bound at all,
+/// so the bound of a run is that allowance times the calls a run makes in sequence. Its predecessor was twenty seconds of wall clock,
+/// which no healthy run on this host was bounded by: with it the control could not tell a loop from a slow machine and its message
+/// claimed a loop either way.
+const RUN_BOUND: Duration =
+    Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS * RUN_CALLS);
+
 /// What a chain that must not nest did.
 enum ChainEnd {
     /// The command ended by itself, with its complete output.
@@ -730,6 +749,26 @@ fn chain_end_within(
         std::thread::sleep(POLL);
     }
 }
+
+/// The output of a chain that must have ended by itself.
+/// Why:
+/// A run that neither ended nor entered the launcher again is a hang, and the message has to say what the run had done rather than claim
+/// a loop it never saw.
+fn ended(
+    end: ChainEnd,
+    world: &World,
+) -> Output {
+    return match end {
+        ChainEnd::Ended(output) => output,
+        ChainEnd::Nested(nested) => panic!(
+            "the second start led back into the launcher, which entered it at a depth of its own: {nested:?}"
+        ),
+        ChainEnd::Hung => panic!(
+            "the run neither ended nor entered the launcher again within {RUN_BOUND:?}, this program's own allowance for the cargo calls one run makes in sequence; the cargo calls it had made are {:?}, so this is a hang and not a slow machine",
+            log_lines(world)
+        ),
+    };
+}
 //endregion
 
 //region the windows the helper has to survive
@@ -868,6 +907,25 @@ fn a_chain_that_entered_the_launcher_again_is_reported_as_nested_even_when_it_en
         "the nested entry was reported {seen} times of {NESTED_ENTRY_ATTEMPTS}"
     );
 }
+
+/// The fewest cargo calls one resolving run makes one after another.
+/// Why:
+/// The install step's update, its check of the lockfile against its manifests, and the user's own command: three calls at the very least,
+/// each of which the program may allow `CARGO_CALL_SECONDS`.
+const LEAST_SEQUENTIAL_CALLS: u32 = 3;
+
+/// The bound of a whole run covers the cargo calls that run makes one after another.
+/// Why:
+/// The program bounds each cargo call and not the run, so a whole-run bound of one call ends a healthy run whose every call met its own
+/// allowance. It reads the two numbers rather than running two slow cargo calls, so it costs nothing and cannot itself be slow.
+#[test]
+fn the_bound_of_a_whole_run_covers_the_cargo_calls_it_makes_in_sequence() {
+    let one_call: Duration = Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS);
+    assert!(
+        RUN_BOUND >= one_call * LEAST_SEQUENTIAL_CALLS,
+        "the whole run is given {RUN_BOUND:?} where one cargo call alone may take {one_call:?} and a resolving run makes at least {LEAST_SEQUENTIAL_CALLS} calls in sequence"
+    );
+}
 //endregion
 
 #[test]
@@ -882,7 +940,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
         &launcher_directory,
         &world.fake_directory,
     ]);
-    let run = || -> Output {
+    let run = || -> ChainEnd {
         let mut command = shadow_command(&world);
         command
             .args(["check", "-q"])
@@ -890,11 +948,10 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
             .env("PATH", &path)
             .env("CI", "")
             .env("FAKE_CARGO_LOG", &world.log);
-        return output_within(&mut command, Duration::from_secs(20))
-            .expect("the command timed out: the shadow keeps leading back into the launcher");
+        return chain_end_within(&mut command, &count, RUN_BOUND);
     };
 
-    let output = run();
+    let output = ended(run(), &world);
 
     // The second start stops before doing any work, with status 2: no lockfile was touched, and no cargo ran.
     let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -987,8 +1044,8 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
         .env("PATH", &fixed_path)
         .env("CI", "")
         .env("FAKE_CARGO_LOG", &world.log);
-    let after_a =
-        output_within(&mut fixed, Duration::from_secs(20)).expect("the fixed command timed out");
+    let after_a = output_within(&mut fixed, RUN_BOUND)
+        .expect("the fixed command did not end within the bound this program allows a run");
     assert_eq!(
         after_a.status.code(),
         Some(0),
@@ -1026,7 +1083,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     // A second run is a fresh chain: the entry trace is cleared so its one starting shadow is what the assertions above mean.
     std::fs::remove_file(&count).ok();
     write_lock(&world, STALE);
-    let after_b = run();
+    let after_b = ended(run(), &world);
     assert_eq!(
         after_b.status.code(),
         Some(0),
@@ -1061,7 +1118,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
     // ```
     write_lock(&world, SATISFIED);
     // Borrow `&world`: lends the value without copying or giving it away.
-    let (launcher_directory, _count) = write_launcher(&world);
+    let (launcher_directory, count) = write_launcher(&world);
     // Borrow `&[`: lends the value without copying or giving it away.
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
@@ -1114,8 +1171,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
     // ```ts
     // value ?? fallback
     // ```
-    let output = output_within(&mut command, Duration::from_secs(20))
-        .expect("the command timed out: the shadow keeps leading back into the launcher");
+    let output = ended(chain_end_within(&mut command, &count, RUN_BOUND), &world);
 
     // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
     // Why:      Absence is a value the caller must check; there is no `null`.
@@ -1153,6 +1209,13 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
         log_lines(&world).is_empty(),
         "the real cargo ran after the second start: {:?}",
         log_lines(&world)
+    );
+    // The trace of the launcher: every entry is the first shadow's, so no second start reached the launcher again. The status and the
+    // message alone do not show that, because a stopped inner shadow has both of them too.
+    let nested: Vec<String> = entries_below_the_first_shadows_depth(&count);
+    assert!(
+        nested.is_empty(),
+        "a launcher was entered at a depth other than the first shadow's: {nested:?}"
     );
 }
 
@@ -1243,8 +1306,7 @@ fn started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_
         .env("CI", "")
         .env("FAKE_CARGO_LOG", &world.log);
 
-    let output =
-        output_within(&mut command, Duration::from_secs(20)).expect("the command timed out");
+    let output = output_within(&mut command, RUN_BOUND).expect("the command timed out");
 
     assert_eq!(
         output.status.code(),
