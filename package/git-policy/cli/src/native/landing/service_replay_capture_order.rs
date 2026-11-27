@@ -32,7 +32,7 @@ use crate::commit_transaction::{
 use crate::replay_capture_order::CaptureOrderDecision;
 use crate::replay_shared_paths::SharedPath;
 use crate::service_protocol::LandedCapture;
-use crate::service_replay::{
+use crate::service_replay_the_captured_change::{
     Captured,
     MergeSite,
 };
