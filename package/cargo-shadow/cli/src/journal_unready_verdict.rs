@@ -18,7 +18,10 @@ use std::fs;
 use std::io;
 
 /// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `crate::constants::LOCKFILE_NAME` for this file.
 use crate::constants::LOCKFILE_NAME;
@@ -156,14 +159,19 @@ pub(crate) fn note_uncertain(
 }
 
 /// What:
-/// `fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<String>, String>` decides whether a journal without a ready
-/// record holds nothing that the live files do not already hold,
+/// `fn unready_verdict(root: &Path, directory: &Path) -> Result<Vec<PathBuf>, String>` decides whether a journal without a
+/// ready record holds nothing that the live files do not already hold,
 /// and returns the live files to make durable before it is removed;
 /// `Err` says why it must be kept.
 /// Why:
 /// Round 6 (5b2 3):
 /// equal lockfiles do not make a manifest snapshot or an unknown file redundant,
 /// and a missing index is no proof that the directory is empty.
+/// The paths come back as paths and never as text:
+/// a manifest whose name is not UTF-8 would lose its bytes on the way to the barrier,
+/// which would then sync a file that is not there,
+/// succeed by skipping it,
+/// and let the only durable copy go (issue 6550).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,7 +180,7 @@ pub(crate) fn note_uncertain(
 pub(crate) fn unready_verdict(
     root: &Path,
     directory: &Path,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<PathBuf>, String> {
     let listing: fs::ReadDir =
         fs::read_dir(directory).explained(format_args!("it could not be listed"))?;
     let mut names: Vec<String> = Vec::new();
@@ -201,7 +209,9 @@ pub(crate) fn unready_verdict(
             snapshots += 1;
         }
     }
-    let mut live_files: Vec<String> = Vec::new();
+    // What: the live files to make durable, as the paths they really are.
+    // Why: a path that is not UTF-8 must reach the barrier byte for byte, not as text that stands for it.
+    let mut live_files: Vec<PathBuf> = Vec::new();
     match read_journal(directory) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             if locks > 0 {
@@ -225,12 +235,7 @@ pub(crate) fn unready_verdict(
                 }
             }
             for crate_dir in &dirs {
-                live_files.push(
-                    root.join(crate_dir)
-                        .join(LOCKFILE_NAME)
-                        .to_string_lossy()
-                        .to_string(),
-                );
+                live_files.push(root.join(crate_dir).join(LOCKFILE_NAME));
             }
         }
     }
@@ -252,7 +257,9 @@ pub(crate) fn unready_verdict(
         for manifest in &manifests {
             match fs::read_to_string(&manifest.path) {
                 Ok(live) if live == manifest.before => {
-                    live_files.push(manifest.path.to_string_lossy().to_string())
+                    // What: `clone` copies the owned path, so the list outlives the manifest index it came from.
+                    // Why: the barrier below is given the manifest's own name, byte for byte.
+                    live_files.push(manifest.path.clone())
                 }
                 Ok(_) => {
                     return Err(format!(
