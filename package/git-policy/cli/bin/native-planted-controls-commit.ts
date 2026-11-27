@@ -43,7 +43,9 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "index commits without staging skip the staging step",
-    file: "src/native/commit/commit_index.rs",
+    // The staging decision moved to `commit_index_staging.rs` when the index commit was split by role, and the guard
+    // keeps its text.
+    file: "src/native/commit/commit_index_staging.rs",
     from: "if !selection.stage_into_index {",
     to: "if false {",
     // The index commit this guard serves names paths, so the control names the test that builds one; the plain index
@@ -84,7 +86,9 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   },
   {
     name: "amend wins over the conclusion markers",
-    file: "src/native/commit/capture_invocation.rs",
+    // What the head and the conclusion markers decide moved to `capture_invocation_head_and_conclusion.rs` when the
+    // capture invocation was split by role, and the test module stays declared by `capture_invocation.rs`.
+    file: "src/native/commit/capture_invocation_head_and_conclusion.rs",
     from: "if amend {",
     to: "if false {",
     failing: "commit::capture_invocation::tests::conclusion_markers_decide_the_kind",
@@ -136,13 +140,17 @@ export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: 'gc.autodetach fallback',
     file: 'src/native/landing/maintenance_decision.rs',
-    from: 'else { config.get("gc.autodetach") };',
-    to: 'else { None };',
+    // The fallback became an `if let` arm whose else branch sits on lines of its own since the crate was formatted
+    // (`57bf0918fc`).
+    from: '        } else {\n            config.get("gc.autodetach")\n        };',
+    to: '        } else {\n            None\n        };',
     failing: 'landing::maintenance_decision::tests::gc_autodetach_false_runs_in_the_foreground',
   },
   {
     name: 'manual-push confirmation refuses a remote ref changed after negotiation',
-    file: 'src/native/push/manual_push_probe.rs',
+    // The confirmation moved to `manual_push_probe_confirmation.rs` when the probe was split by role, and the arm keeps
+    // its text.
+    file: 'src/native/push/manual_push_probe_confirmation.rs',
     from: 'RemoteBefore::Known(reported) => authoritative.as_ref() != Some(reported),',
     to: 'RemoteBefore::Known(_reported) => false,',
     failing: 'push::manual_push_probe::tests::confirmation_refuses_a_remote_ref_that_changed_after_the_report',
