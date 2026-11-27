@@ -409,13 +409,15 @@ pub fn sync_tools(
                     // What: the recovery's own words, followed by what this run then did.
                     // Why: its last clause says the copy at the version's name "is as it was" and that running the command
                     //  again publishes it, and this run downloaded and installed that version itself instead.
+                    //  The failure may be one that read no copy at all (the tool's directory could not be listed),
+                    //  so the suffix claims nothing about a copy and says only what this run then did.
                     //
                     // In TS you'd write (pseudocode):
                     // ```ts
-                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, so a later run publishes nothing from that copy and removes it`);
+                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, so the run does not fail for it`);
                     // ```
                     report.warnings.push(format!(
-                        "{problem}; the install this run went on to make put {} {} at its name, so a later run publishes nothing from that copy and removes it",
+                        "{problem}; the install this run went on to make put {} {} at its name, so the run does not fail for it",
                         tool.declaration.id, tool.version
                     ));
                 }

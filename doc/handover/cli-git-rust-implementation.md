@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:35:16-05:00
+## The state at 2026-11-27T17:40:07-05:00
 
-`main` was `21c91bc9fd`.
+`main` was `d46572181c`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 276 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 277 more by this time.
 
 ### Rounds running
 
@@ -850,8 +850,25 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and priced it:
   keeping a second copy whose program differs means reading both programs on every recovery,
   and still cannot tell a program cut short from one rebuilt at the same size.
-  The other round of the read and the round of issue 6630 got a note at 2026-11-27T17:35-05:00 on what it reworded.
-  `0.2.7-alpha.17` follows the merges of the two that still run.
+  The second,
+  on the move of `current`,
+  is merged (`d46572181c`).
+  A test can now make that move fail,
+  through a seam compiled out of a shipped build,
+  and two controls hold that nothing is removed when the link cannot be moved;
+  both fail with the `return` after the failed move taken out.
+  A control holds a hidden name whose boot and namespace both differ as ended,
+  and fails with the two comparisons swapped.
+  The warning after a failed listing no longer speaks of a copy,
+  because none was read.
+  Two behaviours stay as they are,
+  each held by a control and said in the README,
+  and each waits for the owner:
+  a move of `current` that fails once ends the run 1 and leaves the older version until `prune --toolchain`,
+  and a recovery that puts an unfinished copy back points `current` at the newest finished version.
+  Its whole test task passed 906 of 906 on its merged tree.
+  The round of issue 6630 got notes at 2026-11-27T17:35:16-05:00 and after this merge on what both rounds changed.
+  `0.2.7-alpha.17` follows the merge of issue 6630's round.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,

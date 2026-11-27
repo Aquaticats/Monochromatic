@@ -1409,8 +1409,13 @@ the install that followed put the version there,
 another install had already done so,
 or a newer version runs,
 and that run ends 0.
-The run ends 1 only when the locked version is not at its name afterwards,
+For a recovery that failed,
+the run ends 1 only when the locked version is not at its name afterwards,
 which is when the install that followed failed too.
+A run whose recovery put the version at its name also ends 1 when the link that names the newest finished version cannot be placed,
+even when a later step of the same run places it:
+nothing is removed under a link that does not name the newest finished version yet,
+so the version directories older than it stay until `prune --toolchain` removes them.
 A publish that finds a copy at the version's name in the instant between its own check and its rename replaces it,
 in the same step it uses for a copy that was there all along,
 so a second install's put-back costs no finished copy.
@@ -1568,6 +1573,13 @@ After a recovery that does put a version at its name,
 the order an install keeps,
 so a start between those two steps runs the newest finished version,
 and a run killed there leaves a `current` that resolves.
+A recovery that puts back the copy a killed install had moved aside counts here too,
+even when that copy is unfinished:
+`install` points `current` at the newest finished version,
+which may be an older version than the one the lock names,
+and when the install that follows fails,
+`current` names that older version,
+so a start runs it while `list` reports the version the lock names as drift.
 The report names each version it removed that way and says what that version was in this run:
 the one the recovery published,
 or one that was installed before the run.
