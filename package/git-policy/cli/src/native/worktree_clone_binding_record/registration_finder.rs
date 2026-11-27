@@ -26,7 +26,8 @@ use std::path::PathBuf;
 
 /// How many candidate names a slot's finder considers,
 /// which is the slot's own name and Git's first few counters.
-/// Git's counter rises one at a time, and a name two counters above the slot's
+/// Git's counter rises one at a time,
+/// and a name two counters above the slot's
 /// needs two entries at the slot's own name to exist already,
 /// which the finder's refusals would have stopped before.
 pub const MOST_CANDIDATES: usize = 8;
@@ -66,20 +67,27 @@ pub struct EntryFacts {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EntryRow {
-    /// Row 1: a bare directory,
+    /// Row 1:
+    /// a bare directory,
     /// which a kill before Git wrote `locked` leaves.
     Bare,
-    /// Row 2: `locked` only,
+    /// Row 2:
+    /// `locked` only,
     /// holding the sentence,
     /// a covering prefix or nothing yet.
     LockOnly,
-    /// Row 3: `locked` and `gitdir`, the slot still empty.
+    /// Row 3:
+    /// `locked` and `gitdir`,
+    /// the slot still empty.
     GitdirOnly,
-    /// Row 4: the slot's `.git` stands and names this registration.
+    /// Row 4:
+    /// the slot's `.git` stands and names this registration.
     PointerOnly,
-    /// Row 5: `commondir` stands too.
+    /// Row 5:
+    /// `commondir` stands too.
     Commondir,
-    /// Row 6: a complete registration,
+    /// Row 6:
+    /// a complete registration,
     /// which the add adopts.
     ///
     /// What its lock is stands outside this table:

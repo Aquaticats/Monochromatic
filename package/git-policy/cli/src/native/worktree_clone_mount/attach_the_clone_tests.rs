@@ -226,16 +226,22 @@ fn the_two_flag_spellings_are_the_same_two_bits() {
 
 /// What:
 ///  The attributes a caller hands the attach are the ones the mount is made
-///  with, which is what lets `mount-path-descendant` mount a dataset with the
+///  with,
+/// which is what lets `mount-path-descendant` mount a dataset with the
 ///  pair its own properties resolve to.
 /// Why:
-///  The clone attach fixes `nosuid,nodev`, and a control that only ever passes
-///  that pair cannot tell the parameter from the fixed value: replacing one
+///  The clone attach fixes `nosuid,nodev`,
+/// and a control that only ever passes
+///  that pair cannot tell the parameter from the fixed value:
+/// replacing one
 ///  with the other would leave every other control green.
 ///  `attach_with` names the filesystem type precisely so a control can drive
 ///  the same four calls on a tmpfs,
-///  so this one attaches a tmpfs with `ro,noexec`, neither of which any
-///  attach passes, in a namespace of its own, and reads them back from the
+///  so this one attaches a tmpfs with `ro,noexec`,
+/// neither of which any
+///  attach passes,
+/// in a namespace of its own,
+/// and reads them back from the
 ///  mount table the kernel keeps there.
 #[test]
 fn the_attributes_a_caller_hands_reach_fsmount() {

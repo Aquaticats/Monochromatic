@@ -18,7 +18,8 @@
 //!  which reads no report,
 //!  and because the refusal reads only the binding record.
 //!  Every forwarded `git worktree move` reaches it
-//!  (`invocation/entry_zfs_slot_commands.rs`, `move_refusal_of`).
+//!  (`invocation/entry_zfs_slot_commands.rs`,
+//! `move_refusal_of`).
 //!
 //! Files in this folder,
 //! each using only files listed before it:

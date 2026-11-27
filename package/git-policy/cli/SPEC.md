@@ -3711,14 +3711,16 @@ with the same force:
 - A subvolume or a mount point below the worktree's root is removed around,
   never destroyed and never handed to Git
   (`src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs`,
-  and the section "A volume the removal did not make: removing around it" for the decision of 2026-11-12).
+  and the section "A volume the removal did not make:
+  removing around it" for the decision of 2026-11-12).
   The destroy cannot take such a tree:
   the kernel refuses `BTRFS_IOC_SNAP_DESTROY` for a subvolume that contains another one,
   so nothing of the worktree is renamed for the commit service,
   and the removal empties every other entry and keeps each volume with the directories that lead to it.
   An unforced removal whose proof of cleanliness refuses refuses here too,
   with one report that names each volume and gives the reason,
-  and no volume is moved, unmounted or deleted.
+  and no volume is moved,
+  unmounted or deleted.
   Git's own removal is no answer here:
   it unlinks the
   inner worktree's files and leaves its empty subvolume,
@@ -4991,7 +4993,8 @@ and every step reads the state a kill at the step before it leaves:
   (`package/git-policy/cli/src/native/worktree_clone_add_route/add_source_the_restore_cannot_prove.rs`).
   Every other refusal of the source stops the add with the wrapper's refusal
   exit code before the claim.
-  The person's own `--lock`, `--reason` or `--checkout` is refused after the
+  The person's own `--lock`,
+  `--reason` or `--checkout` is refused after the
   source check,
   so a declined add reaches the ladder with the words Git's own `worktree add`
   takes by itself,
@@ -5489,7 +5492,9 @@ and a command started inside a repository's Git directory reads that directory's
 records,
 which Git still names although the command stands in no worktree.
 Only the ladder's own steps keep the shorter list of globals they serve
-("Cheap worktree creation and removal on btrfs, XFS, overlayfs and ZFS").
+("Cheap worktree creation and removal on btrfs,
+XFS,
+overlayfs and ZFS").
 A command reached through a shell alias is read by the same reader the guard
 uses,
 so the two rules cannot disagree about what an alias is,
@@ -5514,18 +5519,28 @@ and the wrapper's own `--no-enforce-require-root`
 each leave a removal or a move typed below the top behind a shell alias to the
 slot refusal,
 which then names the slot the spelling at the top names.
+The records the refusal reads are those of the repository the command names:
+caller's words that carry `-C`,
+`--git-dir` or `--work-tree` make the refusal read that repository's records,
+not the ones beside the caller,
+because that is the repository Git's own command works in.
+A slot command behind a `!` alias whose shell's directory Git could not be asked
+for is one nothing placed,
+so it is refused with words saying what could not be read,
+and never forwarded in silence.
 When the rule is off or escaped it says nothing about the command;
 at `warn` its finding and the line saying the policy is warn-unsafe are printed
-before a removal's refusal,
-while a move's refusal carries its own sentence alone.
+before a refusal of any of the three slot commands,
+a removal's,
+a move's and a prune's alike,
+in the order a removal prints them.
 The spellings that reach that reading are the guard's own,
 stated in the passage "git by the word Git will run":
-a value whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
 whose own words name no global option,
 and whose first word after the `!` and after any blanks is `git`,
 so `!git <words>`,
@@ -5629,7 +5644,8 @@ and the `--no-` form of it,
 with the last of them typed deciding.
 The pass reads no pool and writes no record.
 A prune started inside the repository's Git directory (`git -C <repository>/.git worktree prune`)
-is the same pass over that directory: Git names the repository although the command stands in no worktree,
+is the same pass over that directory:
+Git names the repository although the command stands in no worktree,
 and the registrations it would drop are the ones the records name.
 
 The repair report says what a damaged link can and cannot restore,
@@ -6039,7 +6055,8 @@ It is built ahead of the plan's order:
 
 - No management grammar admits it,
   no `git` command reaches it,
-  `doctor`, the mount handler and the boot units do not either,
+  `doctor`,
+  the mount handler and the boot units do not either,
   and the round that switches the removal's command path on adds it to the grammar.
   This release's binary prints the management usage and exits `2` for the word.
 - It takes the slot's removal claim through the repository's own generation claim,
@@ -9945,7 +9962,9 @@ and a password a URL carries is never printed.
 A command ssh does not carry names no next step and keeps the process replacement it has today.
 Four limits stand with it:
 `kill -9` of the typed process number is not one of the four signals the relay carries:
-the wrapper ends at once, prints nothing, and does not end Git through the relay;
+the wrapper ends at once,
+prints nothing,
+and does not end Git through the relay;
 under `ssh -q` or `LogLevel=QUIET` OpenSSH prints nothing to read,
 so no sentence follows;
 a typed LFS push explains a refused key through the upload's own words instead,
@@ -17964,9 +17983,11 @@ each with its reason in the code and here:
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;
-  under it one line is pushed or popped, one number is moved and the writer is handed out or given back,
+  under it one line is pushed or popped,
+  one number is moved and the writer is handed out or given back,
   and the write itself runs outside it.
-  A queue of `QUEUED_LINES` (256 in each: measured over the six slowest commits of 2026-11-12 for the service's log,
+  A queue of `QUEUED_LINES` (256 in each:
+  measured over the six slowest commits of 2026-11-12 for the service's log,
   and over this repository's commit timing log and the package's gates on 2026-11-15 for the diagnostics)
   is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:
@@ -24349,12 +24370,11 @@ which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
 not the wrapper first on `PATH`).
 One plain form of it is read,
 only so the guard can decide:
-a value whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
+a value whose bytes are letters,
+digits,
+or one of `-` `_` `.` `/` `:` `=` `@` `+` `,`,
+with spaces and TABs only between its words,
+every other byte leaving the value unread,
 whose own words name no global option,
 and whose first word after the `!` and after any blanks is `git`.
 A blank there is a space or a TAB,
@@ -24368,7 +24388,13 @@ so the command followed is the value's words and then the caller's:
 a value of exactly `!git` starts that command with the caller's first word,
 and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
 Those caller's words may begin with a global option,
-because that same Git reads them there and the reading keeps them;
+because that same Git reads them there and the reading keeps them,
+and the worktree or repository such an option names is the one the guard
+judges:
+`-C`,
+`--git-dir` and `--work-tree` are read from the directory Git runs the shell in,
+and every repository fact the decision reads is asked through them,
+so the worktree a command changes is the one measured and the one refused;
 a global option among the value's own words is left unread,
 as the boundary below says.
 A value whose own words name a `!` alias starts a second shell,

@@ -578,7 +578,8 @@ fn alive(pid: i32) -> bool {
 }
 
 /// What:
-///  The helper: one upload run in a process of its own,
+///  The helper:
+/// one upload run in a process of its own,
 /// for the controls that send the wrapper a signal or leave a stand-in holding.
 /// Why:
 ///   The guard's handlers are process-wide and the first guard of a process owns them
@@ -660,7 +661,9 @@ fn wait_for_helper_file(
     }
 }
 
-/// Wait, bounded, for the helper's own end.
+/// Wait,
+/// bounded,
+/// for the helper's own end.
 fn finish_helper(helper: &mut Child) -> ExitStatus {
     let started: Instant = Instant::now();
     loop {
@@ -688,7 +691,8 @@ fn send_to_helper(
     assert_eq!(sent, 0, "the signal was delivered to the helper");
 }
 
-/// The answer the helper recorded: its status and its diagnostics.
+/// The answer the helper recorded:
+/// its status and its diagnostics.
 fn helper_answer(root: &Path) -> (i32, String) {
     let code: i32 = std::fs::read_to_string(root.join("upload.code"))
         .expect("the helper recorded its status")

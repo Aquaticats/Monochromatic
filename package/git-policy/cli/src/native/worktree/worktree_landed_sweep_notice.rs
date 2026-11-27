@@ -49,7 +49,9 @@ fn removal_command(worktree: &Path) -> String {
 ///  the work directory itself,
 ///  and the record's own name.
 /// Why:
-///  A record is a file under `pending`, `claimed`, `done` or `failed` below that directory,
+///  A record is a file under `pending`,
+/// `claimed`,
+/// `done` or `failed` below that directory,
 ///  and it moves between them,
 ///  so a line that named one of those paths named a file that is not there more often than one that is.
 ///  The directory and the name are what a person can open,

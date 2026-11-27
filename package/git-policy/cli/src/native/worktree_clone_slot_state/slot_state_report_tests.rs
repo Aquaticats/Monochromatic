@@ -1,6 +1,7 @@
 //! Controls for one slot's report:
 //!  one report for each state the classification names,
-//!  with its slot, its dataset and pool,
+//!  with its slot,
+//! its dataset and pool,
 //!  the evidence each state came from,
 //!  and the one next safe action,
 //!  plus the lines a command prints.
@@ -53,7 +54,8 @@ fn readings_at(phase: Phase) -> SlotReadings {
     };
 }
 
-/// A report line, found by its prefix.
+/// A report line,
+/// found by its prefix.
 fn line_starting(
     report: &SlotStateReport,
     prefix: &str,
@@ -321,7 +323,10 @@ fn a_state_nothing_proves_reports_its_reason() {
     );
 }
 
-/// The printed lines carry the slot, the state, the dataset, the evidence and the action once.
+/// The printed lines carry the slot,
+/// the state,
+/// the dataset,
+/// the evidence and the action once.
 #[test]
 fn the_lines_carry_each_field_once() {
     let lines: Vec<String> = report_of(&readings_at(Phase::Filled)).lines();

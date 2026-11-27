@@ -10,7 +10,8 @@
 //!  "Where the planned identities come from").
 //!  A plan that lacks one of these fields is a refusal rather than a check with a missing
 //!  expectation,
-//!  and the refusal names the field and the plan's own file, so a person knows which record
+//!  and the refusal names the field and the plan's own file,
+//! so a person knows which record
 //!  to look at.
 //!  This folder reads no plan itself:
 //!  the plan's grammar and reader belong to the removal
@@ -57,18 +58,22 @@ use std::path::{
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlannedOrigin {
-    /// The slot the removal was asked for, which names it in every command a refusal prints.
+    /// The slot the removal was asked for,
+    /// which names it in every command a refusal prints.
     pub slot: String,
     /// The clone's full dataset name.
     pub clone_name: String,
-    /// The clone's dataset GUID, as this removal proved it.
+    /// The clone's dataset GUID,
+    /// as this removal proved it.
     pub clone_guid: DatasetGuid,
     /// The origin dataset's full name.
     pub origin_dataset_name: String,
     /// The origin dataset's GUID.
     pub origin_dataset_guid: DatasetGuid,
     /// The origin snapshot's full name,
-    /// which is the origin dataset's name, an `@`, and the snapshot's.
+    /// which is the origin dataset's name,
+    /// an `@`,
+    /// and the snapshot's.
     pub origin_snapshot_name: String,
     /// The origin snapshot's GUID.
     pub origin_snapshot_guid: DatasetGuid,

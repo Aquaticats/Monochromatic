@@ -1,14 +1,19 @@
 //! What:
-//!  The words the route's one Git invocation is given: the person's arguments with
-//!  `--no-checkout`, `--lock` and the managed sentence inserted where Git reads
-//!  options, and the refusal of a person who asked for their own lock.
+//!  The words the route's one Git invocation is given:
+//! the person's arguments with
+//!  `--no-checkout`,
+//! `--lock` and the managed sentence inserted where Git reads
+//!  options,
+//! and the refusal of a person who asked for their own lock.
 //! Why:
 //!  The design's invocation is
 //!  `git worktree add --no-checkout --lock --reason <sentence> <slot> <commit-ish>`,
 //!  from one list and never through a shell
-//!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`, "The invocation").
+//!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+//! "The invocation").
 //!  A person's own `--lock` or `--reason` would be the words the wrapper's proof
-//!  reads, so the route refuses that form instead of locking the registration
+//!  reads,
+//! so the route refuses that form instead of locking the registration
 //!  with words it did not write.
 //!
 //! In TS you'd write (pseudocode):
@@ -32,8 +37,11 @@ pub const PERSON_LOCK_WORDS: [&[u8]; 4] = [b"--lock", b"--reason", b"--checkout"
 /// What:
 ///  The person's own words with the route's options inserted after `add`.
 /// Why:
-///  The insertion point is the plan's, read from the same option table the ladder
-///  uses, so a long word, a bundled short word and a value cannot move it.
+///  The insertion point is the plan's,
+/// read from the same option table the ladder
+///  uses,
+/// so a long word,
+/// a bundled short word and a value cannot move it.
 ///
 /// # Errors
 /// The person names `--lock`,

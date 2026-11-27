@@ -145,13 +145,15 @@ fn a_name_that_is_not_utf8_can_be_made(root: &Path) -> bool {
 }
 
 /// What:
-///  Mount one tmpfs at `root`, no bigger than `size_bytes` when that is given.
+///  Mount one tmpfs at `root`,
+/// no bigger than `size_bytes` when that is given.
 /// Why:
 ///   It is called only inside the namespace a control was re-executed in
 ///  (`in_a_root_namespace`),
 ///  where this process is root and may mount,
 ///  and the mount lives in that namespace alone.
-///  The fixture-root control gives no size: its options are then the ones the gate's fixture root is made with,
+///  The fixture-root control gives no size:
+/// its options are then the ones the gate's fixture root is made with,
 ///  `rw`,
 ///  the size the file system gives it,
 ///  and the mode the kernel gives a tmpfs root,
@@ -214,7 +216,8 @@ pub(crate) fn mount_a_tmpfs(
 ///  A process that holds no capability is refused by the capability module before any confined profile is asked,
 ///  so a profile's refusal is never logged,
 ///  and the fixture's `git` reaches the hardlink check of a read-only object as an ordinary account's does
-///  (`fs/namei.c`, `safe_hardlink_source`;
+///  (`fs/namei.c`,
+/// `safe_hardlink_source`;
 ///  `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
 ///  the `dac_override` section).
 ///  The bit is set after the tmpfs is mounted and this process keeps its own capabilities,

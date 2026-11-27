@@ -1165,7 +1165,8 @@ fn the_ceiling_stands_aside_for_a_step_the_kernel_holds() {
 ///   Finding 3 of the 2026-11-12 review of the stand-aside:
 ///  both enforcers stood aside for the same step and each handed the same sentence to the one writer,
 ///  so the person read it twice in one commit.
-///  The line belongs to the wait that owns the child, which always runs and is the one that lasts
+///  The line belongs to the wait that owns the child,
+/// which always runs and is the one that lasts
 ///  (`process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs`);
 ///  this thread says the later bound in its waiting lines and nothing more.
 ///

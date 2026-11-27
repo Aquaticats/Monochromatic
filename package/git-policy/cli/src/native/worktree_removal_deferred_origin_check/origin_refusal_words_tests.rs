@@ -9,7 +9,9 @@
 //!  A refusal is the answer a person reads,
 //!  and the project chose that it prints the reads and the decisions rather than a `zfs destroy`
 //!  to paste (`doc/planning/cli-git-zfs-deferred-destroy-checks-design.md`,
-//!  veto V7, and controls 10, 11 and 25).
+//!  veto V7,
+//! and controls 10,
+//! 11 and 25).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

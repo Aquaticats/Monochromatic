@@ -9,7 +9,8 @@
 //! a scratch folder under an agent's home,
 //! a container's private directory and a nested session's directory all reach past the forty bytes a path form leaves.
 //! Before the abstract form existed the commit failed there while real Git made the commit
-//! (owner's rule, "Commits should never fail").
+//! (owner's rule,
+//! "Commits should never fail").
 //! Each control runs the built wrapper through `git` on a fixture PATH,
 //!  with a service the fixture starts in a runtime directory the control chose,
 //!  so what is checked is the program a person runs and the address it really reaches.
@@ -125,7 +126,8 @@ fn edited(name: &str) -> (Fixture, PathBuf) {
 ///   The runtime directory is the control's to place,
 /// and the service is started at whatever address the wrapper's own function gives that directory,
 /// which is the address the commit computes for itself.
-/// The service is left in the fixture, so it runs until the control ends and the assertion that its address really
+/// The service is left in the fixture,
+/// so it runs until the control ends and the assertion that its address really
 ///  answers is made while it does.
 fn commit_through(
     fixture: &Fixture,
@@ -268,12 +270,16 @@ fn a_commit_with_a_short_runtime_directory_is_made_as_it_is_today() {
 /// What:
 ///  A first commit is made where the long runtime directory is spelled with a `..` part and is not there yet.
 /// Why:
-///   The client's abstract name is made before anything is created, and the socket unit's a moment later,
+///   The client's abstract name is made before anything is created,
+/// and the socket unit's a moment later,
 /// after provisioning has made the directory.
 /// A `..` part over a directory that was not there gave those two names different places,
 /// so the stand-in manager started the service where the unit names it and the commit waited at an address nothing
-/// held, which is a commit real Git makes in the same directory.
-/// The stand-in for the manager is the package's own: a bus of the fixture's, and the service started at whatever
+/// held,
+/// which is a commit real Git makes in the same directory.
+/// The stand-in for the manager is the package's own:
+/// a bus of the fixture's,
+/// and the service started at whatever
 /// address the wrapper's own function gives the runtime directory when the unit is started.
 #[test]
 #[cfg(target_os = "linux")]
@@ -385,7 +391,8 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
 /// Why:
 ///   A runtime directory of forty bytes leaves no room for the socket's name,
 /// so the address is an abstract name;
-/// the plain spelling is what the other controls use, and this one is the spelling the file system has to fold.
+/// the plain spelling is what the other controls use,
+/// and this one is the spelling the file system has to fold.
 fn runtime_directory_spelled_through_a_missing_directory(
     instance: &str,
     tag: &str,

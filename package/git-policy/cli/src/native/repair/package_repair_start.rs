@@ -91,8 +91,10 @@ pub(crate) enum ToolStart {
 /// the value is dropped when the run stops waiting,
 ///  and a dropped `Child` neither kills nor reaps the process,
 /// so the tool would keep rewriting the new worktree with no owner and no bound.
-///  Whatever way this value is dropped, the group the child leads is stopped and the child itself is collected by a
-///  reaper, so no path out of a start leaves a package tool running.
+///  Whatever way this value is dropped,
+/// the group the child leads is stopped and the child itself is collected by a
+///  reaper,
+/// so no path out of a start leaves a package tool running.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,7 +125,8 @@ impl AChildNotYetTaken {
     }
 
     /// What:
-    ///  The child, for the wait that supervises it from here.
+    ///  The child,
+    /// for the wait that supervises it from here.
     /// Why:
     ///   Once the run holds the child it owns ending and reaping it,
     ///  so this value has nothing left to stop.
@@ -141,7 +144,8 @@ impl AChildNotYetTaken {
 }
 
 impl Drop for AChildNotYetTaken {
-    /// Stops the whole group the child leads, then hands the child to a reaper,
+    /// Stops the whole group the child leads,
+    /// then hands the child to a reaper,
     /// so a run that gave up on a start leaves nothing of the tool running.
     fn drop(&mut self) {
         if let Some(child) = self.child.take() {

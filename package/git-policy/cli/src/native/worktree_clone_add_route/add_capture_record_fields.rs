@@ -1,7 +1,13 @@
 //! What:
-//!  One field of the capture's grammar and the refusal that names it: a
-//!  hexadecimal path, a decimal count, a time, the index's digest, a commit's
-//!  word, one entry's line and one digest's line.
+//!  One field of the capture's grammar and the refusal that names it:
+//! a
+//!  hexadecimal path,
+//! a decimal count,
+//! a time,
+//! the index's digest,
+//! a commit's
+//!  word,
+//! one entry's line and one digest's line.
 //! Why:
 //!  A record whose values do not fit their types is damage or a later grammar,
 //!  and neither is read under this one,
@@ -33,13 +39,17 @@ use super::add_capture_record_bound::{
 use crate::worktree_clone_binding_record::binding_encoding::hexadecimal_as_bytes;
 
 /// What:
-///  Why a capture's bytes are not this grammar's, in words a person reads.
+///  Why a capture's bytes are not this grammar's,
+/// in words a person reads.
 /// Why:
-///  The refusal names the line or field, and every refusal leaves the record as
-///  it stands, which is the route's rule for a record it cannot read.
+///  The refusal names the line or field,
+/// and every refusal leaves the record as
+///  it stands,
+/// which is the route's rule for a record it cannot read.
 pub type CaptureParseRefusal = String;
 
-/// A hexadecimal field's bytes, refused when empty or wider than its limit.
+/// A hexadecimal field's bytes,
+/// refused when empty or wider than its limit.
 pub(super) fn hexadecimal_bytes_named(
     value: &str,
     key: &str,
@@ -72,7 +82,8 @@ pub(super) fn decimal_named(
     });
 }
 
-/// A time field, `seconds.nanoseconds`.
+/// A time field,
+/// `seconds.nanoseconds`.
 pub(super) fn time_named(
     value: &str,
     key: &str,
@@ -112,7 +123,8 @@ pub(super) fn digest_named(value: &str) -> Result<[u8; 32], CaptureParseRefusal>
     return Ok(digest);
 }
 
-/// A commit's word: its name or `-`.
+/// A commit's word:
+/// its name or `-`.
 pub(super) fn commit_named(
     value: &str,
     key: &str,

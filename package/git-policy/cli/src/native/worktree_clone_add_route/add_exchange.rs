@@ -1,17 +1,22 @@
 //! What:
 //!  The pointer's exchange with the copied Git administration:
-//!  the one call that swaps the two entries, and the check that each name holds
+//!  the one call that swaps the two entries,
+//! and the check that each name holds
 //!  what the preparation proved.
 //! Why:
-//!  The slot's path must hold a `.git` at every moment: the copied directory
+//!  The slot's path must hold a `.git` at every moment:
+//! the copied directory
 //!  until the exchange and the saved pointer after it
 //!  (`doc/decision/cli-git-zfs-dirty-main-restore-fallback-proof-window-and-slot.md`,
 //!  "What the slot holds while the add fills it").
-//!  One `renameat2(RENAME_EXCHANGE)` changes the two entries in one instant, so
+//!  One `renameat2(RENAME_EXCHANGE)` changes the two entries in one instant,
+//! so
 //!  no kill leaves the folder without one
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
-//!  "The restore", step 8).
-//!  What the swap is given is `add_exchange_preparation.rs`'s, and the trash it
+//!  "The restore",
+//! step 8).
+//!  What the swap is given is `add_exchange_preparation.rs`'s,
+//! and the trash it
 //!  swaps with is `add_exchange_trash.rs`'s,
 //!  so this file is the swap and its own check.
 //!
@@ -36,14 +41,16 @@ use std::path::{
 };
 
 /// What:
-///  The trash entry the slot's `.git` is swapped with, and what the two sides
+///  The trash entry the slot's `.git` is swapped with,
+/// and what the two sides
 ///  held before it.
 /// Why:
 ///  The swap reads one value that names both entries and both identities,
 ///  so a caller prepares once and passes the answer on.
 pub use super::add_exchange_preparation::PreparedExchange;
 
-/// Prepare the trash entry and its manifest, or find that an earlier run did.
+/// Prepare the trash entry and its manifest,
+/// or find that an earlier run did.
 pub use super::add_exchange_preparation::prepare_the_exchange;
 
 /// Exchange two entries that live in different held folders,
@@ -89,7 +96,8 @@ fn exchange_between(
 /// What:
 ///  Exchange the pointer file in the trash with the slot's copied `.git`.
 /// Why:
-///  One call changes both names in one instant, so the slot holds one of them
+///  One call changes both names in one instant,
+/// so the slot holds one of them
 ///  and never neither.
 ///
 /// # Errors

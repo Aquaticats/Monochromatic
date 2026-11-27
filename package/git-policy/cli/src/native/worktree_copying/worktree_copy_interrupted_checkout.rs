@@ -8,7 +8,8 @@
 //! or with the `index.lock` of the step that publishes one still standing.
 //! Nothing else ever finishes it:
 //! the next command names it and
-//!  hands the person `rm`, `reset --hard` and a second add,
+//!  hands the person `rm`,
+//! `reset --hard` and a second add,
 //! which is the wrapper not cleaning up after itself.
 //! This pass finishes it,
 //! and only where it proves nothing of the person's is there:

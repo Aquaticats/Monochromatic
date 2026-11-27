@@ -1,15 +1,18 @@
 //! What:
-//!  Clearing one incomplete registration through the recipe, and the names the
+//!  Clearing one incomplete registration through the recipe,
+//! and the names the
 //!  person reads of what went.
 //! Why:
 //!  A kill inside Git's own add can leave a registration no worktree stands
-//!  behind, and the recipe is the one definition of what may be removed and in
+//!  behind,
+//! and the recipe is the one definition of what may be removed and in
 //!  which order
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "A resume after a kill between Git's add and the registered write").
 //!  `add_registration.rs` decides to clear and would go over the file-size limit
 //!  carrying this,
-//!  so the removal and its words live here, and the decision that reaches them
+//!  so the removal and its words live here,
+//! and the decision that reaches them
 //!  is the scan's own.
 //!
 //! In TS you'd write (pseudocode):

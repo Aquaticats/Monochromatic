@@ -25,7 +25,8 @@
 use super::binding_words::INVENTORY_HEADER;
 use crate::worktree_clone_mount_protocol::DatasetGuid;
 
-///The inventory grammar's keys, in the order it writes them.
+///The inventory grammar's keys,
+///in the order it writes them.
 pub const INVENTORY_KEYS_IN_ORDER: &[&str] = &[
     "kind",
     "poolGuid",

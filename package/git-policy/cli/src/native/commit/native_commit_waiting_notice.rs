@@ -137,7 +137,8 @@ use crate::wait_progress::Cadence;
 /// The notice's sink.
 use std::ffi::OsString;
 use std::io::Write;
-/// A decision two enforcers of one ceiling share, kept across the thread that watches the step.
+/// A decision two enforcers of one ceiling share,
+/// kept across the thread that watches the step.
 use std::sync::Arc;
 /// The writer thread's own time,
 /// kept where the notice thread can read it.

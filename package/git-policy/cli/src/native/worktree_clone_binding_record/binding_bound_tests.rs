@@ -13,7 +13,8 @@ fn the_bindings_bound_is_the_designs_sum() {
 }
 
 /// The widest line is the pointer's,
-/// which is a `gitdir: ` prefix, a `PATH_MAX` path and a newline,
+/// which is a `gitdir: ` prefix,
+/// a `PATH_MAX` path and a newline,
 /// each byte written as two hexadecimal digits.
 #[test]
 fn the_widest_line_is_the_pointer_line() {

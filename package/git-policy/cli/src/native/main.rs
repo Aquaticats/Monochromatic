@@ -16,7 +16,8 @@ use git_policy_cli::service_log_lines_off_the_calling_thread::{
     WAIT_BEFORE_AN_EXIT,
     write_what_waits,
 };
-/// The one module that decides a root-mode start, in a Linux build only.
+/// The one module that decides a root-mode start,
+/// in a Linux build only.
 #[cfg(target_os = "linux")]
 use git_policy_cli::worktree_clone_mount_handler::root_mode_names::{
     self,

@@ -8,21 +8,27 @@
 //!  and Git answers that question with its own option parser rather than the
 //!  words the person typed:
 //!  `prune` declares `-n`/`--dry-run` as one boolean
-//!  (`OPT__DRY_RUN`, `OPT_SET_INT` with `PARSE_OPT_NOARG` and no
+//!  (`OPT__DRY_RUN`,
+//! `OPT_SET_INT` with `PARSE_OPT_NOARG` and no
 //!  `PARSE_OPT_NONEG`),
 //!  and `parse_long_opt` accepts any unique prefix of a long name and any
 //!  prefix of it after `no-`,
-//!  so `--dry`, `--d`, `--no-dry` and `--no-dru` are all Git's own spellings
+//!  so `--dry`,
+//! `--d`,
+//! `--no-dry` and `--no-dru` are all Git's own spellings
 //!  of it,
 //!  while `--dry-run=<value>` and `--no-dry-run=<value>` are refused as
 //!  "takes no value" (`do_get_value`).
-//!  The last of them wins, as Git applies them in the order the person typed
+//!  The last of them wins,
+//! as Git applies them in the order the person typed
 //!  them,
 //!  and Git reads a word after `--` as an operand of a command that takes none,
 //!  so that command is its usage error and removes nothing either.
 //!  A word this reading does not know is not a removal of nothing:
-//!  the pass still guards it, because a spelling a later Git adds must never be
-//!  read as a dry run (Git 2.56.1's `builtin/worktree.c`, `parse-options.c`).
+//!  the pass still guards it,
+//! because a spelling a later Git adds must never be
+//!  read as a dry run (Git 2.56.1's `builtin/worktree.c`,
+//! `parse-options.c`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

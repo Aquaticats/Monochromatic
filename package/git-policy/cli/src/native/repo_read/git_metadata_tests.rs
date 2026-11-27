@@ -98,7 +98,8 @@ fn version_bytes_of_the_git_under_test(
 
 /// A Git that never answers ends the version query at its bound,
 ///  and the verdict names the query and the bound.
-///  The script sleeps five seconds, past the bound of one,
+///  The script sleeps five seconds,
+/// past the bound of one,
 /// so the control against a query without a bound fails with a verdict of its own instead of hanging.
 #[test]
 fn a_version_query_that_never_answers_ends_at_its_bound() {
@@ -128,7 +129,8 @@ fn a_version_query_that_never_answers_ends_at_its_bound() {
 ///  not an error.
 ///  The version bytes expected here are the ones the Git under test printed when this control asked it directly,
 /// so no release is stated and a newer Git moves both sides together.
-///  That direct query runs under the control's own bound, so a Git that never answers ends this control with a verdict
+///  That direct query runs under the control's own bound,
+/// so a Git that never answers ends this control with a verdict
 /// instead of holding the suite.
 #[test]
 fn queries_capture_output_and_exit_state() {

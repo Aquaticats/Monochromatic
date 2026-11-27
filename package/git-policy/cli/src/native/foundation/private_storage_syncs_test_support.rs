@@ -38,7 +38,8 @@ static SYNCING_IS_FAITHFUL: std::sync::atomic::AtomicBool =
 /// so their order stays observable.
 /// Gotcha:
 ///  Every later durable sync of the process becomes a no-op,
-///  so a control that proves a sync was refused, or that one reached the disk,
+///  so a control that proves a sync was refused,
+/// or that one reached the disk,
 ///  fails by which test ran first unless the switch is set in a child of the control's own;
 ///  that is why this refuses anywhere else (issue 6498).
 pub(crate) fn skip_the_durability_syncs_here() {

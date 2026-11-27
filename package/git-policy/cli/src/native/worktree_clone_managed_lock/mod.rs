@@ -25,37 +25,50 @@
 //! each using only files listed before it:
 //!
 //! - `reading_a_bounded_file.rs`:
-//!   the bounded, no-follow read of a small file, and the causes its refusal names.
+//!   the bounded,
+//!   no-follow read of a small file,
+//!   and the causes its refusal names.
 //! - `lexical_path_resolution.rs`:
-//!   one path with `.` and `..` resolved, and nothing read from the filesystem.
+//!   one path with `.` and `..` resolved,
+//!   and nothing read from the filesystem.
 //! - `lock_and_pointer_readings.rs`:
-//!   one registration's `locked` and one slot's `.git`, each with its own bound.
+//!   one registration's `locked` and one slot's `.git`,
+//!   each with its own bound.
 //! - `binding_record_fields.rs`:
-//!   a record's field lines, whatever phase the record stands at, and the refusals they owe.
+//!   a record's field lines,
+//!   whatever phase the record stands at,
+//!   and the refusals they owe.
 //! - `recorded_lock_facts.rs`:
-//!   the facts a lock's proof needs, read from a record whatever its phase or refusal.
+//!   the facts a lock's proof needs,
+//!   read from a record whatever its phase or refusal.
 //! - `dataset_guid_reads.rs`:
 //!   the pool read the mounted arm compares a record's `cloneGuid=` with.
 //! - `registration_proof_two_facts_refusals.rs`:
-//!   which fact of the two-fact proof differed, and the sentence each answers.
+//!   which fact of the two-fact proof differed,
+//!   and the sentence each answers.
 //! - `registration_proof_two_facts.rs`:
 //!   the proof of a registration that needs no pointer.
 //! - `registration_entry_reading.rs`:
 //!   one `worktrees/<name>` entry as the finder's facts.
 //! - `registration_finding.rs`:
-//!   the walk of a slot's candidate names, and the entry that attributes itself.
+//!   the walk of a slot's candidate names,
+//!   and the entry that attributes itself.
 //! - `lock_state.rs`:
-//!   the states S1 to S9, and the classes a caller acts on.
+//!   the states S1 to S9,
+//!   and the classes a caller acts on.
 //! - `lock_state_words.rs`:
 //!   the sentence each state prints.
 //! - `lock_classification.rs`:
 //!   the one order `doctor` and the removal share.
 //! - `lock_installation.rs`:
-//!   the exclusive write that puts a lost lock back, and the one line it prints.
+//!   the exclusive write that puts a lost lock back,
+//!   and the one line it prints.
 //! - `clone_destruction_proof.rs`:
-//!   the proof that the recorded clone is gone, as a value no caller can write.
+//!   the proof that the recorded clone is gone,
+//!   as a value no caller can write.
 //! - `lock_release.rs`:
-//!   the release, open only to a caller holding that proof.
+//!   the release,
+//!   open only to a caller holding that proof.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

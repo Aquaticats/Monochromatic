@@ -745,7 +745,8 @@ pub mod merge_isolation_carry_ref;
 /// the mode and permission bits Git records for it,
 /// and one capture of every layer.
 pub mod merge_isolation_carry;
-/// What stands at one worktree path, as a merge reads it.
+/// What stands at one worktree path,
+/// as a merge reads it.
 pub mod merge_isolation_worktree_entry;
 
 /// What one step of the carry reads at the top of the worktree.

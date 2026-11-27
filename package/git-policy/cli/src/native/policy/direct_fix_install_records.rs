@@ -4,7 +4,8 @@
 //!  the site it has prepared,
 //!  and what it leaves for the person.
 //! Why:
-//!  The preparation, the swap and every judgement read the same three records,
+//!  The preparation,
+//! the swap and every judgement read the same three records,
 //!  and their fields say what each step may trust:
 //!  the bytes the fix read,
 //!  the bytes to write,

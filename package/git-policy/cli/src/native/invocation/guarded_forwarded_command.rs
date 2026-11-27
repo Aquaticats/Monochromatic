@@ -44,7 +44,10 @@ use crate::forwarded_command::{
     the_command_git_runs,
 };
 use crate::git_builtins::is_git_builtin;
-use crate::global_arguments::command_tokens;
+use crate::global_arguments::{
+    command_tokens,
+    names_the_place_the_command_acts,
+};
 use crate::rule_linked_worktree::{
     LinkedWorktreeDecision,
     decide_guarded_word,
@@ -95,6 +98,21 @@ pub struct GuardedForwarded {
     ///  so a relative path the command inside it names is read from there,
     ///  never from the caller's `-C` chain.
     pub shell_directory: Option<PathBuf>,
+    /// What:
+    ///  The global options every repository fact about this command is asked with,
+    ///  when the command Git runs names a directory or a repository of its own;
+    ///  nothing when the caller's own options reach the command.
+    /// Why:
+    ///   A bare `!git` whose caller's words carry `-C <another worktree>` runs that same Git in that worktree,
+    ///  and Git hands the words after the alias name to the nested Git
+    ///  (`git.c:401` to `git.c:402`),
+    ///  so the worktree the command changes is the one those words name.
+    ///  The guard and the slot refusals read this one answer,
+    ///  so neither judges the worktree of the shell that started them.
+    ///  Nothing here when Git could not be asked where that shell runs:
+    ///  a place nothing read is no place a policy may act on,
+    ///  and the slot refusals refuse such a command rather than place it.
+    pub globals_that_place_the_command: Option<Vec<OsString>>,
 }
 
 /// What:
@@ -129,6 +147,7 @@ pub fn decide_guarded_forwarded(
             decision: LinkedWorktreeDecision::Pass,
             arguments: arguments.to_vec(),
             shell_directory: None,
+            globals_that_place_the_command: None,
         };
     };
     // `.as_encoded_bytes()` lends the raw bytes of the word.
@@ -137,6 +156,7 @@ pub fn decide_guarded_forwarded(
             decision: decide_guarded_word(word.as_encoded_bytes(), region),
             arguments: arguments.to_vec(),
             shell_directory: None,
+            globals_that_place_the_command: None,
         };
     }
     // The word names no built-in, so Git looks it up as an alias, and an undefined name is left to Git.
@@ -150,17 +170,28 @@ pub fn decide_guarded_forwarded(
             decision: LinkedWorktreeDecision::Pass,
             arguments: arguments.to_vec(),
             shell_directory: None,
+            globals_that_place_the_command: None,
         };
     };
     // A value that starts with `!` runs a shell, and Git puts its own executable directory first on that shell's
     //  `PATH`, so the `git` such an alias names is the real Git and never this wrapper. The caller's own arguments stay
     //  untouched: Git runs the shell with an environment a substituted argument vector would lose.
     if resolved.route == Route::ShellAlias {
+        // What: The directory Git runs this shell in, and the globals every fact about the command it runs is
+        //  asked with.
+        // Why: The command's own `-C`, `--git-dir` or `--work-tree` names another worktree or repository, and the
+        //  policies judged the caller's until they were asked from there.
+        let shell_directory: Option<PathBuf> = shell_run_directory(context, &resolved, start);
         return GuardedForwarded {
             decision: decide_guarded_word(command_git_runs.word(), command_git_runs.region()),
             arguments: arguments.to_vec(),
             // The command the shell runs is read from the directory Git put the shell in, not from the caller's.
-            shell_directory: shell_run_directory(context, &resolved, start),
+            shell_directory: shell_directory.clone(),
+            globals_that_place_the_command: globals_that_place_the_command(
+                command_git_runs.arguments.as_slice(),
+                command_git_runs.subcommand_index,
+                shell_directory.as_deref(),
+            ),
         };
     }
     if resolved.route != Route::Alias || resolved.subcommand.is_none() {
@@ -168,13 +199,57 @@ pub fn decide_guarded_forwarded(
             decision: LinkedWorktreeDecision::Pass,
             arguments: arguments.to_vec(),
             shell_directory: None,
+            globals_that_place_the_command: None,
         };
     }
     return GuardedForwarded {
         decision: decide_guarded_word(command_git_runs.word(), command_git_runs.region()),
         arguments: command_git_runs.arguments,
         shell_directory: None,
+        globals_that_place_the_command: None,
     };
+}
+
+/// What:
+///  The global options that reach the place one command Git runs acts on,
+///  read from the directory Git runs its shell in,
+///  or nothing when that command names no place of its own or that directory was not read.
+/// Why:
+///   A `!` alias's shell runs at the top of the working tree Git changed to,
+///  and the words Git appends to the alias value may begin with a global option
+///  (`git.c:401` to `git.c:402`),
+///  so `-C <main>` there names a directory relative to that top.
+///  `-C` first makes the facts start where the shell started,
+///  and the command's own options then move them exactly as Git moves the nested Git.
+///  A command whose own options name no place keeps the caller's own options,
+///  which reach the same worktree the shell runs in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const globalsThatPlaceTheCommand = (args, index, shellDirectory) => {
+///   const own = args.slice(0, index);
+///   if (!own.some(namesThePlace) || shellDirectory === undefined) return undefined;
+///   return ['-C', shellDirectory, ...own];
+/// };
+/// ```
+pub(crate) fn globals_that_place_the_command(
+    arguments: &[OsString],
+    subcommand_index: usize,
+    shell_directory: Option<&Path>,
+) -> Option<Vec<OsString>> {
+    let own: &[OsString] = arguments.get(..subcommand_index).unwrap_or(&[]);
+    if !own
+        .iter()
+        .any(|token| return names_the_place_the_command_acts(token.as_encoded_bytes()))
+    {
+        return None;
+    }
+    let directory: &Path = shell_directory?;
+    let mut globals: Vec<OsString> = Vec::with_capacity(own.len() + 2);
+    globals.push(OsString::from("-C"));
+    globals.push(directory.as_os_str().to_os_string());
+    globals.extend(own.iter().cloned());
+    return Some(globals);
 }
 
 /// Alias resolution,

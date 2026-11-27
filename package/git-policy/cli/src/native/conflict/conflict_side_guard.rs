@@ -278,7 +278,8 @@ pub fn judge_conflict_sides(
     };
 }
 
-/// The reading and the paths, over a directory of fixtures and a real index.
+/// The reading and the paths,
+/// over a directory of fixtures and a real index.
 #[cfg(test)]
 #[path = "conflict_side_guard_tests.rs"]
 mod tests;

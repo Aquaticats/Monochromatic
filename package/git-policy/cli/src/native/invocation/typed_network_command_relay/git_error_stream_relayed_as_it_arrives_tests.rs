@@ -59,10 +59,13 @@ const GRANDCHILD_HOLD_SECONDS: u32 = 30;
 const ENDED_WITHIN: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// What:
-///  A command that runs one shell line as the child the relay reads, standing in for Git.
+///  A command that runs one shell line as the child the relay reads,
+/// standing in for Git.
 /// Why:
-///  The relay reads whatever the child writes to its standard error, and a shell writes it without a repository or a network.
-///  `sh` writes to the descriptor the relay connected, which is what the control reads.
+///  The relay reads whatever the child writes to its standard error,
+/// and a shell writes it without a repository or a network.
+///  `sh` writes to the descriptor the relay connected,
+/// which is what the control reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -74,7 +77,8 @@ fn a_child_writing(script: &str) -> std::process::Command {
     return command;
 }
 
-/// The bytes a child wrote reach the caller on a pipe, and its exit code is the answer.
+/// The bytes a child wrote reach the caller on a pipe,
+/// and its exit code is the answer.
 #[test]
 fn a_pipe_relays_the_child_s_bytes_and_its_code() {
     let command: std::process::Command = a_child_writing("printf 'one\\ntwo\\n' >&2; exit 3");
@@ -92,7 +96,8 @@ fn a_pipe_relays_the_child_s_bytes_and_its_code() {
     assert_eq!(relayed_bytes, b"one\ntwo\n".to_vec());
 }
 
-/// A terminal gives the child the answer plain Git sees, and clearing the output processing keeps the bytes plain Git's.
+/// A terminal gives the child the answer plain Git sees,
+/// and clearing the output processing keeps the bytes plain Git's.
 #[test]
 fn a_terminal_is_a_terminal_and_keeps_the_line_feeds_it_got() {
     let asking: std::process::Command = a_child_writing(
@@ -133,7 +138,8 @@ fn a_terminal_does_not_double_the_line_endings() {
     assert_eq!(relayed.kept, b"a\nb\n".to_vec());
 }
 
-/// The kept tail is the stream's end and no more, so one command cannot hold all of what it printed.
+/// The kept tail is the stream's end and no more,
+/// so one command cannot hold all of what it printed.
 #[test]
 fn the_kept_tail_is_the_stream_s_end_and_no_more() {
     let command: std::process::Command = a_child_writing(
@@ -276,7 +282,8 @@ fn end_the_group(group: libc::pid_t) {
     }
 }
 
-/// A program the system will not start is a refused start, not an empty transcript.
+/// A program the system will not start is a refused start,
+/// not an empty transcript.
 #[test]
 fn a_child_that_cannot_start_is_refused() {
     let command: std::process::Command =

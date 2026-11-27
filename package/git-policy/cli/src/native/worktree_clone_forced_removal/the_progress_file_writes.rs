@@ -73,7 +73,8 @@ impl ProgressFile {
     ///  The wrapper's first read must find a counter,
     ///  and the act's own first stage must be there before it reads anything,
     ///  so one call writes both and hands back the value that keeps the
-    ///  counter moving, which stops when it is dropped.
+    ///  counter moving,
+    /// which stops when it is dropped.
     ///
     /// # Errors
     /// The folder is not the designed root-owned `0755` one,
@@ -245,7 +246,8 @@ impl ProgressWriting {
     ///  handler that is gone still lives.
     ///
     /// # Errors
-    /// The last write answered an error, which the act reports beside its own
+    /// The last write answered an error,
+    /// which the act reports beside its own
     /// answer.
     pub fn finish(self) -> Result<(), ProgressRefusal> {
         let ProgressWriting {

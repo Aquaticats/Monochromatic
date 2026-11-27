@@ -37,7 +37,8 @@ pub struct NotRootRefusal<'a> {
     /// Why the mode runs as root.
     pub because: &'a str,
     /// The one way forward,
-    /// as the phrase after "Ways forward: ".
+    /// as the phrase after "Ways forward:
+    /// ".
     pub way: &'a str,
     /// The effective user the kernel reported.
     pub effective_user: u32,

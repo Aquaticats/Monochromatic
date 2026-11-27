@@ -11,7 +11,8 @@
 //!  A clone whose absence the pool cannot prove names the same settling command as one it can:
 //!  the pool refusing its listing is evidence a person confirms,
 //!  never a reason to leave the slot with no command
-//!  (the design writer's K14, added after the eleventh read).
+//!  (the design writer's K14,
+//! added after the eleventh read).
 //!  A binding at `cloned` or `mounted` whose clone is gone is the settling command's,
 //!  proved or not.
 //!  Beside a standing plan the command is the plan design's,
@@ -199,7 +200,8 @@ pub enum NextCommand {
 /// The settling command's program and subcommand,
 /// which no management grammar admits in this release
 /// (`SPEC.md`,
-/// "The settling command, built and reachable from no command").
+/// "The settling command,
+/// built and reachable from no command").
 pub const SETTLING_COMMAND_WORDS: &str =
     "git monochromatic-git-policy-cli settle-worktree-clone-record";
 
@@ -224,8 +226,10 @@ pub const NO_REMOVAL_WORDS: &str =
 ///  so a sentence that tells a person to run one sends them to a command that
 ///  answers with the usage text and exit 2
 ///  (`SPEC.md`,
-///  "The settling command, built and reachable from no command",
-///  and "The cancel command, built and reachable from no command").
+///  "The settling command,
+/// built and reachable from no command",
+///  and "The cancel command,
+/// built and reachable from no command").
 ///  The round that adds either to the grammar deletes this claim from one place,
 ///  and every sentence that prints it follows.
 pub const NOT_ADMITTED_YET: &str = "no management grammar admits it in this release";

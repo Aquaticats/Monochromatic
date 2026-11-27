@@ -424,12 +424,15 @@ fn the_copy_holding(
 ///  A write that lands after the reading that judged the lock stays in the person's own file,
 ///  and the checked-out bytes are kept where the notice says.
 /// Why:
-///  The service's restore runs after the add returned, when the person may be working in the worktree,
+///  The service's restore runs after the add returned,
+/// when the person may be working in the worktree,
 /// and the reading that decides whether the lock is the clean's own is a moment of its own.
 /// A write between that reading and the step that puts the checked-out bytes back was in neither the preserved
-/// copy nor the file afterwards: the copy held the resolution's bytes and the file held the checkout's,
+/// copy nor the file afterwards:
+/// the copy held the resolution's bytes and the file held the checkout's,
 /// which is the repair discarding what a person wrote (never discard user data).
-/// The control writes at the seam the restoring step follows, which is exactly the window.
+/// The control writes at the seam the restoring step follows,
+/// which is exactly the window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

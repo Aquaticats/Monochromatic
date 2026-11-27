@@ -299,7 +299,8 @@ impl TheActsJournal<'_> {
 pub struct AHolderNotEnded<'a> {
     /// The namespace the holder was found in.
     pub namespace: &'a str,
-    /// The mount the copy sat at, where one did.
+    /// The mount the copy sat at,
+    /// where one did.
     pub mount_id: Option<u64>,
     /// The process or unit the report names.
     pub holder: &'a str,

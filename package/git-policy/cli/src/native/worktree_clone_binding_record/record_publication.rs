@@ -7,7 +7,8 @@
 //!  and it is flushed at every write,
 //!  because its identities are already durable in the pool
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//!  "Publication, and what a kill leaves" and "Durability").
+//!  "Publication,
+//! and what a kill leaves" and "Durability").
 //!  Each inventory is published once,
 //!  with an exclusive creation and one link,
 //!  so a second publication refuses instead of merging two histories.

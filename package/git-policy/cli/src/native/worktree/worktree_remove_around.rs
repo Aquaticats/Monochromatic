@@ -12,7 +12,9 @@
 //!  so both the record that a kill leaves and the reading that finishes it belong here.
 //!  It lives apart from `worktree_remove.rs` because the file of the whole removal outgrew the length a
 //!  reader keeps in mind,
-//! and the seam between the two is the proof of cleanliness: after it, this half runs.
+//! and the seam between the two is the proof of cleanliness:
+//! after it,
+//! this half runs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -209,7 +211,8 @@ pub(crate) fn refusal_beside_a_volume(
 /// because the pass deletes the ignore rule that often hid one
 ///  and Git then reports the volume itself as untracked;
 /// a tree whose volumes were not looked at in this command is looked at
-///  here, which happens only in a state a record of this program's own pass names.
+///  here,
+/// which happens only in a state a record of this program's own pass names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -342,7 +345,8 @@ pub(crate) fn go_around(
 /// and a tree that was emptied around what was left has neither:
 /// its path still stands with the
 ///  volumes in it.
-/// A person reading the wrong one of those would look for a path that is not there, or give up on a
+/// A person reading the wrong one of those would look for a path that is not there,
+/// or give up on a
 ///  removal that one more command finishes.
 ///
 /// In TS you'd write (pseudocode):

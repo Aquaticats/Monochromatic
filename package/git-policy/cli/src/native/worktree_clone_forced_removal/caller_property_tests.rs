@@ -1,6 +1,8 @@
 //! Controls for the two clone-local properties:
 //!  a written value reads back as the same identity,
-//!  a value of another version, of the wrong field count, of a bad number or boot and one too long are refused,
+//!  a value of another version,
+//! of the wrong field count,
+//! of a bad number or boot and one too long are refused,
 //!  and the force word carries the nonce alone.
 
 use crate::worktree_clone_forced_removal::caller_property::*;

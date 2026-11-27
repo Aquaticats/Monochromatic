@@ -15,7 +15,8 @@
 //!  a blind read next,
 //!  a locked holder before any signal,
 //!  and the structural and route reads after them.
-//!  This module holds the decision, not the reads:
+//!  This module holds the decision,
+//! not the reads:
 //!  a control hands it what the reads answered,
 //!  which is how each refusal is shown to be red without its guard.
 //!  The route is a value rather than an act:
@@ -163,9 +164,11 @@ impl ForcedRefusal {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Route {
-    /// Way 8: unmount the copy in place by the add's recorded handle.
+    /// Way 8:
+    /// unmount the copy in place by the add's recorded handle.
     InPlaceByTheHandle,
-    /// Way 7: make the parent a slave,
+    /// Way 7:
+    /// make the parent a slave,
     /// move the copy onto a directory in the checkout and unmount it there.
     SlaveMoveAndUnmount,
 }

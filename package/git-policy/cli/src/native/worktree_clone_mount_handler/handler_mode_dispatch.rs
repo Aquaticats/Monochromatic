@@ -120,7 +120,8 @@ fn say(line: &str) {
 
 /// What:
 ///  One refusal as the process prints it:
-///  opening with the words every root mode is reached through, once.
+///  opening with the words every root mode is reached through,
+/// once.
 /// Why:
 ///   `SPEC.md` states that the modes' refusals open with the words,
 ///  and a mode's own sentence may name its cause first while another already

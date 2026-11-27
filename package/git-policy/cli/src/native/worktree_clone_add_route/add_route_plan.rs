@@ -1,17 +1,25 @@
 //! What:
-//!  The names one add's route chooses before anything is mutated: the slot's
-//!  record name, the add's nonce, the origin snapshot and the clone dataset,
-//!  the request the add was given, and the test-only switch that ends the add
+//!  The names one add's route chooses before anything is mutated:
+//! the slot's
+//!  record name,
+//! the add's nonce,
+//! the origin snapshot and the clone dataset,
+//!  the request the add was given,
+//! and the test-only switch that ends the add
 //!  after a named step for the guest arms.
 //! Why:
 //!  The design writes the proposed clone and snapshot names in the binding before
-//!  any ZFS object exists, so a resume can find what the add made
-//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`, A2 and
+//!  any ZFS object exists,
+//! so a resume can find what the add made
+//!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
+//! A2 and
 //!  "The binding").
 //!  The request is recorded because a resumed add proves it is the same request
-//!  (`T21a` of the design's tests), and it is read from the person's own words
+//!  (`T21a` of the design's tests),
+//! and it is read from the person's own words
 //!  rather than guessed from what Git later did.
-//!  The stop switch is the seam the guest arms kill the add at: a name from a
+//!  The stop switch is the seam the guest arms kill the add at:
+//! a name from a
 //!  closed list makes the add send itself `SIGKILL` at that step's boundary,
 //!  which is the shape the step 8 adoption arm already uses for a killed
 //!  writer (`binary_zfs_adoption_guest_tests.rs`).
@@ -33,7 +41,8 @@ use std::ffi::{
 };
 use std::os::unix::ffi::OsStrExt;
 
-/// The word an origin snapshot's name begins with, before the nonce.
+/// The word an origin snapshot's name begins with,
+/// before the nonce.
 pub const ORIGIN_SNAPSHOT_PREFIX: &str = "git-worktree-clone-origin-";
 
 /// The variable that makes a control add die after one named step.
@@ -49,11 +58,13 @@ pub const HOLD_UNTIL_VARIABLE: &str = "CLI_GIT_TEST_ONLY_ZFS_ADD_HOLD_UNTIL";
 /// so a test that dies before releasing it ends the add rather than the suite.
 pub const HOLD_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
 
-/// Every step the stop switch knows, in the add's order.
+/// Every step the stop switch knows,
+/// in the add's order.
 ///
 /// Why:
 ///  A closed list refuses a typo instead of running a kill arm that silently
-///  killed nothing, which the plan's guest arms would report as a pass.
+///  killed nothing,
+/// which the plan's guest arms would report as a pass.
 pub const STOP_STEPS: &[&str] = &[
     "claim",
     "binding",
@@ -79,7 +90,8 @@ pub const STOP_STEPS: &[&str] = &[
 /// What:
 ///  The names and request one add chose before its first ZFS write.
 /// Why:
-///  The binding's first write records all of them, and every later step reads
+///  The binding's first write records all of them,
+/// and every later step reads
 ///  them from there instead of choosing again.
 ///
 /// In TS you'd write (pseudocode):
@@ -90,7 +102,8 @@ pub const STOP_STEPS: &[&str] = &[
 pub struct AddNames {
     /// The random number the lock's sentence and the record's names are recomputed from.
     pub nonce: RequestNonce,
-    /// The origin snapshot's whole name, `dataset@git-worktree-clone-origin-<nonce>`.
+    /// The origin snapshot's whole name,
+    /// `dataset@git-worktree-clone-origin-<nonce>`.
     pub origin_snapshot: String,
     /// The clone's dataset name.
     pub clone_dataset: String,
@@ -99,10 +112,12 @@ pub struct AddNames {
 }
 
 /// What:
-///  The names one add chooses, from the facts its gate proved and the words the
+///  The names one add chooses,
+/// from the facts its gate proved and the words the
 ///  person typed.
 /// Why:
-///  Nothing here mutates or reads the pool, so a control covers every request
+///  Nothing here mutates or reads the pool,
+/// so a control covers every request
 ///  form and both name forms on any machine.
 ///
 /// # Errors
@@ -129,12 +144,18 @@ pub fn name_the_add(
 }
 
 /// What:
-///  How the person's words asked for the worktree, in the record's three forms.
+///  How the person's words asked for the worktree,
+/// in the record's three forms.
 /// Why:
-///  The recorded request must survive a resume unchanged, so it is read from
-///  the words alone: a detached add carries its commit-ish or none, a named new
-///  branch carries its name, and an add with neither carries the target it
-///  named or the slot's own name, which is the branch Git derives from the
+///  The recorded request must survive a resume unchanged,
+/// so it is read from
+///  the words alone:
+/// a detached add carries its commit-ish or none,
+/// a named new
+///  branch carries its name,
+/// and an add with neither carries the target it
+///  named or the slot's own name,
+/// which is the branch Git derives from the
 ///  destination.
 ///
 /// # Errors
@@ -207,9 +228,11 @@ pub fn request_of(
 }
 
 /// What:
-///  The step names a control add stops after, read once.
+///  The step names a control add stops after,
+/// read once.
 /// Why:
-///  A release build reads the variable too and finds nothing, so the switch is
+///  A release build reads the variable too and finds nothing,
+/// so the switch is
 ///  one optional word and never a mode a shipped add enters.
 ///
 /// In TS you'd write (pseudocode):
@@ -229,7 +252,8 @@ pub struct Stops {
 }
 
 impl Stops {
-    /// The switch this process's environment sets, or no switch.
+    /// The switch this process's environment sets,
+    /// or no switch.
     ///
     /// # Errors
     /// The variable names a step the add does not know.
@@ -287,10 +311,15 @@ impl Stops {
     ///  when a control named this step.
     /// Why:
     ///  The full-pool arm has to fill the pool between the capture and the
-    ///  snapshot, where no other state can tell it the moment arrived; the wait
+    ///  snapshot,
+    /// where no other state can tell it the moment arrived;
+    /// the wait
     ///  is bounded so a dead test ends the add.
-    ///  The pause holds the add's own thread, which runs no task, so no worker of the runtime
-    ///  waits here; the guard's exception list names it beside the mount's wait of the same route.
+    ///  The pause holds the add's own thread,
+    /// which runs no task,
+    /// so no worker of the runtime
+    ///  waits here;
+    /// the guard's exception list names it beside the mount's wait of the same route.
     ///
     /// # Errors
     /// The bound passed with no release file,
@@ -325,7 +354,8 @@ impl Stops {
         return Ok(());
     }
 
-    /// End this process by `SIGKILL` when the switch names `step`, exactly as a
+    /// End this process by `SIGKILL` when the switch names `step`,
+    /// exactly as a
     /// kill from outside would.
     pub fn after(
         &self,

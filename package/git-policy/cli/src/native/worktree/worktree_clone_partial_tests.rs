@@ -1108,13 +1108,19 @@ fn a_new_head_that_differs_is_brought_in_after_the_clones() {
 ///  A staged addition among the entries of a partial clone reaches no destination,
 /// in the arm where the slices run and in the one-turn arm a refused runtime takes.
 /// Why:
-///   The one-turn arm clones what `clone_in_slices` was handed, which is the entry set the partial clone's proof
+///   The one-turn arm clones what `clone_in_slices` was handed,
+/// which is the entry set the partial clone's proof
 ///   settled and not the source's whole index;
-///   an arm that re-read the index would clone a staged addition, which is in no tree, into the new worktree and say
+///   an arm that re-read the index would clone a staged addition,
+/// which is in no tree,
+/// into the new worktree and say
 ///   nothing about it (the release pass over alpha.45's finding H2).
-/// The runtime's refusal cannot be asked for by an argument, so a control asks for it through the module's own flag;
-/// both arms assert the same absence, which is what makes the flag's arm the one under test.
-/// The fixture holds more unchanged paths than the clone's break-even, so the slices are what runs and the one-turn arm is
+/// The runtime's refusal cannot be asked for by an argument,
+/// so a control asks for it through the module's own flag;
+/// both arms assert the same absence,
+/// which is what makes the flag's arm the one under test.
+/// The fixture holds more unchanged paths than the clone's break-even,
+/// so the slices are what runs and the one-turn arm is
 /// their fallback rather than the shape a small repository takes.
 /// The host the copies' budget is asked about is this control's own,
 /// so the fixture and the flag decide which arm runs,
@@ -1193,9 +1199,12 @@ fn a_staged_addition_reaches_no_destination_in_the_one_turn_arm_the_runtime_refu
 
 /// What:
 ///  The fixture of the one-turn arm's control:
-/// a source with a tracked edit, a staged change, a deletion and a staged addition,
+/// a source with a tracked edit,
+/// a staged change,
+/// a deletion and a staged addition,
 ///  and more unchanged paths than
-/// the clone's break-even, so the copies are split into slices.
+/// the clone's break-even,
+/// so the copies are split into slices.
 /// Why:
 ///   The arm under test is the slices' fallback,
 /// and a repository below the break-even never takes it:

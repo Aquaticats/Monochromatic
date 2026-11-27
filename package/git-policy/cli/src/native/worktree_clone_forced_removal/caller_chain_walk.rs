@@ -5,7 +5,9 @@
 //!  and the protected set the walk proves.
 //! Why:
 //!  The project's answer spares "the caller and the processes of its session"
-//!  and, in its fourth answer, "any ancestor of the command up to the first
+//!  and,
+//! in its fourth answer,
+//! "any ancestor of the command up to the first
 //!  process",
 //!  refusing when one of them holds the clone
 //!  (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
@@ -18,7 +20,8 @@
 //!  "The caller and its protected set").
 //!  The walk stops at the first process because nothing above it is a process
 //!  of this machine's lifetime,
-//!  and it is bounded like the crate's own `chain_ancestors`, whose loop bound
+//!  and it is bounded like the crate's own `chain_ancestors`,
+//! whose loop bound
 //!  guards a tree that cannot be walked rather than a depth a real chain
 //!  reaches.
 //!

@@ -65,7 +65,9 @@ use std::sync::atomic::{
 /// The layout of the captured invocation a request was prepared from.
 use crate::capture_invocation::InvocationLayout;
 
-/// The walk over a batch's trees, its ending and its cost, for the controls that judge them.
+/// The walk over a batch's trees,
+/// its ending and its cost,
+/// for the controls that judge them.
 #[cfg(test)]
 pub(super) use super::service_pruned_tree_closures::{
     ClosureEnd,

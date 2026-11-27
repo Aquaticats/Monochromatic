@@ -1,5 +1,6 @@
 //! What:
-//!  The abort forms' operations, the state that makes each abort live,
+//!  The abort forms' operations,
+//! the state that makes each abort live,
 //!  and the record each form restores its tree from.
 //! Why:
 //!  The mappings are the whole decision:
@@ -45,28 +46,32 @@ fn nothing() -> OperationState {
     };
 }
 
-/// A conflicted merge: `MERGE_HEAD` alone.
+/// A conflicted merge:
+/// `MERGE_HEAD` alone.
 fn merge_conflict() -> OperationState {
     let mut state: OperationState = nothing();
     state.merge_head = true;
     return state;
 }
 
-/// A merge step of `git rebase --rebase-merges`: `MERGE_HEAD` beside `rebase-merge`.
+/// A merge step of `git rebase --rebase-merges`:
+/// `MERGE_HEAD` beside `rebase-merge`.
 fn rebase_merges_merge_step() -> OperationState {
     let mut state: OperationState = merge_conflict();
     state.rebase_merge = true;
     return state;
 }
 
-/// A rebase that stopped with conflicts, with the merge backend.
+/// A rebase that stopped with conflicts,
+/// with the merge backend.
 fn rebase_merge_stop() -> OperationState {
     let mut state: OperationState = nothing();
     state.rebase_merge = true;
     return state;
 }
 
-/// A rebase that stopped with conflicts, with the apply backend.
+/// A rebase that stopped with conflicts,
+/// with the apply backend.
 fn rebase_apply_stop() -> OperationState {
     let mut state: OperationState = nothing();
     state.rebase_apply_rebasing = true;
@@ -94,7 +99,8 @@ fn revert_single() -> OperationState {
     return state;
 }
 
-/// A cherry-pick or revert sequence that stopped, between or at its picks.
+/// A cherry-pick or revert sequence that stopped,
+/// between or at its picks.
 fn pick_sequence() -> OperationState {
     let mut state: OperationState = nothing();
     state.sequencer = true;
@@ -145,7 +151,8 @@ fn the_skip_forms_end_the_operation_their_abort_does() {
     assert_eq!(ended_operation(GuardedCommand::CheckoutPaths), None);
 }
 
-/// A skip writes back the tree it stopped at, which is `HEAD`,
+/// A skip writes back the tree it stopped at,
+/// which is `HEAD`,
 ///  measured against the operation's recorded original head.
 #[test]
 fn a_skip_restores_head() {
@@ -232,7 +239,8 @@ fn each_abort_form_is_live_only_with_its_own_state() {
 }
 
 /// A rebase that applies patches is a rebase to `git am --abort`,
-///  which ends it; a rebase to `git rebase --abort` stays a rebase.
+///  which ends it;
+/// a rebase to `git rebase --abort` stays a rebase.
 #[test]
 fn an_am_abort_that_ends_a_rebase_names_the_rebase() {
     assert_eq!(

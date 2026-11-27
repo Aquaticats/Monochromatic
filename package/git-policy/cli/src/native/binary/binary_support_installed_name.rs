@@ -43,7 +43,8 @@ pub const BUILT_WRAPPER: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli
 ///  does,
 ///  on this host and inside a guest,
 ///  and a control never needs root's own install folder to exist.
-///  Each caller names its own folder, so two arms of one test never share a
+///  Each caller names its own folder,
+/// so two arms of one test never share a
 ///  link and a target,
 ///  and the link is removed and made again so a re-run starts from nothing.
 ///
@@ -62,7 +63,8 @@ pub fn installed_name(what: &str) -> PathBuf {
     return link;
 }
 
-/// The words a unit, an adoption and a person spell before a mode word.
+/// The words a unit,
+/// an adoption and a person spell before a mode word.
 pub fn root_mode_words() -> [&'static str; 2] {
     return [COMMAND_WORD.current, ROOT_GROUP_WORD];
 }

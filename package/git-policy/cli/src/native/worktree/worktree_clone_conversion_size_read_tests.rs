@@ -1596,7 +1596,8 @@ fn the_record_folder_exists(common: &Path) -> bool {
 /// (nextest's shape):
 /// a fork of a process whose runtime threads are running loses the runtime's wake-up in the child,
 /// so a run that puts this control in a module-wide process finds the test after it waiting on a read for ever
-/// (measured on this host 2026-11-24: the module runs in 11.6 s without this control and stops after it with it).
+/// (measured on this host 2026-11-24:
+/// the module runs in 11.6 s without this control and stops after it with it).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1666,7 +1667,9 @@ fn fork_a_process_that_ends_with_the_read(
 /// A process that ends while its early read still runs leaves no child behind,
 /// does not wait for one,
 /// and its exit is not delayed by one.
-/// (Red without the read's `Drop`: the exec of the fake's `sleep 30` clears the parent-death signal, so nothing else
+/// (Red without the read's `Drop`:
+/// the exec of the fake's `sleep 30` clears the parent-death signal,
+/// so nothing else
 /// ends the child on a host where AppArmor enforces a profile for it.)
 #[test]
 fn a_process_that_ends_with_a_running_read_leaves_no_child_behind() {

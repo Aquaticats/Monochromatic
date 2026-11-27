@@ -1,6 +1,7 @@
 # The holder scan across mount namespaces, measured 2026-11-22
 
-**Note, 2026-11-25:**
+**Note,
+2026-11-25:**
 the program this record measured as
 `mount-git-worktree-clone-datasets holder-scan` is a mode of
 `monochromatic-git-policy-cli` now,

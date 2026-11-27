@@ -3,8 +3,10 @@
 //!  and the first of one's words that is not an option,
 //!  read with Git's own option table for that command.
 //! Why:
-//!  The remote decides whether the command is relayed, so it must be read the way Git reads its arguments:
-//!  a value of `--depth` is not a remote, and a word Git's table does not know leaves the remote unknown,
+//!  The remote decides whether the command is relayed,
+//! so it must be read the way Git reads its arguments:
+//!  a value of `--depth` is not a remote,
+//! and a word Git's table does not know leaves the remote unknown,
 //!  which keeps today's process replacement
 //!  (`doc/decision/cli-git-typed-network-command-relays-at-a-new-host-key.md`).
 //!
@@ -41,7 +43,8 @@ use crate::command_options::{
 /// What:
 ///  A typed network command whose remote may be carried by ssh.
 /// Why:
-///  These are the four the decision covers; a command outside this list keeps the process replacement it has today.
+///  These are the four the decision covers;
+/// a command outside this list keeps the process replacement it has today.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,9 +63,12 @@ pub enum TypedNetworkCommand {
 }
 
 /// What:
-///  The remote operand the person wrote: the first token that is not an option, read with Git's own option table.
+///  The remote operand the person wrote:
+/// the first token that is not an option,
+/// read with Git's own option table.
 /// Why:
-///   `git fetch --depth 1 origin` names `origin`, and `1` is a value;
+///   `git fetch --depth 1 origin` names `origin`,
+/// and `1` is a value;
 ///   a table-less scan would take either.
 ///   A word Git's table does not know ends the reading with nothing,
 ///   because a value misread as a remote could relay a command whose transport is not ssh.
@@ -93,8 +99,10 @@ pub fn remote_operand(
 /// What:
 ///  Git's own option table for one of the four commands.
 /// Why:
-///  The table decides which token is a value and which is the remote, and a wrong guess relays a command whose remote is not
-///  ssh; the rows mirror `git <command> -h` of Git 2.56.1.
+///  The table decides which token is a value and which is the remote,
+/// and a wrong guess relays a command whose remote is not
+///  ssh;
+/// the rows mirror `git <command> -h` of Git 2.56.1.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -111,7 +119,9 @@ fn table_of(command: TypedNetworkCommand) -> &'static [OptionSpec] {
 }
 
 /// What:
-///  One row of an option table: no identifier is read here, so every row says `UNREAD`.
+///  One row of an option table:
+/// no identifier is read here,
+/// so every row says `UNREAD`.
 /// Why:
 ///  The reading needs only each option's name and whether a value follows it.
 ///
@@ -134,9 +144,11 @@ const fn row(
 }
 
 /// What:
-///  `git clone`'s options, from `git clone -h` of Git 2.56.1.
+///  `git clone`'s options,
+/// from `git clone -h` of Git 2.56.1.
 /// Why:
-///  A clone carries its URL in its own words, so finding the URL needs to know which words are values.
+///  A clone carries its URL in its own words,
+/// so finding the URL needs to know which words are values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -186,9 +198,11 @@ pub const CLONE_TABLE: &[OptionSpec] = &[
 ];
 
 /// What:
-///  `git fetch`'s options, from `git fetch -h` of Git 2.56.1.
+///  `git fetch`'s options,
+/// from `git fetch -h` of Git 2.56.1.
 /// Why:
-///  A fetch names its remote as its first positional word, and its option values must not be taken for it.
+///  A fetch names its remote as its first positional word,
+/// and its option values must not be taken for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -241,9 +255,11 @@ pub const FETCH_TABLE: &[OptionSpec] = &[
 ];
 
 /// What:
-///  `git pull`'s options, from `git pull -h` of Git 2.56.1.
+///  `git pull`'s options,
+/// from `git pull -h` of Git 2.56.1.
 /// Why:
-///  A pull's remote is its first positional word, and its option values are many.
+///  A pull's remote is its first positional word,
+/// and its option values are many.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

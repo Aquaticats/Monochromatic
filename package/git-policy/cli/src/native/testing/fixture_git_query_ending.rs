@@ -35,12 +35,14 @@ pub(super) fn the_ending_seam(query: libc::pid_t) {
     }
 }
 
-/// The one ending seam a control arms, for the one call it measures.
+/// The one ending seam a control arms,
+/// for the one call it measures.
 #[cfg(test)]
 static ENDING_SEAM: std::sync::Mutex<Option<Box<dyn FnOnce(libc::pid_t) + Send>>> =
     std::sync::Mutex::new(None);
 
-/// `the_ending_seam` in a build without controls: nothing runs.
+/// `the_ending_seam` in a build without controls:
+/// nothing runs.
 #[cfg(not(test))]
 pub(super) fn the_ending_seam(_query: libc::pid_t) {}
 
@@ -50,7 +52,8 @@ pub(crate) fn arm_the_ending_seam(seam: impl FnOnce(libc::pid_t) + Send + 'stati
     *ENDING_SEAM.lock().expect("the ending seam") = Some(Box::new(seam));
 }
 
-/// Disarm the ending seam, answering whether it was still armed.
+/// Disarm the ending seam,
+/// answering whether it was still armed.
 /// Why:
 ///  a control that did not reach the seam must not leave it armed for another test.
 #[cfg(test)]
@@ -62,17 +65,22 @@ pub(crate) fn disarm_the_ending_seam() -> bool {
         .is_some();
 }
 
-/// What ended one bounded query, as the last status the wait returned showed it.
+/// What ended one bounded query,
+/// as the last status the wait returned showed it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum QueryEnding {
     /// The last status the wait returned was not the signal this helper sends at its bound:
-    /// the query ended before that bound ran out, or in the instant after it, and this answer does not say which.
-    ///  Its status and output are the query's own, whatever status that was:
+    /// the query ended before that bound ran out,
+    /// or in the instant after it,
+    /// and this answer does not say which.
+    ///  Its status and output are the query's own,
+    /// whatever status that was:
     /// a code of 124 or 137 or a signal's death included.
     ///  A signal another process sent reads the same here:
     /// a wait says which signal ended a child and nothing about who sent it.
     Itself,
-    /// The bound ran out, and the last status the wait returned was the signal this helper sends at the bound
+    /// The bound ran out,
+    /// and the last status the wait returned was the signal this helper sends at the bound
     /// to the process group the query led.
     ///  A query killed by that same signal from elsewhere in that instant reads the same,
     /// because a wait says which signal ended a child and nothing about who sent it.

@@ -36,7 +36,8 @@ use std::path::{
 /// What a staging step came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum Staged {
-    /// The worktree's own copied state now sits at this staging path, under this job's marker.
+    /// The worktree's own copied state now sits at this staging path,
+    /// under this job's marker.
     Staged(PathBuf),
     /// The worktree held no build state of its own to move.
     Nothing,
@@ -84,7 +85,8 @@ pub(super) fn staged_names(staging: &Path) -> Result<Option<TheNames>, String> {
 ///   Cargo treats the copied artifacts of the worktree's own crates as fresh,
 /// so a build that started before a clean would reuse them at the wrong paths.
 /// The add cannot wait for the clean (`REPAIR_TOOL_CEILING` is eighteen minutes and the quiet window is six hundred
-///  seconds), and it must not leave that state where a build can trust it,
+///  seconds),
+/// and it must not leave that state where a build can trust it,
 /// so it moves the state aside in one rename before it answers:
 /// a build that starts at once finds no build directory and compiles everything itself,
 /// which is correct and only slower,
@@ -156,8 +158,10 @@ pub(crate) fn stage_the_worktrees_own_state(
 
 /// The patterns that keep this job's staging names out of the person's `git status` and `git add -A`.
 ///
-/// They are written into the repository's own exclude file (`<git-dir>/info/exclude`), which applies to every worktree of it,
-/// because the names stand beside the build directory they take, inside the worktree.
+/// They are written into the repository's own exclude file (`<git-dir>/info/exclude`),
+/// which applies to every worktree of it,
+/// because the names stand beside the build directory they take,
+/// inside the worktree.
 pub(crate) const EXCLUDED_STAGING_PATTERNS: &[&str] = &[
     "*.monochromatic-prewarm/",
     "*.monochromatic-prewarm.target/",

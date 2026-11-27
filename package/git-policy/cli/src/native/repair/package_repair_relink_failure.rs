@@ -94,7 +94,9 @@ pub fn remember(
 ///   A notice is worded once and read once,
 ///  so the reason is read here and the record's own file is taken away by `forget`
 ///  only after the record is where nothing reads it again.
-///  The file is read the way a record beside it is: only a plain file is opened, without following a link,
+///  The file is read the way a record beside it is:
+/// only a plain file is opened,
+/// without following a link,
 ///  and only so many bytes of it are read,
 ///  so a named pipe at that name holds neither a command nor the service,
 ///  and no file decides how much memory a command reads.
@@ -118,7 +120,8 @@ pub fn recall(
 /// Why:
 ///   A record that is in `failed` is read by nothing again,
 ///  so its reason would be a file the person never sees and nothing removes.
-///  It is called only once the record is where it will stay, because a pass killed between the words and that move
+///  It is called only once the record is where it will stay,
+/// because a pass killed between the words and that move
 ///  finds the reason still here and says the same thing again,
 ///  which is what the recovery promises a kill in that window.
 ///  A file that is already gone is nothing to report.

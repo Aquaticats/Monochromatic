@@ -40,7 +40,8 @@
 pub enum RemovalHistory {
     /// The plan records no destroyed snapshot.
     NothingDestroyed,
-    /// The plan records these destroyed snapshots, in its own order.
+    /// The plan records these destroyed snapshots,
+    /// in its own order.
     Lost {
         /// The full names of the snapshots the plan records as destroyed.
         snapshots: Vec<String>,

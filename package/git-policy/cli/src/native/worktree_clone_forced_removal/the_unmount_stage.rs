@@ -1,6 +1,8 @@
 //! What:
-//!  The act's unmount stage, in both halves:
-//!  the half the caller runs, which enters the holder's namespace through one
+//!  The act's unmount stage,
+//! in both halves:
+//!  the half the caller runs,
+//! which enters the holder's namespace through one
 //!  single-threaded child and reads the child's bounded report,
 //!  and the half the child runs there,
 //!  which unmounts the copy in place by the handle or moves it onto way 7's
@@ -62,7 +64,8 @@ use std::os::fd::AsRawFd;
 /// # Errors
 /// The namespace could not be entered,
 /// the copy is not where the structural stage left it,
-/// the unmount, the move or the directory's removal was refused.
+/// the unmount,
+/// the move or the directory's removal was refused.
 pub fn take_the_copy_out(
     ready: &Ready,
     copy: &NamespaceCopy<'_>,

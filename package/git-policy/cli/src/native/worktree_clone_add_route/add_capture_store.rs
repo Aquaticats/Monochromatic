@@ -1,16 +1,23 @@
 //! What:
-//!  Where the capture and the proof's phase marker live, how they are published
-//!  so a kill leaves either the old record or the new one, and how an add that
+//!  Where the capture and the proof's phase marker live,
+//! how they are published
+//!  so a kill leaves either the old record or the new one,
+//! and how an add that
 //!  took the claim clears another add's records at its slot.
 //! Why:
-//!  The capture stands beside the binding in the wrapper's folder, keyed by the
+//!  The capture stands beside the binding in the wrapper's folder,
+//! keyed by the
 //!  slot and owned by the add's nonce
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "What 'the captured source' is").
-//!  The marker is a small file an add flips once the proof has passed, so a
+//!  The marker is a small file an add flips once the proof has passed,
+//! so a
 //!  resume does not prove a tree that has already been written.
-//!  Every publication is a private staging name, one exclusive link that
-//!  replaces nothing, and the staging name's removal, which is the store
+//!  Every publication is a private staging name,
+//! one exclusive link that
+//!  replaces nothing,
+//! and the staging name's removal,
+//! which is the store
 //!  precedent this repository uses.
 //!
 //! In TS you'd write (pseudocode):
@@ -47,7 +54,8 @@ pub const CAPTURE_STAGING_SUFFIX: &str = ".capture.pending";
 /// The suffix of the proof's phase marker.
 pub const MARKER_SUFFIX: &str = ".capture.passed";
 
-/// The suffix of the settle marker, which step 11 writes and this step clears
+/// The suffix of the settle marker,
+/// which step 11 writes and this step clears
 /// when it names another add.
 pub const SETTLE_SUFFIX: &str = ".settle";
 
@@ -75,9 +83,11 @@ pub fn settle_name(slot: &str) -> String {
 const RECORD_MODE: u32 = 0o600;
 
 /// What:
-///  Publish one capture under its real name, replacing nothing.
+///  Publish one capture under its real name,
+/// replacing nothing.
 /// Why:
-///  A capture belongs to one add's nonce and is written once per add, so a
+///  A capture belongs to one add's nonce and is written once per add,
+/// so a
 ///  second publication at the same name is a refusal and not a merge.
 ///
 /// # Errors
@@ -99,9 +109,11 @@ pub fn publish_capture(
 }
 
 /// What:
-///  Read one slot's capture, or nothing when no capture stands.
+///  Read one slot's capture,
+/// or nothing when no capture stands.
 /// Why:
-///  A resume needs the facts, and a capture whose bytes do not fit the grammar
+///  A resume needs the facts,
+/// and a capture whose bytes do not fit the grammar
 ///  is refused by name rather than half read.
 ///
 /// # Errors
@@ -133,7 +145,8 @@ pub fn read_capture(
 /// What:
 ///  Publish the proof's phase marker for one nonce.
 /// Why:
-///  The marker says the clone's tree was proven before the first write, and its
+///  The marker says the clone's tree was proven before the first write,
+/// and its
 ///  nonce says whose proof it is.
 ///
 /// # Errors
@@ -165,7 +178,8 @@ fn marker_staging_name(slot: &str) -> String {
 /// What:
 ///  Whether the marker at one slot names this add's nonce.
 /// Why:
-///  A resume reads the marker rather than the capture, and another add's marker
+///  A resume reads the marker rather than the capture,
+/// and another add's marker
 ///  is no proof of this one's.
 ///
 /// # Errors
@@ -199,10 +213,15 @@ pub fn marker_is_ours(
 }
 
 /// What:
-///  Remove one capture and its marker, in the design's order: the marker, then
-///  the record, and the settle marker last when this step wrote one.
+///  Remove one capture and its marker,
+/// in the design's order:
+/// the marker,
+/// then
+///  the record,
+/// and the settle marker last when this step wrote one.
 /// Why:
-///  A kill at any removal leaves a state the resume can read, and a leftover
+///  A kill at any removal leaves a state the resume can read,
+/// and a leftover
 ///  marker whose capture is gone is refused by the reader rather than trusted.
 pub fn remove_capture(
     home: &Path,
@@ -213,12 +232,18 @@ pub fn remove_capture(
 }
 
 /// What:
-///  Clear another add's capture, marker, settle marker and staging name at one
-///  slot, and leave this add's own alone.
+///  Clear another add's capture,
+/// marker,
+/// settle marker and staging name at one
+///  slot,
+/// and leave this add's own alone.
 /// Why:
-///  An add that has just taken the claim is the only owner of the slot, so a
-///  record with another nonce was left by an add that is not running. The next
-///  add clears it, which is what makes "remove it and run the same add again"
+///  An add that has just taken the claim is the only owner of the slot,
+/// so a
+///  record with another nonce was left by an add that is not running.
+/// The next
+///  add clears it,
+/// which is what makes "remove it and run the same add again"
 ///  work after a pending worktree is removed.
 ///
 /// # Errors
@@ -263,7 +288,8 @@ pub fn clear_other_adds_records(
     return Ok(());
 }
 
-/// Publish `bytes` under `staging` and then under `name`, replacing nothing.
+/// Publish `bytes` under `staging` and then under `name`,
+/// replacing nothing.
 fn publish_once(
     home: &std::fs::File,
     staging: &str,
@@ -287,7 +313,8 @@ fn publish_once(
     return Ok(());
 }
 
-/// The path one name below the home has, read back from the held folder.
+/// The path one name below the home has,
+/// read back from the held folder.
 fn home_path(
     home: &std::fs::File,
     name: &str,
@@ -295,7 +322,8 @@ fn home_path(
     return Ok(crate::fs_beneath::handle_path(home).join(name));
 }
 
-/// The first bytes of a capture file, enough for the header and the count.
+/// The first bytes of a capture file,
+/// enough for the header and the count.
 fn read_prefix(
     home: &Path,
     name: &str,
@@ -331,7 +359,8 @@ fn read_prefix(
 ///  until that count is known.
 const CAPTURE_PREFIX_BYTES: u64 = 8 * 1024;
 
-/// The first `most` bytes of one file, however large the file is.
+/// The first `most` bytes of one file,
+/// however large the file is.
 fn prefix_of(
     path: &Path,
     most: u64,

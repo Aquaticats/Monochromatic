@@ -9,7 +9,8 @@
 //!  The mount must not resolve a path the account can change and must attach to
 //!  the opened folder rather than to a path,
 //!  so a walk hands its caller the descriptors it proved and the identities it
-//!  compared, and the caller acts on those
+//!  compared,
+//! and the caller acts on those
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Descriptor mount and unmount").
 //!  The steps that fill them are `clone_slot_walk_to_the_parent.rs`,

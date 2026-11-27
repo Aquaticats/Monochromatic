@@ -233,3 +233,10 @@ pub fn run_lean(options: &RunOptions) -> i32 {
 pub fn grace_note() -> String {
     return format!("{} days", GRACE_SECONDS / 86_400);
 }
+
+/// The tests of the order a run takes its mechanisms in.
+/// `#[path]` keeps its file beside this one and named for what it holds,
+/// so each module declares its own controls and the crate root's list stays a list of subjects.
+#[cfg(test)]
+#[path = "lean_run_tests.rs"]
+mod lean_run_tests;
