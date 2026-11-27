@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T14:56:31-05:00
+## The state at 2026-11-27T15:03:05-05:00
 
-`main` was `3458afd18e`.
+`main` was `43aca1debc`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -181,12 +181,26 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   `Summary [ 883.520s] 12261 tests run: 12261 passed (6 slow), 51 skipped`
   and "Clippy passed beside the test run.".
   No file of the wrapper package changed between that commit and the release.
-  `0.6.1-alpha.50` is being released
-  (started 2026-11-27T14:49:11-05:00,
-  release commit `3458afd18e`),
-  to be unpacked,
-  proved over alpha.49 in a disposable container
-  and read by two Claude Sonnet passes once published.
+  `0.6.1-alpha.50` is released
+  (release commit `3458afd18e`,
+  published 2026-11-27T14:58:49-05:00,
+  unpacked at `.cache/wrapper-release-0.6.1-alpha.50/`,
+  never locked or installed).
+  Its install proof over alpha.49 passed in a disposable container at 2026-11-27T15:01:26-05:00,
+  on the gate's own image:
+  "starts that failed at the EXEC step:
+  0",
+  no unit at the start limit,
+  none left failed,
+  and "THE PROOF PASSED:
+  the instance the older release loaded started as this release,
+  and the pair of commits each landed once".
+  Two Claude Sonnet reads of it run,
+  same-vendor second passes:
+  of the four merges that change behaviour since 2026-11-27T15:02:11-05:00,
+  writing `~/temp/agent/git-policy-cli-alpha-50-release-review-behaviour-2026-11-27/keep/review.md`,
+  and of the two merges on guards and reach since 2026-11-27T15:02:41-05:00,
+  writing `~/temp/agent/git-policy-cli-alpha-50-release-review-reach-and-guards-2026-11-27/keep/review.md`.
   A merge that lands after that commit and changes only the package's TypeScript,
   its guide or test code leaves the gate standing,
   as one did for alpha.49 ("Releases of 2026-11-27"),
@@ -569,11 +583,13 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
+Four reads run as background agents of the coordinating session,
 each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review):
-of the linter's `0.5.2-alpha.21` and of `cargo-shadow`'s `0.1.5-alpha.15`,
+of the linter's `0.5.2-alpha.21`,
+of `cargo-shadow`'s `0.1.5-alpha.15`,
+and two of the wrapper's `0.6.1-alpha.50`,
 at the paths this section gives beside those releases.
 The coordinator rewrites what lasts from each into this file before scratch expires.
 
