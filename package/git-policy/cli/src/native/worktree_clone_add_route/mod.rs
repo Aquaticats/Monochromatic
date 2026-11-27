@@ -41,7 +41,11 @@
 //! - `add_route_git.rs`:
 //!   the Git runner the fill's own restore steps start.
 //! - `add_route_plan.rs`: the names it chooses, its request, and the test-only stop switch.
-//! - `add_fill.rs`: the proof, the leave-outs, the index, the exchange and the check in order.
+//! - `add_fill_input_and_result.rs`: what one fill reads and what a filled clone hands back.
+//! - `add_fill_restore.rs`: whether the restore still runs, and the reset of the clone.
+//! - `add_fill_leave_outs.rs`: the leave-out's trash and the record of what it holds.
+//! - `add_fill_check.rs`: the check of the filled worktree.
+//! - `add_fill.rs`: the order the fill's steps hold: the proof, the marker, the index, the exchange and the end.
 //! - `add_source_the_restore_cannot_prove.rs`: the source shapes the fill's restore would refuse.
 //! - `add_zfs_pool_answers.rs`:
 //!   what the pool answered, read back and refused: the identities, the clone's properties, the mountpoint's sentence.
@@ -90,6 +94,14 @@ pub mod add_exchange_preparation;
 pub mod add_exchange_trash;
 /// The fill's order.
 pub mod add_fill;
+/// The check of the filled worktree.
+pub mod add_fill_check;
+/// What one fill reads and what it hands back.
+pub mod add_fill_input_and_result;
+/// The leave-out's trash and its record.
+pub mod add_fill_leave_outs;
+/// Whether the restore still runs, and the reset itself.
+pub mod add_fill_restore;
 /// The frozen proof of a mounted clone.
 pub mod add_frozen_proof;
 /// The words of the one locked Git invocation.
