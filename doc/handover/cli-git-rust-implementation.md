@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:41:54-05:00
+## The state at 2026-11-27T12:44:25-05:00
 
-`main` was `2ff1248256`.
+`main` was `8dcc43ed1e`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 230 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 232 more by this time.
 
 ### Rounds running
 
@@ -147,12 +147,16 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   it and the Sanoid driver also get a `mise` task each),
   started 2026-11-27T11:40:23-05:00.
   Its two siblings are merged ("What the rounds found");
-- two rounds started 2026-11-27T12:15:56-05:00 from one list:
-  `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`
+- `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`,
+  started 2026-11-27T12:15:56-05:00
   (the gate's reader of a container's control group has the defect issue 6610 fixed in a check scope's reader:
-  a container killed for memory can be reported as one that met no kill);
-  and `issue-6613-a-passing-typescript-check-says-what-it-ran`
-  (`native:ts-checks` prints only `exit 0` for a check that passed);
+  a container killed for memory can be reported as one that met no kill).
+  Issue 6617 has no round yet
+  (`native:ts-checks` prints no commit when started inside the package folder,
+  because the wrapper refuses its `git -C <folder>` away from the checkout's root);
+  it changes `bin/native-ts-checks.ts`,
+  which no round holds now,
+  so it starts with the next list;
 - nothing in the linter:
   its alpha.19 pass round is merged and `0.5.2-alpha.20` is released ("Releases of 2026-11-27"),
   to be locked,
@@ -202,14 +206,25 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and the ranking stays as it was,
   with its first pair closer;
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
-  two rounds started 2026-11-27T12:11:40-05:00,
-  each named `mpm-shadow-alpha-14-release-pass-` and then:
-  `a-failed-or-raced-publish-never-costs-the-finished-copy`
-  and `a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`.
-  Both change `leftovers_of_a_killed_install.rs`,
-  each told which part the other holds;
-  `0.2.7-alpha.15` follows their merges.
-  The other two of that list are merged.
+  one round started 2026-11-27T12:11:40-05:00,
+  `mpm-shadow-alpha-14-release-pass-a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`;
+  `0.2.7-alpha.15` follows its merge and issue 6616's.
+  It changes `leftovers_of_a_killed_install.rs`,
+  which the publish round changed too and has merged,
+  so its branch may meet `main` there.
+  The other three of that list are merged.
+  A failed or raced publish no longer costs the finished copy (`1add32a8fb`):
+  a claimed copy that could not be published stays at the claim for the next install,
+  which publishes it with no download;
+  the copy a kill moved aside is not put back while a live installer holds a claim or a staging name for that version,
+  and a publish that finds a copy put back meanwhile replaces it;
+  a recovery never publishes an older version beside a newer installed one;
+  a run whose recovery failed still installs what it can;
+  and every message on those paths says what is on disk afterwards.
+  Its controls stop at a planted step or a real live process,
+  never by timing,
+  and were shown red by putting the release's decisions back,
+  twelve of them at once.
   The record of a start refused because the program is being written says what the code and the trace show
   (`9e13d87bbd`):
   it names no usual cause,
@@ -818,7 +833,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6616,
+  issues 6524 to 6617,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -1050,6 +1065,13 @@ and the two `truepeak` files wait on their branch.
   `timings-boot-first`)
   were compared byte for byte and not run in a guest;
   issue 6612's round runs each once.
+- `native:ts-checks` says what a passing check ran (`8dcc43ed1e`,
+  issue 6613),
+  and refuses a unit test run that reported no suite or fewer suites than the package holds unit test files.
+  On `main` at that commit it printed
+  `89 unit test files, and 186 suites reported [PASS]`.
+  The type check can report no count of files without `--extendedDiagnostics` in the shared task template,
+  and says so.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

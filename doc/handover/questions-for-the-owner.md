@@ -1096,6 +1096,14 @@ and its round runs.
 - The same pass found the repair publishes a hidden copy without the lock's SHA-256 behind it;
   the marker is made to carry what was verified,
   and the repair to compare it with the lock.
+- The round on `mpm-shadow`'s publish (merged as `1add32a8fb`,
+  recorded 2026-11-27T12:44:25-05:00) made two choices of its own:
+  a finished hidden copy of a version the older-version rule forbids publishing is left hidden,
+  not deleted,
+  because it may be the only copy once the newer version is gone;
+  and a recovery that failed is a warning when the install after it puts the version in place,
+  and a failure when it does not.
+  Each is one line to turn the other way.
 - `cargo-shadow`'s `0.1.5-alpha.13` pass read in systemd's source three cases
   in which the manager never ends a scope that emptied.
   That is a second road to the leftover unit the section
