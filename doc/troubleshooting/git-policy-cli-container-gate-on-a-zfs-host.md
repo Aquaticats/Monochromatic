@@ -128,6 +128,48 @@ process per test: `keep/red-before-the-two-controls.log`,
 `keep/green-after-the-nineteenth.log` and `keep/green-after-the-shadow-three.log` in
 `~/temp/agent/non-utf8-capture-invocation-controls-on-a-utf8only-home-2026-11-25/`.
 
+### The scanner's embedding control meets the same refusal (issue 6491)
+
+Recorded 2026-11-27T01:29:00-05:00 by the round
+`issue-6491-forbidden-strings-embedding-control-runs-on-a-utf8only-home`,
+on branch `fix/forbidden-strings-cli-issue-6491-embedding-control-runs-on-a-utf8only-home`,
+from `main` `f1957916b0` after merging it.
+Unapproved and not final.
+
+`package/forbidden-strings/cli`'s
+`embedding::public_embedding_runs_without_real_user_state` met this cause from the other side.
+Its `native_rule_path` writes `rules-\xff.txt` under `CARGO_TARGET_TMPDIR`,
+which is `target/tmp` in the checkout and, through `cargo-shadow`'s build folder,
+`~/.cargo/build/toolchain/<toolchain>/<n>/<hash>/tmp` here;
+both sit on `zpcachyos/ROOT/cos/home`, which answers `EILSEQ` (`errno` 84) for the name.
+Red on `main`'s code, one process for the one test:
+`thread 'embedded_consumer_probe' panicked at tests/embedding.rs:90:51: native rule file: Os { code: 84, kind: Uncategorized, message: "Invalid or incomplete multibyte or wide character" }`.
+
+That crate does not depend on the wrapper's, so it carries its own copy of this cause's answer in
+`package/forbidden-strings/cli/tests/support/fixture_root_taking_any_name.rs`:
+ask the fixture root whether it takes the name, and where it does not, start the same test binary for
+the same test inside `unshare --user --map-root-user --mount --propagation private`,
+mount a tmpfs at that root, and run the control there.
+Two things differ from the wrapper's copy.
+There is no acknowledgement variable, because a run in which this control never ran would pass silently,
+and the containers this package's `test:container` task runs already give it a fixture root that takes the name.
+And the native rule-file control prints one line saying it ran, which the driver requires in its child's output,
+so a control that returned early on a refusing root fails the run instead of passing it.
+
+Green after:
+`PASS [0.016s] forbidden-strings::embedding public_embedding_runs_without_real_user_state`, with
+`the control public_embedding_runs_without_real_user_state ran inside a user and mount namespace of its own,
+with a tmpfs at ~/.cargo/build/toolchain/nightly-2026-11-16/44/7fdd6ab15b6390/tmp, because the file system
+there refused a name that is not UTF-8`.
+A stand-in quiet skip in `native_rule_path` failed the driver with
+`the native rule-file control did not run in the child, so a file system that refuses its name would go unnoticed`.
+
+The round's logs are in
+`~/temp/agent/issue-6491-forbidden-strings-embedding-control-runs-on-a-utf8only-home-2026-11-26/keep/`
+(`red-on-main.log`, `green-with-output.log`, `guard-holds-a-quiet-skip.log`),
+which expires a day after the round's last change;
+this section is the durable record.
+
 ### The inner half's Git holds no capability (issue 6459)
 
 Recorded 2026-11-25T07:55:39-05:00 by the round `any-name-fixture-root-git-without-capabilities`,
