@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:44:25-05:00
+## The state at 2026-11-27T12:48:40-05:00
 
-`main` was `8dcc43ed1e`.
+`main` was `9ea0d98dda`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 232 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 234 more by this time.
 
 ### Rounds running
 
@@ -147,18 +147,15 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   it and the Sanoid driver also get a `mise` task each),
   started 2026-11-27T11:40:23-05:00.
   Its two siblings are merged ("What the rounds found");
-- `issue-6614-the-gates-container-memory-reader-keeps-a-whole-reading`,
-  started 2026-11-27T12:15:56-05:00
-  (the gate's reader of a container's control group has the defect issue 6610 fixed in a check scope's reader:
-  a container killed for memory can be reported as one that met no kill);
 - `issue-6617-a-typescript-check-prints-the-commit-it-ran-on`,
   started 2026-11-27T12:44:52-05:00
   (`native:ts-checks` prints no commit when started inside the package folder,
   because the wrapper refuses its `git -C <folder>` away from the checkout's root);
 - nothing in the linter:
-  its alpha.19 pass round is merged and `0.5.2-alpha.20` is released ("Releases of 2026-11-27"),
-  to be locked,
-  installed and read by a Claude Sonnet pass once published;
+  `0.5.2-alpha.20` is released,
+  locked (`94b2e0d22e`) and installed ("Releases of 2026-11-27"),
+  and a Claude Sonnet read of it runs as a background agent of the coordinating session
+  (`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`);
 - no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
   Every finding of the two passes that earned a fix is merged:
   the guards that named a file code had left now read the folders the splits made,
@@ -204,13 +201,29 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and the ranking stays as it was,
   with its first pair closer;
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
-  one round started 2026-11-27T12:11:40-05:00,
-  `mpm-shadow-alpha-14-release-pass-a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`;
+  `mpm-shadow-alpha-14-release-pass-the-publish-and-the-hidden-name-rounds-joined-on-one-tree`,
+  started 2026-11-27T12:46:15-05:00;
   `0.2.7-alpha.15` follows its merge and issue 6616's.
-  It changes `leftovers_of_a_killed_install.rs`,
-  which the publish round changed too and has merged,
-  so its branch may meet `main` there.
-  The other three of that list are merged.
+  The round on who owns a hidden name has ended and is not merged:
+  its branch,
+  `fix/mpm-shadow-cli-mpm-shadow-alpha-14-release-pass-a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`,
+  meets `main` in four files,
+  because the publish round changed the same module and merged first.
+  They also meet where no text conflicts:
+  the publish round's controls build hidden names and markers in the alpha.14 shape,
+  and under the hidden-name round's rule a name of that shape is never judged and such a marker is never published.
+  The joining round merges that branch into one made from `main` and must lose no control of either.
+  What the hidden-name round built:
+  a hidden name carries the process id,
+  its start time,
+  its process namespace and the boot's identifier
+  (`/proc/sys/kernel/random/boot_id`,
+  the target of `/proc/self/ns/pid`);
+  a name from another boot is an installer that ended,
+  one from another namespace or in an earlier build's shape is never judged;
+  the completion marker carries the archive's SHA-256 and a copy is published only when the lock's row matches;
+  and `prune --toolchain` removes hidden directories whose owner provably ended and names what it cannot judge.
+  The other three rounds of the first list are merged.
   A failed or raced publish no longer costs the finished copy (`1add32a8fb`):
   a claimed copy that could not be published stays at the claim for the next install,
   which publishes it with no download;
@@ -1070,6 +1083,16 @@ and the two `truepeak` files wait on their branch.
   `89 unit test files, and 186 suites reported [PASS]`.
   The type check can report no count of files without `--extendedDiagnostics` in the shared task template,
   and says so.
+- The gate's reader of a container's control group keeps a whole reading (`9ea0d98dda`,
+  issue 6614),
+  by the rule issue 6610 gave the check scope's reader:
+  a reading that lost part of its group neither replaces a whole one nor throws,
+  so a container killed inside its memory bound whose `memory.events` went before a read is still reported as killed.
+  The reader answers two things apart,
+  a directory it cannot find and a reading that is not whole,
+  because only the first ends a role in the recorder.
+  No real gate has run on it yet:
+  the next whole gate is its first.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
