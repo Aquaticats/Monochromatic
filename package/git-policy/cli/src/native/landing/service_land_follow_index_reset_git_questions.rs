@@ -74,7 +74,8 @@ fn run_answered(answered: std::io::Result<GitOutput>) -> Result<GitOutput, Failu
     };
 }
 
-/// One step of the index reset, asked of Git on this thread.
+/// One step of the index reset,
+/// asked of Git on this thread.
 pub(super) fn run(
     git: &GitContext,
     repository: &Path,

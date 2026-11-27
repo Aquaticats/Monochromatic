@@ -5,7 +5,8 @@
 //! Why:
 //!  A round spends a bounded slice on housekeeping and the person's pushes come first
 //! (`housekeeping_of_one_round.rs`),
-//! so the three steps that ask, run and defer that housekeeping stand together,
+//! so the three steps that ask,
+//! run and defer that housekeeping stand together,
 //!  apart from the drain that orders the kinds of work
 //! (`service_work_drain_pending_claims.rs`).
 //!

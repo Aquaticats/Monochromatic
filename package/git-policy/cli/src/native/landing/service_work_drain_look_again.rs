@@ -26,8 +26,10 @@ use std::time::Duration;
 ///  the earliest of the housekeeping this look left for a later one and the end of the earliest claim still held here,
 /// its own or another instance's.
 /// Why:
-///  A claim this look kept (a retryable answer, a settling step that could not run) has nothing else to look at it again:
-///  the service's own words promise it is tried again when its claim runs out, so the look that kept it owes that moment
+///  A claim this look kept (a retryable answer,
+/// a settling step that could not run) has nothing else to look at it again:
+///  the service's own words promise it is tried again when its claim runs out,
+/// so the look that kept it owes that moment
 ///  to the one loop that will come back.
 ///
 /// In TS you'd write (pseudocode):

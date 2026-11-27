@@ -6,7 +6,8 @@
 //! (`service_commit_args.rs`):
 //! a commit built on a tip that has since moved is built again from `-F <file>` with the message kept verbatim,
 //! and a line that borrowed its author or its parents from another commit cannot be rebuilt that way.
-//! The tables of long options it reads, and the abbreviation rule that keeps an unknown spelling from being guessed at,
+//! The tables of long options it reads,
+//! and the abbreviation rule that keeps an unknown spelling from being guessed at,
 //! are this rewrite's alone,
 //! so they stand beside it.
 //!

@@ -1,5 +1,6 @@
 //! What:
-//!  Whether a tree, a tree below it or a blob in any of them is gone from the object store,
+//!  Whether a tree,
+//! a tree below it or a blob in any of them is gone from the object store,
 //! for every root of a batch,
 //! and what that walk cost.
 //! Why:
@@ -9,7 +10,8 @@
 //! One work stack and one set of examined objects serve the whole batch,
 //! the walk is linear in the batch's distinct objects with no recursion,
 //! and the budget is what keeps an unbounded walk from holding a landing,
-//! so the walk, its ending and its cost stand in a file of their own.
+//! so the walk,
+//! its ending and its cost stand in a file of their own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

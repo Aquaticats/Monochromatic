@@ -10,7 +10,9 @@
 //! and no link is followed and no pipe waited on when it is read,
 //! so a stranger's file of that name cannot hang the reclaimer
 //! (`service_index_claim.rs`).
-//! What such a reading answers, and the reading itself, are one step of their own,
+//! What such a reading answers,
+//! and the reading itself,
+//! are one step of their own,
 //! because the names of the claims and the chain they make are about another question.
 //!
 //! In TS you'd write (pseudocode):

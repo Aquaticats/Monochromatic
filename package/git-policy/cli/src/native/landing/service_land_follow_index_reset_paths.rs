@@ -1,5 +1,6 @@
 //! What:
-//!  The paths a reset installs, as the bytes `git reset` reads them:
+//!  The paths a reset installs,
+//! as the bytes `git reset` reads them:
 //! a pathspec that names one path from the top of the worktree,
 //! a NUL-separated list of them,
 //! and the names that differ between two commits.
