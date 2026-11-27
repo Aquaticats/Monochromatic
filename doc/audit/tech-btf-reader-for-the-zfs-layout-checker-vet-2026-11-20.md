@@ -1486,7 +1486,10 @@ Response kept as `keep/crates-io-q-btf-page-1-2026-11-20.json` beside this repor
 No new parser appeared between the round and this report.
 
 The kept discovery artifacts,
-under `/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/`:
+under `/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-11-20/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 `query-1-literal-deepseek-page-1.txt`,
 `query-2-c-libraries-deepseek-page-1.txt`,
 `query-3-alternatives-deepseek-page-1.txt`,
@@ -1496,9 +1499,6 @@ under `/home/user/temp/agent/zfs-layout-checker-reader-discovery-finished-2026-1
 the three `org-*-projects-listing.html` pages,
 the three `org-*-project-*.html` pages,
 and `evidence/checksums.txt` over them and the BTF copies.
-(scratch,
-deleted on 2026-11-27;
-what this record uses from it is stated here).
 Two ecosyste.ms reads sit beside them
 and one was refused for a missing descriptive User-Agent
 (`ecosystems-crates-keyword-btf-page-1.json` holds that error,
