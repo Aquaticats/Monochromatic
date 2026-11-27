@@ -96,11 +96,11 @@ use std::cmp::Ordering;
 /// Imports the owned path type the version directory is built into.
 use std::path::PathBuf;
 
-/// Imports the order the tools are installed in.
-use super::the_install_order::sync_order;
 /// Imports the one instant this rule's two steps are apart,
 /// which a control stands in with a start of the tool and may end a run at.
 use super::a_control_holds_the_instant_between_the_two_steps::reached_the_instant_between_the_two_steps;
+/// Imports the order the tools are installed in.
+use super::the_install_order::sync_order;
 /// Imports the report a run answers with,
 /// the warning for a replaced version,
 /// the sentence for a version a killed install left unfinished,

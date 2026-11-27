@@ -180,8 +180,7 @@ const AN_INPUT_OUTPUT_ERROR: i32 = Errno::IO.raw_os_error();
 /// ```ts
 /// const THE_LAUNCHER_A_CONTROL_STARTS = 'toolchain::a_recovery_moves_current_before_it_removes_an_older_version_tests::the_launcher_a_control_starts';
 /// ```
-const THE_LAUNCHER_A_CONTROL_STARTS: &str =
-    "toolchain::a_recovery_moves_current_before_it_removes_an_older_version_tests::the_launcher_a_control_starts";
+const THE_LAUNCHER_A_CONTROL_STARTS: &str = "toolchain::a_recovery_moves_current_before_it_removes_an_older_version_tests::the_launcher_a_control_starts";
 
 /// What:
 /// The test this file's control starts as the run it ends at the instant between the two steps.
@@ -193,8 +192,7 @@ const THE_LAUNCHER_A_CONTROL_STARTS: &str =
 /// ```ts
 /// const THE_RUN_A_CONTROL_KILLS = 'toolchain::a_recovery_moves_current_before_it_removes_an_older_version_tests::the_run_a_control_kills_between_the_two_steps';
 /// ```
-const THE_RUN_A_CONTROL_KILLS: &str =
-    "toolchain::a_recovery_moves_current_before_it_removes_an_older_version_tests::the_run_a_control_kills_between_the_two_steps";
+const THE_RUN_A_CONTROL_KILLS: &str = "toolchain::a_recovery_moves_current_before_it_removes_an_older_version_tests::the_run_a_control_kills_between_the_two_steps";
 
 /// The variable the run a control kills reads the fixture's home directory from.
 const HOME_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_HOME";
@@ -349,7 +347,10 @@ fn the_claim_the_failed_recovery_left(
             return entry.path();
         }
     }
-    panic!("the failed recovery left no claim in {}", tool_dir.display());
+    panic!(
+        "the failed recovery left no claim in {}",
+        tool_dir.display()
+    );
 }
 
 /// What:
@@ -701,10 +702,7 @@ fn a_start_between_the_two_steps_runs_the_version_the_recovery_published() {
         "the run ends with the link naming the version the lock pins"
     );
     assert!(
-        is_finished(
-            &tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED),
-            BIN
-        ),
+        is_finished(&tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED), BIN),
         "the recovered version is finished: {report:?}"
     );
 }
@@ -816,10 +814,7 @@ fn the_sentence_names_the_recovered_version_when_that_version_is_the_older_one()
         "the rule removes the version this run published once a newer one is installed"
     );
     assert!(
-        is_finished(
-            &tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED),
-            BIN
-        ),
+        is_finished(&tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED), BIN),
         "the newer version the other install made is the one that stays: {report:?}"
     );
     // What: the run ends warning that its lock pins the version the rule just removed.
@@ -843,7 +838,8 @@ fn the_sentence_names_the_recovered_version_when_that_version_is_the_older_one()
 fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
     let rig = Rig::new();
     let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
-    let tool_dir: PathBuf = the_killed_installs_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
+    let tool_dir: PathBuf =
+        the_killed_installs_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
     serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
     // What: the recovery's own publish is refused where it gives the version its name.
     // Why: the bug this test is about is a run that then downloads and publishes the version itself.
@@ -853,10 +849,7 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
     // plantTheseSteps({ refuseTheRename: ['the-finished-copy-goes-in', AN_INPUT_OUTPUT_ERROR] });
     // ```
     plant_these_steps(Plant {
-        refuse_the_rename: Some((
-            RenameRefused::GivesTheVersionItsName,
-            AN_INPUT_OUTPUT_ERROR,
-        )),
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
     let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock), None);
@@ -885,10 +878,7 @@ fn a_run_that_publishes_after_a_failed_recovery_says_what_it_then_did() {
         "no line says the next run publishes a copy this run already replaced: {warning}"
     );
     assert!(
-        is_finished(
-            &tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED),
-            BIN
-        ),
+        is_finished(&tool_dir.join(THE_VERSION_A_KILL_LEFT_FINISHED), BIN),
         "{report:?}"
     );
     // What: the copy the failed recovery kept gets the pair of an installer that has ended, which is what a later run

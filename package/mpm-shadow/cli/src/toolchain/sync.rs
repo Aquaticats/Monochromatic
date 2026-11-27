@@ -53,6 +53,13 @@ mod the_sync_itself;
 /// which this crate's own report reads (not a caller).
 mod what_the_sync_did;
 
+/// Re-exports the hold a control plants at the newest-only rule's one instant,
+/// which only a test build reads (`a_control_holds_the_instant_between_the_two_steps`).
+#[cfg(test)]
+pub(crate) use self::a_control_holds_the_instant_between_the_two_steps::{
+    Hold,
+    holding_the_next_instant,
+};
 /// Re-exports what a lock preparation wrote.
 pub use self::preparing_the_lock::{
     LockPreparation,
@@ -78,13 +85,6 @@ pub use self::the_install_order::{
 };
 /// Re-exports the install itself.
 pub use self::the_sync_itself::sync_tools;
-/// Re-exports the hold a control plants at the newest-only rule's one instant,
-/// which only a test build reads (`a_control_holds_the_instant_between_the_two_steps`).
-#[cfg(test)]
-pub(crate) use self::a_control_holds_the_instant_between_the_two_steps::{
-    Hold,
-    holding_the_next_instant,
-};
 /// Re-exports what one sync did,
 /// and the warning for an install that replaces another version.
 pub use self::what_the_sync_did::{
