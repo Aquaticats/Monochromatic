@@ -936,20 +936,25 @@ and an HTTP 429 is retried after its `Retry-After`.
   three hundred iterations an arm:
   of 3090 reads raced against 300 group creations,
   none answered `ENOENT` while the directory was there,
-  and the first sight of each new directory listed `cgroup.events` in it.
+  and every first sight of a new directory held `cgroup.events`
+  (a listing of the directory in 88 of the 300 iterations,
+  and the successful read itself in the other 212).
   The control group root is created deactivated
   (`KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5,
   the stable release this host's kernel is built from),
   and a new group's directory and its files become visible together
-  (`kernfs_activate` at `:6157`, after the base files at `:6146`).
+  (`kernfs_activate` at `:6157`,
+  after the base files at `:6146`).
   A directory that is there without its `cgroup.events` is still read as a scope nothing was read from,
   and keeps its unit:
-  that is the answer for a kernel that shows the state, and this one is not seen to.
+  that is the answer for a kernel that shows the state,
+  and this one is not seen to.
   What the `populated` read does answer is the removal,
   and that is the live row:
   300 removals raced by that read answered `ENODEV` 24 times,
   the files being taken before the directory in the same removal
-  (`css_clear_dir` at `kernel/cgroup/cgroup.c:6361`, `kernfs_remove` at `:6362`),
+  (`css_clear_dir` at `kernel/cgroup/cgroup.c:6361`,
+  `kernfs_remove` at `:6362`),
   and a check of the directory made right after the read found it there in 20 of the 24.
   So that row is read as the collected unit it is,
   and nothing is printed about a unit the manager is freeing.

@@ -926,7 +926,8 @@ The look is answered from the kernel and it is what keeps the ordinary run free 
   so that unit is the manager's to free;
   `ENOENT` is a name that is not there,
   and it is the group's absence only when the group's directory is gone as well
-  ("Which absence means what", measured on 2026-11-27).
+  ("Which absence means what",
+  measured on 2026-11-27).
 - A `populated 0` line is the proof that no member is left,
   and `pids.peak` then says whether any process was ever counted in the group.
   A group that held one changed its `populated` line,
@@ -988,7 +989,7 @@ The control that holds that bound allows the run around it one second more,
 and no more:
 the helper process it starts,
 run on its own with a scope of its own around it,
-took 5068, 5073 and 5079 ms from start to exit on 2026-11-27,
+took 5068 to 5079 ms from start to exit on 2026-11-27,
 which is the five seconds,
 the grace the reap actually used (about 5 ms)
 and 63 to 74 ms of process start and one scoped run.
@@ -1107,19 +1108,24 @@ so this round measured it on this host (kernel 7.3.5-2-cachyos,
 systemd 262.2),
 inside a delegated scope of its own,
 with a program of two threads that makes and removes child groups of that scope and nothing else:
-one thread reads a child's `cgroup.events` through a new open, the way the look does,
-and the other makes the group, or removes it.
+one thread reads a child's `cgroup.events` through a new open,
+the way the look does,
+and the other makes the group,
+or removes it.
 Each iteration records what the read answered and whether the child's directory was there before it and after it,
 because only one of those two orders can answer the question:
-a directory that is made during a read cannot be un-made by it, so "there before" is the strict side for a creation,
-and a directory that is removed during a read cannot come back, so "there after" is the strict side for a removal.
+a directory that is made during a read cannot be un-made by it,
+so "there before" is the strict side for a creation,
+and a directory that is removed during a read cannot come back,
+so "there after" is the strict side for a removal.
 
 ```text
 creation, 300 iterations, 3090 reads:
   `ENOENT` with the directory there before the read     0
   `ENOENT` with the directory there after the read     73   (the group appeared during the read: a stale answer)
   `ENODEV`                                              0
-  first sight of the new directory listed `cgroup.events` in it   88 of 88
+  first sight of the new directory held `cgroup.events`   300 of 300
+        (a listing of the directory in 88 iterations, the successful read itself in the other 212)
 
 removal, one read of an open `cgroup.events` per attempt, 300 iterations, 3655 reads:
   read before the removal                               `populated 0` every time
@@ -1131,7 +1137,8 @@ removal, a new open for every read (the look's own read), 300 iterations:
   `ENODEV`                                              77
   `ENOENT`                                             325
 
-removal, a new open for every read and the directory check the look makes right after it, 300 iterations, 3525 reads:
+removal, a new open for every read and the directory check the look makes right after it, 300 iterations, 3525 reads
+(the same arm run a second time gave the same four counts):
   reads that answered `ENODEV`                          24
   of those, the directory check found the directory there  20
   of those, the directory check found it gone                4
@@ -1143,18 +1150,25 @@ A control for the counting itself:
 the same creation arm against a plain directory and a file written after it,
 which is the state the release assumed the kernel makes,
 counted `ENOENT` with the directory there 1640 times in 7946 reads over 300 iterations,
-so an arm that counts nothing sees nothing because the kernel does not do it, not because the count is blind.
+so an arm that counts nothing sees nothing because the kernel does not do it,
+not because the count is blind.
 
 What the counts settle:
 
 - The creation row is not produced.
   A new group's directory and files become visible together
-  (the control group root is created deactivated, `KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5,
-  and `cgroup_mkdir` activates the whole subtree under one write lock, `kernfs_activate` at `:6157` after `css_populate_dir` at `:6146`;
-  `kernfs_iop_lookup` answers nothing for a node that is not active, `fs/kernfs/dir.c:1266`).
-  The answer the release gave that row is kept for a kernel that shows it, and this host is not one.
-- The removal row is produced, and it is the row the kernel answers for a group it is removing.
-  The files go before the directory in one removal (`css_clear_dir` at `kernel/cgroup/cgroup.c:6361`, `kernfs_remove` at `:6362`),
+  (the control group root is created deactivated,
+  `KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5,
+  and `cgroup_mkdir` activates the whole subtree under one write lock,
+  `kernfs_activate` at `:6157` after `css_populate_dir` at `:6146`;
+  `kernfs_iop_lookup` answers nothing for a node that is not active,
+  `fs/kernfs/dir.c:1266`).
+  The answer the release gave that row is kept for a kernel that shows it,
+  and this host is not one.
+- The removal row is produced,
+  and it is the row the kernel answers for a group it is removing.
+  The files go before the directory in one removal (`css_clear_dir` at `kernel/cgroup/cgroup.c:6361`,
+  `kernfs_remove` at `:6362`),
   and a file opened before that and read after it answers `ENODEV` (`kernfs_seq_start` at `fs/kernfs/file.c:166`).
   The kernel removes a group only when it holds no task (`:6333` of the same file),
   so a unit behind that read is one the manager is freeing:
@@ -1162,8 +1176,10 @@ What the counts settle:
   and the directory check is not made for it,
   because the directory is measured to be there while the group is already going away,
   and a check that asked would print that the unit may be left loaded while the manager is removing it in 20 of 24 samples.
-- `ENOENT` on the look's read is the group's absence: the directory check found the directory there in 0 of 299 samples.
-  The same check is what the peak read needs, and there it is live:
+- `ENOENT` on the look's read is the group's absence:
+  the directory check found the directory there in 0 of 299 samples.
+  The same check is what the peak read needs,
+  and there it is live:
   a group whose parent does not enable the pids controller has no `pids.peak` file at all.
 
 #### A directory that was never made reads as a collected scope

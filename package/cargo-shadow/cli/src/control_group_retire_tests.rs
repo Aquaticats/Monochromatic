@@ -1079,7 +1079,8 @@ fn a_group_whose_directory_is_gone_is_not_asked_about() {
 /// which needs the question,
 /// a directory that went away is a collected group,
 /// which needs none,
-/// and so is a group the kernel is removing, whether its directory still reads there or not.
+/// and so is a group the kernel is removing,
+/// whether its directory still reads there or not.
 /// The race the third case comes from cannot be staged from outside,
 /// so the decision is driven the way the refusal's decision is.
 #[test]
@@ -1255,7 +1256,7 @@ fn a_unit_kept_after_an_emptiness_was_read_says_what_the_look_read() {
 /// so the run says what it could not read rather than report a collected unit in silence.
 /// This host's kernel is not shown to make that state for a group being created:
 /// 3090 reads raced against 300 creations never answered `ENOENT` while the directory was there,
-/// and the first sight of a new directory listed `cgroup.events` in it every time.
+/// and every first sight of a new directory held `cgroup.events` in it.
 /// The row the same check is live for is the peak read,
 /// where a group whose parent does not enable the pids controller has no `pids.peak` at all
 /// (`a_group_without_a_pids_peak_file_is_asked_about_once`),

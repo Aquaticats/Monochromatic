@@ -22,7 +22,8 @@
 //! the alpha.12 release pass):
 //! a question to the manager is a program start,
 //! and asking it on every run's end cost a scoped run 15 to 36 ms of the caller's time
-//! (the "The cost," paragraph of "What cargo-shadow does now" in
+//! (the "The cost,"
+//! paragraph of "What cargo-shadow does now" in
 //! `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`).
 //! So the look answers the question from the kernel alone:
 //! `pids.peak` says whether a process was ever counted in the scope's group,
@@ -349,8 +350,9 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
 /// there any more,
 /// either as a name (`ENOENT`) or as a file the kernel has taken away (`ENODEV`).
 /// Why:
-/// Those two are the only failures that say anything about the group's own existence, and the stop of a containment reads
-/// `ENODEV` the same way (`populated_through` answers the empty line for it);
+/// Those two are the only failures that say anything about the group's own existence,
+/// and the stop of a containment reads `ENODEV` the same way
+/// (`populated_through` answers the empty line for it);
 /// every other failure is a group that may still have a member.
 ///
 /// In TS you'd write (pseudocode):
@@ -367,10 +369,12 @@ fn is_the_group_being_gone(error: &io::Error) -> bool {
 /// deactivated the group's own files,
 /// which it does on its way to removing the group.
 /// Why:
-/// `ENODEV` is the kernel's own statement that the group behind the file is being taken apart: `kernfs_seq_start` answers it
-/// where it can no longer take an active reference to the file's node (`fs/kernfs/file.c:166` at v7.3.5), and
-/// `kernfs_fop_open` answers it where the node was deactivated before the file was opened (`:612`).
-/// That is a stronger fact than `ENOENT`, which is only the absence of a name.
+/// `ENODEV` is the kernel's own statement that the group behind the file is being taken apart:
+/// `kernfs_seq_start` answers it where it can no longer take an active reference to the file's node
+/// (`fs/kernfs/file.c:166` at v7.3.5),
+/// and `kernfs_fop_open` answers it where the node was deactivated before the file was opened (`:612`).
+/// That is a stronger fact than `ENOENT`,
+/// which is only the absence of a name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -385,17 +389,24 @@ fn the_kernel_is_removing_the_group(error: &io::Error) -> bool {
 /// scope is the scope going away,
 /// rather than a read that failed for a reason of its own.
 /// Why:
-/// A group the kernel is removing is empty (the kernel refuses to remove a group that still holds a task), so `ENODEV` alone
-/// is the scope's absence and needs no directory check;
-/// and `ENOENT` is that absence only when the group's directory is gone as well, because a file that is not there inside a
-/// directory that is means the kernel has no such file.
-/// The peak read is where that second half is live: a group whose parent does not enable the pids controller has no
-/// `pids.peak` at all (`README.md`, "`pids.peak` is a non-root group's file").
-/// It is not live for the `populated` read of a group: measured on this host on 2026-11-27, 3090 reads raced against 300 group
-/// creations never answered `ENOENT` while the directory was there, and the first sight of a new directory listed
-/// `cgroup.events` in it every time (the control group root is created deactivated,
-/// `KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5, and `cgroup_mkdir` activates the directory
-/// and its files under one lock, `kernfs_activate` at `:6157` after `css_populate_dir` at `:6146`).
+/// A group the kernel is removing is empty,
+/// because the kernel refuses to remove a group that still holds a task,
+/// so `ENODEV` alone is the scope's absence and needs no directory check;
+/// and `ENOENT` is that absence only when the group's directory is gone as well,
+/// because a file that is not there inside a directory that is means the kernel has no such file.
+/// The peak read is where that second half is live:
+/// a group whose parent does not enable the pids controller has no `pids.peak` at all
+/// (`README.md`,
+/// "`pids.peak` is a non-root group's file").
+/// It is not live for the `populated` read of a group:
+/// measured on this host on 2026-11-27,
+/// 3090 reads raced against 300 creations never answered `ENOENT` while the directory was there,
+/// and every first sight of a new directory held `cgroup.events`,
+/// in a listing of the directory in 88 of the 300 iterations and in the successful read itself in the other 212.
+/// That is because the control group root is created deactivated
+/// (`KERNFS_ROOT_CREATE_DEACTIVATED` at `kernel/cgroup/cgroup.c:2184` at v7.3.5),
+/// and `cgroup_mkdir` activates the directory and its files under one lock
+/// (`kernfs_activate` at `:6157` after `css_populate_dir` at `:6146`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
