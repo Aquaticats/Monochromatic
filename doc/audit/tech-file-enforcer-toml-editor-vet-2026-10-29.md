@@ -50,6 +50,9 @@ so the skill's "commit after each phase" rule is unmet.
    none after the halt.
    The session that wrote this report (id `73f0639e-153c-4b58-bb17-6162a418423e`) released its lock at the halt.
    The next owner acquires a new lock under `~/temp/agent/technology-vet-locks/`.
+   (scratch,
+  deleted on 2026-11-27;
+  not kept).
 - Governing skill:
    `.agents/skills/choosing-technology/SKILL.md` at commit `37117e36397e30233062828581a5e38217da9458`
    (`git log --format=%H -1 -- .agents/skills/choosing-technology/SKILL.md`),
@@ -1167,6 +1170,3 @@ No candidate has been scored.
 - The vet lock directory
   `/var/home/user/temp/agent/technology-vet-locks/var-home-user-Monochromatic-doc-audit-tech-file-enforcer-toml-editor-vet-2026-10-29.md.lock`
   was created at the start and removed at the halt after this report was written.
-   (scratch,
-  deleted on 2026-11-27;
-  not kept).
