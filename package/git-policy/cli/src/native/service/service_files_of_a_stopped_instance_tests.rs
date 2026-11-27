@@ -6,6 +6,8 @@
 
 use super::*;
 use crate::claim_time::ClaimTime;
+use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
+use crate::push_retry::PLAN_DIRECTORY;
 use crate::service_claim_watch::{
     ClaimWatch,
     WATCH_DIRECTORY,
@@ -14,12 +16,17 @@ use crate::service_commit_looking_for_what_landed::{
     LookForWhatLanded,
     looking_for_what_landed,
 };
+use crate::service_files_of_a_stopped_instance_journal_entries::{
+    A_LOST_ANSWER_MAY_READ_IT,
+    LANDING_RECORD_DIRECTORY,
+};
 use crate::service_instance::{
     instance_of,
     service_unit_instance,
 };
 use crate::service_journal::{
     CLAIM_EXTENSION,
+    CONCLUSION_COPY_EXTENSION,
     DONE_EXTENSION,
     Intent,
     OPEN_EXTENSION,
@@ -28,6 +35,7 @@ use crate::service_journal::{
     TEMPORARY_EXTENSION,
     intent_text,
 };
+use crate::service_journal_folder_of_an_instance::journal_of;
 use crate::service_unit_manager_recorder_test_support::Recorder;
 use crate::service_units_fixture_test_support::{
     Machine,

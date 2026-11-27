@@ -59,12 +59,24 @@
 //!   the shadow conclusion copies at preparation.
 //! - `git_report_answers.rs`:
 //!   the answers of one `git rev-parse` report the invocation capture reads.
+//! - `capture_invocation_git_questions.rs`:
+//!   the Git questions one invocation capture asks,
+//!   and the words a question that could not start is reported with.
+//! - `capture_invocation_layout_report.rs`:
+//!   the repository layout of one invocation:
+//!   the one report that answers every pathname,
+//!   and the questions asked one pathname at a time when that report cannot be split.
+//! - `capture_invocation_head_and_conclusion.rs`:
+//!   the symbolic `HEAD` of the owning worktree,
+//!   and the conclusion kind an amend or a sequencer marker decides.
+//! - `capture_invocation_ref_storage_and_base.rs`:
+//!   the ref storage backend,
+//!   the commit a ref names at invocation,
+//!   and the empty tree an unborn ref starts from.
 //! - `capture_invocation.rs`:
 //!   the invocation capture:
-//!   repository layout,
-//!   symbolic `HEAD`,
-//!   conclusion kind,
-//!   ref backend and base.
+//!   the facts it records,
+//!   and the two steps that record them.
 //! - `git_step_failure.rs`:
 //!   the last Git step of this process that failed,
 //!   and the status it exited with,
@@ -88,8 +100,22 @@
 //! - `commit_form_refusal_from_git.rs`:
 //!   the refusal Git prints for such a form,
 //!   asked of Git itself.
+//! - `commit_index_stat_staleness_staging.rs`:
+//!   what a commit stages from the worktree,
+//!   as the stat-data question reads it.
+//! - `commit_index_stat_staleness_worktree_file.rs`:
+//!   one worktree file's stat data as an index entry records it,
+//!   and whether an entry's recorded data is still that file's.
+//! - `commit_index_stat_staleness_left_to_git.rs`:
+//!   the entries and the paths the stat-data question leaves to Git.
+//! - `commit_index_stat_staleness_walk.rs`:
+//!   the walk of an index's entries,
+//!   one slice at a time on several threads,
+//!   and the answer it gives.
+//! - `commit_index_stat_staleness_reading.rs`:
+//!   the one reading of an index file the stat-data question is answered from.
 //! - `commit_index_stat_staleness.rs`:
-//!   whether an index still records the stat data its worktree has,
+//!   the question whether an index still records the stat data its worktree has,
 //!   so the refresh runs only when it would change something.
 //! - `private_index_request.rs`:
 //!   the private index and object store a commit's preparation selects,
@@ -101,14 +127,47 @@
 //!   so its ceiling does not end a commit over a moved worktree.
 //! - `commit_staged_additions.rs`:
 //!   the finding for a staged deletion that an explicit-path commit cannot record.
+//! - `commit_selection_staging_failure.rs`:
+//!   why a start of the private staging ended:
+//!   Git's own failure,
+//!   or the caller's pathspec that matches nothing.
+//! - `commit_selection_staging_element_words.rs`:
+//!   the words one pathspec element is read as:
+//!   an exact file name,
+//!   a directory or a pattern,
+//!   or a subtraction that applies to every element of the list.
+//! - `commit_selection_staging_selection.rs`:
+//!   what one selection gives the staging step:
+//!   its elements,
+//!   the pathspec file itself,
+//!   or nothing when this reader cannot take that file.
 //! - `commit_selection_staging.rs`:
 //!   the worktree paths an explicit-path commit stages,
 //!   and the two `git add` starts that stage them.
+//! - `commit_index_private_git.rs`:
+//!   the one Git start every private-index step makes,
+//!   and the empty index a repository with no index file starts from.
+//! - `commit_index_listings.rs`:
+//!   what the private index says:
+//!   the intended tree written from it,
+//!   the paths with unmerged stages,
+//!   and the paths it changes against the recorded base.
+//! - `commit_index_checks.rs`:
+//!   the questions about the private index this process answers without a Git start:
+//!   whether it holds exactly the base revision's tree,
+//!   and which selected paths the real index stages as additions.
+//! - `commit_index_staging.rs`:
+//!   the staging of one selection into the private commit index:
+//!   the copy of the index this preparation read,
+//!   the reset to the base an explicit-path commit needs,
+//!   and the `git add` that stages the selected paths.
+//! - `commit_index_retry.rs`:
+//!   the second attempt of an initialization whose branch moved under the commit,
+//!   which rebuilds the private index to hold exactly the tree it commits.
 //! - `commit_index.rs`:
-//!   the private commit index:
-//!   copies,
-//!   selection modes,
-//!   pathspec files and listings.
+//!   the private commit index of one transaction:
+//!   its files,
+//!   and the initialization that reads the real index once and refreshes the private copy.
 //! - `commit_named_ignored_files.rs`:
 //!   the named files an ignore rule refuses,
 //!   decided from the selection before any `git add` runs (issue 6278).
@@ -144,9 +203,40 @@
 //! - `scratch_commit_step.rs`:
 //!   what the waiting notice of the scratch `git commit` saw while the step ran,
 //!   for the timing record.
+//! - `commit_timing_submit.rs`:
+//!   what the client did to hand one request to the service and get its answer,
+//!   as the timing record states it.
+//! - `commit_timing_place.rs`:
+//!   where one timing record goes:
+//!   the worktree's Git directory,
+//!   the common Git directory that holds the file,
+//!   and the service instance it names.
+//! - `commit_timing_json_words.rs`:
+//!   the small JSON words one timing record is written with:
+//!   a duration in whole milliseconds,
+//!   the word for a field with no value,
+//!   and the landing's own figures as one object.
 //! - `commit_timing.rs`:
-//!   the record of where one wrapped commit spent its time,
-//!   appended beside the discard audit.
+//!   the record of where one wrapped commit spent its time:
+//!   its fields and the clocks that fill them.
+//! - `commit_timing_record_line.rs`:
+//!   one timing record as the single line of JSON it is written as.
+//! - `commit_timing_record_writing.rs`:
+//!   the one append that writes a timing record to its file,
+//!   best effort.
+//! - `commit_command_input.rs`:
+//!   what one commit command is handed,
+//!   and how it ended.
+//! - `commit_command_directory.rs`:
+//!   the directory one commit command runs in:
+//!   the effective invocation directory after every `-C`,
+//!   and the real Git the commit's own starts run.
+//! - `commit_command_words.rs`:
+//!   the words one commit command says when it stops,
+//!   each handed to the thread that writes standard error.
+//! - `commit_command_form_refusal.rs`:
+//!   the refusal of a `git commit` whose options are a form real Git refuses,
+//!   with Git's own status and bytes.
 //! - `commit_command.rs`:
 //!   the `git commit` command:
 //!   the transaction,
@@ -236,15 +326,55 @@ pub mod commit_staged_deletions;
 /// the post-commit gate and the backup.
 pub mod commit_command;
 
+/// What one commit command is handed,
+/// and how it ended.
+pub mod commit_command_input;
+
+/// The directory one commit command runs in:
+/// the effective invocation directory after every `-C`,
+/// and the real Git the commit's own starts run.
+pub mod commit_command_directory;
+
+/// The words one commit command says when it stops,
+/// each handed to the thread that writes standard error.
+pub mod commit_command_words;
+
+/// The refusal of a `git commit` whose options are a form real Git refuses,
+/// with Git's own status and bytes.
+pub mod commit_command_form_refusal;
+
 /// Rule facts from the real repository with candidates read from the private index.
 pub mod commit_facts;
 
 /// The worktree completion records of selected corrections and of hook changes.
 pub mod commit_worktree_records;
 
-/// The record of where one wrapped commit spent its time,
-/// appended beside the discard audit.
+/// The record of where one wrapped commit spent its time:
+/// its fields and the clocks that fill them.
 pub mod commit_timing;
+
+/// What the client did to hand one request to the service and get its answer,
+/// as the timing record states it.
+pub mod commit_timing_submit;
+
+/// Where one timing record goes:
+/// the worktree's Git directory,
+/// the common Git directory that holds the file,
+/// and the service instance it names.
+pub mod commit_timing_place;
+
+/// The small JSON words one timing record is written with:
+/// a duration in whole milliseconds,
+/// the word for a field with no value,
+/// and the landing's own figures as one object.
+pub mod commit_timing_json_words;
+
+/// One timing record as the single line of JSON it is written as.
+pub mod commit_timing_record_line;
+
+/// The one append that writes a timing record to its file,
+/// best effort.
+pub mod commit_timing_record_writing;
 
 /// How much of a commit's time its timing record names,
 /// and how much no phase covers.
@@ -276,11 +406,27 @@ pub mod commit_build_part_durations;
 /// Native conclusion cleanup reproduced in the owning worktree.
 pub mod conclusion_cleanup;
 
+/// The Git questions one invocation capture asks,
+/// and the words a question that could not start is reported with.
+pub mod capture_invocation_git_questions;
+
+/// The repository layout of one invocation:
+/// the one report that answers every pathname,
+/// and the questions asked one pathname at a time when that report cannot be split.
+pub mod capture_invocation_layout_report;
+
+/// The symbolic `HEAD` of the owning worktree,
+/// and the conclusion kind an amend or a sequencer marker decides.
+pub mod capture_invocation_head_and_conclusion;
+
+/// The ref storage backend,
+/// the commit a ref names at invocation,
+/// and the empty tree an unborn ref starts from.
+pub mod capture_invocation_ref_storage_and_base;
+
 /// The invocation capture:
-///  repository layout,
-/// symbolic `HEAD`,
-/// conclusion kind,
-/// ref backend and base.
+///  the facts it records,
+///  and the two steps that record them.
 pub mod capture_invocation;
 
 /// The answers of one `git rev-parse` report the invocation capture reads.
@@ -305,15 +451,56 @@ pub mod commit_args;
 /// a cluster's letters and the value it carries inline.
 pub mod commit_args_token_bytes;
 
-/// The private commit index:
-/// copies,
-/// selection modes,
-/// pathspec files and listings.
+/// The private commit index of one transaction:
+/// its files,
+/// and the initialization that reads the real index once and refreshes the private copy.
 pub mod commit_index;
+
+/// The one Git start every private-index step makes,
+/// and the empty index a repository with no index file starts from.
+pub mod commit_index_private_git;
+
+/// What the private index says:
+/// the intended tree written from it,
+/// the paths with unmerged stages,
+/// and the paths it changes against the recorded base.
+pub mod commit_index_listings;
+
+/// The questions about the private index this process answers without a Git start:
+/// whether it holds exactly the base revision's tree,
+/// and which selected paths the real index stages as additions.
+pub mod commit_index_checks;
+
+/// The staging of one selection into the private commit index:
+/// the copy of the index this preparation read,
+/// the reset to the base an explicit-path commit needs,
+/// and the `git add` that stages the selected paths.
+pub mod commit_index_staging;
+
+/// The second attempt of an initialization whose branch moved under the commit,
+/// which rebuilds the private index to hold exactly the tree it commits.
+pub mod commit_index_retry;
 
 /// The worktree paths an explicit-path commit stages,
 /// and the two `git add` starts that stage them.
 pub mod commit_selection_staging;
+
+/// Why a start of the private staging ended:
+/// Git's own failure,
+/// or the caller's pathspec that matches nothing.
+pub mod commit_selection_staging_failure;
+
+/// The words one pathspec element is read as:
+/// an exact file name,
+/// a directory or a pattern,
+/// or a subtraction that applies to every element of the list.
+pub mod commit_selection_staging_element_words;
+
+/// What one selection gives the staging step:
+/// its elements,
+/// the pathspec file itself,
+/// or nothing when this reader cannot take that file.
+pub mod commit_selection_staging_selection;
 
 /// The named files an ignore rule refuses,
 /// decided from the selection before any `git add` runs (issue 6278).
@@ -353,6 +540,25 @@ pub mod commit_index_stat_refresh;
 /// Whether an index still records the stat data its worktree has,
 /// so the refresh runs only when it would change something.
 pub mod commit_index_stat_staleness;
+
+/// What a commit stages from the worktree,
+/// as the stat-data question reads it.
+pub mod commit_index_stat_staleness_staging;
+
+/// One worktree file's stat data as an index entry records it,
+/// and whether an entry's recorded data is still that file's.
+pub mod commit_index_stat_staleness_worktree_file;
+
+/// The entries and the paths the stat-data question leaves to Git.
+pub mod commit_index_stat_staleness_left_to_git;
+
+/// The walk of an index's entries,
+/// one slice at a time on several threads,
+/// and the answer it gives.
+pub mod commit_index_stat_staleness_walk;
+
+/// The one reading of an index file the stat-data question is answered from.
+pub mod commit_index_stat_staleness_reading;
 
 /// The selection a commit names:
 /// the choices that shape its private index,

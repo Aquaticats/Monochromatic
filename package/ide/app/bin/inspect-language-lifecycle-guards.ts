@@ -149,7 +149,7 @@ function replaceOne({
 }
 const strict = 'quiet::clean_lifetime_logs_no_error_level_record';
 const unknown = 'quiet::unknown_helix_error_records_keep_their_level';
-const killed = 'lifecycle::server_that_ignores_exit_is_killed_and_reaped_before_the_drop_returns';
+const killed = 'lifecycle::shutdown::server_that_ignores_exit_is_killed_and_reaped_before_the_drop_returns';
 const stalled = 'logging::background::tests::a_blocked_output_never_delays_the_logging_thread';
 const crashed = 'quiet::a_crashed_server_is_logged_with_its_last_stderr_lines';
 const settled = 'language::attach::report::tests::an_end_waits_for_lines_that_arrive_after_it';

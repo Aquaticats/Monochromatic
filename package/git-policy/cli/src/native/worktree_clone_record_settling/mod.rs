@@ -32,8 +32,9 @@
 //!   the placeholders,
 //!   and the GUID's last digits.
 //! - `settling_refusal.rs`:
-//!   every way the command stops,
-//!   and the sentence a person reads.
+//!   every way the command stops.
+//! - `settling_refusal_sentences.rs`:
+//!   the sentence a person reads for each stop.
 //! - `settling_absence.rs`:
 //!   what the pool answers about the recorded clone's existence.
 //! - `settling_removals.rs`:

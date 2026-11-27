@@ -14,7 +14,10 @@ made from `main`.
 It is the third revision of 2026-11-25.
 It answers the second gate review of the second revision,
 which is
-`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-second-revision-2026-11-25/keep/review.md`,
+`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-second-revision-2026-11-25/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 and it changes wording only:
 no measurement, option, order or recommendation moved,
 and this revision ran no guest.
@@ -985,7 +988,10 @@ both on the same release and the same recipe.
   Its logs are `mountpoint-arm-2026-11-25.log` (cited here as log one)
   and `mountpoint-arm-two-2026-11-25.log` (log two),
   both in
-  `/home/user/temp/agent/zfs-add-clone-mountpoint-without-the-forbidden-grant-design-2026-11-25/keep/guest-logs/`.
+  `/home/user/temp/agent/zfs-add-clone-mountpoint-without-the-forbidden-grant-design-2026-11-25/keep/guest-logs/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   That pool's size was not recorded in either log,
   so this document claims none.
 - The second revision's guest,
@@ -997,6 +1003,9 @@ both on the same release and the same recipe.
   and the control that removes that grant.
   Its commands are kept in that round folder's
   `/home/user/temp/agent/zfs-clone-mountpoint-design-second-revision-2026-11-25/keep/guest-logs/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   as `probe-commands-2026-11-25.txt`,
   and its output in three logs in the same folder.
   They ran through `mvm exec <guest> -- <command>` inside the guest,
@@ -1093,6 +1102,9 @@ cloneprobe/ROOT/clones/negctl	legacy	no
 
 The transcript is in that round folder's
 `/home/user/temp/agent/zfs-clone-mountpoint-design-second-revision-2026-11-25/keep/guest-logs/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 as `setup-and-negative-control-2026-11-25.log`.
 
 ### The separating control: a container with an ordinary mountpoint (log one)
@@ -1256,6 +1268,9 @@ and the emptiness check it skips is at `:535` to `:541`, whose comment at `:530`
 and the mount's `nosuid,nodev` are the container's inherited properties.
 The transcript is in that round folder's
 `/home/user/temp/agent/zfs-clone-mountpoint-design-second-revision-2026-11-25/keep/guest-logs/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 as `creation-time-grant-2026-11-25.log`.
 
 ### Between creation and attach (log two)
@@ -1376,6 +1391,9 @@ which already run C's path in a guest.
   twice,
   on 2026-11-25:
   `/home/user/temp/agent/sweep-guest-arms-find-a-clone-by-its-whole-name-2026-11-25/keep/guest-sweep-arm-first-run.log`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   and `guest-sweep-arm-second-run-after-the-cleanup.log`,
   with `STOPPAGE account-clone` at line 1383 of the driver log
   and `test result: ok. 1 passed` at line 1406,
@@ -1387,6 +1405,9 @@ which already run C's path in a guest.
   `:423` to `:449` clone the same name again with `None`.
   A recorded run exists:
   `/home/user/temp/agent/zfs-step-6-recheck-findings-fixed-2026-11-20/keep/guest/account-suite.log:107`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   and `:140`,
   dated 2026-11-20 20:41,
   after that file's last change (2026-11-20T01:18:41-05:00).
@@ -1394,7 +1415,10 @@ which already run C's path in a guest.
   a refused creation request creates nothing (as root,
   `E2BIG`).
   A recorded run exists:
-  `/home/user/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/keep/guest/root-suite.log:790`.
+  `/home/user/temp/agent/gate-recheck-zfs-step-6-after-its-findings-2026-11-20/keep/guest/root-suite.log:790`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 
 Together they close the CLI-versus-ioctl gap the earlier proposal left open,
 and they fill the "handler's real attach" item with a measured run.
@@ -1439,7 +1463,10 @@ so the issue is not hypothetical.
 ## The first gate review's findings, and where each is answered
 
 The review is
-`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-without-the-forbidden-grant-2026-11-25/keep/review.md`.
+`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-without-the-forbidden-grant-2026-11-25/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Each finding is named by its own words,
 and each answer is in this document.
 
@@ -1540,7 +1567,10 @@ and each answer is in this document.
 ## The second gate review's findings, and where each is answered
 
 The review is
-`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-second-revision-2026-11-25/keep/review.md`.
+`/home/user/temp/agent/gate-review-zfs-clone-mountpoint-second-revision-2026-11-25/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Each finding is named by its own words.
 It found no High, four Mediums and the Lows this section lists.
 

@@ -810,7 +810,10 @@ The fixtures were copied to each filesystem with `cp --archive`,
  so one `git status` wrote the copied files' own data back before the rounds and the source was clean for every arm.
 The harness,
  the script the guest ran and every round's record are
- `~/temp/agent/zfs-step-3-waiver-pass-findings-fixed-2026-11-20/keep/`.
+ `~/temp/agent/zfs-step-3-waiver-pass-findings-fixed-2026-11-20/keep/`
+ (scratch,
+ deleted on 2026-11-27;
+ what this record uses from it is stated here).
 
 Two more things the integration pass asked for are on this branch.
 `worktree_clone.rs` was over the linter's line limit and its doc comments sat above the wrong functions,
@@ -1265,7 +1268,10 @@ so a refused gate enters no mode here.
 
 (Amended 2026-11-21T23:54:02-05:00 by an agent,
 from the review at
-`/home/user/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`,
+`/home/user/temp/agent/integration-pass-zfs-step-7-intent-receipts-readiness-2026-11-21/keep/review.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 "Step 8's text against the design".)
 The sentences this note replaces said the mode's checks ran "all before any
 sweep",

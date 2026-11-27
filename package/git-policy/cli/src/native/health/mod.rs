@@ -3,6 +3,46 @@
 //! Why:
 //!  A report reads many subsystems but is one feature.
 //!
+//! Files in this folder,
+//! each using only files listed before it:
+//!
+//! - `checkout_layout.rs`:
+//!   how the checkout the report describes is laid out,
+//!   and the command that converts each layout.
+//! - `doctor_filesystem.rs`:
+//!   the filesystem section of the report:
+//!   btrfs subvolume,
+//!   overlayfs and ZFS,
+//!   the removal mount option and its commands.
+//! - `doctor_fsmonitor.rs`:
+//!   what the report says about Git's own fsmonitor.
+//! - `doctor_hook_entries.rs`:
+//!   the entries of one hooks directory,
+//!   and the bytes the report spells them as.
+//! - `external_hooks.rs`:
+//!   the configured external hooks,
+//!   read from the configuration snapshot.
+//! - `traditional_hook_warning.rs`:
+//!   the non-blocking warning for a configured `core.hooksPath`,
+//!   decided from the configuration snapshot alone.
+//! - `lfs_shims.rs`:
+//!   the Git LFS shims a repository may hold,
+//!   recognized byte for byte.
+//! - `hooks_path_values.rs`:
+//!   pathnames as Git prints them,
+//!   and every value of `core.hooksPath` with its scope.
+//! - `doctor_config.rs`:
+//!   what the report reads from the configuration:
+//!   configured hooks and the retired `hooks` key.
+//! - `doctor.rs`:
+//!   the report itself:
+//!   the traditional hooks a repository holds,
+//!   and the exit status its findings give.
+//!
+//! The child folders `doctor_zfs_route/` and `sanoid_coverage/` hold the ZFS route's and
+//! the Sanoid coverage's own checks,
+//! each with a folder of its own.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // health/index.ts: one `export * from './file'` per module below.

@@ -44,8 +44,10 @@ use crate::merge_second_pass_line_regions::{
     MarkerLabels,
     Region,
     cut,
-    lines_between,
 };
+/// Where a line sits in one stage,
+/// and the lines counted between two places.
+use crate::merge_second_pass_stage_line_places::lines_between;
 use crate::word_merge::{
     LineSpan,
     MergedPart,

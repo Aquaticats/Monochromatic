@@ -4188,7 +4188,10 @@ In this repository:
   the same merge.
 - The gate review of the two step 17 designs,
   all nine reads of this text,
-  at `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`,
+  at `~/temp/agent/gate-review-zfs-forced-removal-and-cancellation-designs-2026-11-22/keep/`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here),
   `review.md` first and `review-third-read-after-the-probe-rounds.md` last,
   with the material kept beside them.
 - `doc/planning/cli-git-zfs-worktree-design-proposal.md`,

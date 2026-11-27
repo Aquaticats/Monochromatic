@@ -55,3 +55,6 @@ The add checks the container twice:
 - The proposal's remaining wording findings from its third gate read
   (`~/temp/agent/gate-review-zfs-clone-mountpoint-third-revision-2026-11-25/keep/review.md`) are folded in when it is marked
   decided.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).

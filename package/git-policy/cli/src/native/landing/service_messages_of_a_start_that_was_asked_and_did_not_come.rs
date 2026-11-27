@@ -28,59 +28,13 @@
 //! export const didNotStart = (unit, answer, asked): string => `${whatTheManagerSaid(unit, answer)}, and ${whatThisCommandAsked(unit, asked)}.`;
 //! ```
 
-/// What:
-///  What the service manager last said about the unit this command asked after.
-/// Why:
-///  A state word and the two answers that are not states are three different next steps,
-///  and folding them into one made a manager that answered every poll read as one that answered none.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ManagerLastWords = { kind: 'state', text: string } | { kind: 'not-held' } | { kind: 'silent' };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ManagerLastWords {
-    /// The manager named the unit's state,
-    /// in its own word (`active`,
-    /// `activating`,
-    /// `inactive`,
-    /// `failed`,
-    /// ...).
-    State(String),
-    /// The manager answered that it holds no such unit,
-    /// which is what a unit that stopped and was unloaded leaves.
-    NotHeld,
-    /// The manager gave no answer:
-    /// the exchange with it failed,
-    /// or it was never asked.
-    Silent,
-}
-
-/// What:
-///  What this command asked the service manager to do about the unit during its wait.
-/// Why:
-///  A person reads whether anything of this command asked for a start,
-///  which is not the same as whether a start is under way:
-///  a connection to the socket of a socket-activated unit asks for one,
-///  and the client cannot tell which connection asked,
-///  so the words say what this command asked and leave who started the unit to the manager's own state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RequestedStart = 'nothing' | 'start' | 'reset-then-start' | 'restart';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RequestedStart {
-    /// No call of this command asked the manager for anything.
-    Nothing,
-    /// This command asked the manager to start the unit,
-    /// which a unit it holds no such unit for needs to be loaded again.
-    Start,
-    /// This command asked the manager to forget that the unit failed and then to start it.
-    ResetAndStart,
-    /// This command asked the manager to stop the unit and start it again.
-    Restart,
-}
+/// The two facts these words read are declared beside the failures that hold them
+/// (`service_messages_the_failures_a_person_can_meet.rs`),
+/// because a failure's own record holds them and would otherwise use this file.
+pub use crate::service_messages_the_failures_a_person_can_meet::{
+    ManagerLastWords,
+    RequestedStart,
+};
 
 /// What:
 ///  The clause for a wait that ended without a greeting.

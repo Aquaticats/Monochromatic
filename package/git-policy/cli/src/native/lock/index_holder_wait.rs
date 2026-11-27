@@ -51,38 +51,19 @@
 //! const outcome = await waitForIndexRelease({ realIndex, command: 'merge', cadence, stderr });
 //! ```
 
-/// Evidence about the holder of a lock.
+/// Evidence about the holder of a lock:
+/// the sentences a wait reports it in and the two ends a line names.
 use crate::index_lock_evidence::{
     DEAD_OWNER_LOCK_LEFT,
-    Evidence,
     THE_ENDING_SAYS_IT,
-    Verdict,
     WaitEnd,
     blocker_words,
     ceiling_line,
-    classify_index_lock,
     dead_owner_diagnostic,
-    gather_with,
     proven_holder_line,
     proven_holder_progress_line,
     unproven_wait_line,
 };
-
-/// The sentence a merge's dead-owner line ends on:
-/// nothing of the merge is in the checkout until that lock is gone,
-/// and the lock is not that merge's failure,
-/// because it is cleared on the proof the next clause states or the merge is saved on a side ref and exits 0.
-const MERGE_CONSEQUENCE: &str = "the merge does not apply until that lock is gone";
-
-/// The sentence a command's dead owner's line ends on when nothing else holds the lock:
-/// the command clears it and goes on.
-pub const CLEARS_A_DEAD_OWNERS_LOCK: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was written by this step and the lock was left in place";
-
-/// The process a PID file names,
-/// as this host's process table reports it.
-use crate::index_lock_evidence::host_pid_process;
-/// The bounded scan of open descriptors.
-use crate::index_lock_holders::scan_platform_holders_bounded;
 /// The place of the lock and the watch on its directory.
 use crate::service_index_lock::{
     Watch,
@@ -106,76 +87,30 @@ use std::time::{
     Instant,
 };
 
-/// What came of the wait.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum IndexWait {
-    /// Nobody held the lock when the command asked.
-    NotHeld,
-    /// A holder had the lock and let it go.
-    Released(
-        /// How long the wait lasted.
-        Duration,
-    ),
-    /// The lock's PID file names a process that no longer runs,
-    /// so nothing will release it;
-    /// the diagnostic was written,
-    ///  nothing was written by the wait and the lock was left in place.
-    OwnerGone(
-        /// How long the wait lasted.
-        Duration,
-    ),
-    /// The lock was still held at the ceiling;
-    /// the line naming the blocker was written,
-    /// nothing was written by the wait and the lock was left
-    ///  in place.
-    GaveUp(
-        /// How long the wait lasted.
-        Duration,
-    ),
-    /// Another program's command holds the lock,
-    /// and the merge does not wait for it:
-    /// the holder is named so the merge that saves itself can say who it left the checkout to.
-    HeldByAnotherCommand(
-        /// The holder,
-        /// as the person reads it.
-        String,
-    ),
-}
+/// What came of the wait,
+///  re-exported so a caller of this module names it here.
+pub use crate::index_wait_outcome::IndexWait;
 
-/// What the last look at the lock found.
-enum Proof {
-    /// A holder is proven alive.
-    Alive(Evidence, i64, bool, Option<String>),
-    /// The PID file names a process that is gone.
-    Dead(i64),
-    /// Nothing proves a holder alive or dead.
-    Nothing(Option<Evidence>),
-}
-
-/// What the evidence for `real_index` proves now.
-fn look_at(
-    real_index: &Path,
-    gather: &dyn Fn(&Path) -> std::io::Result<Option<Evidence>>,
-) -> Proof {
-    let Ok(Some(evidence)) = gather(real_index) else {
-        return Proof::Nothing(None);
-    };
-    return match classify_index_lock(&evidence) {
-        Verdict::ProvenAlive {
-            pid,
-            by_descriptor,
-            command,
-        } => Proof::Alive(evidence, pid, by_descriptor, command),
-        Verdict::Dead(pid) => Proof::Dead(pid),
-        Verdict::EvidenceFree => Proof::Nothing(Some(evidence)),
-    };
-}
-
-/// The evidence of the host:
-/// the Git lock PID file and the bounded scan of open descriptors.
-fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
-    return gather_with(real_index, host_pid_process, scan_platform_holders_bounded);
-}
+/// The one look at `index.lock` and what it proved,
+///  with the two looks a command makes without waiting,
+///  and the sentence a dead owner's line ends on,
+///  re-exported so a caller of this module names them here.
+pub use crate::index_lock_looks::{
+    CLEARS_A_DEAD_OWNERS_LOCK,
+    IndexLook,
+    look_at_the_index_before_a_merge,
+    look_at_the_index_lock_once,
+};
+/// The proof one look establishes,
+///  the host's reader of it,
+///  and the writer both the looks and the wait report through,
+///  named here because this file's wait reads the lock the same way.
+pub(crate) use crate::index_lock_looks::{
+    Proof,
+    gather_here,
+    look_at,
+    write_then_flush,
+};
 
 /// The notice:
 /// what the step waiting has and has not written,
@@ -270,132 +205,6 @@ pub fn wait_for_index_release_within(
     out: &mut dyn Write,
 ) -> IndexWait {
     return wait_with_watches(real_index, command, ceiling, cadence, out, &Watch::on);
-}
-
-/// What the one look at the index lock found.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type IndexLook = { kind: 'free' } | { kind: 'held' } | { kind: 'left-by-a-gone-process'; pid: number };
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum IndexLook {
-    /// Nobody holds it.
-    Free,
-    /// A program holds it,
-    /// or nothing proves which:
-    /// either way a merge with nothing of itself in the checkout does not wait.
-    Held,
-    /// The PID file names a process that no longer runs,
-    /// so nothing will release it.
-    LeftByAGoneProcess(
-        /// The number the PID file holds.
-        i64,
-    ),
-}
-
-/// What:
-///  The index lock,
-/// looked at once and never waited for.
-/// Why:
-///  A merge that is saved on its record and its side ref has nothing of itself in the checkout,
-/// so a lock cannot be in
-///  its way:
-/// the next command finishes the merge once the lock is free.
-/// Waiting cost every command (a `git rev-parse HEAD`
-///  included) the whole ceiling again for as long as the lock stood,
-/// and a lock a killed Git left never goes by
-///  itself (finding 3 of the merge-and-pull audit of 2026-11-09).
-/// The holder is classified exactly as the wait
-///  classifies it,
-/// so a lock a gone process left is treated the same way by both.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const look = lookAtTheIndexLockOnce(realIndex); // 'free' | 'held' | { leftByAGoneProcess: pid }
-/// ```
-pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
-    if std::fs::symlink_metadata(lock_path_of(real_index)).is_err() {
-        return IndexLook::Free;
-    }
-    return match look_at(real_index, &gather_here) {
-        Proof::Dead(pid) => IndexLook::LeftByAGoneProcess(pid),
-        Proof::Alive(..) | Proof::Nothing(_) => IndexLook::Held,
-    };
-}
-
-/// What:
-///  The index lock before a merge's own apply,
-/// looked at once and never waited for:
-///  the dead owner whose lock the merge may clear is named,
-///  a lock a holder proven alive holds ends the apply there,
-///  and a lock nothing proves the owner of ends it there too.
-/// Why:
-///   Three owners are met here,
-///  and none of them is waited for.
-///  A number this process table does not have is what a killed Git leaves,
-///  and no process here will release it,
-///  so the lock is named and the merge clears it on the commit service's proof of disuse
-///  (`remove_if_the_owner_is_gone`).
-///  A holder proven alive is another program's command,
-///  and the merge has an answer that needs no wait:
-///  its commit is already made,
-///  so the merge is saved on a side ref for the next command in the worktree to finish
-///  (`SPEC.md`,
-///  "Merges and commits never fail").
-///  Waiting on another agent's command is what the owner forbids
-///  (`SPEC.md`,
-///  "Dozens of agents at once is normal operation"),
-///  and a lock that stayed held for the whole ceiling reached the same save,
-///  so the minute bought nothing a person asked for
-///  (a cross-vendor audit of alpha.12,
-///  "A merge waits for another agent's live index holder").
-///  An owner nothing proves is the third case,
-///  and it is waited for no more than the other two,
-///  because it is exactly as likely to be another program's live command:
-///  native Git keeps the whole index in `index.lock` through its hooks and editor with no descriptor open,
-///  and writes no PID file unless `core.lockfilePid` is on,
-///  so a person's own `git commit` at its editor and a killed Git leave the same evidence.
-///  A merge that waited for that case would wait a minute for the commit of the person sitting at the machine.
-///  The holder is classified exactly as the wait classifies it,
-///  so a lock a gone process left is cleared on the same proof by both.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// // 'not-held' | { ownerGone } | { heldBy: 'PID 42' }
-/// lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr)
-/// ```
-pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(
-    real_index: &Path,
-    out: &mut W,
-) -> IndexWait {
-    let lock: std::path::PathBuf = lock_path_of(real_index);
-    if std::fs::symlink_metadata(&lock).is_err() {
-        return IndexWait::NotHeld;
-    }
-    return match look_at(real_index, &gather_here) {
-        Proof::Dead(pid) => {
-            let _noted = write_then_flush(
-                out,
-                dead_owner_diagnostic(
-                    lock.as_path(),
-                    pid,
-                    MERGE_CONSEQUENCE,
-                    CLEARS_A_DEAD_OWNERS_LOCK,
-                )
-                .as_bytes(),
-            );
-            IndexWait::OwnerGone(Duration::ZERO)
-        }
-        // A holder proven alive and an owner nothing proves are both another program's command until they let go, and the
-        //  merge does not wait for either: it is saved on its side ref and the next command settles it.
-        Proof::Alive(evidence, ..) | Proof::Nothing(Some(evidence)) => {
-            IndexWait::HeldByAnotherCommand(blocker_words(&evidence))
-        }
-        Proof::Nothing(None) => {
-            IndexWait::HeldByAnotherCommand(String::from("a program whose owner could not be read"))
-        }
-    };
 }
 
 /// The sentence a recovery's wait for a held index ends on.
@@ -503,19 +312,6 @@ thread_local! {
     /// A shortened ceiling for the recovery's wait for the index lock,
     /// so a control reaches it in a moment.
     pub(crate) static RECOVERY_LOCK_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
-}
-
-/// Write `bytes` to `out`,
-/// then flush it only if the write succeeded;
-/// the callers ignore the result,
-/// because a closed terminal
-///  is not a reason to stop the command the person asked for.
-fn write_then_flush<W: Write + ?Sized>(
-    out: &mut W,
-    bytes: &[u8],
-) -> std::io::Result<()> {
-    out.write_all(bytes)?;
-    return out.flush();
 }
 
 /// `wait_for_index_release` with the function that sets a watch on the lock's directory,

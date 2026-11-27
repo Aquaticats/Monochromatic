@@ -4,8 +4,15 @@ Status: accepted by the owner on 2026-11-24T14:10:00-05:00, through the question
 The proposal these answers settle is `doc/planning/cli-git-zfs-step-10-open-choices.md`,
 revised and merged as `dc0635971e`.
 The questions were built from a same-vendor read of that revision
-(`~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/keep/read-of-the-step-10-open-choices-revision.md`),
+(`~/temp/agent/gate-review-zfs-step-10-open-choices-revision-2026-11-24/keep/read-of-the-step-10-open-choices-revision.md`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)),
 whose corrections they carry.
+That read's owner blocks put each choice in plain words,
+with its options best first,
+and carried the two facts every reach option meets,
+stated under the heading above.
 
 ## What the owner was told first
 
