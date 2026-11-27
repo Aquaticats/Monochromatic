@@ -316,6 +316,9 @@
 //! - `service_server_landing_one_group.rs`:
 //!   one group of a batch,
 //!   landed and answered.
+//! - `service_server_own_worktree_question.rs`:
+//!   the question the serving loop asks about the worktree whose units are its own,
+//!   asked before the loop takes the next batch.
 //! - `service_server.rs`:
 //!   the commit service's loop,
 //!   and the parts it is made of re-exported so every caller keeps naming them through it.
@@ -396,8 +399,6 @@
 //!   and the tries a service that went silent or closed its connection is given.
 //! - `service_client.rs`:
 //!   the wrapper's side of a commit through the commit service.
-//! - `service_server_own_worktree_question.rs`:
-//!   the question the serving loop asks about the worktree whose units are its own.
 //! - `service_warm_request.rs`:
 //!   the client's one-way request to a running service to compile a repository's rules.
 //!

@@ -351,8 +351,6 @@ file-uses src/native/service service_instance.rs -> service_files_of_a_stopped_i
 file-uses src/native/service service_protocol.rs -> service_protocol_decode_lines_to_messages.rs
 file-uses src/native/service service_protocol_decode_lines_to_messages.rs -> service_protocol_forgetting_programs.rs
 file-uses src/native/service service_protocol_forgetting_programs.rs -> service_protocol.rs
-file-uses src/native/service service_server.rs -> service_server_own_worktree_question.rs
-file-uses src/native/service service_server_own_worktree_question.rs -> service_server.rs
 file-uses src/native/shadow shadow_create.rs -> shadow_drawn.rs
 file-uses src/native/shadow shadow_create.rs -> shadow_pool.rs
 file-uses src/native/shadow shadow_create.rs -> shadow_pool_member.rs
