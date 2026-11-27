@@ -27,7 +27,12 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::transaction_git::GitContext;
 use crate::worktree_command_facts::RemovePlan;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The plan for a target typed as its real path.
 fn plan_for(target: &Path) -> RemovePlan {

@@ -580,6 +580,14 @@
 //!   the record a killed pass leaves,
 //!   the continuation that record proves,
 //!   and the pass.
+//! - `worktree_remove_operations.rs`:
+//!   the operations of one removal that touch the kernel or start Git,
+//!   behind one trait,
+//!   and the kernel and Git as they are.
+//! - `worktree_remove_when_every_condition_holds.rs`:
+//!   the checks one removal makes before anything is destroyed,
+//!   in order,
+//!   and the destroy or the hand-over that follows them.
 //! - `worktree_remove.rs`:
 //!   the removal of a clean subvolume worktree by one ioctl,
 //!   and the plan of the `git worktree remove` it serves.
@@ -909,6 +917,18 @@ pub mod worktree_move_source;
 /// the last look at them before the destroy,
 /// and the lock that keeps a worktree.
 pub mod worktree_removal_holds_the_worktree;
+
+/// The operations of one removal that touch the kernel or start Git,
+/// behind one trait,
+/// and the kernel and Git as they are.
+#[cfg(target_os = "linux")]
+pub mod worktree_remove_operations;
+
+/// The checks one removal makes before anything is destroyed,
+/// in order,
+/// and the destroy or the hand-over that follows them.
+#[cfg(target_os = "linux")]
+pub mod worktree_remove_when_every_condition_holds;
 
 /// The removal of a clean subvolume worktree by one ioctl,
 /// and the plan of the `git worktree remove` it serves.
