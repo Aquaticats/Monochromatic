@@ -25,6 +25,7 @@ use crate::forwarded_command::{
     Route,
     creates_worktrees,
     resolve_forwarded_command,
+    the_command_git_runs,
 };
 use crate::index_writer_commands::is_index_writer;
 use crate::index_writer_forward::CoordinatedForward;
@@ -117,6 +118,13 @@ pub(crate) fn forward_action(
         arguments.as_slice(),
         checks.start_directory.path(),
     );
+    // What: The command the slot refusals read. A `!` alias the resolver could follow runs one plain `git` command in
+    //  its shell, and that is the command Git will run; the destructive-command guard reads the same value by the same
+    //  call (`the_command_git_runs`). A shell alias the wrapper cannot read stays unread here, exactly as the guard
+    //  leaves it to Git (`SPEC.md`, "git by the word Git will run").
+    // Why: Reading the alias's own name as the command word let `git -c 'alias.x=!git worktree remove' x -f -f <slot>`
+    //  delete a bound slot's registration while the plain spelling was refused.
+    let slot_command: Option<ResolvedCommand> = the_command_git_runs(&command);
     // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
     let forwarded_arguments: Vec<OsString> = match command.route {
@@ -127,8 +135,9 @@ pub(crate) fn forward_action(
     // A `git worktree remove` or `git worktree move` behind a global option this build does not read is refused in a
     //  repository that holds slot records, so it keeps the copy bypassed only when no record stands
     //  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
-    let slot_command_the_global_hides: bool =
-        crate::entry_zfs_slot_commands::is_a_slot_command_behind_an_unread_global(&command);
+    let slot_command_the_global_hides: bool = slot_command
+        .as_ref()
+        .is_some_and(crate::entry_zfs_slot_commands::is_a_slot_command_behind_an_unread_global);
     if !writes_index && copy_bypassed && !slot_command_the_global_hides {
         return Action::Forward {
             real_git,
@@ -149,8 +158,9 @@ pub(crate) fn forward_action(
         None => location.common_directory_outside_a_worktree.clone(),
     };
     #[cfg(target_os = "linux")]
-    if let Some(ending) =
-        crate::entry_zfs_slot_commands::unread_global_refusal_of(&command, common_dir.as_deref())
+    if let Some(read) = slot_command.as_ref()
+        && let Some(ending) =
+            crate::entry_zfs_slot_commands::unread_global_refusal_of(read, common_dir.as_deref())
     {
         return ending;
     }
@@ -159,9 +169,10 @@ pub(crate) fn forward_action(
         //  to: the slot refusals run over that directory, whose records are the ones the command would endanger
         //  (`SPEC.md`, "Removal of a ZFS worktree clone").
         #[cfg(target_os = "linux")]
-        if let Some(common) = common_dir.as_deref()
+        if let Some(read) = slot_command.as_ref()
+            && let Some(common) = common_dir.as_deref()
             && let Some(ending) = crate::entry_zfs_slot_commands::the_slot_endings(
-                &command,
+                read,
                 common,
                 &mut stderr,
                 checks.start_directory.path(),
@@ -175,8 +186,9 @@ pub(crate) fn forward_action(
         #[cfg(target_os = "linux")]
         if let Some(common) = common_dir.as_deref()
             && crate::worktree_clone_binding_record::registration_home::home_folder(common).is_dir()
+            && let Some(read) = slot_command.as_ref()
             && let Some(target) =
-                plan_removal_target(&command, Some(common), checks.start_directory.path())
+                plan_removal_target(read, Some(common), checks.start_directory.path())
         {
             return Action::ForwardSettled {
                 real_git,
@@ -208,8 +220,9 @@ pub(crate) fn forward_action(
     // (`doc/planning/cli-git-zfs-worktree-design-proposal.md`, "Unmounted, pruned or moved worktrees"; plan step 12).
     #[cfg(target_os = "linux")]
     if let Some(common) = common_directory(&location.identity)
+        && let Some(read) = slot_command.as_ref()
         && let Some(ending) = crate::entry_zfs_slot_commands::the_slot_endings(
-            &command,
+            read,
             common,
             &mut stderr,
             checks.start_directory.path(),
@@ -242,6 +255,8 @@ pub(crate) fn forward_action(
     } else {
         None
     };
+    // The ladder's own removal plan reads the caller's command, because a shell alias's removal is the shell's to
+    //  carry out: the wrapper cannot destroy that subvolume in place of the `git` the shell starts.
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" {
         plan_worktree_remove(
             &command,
@@ -253,14 +268,12 @@ pub(crate) fn forward_action(
     };
     // The refusal of a removal of a bound slot reads the worktree in every spelling Git accepts, the double force included, and
     // a form it does not serve still has to reach that refusal (`SPEC.md`, "Removal of a ZFS worktree clone").
-    let removal_target: Option<PathBuf> = if command.word() == b"worktree" {
-        plan_removal_target(
-            &command,
-            common_dir.as_deref(),
-            checks.start_directory.path(),
-        )
-    } else {
-        None
+    //  The command it reads is the one Git will run, so a `!` alias the resolver could follow reaches the same refusal.
+    let removal_target: Option<PathBuf> = match slot_command.as_ref() {
+        Some(read) if read.word() == b"worktree" => {
+            plan_removal_target(read, common_dir.as_deref(), checks.start_directory.path())
+        }
+        _ => None,
     };
     let serves_ladder: bool = add_plan.is_some() || removal_target.is_some();
     let copy: Option<CopyFacts> =
