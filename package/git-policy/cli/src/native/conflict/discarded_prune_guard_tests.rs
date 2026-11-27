@@ -43,9 +43,9 @@ use crate::command_test_support::{
     fixture,
     remove,
 };
-use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::discard_audit::AUDIT_FILE;
 use crate::iso_time::format_iso_milliseconds;
+use crate::where_discarded_copies_live::SAVED_DIRECTORY;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,

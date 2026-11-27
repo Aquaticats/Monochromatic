@@ -78,11 +78,6 @@ use crate::global_arguments::command_tokens;
 use crate::guarded_forwarded_command::GuardedForwarded;
 /// The two commands that are recorded and never refused.
 use crate::policy_audited::record_audited;
-use crate::policy_checks::{
-    clean,
-    fact_unavailable,
-    rejected,
-};
 /// The engine's findings and outcomes.
 use crate::policy_engine::PolicyOutcome;
 /// The one place a form is let through,
@@ -131,6 +126,12 @@ use crate::rule_shared_remote::{
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
+/// The three endings every check shares.
+use crate::the_answers_a_policy_gives::{
+    clean,
+    fact_unavailable,
+    rejected,
+};
 /// The common Git directory,
 ///  for naming the file every worktree shares.
 use crate::worktree_identity::common_directory;

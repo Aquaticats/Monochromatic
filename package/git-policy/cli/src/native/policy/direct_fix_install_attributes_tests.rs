@@ -12,15 +12,17 @@
 //! // expect(await attributesOf(file, 'reading')).toEqual([{ name: 'user.draft', value: 'x' }]);
 //! ```
 
-/// The module under test.
-use super::reading::read_until_it_fits;
 use super::{
-    ATTRIBUTE_ATTEMPTS,
     Attribute,
     AttributeRefusal,
     attributes_of,
     give_to,
     is_a_label,
+};
+/// The module under test.
+use crate::direct_fix_install_attributes_reading::{
+    ATTRIBUTE_ATTEMPTS,
+    read_until_it_fits,
 };
 /// A disposable fixture and its removal.
 use crate::test_support::{

@@ -329,7 +329,7 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
 /// `git merge` and `git commit` all exited 2 until the person deleted the lock by hand,
 ///  where real Git answers `git status` with 0 in the same state
 ///  (finding 4 of the merge-and-pull audit).
-/// The merge's own path already removes such a lock (`merge_isolation_apply.rs`),
+/// The merge's own path already removes such a lock (`merge_isolation_apply_record.rs`),
 /// and recovery is the same
 ///  decision from the same evidence.
 ///
