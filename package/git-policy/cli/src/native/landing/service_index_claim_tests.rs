@@ -13,11 +13,11 @@ use crate::service_index_claim::{
     claim_key,
     claim_path,
 };
+use crate::service_index_identity::own_identity;
 use crate::service_index_marker::{
     LOCK_MARKER,
     Marked,
     marker_of_file,
-    own_identity,
 };
 use crate::test_support::{
     fixture,
@@ -849,7 +849,7 @@ fn a_claim_is_placed_beside_a_lock_with_a_very_long_name() {
     let root: PathBuf = fixture("claim-very-long-name");
     let lock: PathBuf = root.join("i".repeat(LONG_LOCK_NAME) + ".lock");
     // A gone process with a whole identity (boot, namespace and machine), so that the identity is as long as a real one.
-    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let scope: &str = crate::service_index_identity::current_pid_scope().expect("a PID namespace");
     let boot: &str = crate::claim_time::current_boot_id();
     let text: String = gone_marker(5).replacen(
         "gone",

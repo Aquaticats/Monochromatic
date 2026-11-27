@@ -25,8 +25,8 @@ use crate::process_identity::{
     ProcessIdentityError,
     process_birth_identity,
 };
-use crate::service_index_marker::own_identity;
-use crate::service_index_marker::{
+use crate::service_index_identity::own_identity;
+use crate::service_index_identity::{
     HolderState,
     ReaderView,
     check_procfs_view,
@@ -1023,7 +1023,7 @@ fn staging_files_are_created_new_under_names_no_attempt_repeats() {
 fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_content() {
     let (root, index) = index_in("index-lock-staging-by-name");
     let lock_path: PathBuf = lock_path_of(&index);
-    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let scope: &str = crate::service_index_identity::current_pid_scope().expect("a PID namespace");
     let live_empty: PathBuf = staged_path_for(&lock_path, 62, "writing");
     std::fs::write(&live_empty, "")
         .expect("a live writer between creating its file and writing it");
@@ -1085,7 +1085,7 @@ fn staging_files_are_judged_by_the_writer_in_their_name_and_never_by_their_conte
 fn a_whole_marker_decides_a_staging_files_fate_over_its_name() {
     let (root, index) = index_in("index-lock-staging-by-marker");
     let lock_path: PathBuf = lock_path_of(&index);
-    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let scope: &str = crate::service_index_identity::current_pid_scope().expect("a PID namespace");
     let dead: u32 = u32::try_from(dead_pid()).expect("pid");
     let named = |tag: &str| -> PathBuf {
         return PathBuf::from(format!(
@@ -1138,7 +1138,7 @@ fn a_whole_marker_decides_a_staging_files_fate_over_its_name() {
 fn an_unreadable_proc_is_no_evidence_that_a_writer_died() {
     use crate::service_index_staging::staging_is_dead_in;
     let (root, index) = index_in("index-lock-staging-proc");
-    let scope: &str = crate::service_index_marker::current_pid_scope().expect("a PID namespace");
+    let scope: &str = crate::service_index_identity::current_pid_scope().expect("a PID namespace");
     let path: PathBuf = root.join("empty-staging-file");
     std::fs::write(&path, "").expect("an empty file");
     let suffix: String = format!("-4242.{scope}-1-token");
@@ -1197,11 +1197,11 @@ fn a_marker_cut_at_any_point_reads_as_no_marker() {
         assert_eq!(parse_marker(part), None, "cut at {cut}: {part:?}");
         std::fs::write(&lock_path, part).expect("a cut marker");
         assert!(
-            crate::service_index_marker::marker_of(&lock_path).is_none(),
+            crate::service_index_identity::marker_of(&lock_path).is_none(),
             "cut at {cut}"
         );
         assert!(
-            !crate::service_index_marker::is_reclaimable(&lock_path),
+            !crate::service_index_identity::is_reclaimable(&lock_path),
             "cut at {cut}: a cut marker is not a dead instance's"
         );
     }

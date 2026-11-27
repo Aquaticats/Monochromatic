@@ -6,11 +6,11 @@
 //! and a marker another index's landing started is let go without waiting for its flush.
 
 use super::*;
+use crate::service_index_identity::own_identity;
 use crate::service_index_lock::{
     lock_path_of,
     marker_text,
 };
-use crate::service_index_marker::own_identity;
 use crate::service_index_prestage;
 use crate::test_support::{
     fixture,

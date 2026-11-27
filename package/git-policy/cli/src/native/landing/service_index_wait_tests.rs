@@ -252,7 +252,7 @@ fn a_hold_that_outlasts_the_ceiling_ends_the_wait_and_stays() {
     let root: PathBuf = fixture("index-wait-ceiling");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
-    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    let identity: String = crate::service_index_identity::own_identity().expect("identity");
     std::fs::write(
         &lock,
         format!("{LOCK_MARKER}9 {} {identity}\n", std::process::id()),
@@ -285,7 +285,7 @@ fn where_no_watch_can_be_set_the_services_hold_is_polled_for() {
     let root: PathBuf = fixture("index-wait-no-watch-poll");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
-    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    let identity: String = crate::service_index_identity::own_identity().expect("identity");
     std::fs::write(
         &lock,
         format!("{LOCK_MARKER}9 {} {identity}\n", std::process::id()),
@@ -328,7 +328,7 @@ fn a_holder_the_mark_proves_to_run_is_waited_for_until_it_lets_go() {
     let root: PathBuf = fixture("index-wait-no-bound");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
-    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    let identity: String = crate::service_index_identity::own_identity().expect("identity");
     std::fs::write(
         &lock,
         format!("{LOCK_MARKER}9 {} {identity}\n", std::process::id()),
@@ -488,7 +488,7 @@ fn a_hold_whose_process_runs_is_not_stale_by_age() {
     let root: PathBuf = fixture("index-wait-live-old");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
-    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    let identity: String = crate::service_index_identity::own_identity().expect("identity");
     std::fs::write(
         &lock,
         format!("{LOCK_MARKER}8 {} {identity}\n", std::process::id()),
@@ -625,7 +625,7 @@ fn a_hold_of_another_pid_namespace_is_neither_gone_nor_proven() {
     let root: PathBuf = fixture("index-wait-foreign-namespace");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
-    let identity: String = crate::service_index_marker::own_identity().expect("identity");
+    let identity: String = crate::service_index_identity::own_identity().expect("identity");
     let parts: Vec<&str> = identity.split('#').collect();
     // A process number nothing runs under here, in a namespace this process is not in.
     std::fs::write(

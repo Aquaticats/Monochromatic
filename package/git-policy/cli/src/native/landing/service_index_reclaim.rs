@@ -45,12 +45,14 @@ use crate::service_index_claim::{
     ClaimHold,
     take_claim,
 };
+use crate::service_index_identity::{
+    holder_is_elsewhere,
+    holder_is_gone,
+};
 use crate::service_index_marker::{
     LOCK_MARKER,
     MARKER_VERSION,
     Marked,
-    holder_is_elsewhere,
-    holder_is_gone,
     marker_of_file,
 };
 use crate::service_index_placement::{

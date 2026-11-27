@@ -25,7 +25,7 @@
 
 use crate::fs_mount_options::read_mount_facts;
 use crate::process_identity::ProcessIdentityError;
-use crate::service_index_marker::own_identity;
+use crate::service_index_identity::own_identity;
 use crate::service_index_ownership::{
     Ownership,
     inspect_ownership,

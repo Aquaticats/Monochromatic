@@ -47,10 +47,8 @@ use crate::landing_state_carried_by_its_task::{
 };
 use crate::lazy_runtime::spawn_on_runtime;
 use crate::process_identity::ProcessIdentityError;
-use crate::service_index_marker::{
-    marker_text,
-    own_identity,
-};
+use crate::service_index_identity::own_identity;
+use crate::service_index_marker::marker_text;
 use crate::service_index_placement::sync_file;
 use crate::service_index_staging::stage_marker;
 use crate::the_names_of_the_index_lock::lock_path_of;
