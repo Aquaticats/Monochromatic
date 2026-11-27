@@ -43,6 +43,7 @@ use crate::scratch_step_programs_below::{
     seen_below,
 };
 use crate::scratch_step_stall_decided_once::{
+    HeldProgram,
     TheStall,
     TheStallDecidedOnce,
     TheStallItWaitsThrough,
@@ -310,12 +311,10 @@ pub(crate) fn watch_the_step(the_watch: TheWatch) {
                         Some((found, used)) => the_stall.stand_aside(TheStallItWaitsThrough {
                             stood_aside_after: waited,
                             bound: stall_bound,
-                            why: WhyTheStepWasWaitedFor::TheKernelHeldIt(
-                                crate::scratch_step_held_by_the_kernel::HeldProgram {
-                                    number: *found,
-                                    name: used.name.clone(),
-                                },
-                            ),
+                            why: WhyTheStepWasWaitedFor::TheKernelHeldIt(HeldProgram {
+                                number: *found,
+                                name: used.name.clone(),
+                            }),
                         }),
                         None => {
                             let _claimed: bool = the_stall.the_usual_ceiling_ends_it();
