@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T14:56:31-05:00
+## The state at 2026-11-27T15:22:26-05:00
 
-`main` was `3458afd18e`.
+`main` was `bc24b2e688`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 255 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 256 more by this time.
 
 ### Rounds running
 
@@ -125,16 +125,19 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- six rounds started from one list at 2026-11-27T14:54:37-05:00,
+- rounds started from one list at 2026-11-27T14:54:37-05:00,
   each for one tracked piece of work:
-  `issue-6620-typescript-unit-tests-start-no-unit-on-the-accounts-service-manager`
-  (the wrapper package's unit tests commit in fixture checkouts through the machine's wrapper),
   `issue-6621-slot-refusal-behind-a-shell-alias-below-the-top-with-the-root-rule-off`
   (controls for the case the root rule lets through),
   `issue-6619-ten-scope-tests-failed-together-once-and-passed-in-the-next-two-runs`
   (`cargo-shadow`;
   the requirement is the measured cause),
-  and the three rounds of the `mpm-shadow` alpha.15 read named under that tool.
+  and the rounds of the `mpm-shadow` alpha.15 read named under that tool.
+  The round for issue 6620 from the same list is merged (`bc24b2e688`).
+  Each of them,
+  and the round for issue 6612,
+  got a note from the coordinator in its inbox at about 15:08 that corrects or adds to its brief;
+  a report is read against the brief and the note.
 - `issue-6612-the-guest-drivers-share-one-set-of-helpers`,
   started 2026-11-27T12:52:40-05:00:
   the lint rounds of issue 6581 left three sets of shared guest-step helpers,
@@ -181,12 +184,26 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   `Summary [ 883.520s] 12261 tests run: 12261 passed (6 slow), 51 skipped`
   and "Clippy passed beside the test run.".
   No file of the wrapper package changed between that commit and the release.
-  `0.6.1-alpha.50` is being released
-  (started 2026-11-27T14:49:11-05:00,
-  release commit `3458afd18e`),
-  to be unpacked,
-  proved over alpha.49 in a disposable container
-  and read by two Claude Sonnet passes once published.
+  `0.6.1-alpha.50` is released
+  (release commit `3458afd18e`,
+  published 2026-11-27T14:58:49-05:00,
+  unpacked at `.cache/wrapper-release-0.6.1-alpha.50/`,
+  never locked or installed).
+  Its install proof over alpha.49 passed in a disposable container at 2026-11-27T15:01:26-05:00,
+  on the gate's own image:
+  "starts that failed at the EXEC step:
+  0",
+  no unit at the start limit,
+  none left failed,
+  and "THE PROOF PASSED:
+  the instance the older release loaded started as this release,
+  and the pair of commits each landed once".
+  Two Claude Sonnet reads of it run,
+  same-vendor second passes:
+  of the four merges that change behaviour since 2026-11-27T15:02:11-05:00,
+  writing `~/temp/agent/git-policy-cli-alpha-50-release-review-behaviour-2026-11-27/keep/review.md`,
+  and of the two merges on guards and reach since 2026-11-27T15:02:41-05:00,
+  writing `~/temp/agent/git-policy-cli-alpha-50-release-review-reach-and-guards-2026-11-27/keep/review.md`.
   A merge that lands after that commit and changes only the package's TypeScript,
   its guide or test code leaves the gate standing,
   as one did for alpha.49 ("Releases of 2026-11-27"),
@@ -217,12 +234,14 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the wrapper's own rule that a command runs at the top of its repository refuses it first,
   and a control pins that.
   The guest arm gained one alias case,
-  and one guest run of that arm is going on the pinned tree at `203bd65854`,
-  in the unit `gpc-guest-slot-state-arm-at-203bd65854-20261127T1452.service`
-  (started 2026-11-27T14:45:24-05:00,
-  whatever the unit's name says;
-  logs in `~/temp/agent/guest-run-of-the-slot-state-arm-with-the-alias-case-2026-11-27/keep/`).
-  It passes only with the line `REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused` in `slot-state-arm.log`.
+  and one guest run of that arm passed on the tree at `203bd65854`,
+  whose wrapper source is that of `0.6.1-alpha.50`
+  (`mise run //package/git-policy/cli:e2e:zfs-slot-state -- all`,
+  from 2026-11-27T14:45:24-05:00 to 2026-11-27T15:08:52-05:00):
+  the arm printed `REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused` among its lines,
+  skipped none,
+  and ended `Summary [ 0.753s] 1 test run: 1 passed, 1369 skipped`;
+  the driver destroyed its guest.
   A repository can switch the root rule off
   (`policies.require-root` takes `off`,
   `warn` or `error`),
@@ -304,7 +323,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The pinned tree's launcher link names the reviewed build since then,
   as the main checkout's does,
   so the shared link stays where it is;
-  the services still start until issue 6620 is resolved.
+  issue 6620's merge ended the services as well.
   The task cannot be kept off the manager from outside,
   because it starts each check in a scope of its own:
   with a fixture runtime directory both checks ended `exit 1` before running anything.
@@ -337,11 +356,14 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (release commit `d9f0c8ea32`,
   locked `bb47735936`,
   installed);
-  a Claude Sonnet read of it runs since 2026-11-27T14:43:14-05:00,
-  a same-vendor second pass,
-  writing `~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`.
-  It is asked to read the sentence both rounds edited and the merged README,
-  which nobody has read whole.
+  its Claude Sonnet read returned
+  (`~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`;
+  "What `cargo-shadow`'s alpha.15 read found"),
+  and two rounds started from it at 2026-11-27T15:20:50-05:00,
+  each named `cargo-shadow-alpha-15-release-pass-` and then:
+  `the-populated-read-answers-as-the-kernel-is-shown-to-and-each-row-is-held`
+  and `the-refusal-says-once-which-later-runs-settle-and-the-records-match`;
+  `0.1.5-alpha.16` follows their merges.
   The round on the refusal is merged (`87399f8462`).
   It staged a real refusal and ran each kind of next run:
   an ordinary resolving run and `cargo-shadow update` settle the kept journal,
@@ -569,11 +591,12 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
+Three reads run as background agents of the coordinating session,
 each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review):
-of the linter's `0.5.2-alpha.21` and of `cargo-shadow`'s `0.1.5-alpha.15`,
+of the linter's `0.5.2-alpha.21`
+and two of the wrapper's `0.6.1-alpha.50`,
 at the paths this section gives beside those releases.
 The coordinator rewrites what lasts from each into this file before scratch expires.
 
@@ -625,6 +648,46 @@ with the owner's veto open and the read's costs written beside them
 the three rounds change the order of one step,
 the sentences,
 the README and the controls.
+
+What `cargo-shadow`'s alpha.15 read found
+(`~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass):
+no High,
+one Medium and ten Low.
+Between the two released binaries nothing differs but the version and the sentences the merges name
+(226 of 232 compared outputs identical,
+the rest version lines;
+alpha.12 as the case that must differ did,
+in 21),
+and a trivial call asks the manager two questions in alpha.11,
+alpha.14 and alpha.15 against six to ten in alpha.12.
+Timing cannot see a small change on this host:
+a byte-identical copy's own ratio ranged from 0.414 to 1.500.
+Its Medium finding is about the decision merge `3bf99cd706` changed:
+by its reading of the kernel at three versions,
+a new control group's directory and its files become visible together,
+so the "No such file with the directory there" the round guarded against is a state nothing produces,
+and the answer the kernel can give there is "No such device",
+for which alpha.14's silence was right and alpha.15 warns about a unit the manager is freeing.
+The round's reason was a reading too,
+and nothing was observed by either,
+so a round measures it on this host.
+Its Low findings:
+the printed refusal says two things twice;
+more kinds of later run settle a kept journal than the sentence names
+(a plain install,
+`cargo metadata`,
+both dry runs),
+and more leave it in silence
+(a frozen install,
+a run on the fast path);
+a dry run settles a kept journal before it looks,
+and can write;
+a scope that was never made is reachable in a release build and silent,
+and a unit left loaded was not reproduced in 56 launcher kills;
+three controls stay green under an edit each;
+and sentences of the README,
+the troubleshooting file and three sibling READMEs say what the code or the figures do not.
 
 What `cargo-shadow`'s alpha.14 read found
 (`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
@@ -1580,6 +1643,20 @@ and the two `truepeak` files wait on their branch.
   `write_complete_marker`,
   `being_written_cause_and_remedy`,
   `describe_nesting_refusal` and a new field `StartFailure.lookup`.
+- The wrapper package's unit tests no longer reach the account's service manager (`bc24b2e688`,
+  issue 6620).
+  Every fixture's `git` is the standing Git on a search path of the fixture's own,
+  with no bus address and a runtime directory of the fixture's own
+  (`bin/fixture-git-environment-for-tests.ts`).
+  Unsetting the bus alone would not have done:
+  the wrapper with no bus refuses a commit outright,
+  which the round measured with a released binary.
+  A control records what each fixture `git` was given,
+  and failed with eight calls carrying a bus address when the change was taken out.
+  One whole `native:ts-checks` with the account's own environment then left no line for a fixture repository in the journal
+  and the shared link as it was.
+  The round's commit drew a `final-newline` warning for two new files that end with one newline,
+  not reproduced (issue 6622).
 - The driver's launcher clears a finished run's scratch folder beside `keep/` (`a40a99467c`,
   issue 6618),
   as the owner's answer of 2026-11-13 has it.
@@ -1709,8 +1786,32 @@ and the two `truepeak` files wait on their branch.
   The launcher removes the worktree of a run that ended idle with nothing uncommitted,
   and a run's whole report is in `~/temp/agent/<round>-scratch/keep/report.md`,
   which each brief asks for.
-  A merge is `git merge --no-ff <branch>` in the main checkout once `git merge-tree` shows no conflict;
-  the coordinator's scratch merge script does both until the cleanup of 2026-11-27T15:26:37-05:00 deletes it.
+  A merge is made by hand in the main checkout,
+  one branch at a time,
+  since the cleanup of 2026-11-27T15:26:37-05:00 deleted the coordinator's scratch merge script:
+  the branch's tip equals its tip on origin and `main` is not behind origin;
+  `git merge-tree --write-tree --name-only main <branch>` shows no conflict;
+  `git merge --no-ff --no-edit <branch>`;
+  then the branch's tip is an ancestor of `HEAD` and `HEAD^2` is that tip,
+  before the merge is called landed.
+  That last check is not ceremony:
+  on 2026-11-25T17:24:39-05:00 `git merge` returned 0 and no merge commit landed,
+  while another session committed to `main` in the same second,
+  and the script of that day printed the other session's commit as the merge.
+  The wrapper removes the worktrees that hold a branch once it has landed
+  (its README,
+  "A merge that lands a branch also removes the worktrees that hold it"),
+  and the merged lock branches of 2026-11-27 were gone from origin before the coordinator asked for it,
+  by a step that was not read.
+  A merged branch is then deleted by hand,
+  locally and on origin:
+  deleting issue 6620's branch locally left origin's copy
+  (2026-11-27T15:19:09-05:00).
+  Since issue 6620's merge the package's unit tests give every fixture's `git` the standing Git and no session place,
+  so the TypeScript checks at `main`'s tip start nothing on the account's manager:
+  at `bc24b2e688` `test:unit` and `lint:types` exited 0 on the pinned tree,
+  the journal held no line for a fixture repository,
+  and the shared link was as before.
 - The wrapper's gate has tasks of its own,
   which the coordinator's gate of 2026-11-27 did not use and the next one does:
   `mise run //package/git-policy/cli:native:gate:main-tip` starts it on `main`'s tip in a capped unit,
