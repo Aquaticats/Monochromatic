@@ -253,9 +253,23 @@ pub fn update_rust_lockfiles(
         run_update(request, kind, &before, &produced, &edits, &transaction);
     // See `install_rust_lockfiles`: writers that may remain forbid both the rollback and the acceptance (round 6, 5c N2).
     if transaction.writers_may_remain() {
-        return Err(other_text(
-            "a process started by cargo could not be stopped, so it may still write the lockfiles and manifests; they were not rolled back or accepted, the journal of this run was kept and the next run settles it",
-        ));
+        // What:     `transaction.writers_may_remain_reason()` is `Some(text)` when the stop recorded why it could not show every
+        //           writer gone, and `None` for a run that was marked without one (a test's stand-in).
+        // Why:      The refusal says how long the stop waited and what it was waiting for, so a member that has exited is told
+        //           from one that is alive and a loaded host from a member that cannot be killed (issue 6528).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const shortfall = transaction.writersMayRemainReason() ?? '';
+        // throw new Error(`... could not be stopped, ... ${shortfall ? ` (${shortfall})` : ''} ...`);
+        // ```
+        let shortfall: String = match transaction.writers_may_remain_reason() {
+            Some(reason) => format!(": {reason}"),
+            None => String::new(),
+        };
+        return Err(other_text(format!(
+            "a process started by cargo could not be stopped, so it may still write the lockfiles and manifests{shortfall}; they were not rolled back or accepted, the journal of this run was kept and the next run settles it",
+        )));
     }
     // `Ok(...)`: builds the success or the failure variant of a `Result`.
     // Borrow `&outcome`: lends the value without copying or giving it away.

@@ -10,7 +10,7 @@
 //! ```ts
 //! type LoopGraph = 'folders' | 'entries';
 //! type FolderLoops = Map<Path, Set<[LoopGraph, number]>>;
-//! // loopsOfEachFolder, sharedLoops, ownLoopSearch, usesLeadingIn, routesTo and routeFrom
+//! // loopsOfEachFolder, sharedLoops, ownLoopSearch, usesLeadingIn, distancesTo and routeFrom
 //! ```
 
 /// Import the counters that pin the cost of one search,
@@ -261,8 +261,8 @@ pub(crate) fn uses_leading_in(search: &FolderUses) -> BTreeMap<PathBuf, BTreeMap
 }
 
 /// What:
-///  The first step of the shortest route from every entry that reaches one entry, to it,
-///  with the use that proves each step.
+///  How many uses lead from each entry to one entry, the entry itself at zero,
+///  for every entry the walk reached before each entry it was asked about had its distance.
 /// Why:
 ///  A finding about a group's own file names the use that closes the loop
 ///  and every use that leads back, the way a loop finding does.
@@ -272,31 +272,48 @@ pub(crate) fn uses_leading_in(search: &FolderUses) -> BTreeMap<PathBuf, BTreeMap
 ///  each use closing a loop, a walk per use cost 14 to 16 times alpha.15's time (measured 2026-11-26).
 ///  The walk reads the uses backwards from the group over the index it is given,
 ///  so it visits only what reaches the group,
-///  and the caller runs it only for a group whose own file closes a loop at all;
+///  and it stops as soon as every entry it was asked about has its distance:
+///  an entry that reaches the group directly is answered by the uses that reach the group,
+///  and the graph behind it is never read.
+///  The caller runs it only for a group whose own file closes a loop at all;
 ///  a package whose own files close none walks nothing.
 ///  It is breadth first, so each message spells the fewest uses that lead back,
-///  and it records how far each entry is rather than the order it reached them.
-///  That distance is what decides a tie: a step takes the first of an entry's successors,
+///  and the distance is what decides a tie: a step takes the first of an entry's successors,
 ///  read in ascending path order, that sits one use closer to the group,
 ///  so two routes of one length spell the one whose entries sort first,
 ///  on every machine and after every edit above the finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function routesTo(search: FolderUses, reverse: Map<Path, Map<Path, Proof>>, goal: Path): Map<Path, [Path, Proof]>;
+/// function distancesTo(reverse: Map<Path, Map<Path, Proof>>, goal: Path, asked: Set<Path>): Map<Path, number>;
 /// ```
-pub(crate) fn routes_to(
-    search: &FolderUses,
+pub(crate) fn distances_to(
     reverse: &BTreeMap<PathBuf, BTreeMap<PathBuf, Proof>>,
     goal: &Path,
-) -> BTreeMap<PathBuf, (PathBuf, Proof)> {
+    asked: &BTreeSet<PathBuf>,
+) -> BTreeMap<PathBuf, usize> {
     // What: how many uses lead from each entry to the group, the group itself at zero.
     // Why: a step may only go to an entry one use closer, so no route it spells can be longer than the shortest one.
     let mut distance: BTreeMap<PathBuf, usize> = BTreeMap::<PathBuf, usize>::new();
     let mut queue: VecDeque<PathBuf> = VecDeque::<PathBuf>::new();
     distance.insert(goal.to_path_buf(), 0);
+    // What: one entry this walk reached, which a control counts.
+    // Why: a walk that reaches everything that leads to the group costs that whole graph once for every group.
+    #[cfg(test)]
+    counted_work::note_reach();
     queue.push_back(goal.to_path_buf());
-    while let Some(node) = queue.pop_front() {
+    // What: how many of the entries the walk answers still have no distance.
+    // Why: once every one of them has its distance, no use further back can answer a use of this group.
+    let mut unanswered: usize = asked.len();
+    if asked.contains(goal) {
+        unanswered -= 1;
+    }
+    while unanswered > 0 {
+        // What: the entry whose uses lead into the group are read next, or nothing once the queue is empty.
+        // Why: an entry that no use reaches has no route, so the walk ends without one for it.
+        let Some(node) = queue.pop_front() else {
+            break;
+        };
         // What: this entry's distance, which every entry that reaches it shares one more of.
         // Why: the queue is first in first out, so an entry is reached by the shortest walk that finds it.
         let Some(here) = distance.get(&node).copied() else {
@@ -307,33 +324,25 @@ pub(crate) fn routes_to(
                 continue;
             }
             distance.insert(before.clone(), here + 1);
-            queue.push_back(before.clone());
-        }
-    }
-    // What: the step each entry's route takes first, read from the entries that reach the group.
-    // Why: successors are read in ascending path order, so the first one that is a use closer is the smallest of them.
-    let mut next_step: BTreeMap<PathBuf, (PathBuf, Proof)> =
-        BTreeMap::<PathBuf, (PathBuf, Proof)>::new();
-    for (node, here) in &distance {
-        if *here == 0 {
-            continue;
-        }
-        let Some(targets) = search.get(node) else {
-            continue;
-        };
-        for (to, proof) in targets {
-            if distance.get(to) != Some(&(*here - 1)) {
-                continue;
+            // What: one entry this walk reached, which a control counts.
+            // Why: how many of them it reaches is what a group costs, and the shape it needs decides that number.
+            #[cfg(test)]
+            counted_work::note_reach();
+            if asked.contains(before) {
+                unanswered -= 1;
+                if unanswered == 0 {
+                    // Every use this group answers has its distance, so nothing further back is read.
+                    break;
+                }
             }
-            next_step.insert(node.clone(), (to.clone(), proof.clone()));
-            break;
+            queue.push_back(before.clone());
         }
     }
     // What: one walk of this group's uses, which a control counts.
     // Why: a walk per use would count once per use of the group, and the table it reads answers them all.
     #[cfg(test)]
     counted_work::note_walk();
-    return next_step;
+    return distance;
 }
 
 /// What:
@@ -343,21 +352,53 @@ pub(crate) fn routes_to(
 /// Why:
 ///  The finding's message spells the steps in the order a reader reads them,
 ///  from the used entry to the group.
+///  Each step is read where the route needs it,
+///  from the successors of the entry it leaves,
+///  so a route costs its own length and never a table over every use the walk reached.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function routeFrom(nextStep: Map<Path, [Path, Proof]>, start: Path, goal: Path): [Path, Path, Proof][] | undefined;
+/// function routeFrom(search: Map<Path, Map<Path, Proof>>, distance: Map<Path, number>, start: Path, goal: Path): [Path, Path, Proof][] | undefined;
 /// ```
 pub(crate) fn route_from(
-    next_step: &BTreeMap<PathBuf, (PathBuf, Proof)>,
+    search: &FolderUses,
+    distance: &BTreeMap<PathBuf, usize>,
     start: &Path,
     goal: &Path,
 ) -> Option<Vec<(PathBuf, PathBuf, Proof)>> {
     let mut steps: Vec<(PathBuf, PathBuf, Proof)> = Vec::<(PathBuf, PathBuf, Proof)>::new();
     let mut node: PathBuf = start.to_path_buf();
     while node != *goal {
-        let (after, proof) = next_step.get(&node).cloned()?;
-        steps.push((node.clone(), after.clone(), proof));
+        // What: the `?` operator hands back `None` from the whole function when the value before it is the absent variant of `Option`.
+        // Why: an entry the walk never reached has no route, so no finding is spelled for it.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const here = distance.get(node); if (here === undefined) return undefined;
+        // ```
+        // What: how many uses still lead from this entry to the group.
+        // Why: a step may only go to an entry one use closer, so no route spells a longer way than the shortest one.
+        let here: usize = *distance.get(&node)?;
+        // What: the uses this entry can take.
+        // Why: a reached entry was reached along a use, so the graph holds the uses it leaves.
+        let targets: &BTreeMap<PathBuf, Proof> = search.get(&node)?;
+        // What: the distance a successor of this entry must hold to be a step of the shortest route.
+        // Why: an entry at zero is the goal itself, so no entry before the goal has a step to look for.
+        let closer: usize = here.checked_sub(1)?;
+        // What: the first successor in ascending path order that sits one use closer to the group.
+        // Why: that order is what spells the smallest of two equally short routes on every machine.
+        let mut next: Option<(PathBuf, PathBuf, Proof)> = None;
+        for (after, proof) in targets {
+            if distance.get(after) != Some(&closer) {
+                continue;
+            }
+            next = Some((node.clone(), after.clone(), proof.clone()));
+            break;
+        }
+        // What: the step this route takes, which an entry the walk reached always has.
+        // Why: such an entry was reached along a use, so one of its successors is one use closer.
+        let (from, after, proof) = next?;
+        steps.push((from, after.clone(), proof));
         node = after;
     }
     return Some(steps);

@@ -318,6 +318,47 @@ fn lines_text(lines: &[(usize, &str)]) -> String {
 }
 
 /// What:
+///  How much work one run of the near-miss search did,
+///  for the control that pins its cost.
+/// Why:
+///  A cost has no test of its own,
+///  and a control that timed one would read this machine's load rather than the code,
+///  so a control counts the doc lines the search read instead and fails when one line is read once per line after it.
+///  Test builds only, so a release artifact carries no counter and no branch on one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let linesRead = 0;
+/// ```
+#[cfg(test)]
+pub(crate) mod counted_work {
+    /// Import the cell the counter lives in.
+    use std::cell::Cell;
+    // What: one counter per thread, because the test runner runs several tests at once in one process.
+    // Why: a counter shared between tests would add two tests' work together and make both controls meaningless;
+    // the siblings a reader might expect are a plain `static` and a lock, and neither keeps the tests apart.
+    thread_local! {
+        /// The doc lines the near-miss search read.
+        static LINES_READ: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// Count one doc line the search read.
+    pub(crate) fn note_line() {
+        LINES_READ.with(|count| return count.set(count.get() + 1));
+    }
+
+    /// How many doc lines the search read on this thread.
+    pub(crate) fn lines_read() -> usize {
+        return LINES_READ.with(|count| return count.get());
+    }
+
+    /// Start one control from nothing counted.
+    pub(crate) fn reset() {
+        LINES_READ.with(|count| return count.set(0));
+    }
+}
+
+/// What:
 ///  The near miss that starts at one doc line and covers whole lines after it,
 ///  with the number of lines it covers,
 ///  or nothing when the words there are not within one word of the marker.
@@ -336,6 +377,10 @@ fn near_miss_at(
     marker_words: &[&str],
 ) -> Option<(NearMiss, usize)> {
     for end in start..bodies.len() {
+        // What: one doc line this attempt read, which a control counts.
+        // Why: an attempt that reads past the marker's own length is no attempt, so a control holds that it stops there.
+        #[cfg(test)]
+        counted_work::note_line();
         if bodies[end].1.trim().is_empty() {
             // What: `None` is the absent variant of `Option`.
             // Why: the words of an unsplit near miss sit in one paragraph, so a blank line, a plain comment or an inner attribute ends the attempt.
@@ -374,6 +419,9 @@ fn near_miss_at(
 ///  so the doc spells the marker with a break in it.
 ///  Both halves are read exactly, because a break is not a word,
 ///  and the words before the break may wrap over several lines.
+///  The start line must hold words,
+///  because the words before the break are the marker's first words,
+///  so a start on a blank line is rejected before the run of blank lines after it is read at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -384,8 +432,20 @@ fn split_near_miss_at(
     start: usize,
     marker_words: &[&str],
 ) -> Option<(NearMiss, usize)> {
+    // What: the start line holds no word, so the words before the break are empty and cannot be the marker's first words.
+    // Why: the walk below over the run of blank lines after the start found that the first half was empty only after reading the rest of the run,
+    // so a doc of N blank lines cost the rest of the run once for each of its lines, which is N squared reads of one file.
+    if bodies[start].1.trim().is_empty() {
+        // What: `None` is the absent variant of `Option`.
+        // Why: a start on a blank line is no split near miss, with the same answer the walk gave.
+        return None;
+    }
     let mut break_at: Option<usize> = None;
     for end in start..bodies.len() {
+        // What: one doc line this attempt read, which a control counts.
+        // Why: more words than the marker holds cannot be its first words, so a control holds that the read stops there.
+        #[cfg(test)]
+        counted_work::note_line();
         if bodies[end].1.trim().is_empty() {
             break_at = Some(end);
             break;
@@ -404,6 +464,10 @@ fn split_near_miss_at(
     // Why: one or more blank lines, plain comments or inner attributes may sit between the two halves.
     let mut next: usize = end + 1;
     while next < bodies.len() && bodies[next].1.trim().is_empty() {
+        // What: one blank line this attempt stepped over, which a control counts.
+        // Why: a start that can never match walked the rest of its blank run here, so a control holds that this stops.
+        #[cfg(test)]
+        counted_work::note_line();
         next += 1;
     }
     if next >= bodies.len() {
@@ -421,6 +485,10 @@ fn split_near_miss_at(
         return None;
     }
     for second_end in next..bodies.len() {
+        // What: one doc line this attempt read, which a control counts.
+        // Why: the second half is the rest of the marker, so the read stops once it holds more words than that.
+        #[cfg(test)]
+        counted_work::note_line();
         if bodies[second_end].1.trim().is_empty() {
             return None;
         }

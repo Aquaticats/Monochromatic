@@ -42,7 +42,17 @@ use crate::subvolume_remove_around::{
 };
 use crate::subvolume_remove_walk::Boundary;
 use crate::worktree_removal_holds_the_worktree::Held;
-use crate::worktree_remove_hand_over::{
+// What:     `use crate::worktree_removal_leaves_a_subvolume_for_the_service::{DELETING_PREFIX, leave_a_subvolume_for_the_service};`
+//           imports the prefix of a leaving name and the step that moves one out of a tree.
+// Why:      Both are written by the hand-over's own subject file, and naming that
+//           file rather than the hand-over keeps this file off the hand-over, whose
+//           record is not what it reads.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { DELETING_PREFIX, leaveASubvolumeForTheService } from './worktree_removal_leaves_a_subvolume_for_the_service';
+// ```
+use crate::worktree_removal_leaves_a_subvolume_for_the_service::{
     DELETING_PREFIX,
     leave_a_subvolume_for_the_service,
 };

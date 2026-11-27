@@ -59,6 +59,8 @@ thread_local! {
     static PUBLICATION_FILE_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next stop of a scope on this thread finds a member that survives every signal until its deadline.
     static CONTAINMENT_SURVIVOR: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next stop of a scope misses every member with its kill and its signals.
+    static CONTAINMENT_UNKILLABLE_MEMBER: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static RECORD_SYNC: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
@@ -167,6 +169,11 @@ pub enum Point {
     ContainmentSurvivor,
     /// The stop of a scope after the program started fails with an error.
     ContainmentStopError,
+    /// The kill of a scope and every signal the stop sends miss its members,
+    /// so a real member is alive when the bound passes:
+    /// what a member in an uninterruptible wait does on a loaded host,
+    /// which no signal can end (issue 6528).
+    ContainmentUnkillableMember,
     /// The listing of the members of a scope after the program started fails.
     ContainmentInspection,
     /// The publication of a journal's durable completion marker (the rename to its done name and the sync of the directory that lists it).
@@ -387,6 +394,9 @@ pub fn arm(point: Point) {
         Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(|slot| {
             slot.set(true);
         }),
+        Point::ContainmentUnkillableMember => CONTAINMENT_UNKILLABLE_MEMBER.with(|slot| {
+            slot.set(true);
+        }),
         Point::ReapError => REAP_ERROR.with(|slot| {
             slot.set(true);
         }),
@@ -462,6 +472,7 @@ pub fn fires(point: Point) -> bool {
         Point::JournalDirectorySync => JOURNAL_DIRECTORY_SYNC.with(Cell::take),
         Point::JournalParentSync => JOURNAL_PARENT_SYNC.with(Cell::take),
         Point::ContainmentSurvivor => CONTAINMENT_SURVIVOR.with(Cell::take),
+        Point::ContainmentUnkillableMember => CONTAINMENT_UNKILLABLE_MEMBER.with(Cell::take),
         Point::ReapError => REAP_ERROR.with(Cell::take),
         Point::PublicationFileSync => PUBLICATION_FILE_SYNC.with(Cell::take),
         Point::RecordSync => RECORD_SYNC.with(Cell::take),

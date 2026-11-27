@@ -1043,6 +1043,26 @@ and an HTTP 429 is retried after its `Retry-After`.
   install and update then stop with the lockfiles
   neither rolled back nor accepted and the journal kept,
   and the command is not run.
+  That refusal says how long the stop waited for `populated 0` and what it was waiting for:
+  every process the scope still listed,
+  with the state of its threads,
+  so a reader can tell a member that has exited and only waits to be reaped (it can write nothing)
+  from one that is alive,
+  and from a leader that exited behind a live thread (which can still write).
+  A member that has exited is never what refuses a command:
+  the `populated` line of a group's `cgroup.events` counts no process whose last thread has ended,
+  and `cgroup.procs` does not list one (measured on this host 2026-11-27,
+  issue 6528;
+  `doc/troubleshooting/a-cgroup-does-not-count-a-member-that-has-exited.md`),
+  so a `git` left as a zombie does not fail an install.
+  A later run settles the journal such a refusal kept:
+  the leftover lockfile is kept when its new versions pass the policy
+  (otherwise it is saved as `Cargo.lock.refused` and the snapshot put back),
+  the journal is removed,
+  and that run goes on to its own check
+  (`the_next_run_settles_the_journal_of_a_run_that_could_not_be_settled`,
+  measured 2026-11-27,
+  issue 6528).
   Output is returned only when it is complete,
   and the pipe workers are cancelled when the call ends.
   Two runs of one process do not wait for each other and share no lock:

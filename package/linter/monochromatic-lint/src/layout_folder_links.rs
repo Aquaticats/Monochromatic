@@ -106,13 +106,15 @@ use std::{
 /// Why:
 ///  A cost has no test of its own,
 ///  and a control that timed one would read this machine's load rather than the code,
-///  so a control counts the work instead and fails when the walk or the index is done more often.
+///  so a control counts the work instead and fails when the walk or the index is done more often,
+///  or when a walk reaches an entry its own uses do not need.
 ///  Test builds only, so a release artifact carries no counter and no branch on one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// let reverseIndexes = 0;
 /// let walks = 0;
+/// let reached = 0;
 /// ```
 #[cfg(test)]
 pub(crate) mod counted_work {
@@ -126,6 +128,8 @@ pub(crate) mod counted_work {
         static REVERSE_INDEXES: Cell<usize> = const { Cell::new(0) };
         /// The times one group's uses were read backwards to their shortest routes.
         static WALKS: Cell<usize> = const { Cell::new(0) };
+        /// The entries one walk reached on its way to the routes it answers.
+        static REACHED: Cell<usize> = const { Cell::new(0) };
     }
 
     /// Count one building of the reverse index.
@@ -138,6 +142,11 @@ pub(crate) mod counted_work {
         WALKS.with(|count| return count.set(count.get() + 1));
     }
 
+    /// Count one entry a walk reached.
+    pub(crate) fn note_reach() {
+        REACHED.with(|count| return count.set(count.get() + 1));
+    }
+
     /// How many reverse indexes this thread built.
     pub(crate) fn reverse_indexes() -> usize {
         return REVERSE_INDEXES.with(|count| return count.get());
@@ -148,10 +157,16 @@ pub(crate) mod counted_work {
         return WALKS.with(|count| return count.get());
     }
 
+    /// How many entries the walks of this thread reached.
+    pub(crate) fn reached() -> usize {
+        return REACHED.with(|count| return count.get());
+    }
+
     /// Start one control from nothing counted.
     pub(crate) fn reset() {
         REVERSE_INDEXES.with(|count| return count.set(0));
         WALKS.with(|count| return count.set(0));
+        REACHED.with(|count| return count.set(0));
     }
 }
 

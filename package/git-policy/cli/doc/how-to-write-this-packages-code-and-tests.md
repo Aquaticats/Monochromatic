@@ -311,6 +311,19 @@ the helper the hung-write controls used put `hw-<process id>-<name>` under the r
 and every control that panicked or failed left one there:
 34 of them by 2026-11-27 (issue 6561).
 
+A fixture's overlay names the place the wrapper records what it learned about the real Git in:
+`test_support::cache_home` makes one folder of the thread's own,
+and `isolated_overlay` names it as `XDG_CACHE_HOME` beside the configuration's own variables.
+The wrapper learns where that Git's system configuration and attributes files are,
+and records the answer under that place,
+so a control's work writes a file of its fixture and never `~/.cache/monochromatic-git-policy-cli`,
+and it reads none another session made (issue 6571).
+A service whose work runs in the test process reads those facts through `for_context`,
+which builds them from the process's variables with the context's overlay over them,
+and a control that hands the writing code no place of its own writes the person's home cache:
+`testing/test_support_tests.rs`'s `the_cache_place_a_fixture_hands_its_work_is_a_folder_of_its_fixture`
+starts that code and refuses a place outside the fixture root.
+
 ## Own every child, end it on every path
 
 A child a test starts is the test's to end, on success, on failure and on a panic:
