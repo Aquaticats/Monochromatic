@@ -32,7 +32,7 @@ use std::{
 };
 
 /// The word that starts an entry tolerating one use between two folders.
-const FOLDER_USE_WORD: &str = "uses";
+pub(crate) const FOLDER_USE_WORD: &str = "uses";
 
 /// The word that starts an entry tolerating one use between two files of a folder.
 const FILE_USE_WORD: &str = "file-uses";
@@ -151,7 +151,7 @@ impl AllowEntry {
 ///  a key the rule prints and the reader refuses would be the rule contradicting itself.
 ///  Keys hold `/` between segments on every platform,
 ///  so an entry written with a backslash would name a path no key matches,
-///  and a name that holds a backslash cannot be listed at all:
+///  and a folder whose name holds a backslash cannot be listed at all:
 ///  saying so is better than a line that tolerates nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -326,6 +326,9 @@ fn sets_words_off_with_one_whitespace(text: &str) -> bool {
 ///  and the space a line sets its words off with must never be read as part of a name or the other way round.
 ///  A name that holds the arrow itself is refused before any check,
 ///  because the line would not say which folder the one used is.
+///  A name before the arrow that ends in whitespace is a misspelling rather than a name:
+///  no folder name a tree the rules accept can hold ends in whitespace,
+///  so no line the rule prints can leave one there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -363,9 +366,20 @@ fn use_ends(
             "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
         ));
     };
-    if from.trim().is_empty() || to.trim().is_empty() {
+    // What: a line that sets its word and its arrow off with two spaces, which leaves no name at all.
+    // Why: the reader takes exactly one space as the separator, so what stands between them is the name, and nothing is no folder.
+    if from.is_empty() {
         return Err(format!(
-            "Line {line} reads `{text}`. A use between two folders is written `uses <folder> {ARROW} <folder>`."
+            "Line {line} reads `{text}`. No folder name stands before the arrow: a use between two folders is written `uses <folder> {ARROW} <folder>`."
+        ));
+    }
+    // What: a name before the arrow that ends in whitespace.
+    // Why: a folder whose name ends in a character the reader trims is refused before any check,
+    //  so no tree the rules accept holds such a folder and such a line is a misspelling,
+    //  which the run must name rather than report as an entry that named a folder no tree holds.
+    if from.trim_end() != from {
+        return Err(format!(
+            "Line {line} reads `{text}`. The name before the arrow ends in whitespace, and no folder name the rules accept ends in whitespace, so the line is a misspelling: a use between two folders is written `uses <folder> {ARROW} <folder>`, each word set off with one space."
         ));
     }
     return Ok((from, to));

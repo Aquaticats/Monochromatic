@@ -811,7 +811,10 @@ pub fn check_file_order(
     let (mut kept, mut entries_used): (Vec<LayoutFinding>, BTreeSet<usize>) =
         tolerated(findings, list);
     entries_used.extend(used);
-    kept.extend(dead_entry_findings(list, &entries_used, base));
+    // What: the folders of this package, so a dead line that names one of them says whether the tree holds it.
+    // Why: a mistyped or hand-aligned line names a folder no tree holds, and naming it is what tells its reader to re-space the line.
+    let folders: BTreeSet<PathBuf> = by_folder.keys().cloned().collect::<BTreeSet<PathBuf>>();
+    kept.extend(dead_entry_findings(list, &entries_used, &folders, base));
     return kept;
 }
 

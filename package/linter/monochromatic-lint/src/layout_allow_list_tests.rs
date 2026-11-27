@@ -12,16 +12,22 @@
 use super::{
     AllowKind,
     AllowList,
+    dead_entry_findings,
     parse_allow_list,
     read_allow_list,
 };
 use crate::{
+    layout_finding::LayoutFinding,
     run_test_support::write,
     test_fs::Fixture,
 };
 use std::{
+    collections::BTreeSet,
     io::Read,
-    path::Path,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Read a list from text,
@@ -230,6 +236,53 @@ fn a_use_line_with_two_arrows_is_an_error() {
     let error: String = error_of("uses src/a -> b -> src/c\n");
     assert!(error.contains("uses <folder> -> <folder>"), "{error}");
     assert!(error.contains("no folder name holds"), "{error}");
+}
+
+/// A dead `uses` or `file-uses` line that names a folder no folder of the package is called names it,
+///  so a hand-aligned or mistyped line is told to be re-spaced,
+///  and a line whose folders the package does hold is told only to be deleted.
+#[test]
+fn a_dead_use_line_names_a_folder_the_package_does_not_hold() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed(
+        "uses src/a -> src/b extra\n\
+         file-uses src/c one.rs -> two.rs\n\
+         uses src/a -> src/b\n",
+    );
+    // What: the folders of the fixture package, as the walk names them.
+    // Why: an entry is never used here, so every line is dead and each message can be read.
+    let folders: BTreeSet<PathBuf> = ["src/a", "src/b"]
+        .iter()
+        .map(|name| return base.join(name))
+        .collect::<BTreeSet<PathBuf>>();
+    let findings: Vec<LayoutFinding> = dead_entry_findings(
+        &list,
+        &BTreeSet::<usize>::new(),
+        &folders,
+        base,
+    );
+    assert_eq!(findings.len(), 3, "{findings:#?}");
+    assert!(
+        findings[0]
+            .message
+            .contains("names the folder `src/b extra`, which no folder of this package is called"),
+        "{}",
+        findings[0].message
+    );
+    assert!(
+        findings[1]
+            .message
+            .contains("names the folder `src/c`, which no folder of this package is called"),
+        "{}",
+        findings[1].message
+    );
+    assert!(
+        findings[2]
+            .message
+            .contains("tolerates nothing any more. Delete the line"),
+        "{}",
+        findings[2].message
+    );
 }
 
 /// A list that names one thing twice is not a list of distinct findings.

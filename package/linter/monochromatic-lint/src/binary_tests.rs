@@ -3868,7 +3868,7 @@ fn layout_a_folder_name_that_holds_the_arrow_words_is_refused() {
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
         "The layout rules stop at src/a -> b/mod.rs,",
-        "holds the words",
+        "would read as another pair of folders",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
