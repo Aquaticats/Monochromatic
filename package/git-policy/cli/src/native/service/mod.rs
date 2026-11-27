@@ -166,6 +166,11 @@
 //! - `service_journal_record_age.rs`:
 //!   how old a finished batch's record is,
 //!   read from the clocks the record itself carries.
+//! - `service_journal_file_names.rs`:
+//!   what the files of the commit service's journal are called.
+//! - `service_journal_records_read_from_the_journal.rs`:
+//!   what the records in the journal say,
+//!   and which of them a journal may forget.
 //! - `service_journal.rs`:
 //!   the commit service's journal and its restart decisions.
 //! - `service_busy.rs`:
@@ -369,6 +374,13 @@ pub mod service_busy_step_record_on_this_thread;
 /// The connection of one waiting client,
 /// answered by the landing thread and kept alive by a beat from the reading thread.
 pub mod service_reply;
+
+/// What the files of the commit service's journal are called.
+pub mod service_journal_file_names;
+
+/// What the records in the journal say,
+/// and which of them a journal may forget.
+pub mod service_journal_records_read_from_the_journal;
 
 /// The commit service's journal and its restart decisions.
 pub mod service_journal;
