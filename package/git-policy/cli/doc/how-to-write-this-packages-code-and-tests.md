@@ -263,6 +263,15 @@ twice the notice's own maximum,
 and failed that way in three threaded `commit::` runs;
 it waits thirty times the notice's own bound now,
 sized from a measured answer of 500.1 to 501.6 ms).
+A control whose subject is a notice said to a waiting client reads what the client has said while the client still
+waits
+(`Told` in `landing/service_land_hung_write_tests.rs`),
+because the text a client ends with cannot tell a person told when the write started from one told as the client gave
+up,
+and it sizes that wait as a multiple of the notice's own bound:
+issue 6524's control waited one ceiling away from a notice due at one second,
+and a journal read that waited on storage carried the words past the client's ceiling,
+so it counted none.
 A state a control means to test is reached by the control and not by a sleep:
 that control offers a line into the queue the writer takes its lines from,
 where sleeping three cadences expected a starved notice thread to have offered one
