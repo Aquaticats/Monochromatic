@@ -49,17 +49,35 @@ use std::ffi::OsString;
 /// ```
 use std::fs;
 /// What:
-/// `use std::path::PathBuf;` imports the owned path type (its sibling is `&Path`,
-/// which is borrowed).
+/// `use std::os::unix::fs::FileTypeExt;` imports the trait that adds `is_socket` to a file's type,
+/// which the plain type leaves out on purpose.
+/// Why:
+/// Only a socket carries an ask,
+/// so a file's kind,
+/// not only its name,
+/// is what the read looks at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { statSync } from 'node:fs';   // statSync(...).isSocket()
+/// ```
+use std::os::unix::fs::FileTypeExt;
+/// What:
+/// `use std::path::{Path, PathBuf};` imports the borrowed and owned path types (their sibling is `&Path`,
+/// which is the same borrowed type under another name).
 /// Why:
 /// Each place a transport names is built from a directory and a name,
-/// so each one is owned here.
+/// so each one is owned here,
+/// while the check of what kind of thing it is lends it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // TS has one type for this: string
 /// ```
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 /// `use crate::control_group_route_discovery::RouteSettings;` imports the settings an ask of the manager is made with.
@@ -164,15 +182,15 @@ fn why_no_manager_can_be_reached(settings: &RouteSettings) -> Option<String> {
             "neither ${RUNTIME_DIRECTORY_VARIABLE} nor ${SESSION_BUS_VARIABLE} is set"
         ));
     }
-    // Every path an ask could be carried over.
-    let mut transports: Vec<PathBuf> = Vec::new();
+    // Every socket an ask could be carried over.
+    let mut sockets: Vec<PathBuf> = Vec::new();
     // Where the manager keeps its files, where a runtime directory names a place for them.
     let mut manager_files: Option<PathBuf> = None;
     if let Some(directory) = &runtime_directory {
         // The directory the variable names, as a path this process can look at.
         let root: PathBuf = PathBuf::from(directory);
-        transports.push(root.join(MANAGER_SOCKET));
-        transports.push(root.join(SESSION_BUS_SOCKET));
+        sockets.push(root.join(MANAGER_SOCKET));
+        sockets.push(root.join(SESSION_BUS_SOCKET));
         manager_files = Some(root.join(MANAGER_FILES_DIRECTORY));
     }
     if let Some(address) = &bus_address {
@@ -180,22 +198,22 @@ fn why_no_manager_can_be_reached(settings: &RouteSettings) -> Option<String> {
         // it and the answer is that a manager may be there.
         let found: Vec<PathBuf> = paths_in_a_bus_address(address)?;
         for path in found {
-            transports.push(path);
+            sockets.push(path);
         }
     }
     // Whether one of those places is there, which is all it takes to keep asking.
     let mut one_is_there: bool = false;
     // Every place that was read, in the words the refusal names them with.
     let mut read: Vec<String> = Vec::new();
-    for path in &transports {
+    for path in &sockets {
         read.push(path.display().to_string());
-        if fs::metadata(path).is_ok() {
+        if is_a_socket(path) {
             one_is_there = true;
         }
     }
     if let Some(path) = &manager_files {
         read.push(path.display().to_string());
-        if fs::metadata(path).is_ok() {
+        if is_a_directory(path) {
             one_is_there = true;
         }
     }
@@ -207,6 +225,40 @@ fn why_no_manager_can_be_reached(settings: &RouteSettings) -> Option<String> {
         "nothing an ask could be carried over is there: {}",
         read.join(", ")
     ));
+}
+
+/// What:
+/// `fn is_a_socket(path: &Path) -> bool` says whether a path is a socket of the file system (its siblings are
+/// `is_dir` and `is_file`,
+/// and a plain file at a socket's name is neither a transport nor a manager).
+/// Why:
+/// A file that is not a socket carries no ask,
+/// so reading its name as a transport would keep the asking again on a host where nothing can be reached.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isASocket(path: string): boolean
+/// ```
+fn is_a_socket(path: &Path) -> bool {
+    return fs::metadata(path).is_ok_and(|found| {
+        return found.file_type().is_socket();
+    });
+}
+
+/// What:
+/// `fn is_a_directory(path: &Path) -> bool` says whether a path is a directory of the file system.
+/// Why:
+/// The manager's own directory is what says a manager keeps its files there,
+/// and a file at that name is not one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isADirectory(path: string): boolean
+/// ```
+fn is_a_directory(path: &Path) -> bool {
+    return fs::metadata(path).is_ok_and(|found| {
+        return found.is_dir();
+    });
 }
 
 /// What:
@@ -278,6 +330,12 @@ fn paths_in_a_bus_address(address: &OsString) -> Option<Vec<PathBuf>> {
         }
         // `?`: `unix:abstract=` names a socket with no path in the file system, so it cannot be looked for here.
         let path: &str = named?;
+        // `?`: a bus address escapes each byte it may not write plainly as `%` and two hex digits, and this read does not undo
+        // that, so a name that holds a `%` at all is one it cannot look for as written.
+        // sd-bus escapes a literal `%` as `%25`, so a `%` here is always an escape and never a name's own character.
+        if path.contains('%') {
+            return None;
+        }
         paths.push(PathBuf::from(path));
     }
     if paths.is_empty() {
