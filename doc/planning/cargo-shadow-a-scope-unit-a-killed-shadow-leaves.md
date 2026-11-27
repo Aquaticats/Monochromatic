@@ -115,8 +115,8 @@ it reads `Gone`.
 
 ## The second road to the same leftover: the manager loses the empty notification
 
-The state is the one the section "The state this is about" ends at,
-reached by another road:
+The state is that of the section "The state this is about",
+reached by another road and with one reading that differs:
 a transient scope whose control group held a process and then emptied,
 which the manager never ended,
 so the unit stays `ActiveState=active`,
@@ -247,7 +247,7 @@ root's own user manager started with `systemctl start user@0.service`,
 `fs.inotify.max_user_watches` 524288,
 `max_user_instances` 1024,
 `max_queued_events` 16384,
-82 watches held by root before each arm.
+and 82 watches held by root when the failed-watch arm began.
 Every launcher command in the arms is byte for byte the shape
 `cargo-shadow` builds (`control_group.rs:303` to `317`):
 
