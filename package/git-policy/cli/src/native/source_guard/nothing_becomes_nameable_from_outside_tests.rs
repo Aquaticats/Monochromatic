@@ -13,10 +13,16 @@
 //!  A `pub(crate)` or `pub(super)` or `pub(in path)` says the same thing to the caller
 //!  and publishes nothing,
 //!  so the list is where publishing becomes a decision a reader sees.
+//!  The reading is wider than the one the first version of this check made:
+//!  a function whose kind is qualified (`pub async fn`),
+//!  a field and a method of a published type,
+//!  an item of a kind and name another module already publishes (keyed by its module path),
+//!  and a `pub use` written over several lines are all read now,
+//!  because a split writes all of them and the first version saw none
+//!  (review M1: 154 published `async` names, 1327 methods, 3915 fields and eight carried facades had no line).
 //! Gotcha:
-//!  This reads source text,
-//!  so it sees the lines this crate writes;
-//!  the limits of the reading are in `nameable_items_of_a_source_tree_tests.rs`.
+//!  The reader's own doc, `nameable_items_of_a_source_tree_tests.rs`, states what this reading cannot see,
+//!  and every limit there is a shape no line covers yet.
 //!  The list is compared in both directions:
 //!  a published name that is missing fails,
 //!  and so does a line whose name is no longer published,
@@ -24,7 +30,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! for (const item of surface.items) if (!listed.has(`${item.kind} ${item.name}`)) fail(item);
+//! for (const item of surface.items) if (!listed.has(item.key)) fail(item);
 //! for (const line of listed) if (!published.has(line)) fail(line);
 //! ```
 
@@ -38,7 +44,7 @@ const THE_LIST: &str = include_str!("items_nameable_from_outside_release.txt");
 
 /// What:
 ///  `fn listed_lines() -> BTreeSet<String>` reads the list's entries,
-///  each written `<kind> <name>`,
+///  each written `<module path> <kind> <name>` or `<module path> pub use <target>::<name>`,
 ///  and ignores its comments and blank lines.
 ///  `BTreeSet` is a sorted set (as TS's `Set` iterated in sorted order).
 /// Why:
@@ -62,6 +68,20 @@ fn listed_lines() -> BTreeSet<String> {
 }
 
 /// What:
+///  `fn is_carried(entry: &str) -> bool` answers whether a list line is a `pub use` entry rather than an item.
+/// Why:
+///  The two halves of the surface are compared against their own lines,
+///  and a `pub use` line names a module and a name while an item line names a kind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isCarried = (entry: string): boolean => entry.includes(' pub use ');
+/// ```
+fn is_carried(entry: &str) -> bool {
+    return entry.contains(" pub use ");
+}
+
+/// What:
 ///  `fn the_findings(listed: &BTreeSet<String>) -> Vec<String>` compares the published surface with the list in
 ///  both directions and answers one line per difference.
 /// Why:
@@ -79,48 +99,39 @@ fn the_findings(listed: &BTreeSet<String>) -> Vec<String> {
     let surface = surface_of(&source_root()).expect("this crate's own source tree");
     let mut published: BTreeSet<String> = BTreeSet::new();
     for item in &surface.items {
-        published.insert(format!("{} {}", item.kind, item.name));
+        published.insert(item.key.clone());
     }
     let mut findings: Vec<String> = Vec::new();
     for item in &surface.items {
-        let entry: String = format!("{} {}", item.kind, item.name);
-        if !listed.contains(entry.as_str()) {
-            findings.push(format!(
-                "NAMEABLE BUT NOT LISTED: {entry} in {} takes `pub` where `pub(crate)` or `pub(super)` would do, or it belongs in the list with a reason",
-                item.file
-            ));
+        if listed.contains(item.key.as_str()) {
+            continue;
         }
-    }
-    let listed_items: BTreeSet<String> = listed
-        .iter()
-        .filter(|entry| return !entry.starts_with("pub use "))
-        .cloned()
-        .collect();
-    for entry in listed_items.difference(&published) {
         findings.push(format!(
-            "LISTED BUT NOT NAMEABLE: {entry} is no longer published from outside the crate: delete its line from the list"
+            "NAMEABLE BUT NOT LISTED: {} in {} takes `pub` where `pub(crate)` or `pub(super)` would do, or it belongs in the list with a reason",
+            item.key, item.file
         ));
     }
-    for site in &surface.carried {
-        let entry: String = format!("pub use {}", site.target);
-        if !listed.contains(entry.as_str()) {
+    for entry in listed.iter().filter(|entry| return !is_carried(entry)) {
+        if !published.contains(entry) {
             findings.push(format!(
-                "CARRIED BUT NOT LISTED: `{entry}` in {} publishes a name out of a module that `pub mod` does not reach",
-                site.file
+                "LISTED BUT NOT NAMEABLE: {entry} is no longer published from outside the crate: delete its line from the list"
             ));
         }
     }
     let mut carried: BTreeSet<String> = BTreeSet::new();
     for site in &surface.carried {
-        carried.insert(format!("pub use {}", site.target));
-    }
-    for entry in listed
-        .iter()
-        .filter(|entry| return entry.starts_with("pub use "))
-    {
-        if !carried.contains(entry.as_str()) {
+        carried.insert(site.key.clone());
+        if !listed.contains(site.key.as_str()) {
             findings.push(format!(
-                "LISTED BUT NOT CARRIED: {entry} no longer re-exports out of a private module: delete its line from the list"
+                "CARRIED BUT NOT LISTED: `{}` in {} publishes a name out of a module that `pub mod` does not reach",
+                site.key, site.file
+            ));
+        }
+    }
+    for entry in listed.iter().filter(|entry| return is_carried(entry)) {
+        if !carried.contains(entry) {
+            findings.push(format!(
+                "LISTED BUT NOT CARRIED: {entry} no longer re-exports a name out of a private module: delete its line from the list"
             ));
         }
     }
