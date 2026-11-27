@@ -1112,12 +1112,26 @@ and an HTTP 429 is retried after its `Retry-After`.
   from one that is alive,
   and from a leader that exited behind a live thread (which can still write).
   The listing has a bound of its own (`LISTING_BOUND`),
+  and it is looked at between reads,
+  at the top of each group and before each member of it,
   so a scope with many threads delays a refusal by that much and no
   more;
-  a listing that hit it,
-  or one that could not be read at all,
-  is said to have done so rather than read as a scope whose
-  members can write nothing.
+  a single read is not bounded by it:
+  `cgroup.procs`,
+  a group's directory,
+  `/proc/<pid>/task`
+  and one thread's `stat`
+  are blocking calls of the operating system with no bound of their own,
+  and the kept measurement beside the constant
+  (`control_group_stop::measure_tests::the_listing_of_a_scope_with_this_many_threads_takes`)
+  times a whole walk of such reads,
+  never one of them.
+  A listing that hit its bound,
+  one that could not be read at all,
+  and one that stopped at a group below the scope it could not read
+  are said to have done so,
+  and the members read before that are still named,
+  rather than read as a scope whose members can write nothing.
   A member that has exited is never what refuses a command:
   the `populated` line of a group's `cgroup.events` counts no process whose last thread has ended,
   and `cgroup.procs` does not list one (measured on this host 2026-11-27,
@@ -1696,6 +1710,27 @@ The production call sites are the size walks of `lean_idle_trees` (its own and t
 the trash sweep and the unit removal in `lean_removal`,
 the run-record sweep and its steps,
 and the rustup toolchain removal.
+
+The library's visible surface was counted by paths,
+not by members and signatures.
+`0.1.5-alpha.12`'s commits quote 663 paths at `0.1.5-alpha.10`,
+710 at `0.1.5-alpha.11`,
+and 663 again after the twenty split modules went `pub(crate)` (`c2bb0fd6e8`,
+`c361bd9212`),
+read over `pub` items and `pub use` leaves.
+That count says which paths a consumer can name.
+It does not see a member or a signature that changed while its path stayed,
+and between alpha.10 and alpha.12 these did,
+all of them with `0.1.5-alpha.11`'s seam of issue 6552:
+the field `SizeCap::count_bytes`,
+`writers_may_remain_reason` on `RunScope` and on `Transaction`,
+and a `count_bytes: ByteCount` parameter on `add_tree_bytes`,
+`delete_claimed`,
+`sweep_run_records`,
+and `tree_bytes`.
+`tests/shim.rs` is the only consumer in the repository,
+and it reads `cargo_run::CARGO_CALL_SECONDS` and three names from `journal`,
+none of which changed.
 
 The containment tests (`bounded_run_tests`) measure how long stopping a contained payload takes and require it inside
 its bound plus twice `QUIESCE_BOUND` (5 s).
