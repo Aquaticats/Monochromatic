@@ -100,7 +100,7 @@ pub(crate) fn spelled_unreadable(name: &str) -> String {
     for (index, letter) in name.chars().enumerate() {
         // What: whether this character prints as nothing a reader could measure.
         // Why: every whitespace character but a space between two words disappears into the line it stands in, and a format character disappears wherever it stands.
-        let invisible: bool = is_format_character(letter)
+        let invisible: bool = prints_as_nothing(letter)
             || (letter.is_whitespace() && (letter != ' ' || index == 0 || index == last));
         if !invisible {
             spelled.push(letter);
@@ -116,32 +116,39 @@ pub(crate) fn spelled_unreadable(name: &str) -> String {
 ///  so a name holding one is no name a reader can see.
 /// Why:
 ///  A byte order mark before a line's first word makes that word `\u{feff}uses`,
-///  which is no word the reader knows, and a zero-width space inside a name is no separator it reads;
-///  both are characters a person cannot see, so a message about one must spell it.
+///  which is no word the reader knows, a zero-width space inside a name is no separator it reads,
+///  and a right-to-left override reorders every character after it on a terminal that draws bidirectional text;
+///  each is a character a person cannot see, so a message about one must spell it.
+///  Which characters those are is `layout_unseen_characters`'s answer,
+///  which takes the format and control categories from the Unicode tables this crate links
+///  and the rest of Unicode's `Default_Ignorable_Code_Point` from the data file it names:
+///  a list written here by hand missed the marks, the embeddings and the overrides a copied line carries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isFormat = (letter) => ['\u{ad}', '\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'].includes(letter)
+/// const printsAsNothing = (letter) => !/\s/u.test(letter) && (/[\p{Cf}\p{Cc}]/u.test(letter) || isDefaultIgnorable(letter))
 /// ```
-pub(crate) fn is_format_character(letter: char) -> bool {
-    return matches!(
-        letter,
-        '\u{ad}' | '\u{200b}'..='\u{200d}' | '\u{2060}' | '\u{feff}'
-    );
+pub(crate) fn prints_as_nothing(letter: char) -> bool {
+    return crate::layout_unseen_characters::prints_as_nothing(letter);
 }
 
 /// What:
 ///  The plain name of a character a reader cannot see, with its code point,
-///  or nothing when the character is one a reader can see.
+///  or nothing when this crate has no plain name for it.
 /// Why:
 ///  A sentence that called a byte order mark "a character a reader cannot see" would leave its reader no way to tell it from a zero-width space,
 ///  and the two need different edits: a byte order mark at the start of a line is taken out, a zero-width space where a separator belongs is replaced by one.
+///  The name given covers the characters a copied line carries:
+///  what a word processor and a web page put in front of, inside and around a word,
+///  which is where such a line comes from.
+///  A character with no name here is still spelled with its code point by the message,
+///  so its reader can find it even though the sentence cannot call it anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const formatName = (letter) => ({ '\u{feff}': 'a byte order mark', '\u{200b}': 'a zero-width space', ... })[letter]
+/// const unseenName = (letter) => ({ '\u{feff}': 'a byte order mark', '\u{200b}': 'a zero-width space', ... })[letter]
 /// ```
-pub(crate) fn format_character_name(letter: char) -> Option<&'static str> {
+pub(crate) fn unseen_character_name(letter: char) -> Option<&'static str> {
     return match letter {
         '\u{feff}' => Some("a byte order mark or zero-width no-break space (`\\u{feff}`)"),
         '\u{200b}' => Some("a zero-width space (`\\u{200b}`)"),
@@ -149,27 +156,45 @@ pub(crate) fn format_character_name(letter: char) -> Option<&'static str> {
         '\u{200d}' => Some("a zero-width joiner (`\\u{200d}`)"),
         '\u{2060}' => Some("a word joiner (`\\u{2060}`)"),
         '\u{ad}' => Some("a soft hyphen (`\\u{ad}`)"),
+        '\u{200e}' => Some("a left-to-right mark (`\\u{200e}`)"),
+        '\u{200f}' => Some("a right-to-left mark (`\\u{200f}`)"),
+        '\u{202a}' => Some("a left-to-right embedding (`\\u{202a}`)"),
+        '\u{202b}' => Some("a right-to-left embedding (`\\u{202b}`)"),
+        '\u{202c}' => Some("a pop directional formatting (`\\u{202c}`)"),
+        '\u{202d}' => Some("a left-to-right override (`\\u{202d}`)"),
+        '\u{202e}' => Some("a right-to-left override (`\\u{202e}`)"),
+        '\u{2066}' => Some("a left-to-right isolate (`\\u{2066}`)"),
+        '\u{2067}' => Some("a right-to-left isolate (`\\u{2067}`)"),
+        '\u{2068}' => Some("a first strong isolate (`\\u{2068}`)"),
+        '\u{2069}' => Some("a pop directional isolate (`\\u{2069}`)"),
+        '\u{61c}' => Some("an arabic letter mark (`\\u{61c}`)"),
+        '\u{180e}' => Some("a mongolian vowel separator (`\\u{180e}`)"),
+        '\u{34f}' => Some("a combining grapheme joiner (`\\u{34f}`)"),
+        '\u{7f}' => Some("a delete character (`\\u{7f}`)"),
         _ => None,
     };
 }
 
 /// What:
-///  The first character of a text that a reader cannot see, with its one-based position,
+///  The first character of a text that a reader cannot see, with its one-based position among the text's characters,
 ///  or nothing when every character of the text is one a reader can see.
 /// Why:
 ///  A message that names such a character must say where it stands,
 ///  because the line's words look right without it and its reader has to know which character to take out.
+///  The position counts characters rather than bytes,
+///  because a person counting in an editor counts what is on the screen:
+///  `usés` holds five characters and six bytes, and a byte offset would name a place no editor shows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const firstFormat = (text) => {
-///   const at = [...text].findIndex(isFormat)
+/// const firstUnseen = (text) => {
+///   const at = [...text].findIndex(printsAsNothing)
 ///   return at === -1 ? undefined : [text[at], at + 1]
 /// }
 /// ```
-pub(crate) fn first_format_character(text: &str) -> Option<(char, usize)> {
+pub(crate) fn first_unseen_character(text: &str) -> Option<(char, usize)> {
     for (index, letter) in text.chars().enumerate() {
-        if is_format_character(letter) {
+        if prints_as_nothing(letter) {
             return Some((letter, index + 1));
         }
     }
