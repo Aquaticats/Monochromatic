@@ -29,9 +29,9 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::{
     HeadWord,
     SnapshotOutcome,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
-    RemovalClock,
     RemovalEntry,
     enter_the_removal,
 };
