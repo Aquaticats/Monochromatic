@@ -164,13 +164,32 @@ pub fn places_a_round_may_take() -> usize {
 /// `SERVICE_WORKER_CAP`),
 /// and a control needs a bound small enough to see.
 /// A budget that is already made is not resized,
-/// so a call after the first job changes nothing.
+/// so a call after the first job changes nothing,
+/// and a control that means its cap needs a process whose bound is not yet made.
+///  The bound belongs to the whole process, so a control sets it in a child of its own
+/// (`testing/process_wide_state_child_test_support.rs`),
+/// and this refuses in any other process (issue 6477).
+///  The one shipped caller sets the service's own cap, and the refusal is a test build's alone, so the release pays
+///  nothing for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// holdBlockingJobsTo(2)
+/// holdBlockingJobsTo(2) // in a child of the control's own, the only process that may
 /// ```
 pub fn hold_blocking_jobs_to(cap: usize) {
+    // What: the refusal, in a build that carries this crate's tests: the bound is made once for the process, so a hold
+    //  taken beside other tests decides what every one of them gets.
+    // Why: a control that forgot its child fails at its own first line, every time it runs, instead of changing the
+    //  rest of the run and failing in another control's wait (issue 6477).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // refuseOutsideTheChild('the bound on blocking jobs');
+    // ```
+    #[cfg(test)]
+    crate::process_wide_state_child_test_support::refuse_outside_the_child(
+        "the bound on blocking jobs",
+    );
     HELD_TO.store(cap, Ordering::SeqCst);
 }
 
