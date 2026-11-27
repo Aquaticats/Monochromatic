@@ -611,6 +611,17 @@ three of them finding the step,
 so the record proved 639.47 ms and the control failed (issue 6592;
 `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`).
 
+A control that shortens a deadline the release code keeps itself holds the work that deadline governs before that work starts.
+The fence's size read is joined with a deadline measured from the wait and not from the read's start
+(`SizeReadBesideTheCheck::answer_within_the_deadline` hands it to `recv_timeout`),
+and the join runs after the source check and after `git check-attr`,
+so a read started first answers inside a window that began after it did.
+The join's control arms `a_control_holds_the_read` before `start_beside_the_check` for that reason
+(issue 6603:
+a wide threaded `worktree` run answered `3311 passed; 1 failed`,
+with the rung held where the control says a held read cannot answer,
+and 100 ms of delay planted between the start and the arm reproduced it in a run whose child finished in 0.15 s).
+
 ## Write less code
 
 Reuse what `testing/test_support.rs` and the package's modules already have before writing a helper

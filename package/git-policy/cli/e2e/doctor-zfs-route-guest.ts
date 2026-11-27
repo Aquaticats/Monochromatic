@@ -15,45 +15,89 @@
  Usage: node e2e/doctor-zfs-route-guest.ts <create|prepare|build|arm|destroy|all> [--name <guest>] [--log-dir <dir>]
           [--keep-guest]
  */
-import { spawnSync, } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, } from 'node:fs';
-import { join, resolve, } from 'node:path';
+import {
+  mkdir,
+  rm,
+} from 'node:fs/promises';
+import {
+  join,
+  resolve,
+} from 'node:path';
 
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
+import {
+  captureHostCommand,
+  runGuestScript,
+  runHostCommand,
+  runRecipeStep,
+} from '../bin/guest-route-commands.ts';
+import {
+  type GuestRouteOptions,
+  guestRouteOptions,
+} from '../bin/guest-route-options.ts';
+import { FOLDER_MODE, } from '../bin/guest-route-permissions.ts';
+import {
+  hasLineStartingWith,
+  missingMarkers,
+} from '../bin/guest-route-log-lines.ts';
 
 //region Constants
 
-/** Where the crate is unpacked and built inside the guest. */
+/**
+ Where the crate is unpacked and built inside the guest.
+ */
 const CRATE_DIR = '/opt/git-policy-cli-doctor-route';
-/** The file-backed pool the arm's layout sits on, which only the guest ever sees. */
+/**
+ The file-backed pool the arm's layout sits on, which only the guest ever sees.
+ */
 const POOL = 'zpcachyos';
-/** The variable the arm reads: its value is the guest's name, so a run outside the guest prints SKIP. */
+/**
+ The variable the arm reads: its value is the guest's name, so a run outside the guest prints SKIP.
+ */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_GUEST';
-/** The variable the arm reads for the pool's name. */
+/**
+ The variable the arm reads for the pool's name.
+ */
 const POOL_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_POOL';
-/** The variable the removal-side arm reads for its guest. */
+/**
+ The variable the removal-side arm reads for its guest.
+ */
 const REMOVAL_GUEST_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_GUEST';
-/** The variable the removal-side arm reads for its pool. */
+/**
+ The variable the removal-side arm reads for its pool.
+ */
 const REMOVAL_POOL_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_POOL';
-/** The variable the removal-side arm reads for its OpenZFS prefix. */
+/**
+ The variable the removal-side arm reads for its OpenZFS prefix.
+ */
 const REMOVAL_PREFIX_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_PREFIX';
-/** The variable the removal-side arm reads for its fixture root. */
+/**
+ The variable the removal-side arm reads for its fixture root.
+ */
 const REMOVAL_ROOT_VARIABLE = 'CLI_GIT_ZFS_DOCTOR_REMOVAL_ROOT';
-/** The pool the removal-side arm builds. */
+/**
+ The pool the removal-side arm builds.
+ */
 const REMOVAL_POOL = 'zfsdoctorremoval';
-/** The OpenZFS prefix the removal-side arm's commands come from. */
+/**
+ The OpenZFS prefix the removal-side arm's commands come from.
+ */
 const REMOVAL_PREFIX = '/opt/openzfs-2.4.4';
-/** The folder the removal-side arm's fixture lives under. */
+/**
+ The folder the removal-side arm's fixture lives under.
+ */
 const REMOVAL_ROOT = '/home/zfs-doctor-removal-fixture';
-/** Milliseconds one host command may take. */
-const HOST_COMMAND_TIMEOUT_MS = 120_000;
-/** Milliseconds the guest's crate build may take. */
+/**
+ Milliseconds the guest's crate build may take.
+ */
 const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
-/** Milliseconds one arm may take. */
+/**
+ Milliseconds one arm may take.
+ */
 const ARM_TIMEOUT_MS = 900_000;
-/** Seconds the guest's own `timeout` fires before `mvm`'s kill. */
-const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
-/** The lines a green arm must print, one per claim it makes. */
+/**
+ The lines a green arm must print, one per claim it makes.
+ */
 const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST group-one-passes',
   'DOCTOR-GUEST group-two-passes',
@@ -84,100 +128,120 @@ const GREEN_MARKERS: readonly string[] = [
 
 //endregion Constants
 
-//region Arguments
-
-interface Options {
-  readonly step: string;
-  readonly name: string;
-  readonly logDir: string;
-  readonly keepGuest: boolean;
-}
-
-/** The step and the values the command line gave it. */
-function options(): Options {
-  const [ step = '', ...rest ] = process.argv.slice(2);
-  const value = (flag: string): string | undefined => {
-    const at = rest.indexOf(flag);
-    return at === -1 ? undefined : rest[at + 1];
-  };
-  return {
-    step,
-    name: value('--name') ?? 'git-policy-doctor-route',
-    logDir: value('--log-dir') ?? resolve(import.meta.dirname, '..', 'target', 'doctor-route-guest-logs'),
-    keepGuest: rest.includes('--keep-guest'),
-  };
-}
-
-//endregion Arguments
-
-//region Commands
-
-/** Quote one block of shell for the guest's `sh -ec`, quotes included. */
-function shellQuote(script: string): string {
-  return `'${script.replaceAll("'", `'\\''`)}'`;
-}
-
-/** One host command whose whole output goes to its own log. */
-function host({ chosen, command, args, log, }: { readonly chosen: Options; readonly command: string; readonly args: readonly string[]; readonly log: string; }): void {
-  const output = openSync(join(chosen.logDir, log), 'w', 0o600);
-  try {
-    const result = spawnSync(command, args, { stdio: [ 'ignore', output, output, ], timeout: HOST_COMMAND_TIMEOUT_MS, });
-    if ((result.error !== undefined) || (result.status !== 0))
-      throw result.error ?? new Error(`${command} ${args.join(' ')} exited ${String(result.status)}; see ${log}`);
-  } finally {
-    closeSync(output);
-  }
-}
-
-/** One guest script, its whole output kept in its own log and returned. */
-function guest({ chosen, script, log, timeout, }: { readonly chosen: Options; readonly script: string; readonly log: string; readonly timeout: number; }): string {
-  const path = join(chosen.logDir, log);
-  const output = openSync(path, 'w', 0o600);
-  const command = `test "$(hostname)" = ${chosen.name} && timeout ${Math.floor(timeout / 1000) - GUEST_TIMEOUT_MARGIN_SECONDS} sh -ec ${shellQuote(script)}`;
-  try {
-    const result = spawnSync('mvm', [ '--backend', 'libvirt', 'exec', chosen.name, '--', command, ], { stdio: [ 'ignore', output, output, ], timeout, });
-    if ((result.error !== undefined) || (result.status !== 0))
-      throw result.error ?? new Error(`mvm exec exited ${String(result.status)}; see ${log}`);
-  } finally {
-    closeSync(output);
-  }
-  return readFileSync(path, 'utf8');
-}
-
-/** One step of the ZFS binding's guest recipe, which owns the guest's creation, preparation and destruction. */
-function recipe({ chosen, step, }: { readonly chosen: Options; readonly step: string; }): void {
-  const script = resolve(import.meta.dirname, '..', '..', '..', 'zfs', 'request-to-openzfs-kernel-device', 'e2e', 'run-fixture.ts');
-  const result = spawnSync('node', [ script, step, '--name', chosen.name, '--log-dir', chosen.logDir, ], { stdio: 'inherit', timeout: HOST_COMMAND_TIMEOUT_MS * 60, });
-  if ((result.error !== undefined) || (result.status !== 0))
-    throw result.error ?? new Error(`the guest recipe's ${step} step exited ${String(result.status)}`);
-}
-
-//endregion Commands
-
 //region Steps
 
-/** Refuse a name another guest already holds. */
-function create(chosen: Options): void {
-  const listed = spawnSync('mvm', [ 'list', ], { encoding: 'utf8', timeout: HOST_COMMAND_TIMEOUT_MS, });
-  if ((listed.stdout ?? '').split('\n').some((line) => { return line.trim().startsWith(chosen.name); }))
-    throw new Error(`a guest named ${chosen.name} is already listed; name another with --name`);
-  recipe({ chosen, step: 'create', });
+/**
+ Refuse a name another guest already holds.
+
+ @param chosen - the run's options
+
+ @throws Error naming the guest a listing already holds
+ */
+async function create(chosen: GuestRouteOptions,): Promise<void> {
+  /**
+   What `mvm list` reported before this run asked for a guest.
+   */
+  const listed = await captureHostCommand({
+    command: 'mvm',
+    args: ['list',],
+  },);
+  if (listed
+    .split('\n',)
+    .some(function holdsTheName(line: string,): boolean {
+      return line
+        .trim()
+        .startsWith(chosen.name,);
+    },))
+    throw new Error(`a guest named ${chosen.name} is already listed; name another with --name`,);
+  await runRecipeStep({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    step: 'create',
+  },);
 }
 
-/** Install the guest's tools: OpenZFS 2.4.4, Rust and cargo-nextest. */
-function prepare(chosen: Options): void {
-  recipe({ chosen, step: 'prepare', });
+/**
+ Install the guest's tools: OpenZFS 2.4.4, Rust and cargo-nextest.
+
+ @param chosen - the run's options
+ */
+async function prepare(chosen: GuestRouteOptions,): Promise<void> {
+  await runRecipeStep({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    step: 'prepare',
+  },);
 }
 
-/** Push a snapshot of this worktree and build this crate's binaries and tests inside the guest. */
-async function build(chosen: Options): Promise<void> {
-  const context = join(chosen.logDir, 'snapshot');
-  rmSync(context, { recursive: true, force: true, });
-  mkdirSync(context, { recursive: true, mode: 0o700, });
-  await copyWrapperSnapshot({ context, });
-  const tarball = join(chosen.logDir, 'subject.tar.gz');
-  host({ chosen, command: 'tar', args: [ '--create', '--gzip', '--file', tarball, '--exclude=target', '--exclude=node_modules', '--directory', context, '.' ], log: 'host-package.log', });
-  host({ chosen, command: 'mvm', args: [ '--backend', 'libvirt', 'push', chosen.name, tarball, '/root/subject.tar.gz' ], log: 'guest-push.log', });
+/**
+ Push a snapshot of this worktree and build this crate's binaries and tests inside the guest.
+
+ @param chosen - the run's options
+
+ @throws Error naming the step that refused
+ */
+async function build(chosen: GuestRouteOptions,): Promise<void> {
+  /**
+   Where the snapshot of this worktree is unpacked before it is pushed.
+   */
+  const context = join(
+    chosen.logDir,
+    'snapshot',
+  );
+  await rm(
+    context,
+    {
+      recursive: true,
+      force: true,
+    },
+  );
+  await mkdir(
+    context,
+    {
+      recursive: true,
+      mode: FOLDER_MODE,
+    },
+  );
+  await copyWrapperSnapshot({ context, },);
+  /**
+   The archive the guest unpacks, which nothing this run builds stays in.
+   */
+  const tarball = join(
+    chosen.logDir,
+    'subject.tar.gz',
+  );
+  await runHostCommand({
+    logDir: chosen.logDir,
+    command: 'tar',
+    args: [
+      '--create',
+      '--gzip',
+      '--file',
+      tarball,
+      '--exclude=target',
+      '--exclude=node_modules',
+      '--directory',
+      context,
+      '.',
+    ],
+    log: 'host-package.log',
+  },);
+  await runHostCommand({
+    logDir: chosen.logDir,
+    command: 'mvm',
+    args: [
+      '--backend',
+      'libvirt',
+      'push',
+      chosen.name,
+      tarball,
+      '/root/subject.tar.gz',
+    ],
+    log: 'guest-push.log',
+  },);
+  /**
+   The guest's own script: unpack the archive and build the executable, the binary tests and the library tests.
+   */
   const script = [
     'set -eu',
     'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
@@ -192,12 +256,28 @@ async function build(chosen: Options): Promise<void> {
     'cargo build --release --locked --features test-only-switches --test native_binary >> /root/doctor-route-build.log 2>&1',
     'cargo test --locked --features test-only-switches --lib --no-run >> /root/doctor-route-build.log 2>&1',
     'tail --lines=3 /root/doctor-route-build.log',
-  ].join('\n');
-  guest({ chosen, script, log: 'guest-crate-build.log', timeout: CRATE_BUILD_TIMEOUT_MS, });
+  ]
+    .join('\n',);
+  await runGuestScript({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    script,
+    log: 'guest-crate-build.log',
+    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
+  },);
 }
 
-/** Run the arm and refuse unless every claim it prints was printed. */
-function arm(chosen: Options): void {
+/**
+ Run the arm and refuse unless every claim it prints was printed.
+
+ @param chosen - the run's options
+
+ @throws Error naming the skip the arm printed, or the claims it did not print
+ */
+async function arm(chosen: GuestRouteOptions,): Promise<void> {
+  /**
+   The guest's own script: both arms, each with its log on the guest's standard output.
+   */
   const script = [
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
@@ -209,74 +289,146 @@ function arm(chosen: Options): void {
     `export ${REMOVAL_POOL_VARIABLE}=${REMOVAL_POOL}`,
     `export ${REMOVAL_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${REMOVAL_ROOT_VARIABLE}=${REMOVAL_ROOT}`,
-    'if /root/.cargo/bin/cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all ' +
-      '--filterset "test(zfs_doctor_route_guest)" > /root/doctor-route-arm.log 2>&1; then status=0; else status=$?; fi',
+    'if /root/.cargo/bin/cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all --filterset "test(zfs_doctor_route_guest)" > /root/doctor-route-arm.log 2>&1; then status=0; else status=$?; fi',
     'cat /root/doctor-route-arm.log',
-    'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_removal_lines_guest ' +
-      '> /root/doctor-removal-arm.log 2>&1; then removal=0; else removal=$?; fi',
+    'if /root/.cargo/bin/cargo test --locked --lib --no-fail-fast -- --nocapture zfs_doctor_removal_lines_guest > /root/doctor-removal-arm.log 2>&1; then removal=0; else removal=$?; fi',
     'cat /root/doctor-removal-arm.log',
     'if test $status -ne 0; then exit $status; fi',
     'exit $removal',
-  ].join('\n');
-  const pulled = guest({ chosen, script, log: 'guest-arm.log', timeout: ARM_TIMEOUT_MS, });
-  if (/(^|\n)SKIP/m.test(pulled))
-    throw new Error('the arm printed SKIP inside the guest: its variables did not reach it');
-  const missing: string[] = GREEN_MARKERS.filter((marker) => { return !pulled.includes(marker); });
+  ]
+    .join('\n',);
+  /**
+   Everything the arm printed, read back from the guest's log.
+   */
+  const pulled = await runGuestScript({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    script,
+    log: 'guest-arm.log',
+    timeoutMilliseconds: ARM_TIMEOUT_MS,
+  },);
+  if (hasLineStartingWith({
+    text: pulled,
+    prefix: 'SKIP',
+  },))
+    throw new Error('the arm printed SKIP inside the guest: its variables did not reach it',);
+  /**
+   The claims the arm did not print.
+   */
+  const missing = missingMarkers({
+    text: pulled,
+    markers: GREEN_MARKERS,
+  },);
   if (missing.length > 0)
-    throw new Error(`the arm did not print: ${missing.join(', ')}`);
-  process.stdout.write(`doctor route arm passed ${String(GREEN_MARKERS.length)} claim(s)\n`);
+    throw new Error(`the arm did not print: ${missing
+      .join(', ',)}`,);
+  process.stdout
+    .write(`doctor route arm passed ${String(GREEN_MARKERS.length)} claim(s)\n`,);
 }
 
-/** Destroy the guest this driver made. */
-function destroy(chosen: Options): void {
+/**
+ Destroy the guest this driver made, unless the run asked to keep it.
+
+ @param chosen - the run's options
+ */
+async function destroy(chosen: GuestRouteOptions,): Promise<void> {
   if (chosen.keepGuest) {
-    process.stdout.write(`kept ${chosen.name}\n`);
+    process.stdout
+      .write(`kept ${chosen.name}\n`,);
     return;
   }
-  recipe({ chosen, step: 'destroy', });
+  await runRecipeStep({
+    logDir: chosen.logDir,
+    name: chosen.name,
+    step: 'destroy',
+  },);
+}
+
+/**
+ The guest this run made, destroyed however the run ends.
+
+ The step's own `finally` destroyed the guest after the build and the arm; a disposable does the same and leaves the
+ run one shape, whether the arm passed, threw, or was never reached.
+
+ @param chosen - the run's options
+
+ @returns the guest, whose disposal destroys it unless the run keeps it
+
+ @example
+ ```ts
+ await using guest = madeGuest(chosen);
+ ```
+ */
+function madeGuest(chosen: GuestRouteOptions,): { readonly [Symbol.asyncDispose]: () => Promise<void>; } {
+  return {
+    async [Symbol.asyncDispose](): Promise<void> {
+      await destroy(chosen,);
+    },
+  };
+}
+
+/**
+ Create, prepare, build, arm and destroy, in that order.
+
+ @param chosen - the run's options
+
+ @throws Error naming the step or the claim that refused
+ */
+async function all(chosen: GuestRouteOptions,): Promise<void> {
+  await create(chosen,);
+  /**
+   The guest this run made, destroyed however this run ends.
+   */
+  await using guest = madeGuest(chosen,);
+  await prepare(chosen,);
+  await build(chosen,);
+  await arm(chosen,);
 }
 
 //endregion Steps
 
-async function main(): Promise<void> {
-  const chosen: Options = options();
-  mkdirSync(chosen.logDir, { recursive: true, mode: 0o700, });
-  switch (chosen.step) {
-    case 'create': {
-      create(chosen);
-      return;
-    }
-    case 'prepare': {
-      prepare(chosen);
-      return;
-    }
-    case 'build': {
-      await build(chosen);
-      return;
-    }
-    case 'arm': {
-      arm(chosen);
-      return;
-    }
-    case 'destroy': {
-      destroy(chosen);
-      return;
-    }
-    case 'all': {
-      create(chosen);
-      try {
-        prepare(chosen);
-        await build(chosen);
-        arm(chosen);
-      } finally {
-        destroy(chosen);
-      }
-      return;
-    }
-    default: {
-      throw new Error(`unknown step ${chosen.step}; give create, prepare, build, arm, destroy or all`);
-    }
-  }
-}
+//region The run
 
-await main();
+/**
+ The steps this driver knows, and nothing else.
+ */
+const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
+  create,
+  prepare,
+  build,
+  arm,
+  destroy,
+  all,
+};
+
+/**
+ The step and the values the command line gave this run.
+ */
+const chosen = guestRouteOptions({
+  argv: process.argv,
+  defaultName: 'git-policy-doctor-route',
+  defaultLogDir: resolve(
+    import.meta.dirname,
+    '..',
+    'target',
+    'doctor-route-guest-logs',
+  ),
+},);
+await mkdir(
+  chosen.logDir,
+  {
+    recursive: true,
+    mode: FOLDER_MODE,
+  },
+);
+
+/**
+ The step the command line names.
+ */
+const step = steps[chosen.step];
+
+if (step === undefined)
+  throw new Error(`unknown step ${chosen.step}; give create, prepare, build, arm, destroy or all`,);
+await step(chosen,);
+
+//endregion The run
