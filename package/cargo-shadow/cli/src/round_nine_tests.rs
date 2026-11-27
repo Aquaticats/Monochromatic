@@ -1486,7 +1486,8 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
     };
     assert!(
         messages.iter().any(|message| {
-            return message.contains(failing) && message.contains("could not recover a killed run");
+            return message.contains(failing)
+                && message.contains("could not recover the journal of an earlier run");
         }),
         "the failed root was not reported: {messages:?}"
     );
@@ -1971,7 +1972,7 @@ fn a_restore_that_fails_after_the_exchange_keeps_the_edited_manifest_and_the_jou
     assert!(
         messages.iter().any(|message| {
             return message.contains(CRATE_DIR)
-                && message.contains("could not recover a killed run");
+                && message.contains("could not recover the journal of an earlier run");
         }),
         "the failed root was not reported: {messages:?}"
     );

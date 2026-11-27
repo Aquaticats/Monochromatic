@@ -736,7 +736,7 @@ fn a_run_killed_after_cargo_wrote_is_finished_by_the_next_install() {
     );
     assert!(
         report.warnings.iter().any(|warning| {
-            return warning.contains("killed");
+            return warning.contains("did not finish");
         }),
         "{:?}",
         report.warnings
