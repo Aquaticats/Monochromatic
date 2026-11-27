@@ -160,7 +160,7 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[allow(clippy::disallowed_methods)]",
     ),
     (
-        "worktree_clone_unmount/staged_folder_record.rs",
+        "worktree_clone_unmount/staged_folder_record_text.rs",
         "#[allow(clippy::disallowed_methods)]",
     ),
     (

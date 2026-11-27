@@ -37,8 +37,11 @@
 //! - `staging_folder_name.rs`:
 //!   the folder,
 //!   record and claim names one GUID derives.
+//! - `staged_folder_record_text.rs`:
+//!   the record's fields and the one JSON object it is written as,
+//!   with the parse of that text.
 //! - `staged_folder_record.rs`:
-//!   the record's shape,
+//!   the names the record is written under,
 //!   its atomic write and its bounded read.
 //! - `staging_call_words.rs`:
 //!   the call names a receipt carries and one refusal's words.
@@ -109,6 +112,9 @@ pub mod staged_folder_identity;
 
 /// The record beside a staging folder and its write and read.
 pub mod staged_folder_record;
+
+/// The record's fields and the text it is written as.
+pub mod staged_folder_record_text;
 
 /// The `user-cache` pin,
 /// the account's home and the cache descriptor.
