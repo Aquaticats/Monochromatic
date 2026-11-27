@@ -20,10 +20,13 @@
 /// One file call of a removal handed to the blocking pool,
 ///  so a disk that makes it wait holds no worker of the runtime.
 use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::index_lock_holders::scan_platform_holders_bounded;
 /// Every process this platform can read,
 ///  as one scan of the file's holders found them.
-use crate::index_lock_holders::HolderEvidence;
-use crate::index_lock_holders::scan_platform_holders_bounded;
+use crate::index_lock_holders::{
+    Holder,
+    HolderEvidence,
+};
 /// The scan's reason for a process another account owns,
 ///  which a platform without leases acts through.
 #[cfg(not(target_os = "linux"))]
@@ -349,15 +352,19 @@ pub(crate) async fn are_the_file_form_of_awaiting(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CopyRemoval = 'proven' | 'held-open' | 'changed';
+/// type CopyRemoval = 'proven' | 'held-by' | 'unproven' | 'changed';
 /// ```
 pub(crate) enum CopyRemoval {
     /// Nothing can write into the copy and the file at its path still holds the bytes that were compared,
     /// with the proof held until the copy's name goes.
     Proven(ProofNothingCanWrite),
-    /// A program this command can read still holds the copy open,
-    /// or nothing could prove that none does.
-    HeldOpen,
+    /// The programs a scan of the process table found holding the copy open,
+    /// each with the process number and command it was read by.
+    HeldBy(Vec<Holder>),
+    /// No program the scan could read holds the copy open,
+    /// and no lease on it could be taken,
+    /// so nothing proves that none can write into it.
+    Unproven,
     /// The copy or the file at its path is no longer the entry the comparison read.
     Changed,
 }
@@ -422,7 +429,7 @@ pub(crate) async fn may_remove_the_copy_awaiting(
     };
     let scanned: HolderEvidence = scan_platform_holders_bounded(aside, taken.device, taken.inode);
     if !scanned.holders.is_empty() {
-        return CopyRemoval::HeldOpen;
+        return CopyRemoval::HeldBy(scanned.holders);
     }
     // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("copy-scanned");
@@ -436,7 +443,7 @@ pub(crate) async fn may_remove_the_copy_awaiting(
     let proof = match asked {
         Ok(Some(proof)) => proof,
         // A proof the pool never took, and a file system that offers no lease, both keep the copy where it is.
-        Ok(None) | Err(_) => return CopyRemoval::HeldOpen,
+        Ok(None) | Err(_) => return CopyRemoval::Unproven,
     };
     // The two identities are looks at user's files, so one job of the blocking pool makes both.
     let (copy_at, path_at): (PathBuf, PathBuf) = (aside.to_path_buf(), the_file.to_path_buf());
