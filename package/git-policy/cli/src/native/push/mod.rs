@@ -272,6 +272,9 @@
 //!   or stops when the run shows no work,
 //!   floods its output or the service is stopped,
 //!   with the cap it is judged by and the words a wait adds.
+//! - `auto_push_reconcile_merge_commit_answer_ceilings.rs`:
+//!   the largest answer one command of the second pass may print,
+//!   and the ceiling each command is bounded by.
 //! - `auto_push_reconcile_merge_commit.rs`:
 //!   the merge commit of a reconcile,
 //!   built in the object store without a worktree or an index.
@@ -513,6 +516,10 @@ pub mod auto_push_reconcile_awaiting;
 /// the attempt limit,
 /// the stale-rejection test and the small Git queries.
 pub mod auto_push_reconcile_basics_and_limits;
+
+/// The largest answer one command of the second pass may print,
+/// and the ceiling each command is bounded by.
+pub mod auto_push_reconcile_merge_commit_answer_ceilings;
 
 /// The merge commit of a reconcile,
 /// built in the object store without a worktree or an index.
