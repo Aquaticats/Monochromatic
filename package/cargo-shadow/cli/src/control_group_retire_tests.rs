@@ -1050,17 +1050,17 @@ fn a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away() {
         answered.is_none(),
         "a directory that is there was read as a group that went away, and its unit would be left loaded in silence"
     );
-    let answered: Option<Emptiness> = group_gone_at_the_peak(&gone, &no_entry);
+    let absent_answer: Option<Emptiness> = group_gone_at_the_peak(&gone, &no_entry);
     assert!(
-        matches!(answered, Some(Emptiness::Collected)),
-        "a group whose directory went away was not read as collected: {answered:?}"
+        matches!(absent_answer, Some(Emptiness::Collected)),
+        "a group whose directory went away was not read as collected: {absent_answer:?}"
     );
     // A failure that says nothing about the group's directory is a group that may still have a member, so it is not an absence.
     let refused: io::Error = io::Error::from_raw_os_error(rustix::io::Errno::PERM.raw_os_error());
-    let answered: Option<Emptiness> = group_gone_at_the_peak(&gone, &refused);
+    let refused_answer: Option<Emptiness> = group_gone_at_the_peak(&gone, &refused);
     assert!(
-        answered.is_none(),
-        "a read failure that is not an absence was read as a collected group: {answered:?}"
+        refused_answer.is_none(),
+        "a read failure that is not an absence was read as a collected group: {refused_answer:?}"
     );
 }
 

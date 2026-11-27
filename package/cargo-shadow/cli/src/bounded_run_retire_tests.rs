@@ -563,13 +563,13 @@ fn failing_systemctl(directory: &Path) -> PathBuf {
 #[test]
 #[ignore = "the helper process of a_run_whose_retire_is_refused_prints_the_warning_on_its_own_standard_error"]
 fn retire_warning_fixture() {
-    let (Ok(scenario), Ok(directory)) = (
+    let (Ok(scenario), Ok(scratch)) = (
         std::env::var(WARNING_SCENARIO),
         std::env::var(WARNING_DIRECTORY),
     ) else {
         return;
     };
-    let directory: PathBuf = PathBuf::from(directory);
+    let directory: PathBuf = PathBuf::from(scratch);
     let program: PathBuf = failing_systemctl(&directory);
     let settings: RouteSettings = RouteSettings {
         systemctl: program.display().to_string(),
@@ -582,7 +582,7 @@ fn retire_warning_fixture() {
         // retirement reads it.
         arm(Point::ContainmentStopError);
         output_within(
-            &mut Command::new("sh").args(["-c", "sleep 30 &"]),
+            Command::new("sh").args(["-c", "sleep 30 &"]),
             None,
             &bound(RUN_BOUND),
         )
