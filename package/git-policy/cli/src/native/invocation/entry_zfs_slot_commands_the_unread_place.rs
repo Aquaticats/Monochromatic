@@ -16,13 +16,15 @@
 //! const ending = unplacedRefusalOf(command, printedSoFar); // undefined leaves it to Git
 //! ```
 
-/// The ending a refusal is, and the one sentence builder the slot glue prints refusals through.
-use super::{
+use crate::action::Action;
+/// The ending a refusal is,
+/// and the one sentence builder the slot glue prints refusals through.
+use crate::entry_zfs_slot_commands::{
     refusal_action,
     worktree_subcommand,
 };
-use crate::action::Action;
-/// The command Git will run, after alias expansion.
+/// The command Git will run,
+/// after alias expansion.
 use crate::forwarded_command::ResolvedCommand;
 
 /// What:

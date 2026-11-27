@@ -587,11 +587,6 @@ pub fn the_slot_endings(
     return before_a_prune(command, Some(common_dir), stderr);
 }
 
-/// The refusal of a slot command the wrapper read and could not place,
-///  in a file of its own so the slot glue stays under the linter's line limit.
-#[path = "entry_zfs_slot_commands_the_unread_place.rs"]
-pub mod the_unread_place;
-
 /// Controls stay out of the release executable.
 #[cfg(test)]
 #[path = "entry_zfs_slot_commands_tests.rs"]
