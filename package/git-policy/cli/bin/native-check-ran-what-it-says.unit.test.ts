@@ -281,6 +281,55 @@ await describe({
       },
     }),
     it({
+      name: 'finds a package below the folder the checks ran in, or above it',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ran-what-', });
+        await writePackageFixture({
+          checkout: scratch.path,
+          packagePath: 'package/a',
+        });
+        /**
+         What the check earns when `mise` gave it the package's own folder as its working directory.
+         */
+        const ran = await ranWhatItSaysOf({
+          task: '//package/a:test:unit',
+          output: outputOf({
+            lines: [
+              suiteLine({ name: 'first', }),
+              suiteLine({ name: 'second', }),
+            ],
+          }),
+          worktree: join(
+            scratch.path,
+            'package/a'
+          ),
+        });
+        expect(ran.refused,).toBe(false,);
+        expect(ran.lines,).toEqual(['//package/a:test:unit: 2 unit test files, and 2 suites reported [PASS]',],);
+      },
+    }),
+    it({
+      name: 'refuses a unit test run whose package no folder holds',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ran-what-', });
+        /**
+         What a check earns when the task names a path no folder at or above the run's own holds.
+         */
+        const ran = await ranWhatItSaysOf({
+          task: '//package/absent:test:unit',
+          output: outputOf({ lines: [suiteLine({ name: 'a', }),], }),
+          worktree: scratch.path,
+        });
+        expect(ran.refused,).toBe(true,);
+        /**
+         The refusal's words.
+         */
+        const refusal = ran.lines.join('\n',);
+        expect(refusal,).toContain('no folder at or above',);
+        expect(refusal,).toContain('package/absent',);
+      },
+    }),
+    it({
       name: 'counts the suites of a test:unit task that names no package, and derives no file count',
       fn: async () => {
         /**

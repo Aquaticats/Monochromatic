@@ -15,12 +15,21 @@
 
  The count of unit test files a package holds is the harness's own discovery (`mise.toml`,
  `[task_templates."test:unit"]`): `**\/*.unit.test.ts` below the package, never a file under `node_modules`, and never a
- `*.expensive.*` file, which a run counts only when it is given `--all`.
+ `*.expensive.*` file, which a run counts only when it is given `--all`. That count is read below the folder the task's
+ path names, which is looked for in the folder the checks ran in and every folder above it, because mise gives a package's
+ own task the package's folder as its working directory (`bin/native-ts-checks.ts` takes that folder by default).
  */
 import { glob, } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 
 import { countedText, } from './native-check-scope-bound-lines.ts';
+import {
+  type PathKind,
+  pathKindOf,
+} from './native-gate-paths.ts';
 
 /**
  The files a run of a package's unit tests must report on, which is the pattern the harness discovers with.
@@ -114,6 +123,20 @@ type TypeCheckRan = {
 };
 
 /**
+ A `test:unit` task whose path no folder at or above the folder the checks ran in holds.
+ */
+type PackageNotFoundRan = {
+  /**
+   Marks a unit test run whose package could not be found.
+   */
+  readonly kind: 'packageNotFound';
+  /**
+   The path the task named, which no folder held.
+   */
+  readonly path: string;
+};
+
+/**
  A check whose status alone is all its output can say.
  */
 type UnstatedRan = {
@@ -129,7 +152,12 @@ type UnstatedRan = {
  The task names the package whose files it runs, so the count a unit test run is held against belongs to that package and
  never to a number written down here.
  */
-type RanExpectation = PackageUnitTestsRan | UnitTestsOfNoPackageRan | TypeCheckRan | UnstatedRan;
+type RanExpectation =
+  | PackageUnitTestsRan
+    | UnitTestsOfNoPackageRan
+    | PackageNotFoundRan
+    | TypeCheckRan
+    | UnstatedRan;
 
 /**
  One task name's path and task name, split where mise writes the colon.
@@ -178,26 +206,102 @@ function taskPartsOf({ task }: { readonly task: string; }): {
 }
 
 /**
- What a check's output has to say, read from the task's name and the checkout the check runs in.
+ The folder a task's path names, looked for in the folder the checks ran in and every folder above it.
+
+ `mise` gives a package's own task the package's folder as its working directory, so the folder the checks ran in is often
+ the package itself and the task's path is only found above it; a run started at a checkout's root finds it there. The
+ nearest folder wins, so a checkout inside another one is never read through the outer one.
+
+ @param path - the path the task named inside a checkout
+
+ @param from - the folder the checks ran in
+
+ @returns the root the path was found below, or that no folder from there up to the filesystem's root holds it
+
+ @example
+ ```ts
+ await folderHoldingPath({ path: 'package/a', from: '/repo/package/a' });
+ ```
+ */
+async function folderHoldingPath({
+  path,
+  from,
+}: {
+  readonly path: string;
+  readonly from: string;
+},): Promise<{
+  readonly kind: 'found';
+  readonly root: string;
+} | {
+  readonly kind: 'missing';
+}> {
+  /**
+   The folder the search starts at and every folder above it, up to the filesystem's root.
+   */
+  const folders: string[] = [];
+  for (let folder = resolve(from,); ;) {
+    folders.push(folder,);
+    /**
+     The folder above this one, which is this one at the root of the filesystem.
+     */
+    const above = resolve(
+      folder,
+      '..',
+    );
+    if (above === folder)
+      break;
+    folder = above;
+  }
+  /**
+   What each folder holds under the task's path.
+   */
+  const looked = await Promise.all(folders.map(async function kindUnder(folder): Promise<{
+    readonly folder: string;
+    readonly kind: PathKind;
+  }> {
+    return {
+      folder,
+      kind: await pathKindOf({ path: join(
+        folder,
+        path
+      ), }),
+    };
+  },));
+  /**
+   The nearest folder that holds the path the task named.
+   */
+  const found = looked.find(function isFolder(candidate) {
+    return candidate.kind === 'folder';
+  },);
+  if (found === undefined)
+    return { kind: 'missing', };
+  return {
+    kind: 'found',
+    root: found.folder,
+  };
+}
+
+/**
+ What a check's output has to say, read from the task's name and the folder the checks ran in.
 
  @param task - the check, as the command line named it
 
- @param worktree - the checkout the check runs in
+ @param worktree - the folder the checks ran in
 
  @returns what the check's output has to say
 
  @example
  ```ts
- expectationOfTask({ task: '//package/a:test:unit', worktree: '/repo' });
+ await expectationOfTask({ task: '//package/a:test:unit', worktree: '/repo' });
  ```
  */
-function expectationOfTask({
+async function expectationOfTask({
   task,
   worktree,
 }: {
   readonly task: string;
   readonly worktree: string;
-},): RanExpectation {
+},): Promise<RanExpectation> {
   /**
    The task's own path and name.
    */
@@ -208,10 +312,22 @@ function expectationOfTask({
     return { kind: 'unstated', };
   if (parts.path === '')
     return { kind: 'unitTestsOfNoPackage', };
+  /**
+   Where the task's path was found.
+   */
+  const found = await folderHoldingPath({
+    path: parts.path,
+    from: worktree,
+  },);
+  if (found.kind === 'missing')
+    return {
+      kind: 'packageNotFound',
+      path: parts.path,
+    };
   return {
     kind: 'packageUnitTests',
     packageDirectory: join(
-      worktree,
+      found.root,
       parts.path,
     ),
   };
@@ -496,7 +612,7 @@ export async function ranWhatItSaysOf({
   /**
    What this check's output has to say, read from the task's own name.
    */
-  const expectation = expectationOfTask({
+  const expectation = await expectationOfTask({
     task,
     worktree,
   },);
@@ -514,6 +630,13 @@ export async function ranWhatItSaysOf({
     return unitTestsOfNoPackageLines({
       task,
       output,
+    },);
+  if (expectation.kind === 'packageNotFound')
+    return refusalOf({
+      lines: [
+        `${task}: exit 0, but no folder at or above ${worktree} holds the path ${expectation.path} the task names`,
+        `${task}: this run does not count as passed`,
+      ],
     },);
   return await packageUnitTestLines({
     task,
