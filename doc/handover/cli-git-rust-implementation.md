@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T12:54:57-05:00
+## The state at 2026-11-27T12:57:41-05:00
 
-`main` was `6e6fc27b00`.
+`main` was `3c88496446`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 238 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 239 more by this time.
 
 ### Rounds running
 
@@ -141,10 +141,6 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   has no round:
   it changes a driver this round moves,
   so it starts when this round has merged;
-- `issue-6617-a-typescript-check-prints-the-commit-it-ran-on`,
-  started 2026-11-27T12:44:52-05:00
-  (`native:ts-checks` prints no commit when started inside the package folder,
-  because the wrapper refuses its `git -C <folder>` away from the checkout's root);
 - nothing in the linter:
   `0.5.2-alpha.20` is released,
   locked (`94b2e0d22e`) and installed ("Releases of 2026-11-27"),
@@ -1118,6 +1114,16 @@ and the two `truepeak` files wait on their branch.
   A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
+- `native:ts-checks` prints the commit it ran on (`3c88496446`,
+  issue 6617):
+  it asked `git -C <the package folder>`,
+  which the wrapper refuses away from a checkout's root,
+  and kept the empty answer in silence;
+  it now asks from the checkout's root and says why when the commit cannot be read.
+  No other `git -C` in the package's `bin/` is refused in silence:
+  each names a checkout's root,
+  or runs `/usr/bin/git`,
+  or throws with the refusal's words.
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.
