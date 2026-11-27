@@ -22,6 +22,7 @@ import {
   type ContainerLimitFlag,
   type ContainerLimits,
   defaultContainerLimits,
+  runLimitArguments,
 } from './container-limits.ts';
 
 
@@ -60,6 +61,26 @@ export const gateContainerCpus = 4;
  196 s compile held at the cap.
  */
 export const gateBuildMemory = '8g';
+
+/**
+ Memory the gate's Clippy container may use: 8 GiB.
+
+ Not the repository default, which is the suite's bound. Clippy compiles every target of the crate, the test build
+ included, in one `cargo clippy --all-targets` run at the gate's four compile jobs, and on 2026-11-27 a gate that had
+ passed every test of the suite refused because Clippy was killed at the 2 GiB it shared with that suite (issue 6562).
+ Measured the same day in the gate's own image and settings, with a bound no step of the run met: the Clippy container's
+ own cgroup peaked at 4,574.4 MiB (`memory.peak`, `memory.events` `max` 0, `oom_kill` 0), up to 647.1 MiB of that charge
+ in swap, so at most 5,221.5 MiB of pages, while the suite's container peaked at 1,149.3 MiB of the same bound
+ (`doc/planning/git-policy-cli-cachyos-test-containers.md`, "The Clippy container's own memory bound, measured
+ 2026-11-27"). 8 GiB is 8,192 MiB, 1.79 times that peak and 2,970 MiB above the peak with all of its swap, so a source
+ change that adds work still fits.
+
+ A container held at its cap is not a smaller container but a stalled one, and a compile held there is killed outright:
+ the same crate's test build died with `SIGKILL` under 2 GiB where 4 GiB let it finish (the comment on issue 6455 of
+ 2026-11-24). `--memory <size>` after the task name still bounds this container, so a host that cannot spare the bound
+ lowers it.
+ */
+export const gateClippyMemory = '8g';
 
 /**
  Processes one test thread of the suite was measured to need, which sizes the process bound for any thread count.
@@ -141,6 +162,11 @@ export type GateLimits = {
    */
   readonly limits: ContainerLimits;
   /**
+   The limits Clippy's container runs under: {@link limits} with Clippy's own memory bound, or the memory the person
+   gave, which bounds Clippy as it bounds every other container.
+   */
+  readonly clippyLimits: ContainerLimits;
+  /**
    The bound the gate's image build runs under: {@link limits} with the build's own memory default, or the memory the
    person gave, which bounds the build as it bounds every other container.
    */
@@ -154,30 +180,34 @@ export type GateLimits = {
 /**
  The line a gate prints to name which memory bound each of its containers runs under.
 
- The build's bound and the suite's differ unless the person passed `--memory`, and a log that names both is what lets a
- reader tell a build held at its cap from a suite that had room.
+ The build's bound, the suite's and Clippy's differ unless the person passed `--memory`, and a log that names all three
+ is what lets a reader tell a build, a suite or a Clippy compile held at its cap from one that had room.
 
- @param limits - the limits the suite's and Clippy's containers run under
+ @param limits - the limits the suite's container runs under
+
+ @param clippyLimits - the limits Clippy's container runs under
 
  @param buildLimits - the limits the image build runs under
 
- @returns one line, ending in a period
+ @returns one line, ending in a sentence
 
  @example
  ```ts
- console.log(buildMemoryLine({ limits: gateContainerLimits, buildLimits }));
+ console.log(buildMemoryLine({ limits: gateContainerLimits, clippyLimits, buildLimits }));
  ```
  */
 export function buildMemoryLine({
   limits,
+  clippyLimits,
   buildLimits,
 }: {
   readonly limits: ContainerLimits;
+  readonly clippyLimits: ContainerLimits;
   readonly buildLimits: ContainerLimits;
 },): string {
-  if (buildLimits.memory === limits.memory)
-    return `The image build and the suite's containers are bounded at ${limits.memory}, the memory this gate was given.`;
-  return `The image build is bounded at ${buildLimits.memory}, its own measured bound; the suite's and Clippy's containers at ${limits.memory}. A --memory after the task name bounds both.`;
+  if ((buildLimits.memory === limits.memory) && (clippyLimits.memory === limits.memory))
+    return `The image build, the suite's container and Clippy's are bounded at ${limits.memory}, the memory this gate was given.`;
+  return `The image build is bounded at ${buildLimits.memory}, its own measured bound; the suite's container at ${limits.memory}; Clippy's at ${clippyLimits.memory}, its own measured bound. A --memory after the task name bounds all three.`;
 }
 
 /**
@@ -189,19 +219,20 @@ export function buildMemoryLine({
  included, is kept.
 
  The image build compiles the crate rather than running it, so it gets {@link gateBuildMemory} instead of the repository's
- 2 GiB. A `--memory` the person gave still bounds it, because the person asking every container of the gate for a smaller
- bound means the build too; `givenFlags` is what tells a person's own `--memory 2g` from the repository default they never
- named.
+ 2 GiB. Clippy compiles the crate's test targets, so it gets {@link gateClippyMemory}. A `--memory` the person gave still
+ bounds both, because the person asking every container of the gate for a smaller bound means the build and Clippy too;
+ `givenFlags` is what tells a person's own `--memory 2g` from the repository default they never named.
 
  @param given - the limits the parser read from the gate's own options and the person's
 
  @param givenFlags - the limit options the parser read, so a memory the person named is told from the default
 
- @returns the limits to run with, the bound to build with, and the line to print when the process bound was raised
+ @returns the limits to run with, Clippy's limits, the bound to build with, and the line to print when the process bound
+   was raised
 
  @example
  ```ts
- const { limits, buildLimits, raised } = gateLimitsFrom({
+ const { limits, clippyLimits, buildLimits, raised } = gateLimitsFrom({
    given: { memory: '2g', cpus: 4, pidsLimit: 512 },
    givenFlags: [],
  });
@@ -229,6 +260,10 @@ export function gateLimitsFrom({
     };
   return {
     limits,
+    clippyLimits: {
+      ...limits,
+      memory: givenFlags.includes('--memory',) ? given.memory : gateClippyMemory,
+    },
     buildLimits: {
       ...limits,
       memory: givenFlags.includes('--memory',) ? given.memory : gateBuildMemory,
@@ -236,6 +271,57 @@ export function gateLimitsFrom({
     ...(given.pidsLimit >= needed
       ? {}
       : { raised: `The gate runs ${String(given.cpus)} test threads at once, which need ${String(needed)} processes, so its containers get that: this gate's process bound follows its test-thread count, and the --pids-limit it was given was ${String(given.pidsLimit)}.` }),
+  };
+}
+
+/**
+ Both gate containers' complete `podman run` bounds: the flags they share, then each container's own memory, CPUs,
+ processes and disk weight.
+
+ The two containers do not share a memory bound: the suite keeps the one its own measurement supports, and Clippy gets
+ {@link gateClippyMemory}, because Clippy compiles the crate's test targets and the suite runs them. Everything else is
+ the same for both, and both arrays come from here so neither container can be started with the other's memory bound.
+
+ @param shared - the flags both containers take before their own bounds, such as `--rm`, `--init` and `--network=none`
+
+ @param limits - the limits the suite's container runs under
+
+ @param clippyLimits - the limits Clippy's container runs under
+
+ @returns one complete argument array per container, in the order its role names them
+
+ @example
+ ```ts
+ const bounds = gateContainerBounds({ shared: ['--rm'], limits: gateContainerLimits, clippyLimits });
+ ```
+ */
+export function gateContainerBounds({
+  shared,
+  limits,
+  clippyLimits,
+}: {
+  readonly shared: readonly string[];
+  readonly limits: ContainerLimits;
+  readonly clippyLimits: ContainerLimits;
+},): {
+  readonly suite: readonly string[];
+  readonly clippy: readonly string[];
+} {
+  return {
+    suite: [
+      ...shared,
+      ...runLimitArguments({
+        limits,
+        withPidsLimit: true,
+      }),
+    ],
+    clippy: [
+      ...shared,
+      ...runLimitArguments({
+        limits: clippyLimits,
+        withPidsLimit: true,
+      }),
+    ],
   };
 }
 

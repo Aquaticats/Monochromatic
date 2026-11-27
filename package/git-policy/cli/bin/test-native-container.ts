@@ -17,7 +17,6 @@ import {
   buildLimitArguments,
   parallelJobs,
   parseContainerLimitOptions,
-  runLimitArguments,
 } from './container-limits.ts';
 import {
   gateImageTagOf,
@@ -31,6 +30,7 @@ import { gateRunContainersOf, } from './native-gate-run-containers.ts';
 import { gateRunManifestOf, } from './native-gate-run-manifest.ts';
 import {
   buildMemoryLine,
+  gateContainerBounds,
   gateContainerLimitOptions,
   gateLimitsFrom,
 } from './native-gate-container-limits.ts';
@@ -40,6 +40,7 @@ import {
   gateFixtureRootMountOptions,
 } from './native-gate-fixture-root.ts';
 import { gatePassedRecord, } from './native-gate-proof.ts';
+import { removeReplacedImage, } from './native-gate-replaced-image.ts';
 import { syscallProfileForTheGateContainers, } from './native-gate-syscall-profile.ts';
 import {
   imageRootDirectory,
@@ -53,7 +54,6 @@ import {
 } from './native-sidecar-lock-check.ts';
 import {
   type ImageName,
-  imagesToRemove,
   localImageNames,
 } from './native-image-retention.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
@@ -67,8 +67,8 @@ import { wrapperCrates, } from './native-wrapper-snapshot.ts';
 
 // Resource limits default to the repository's test-container bounds, with the gate's own CPU count; `--memory`, `--cpus`
 // and `--pids-limit` after the `--` of the task override them, except that the process bound never goes below what the
-// test threads need, and the image build takes its own measured memory bound rather than the suite's
-// (bin/native-gate-container-limits.ts).
+// test threads need, the image build takes its own measured memory bound rather than the suite's, and Clippy takes one of
+// its own for the same reason (bin/native-gate-container-limits.ts).
 /**
  The limits the parser read, the arguments left over, which are a usage error, and which limit options it read.
  */
@@ -88,11 +88,12 @@ const {
 if (unknownOptions.length > 0)
   throw new NativeVerificationError(`Only --memory <size>, --cpus <count> and --pids-limit <count> are accepted, got ${unknownOptions.join(' ')}.`);
 /**
- The limits this gate's containers run under, with the process bound raised to what its test threads need, and the bound
- its image build runs under.
+ The limits this gate's containers run under, with the process bound raised to what its test threads need, Clippy's own
+ memory bound, and the bound its image build runs under.
  */
 const {
   limits: containerLimits,
+  clippyLimits,
   buildLimits,
   raised: raisedProcessBound,
 } = gateLimitsFrom({
@@ -105,6 +106,7 @@ if (raisedProcessBound !== undefined)
 // container of this gate has, which is what a log needs when a build or a suite meets its own cap.
 console.log(buildMemoryLine({
   limits: containerLimits,
+  clippyLimits,
   buildLimits,
 },),);
 
@@ -272,51 +274,28 @@ const inspected = await runCommand({
  */
 const image = inspected.stdout
   .trim();
-/**
- Images this build replaced, which is the one the tag carried before it while only the untagged marker names it
- now: an image another tag names, and one a container still runs, stay where they are.
- */
-const replacedImages: readonly string[] = imagesToRemove({
+await removeReplacedImage({
   before: namesBeforeBuild,
-  after: await localImageNames(),
   name: testImage,
 },);
 /**
- The image this build replaced, which is none when the build reused the image the tag carried or a name holds it.
+ Bounds both gate containers share: removed on exit, no network, and the syscall profile the sweep needs.
  */
-const [replacedImage] = replacedImages;
-if (replacedImage !== undefined) {
-  /**
-   Result of the removal, which podman refuses while a container still runs the image.
-   */
-  const removal = await runCommand({
-    command: 'podman',
-    args: [
-      'image',
-      'rm',
-      replacedImage,
-    ],
-    capture: true,
-    allowFailure: true,
-  });
-  console.log(removal.status === 0
-    ? `Removed the gate image this build replaced: ${replacedImage}`
-    : `Kept the gate image this build replaced: ${replacedImage} (${removal.stderr
-      .trim()})`,);
-}
-/**
- Bounds of every gate container: removed on exit, no network, and the memory, CPUs and processes of the container limits.
- */
-const limits = [
+const sharedLimits = [
   '--rm',
   '--init',
   '--network=none',
   ...syscallProfile.arguments,
-  ...runLimitArguments({
-    limits: containerLimits,
-    withPidsLimit: true,
-  }),
 ];
+/**
+ Each gate container's complete `podman run` bounds: the flags above and its own memory, CPUs, processes and disk weight,
+ which is the suite's repository default and Clippy's own measured bound.
+ */
+const bounds = gateContainerBounds({
+  shared: sharedLimits,
+  limits: containerLimits,
+  clippyLimits,
+});
 // The manifest is written before any container starts, and after the image exists because it carries the image's ID: a
 // gate that refuses during the build leaves only the log's run-id line, which names the run and what every one of its
 // containers would have been called.
@@ -334,7 +313,8 @@ const evidenceManifest = gateRunManifestOf({
     path: gateFixtureRoot,
     mount: gateFixtureRootMountOptions,
   },
-  limits,
+  limits: bounds.suite,
+  clippyLimits: bounds.clippy,
   run,
   user: '1000:1000',
 },);
@@ -371,7 +351,7 @@ await runGateChecks({
         .cidFile,
       identity: run.suite
         .identity,
-      limits,
+      limits: bounds.suite,
       deadlineMilliseconds,
       args: [
         ...fixtureRootArguments(),
@@ -388,7 +368,7 @@ await runGateChecks({
         .cidFile,
       identity: run.clippy
         .identity,
-      limits,
+      limits: bounds.clippy,
       deadlineMilliseconds,
       args: [
         '--security-opt',

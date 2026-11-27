@@ -97,6 +97,7 @@ await describe({
             mount: 'rw,size=768m,mode=1777',
           },
           limits: ['--rm',],
+          clippyLimits: ['--rm',],
           run,
           user: '1000:1000',
         },);
