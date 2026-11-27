@@ -1,7 +1,6 @@
 //! What:
 //! How a run is contained and stopped:
 //! the choice between a control group scope and a process group,
-//! the start of the child inside it,
 //! and the stop that shows nothing of the run is left.
 //! Why:
 //! Split out of `bounded_run.rs`,
@@ -9,10 +8,23 @@
 //! to keep that file under the code-line limit.
 //! The items are re-exported from `bounded_run`,
 //! so their paths there are unchanged.
+//! The start of the child inside the containment is `bounded_run_start.rs`.
 
-/// The bounds,
-/// the scope state,
-/// the error and the helpers of the bounded run that the containment uses.
+/// What:
+/// `use crate::bounded_run::{Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route};`
+/// imports the bounds of a run,
+/// its error and journal state,
+/// the flag that says the weaker notice was printed,
+/// the one record write and the route search.
+/// Why:
+/// Every wait here is bounded by one of those values,
+/// the stop writes the record that settles the run,
+/// and the containment is planned on the route the search finds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Bound, POLL_INTERVAL, QUIESCE_BOUND, READER_GRACE, REAP_BOUND, RunError, ScopeState, WEAKER_NOTICE_GIVEN, append_record, find_route } from 'crate/bounded_run';
+/// ```
 use crate::bounded_run::{
     Bound,
     POLL_INTERVAL,
@@ -23,82 +35,83 @@ use crate::bounded_run::{
     ScopeState,
     WEAKER_NOTICE_GIVEN,
     append_record,
-    append_record_with,
-    configure_stdio,
     find_route,
-    trace,
 };
-/// The trace text,
-/// the notice gate and the start hook that exist in a test build only.
+/// What:
+/// `use crate::bounded_run::{NOTICE_ENTERED, NOTICE_GATE, trace_text};` imports the flag and the gate that let a test hold the weaker notice,
+/// and the one way a test build turns a trace event into text.
+/// Why:
+/// They exist in a test build only,
+/// so this import is compiled for tests alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { NOTICE_ENTERED, NOTICE_GATE, trace_text } from 'crate/bounded_run';
+/// ```
 #[cfg(test)]
 use crate::bounded_run::{
     NOTICE_ENTERED,
     NOTICE_GATE,
-    START_HOOK,
     trace_text,
 };
-
-/// Imports `std::io` for this file.
-use std::io;
-
-/// Imports `std::os::fd::OwnedFd` for this file.
-use std::os::fd::OwnedFd;
-
-/// Imports `std::os::unix::process::CommandExt` for this file.
-use std::os::unix::process::CommandExt;
-
-/// Imports `std::path::{Path, PathBuf}` for this file.
-use std::path::{
-    Path,
-    PathBuf,
+/// What:
+/// `use crate::control_group::{ControlGroup, GroupUnavailable, Record, Route};` imports the scope itself,
+/// the reason a scope cannot be had,
+/// the journal record and the route a scope is planned on.
+/// Why:
+/// The choice of containment holds a scope and its route,
+/// the weaker path is chosen with the reason the scope was refused,
+/// and the stop records the end of the run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ControlGroup, GroupUnavailable, Record, Route } from 'crate/control_group';
+/// ```
+use crate::control_group::{
+    ControlGroup,
+    GroupUnavailable,
+    Record,
+    Route,
 };
-
-/// Imports `std::process::{Child, Command, ExitStatus, Output, Stdio}` for this file.
-use std::process::{
-    Child,
-    Command,
-    ExitStatus,
-};
-
-/// Imports `std::rc::Rc` for this file.
-use std::rc::Rc;
-
-/// Imports `std::sync::Arc` for this file.
-use std::sync::Arc;
-
-/// Imports `std::sync::atomic::{AtomicBool, Ordering}` for this file.
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
-};
-
-/// Imports `std::sync::mpsc::{Receiver, RecvTimeoutError}` for this file.
-use std::sync::mpsc::{
-    Receiver,
-    RecvTimeoutError,
-};
-
-/// Imports `std::thread` for this file.
-use std::thread;
-
-/// Imports `std::time::{Duration, Instant}` for this file.
-use std::time::{
-    Duration,
-    Instant,
-};
-
-/// Imports `rustix::event::{PollFd, PollFlags, Timespec, poll}` for this file.
+/// What:
+/// `use rustix::event::{PollFd, PollFlags, Timespec, poll};` imports the descriptor watcher and its timeout shape.
+/// Why:
+/// A pidfd wakes the wait when the child ends,
+/// instead of the wait sleeping for its whole interval.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Node exposes no poll(2); this is what fs.watch does internally
+/// ```
 use rustix::event::{
     PollFd,
     PollFlags,
     Timespec,
     poll,
 };
-
-/// Imports `rustix::io::Errno` for this file.
+/// What:
+/// `use rustix::io::Errno;` imports the operating-system error code type.
+/// Why:
+/// "No member of the group is left" is told from "some member is left" by the code of the signal test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // error.code === 'ESRCH'
+/// ```
 use rustix::io::Errno;
-
-/// Imports `rustix::process::{Pid, Signal, kill_process_group, test_kill_process_group}` for this file.
+/// What:
+/// `use rustix::process::{Pid, PidfdFlags, Signal, kill_process_group, pidfd_open, test_kill_process_group};` imports the process id type,
+/// the flag of a pidfd,
+/// the signal to send and the three calls that send it,
+/// test it and open the descriptor.
+/// Why:
+/// The weaker path kills and tests a whole process group,
+/// and the wait is woken by that group's leader ending.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // process.kill(-pid, 'SIGKILL') and process.kill(-pid, 0)
+/// ```
 use rustix::process::{
     Pid,
     PidfdFlags,
@@ -107,15 +120,121 @@ use rustix::process::{
     pidfd_open,
     test_kill_process_group,
 };
-
-/// Imports the control group pieces for this file.
-use crate::control_group::{
-    ControlGroup,
-    GroupUnavailable,
-    Record,
-    Route,
+/// What:
+/// `use std::io;` imports the standard library's input/output module so this file can name it unqualified.
+/// Why:
+/// A worker that could not report its output is an I/O failure of the run,
+/// and so is a child that cannot be reaped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // an I/O failure is an ordinary thrown Error in TS
+/// ```
+use std::io;
+/// What:
+/// `use std::os::fd::OwnedFd;` imports the owning descriptor type (its siblings are `BorrowedFd`,
+/// a view,
+/// and `RawFd`,
+/// the bare number).
+/// Why:
+/// The pidfd is closed when this value is dropped,
+/// so no path of the wait can leak it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Node closes a descriptor when its object is collected
+/// ```
+use std::os::fd::OwnedFd;
+/// What:
+/// `use std::process::{Child, ExitStatus};` imports the handle of a started child and the status it ends with.
+/// Why:
+/// Every stop and every wait here acts on the child the start answered,
+/// and the reap answers the status it exited with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ChildProcess } from 'node:child_process';   // exitCode is the status
+/// ```
+use std::process::{
+    Child,
+    ExitStatus,
+};
+/// What:
+/// `use std::rc::Rc;` imports the reference-counted pointer type (its sibling `Arc` is the one that is safe to share between threads).
+/// Why:
+/// The journal state is shared inside this one thread only,
+/// so the cheaper single-threaded count is enough.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // every object reference in TS is shared and counted by the garbage collector
+/// ```
+use std::rc::Rc;
+/// What:
+/// `use std::sync::Arc;` imports the atomically counted pointer type (its sibling `Rc` counts without atomics,
+/// for one thread only).
+/// Why:
+/// The cancel flag is read by the pipe workers on other threads,
+/// so the count must be atomic.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // shared object references in TS need no count
+/// ```
+use std::sync::Arc;
+/// What:
+/// `use std::sync::atomic::{AtomicBool, Ordering};` imports a boolean that threads may set and read.
+/// Why:
+/// The cancel flag is set by the drop of the guard and read by every worker.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let cancelled = false; // single-threaded in Node
+/// ```
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+/// What:
+/// `use std::sync::mpsc::{Receiver, RecvTimeoutError};` imports the receiving end of a channel and the error a bounded receive answers.
+/// Why:
+/// Each output worker answers once through one channel,
+/// and a worker that never answers leaves a prefix that must not be returned as the output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a Promise with Promise.race against a timer
+/// ```
+use std::sync::mpsc::{
+    Receiver,
+    RecvTimeoutError,
+};
+/// What:
+/// `use std::thread;` imports the standard library's thread module so this file can name it unqualified.
+/// Why:
+/// A wait without a pidfd sleeps between polls.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await new Promise((resolve) => setTimeout(resolve, ms))
+/// ```
+use std::thread;
+/// What:
+/// `use std::time::{Duration, Instant};` imports a span of time and a reading of the clock.
+/// Why:
+/// Every wait here computes a deadline from the moment it started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Date.now() and a number of milliseconds
+/// ```
+use std::time::{
+    Duration,
+    Instant,
 };
 
+/// The start of a child inside the containment (split out of this module).
+pub(crate) use crate::bounded_run_start::start_contained;
 /// What:
 /// `fn reap(child: &mut Child) -> Option<ExitStatus>` waits for the direct child,
 /// a few milliseconds at a time,
@@ -472,107 +591,6 @@ pub(crate) fn lose(scope: &Option<Rc<ScopeState>>) {
 }
 
 /// What:
-/// `fn program_resolves(command: &Command) -> bool` says whether the program of the command exists as an executable file,
-/// searched on the `PATH` the command will have when its name has no slash.
-/// Why:
-/// `systemd-run` reports a program it cannot start as an exit status like any other,
-/// so a program that does not exist is found before the launcher is started and reported as the I/O error it is.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function programResolves(command: Command): boolean
-/// ```
-pub(crate) fn program_resolves(command: &Command) -> bool {
-    let program: &std::ffi::OsStr = command.get_program();
-    let relative_to: PathBuf = command
-        .get_current_dir()
-        .map(Path::to_path_buf)
-        .unwrap_or_default();
-    if program.as_encoded_bytes().contains(&b'/') {
-        return crate::control_group::is_executable_file(&relative_to.join(program));
-    }
-    let mut own_path: Option<std::ffi::OsString> = None;
-    for (name, value) in command.get_envs() {
-        if name == "PATH" {
-            own_path = value.map(std::ffi::OsStr::to_os_string);
-            break;
-        }
-    }
-    if own_path.is_none() {
-        own_path = std::env::var_os("PATH");
-    }
-    if let Some(search) = own_path {
-        for directory in std::env::split_paths(&search) {
-            if crate::control_group::is_executable_file(&relative_to.join(directory).join(program))
-            {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/// What:
-/// `fn run_start_hook()` runs the hook a test put inside the start of a run,
-/// if any.
-/// Why:
-/// It is the boundary at which a test overlaps other work with a start,
-/// or kills a wrapper.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function runStartHook(): void
-/// ```
-#[cfg(test)]
-pub(crate) fn run_start_hook() {
-    if let Some(hook) = START_HOOK.with(|slot| {
-        return slot.borrow().clone();
-    }) {
-        hook();
-    }
-}
-
-/// The production build has no hook.
-#[cfg(not(test))]
-pub(crate) fn run_start_hook() {}
-
-/// What:
-/// `fn note_launcher(log: &Path, scope: &Path, child: &Child)` appends the launcher record:
-/// the process id,
-/// the start time and the
-/// process id namespace of the process that is about to become the program.
-/// Why:
-/// A recovery that finds this process gone knows it can never join the scope,
-/// so it can read the scope as final without an
-/// acknowledgement (round 11).
-/// A line that cannot be written is only a missing proof:
-/// the journal then waits for an acknowledgement like an older journal,
-/// so the
-/// run goes on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function noteLauncher(log: string, scope: string, child: ChildProcess): void
-/// ```
-pub(crate) fn note_launcher(
-    log: &Path,
-    scope: &Path,
-    child: &Child,
-) {
-    let pid: i32 = i32::try_from(child.id()).unwrap_or(0);
-    let noted: io::Result<()> = match crate::control_group::process_start(pid) {
-        Ok(start) => record_launcher(log, scope, pid, start),
-        Err(error) => Err(error),
-    };
-    if let Err(error) = noted {
-        eprintln!(
-            "cargo-shadow: warning: the launcher of {} could not be recorded ({error}); if this wrapper is killed, a recovery will ask for an acknowledgement",
-            scope.display()
-        );
-    }
-}
-
-/// What:
 /// `fn reason_of(unavailable: &GroupUnavailable) -> String` clones the reason of a refusal.
 /// Why:
 /// `Result::map_err` takes it by path instead of a closure.
@@ -587,145 +605,4 @@ pub(crate) fn reason_of(unavailable: &GroupUnavailable) -> String {
 /// `Option::and_then` takes it by path instead of a closure.
 pub(crate) fn open_pidfd(pid: Pid) -> Option<OwnedFd> {
     return pidfd_open(pid, PidfdFlags::empty()).ok();
-}
-
-/// What:
-/// `fn record_launcher(log: &Path, scope: &Path, pid: i32, start: u64) -> io::Result<()>` appends the launcher record.
-/// Why:
-/// A function replaces the closure that `note_launcher` passed to `and_then`.
-pub(crate) fn record_launcher(
-    log: &Path,
-    scope: &Path,
-    pid: i32,
-    start: u64,
-) -> io::Result<()> {
-    let pid_namespace: u64 = crate::control_group::pid_namespace_id()?;
-    return append_record_with(
-        log,
-        &Record::Launcher {
-            pid,
-            start,
-            pid_namespace,
-            path: scope.to_path_buf(),
-        },
-        false,
-    );
-}
-
-/// What:
-/// `fn scope_record_failed(error: io::Error) -> RunError` is the refusal for a scope record that could not be written.
-/// Why:
-/// `Result::map_err` takes it by path instead of a closure.
-pub(crate) fn scope_record_failed(error: io::Error) -> RunError {
-    return RunError::Io(io::Error::new(
-        error.kind(),
-        format!("{error} (a program whose scope cannot be recorded is not started)"),
-    ));
-}
-
-/// What:
-/// `fn group_announcement_failed(error: io::Error) -> RunError` is the refusal for a process-group announcement that could not be written.
-/// Why:
-/// `Result::map_err` takes it by path instead of a closure.
-pub(crate) fn group_announcement_failed(error: io::Error) -> RunError {
-    return RunError::Io(io::Error::new(
-        error.kind(),
-        format!("{error} (a child whose process group cannot be announced is not started)"),
-    ));
-}
-
-/// What:
-/// `fn start_contained(command, containment, scope, has_input, clean_environment) -> Result<Child, RunError>` records the
-/// containment in the journal and starts the child inside it.
-/// Why:
-/// For a scope the record is forced to disk before the program starts,
-/// and a record that cannot be written means the program is not started.
-/// For the weaker path the process group is only known once the child exists,
-/// so a `pgroup starting` line is forced to disk first and the group's line follows the start;
-/// a child whose group cannot be recorded is stopped at once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function startContained(command: Command, containment: Containment, scope: ScopeState | undefined, hasInput: boolean, cleanEnvironment: boolean): ChildProcess  // throws RunError
-/// ```
-pub(crate) fn start_contained(
-    command: &mut Command,
-    containment: &Containment,
-    scope: Option<&Rc<ScopeState>>,
-    has_input: bool,
-    clean_environment: bool,
-) -> Result<Child, RunError> {
-    match containment {
-        Containment::Scope {
-            group,
-            route,
-        } => {
-            if !program_resolves(command) {
-                return Err(RunError::Io(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("{:?} was not found (os error 2)", command.get_program()),
-                )));
-            }
-            if let Some(state) = scope {
-                append_record(&state.log, &group.record()).map_err(scope_record_failed)?;
-            }
-            run_start_hook();
-            let mut launch: Command = group.launcher(route, command, clean_environment);
-            configure_stdio(&mut launch, has_input);
-            // The text computes a file name, so this statement exists in a test build only.
-            #[cfg(test)]
-            trace_text(format!(
-                "launch scope {}",
-                group
-                    .directory()
-                    .file_name()
-                    .map_or_else(String::new, |name| {
-                        return name.to_string_lossy().into_owned();
-                    })
-            ));
-            let child: Child = launch.spawn().map_err(RunError::Io)?;
-            // The direct child of this process, as the kernel numbered it: a test compares it with what the program says it is.
-            trace(format_args!("spawned {}", child.id()));
-            crate::bounded_run::run_after_launch_hook(child.id());
-            if let Some(state) = scope {
-                note_launcher(&state.log, group.directory(), &child);
-            }
-            return Ok(child);
-        }
-        Containment::ProcessGroup => {
-            if let Some(state) = scope {
-                state.process_group_only.set(true);
-            }
-            command.process_group(0);
-            // The child's group is its process id, known only after the spawn: a "starting" line is durable before it, so a
-            // wrapper killed in between is seen by a recovery as one that may have a child running.
-            if let Some(state) = scope {
-                append_record(&state.log, &Record::ProcessGroupStarting)
-                    .map_err(group_announcement_failed)?;
-            }
-            run_start_hook();
-            trace(format_args!("launch pgroup"));
-            let mut child: Child = command.spawn().map_err(RunError::Io)?;
-            trace(format_args!("spawned {}", child.id()));
-            let leader: i32 = i32::try_from(child.id()).unwrap_or(0);
-            if let Some(state) = scope
-                && let Err(error) = append_record(&state.log, &Record::ProcessGroup(leader))
-            {
-                let stopped: bool = match Pid::from_raw(leader) {
-                    Some(group) => stop_process_group(&mut child, group),
-                    None => false,
-                };
-                if !stopped {
-                    lose(&Some(Rc::clone(state)));
-                }
-                return Err(RunError::Io(io::Error::new(
-                    error.kind(),
-                    format!(
-                        "{error} (the child was stopped because its process group could not be recorded)"
-                    ),
-                )));
-            }
-            return Ok(child);
-        }
-    }
 }

@@ -4,6 +4,9 @@
  Both are read from the runs, never from a clock or a file of the launcher's own: a run that ends frees its slot the moment its
  launcher or its unit is gone.
 
+ A run on a virtual selection holds no slot here: its router moves a refused request on by itself, so the gate counts only the runs
+ pinned to one pool. The owner, 2026-11-26, asked how the gate counts a run on the virtual writer: "No count (Recommended)".
+
  @module
  */
 
@@ -12,7 +15,6 @@ import {
   type PoolMembership,
   type ProviderPool,
   PROVIDER_POOLS,
-  poolOfThatNameIn,
 } from './pool-limits.ts';
 
 /**
@@ -25,7 +27,8 @@ export const NO_POOL_HAS_ROOM: unique symbol = Symbol('no provider pool holds ro
  */
 export type PoolTallies = {
   /**
-   The count each pool is at, by the pool's name. A pool with no run going is at zero.
+   The count each pool is at, by the pool's name. A pool with no run going is at zero. A run on a virtual selection is in none of
+   them: it holds no slot in any pool, so only a run pinned to one pool is counted.
    */
   readonly counts: ReadonlyMap<string, number>;
 
@@ -59,9 +62,12 @@ export function roomIn(pool: ProviderPool,): number {
 /**
  Reads the pools one membership holds a slot in.
 
+ A run on a virtual selection holds none of them: its router moves a refused request on by itself, so the run is counted in no pool
+ and takes no member's room.
+
  @param membership - a run's membership
 
- @returns one entry per pool it holds, and nothing for a run no pool holds
+ @returns one entry per pool it holds, and nothing for a run no pool holds or for a run on a virtual selection
 
  @example
  ```ts
@@ -83,7 +89,8 @@ export function poolsHeldBy({
  Counts the runs going now by the pool each holds a slot in.
 
  A run whose pool could not be read holds a slot in every pool it could be running on, so each of those is one closer to full:
- under-counting a pool is what let a run be started into room it did not have.
+ under-counting a pool is what let a run be started into room it did not have. A run on a virtual selection holds no slot, so it is
+ counted in no pool.
 
  @param runs - the runs going now
 
@@ -128,6 +135,8 @@ export function talliesOf({
 
 /**
  Says how full every pool is, as the line a caller reads.
+
+ A run on a virtual selection appears nowhere on it, because it holds no slot: the line counts the runs pinned to each pool.
 
  @param counts - how many runs each pool holds, by the pool's name
 
@@ -205,44 +214,4 @@ export function firstDefaultPoolWithRoom({ tallies, }: { readonly tallies: PoolT
       },);
     },);
   return found ?? NO_POOL_HAS_ROOM;
-}
-
-/**
- Reads the pools of a membership that have no room now: the pools a run holds a slot in and cannot take at this moment.
-
- A run that names one pool holds that pool alone, so this answers whether the pool is full. A run on a virtual selection holds
- every pool its router may send it to, so it may start only while every one of them has room: a pool that is full could take no
- part of the run, and counting the run there anyway would say it had more room than it has.
-
- @param tallies - how many runs each pool holds, and the pools that were counted
-
- @param membership - what the run holds, as `membershipOfSelection` reads it
-
- @returns one entry per pool it holds that is full, in the membership's order, which is empty when the run may take them all
-
- @example
- ```ts
- const full = poolsWithoutRoom({ tallies, membership: membershipOfSelection({ provider: 'rate-limit-fallback', model: 'writer', },), },);
- ```
- */
-export function poolsWithoutRoom({
-  tallies,
-  membership,
-}: {
-  readonly tallies: PoolTallies;
-  readonly membership: PoolMembership;
-},): readonly ProviderPool[] {
-  return poolsHeldBy({ membership, },)
-    .map(function asTheCountedTableHoldsIt(pool,) {
-      return poolOfThatNameIn({
-        pool,
-        pools: tallies.pools,
-      },);
-    },)
-    .filter(function isFull(pool,) {
-      return !poolHasRoom({
-        tallies,
-        pool,
-      },);
-    },);
 }

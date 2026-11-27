@@ -20,21 +20,25 @@
 //!  and every byte is bounded.
 //!  A staging sibling is filled and renamed over the receipt,
 //!  so a caller reads the whole earlier answer or the whole new one.
+//!  This file holds the directory,
+//!  its name and its atomic publish,
+//!  and the read of one receipt sits in the file named for it,
+//!  so a reader can hold the write and the read one at a time.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const folder = ReceiptsFolder.live(); folder.publish(guid, receipt); folder.read(guid);
 //! ```
 
-use crate::worktree_clone_mount_protocol::clone_mount_receipt::{
-    CloneMountReceipt,
-    MAXIMUM_RECEIPT_BYTES,
-};
+/// The directory opened and proved,
+/// and the read of one dataset's receipt.
+#[path = "clone_mount_receipts_folder_read.rs"]
+mod clone_mount_receipts_folder_read;
+
+use crate::worktree_clone_mount_protocol::clone_mount_receipt::CloneMountReceipt;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt_parse::parse_receipt;
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{
-    c_string_of,
     create_at,
-    open_receipt_at,
     rename_at,
     sync_directory,
     unlink_at,
@@ -50,19 +54,8 @@ use crate::worktree_clone_mount_protocol::root_owned_directory::{
     RootDirectoryRefusal,
     make_and_prove,
 };
-use std::ffi::CString;
-use std::io::{
-    Read,
-    Write,
-};
-use std::os::fd::{
-    FromRawFd,
-    OwnedFd,
-};
-use std::os::unix::fs::{
-    MetadataExt,
-    PermissionsExt,
-};
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -71,6 +64,10 @@ use std::sync::atomic::{
     AtomicU64,
     Ordering,
 };
+
+/// The read of one dataset's receipt,
+/// behind the directory already proved.
+use self::clone_mount_receipts_folder_read::read_a_receipt;
 
 /// The suffix of the sibling a receipt is staged under before its rename.
 /// It is never a receipt and never read as one.
@@ -312,144 +309,7 @@ impl ReceiptsFolder {
         &self,
         dataset: DatasetGuid,
     ) -> Result<Option<CloneMountReceipt>, ReceiptsRefusal> {
-        let directory: std::fs::File = self.open_directory()?;
-        let name: String = self.entry_name(dataset);
-        let Some(file) = open_receipt_at(&directory, name.as_str()).map_err(|error| {
-            return ReceiptsRefusal::File {
-                name: name.clone(),
-                reason: error.to_string(),
-            };
-        })?
-        else {
-            return Ok(None);
-        };
-        let facts: std::fs::Metadata = file.metadata().map_err(|error| {
-            return ReceiptsRefusal::File {
-                name: name.clone(),
-                reason: error.to_string(),
-            };
-        })?;
-        if !facts.is_file() {
-            return Err(ReceiptsRefusal::NotRegular {
-                name,
-            });
-        }
-        if facts.uid() != self.owner {
-            return Err(ReceiptsRefusal::FileOwner {
-                name,
-                found: facts.uid(),
-                wanted: self.owner,
-            });
-        }
-        let permission_bits: u32 = facts.mode() & 0o7777;
-        if permission_bits != RECEIPT_MODE {
-            return Err(ReceiptsRefusal::FileMode {
-                name,
-                found: permission_bits,
-            });
-        }
-        if facts.len() > MAXIMUM_RECEIPT_BYTES as u64 {
-            return Err(ReceiptsRefusal::TooLarge {
-                name,
-                bytes: facts.len(),
-            });
-        }
-        let mut bytes: Vec<u8> = Vec::with_capacity(facts.len() as usize);
-        let mut bounded: std::fs::File = file;
-        Read::by_ref(&mut bounded)
-            .take(MAXIMUM_RECEIPT_BYTES as u64 + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|error| {
-                return ReceiptsRefusal::File {
-                    name: name.clone(),
-                    reason: error.to_string(),
-                };
-            })?;
-        if bytes.len() > MAXIMUM_RECEIPT_BYTES {
-            return Err(ReceiptsRefusal::TooLarge {
-                name,
-                bytes: bytes.len() as u64,
-            });
-        }
-        let Ok(text) = String::from_utf8(bytes) else {
-            return Err(ReceiptsRefusal::NotText {
-                name,
-            });
-        };
-        return match parse_receipt(text.as_str()) {
-            Ok(receipt) if receipt.dataset == dataset => Ok(Some(receipt)),
-            Ok(receipt) => Err(ReceiptsRefusal::WrongDataset {
-                name,
-                found: receipt.dataset.file_name(),
-            }),
-            Err(refusal) => Err(ReceiptsRefusal::NotAReceipt {
-                name,
-                refusal,
-            }),
-        };
-    }
-
-    /// What:
-    ///  Open the directory and prove it is the designed one.
-    /// Why:
-    ///   Every later call is relative to this descriptor,
-    ///  so nothing below a replaced path can be read or written.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const directory = openTrusted(resultsDirectory, owner);
-    /// ```
-    fn open_directory(&self) -> Result<std::fs::File, ReceiptsRefusal> {
-        let path: &Path = self.directory.as_path();
-        let text: CString = c_string_of(&self.directory).map_err(|reason| {
-            return ReceiptsRefusal::Directory {
-                path: path.to_path_buf(),
-                reason,
-            };
-        })?;
-        // SAFETY: `text` is a NUL-terminated string that outlives the call.
-        let descriptor: libc::c_int = unsafe {
-            libc::open(
-                text.as_ptr(),
-                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
-            )
-        };
-        if descriptor < 0 {
-            let error: std::io::Error = std::io::Error::last_os_error();
-            if error.kind() == std::io::ErrorKind::NotFound {
-                return Err(ReceiptsRefusal::DirectoryAbsent {
-                    path: path.to_path_buf(),
-                });
-            }
-            return Err(ReceiptsRefusal::Directory {
-                path: path.to_path_buf(),
-                reason: error.to_string(),
-            });
-        }
-        // SAFETY: `open` returned a new descriptor that nothing else owns.
-        let directory: std::fs::File =
-            std::fs::File::from(unsafe { OwnedFd::from_raw_fd(descriptor) });
-        let facts: std::fs::Metadata = directory.metadata().map_err(|error| {
-            return ReceiptsRefusal::Directory {
-                path: path.to_path_buf(),
-                reason: error.to_string(),
-            };
-        })?;
-        if facts.uid() != self.owner {
-            return Err(ReceiptsRefusal::DirectoryOwner {
-                path: path.to_path_buf(),
-                found: facts.uid(),
-                wanted: self.owner,
-            });
-        }
-        let permission_bits: u32 = facts.mode() & 0o7777;
-        if permission_bits != DIRECTORY_MODE {
-            return Err(ReceiptsRefusal::DirectoryMode {
-                path: path.to_path_buf(),
-                found: permission_bits,
-            });
-        }
-        return Ok(directory);
+        return read_a_receipt(self.directory.as_path(), self.owner, dataset);
     }
 }
 

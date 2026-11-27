@@ -96,7 +96,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("commit/conclusion_cleanup.rs", 2, "own-record"),
     ("dependent_version/policy_added_path.rs", 1, "person-path"),
     (
-        "foundation/earlier_log_lines_added_to_current_log.rs",
+        "foundation/the_lines_of_a_log_compared_and_appended.rs",
         1,
         "own-record",
     ),
@@ -139,7 +139,12 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("process/process_use.rs", 1, "system"),
     ("process/thread_quiet.rs", 2, "system"),
     ("push/push_progress_meter.rs", 3, "system"),
-    ("repair/package_repair_cargo_lock.rs", 5, "person-path"),
+    ("repair/package_repair_cargo_lock.rs", 2, "person-path"),
+    (
+        "repair/package_repair_cargo_lock_never_replacing.rs",
+        3,
+        "person-path",
+    ),
     (
         "repair/package_repair_prewarm_job_staged_state.rs",
         1,
@@ -161,7 +166,12 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("service/earlier_unix_sockets_that_listen.rs", 2, "system"),
     ("service/service_journal.rs", 4, "own-record"),
     ("service/service_journal_record_age.rs", 1, "own-record"),
-    ("service/service_provision.rs", 2, "own-record"),
+    ("service/service_provision.rs", 1, "own-record"),
+    (
+        "service/service_provision_what_is_already_in_place.rs",
+        1,
+        "own-record",
+    ),
     (
         "service/service_provision_earlier_service_retirement.rs",
         1,
