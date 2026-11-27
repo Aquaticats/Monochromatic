@@ -147,8 +147,10 @@ use std::time::{
 };
 /// How long a killed short program is given to become reapable before its reap attempt is read as "still running".
 /// Why:
-/// `kill` sends a signal and returns; the child becomes reapable a moment later, so an attempt made immediately after the
-/// kill races with the scheduler and mostly answers that the child is still running.
+/// `kill` sends a signal and returns;
+/// the child becomes reapable a moment later,
+/// so an attempt made immediately after the kill races with the scheduler and mostly answers that the child is still
+/// running.
 /// What the value rests on:
 /// on 2026-11-27 on this host,
 /// 20 `sleep 30` processes were killed and polled for their reaping every 200 microseconds:
@@ -306,7 +308,8 @@ pub(crate) fn run_asking(
 /// Why:
 /// Every exit from the wait ends the child this way,
 /// and a function replaces the closure that captured the deadline.
-/// The text names what the kill and the reap answered (issue: the note said a dead line had passed when it had not),
+/// The text names what the kill and the reap answered (issue:
+/// the note said a dead line had passed when it had not),
 /// and a killed child is reaped before the note is built,
 /// so the note speaks of one that was still running rather than one that was never waited for.
 pub(crate) fn end_child(
@@ -334,8 +337,12 @@ pub(crate) enum Reap {
     Reaped,
     /// The program had not ended when the grace after its kill ran out.
     StillRunning,
-    /// The wait itself failed, so the program was not reaped.
-    Failed(io::Error),
+    /// The wait itself failed,
+    /// so the program was not reaped.
+    Failed {
+        /// The failure the wait answered.
+        error: io::Error,
+    },
 }
 
 /// What:
@@ -349,7 +356,8 @@ pub(crate) enum Reap {
 /// 9a D3).
 /// A wait that fails is not a reap and ends the waiting,
 /// because a broken child handle does not mend by asking again;
-/// an interrupted wait is asked again, because the kernel's signal is not the child's answer.
+/// an interrupted wait is asked again,
+/// because the kernel's signal is not the child's answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -378,7 +386,11 @@ pub(crate) fn reap_within(
             Ok(Some(_)) if !stuck => return Reap::Reaped,
             Ok(_) => {}
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) => return Reap::Failed(error),
+            Err(error) => {
+                return Reap::Failed {
+                    error,
+                };
+            }
         }
         let now: Instant = Instant::now();
         if now >= deadline {
@@ -392,7 +404,8 @@ pub(crate) fn reap_within(
 /// `fn reap_note(answered: Reap) -> String` is the text a failure adds about a killed program,
 /// or nothing when it was reaped.
 /// Why:
-/// The failure is conservative: a program that may still exist is reported as one that may,
+/// The failure is conservative:
+/// a program that may still exist is reported as one that may,
 /// and a person who reads it is told what was tried and what came back.
 ///
 /// In TS you'd write (pseudocode):
@@ -405,7 +418,9 @@ fn reap_note(answered: Reap) -> String {
         Reap::StillRunning => format!(
             "; the program was killed and could not be reaped (it was still running {KILL_REAP_GRACE:?} after the kill)"
         ),
-        Reap::Failed(error) => format!(
+        Reap::Failed {
+            error,
+        } => format!(
             "; the program was killed and could not be reaped (the wait after it failed: {error})"
         ),
     };

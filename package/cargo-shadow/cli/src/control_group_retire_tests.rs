@@ -108,8 +108,10 @@ use crate::cgroup_test_support::{
     wait_up_to,
 };
 /// What:
-/// `use crate::control_group::retire::{KILL_REAP_GRACE, RETIRE_BOUND, retire, retire_unit};` imports the step under test, its
-/// bound, and the grace a killed request's reap may take.
+/// `use crate::control_group::retire::{KILL_REAP_GRACE, RETIRE_BOUND, retire, retire_unit};` imports the step under
+/// test,
+/// its bound,
+/// and the grace a killed request's reap may take.
 /// Why:
 /// Every control here exercises the same step the run takes at its end.
 ///
@@ -294,7 +296,8 @@ fn populated(path: &Path) -> String {
 /// What:
 /// `fn group_of(route: &Route, unit: &str) -> ControlGroup` is the scope a run of this test would have made under `unit`.
 /// Why:
-/// The step under test is given a scope, not a name,
+/// The step under test is given a scope,
+/// not a name,
 /// and the fields it reads are the ones the planner fills in.
 ///
 /// In TS you'd write (pseudocode):

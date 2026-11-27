@@ -18,7 +18,8 @@
 //! The end of a run calls it after the stop of the containment,
 //! in `bounded_run_end.rs`.
 //!
-//! The cost (2026-11-27, the alpha.12 release pass):
+//! The cost (2026-11-27,
+//! the alpha.12 release pass):
 //! a question to the manager is a program start,
 //! and asking it on every run's end cost a scoped run 15 to 36 ms of the caller's time
 //! (`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`,
@@ -43,7 +44,8 @@
 /// the kernel's count of how many processes it has held,
 /// and the kernel's `populated` line.
 /// Why:
-/// The look needs the scope's own directory, and the two reads are of that directory.
+/// The look needs the scope's own directory,
+/// and the two reads are of that directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,7 +97,8 @@ use std::time::Duration;
 /// (median of twelve calls on this host,
 /// systemd 262.2-1-arch),
 /// so five seconds only ends a manager that does not answer.
-/// One bound covers the whole step, because the step asks once;
+/// One bound covers the whole step,
+/// because the step asks once;
 /// a killed request adds the reap grace of the short program runner (100 ms) and nothing else.
 pub(crate) const RETIRE_BOUND: Duration = Duration::from_secs(5);
 
@@ -110,18 +113,29 @@ const UNIT_NOT_LOADED: i32 = 5;
 /// What the run's last look at its scope says about the unit behind it.
 #[derive(Debug)]
 pub(crate) enum Emptiness {
-    /// The kernel's `populated 0` line was read, and `pids.peak` says a process has been counted in the group:
-    /// the kernel changed the `populated` line, so the manager's watch on it fired and it collects the unit.
+    /// The kernel's `populated 0` line was read,
+    /// and `pids.peak` says a process has been counted in the group:
+    /// the kernel changed the `populated` line,
+    /// so the manager's watch on it fired and it collects the unit.
     EmptiedAfterAProcess,
-    /// The kernel's `populated 0` line was read, and no process is known to have been counted in the group:
-    /// the shape of the stuck scope of issue 6578, so the manager is asked to stop the unit.
+    /// The kernel's `populated 0` line was read,
+    /// and no process is known to have been counted in the group:
+    /// the shape of the stuck scope of issue 6578,
+    /// so the manager is asked to stop the unit.
     EmptiedWithoutAProcess,
-    /// The kernel's `populated 1` line was read: a member may still write.
+    /// The kernel's `populated 1` line was read:
+    /// a member may still write.
     Member,
-    /// The group's directory is gone and its absence is verified: the manager collected the unit.
+    /// The group's directory is gone,
+    /// and its absence is verified:
+    /// the manager collected the unit.
     Collected,
-    /// Nothing could be read as emptiness, and why it could not.
-    Unproven(String),
+    /// Nothing could be read as emptiness,
+    /// and why it could not.
+    Unproven {
+        /// Why the scope could not be read as empty or gone.
+        reason: String,
+    },
 }
 
 /// What:
@@ -171,16 +185,18 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
             // ```
             return match group.absence_is_verified() {
                 Ok(()) => Emptiness::Collected,
-                Err(reason) => Emptiness::Unproven(format!(
-                    "the scope's directory {} is gone, and its absence could not be read as emptiness ({reason})",
-                    group.directory().display()
-                )),
+                Err(reason) => Emptiness::Unproven {
+                    reason: format!(
+                        "the scope's directory {} is gone, and its absence could not be read as emptiness ({reason})",
+                        group.directory().display()
+                    ),
+                },
             };
         }
         Err(error) => {
-            return Emptiness::Unproven(format!(
-                "the scope's `populated` line could not be read ({error})"
-            ));
+            return Emptiness::Unproven {
+                reason: format!("the scope's `populated` line could not be read ({error})"),
+            };
         }
     };
     if populated {
@@ -255,7 +271,9 @@ pub(crate) fn retire(
         Emptiness::Member => Some(format!(
             "the scope unit {unit} of the run that just ended was left loaded: its control group still has a member, and a stop would kill it behind the report that names it"
         )),
-        Emptiness::Unproven(reason) => Some(format!(
+        Emptiness::Unproven {
+            reason,
+        } => Some(format!(
             "the scope unit {unit} of the run that just ended was left loaded: {reason}, so it is not shown that no member is left"
         )),
     };
@@ -272,7 +290,8 @@ pub(crate) fn retire(
 /// the caller reports a failure as a warning and does not turn it into "not quiescent".
 /// A unit the manager collected before the request is not a failure:
 /// `systemctl` answers exit status 5 (`EXIT_NOTINSTALLED`) for a unit it does not load,
-/// which is what a collected unit is (measured: twelve such stops answered 5 on 2026-11-27),
+/// which is what a collected unit is (measured:
+/// twelve such stops answered 5 on 2026-11-27),
 /// so one question settles both cases and the second question the release asked is gone.
 /// The reason names the command as it ran,
 /// built from the same arguments,

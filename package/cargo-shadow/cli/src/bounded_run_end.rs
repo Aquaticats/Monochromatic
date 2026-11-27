@@ -70,7 +70,8 @@ use crate::bounded_run_containment::{
 use crate::control_group::ControlGroup;
 /// What:
 /// `use crate::control_group::retire::{RETIRE_BOUND, retire};` imports the last look at a run's scope and the one question it
-/// may call for, with their bound.
+/// may call for,
+/// with their bound.
 /// Why:
 /// The one way a unit is stopped is shared with the controls that plant such a unit.
 ///

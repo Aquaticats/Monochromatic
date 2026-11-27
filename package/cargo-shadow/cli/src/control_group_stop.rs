@@ -550,9 +550,11 @@ pub(crate) fn populated_at(directory: &Path) -> io::Result<bool> {
 
 /// What:
 /// `pub(crate) fn pids_peak_at(directory: &Path) -> io::Result<u64>` reads how many processes have ever been counted in a
-/// group, from the `pids.peak` file of its pids controller.
+/// group,
+/// from the `pids.peak` file of its pids controller.
 /// Why:
-/// The manager watches a unit's `cgroup.events` from the moment it realizes the group, and ends the unit on the empty change
+/// The manager watches a unit's `cgroup.events` from the moment it realizes the group,
+/// and ends the unit on the empty change
 /// (`unit_watch_cgroup` at `src/core/cgroup.c:2011` and `scope_notify_cgroup_empty_event` at `src/core/scope.c:566` of
 /// systemd 262.2,
 /// the version on this host),
