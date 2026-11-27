@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:30:36-05:00
+## The state at 2026-11-27T13:36:46-05:00
 
-`main` was `ab3fd39416`.
+`main` was `1dc907ad53`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -185,14 +185,16 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and a holder's name cannot rewrite the line that prints it (`14e54207de`).
   The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
   both reads of it have returned.
-- nothing for `cargo-shadow`:
-  every round of its `0.1.5-alpha.13` pass is merged,
-  and `0.1.5-alpha.14` is released
+- for `cargo-shadow`'s `0.1.5-alpha.14` read,
+  two rounds started 2026-11-27T13:36:24-05:00 from one list,
+  each named `cargo-shadow-alpha-14-release-pass-` and then:
+  `the-retire-gates-new-decision-is-held-through-retire-and-its-words-say-what-was-read`
+  and `the-refusal-says-which-next-run-settles-the-journal-and-the-records-are-exact`;
+  `0.1.5-alpha.15` follows their merges.
+  `0.1.5-alpha.14` is released
   (release commit `8673ec1309`),
   locked (`c652b74260`) and installed,
-  with the session's `git` link put back at 2026-11-27T12:54:30-05:00.
-  A Claude Sonnet read of it runs as a background agent of the coordinating session
-  (`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`).
+  and every round of the `0.1.5-alpha.13` pass is merged.
   The round on the retire's gate is merged (`67103f2285`):
   seven controls,
   each shown red by the edit it guards and reading the real gate through a group directory of its own;
@@ -380,13 +382,45 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
-each a Claude Sonnet read
+One read runs as a background agent of the coordinating session,
+a Claude Sonnet read of `mpm-shadow`'s `0.2.7-alpha.15`
 (same vendor as some of the authors,
-so a second pass and not an independent review):
-`cargo-shadow`'s `0.1.5-alpha.14` and `mpm-shadow`'s `0.2.7-alpha.15`,
-at the paths this section gives beside each release.
-The coordinator rewrites what lasts from each into this file before scratch expires.
+so a second pass and not an independent review),
+at the path this section gives beside that release.
+The coordinator rewrites what lasts from it into this file before scratch expires.
+
+What `cargo-shadow`'s alpha.14 read found
+(`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
+no High finding,
+two Medium and ten Low,
+and no decision or output that differs from alpha.13 beyond what the merges name.
+The manager is asked two questions a call in alpha.11,
+alpha.13 and alpha.14 alike,
+over 260 timed calls;
+the cost of a call against alpha.11 had a median ratio of 1.021 for alpha.14
+(0.409 to 2.072 over 20 rounds),
+with a byte-identical copy of alpha.11 as the control at 0.907
+(0.457 to 2.019),
+so the harness tells alpha.14 from neither alpha.13 nor alpha.11.
+Its Medium findings,
+each with a round:
+the refusal says the next run settles the kept journal by itself,
+while a pass-through run such as `cargo fmt --check` and a frozen run under `CI=true` leave it and print nothing
+(shown with a journal a killed run left,
+not with a real refusal);
+and the release's one new decision,
+a `pids.peak` read that fails because the group's directory went away,
+is held only at its helper,
+so putting alpha.13's behaviour back would pass every test
+(argued from the test files;
+the round applies the edit once to settle it).
+Its Low findings are sentences that say more than was read
+(two warnings of the retire gate,
+four sentences of the README,
+one of which gives a ratio outside its own control's range),
+two controls that stay green under named edits,
+and a state outside these merges:
+a scope that does not exist yet may be read as collected and its unit left loaded in silence.
 
 What the linter's alpha.20 read found
 (`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`):
