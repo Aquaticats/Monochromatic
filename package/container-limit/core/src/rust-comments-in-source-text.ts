@@ -3,8 +3,8 @@
 
  Rust's comment syntax is not the one the other slash language the scan reads holds: its block comments nest, so a
  comment inside a comment ends at the inner marker and not the outer one, and it writes raw strings, char literals and
- lifetimes, whose quotes and apostrophes a reader that only knows JavaScript's strings pairs with each other and blanks
- the wrong text with.
+ lifetimes, whose quotes and apostrophes a reader knowing only JavaScript's strings pairs with each other, which blanks
+ the wrong text.
 
  A start in a Rust source is a call that names the container program (`Command::new("podman")`) followed by the calls
  that hand it the arguments, so a mention inside a comment, a doc comment or a message is not a start, and the `//`, `///`
