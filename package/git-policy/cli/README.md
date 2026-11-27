@@ -7656,7 +7656,8 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   (`bin/native-check-scope-watch-accounting.ts`),
   because a scope takes its control group with it,
   and a reading that answers less than the whole one before it is not kept
-  (`bin/native-check-scope-accounting.ts`):
+  (`bin/cgroup-whole-readings.ts`,
+  which this reader and the gate container's reader both use):
   the kernel removes a control group's files one at a time and the directory after them,
   so a reading taken while a scope ends answers part of the group,
   and a check judged on that reading was told no bound of its own failed it

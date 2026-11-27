@@ -153,8 +153,9 @@ after is issue 6614's round):
    the watch kept it,
    and the gate printed nothing for a container that met no kill.
    After,
-   a reading that answered no file of its own is refused,
-   so the whole reading before it is what the gate reports.
+   the reader answers `READING_NOT_WHOLE`,
+   so the whole reading before it is what the gate reports,
+   and a recorder writes no line for it and asks again.
 4. Some files answer and `memory.events` is one of those that did not,
    whichever point of the read the file went at.
    Before,
@@ -164,6 +165,10 @@ after is issue 6614's round):
    After,
    the reading is refused and the whole reading before it is what the gate reports,
    with the kill in it.
+   The recorder writes no line for it either,
+   and a refused reading ends no role:
+   a group whose files are going is still a directory that is there,
+   and the role ends when a reading finds the directory gone.
 5. A file the kernel has deactivated and not yet unlinked answers `ENODEV`.
    Before,
    the reader rethrew it,
@@ -186,8 +191,16 @@ before,
 every order that answered a part of the group wrote a sample line,
 and the end line repeated the last one;
 after,
-a reading that lost a part writes no line,
+a reading that is no whole reading writes no line,
+the recorder keeps asking,
 and the end line holds the last whole reading.
+
+Two sentinels keep those apart,
+`CGROUP_NOT_THERE` for a directory the reader cannot stat and
+`READING_NOT_WHOLE` for a group that answered no file of its own or lost a part of the reading before it
+(`bin/native-gate-container-cgroup-memory.ts`):
+the first ends a recorder's role,
+the second only says the reading is not one to keep.
 
 ## What the gate prints for such a container, before and after
 
@@ -220,7 +233,7 @@ and it asks the printer the gate's own container run prints with,
 - A first reading taken while a group goes still under-reports it:
   a reading with nothing before it replaces nothing,
   and no better reading of that group exists.
-  What changed is that a directory answering no file of its own is no reading at all,
+  What changed is that a directory answering no file of its own is no whole reading,
   so a recorder starts its end line from a whole reading or writes none.
 - A kill that lands after the last whole reading and before the group starts going is still lost:
   the 100 ms interval between two readings decides whether a reading is still there to take,
