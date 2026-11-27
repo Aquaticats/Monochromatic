@@ -31,6 +31,11 @@
 //! assert(outcome.kind === 'finished');
 //! ```
 
+/// The writer of the program files these tests start,
+/// shared with the crate's other test binaries.
+#[path = "written_programs/through_a_child_process.rs"]
+mod through_a_child_process;
+
 /// What:
 /// `#[path = "..."] mod two_copies_at_one_name;` declares a submodule and names the file it is read from.
 /// A test crate's root file looks for its submodules beside itself,
@@ -79,7 +84,6 @@ mod link_takes_over_a_shadow_link;
 use std::fs;
 
 /// Imports the trait that adds `from_mode` to permissions (marks a copy executable).
-use std::os::unix::fs::PermissionsExt;
 
 /// Imports the borrowed and the owned path types of the fixtures.
 use std::path::{
@@ -168,14 +172,14 @@ fn finished(outcome: Outcome) -> Output {
     }
 }
 
-/// Copies a program and keeps it executable.
+/// Copies a program and keeps it executable,
+/// through a child `cp` process.
 fn copy_program(
     source: &Path,
     target: &Path,
 ) {
-    fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
-    fs::copy(source, target).expect("copy the program");
-    fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // A test starts the copy as the shadow, so a child process makes it (issue 6527).
+    crate::through_a_child_process::copy_program(source, target);
 }
 
 /// A copy of the shadow that names another version:
@@ -197,9 +201,8 @@ fn copy_of_another_version(target: &Path) {
             index += 1;
         }
     }
-    fs::create_dir_all(target.parent().expect("a parent folder")).expect("make the folder");
-    fs::write(target, bytes).expect("write the copy");
-    fs::set_permissions(target, fs::Permissions::from_mode(0o755)).expect("make it executable");
+    // A test starts the copy as the shadow, so a child process writes it (issue 6527).
+    crate::through_a_child_process::write_program(target, bytes.as_slice());
 }
 
 /// A shadow link:
@@ -220,14 +223,11 @@ fn write_real_script(
     folder: &Path,
     name: &str,
 ) {
-    fs::create_dir_all(folder).expect("make the folder");
-    fs::write(
-        folder.join(name),
-        format!("#!/bin/sh\nprintf 'REAL {name} %s\\n' \"$*\"\n"),
-    )
-    .expect("write the script");
-    fs::set_permissions(folder.join(name), fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
+    // A test starts this script as the real tool, so a child process writes it (issue 6527).
+    crate::through_a_child_process::write_program(
+        folder.join(name).as_path(),
+        format!("#!/bin/sh\nprintf 'REAL {name} %s\\n' \"$*\"\n").as_bytes(),
+    );
 }
 
 /// A scratch folder beside the build output.
