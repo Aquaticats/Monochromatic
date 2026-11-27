@@ -103,11 +103,11 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T02:12:31-05:00
+## The state at 2026-11-27T02:22:48-05:00
 
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
-Sixteen rounds merged on the evening of 2026-11-26 and sixty-three more by this time on 2026-11-27.
+Sixteen rounds merged on the evening of 2026-11-26 and sixty-four more by this time on 2026-11-27.
 
 ### Rounds running
 
@@ -121,9 +121,9 @@ Started through the coordinator's scratch launcher before 2026-11-27T01:55-05:00
 with the brief at `~/temp/agent/<round>-2026-11-2<6 or 7>/prompt.md`
 and the worktree at `.claude/worktrees/<round>`:
 
-- issues 6524,
-  6525 and 6526 (three landing controls that fail only threaded),
+- issues 6524 and 6525 (two landing controls that fail only threaded),
   one round each;
+  issue 6526's merged as `23f2e3aa1b`;
 - issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy");
 - issue 6513 (the linter reads a near-miss file-list marker as no list);
 - three second-wave split rounds for wrapper files no loop holds
@@ -160,6 +160,13 @@ which the launcher removes when the run ends idle with nothing uncommitted:
   and the groups keep those deletions apart except `repo_read` beside `service`:
   the coordinator resolves that meeting by hand as the union of the deletions,
   never through the wrapper's merge pass (issue 6529).
+- the linter's two fix rounds for its alpha.17 release pass:
+  `monochromatic-lint-alpha-17-release-pass-reader-and-name-refusal-findings`
+  and `monochromatic-lint-alpha-17-release-pass-folder-rule-walk-findings`;
+- second-wave split rounds outside the wrapper:
+  `split-monochromatic-lint-markdown-closure-workflow-and-shell-files-over-the-line-budget`,
+  `split-mpm-shadow-cli-toolchain-files-over-the-line-budget-second-wave-part-1-of-2` and `-part-2-of-2`,
+  and `split-cargo-shadow-cli-lean-files-and-crate-root-over-the-line-budget`.
 
 The loop breaks of `foundation/`,
 `landing/`,
@@ -200,7 +207,36 @@ the alpha.16 release pass's fixes,
 merged as `4e258a388d`).
 `toolchain.lock.json` locks it (`d413a71714`),
 and the main checkout's tool link runs it.
-The alpha.17 release pass is owed.
+
+Its release pass,
+a Claude Sonnet second pass (same vendor as some of the authors,
+so not an independent review),
+ended on 2026-11-27 at about 02:17 with no High,
+three Medium and ten Low points,
+and found `package/git-policy/cli` and the ZFS package clean of layout findings.
+The three Medium points:
+
+- a folder whose name ends in ` ->`,
+  starts with `-> `,
+  or is exactly `->` beside a peer whose name holds whitespace
+  makes the rule print a `uses` line the same binary reads as another pair or refuses;
+- a `uses` line alpha.16 accepted with doubled spacing reads on alpha.17 as a folder whose name holds the extra space,
+  against the README's own sentence that no alpha.16 line changes meaning,
+  and a line with a trailing word lost its syntax error;
+- each group that closes a loop rebuilds the reverse index of the whole graph,
+  measured at 2.7 to 4.0 times alpha.16's CPU time on a package of 300 folders and 50 to 100 such groups,
+  with the control arm flat.
+
+The Low points are a `..` line that re-enters the package,
+four sentences the binary does not support,
+a changed tie between equally short routes,
+a refusal that also takes entries of a `uses` folder,
+and edits that would leave every test green.
+All are routed to two fix rounds,
+except one:
+the alpha.17 note listed the `extern` ABI key as a change though no behaviour changed,
+which the alpha.18 note says.
+`0.5.2-alpha.18` is released when those two rounds and issue 6513's have merged.
 
 ### What the split rounds left
 
@@ -249,12 +285,29 @@ What is left falls in three classes.
   The coordinator's reading,
   not the owner's:
   a branch is open when a round or a session works on it or this handover names it,
-  because the reformat (`448ed6b692`) already conflicts with every older branch in these files.
-  The next split briefs say so.
+  because each crate's reformat already conflicts with every older branch in these files
+  (`57bf0918fc` for the wrapper,
+  `f262797330` for `mpm-shadow`,
+  `b4ae047c05` for `cargo-shadow`,
+  `639f90484d` for the linter).
+  The second-wave briefs say so,
+  and tell a round to leave a file only for a branch whose newest commit is later than 2026-11-26T12:00-05:00.
+  The first three second-wave wrapper briefs and the `merge/` one named `448ed6b692`,
+  another crate's reformat;
+  each of those rounds was sent the right commit.
 
-Outside the wrapper:
-`package/cargo-shadow/cli/src/lib.rs` is at 307 code lines after three rounds each added module lines;
-`cargo-shadow`'s four `lean` files and `mpm-shadow`'s eleven wait on those crates' own fix branches.
+Outside the wrapper,
+26 files were over the budget on `main` at `847f7d59bd`,
+all left by the first wave for branches of 2026-11-12 to 2026-11-18:
+eleven in `package/mpm-shadow/cli/src/toolchain/`,
+eight in the linter,
+five in `package/cargo-shadow/cli` (four `lean_*` files and `src/lib.rs`,
+at 310 code lines of module declarations),
+and the two `truepeak` files.
+Second-wave rounds run for all but five:
+the two `truepeak` files wait on their branch,
+and the linter's `layout_folder_links.rs`,
+`layout_file_order.rs` and `layout_step.rs` wait on the fix rounds that change them.
 
 ### What the rounds found
 
