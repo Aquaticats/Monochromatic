@@ -516,7 +516,8 @@ export async function readScopeAccounting({
  One running check scope's accounting watch: the last figures it read, and how to end it.
 
  The last read is kept because a scope's control group goes with it: what a caller asks after the check ended can only
- be what was read while it ran.
+ be what was read while it ran. A control group removed between two of this reader's file reads leaves the figures read
+ before it went, so the sample kept is at worst the one of the moment it went.
  */
 export type ScopeAccountingWatch = {
   /**

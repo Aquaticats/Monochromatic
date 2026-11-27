@@ -343,7 +343,10 @@ fs.writeFileSync(path.join(written, 'cpu.max'), '200000 100000\\n');
 fs.writeFileSync(path.join(written, 'cpu.stat'), 'nr_periods 557\\nnr_throttled 314\\nusage_usec 74283909\\n');
 fs.renameSync(written, directory);
 setTimeout(function end() {
-  fs.rmSync(directory, { recursive: true, force: true });
+  // A scope's control group goes as one path, so the fixture takes its folder away under another name before deleting
+  // it: a reader then sees a scope that is gone rather than a control group being deleted file by file.
+  fs.renameSync(directory, directory + ".gone");
+  fs.rmSync(directory + ".gone", { recursive: true, force: true });
   process.exit(0);
 }, ${String(fixtureScopeMilliseconds)});`,
           ],

@@ -97,13 +97,18 @@ const fixtureFigures: Readonly<Record<string, string>> = {
 };
 
 /**
- Removes one fixture control group, which is what a scope that ends does to its own.
+ Ends one fixture control group, which is what a scope that ends does to its own.
+
+ A scope's control group goes as one path, so the fixture takes its folder away under another name before it deletes it:
+ a reader then sees a scope that is gone rather than a control group being deleted file by file, which is a shape no
+ kernel makes.
 
  @param cgroupPath - the fixture's control group
  */
 async function removeCgroup({ cgroupPath }: { readonly cgroupPath: string; }): Promise<void> {
+  await rename(cgroupPath, `${cgroupPath}.gone`,);
   await rm(
-    cgroupPath,
+    `${cgroupPath}.gone`,
     {
       recursive: true,
       force: true,
