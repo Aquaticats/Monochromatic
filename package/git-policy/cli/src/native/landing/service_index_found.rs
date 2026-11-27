@@ -22,7 +22,7 @@ use crate::index_lock_holders::{
     Holder,
     HolderEvidence,
 };
-use crate::service_index_marker::{
+use crate::service_index_identity::{
     HolderState,
     holder_state,
     marker_of,

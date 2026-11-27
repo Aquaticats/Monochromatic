@@ -126,7 +126,7 @@ fn held_batch_in(
         &[
             "update-ref",
             "--no-deref",
-            crate::held_commit_settle::kept_reference(1).as_str(),
+            crate::held_commit_settle_move::kept_reference(1).as_str(),
             held_commit.as_str(),
         ],
     );

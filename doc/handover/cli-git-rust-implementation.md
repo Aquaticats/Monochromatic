@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T05:43:18-05:00
+## The state at 2026-11-27T06:37:37-05:00
 
-`main` was `f8bea718b2`.
+`main` was `9e46b96ef0`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 126 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 145 more by this time.
 
 ### Rounds running
 
@@ -125,74 +125,100 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- loop-break rounds,
-  the plan's round 3
-  (`doc/planning/cli-git-source-layout-target-tree.md`,
-  "Next",
-  item 3):
-  `break-wrapper-file-loops-in-commit`,
-  `-in-landing`,
-  `-in-lock-and-process`,
-  `-in-merge`,
-  `-in-push`,
-  `-in-worktree-copying`,
-  and `break-wrapper-file-loop-of-the-worktree-removal-and-remove-files`,
-  the one loop of twelve files the `worktree/` round left unattempted
+- the last loop-break round,
+  `break-wrapper-file-loop-of-the-worktree-removal-and-remove-files`:
+  one loop of twelve files,
+  27 lines,
+  which the `worktree/` round left unattempted
   (its brief carries that round's reading of the moves as suggestions).
-  Merged:
-  `lfs` with `policy`,
-  the relay with `kept_references`,
-  two clone folders with `zfs_mounted_dataset`,
-  `command` with `conflict` and `dependent_version`,
-  `service` with `shadow`,
-  `start_probe` and `transaction`,
-  `repair` with `repo_read` (`bf4e28daef`),
-  `foundation` (`f29067e047`,
-  one of its two loops)
-  and `worktree` (`f8bea718b2`,
-  two of its three).
-  The allow list went from 544 lines to 382 with no layout finding.
-  The rounds' blocks in `layout-allow-list/file-rule.txt` are adjacent,
-  so two merges may meet there:
-  the coordinator resolves that by hand as the union of the deletions.
-  The installed session wrapper's merge pass kept deleted lines there (issue 6529);
-  the source is fixed (`5914dd3810`) and the installed build is older.
-- split rounds for files a loop break freed,
-  or that were never in a loop:
-  `split-wrapper-policy-linked-worktree-file-over-the-line-budget`,
-  `-command-rule-linked-worktree-file-`,
-  `-repo-read-files-over-the-line-budget-2`,
-  `-foundation-private-storage-file-`,
-  `-testing-fixture-git-commands-file-`,
-  `-worktree-trash-dispose-file-`,
-  and the linter's `split-monochromatic-lint-layout-files-over-the-line-budget`.
+- split rounds for the files the loop breaks freed:
+  `split-wrapper-landing-files-over-the-line-budget-5` (four files),
+  `-merge-isolation-carry-files-` (two),
+  `-merge-isolation-recovery-kept-copies-and-take-asides-files-` (three),
+  `-push-files-over-the-line-budget-3` (four)
+  and `-worktree-copying-files-over-the-line-budget-4` (four).
 - rounds for issues,
   each named `issue-<number>-<what it makes true>`:
-  6534,
-  6546,
-  6561,
+  6477,
   6562,
-  6564,
   6567,
-  6568 and 6569.
-- a Claude Sonnet release pass of the linter's alpha.18,
-  a background agent of the coordinating session,
-  writing `~/temp/agent/monochromatic-lint-alpha-18-release-review-2026-11-27/keep/review.md`.
+  6568,
+  6571,
+  6572,
+  6573,
+  6574 and 6575.
+  Issue 6569's round has ended and its branch waits for a one-line import union with `main`
+  in `landing/service_land_take_index_lock_tests.rs`.
+- the two fix rounds for the linter's alpha.18 release pass ("The linter").
 
-One loop is left with its options open,
-for the owner:
-`foundation/`'s loop of `diagnostic_lines_off_the_calling_thread.rs`,
+Round 3 of the crate split's order is done but for that one loop and three lines:
+every other folder's loops are broken and merged
+(`lfs`,
+`policy`,
+the relay,
+`kept_references`,
+two clone folders,
+`zfs_mounted_dataset`,
+`command`,
+`conflict`,
+`dependent_version`,
+`service`,
+`shadow`,
+`start_probe`,
+`transaction`,
+`repair`,
+`repo_read`,
+`worktree`'s other two,
+`merge`,
+`lock`,
+`process`,
+`commit`,
+`push`,
+`worktree_copying` and `landing`,
+the last as `9e46b96ef0`).
+`layout-allow-list/file-rule.txt` went from 544 lines to 52,
+with no layout finding on `main`:
+27 for the `worktree/` loop,
+and three for `foundation/`'s loop of `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs`,
-which no move of items closes
+which no move of items closes and which waits for the owner
 (`doc/handover/questions-for-the-owner.md`).
+Two merges met in the list
+(`foundation` and `push`),
+and each was resolved by hand as the union of the two sides' deletions,
+with `cargo check --all-targets` and the linter run on the merged tree before the commit.
+The installed session wrapper's merge pass kept deleted lines there (issue 6529);
+the source is fixed (`5914dd3810`) and the installed build is older.
+The plan document's loop section and its "Where each step stands today" are stale for these folders:
+each round's commits say what its moves were,
+and the plan's own text is not yet rewritten.
+
+Round 4,
+the plan's five call changes,
+is not started:
+each is a changed signature in release code,
+and no record shows the owner accepting them
+(`doc/handover/questions-for-the-owner.md`,
+"does the crate split's step 4 run now?").
 
 Waiting on a named merge:
 the two `truepeak` crates' one file each,
 on the branch `refactor/flac-profiler-keeps-the-rust-one`;
-the split rounds for each remaining loop folder's files,
-on that folder's loop-break round;
+`worktree/worktree_remove.rs`'s split,
+on its loop-break round;
 the whole gate on `main`,
-on issue 6562's round.
+on issues 6562 and 6573.
+
+`main`'s tip is checked after a batch of merges and not by each merge:
+the merge routine runs `git merge-tree` and compiles nothing.
+At `9e46b96ef0`,
+`cargo check --locked --offline --all-targets` exited 0;
+Clippy and the `source_guard` module were still running on that tip at this time
+(`~/temp/agent/main-tip-compile-clippy-and-source-guard-check-2026-11-27/keep/result.txt`).
+One control cannot pass on `main` until issue 6573 merges:
+`process::captured_child_run_to_its_end::tests::the_one_shot_git_questions_no_longer_block_a_thread_on_command_output`
+reads `repo_read/git_system_config.rs`,
+which issue 6540's merge split.
 
 The whole container gate on `main` at `d9ec2443bd` ended at 2026-11-27T02:37:12-05:00 and refused.
 Its suite passed:
@@ -206,15 +232,20 @@ The same Clippy command on the host at that commit,
 with two jobs and no swap,
 exited 0 with a peak of 4.4G,
 so the batch's code passed Clippy and the bound is what failed.
-Issue 6562 holds it,
-and its round gives the Clippy container a measured bound.
+Issue 6562 holds it;
+its round runs whole gates of its own to measure the bound,
+which is why it has run for hours.
 
 A package-launched round has ended when `pi-runs/<round>-<n>/summary.json` exists,
 which the package's `list-runs-that-ended-since` lists,
 and it merges by its branch,
 once `origin/<branch>` equals the local tip.
 A run whose latest run folder holds no `summary.json` and has no process never started:
-read the launch unit's `.out` file.
+read the launch unit's `.out` file and the unit's journal.
+The driver refuses a run folder that already holds anything,
+so a steering note goes into `<run folder>/inbox/` only after the run's `feed.jsonl` exists:
+a note written between the launcher making the folder and the driver starting
+stopped issue 6566's first start on 2026-11-27.
 
 ### The linter
 
@@ -225,81 +256,89 @@ locked in `toolchain.lock.json` (`cd3cf42a9a`)
 and installed in the main checkout.
 It holds issue 6513's near-miss marker finding (`7e67d1a3a4`)
 and the two fix rounds for the alpha.17 release pass (`d16248bd0e`,
-`eee9a8c3a7`),
-which took every Medium and Low point of that pass but one:
-alpha.17's note listed the `extern` ABI key as a change though no behaviour changed.
+`eee9a8c3a7`).
 The release workflow pushed its bump commit to `origin/main` while two merges were still local,
 so `main` diverged for a minute and was merged back by hand (`cc3f2173c1`):
 start a release only when the last merge has been pushed.
 `mise run toolchain:install` moved the session's `git` link to the toolchain launcher again,
 and it was restored to the build of 2026-11-22 at 2026-11-27T05:29:11-05:00.
+Its four files over the line budget are split (`bec5214c7d`),
+and the crate has none left.
 
 Its release pass,
 a Claude Sonnet second pass (same vendor as some of the authors,
 so not an independent review),
-is running.
-The second fix round left three points for the coordinator:
-four `markdown/semantic-line-breaks` findings in the README's "The allow list a rule may take";
-a figure quoted between a branch build and a released binary can read as a regression,
-because the release workflow and this machine build with different toolchains;
-and two `uses` lines that name one use in two spellings are both accepted,
-where the README says no line may repeat another (so at alpha.17 too).
+ended at about 06:20 with no High,
+two Medium and five Low points,
+and the gate clean on `package/git-policy/cli` and the ZFS package.
+Every alpha.17 point is fixed,
+left as documented,
+or has a new shape among these:
 
-Four of its files are over the line budget,
-and one round splits them:
-`layout_folder_links.rs` (887),
-`layout_file_order.rs` (614),
-`layout_step.rs` (360) and `layout_allow_list.rs` (329).
+- the near-miss search is quadratic over a long run of blank or comment lines in a top doc,
+  155 to 227 times alpha.17's CPU time at 160,000 lines with the control arm at 0.82 to 0.97;
+- a group that closes a loop still walks everything that reaches it,
+  2.31 to 2.49 times alpha.16 on a shape where every group is reached from the whole graph,
+  against the README's "as alpha.16 did";
+- the arrow-name refusal also runs when only the file rule is selected,
+  and names another cause;
+- spacing before the arrow of a `uses` line stops the whole folder rule,
+  where spacing after it is only a dead entry;
+- a `..` alias escapes the repeat check,
+  and `file-uses` does not read it;
+- two messages point a little off;
+- several cost guards and wordings have no test that fails without them.
+
+All are routed to two fix rounds,
+`monochromatic-lint-alpha-18-release-pass-cost-findings`
+and `-refusal-alias-and-message-findings`,
+started at about 06:22.
+`0.5.2-alpha.19` is released when both have merged.
 
 ### What the split rounds left
 
-On `main` at `f8bea718b2` the wrapper has no layout finding and 38 files over the budget,
+On `main` at `9e46b96ef0` the wrapper has no layout finding and 29 files over the budget,
 down from 264 before the splits.
-What is left falls in four classes.
+What is left falls in three classes.
 
 - Files with a split round running now:
-  `policy/policy_linked_worktree.rs`,
-  `command/rule_linked_worktree.rs`,
-  four in `repo_read/`,
-  `foundation/private_storage.rs`,
-  `testing/fixture_git_commands.rs`
-  and `worktree/worktree_trash_dispose.rs`.
-- Files in a tolerated loop,
-  where any part would need a new allow-list line.
-  Each waits for its folder's loop-break round and gets a split round when that merges:
-  five in `landing/`
-  (`service_land_batch_body.rs` is split,
-  493 to 70,
-  `6d87633589`),
+  four in `landing/`,
   five `merge_isolation_*` files in `merge/`,
-  four in `push/`,
-  five `worktree_copy_*` files in `worktree_copying/`,
+  four in `push/`
+  and four `worktree_copy_*` files in `worktree_copying/`.
+- Files whose loop is not broken yet:
   `worktree/worktree_remove.rs`,
+  on its loop-break round,
   and `foundation/lines_written_by_a_thread.rs`,
   whose loop waits for the owner.
 - Files in a group folder (`invocation/`,
   seven files;
   `health/doctor.rs` and `health/doctor_filesystem.rs`),
   where a new sibling file needs a `group-file` line,
-  and `worktree/mod.rs` (324 lines of module declarations).
+  and `worktree/mod.rs` (332 lines of module declarations).
   They wait for the move of those files into child folders,
-  which the plan orders before a split
-  (the invocation round's note in the same planning document).
-- Files a round left because a remote branch changes them.
-  The coordinator's reading,
-  not the owner's:
-  a branch is open when a round or a session works on it or this handover names it,
-  because each crate's reformat already conflicts with every older branch in these files
-  (`57bf0918fc` for the wrapper,
-  `f262797330` for `mpm-shadow`,
-  `b4ae047c05` for `cargo-shadow`,
-  `639f90484d` for the linter).
-  The briefs say so,
-  and tell a round to leave a file only for a branch whose newest commit is later than 2026-11-26T12:00-05:00.
+  round 7 of the plan's order,
+  which follows rounds 4 to 6.
+
+A brief names a file over the budget only from the linter's listing of `main` taken when the brief is written:
+the round for `command/rule_linked_worktree.rs` was briefed from an earlier count,
+found the loop break had already brought the file to 298 lines,
+and split nothing (`bb5d25980b`).
+
+The coordinator's reading,
+not the owner's:
+a branch is open when a round or a session works on it or this handover names it,
+because each crate's reformat already conflicts with every older branch in these files
+(`57bf0918fc` for the wrapper,
+`f262797330` for `mpm-shadow`,
+`b4ae047c05` for `cargo-shadow`,
+`639f90484d` for the linter).
+The briefs say so,
+and tell a round to leave a file only for a branch whose newest commit is later than 2026-11-26T12:00-05:00.
 
 Outside the wrapper,
-`mpm-shadow` and `cargo-shadow` have no file over the budget,
-the linter has the four its round splits,
+`mpm-shadow`,
+`cargo-shadow` and the linter have no file over the budget,
 and the two `truepeak` files wait on their branch.
 
 ### What the rounds found
@@ -320,7 +359,18 @@ and the two `truepeak` files wait on their branch.
   against native Git's 0.6 s) names a cheaper form that is a decision,
   not a repair;
   all five wait in `doc/handover/questions-for-the-owner.md`.
-  Issues 6523 and 6528 have no round.
+  Issues 6570 to 6575 were filed on 2026-11-27 from rounds' reports
+  (a feature build's Clippy warning,
+  controls that write under the real home cache,
+  a landing the service pushed that left no answer line,
+  a control that reads a source file a split emptied,
+  a control that races the system `talk` program,
+  and a feature with no Clippy task);
+  6570 is merged and closed,
+  and the others have rounds.
+  Issues 6523 (`package/ide/app` does not compile on `main`)
+  and 6528 (`cargo-shadow`'s install step refuses a command when a `git` child is left as a zombie)
+  have no round yet.
   Issue 6560 is closed as a duplicate of 6543.
 - Two fixes changed release code,
   each with a control that fails without it:

@@ -199,6 +199,27 @@ fn the_budget_is_at_least_one_place_and_a_cap_holds_it_lower() {
     );
 }
 
+/// A control that holds this process's blocking jobs where the run's own tests run is refused,
+/// and the refusal names the starter that gives it a process of its own.
+/// Why:
+///  The bound is made once for the process and never resized,
+///  so a hold taken beside another control's tests decides what every one of them gets:
+///  the control then holds one place of the places the CPUs allowed,
+///  the work under test takes another and starts at once,
+///  and the control fails in a wait that timed out (issue 6477).
+///  The refusal comes before the store,
+///  so this control arms nothing in the process it fails in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(() => holdTheBlockingJobsTo(ONE_PLACE)).toThrow('belongs to the whole process');
+/// ```
+#[test]
+#[should_panic(expected = "belongs to the whole process")]
+fn holding_the_bound_outside_a_child_of_its_own_is_refused() {
+    hold_blocking_jobs_to(ONE_PLACE);
+}
+
 /// No more jobs run at once than the budget allows,
 /// however many are started,
 /// and the budget is reached:
