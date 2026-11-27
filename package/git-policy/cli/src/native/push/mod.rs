@@ -178,6 +178,10 @@
 //!   the command started,
 //!   its output read whole,
 //!   and the watch that ends it.
+//! - `bounded_query_run_of_one_command.rs`:
+//!   one read-only Git command run to its end,
+//!   or until it has shown no sign of work for its window,
+//!   with the answer it printed and how it ended.
 //! - `bounded_query.rs`:
 //!   read-only Git queries of the auto-push,
 //!   each with a deadline and separate output streams.
@@ -421,6 +425,11 @@ pub mod child_watch_running_task;
 /// The classes of Git step a commit starts for itself,
 /// with the bound and the notice grace of each.
 pub mod child_class;
+
+/// One read-only Git command run to its end,
+/// or until it has shown no sign of work for its window,
+/// with the answer it printed and how it ended.
+pub mod bounded_query_run_of_one_command;
 
 /// Read-only Git queries of the auto-push,
 /// each with a deadline and separate output streams.
