@@ -89,6 +89,8 @@ thread_local! {
     static CONTAINMENT_STOP_ERROR: Cell<bool> = const { Cell::new(false) };
     /// Whether the next use of this step on this thread fails.
     static CONTAINMENT_INSPECTION: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next listing a stop's report makes on this thread finds the scope's own directory gone.
+    static CONTAINMENT_SCOPE_GONE_AT_LISTING: Cell<bool> = const { Cell::new(false) };
     /// Whether the next publication of a journal's durable completion marker on this thread fails.
     static FINISH_COMPLETION: Cell<bool> = const { Cell::new(false) };
     /// The one output file whose next data barrier on this thread fails,
@@ -176,6 +178,11 @@ pub enum Point {
     ContainmentUnkillableMember,
     /// The listing of the members of a scope after the program started fails.
     ContainmentInspection,
+    /// The listing a stop's report makes finds the scope's own directory gone,
+    /// as it is when the scope is removed between the last `populated` read and the listing:
+    /// a window too short to produce from outside,
+    /// because a removal before that read makes the stop report the scope empty at once.
+    ContainmentScopeGoneAtListing,
     /// The publication of a journal's durable completion marker (the rename to its done name and the sync of the directory that lists it).
     FinishCompletion,
 }
@@ -439,6 +446,9 @@ pub fn arm(point: Point) {
         Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(|slot| {
             slot.set(true);
         }),
+        Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(|slot| {
+            slot.set(true);
+        }),
         Point::FinishCompletion => FINISH_COMPLETION.with(|slot| {
             slot.set(true);
         }),
@@ -487,6 +497,7 @@ pub fn fires(point: Point) -> bool {
         Point::ContainmentStopStuck => CONTAINMENT_STOP_STUCK.with(Cell::take),
         Point::ContainmentStopError => CONTAINMENT_STOP_ERROR.with(Cell::take),
         Point::ContainmentInspection => CONTAINMENT_INSPECTION.with(Cell::take),
+        Point::ContainmentScopeGoneAtListing => CONTAINMENT_SCOPE_GONE_AT_LISTING.with(Cell::take),
         Point::FinishCompletion => FINISH_COMPLETION.with(Cell::take),
     };
 }

@@ -3,6 +3,8 @@
 
  Each language the repository writes its container commands in has its own comment syntax, and a `mise.toml` holds an
  inline `node` script inside a `"""` string, whose `//` comments follow JavaScript's syntax rather than TOML's.
+ Rust's comments nest and its literals hold quotes a JavaScript string never does, so a Rust source is blanked by
+ `rust-comments-in-source-text.ts`, which this module hands it to.
  Blanking preserves offsets and line numbers, so a scan of the blanked text reports the file's own lines.
  */
 
@@ -15,13 +17,47 @@ import {
   isQuote,
   lineEnd,
 } from './positions-in-source-text.ts';
+import { blankRustComments, } from './rust-comments-in-source-text.ts';
 
 //region Vocabulary
 
 /**
  Languages whose comment syntax the scan knows.
  */
-export type SourceLanguage = 'toml' | 'typescript' | 'yaml';
+export type SourceLanguage = 'rust' | 'toml' | 'typescript' | 'yaml';
+
+/**
+ The comment syntax each extension a scanned file can hold.
+
+ One row per extension, so a caller reads a file's language from its path alone, and a language the scan learns is one
+ row here beside the reader that blanks it.
+ */
+export const SOURCE_LANGUAGE_BY_EXTENSION: ReadonlyMap<string, SourceLanguage> = new Map([
+  [
+    '.mjs',
+    'typescript',
+  ],
+  [
+    '.rs',
+    'rust',
+  ],
+  [
+    '.toml',
+    'toml',
+  ],
+  [
+    '.ts',
+    'typescript',
+  ],
+  [
+    '.yaml',
+    'yaml',
+  ],
+  [
+    '.yml',
+    'yaml',
+  ],
+],);
 
 /**
  Three of these quotes, read together, open and close a multi-line TOML string.
@@ -251,6 +287,8 @@ export function stripSourceComments({
       from: 0,
       to: characters.length,
     },);
+  else if (language === 'rust')
+    blankRustComments(characters,);
   else if (language === 'toml')
     blankTomlComments(characters,);
   else

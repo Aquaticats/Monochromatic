@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T08:47:30-05:00
+## The state at 2026-11-27T09:17:55-05:00
 
-`main` was `5daa8810b9`.
+`main` was `04dbc235e1`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 176 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 183 more by this time.
 
 ### Rounds running
 
@@ -136,9 +136,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the round for the `perf/` and service-manager scripts is merged as `2218beae78`,
   and `lint:oxlint` then reported 594 errors,
   all in those guest scripts);
-- `issue-6587-service-manager-proofs-run-git-as-the-owner-of-what-it-writes`
-  and `issue-6588-container-start-sites-ledger-holds-the-replaced-image-script`
+- `issue-6587-service-manager-proofs-run-to-their-end`,
+  the issue's second round,
+  `issue-6594-container-start-sites-ledger-scans-rust-sources`
+  and `issue-6596-scratch-root-removal-test-owns-the-process-it-names`
   ("What the rounds found");
+- four rounds for the wrapper's alpha.48 release pass ("Releases of 2026-11-27"),
+  each named `wrapper-alpha-48-release-pass-<what>`:
+  `slot-refusals-read-a-shell-alias-and-say-true-words`,
+  `a-notice-record-outlives-a-line-that-was-not-written`,
+  `merge-pass-reaches-a-last-line-without-a-newline`
+  and `four-small-points-outside-the-slot-route`;
 - `issue-6583-gate-suite-container-gets-a-measured-memory-bound`,
   which runs gates of its own;
 - five rounds for controls that failed once under load,
@@ -156,13 +164,11 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The first four failed in the gates issue 6562's round ran under a load average of 48 to 96,
   and the fifth in issue 6582's wide run;
 - in `cargo-shadow`,
-  three rounds for its alpha.11 release pass
-  (`cargo-shadow-alpha-11-release-pass-stop-report-says-only-what-it-found`,
-  `-source-guards-read-the-split-folders`
-  and `-manifest-surface-and-record-findings`);
-- in `mpm-shadow`:
-  `issue-6585-shim-start-refused-because-the-program-is-being-written`
-  and `mpm-shadow-alpha-12-release-pass-reach-and-stale-path-findings`.
+  the last round for its alpha.11 release pass,
+  `cargo-shadow-alpha-11-release-pass-stop-report-says-only-what-it-found`.
+  Its other two are merged (`d134b5f836`,
+  `ea51cd2290`),
+  and `0.1.5-alpha.12` is released once this one is.
 
 Until issue 6586 merges,
 a brief for a round that runs the wrapper's Rust tests on the host tells it to give each test run
@@ -178,12 +184,14 @@ so a second pass and not an independent review)
 that writes `keep/review.md` under its scratch folder:
 the linter's `0.5.2-alpha.19`
 (`~/temp/agent/monochromatic-lint-alpha-19-release-review-2026-11-27/`),
-and two of the wrapper's `0.6.1-alpha.48`,
-one on the commits that mean to change behaviour
-(`~/temp/agent/git-policy-cli-alpha-48-release-review-behaviour-fixes-2026-11-27/`)
-and one on the claim that the splits,
-the loop breaks and the reformat change none
-(`~/temp/agent/git-policy-cli-alpha-48-release-review-splits-and-moves-2026-11-27/`).
+the wrapper's `0.6.1-alpha.48` read for the claim that the splits,
+the loop breaks and the reformat change no behaviour
+(`~/temp/agent/git-policy-cli-alpha-48-release-review-splits-and-moves-2026-11-27/`),
+and `mpm-shadow`'s `0.2.7-alpha.13`
+(`~/temp/agent/mpm-shadow-alpha-13-release-review-2026-11-27/`).
+A pass that runs a wrapper binary starts each run with throwaway XDG folders and
+`env --unset=DBUS_SESSION_BUS_ADDRESS`,
+for the reason issue 6586 records.
 The coordinator rewrites what lasts from each into this file before scratch expires.
 
 Round 3 of the crate split's order is done but for three lines.
@@ -315,13 +323,17 @@ and it is put back on the build of 2026-11-22
   nor the file-rule list with tens of thousands of keys after its key index.
   The crate has no file over the line budget (`bec5214c7d`).
 - `mpm-shadow`,
-  `0.2.7-alpha.12`:
-  release commit `fea1c1768d`,
-  locked (`061cea9d02`) and installed.
-  It intends no change of behaviour over alpha.11:
-  the reformat,
-  the file splits,
-  and issue 6527's test fix.
+  `0.2.7-alpha.12` (`fea1c1768d`),
+  which intended no change of behaviour over alpha.11,
+  and then `0.2.7-alpha.13`:
+  release commit `2d255a625c`,
+  locked (`889d87bb83`) and installed.
+  alpha.13 holds issue 6585 (`c513ee060c`):
+  a start refused with "Text file busy" is explained and not repeated,
+  because every writer the tool starts publishes a program by renaming a finished file into place,
+  measured for five of them with no refusal in 2,396 probe starts that ran
+  (`doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`);
+  and the alpha.12 pass's narrowing of what the splits had made visible (`cc61079f82`).
 - The wrapper,
   `0.6.1-alpha.48`:
   release commit `e6cc06059d`,
@@ -390,6 +402,45 @@ each with no High finding:
   whether the release workflow's runner is such a host is not yet known,
   and the third round reads the workflow's log for it.
 
+What the wrapper's alpha.48 behaviour pass found,
+with no High finding:
+
+- Medium:
+  a shell alias still takes a slot removal or a prune past the refusals,
+  in alpha.47 and alpha.48 alike
+  (`git -c 'alias.x=!git worktree remove' x -f -f <slot>`),
+  because the planner reads the alias's name where the destructive-command guard reads its resolved command.
+- Medium,
+  a regression:
+  since `6ea539bc91` a notice is handed to the stream that writes off the command's thread,
+  which answers success before anything is written,
+  so the record of a failed push or a kept worktree is removed although its line never reached anyone.
+  With standard error a pipe whose reader is gone,
+  alpha.47 keeps the record and alpha.48 does not.
+- Low:
+  three sentences of the slot refusals
+  (one fires for an empty record folder,
+  one advises a settling command no grammar admits,
+  one calls `--` an option);
+  the merge pass does not reach a last line without a final newline;
+  a named pipe among the merge records stops every command with no way out named;
+  a drain sizes its batches from one reading of the host per round;
+  the kept-copy line prints a holder's name unfiltered;
+  the README holds a pasted handover excerpt.
+- Right as claimed,
+  exercised with both binaries:
+  the slot refusals for the spellings they name,
+  the merge pass's union of deletions,
+  the self-check's memory (62.7 to 66.1 MB in alpha.47,
+  9.3 to 11.0 MB in alpha.48),
+  named pipes answered and not waited on,
+  and the typed ssh relay ending about 100 ms sooner at a terminal.
+- Read only,
+  because nothing outside the process can start them:
+  the prune race,
+  the conversion environment's precedence,
+  the service-only changes.
+
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
 `cargo:monochromatic-cargo-shadow`,
@@ -446,7 +497,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6593,
+  issues 6524 to 6597,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -546,9 +597,31 @@ and the two `truepeak` files wait on their branch.
   where these records are and the kernel journal's are not:
   when a round reports a refusal only one program meets,
   the coordinator reads that log.
-- `package/container-limit/core`'s ledger of scripts that name `podman` fell behind again:
-  issue 6562's new `bin/native-gate-replaced-image.ts` is not in it,
-  and its unit test is red on `main` (issue 6588).
+- `package/container-limit/core`'s ledger of scripts that name `podman` fell behind again and is brought up to date (`f69208a309`);
+  its scan reads no Rust file,
+  which issue 6594 holds.
+- The service-manager install proof now passes its Git step (`6b1a8e91f4`) and stopped at the next:
+  the commit service's landing failed because this host's Git profile refused the marks file
+  `git fast-import` writes beside the journal when the service cannot hand it an unnamed scratch file,
+  as in a container's root home.
+  The profile grants that name now
+  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+  seventeenth batch),
+  and the issue's second round reruns both proofs.
+  `test:service-manager`'s control arm needs a release from before the remedy of 2026-11-12,
+  which this host does not hold;
+  that round writes the choice as a proposal.
+- An alpha's release workflow runs no test:
+  it commits the bump without compiling,
+  and `cargo-publish.yml` builds the binaries.
+  The evidence for an alpha is the local run,
+  and for the wrapper the gate on `main`
+  (`package/cargo-shadow/cli/README.md`,
+  "Which host each check runs on").
+- `START_RETRY_BUDGET`,
+  the five seconds a refused start is repeated for in `mpm-shadow` and in the wrapper's `push/start_retry.rs`,
+  cites no measurement and no decision (issue 6597,
+  no round yet).
 - The two fence measurement scripts of 2026-11-21 under `perf/` can no longer measure what they measured:
   the crate no longer reads their switch,
   and this host takes another rung

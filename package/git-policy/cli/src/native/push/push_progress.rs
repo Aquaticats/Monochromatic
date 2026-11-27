@@ -338,7 +338,27 @@ impl Clock {
     /// Whether the child must be stopped now,
     /// and why.
     pub fn check(&mut self) -> Option<StopCause> {
-        let now: Instant = Instant::now();
+        return self.judged_at(Instant::now());
+    }
+
+    /// What:
+    ///  The judgement `check` makes,
+    ///  taken at a time the caller states.
+    /// Why:
+    ///   A control owns the rate its own transfer is judged at:
+    ///  a window judged by this host's clock measured a sender the host had starved instead of the traffic
+    ///  the connection carried,
+    ///  so a control states the time each slice of its transfer's window took
+    ///  (issue 6591).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// clock.judgedAt(now)
+    /// ```
+    fn judged_at(
+        &mut self,
+        now: Instant,
+    ) -> Option<StopCause> {
         let elapsed: Duration = now.duration_since(self.started);
         let stall: Duration = match self.patience {
             Patience::Fixed(limit) => {
@@ -412,6 +432,28 @@ impl Clock {
             )));
         }
         return None;
+    }
+
+    /// What:
+    ///  The judgement at `elapsed` after this clock started,
+    ///  for a control that owns the time its transfer is judged at.
+    /// Why:
+    ///   The control states the time its own transfer took,
+    ///  measured from the slices of the window the connection's own bytes paid for,
+    ///  and the release judges that time exactly as it judges the host's
+    ///  (`doc/troubleshooting/git-policy-cli-minimum-rate-control-measured-the-hosts-scheduling.md`);
+    ///  no shipped build carries this seam.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// clock.judgedAfter(elapsedMs)
+    /// ```
+    #[cfg(test)]
+    pub(crate) fn judged_after(
+        &mut self,
+        elapsed: Duration,
+    ) -> Option<StopCause> {
+        return self.judged_at(self.started + elapsed);
     }
 }
 

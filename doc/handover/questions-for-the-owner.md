@@ -497,6 +497,157 @@ the coordinator runs C by hand:
 `test:unit`,
 `lint:types` and `lint:oxlint` on `main` with each batch check.
 
+## Open: four choices the release passes of 2026-11-27 left, with five picks beside them (recorded 2026-11-27T09:40:05-05:00)
+
+Each comes from a round's report or a release pass
+(Claude Sonnet reads,
+same vendor as some of the authors,
+so second passes and not independent reviews).
+None holds a merge or a release.
+
+### Where `mpm-shadow`'s two plan-insert modules live
+
+The splits put the plan insert's place and spans code in two files beside `plan_insert.rs`
+(`src/toolchain/plan_insert_place.rs`,
+`src/toolchain/plan_insert_spans.rs`),
+so `pub(super)` on their items means all of `toolchain`,
+where before the split the same items were private to the plan insert.
+The round narrowed seventeen declarations from `pub` to `pub(super)` (`cc61079f82`).
+
+- B:
+  move both files into a `plan_insert/` folder,
+  so `pub(super)` means the plan insert again.
+  The compiler then refuses any other module of `toolchain` that reaches them.
+  It changes two module paths,
+  and it adds folder findings under the layout rules,
+  which this crate does not switch on.
+- A:
+  leave the files where they are.
+  Nothing moves;
+  the items stay reachable from every module of `toolchain`,
+  held back only by review.
+
+Ranking:
+B > A,
+because B makes the compiler hold the reach the code had before the split,
+and A leaves it to readers.
+
+### How far `mpm-shadow`'s five test-only names reach
+
+Five names are `pub(crate)` only so tests under `src/toolchain/` can read them.
+
+- A:
+  narrow them to `pub(in crate::toolchain)`.
+  The tests that read them still compile,
+  and nothing outside `toolchain` can.
+- B:
+  leave them `pub(crate)`.
+
+Ranking:
+A > B,
+because A serves the same readers with a smaller reach and changes no behaviour.
+
+### What shows that an alpha of `cargo-shadow` was tested
+
+The crate-release workflow runs no test for an alpha:
+the run that published `0.1.5-alpha.11` holds no line of the `test` task
+(`package/cargo-shadow/cli/README.md`,
+"Which host each check runs on").
+The evidence is a round's local run of the package's suite,
+which needs a delegated control group of the account's service manager.
+
+- C:
+  the package's release task refuses to start unless a suite result is recorded for the commit it releases.
+  The evidence is then tied to the released commit.
+  It needs a place for that record and a rule for what counts.
+- A:
+  as now.
+  The suite runs in the rounds that change the package,
+  on their branches,
+  and nothing ties a run to the commit that is released.
+- B:
+  the workflow runs the suite.
+  It would report without anyone deciding to run it.
+  Not measured:
+  whether a hosted runner gives the suite the delegated control group it needs;
+  the tests that cannot run without one are left out by the package's own task,
+  so a green run there could cover less than a local one.
+
+Ranking:
+C > A > B.
+C beats A because it ties the evidence to the commit.
+A beats B until someone measures what B's runner can run,
+because a green workflow that skips the scope tests reads as more than it is.
+
+### Whether the two fence measurement scripts of 2026-11-21 stay
+
+The two scripts under `package/git-policy/cli/perf/` can no longer measure what they measured:
+the crate no longer reads their switch,
+and this host takes another rung
+(`doc/planning/cli-git-fence-size-read-beside-source-check.md`,
+"The harness after 2026-11-27").
+Their results are in that record.
+
+- A:
+  remove them.
+  The record keeps what they found;
+  nothing has to keep dead scripts lint-clean.
+- B:
+  keep them,
+  as they are,
+  for whoever measures the fence again and wants a starting point.
+
+Ranking:
+A > B,
+because a script that cannot run its measurement misleads the next reader more than its absence would,
+and the record says how the measurement was made.
+
+### Picks made, veto open
+
+- `cargo-shadow`'s library surface is alpha.10's without the `git_objects_packed_commit` path,
+  which was internal layout,
+  and with `ByteCount` (`d134b5f836`).
+  The alternative is one `pub use` alias so the paths match exactly.
+  Picked because the library goes to GitHub releases only and nothing outside this repository names it.
+- `cargo-shadow`'s `bounded_run_end` stays `pub(crate)`.
+- `LISTING_BOUND`,
+  the time `cargo-shadow` gives a refusal to list what a scope still holds,
+  is 500 ms (`c59a4f5fd5`).
+  The round measured the listing at 37.5 to 45.6 ms for a scope of three thousand threads,
+  and the value sits beside that measurement in `src/control_group_stop.rs`.
+  It is the only delay a refusal adds after its own bound.
+- `mpm-shadow` explains a start refused with "Text file busy" and does not repeat it (issue 6585,
+  `c513ee060c`).
+  Every writer the tool starts publishes by rename,
+  measured for five of them.
+  Not measured:
+  writers outside the tool that hold a published file open
+  (a person's `cp` over it,
+  an editor,
+  `pip install --upgrade` in a live virtual environment).
+  A retry for those needs a bound measured on them first.
+- A notice's record outlives a line that could not be written.
+  `package/git-policy/cli/SPEC.md` says two things about the record of a failed push or a kept worktree:
+  that one "whose words could not be written stays for the next command",
+  and,
+  since the fix for issue 6421,
+  that these records are among the "lines a person can live without".
+  Since `6ea539bc91` the code follows the second,
+  and the release pass of `0.6.1-alpha.48` showed the record lost with standard error closed.
+  No decision record chooses between them
+  (`doc/decision/` and `doc/planning/` searched for both phrasings).
+  The round `wrapper-alpha-48-release-pass-a-notice-record-outlives-a-line-that-was-not-written`
+  builds the first:
+  the command is never held,
+  and the record stays until its line is known written.
+  The alternative is to accept the loss and correct the first passage.
+
+Waiting on a round's proposal,
+to be added here when it lands:
+what proves the reload remedy once no release from before it exists (issue 6587's second round),
+and what the slot refusals do with a shell alias the wrapper cannot read
+(the round `wrapper-alpha-48-release-pass-slot-refusals-read-a-shell-alias-and-say-true-words`).
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.
