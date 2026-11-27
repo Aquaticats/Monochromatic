@@ -6,6 +6,17 @@
 //! launcher records and real programs,
 //! starts the built `search-shadow` under the name `grep` or `rg`,
 //! and gives it a deadline.
+//! This file holds what every test of the rule needs:
+//! the copy of a shadow,
+//! the link named after a tool,
+//! the deadline a run is polled against,
+//! and the command that starts one.
+//! The tests themselves sit in one file per part of the rule:
+//! the two copies that find each other,
+//! the launcher records,
+//! a genuine program behind the shadow,
+//! the arrival marker,
+//! and the links `link` makes and takes over.
 //! Why:
 //! Two copies of the shadow at different paths used to pick each other as the real `grep`
 //! and replace themselves with each other without end (measured 2026-11-07:
@@ -20,19 +31,76 @@
 //! assert(outcome.kind === 'finished');
 //! ```
 
+/// What:
+/// `#[path = "..."] mod two_copies_at_one_name;` declares a submodule and names the file it is read from.
+/// A test crate's root file looks for its submodules beside itself,
+/// so a submodule kept under `tests/never_start_another_shadow/` is named here.
+/// Why:
+/// The tests of one part of the rule stay in one file,
+/// and this file keeps the fixtures they all use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './two-copies-at-one-name.integration.test';
+/// ```
+#[path = "never_start_another_shadow/two_copies_at_one_name.rs"]
+mod two_copies_at_one_name;
+
+/// The launcher records:
+/// a candidate is judged by the program its record names.
+#[path = "never_start_another_shadow/launcher_records.rs"]
+mod launcher_records;
+
+/// A genuine compiled program without the identity text still runs behind the shadow.
+#[path = "never_start_another_shadow/a_genuine_program_behind_the_shadow.rs"]
+mod a_genuine_program_behind_the_shadow;
+
+/// The arrival marker:
+/// a shadow that a shadow started stops on one line.
+#[path = "never_start_another_shadow/the_arrival_marker.rs"]
+mod the_arrival_marker;
+
+/// The links `search-shadow link` makes,
+/// leaves alone and takes over.
+#[path = "never_start_another_shadow/link_takes_over_a_shadow_link.rs"]
+mod link_takes_over_a_shadow_link;
+
+/// What:
+/// `use std::fs;` imports the file-system module (copies a program,
+/// writes a script,
+/// makes a link).
+/// Why:
+/// Every fixture here is a file in a temporary folder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as fs from 'node:fs';
+/// ```
 use std::fs;
+
+/// Imports the trait that adds `from_mode` to permissions (marks a copy executable).
 use std::os::unix::fs::PermissionsExt;
+
+/// Imports the borrowed and the owned path types of the fixtures.
 use std::path::{
     Path,
     PathBuf,
 };
+
+/// Imports the types a started run is held by:
+/// the running process,
+/// its command and its collected output.
 use std::process::{
     Child,
     Command,
     Output,
     Stdio,
 };
+
+/// Imports the sleep that spaces the polls of a running process.
 use std::thread::sleep;
+
+/// Imports the deadline type and the instant an elapsed time is measured from.
 use std::time::{
     Duration,
     Instant,
@@ -185,361 +253,4 @@ fn command_for(
     command.env_clear();
     command.env("PATH", path_variable);
     return command;
-}
-
-#[test]
-fn two_copies_of_different_versions_that_each_come_first_for_the_other_end_at_once_and_the_real_tool_runs()
- {
-    let root = scratch();
-    let (first, second, real) = (
-        root.path().join("first"),
-        root.path().join("second"),
-        root.path().join("real"),
-    );
-    copy_program(Path::new(SHADOW_EXECUTABLE), &first.join("search-shadow"));
-    copy_of_another_version(&second.join("search-shadow"));
-    let link: PathBuf = link_as(&first, "grep");
-    link_as(&second, "grep");
-    write_real_script(&real, "grep");
-
-    let output = finished(run_bounded(command_for(
-        &link,
-        &[&first, &second, &real],
-        &["needle", "haystack"],
-    )));
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "REAL grep needle haystack\n"
-    );
-}
-
-#[test]
-fn two_copies_with_no_real_tool_behind_them_end_at_once_with_the_not_found_message() {
-    let root = scratch();
-    let (first, second) = (root.path().join("first"), root.path().join("second"));
-    copy_program(Path::new(SHADOW_EXECUTABLE), &first.join("search-shadow"));
-    copy_of_another_version(&second.join("search-shadow"));
-    let link: PathBuf = link_as(&first, "grep");
-    link_as(&second, "grep");
-
-    let output = finished(run_bounded(command_for(
-        &link,
-        &[&first, &second],
-        &["needle", "haystack"],
-    )));
-
-    assert_eq!(
-        output.status.code(),
-        Some(127),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        String::from_utf8_lossy(&output.stderr).contains("no real `grep`"),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-#[test]
-fn a_launcher_record_that_names_another_shadow_version_is_skipped() {
-    let root = scratch();
-    let (first, second, launchers, real) = (
-        root.path().join("first"),
-        root.path().join("second"),
-        root.path().join("launchers"),
-        root.path().join("real"),
-    );
-    copy_program(Path::new(SHADOW_EXECUTABLE), &first.join("search-shadow"));
-    copy_of_another_version(&second.join("search-shadow"));
-    let link: PathBuf = link_as(&first, "grep");
-    // The launcher of the toolchain is a program of its own with a record beside it that names the program it starts.
-    // Its own bytes are not the shadow's; only its record leads to the other shadow.
-    copy_program(Path::new("/usr/bin/true"), &launchers.join("grep"));
-    fs::write(
-        launchers.join("grep.launch"),
-        format!(r#"{{"toolId":"cargo:monochromatic-search-shadow","lockFile":"/dev/null","real":"{}","scope":"repo"}}"#, second.join("search-shadow").display()),
-    )
-    .expect("write the record");
-    write_real_script(&real, "grep");
-
-    let output = finished(run_bounded(command_for(
-        &link,
-        &[&first, &launchers, &real],
-        &["needle", "haystack"],
-    )));
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "REAL grep needle haystack\n",
-        "the launcher that leads to a shadow was started"
-    );
-}
-
-#[test]
-fn a_launcher_record_that_names_a_real_tool_is_not_skipped() {
-    let root = scratch();
-    let (first, launchers) = (root.path().join("first"), root.path().join("launchers"));
-    copy_program(Path::new(SHADOW_EXECUTABLE), &first.join("search-shadow"));
-    let link: PathBuf = link_as(&first, "grep");
-    copy_program(Path::new("/usr/bin/grep"), &launchers.join("grep"));
-    fs::write(
-        launchers.join("grep.launch"),
-        r#"{"toolId":"grep","lockFile":"/dev/null","real":"/usr/bin/grep","scope":"repo"}"#,
-    )
-    .expect("write the record");
-    let file = root.path().join("haystack.txt");
-    fs::write(&file, "one needle here\nand none here\n").expect("write the haystack");
-
-    let output = finished(run_bounded(command_for(
-        &link,
-        &[&first, &launchers],
-        &["--count", "needle", &file.display().to_string()],
-    )));
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "1\n");
-}
-
-#[test]
-fn a_compiled_real_grep_and_a_compiled_real_rg_still_run_behind_the_shadow() {
-    let root = scratch();
-    let (first, real) = (root.path().join("first"), root.path().join("real"));
-    copy_program(Path::new(SHADOW_EXECUTABLE), &first.join("search-shadow"));
-    let grep_link: PathBuf = link_as(&first, "grep");
-    let rg_link: PathBuf = link_as(&first, "rg");
-    // Genuine compiled programs without the shadow's identity: the system's grep, and `true` standing in for ripgrep.
-    copy_program(Path::new("/usr/bin/grep"), &real.join("grep"));
-    copy_program(Path::new("/usr/bin/true"), &real.join("rg"));
-    let file = root.path().join("haystack.txt");
-    fs::write(&file, "one needle here\nand none here\n").expect("write the haystack");
-
-    let grep_output = finished(run_bounded(command_for(
-        &grep_link,
-        &[&first, &real],
-        &["--count", "needle", &file.display().to_string()],
-    )));
-    let rg_output = finished(run_bounded(command_for(
-        &rg_link,
-        &[&first, &real],
-        &["needle", &file.display().to_string()],
-    )));
-
-    assert!(
-        grep_output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&grep_output.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&grep_output.stdout), "1\n");
-    assert!(
-        rg_output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&rg_output.stderr)
-    );
-}
-
-#[test]
-fn a_script_that_starts_the_other_shadow_stops_on_arrival_with_one_line_and_a_non_zero_status() {
-    let root = scratch();
-    let (first, second, scripts) = (
-        root.path().join("first"),
-        root.path().join("second"),
-        root.path().join("scripts"),
-    );
-    copy_program(Path::new(SHADOW_EXECUTABLE), &first.join("search-shadow"));
-    copy_of_another_version(&second.join("search-shadow"));
-    let link: PathBuf = link_as(&first, "grep");
-    link_as(&second, "grep");
-    // No test of the script's bytes can tell that it leads to a shadow: only the start itself shows it.
-    fs::create_dir_all(&scripts).expect("make the folder");
-    fs::write(
-        scripts.join("grep"),
-        format!(
-            "#!/bin/sh\nexec '{}' \"$@\"\n",
-            second.join("grep").display()
-        ),
-    )
-    .expect("write the script");
-    fs::set_permissions(scripts.join("grep"), fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
-
-    // The script comes after the first shadow on PATH and the second shadow's link is out of PATH: the script is the real tool the first one finds.
-    let output = finished(run_bounded(command_for(
-        &link,
-        &[&first, &scripts],
-        &["needle", "haystack"],
-    )));
-
-    let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
-    assert_eq!(output.status.code(), Some(2), "stderr: {stderr}");
-    assert_eq!(
-        stderr.trim_end().lines().count(),
-        1,
-        "the stop is one line: {stderr}"
-    );
-    assert!(stderr.contains("started by"), "stderr: {stderr}");
-    assert!(output.stdout.is_empty(), "the real tool must not have run");
-}
-
-/// The start time of a process,
-/// as `/proc/<pid>/stat` field 22 says it (the test reads it the way the arrival marker does).
-fn birth_of(pid: u32) -> String {
-    let text: String = fs::read_to_string(format!("/proc/{pid}/stat")).expect("read the stat file");
-    let after_name: &str = text
-        .rsplit_once(')')
-        .expect("the name ends with a bracket")
-        .1;
-    return after_name
-        .split_whitespace()
-        .nth(19)
-        .expect("field 22")
-        .to_string();
-}
-
-#[test]
-fn an_arrival_marker_left_for_the_direct_parent_stops_the_shadow_and_one_left_for_anyone_else_does_not()
- {
-    let root = scratch();
-    let (first, real) = (root.path().join("first"), root.path().join("real"));
-    copy_program(Path::new(SHADOW_EXECUTABLE), &first.join("search-shadow"));
-    let link: PathBuf = link_as(&first, "grep");
-    write_real_script(&real, "grep");
-    let own_pid: u32 = std::process::id();
-
-    // A start by this process: the shadow's parent is the process that wrote the marker, so it was started by a shadow.
-    let mut for_parent: Command = command_for(&link, &[&first, &real], &["needle", "haystack"]);
-    for_parent.env(
-        ARRIVAL_VARIABLE,
-        format!(
-            "spawn {own_pid} {} monochromatic-search-shadow 0.0.0",
-            birth_of(own_pid)
-        ),
-    );
-    let stopped = finished(run_bounded(for_parent));
-    assert_eq!(
-        stopped.status.code(),
-        Some(2),
-        "stderr: {}",
-        String::from_utf8_lossy(&stopped.stderr)
-    );
-
-    // A marker that names another process, as one a real tool's own script inherits: ignored, the real tool runs.
-    let mut for_someone_else: Command =
-        command_for(&link, &[&first, &real], &["needle", "haystack"]);
-    for_someone_else.env(
-        ARRIVAL_VARIABLE,
-        format!(
-            "spawn {} {} monochromatic-search-shadow 0.0.0",
-            own_pid + 1,
-            birth_of(own_pid)
-        ),
-    );
-    let passed = finished(run_bounded(for_someone_else));
-    assert!(
-        passed.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&passed.stderr)
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&passed.stdout),
-        "REAL grep needle haystack\n"
-    );
-
-    // The right process number with another birth identity is a reused number: ignored.
-    let mut reused: Command = command_for(&link, &[&first, &real], &["needle", "haystack"]);
-    reused.env(
-        ARRIVAL_VARIABLE,
-        format!("spawn {own_pid} 1 monochromatic-search-shadow 0.0.0"),
-    );
-    let passed_again = finished(run_bounded(reused));
-    assert!(
-        passed_again.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&passed_again.stderr)
-    );
-}
-
-#[test]
-fn link_does_not_take_the_link_of_another_shadow_version_for_a_real_tool() {
-    let root = scratch();
-    let (second, links) = (root.path().join("second"), root.path().join("links"));
-    copy_of_another_version(&second.join("search-shadow"));
-    link_as(&second, "grep");
-
-    // The only `grep` on PATH is the link of another shadow: there is no real tool, so no link is made.
-    let output = Command::new(SHADOW_EXECUTABLE)
-        .arg("link")
-        .arg(&links)
-        .env_clear()
-        .env("PATH", &second)
-        .output()
-        .expect("run link");
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        links.join("grep").symlink_metadata().is_err(),
-        "a link was made for a tool whose only candidate is a shadow"
-    );
-}
-
-/// An upgrade takes over the links an older copy made:
-/// a link to another shadow version is a shadow link,
-/// so `link` points it at this program instead of leaving it behind.
-#[test]
-fn link_takes_over_a_link_that_points_at_another_shadow_version() {
-    let root = scratch();
-    let (older, links, tools) = (
-        root.path().join("older"),
-        root.path().join("links"),
-        root.path().join("tools"),
-    );
-    copy_of_another_version(&older.join("search-shadow"));
-    fs::create_dir_all(&links).expect("make the links folder");
-    // The link an older copy made into the very directory this run is asked to link into.
-    std::os::unix::fs::symlink(older.join("search-shadow"), links.join("grep"))
-        .expect("make the older link");
-    write_real_script(&tools, "grep");
-
-    let path_variable: String = format!("{}:{}", tools.display(), older.display());
-    let output = Command::new(SHADOW_EXECUTABLE)
-        .arg("link")
-        .arg(&links)
-        .env_clear()
-        .env("PATH", &path_variable)
-        .output()
-        .expect("run link");
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        fs::canonicalize(links.join("grep")).expect("resolve the link"),
-        fs::canonicalize(SHADOW_EXECUTABLE).expect("resolve this program"),
-    );
-    assert!(
-        !String::from_utf8_lossy(&output.stderr).contains("alone"),
-        "an upgrade must not leave its own older link behind: {}",
-        String::from_utf8_lossy(&output.stderr),
-    );
 }
