@@ -44,6 +44,10 @@
 //!   with the bound and the notice grace of each.
 //! - `child_watch_step_bounds_and_errors.rs`:
 //!   how a watched step may be ended and the errors that say it was.
+//! - `child_watch_signalling_only_the_child_that_was_started.rs`:
+//!   how a stop reaches the child it started and never another command:
+//!   the pin of a step's root taken while that child is this process's own unreaped child,
+//!   the signals sent through it and the processes below the root read through it.
 //! - `child_watch.rs`:
 //!   a watcher for waits that block on a child process:
 //!   notices at the cadence and the child stopped at the bound.
@@ -426,6 +430,11 @@ pub mod push_deadline_and_patience_settings;
 
 /// The public update of one pushed reference and the limits on the probe's side-by-side queries.
 pub mod manual_push_update_and_query_limits;
+
+/// How a stop reaches the child it started and never another command:
+/// the pin of a step's root taken while that child is this process's own unreaped child,
+/// the signals sent through it and the processes below the root read through it.
+pub mod child_watch_signalling_only_the_child_that_was_started;
 
 /// What a child watch is made of below its public face:
 /// terms,
