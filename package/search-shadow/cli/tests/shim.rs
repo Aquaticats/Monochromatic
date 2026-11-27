@@ -44,8 +44,6 @@ use std::fs;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 
-/// Imports the trait that adds `from_mode` to permissions (marks a script executable).
-
 /// Imports the borrowed path type.
 use std::path::Path;
 

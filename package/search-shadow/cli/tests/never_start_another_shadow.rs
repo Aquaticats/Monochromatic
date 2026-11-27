@@ -83,8 +83,6 @@ mod link_takes_over_a_shadow_link;
 /// ```
 use std::fs;
 
-/// Imports the trait that adds `from_mode` to permissions (marks a copy executable).
-
 /// Imports the borrowed and the owned path types of the fixtures.
 use std::path::{
     Path,
