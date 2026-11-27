@@ -16,6 +16,8 @@
 //! ```ts
 //! type NamedInterpreter = { kind: 'script'; interpreter: string } | { kind: 'linker'; linker: string } | { kind: 'none' } | { kind: 'unknown' };
 //! export function namedInterpreter(program: string): NamedInterpreter { /* '#!/bin/sh' or the ELF PT_INTERP entry */ }
+//! type MissingInterpreter = { kind: 'script'; interpreter: string } | { kind: 'linker'; linker: string } | { kind: 'saysNothing' };
+//! export function missingInterpreter(program: string): MissingInterpreter
 //! ```
 
 /// Imports `File`,
@@ -165,6 +167,46 @@ pub enum NamedInterpreter {
 }
 
 /// What:
+/// The interpreter a program names that a start of it will not find:
+/// a script's `#!` program that is not there,
+/// a compiled program's dynamic linker that is not there,
+/// or nothing the program's own file can say.
+/// Why:
+/// A message about a start the system refused with "no such file or directory" must name the file
+/// that fits,
+/// and the two kinds of interpreter are the two sentences a reader can act on;
+/// when nothing of the program can be read,
+/// the message must name both kinds and claim neither.
+/// The answer is chosen here so both messages choose it the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MissingInterpreter = { kind: 'script'; interpreter: string } | { kind: 'linker'; linker: string } | { kind: 'saysNothing' };
+/// ```
+#[derive(Debug)]
+pub enum MissingInterpreter {
+    /// A script whose interpreter is not there.
+    Script {
+        /// The interpreter's path,
+        /// as the script's first line writes it.
+        interpreter: PathBuf,
+    },
+    /// A compiled program whose dynamic linker is not there.
+    DynamicLinker {
+        /// The linker's path,
+        /// as the program's own file writes it.
+        linker: PathBuf,
+    },
+    /// Nothing the program's own file can say:
+    /// it is gone,
+    /// it cannot be read,
+    /// its first bytes are not a program this module understands,
+    /// the interpreter it names is there,
+    /// or the system could not say whether that interpreter is there.
+    SaysNothing,
+}
+
+/// What:
 /// Where one compiled program keeps its program-header table,
 /// and how to read one entry of it.
 /// Why:
@@ -218,6 +260,53 @@ pub fn named_interpreter(program: &Path) -> NamedInterpreter {
         return script(&mut file);
     }
     return NamedInterpreter::Unknown;
+}
+
+/// What:
+/// `pub fn missing_interpreter(program: &Path) -> MissingInterpreter` answers which interpreter `program`
+/// names that is not there,
+/// or that its own file says nothing the message can use.
+/// `&Path` borrows the path read-only;
+/// the answer owns its own paths because the caller keeps it after this function returns.
+/// Why:
+/// Both messages about a start that found nothing need this,
+/// and both must not be able to fail:
+/// a file that cannot be read is one more answer,
+/// not an error that stops the message.
+/// A file is named only when the operating system itself says no file exists at its path,
+/// never when it could not answer:
+/// a message that says "is not there" of a file whose metadata could not be read would be false.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function missingInterpreter(program: string): MissingInterpreter
+/// ```
+pub fn missing_interpreter(program: &Path) -> MissingInterpreter {
+    return match named_interpreter(program) {
+        NamedInterpreter::Script {
+            interpreter,
+        } if is_absent(&interpreter) => MissingInterpreter::Script {
+            interpreter,
+        },
+        NamedInterpreter::DynamicLinker {
+            linker,
+        } if is_absent(&linker) => MissingInterpreter::DynamicLinker {
+            linker,
+        },
+        _ => MissingInterpreter::SaysNothing,
+    };
+}
+
+/// What:
+/// `fn is_absent(path: &Path) -> bool` answers whether the operating system says that no file exists at
+/// `path`.
+/// Why:
+/// `Path::exists` answers `false` both for a file that is not there and for one whose metadata could
+/// not be read,
+/// and a sentence about a missing file may only say so when the system's own answer does;
+/// a path the system cannot look at is the case that keeps both kinds of interpreter in the message.
+fn is_absent(path: &Path) -> bool {
+    return matches!(path.try_exists(), Ok(false));
 }
 
 /// What:

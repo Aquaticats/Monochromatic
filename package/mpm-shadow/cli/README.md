@@ -1683,15 +1683,19 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
   A file that vanishes between the check and the start still gets a `could not start` line:
-  the program is gone,
-  or the interpreter named on its first line is,
-  and the launcher cannot tell which,
+  the message names the file that is missing,
+  read from the program's own bytes (`src/named_interpreter.rs`):
+  the interpreter its first line names for a script,
+  or the dynamic linker a compiled program's own file names,
+  and both kinds and neither when the program itself is gone,
   because `execve` answers one error for both;
   the message gives the command that writes the tool's links again,
-  and adds installing the interpreter when the interpreter is the file that is missing.
+  and then installing the interpreter or the linker when that is the file that is missing.
   A start the system refused because another process holds a file it needs open for writing gets the same explanation the shadow mode gives:
   some process holds open for writing the program's file,
-  or the interpreter named on its first line,
+  or the interpreter the program's own file names,
+  which is the program after `#!` on a script's first line or a compiled program's dynamic linker,
+  and which of the two whenever the program's own file says so,
   the shadow cannot tell which process holds it or why,
   the same command works once that write has finished and left a whole program,
   and a write cut short leaves a broken program,
