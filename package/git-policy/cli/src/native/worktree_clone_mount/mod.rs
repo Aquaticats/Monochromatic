@@ -26,8 +26,16 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `attach_the_clones_words.rs`:
+//!   the filesystem type,
+//!   the option that names a dataset,
+//!   the attributes and the call names,
+//!   the refusal one failed call answers,
+//!   and the mount an attach made.
+//! - `attach_the_clones_calls.rs`:
+//!   the four kernel calls one attach is made of.
 //! - `attach_the_clone.rs`:
-//!   the attach's own calls and its refusal,
+//!   the attach's steps,
 //!   and the descriptor-bound unmount a rollback makes.
 //! - `attached_mount_identity.rs`:
 //!   the attach's flags and the mount facts recorded for one folder.
@@ -163,8 +171,14 @@ pub mod slot_identity_store_publication;
 /// The attach's flags and the mount facts one folder's descriptor reports.
 pub mod attached_mount_identity;
 
-/// The attach's calls,
-/// its refusal and the descriptor-bound unmount.
+/// The words and numbers one attach speaks in.
+pub mod attach_the_clones_words;
+
+/// The four kernel calls one attach is made of.
+pub mod attach_the_clones_calls;
+
+/// The attach's steps,
+/// the mount it made and the descriptor-bound unmount.
 pub mod attach_the_clone;
 
 /// Why the walk or an identity compare refused.
@@ -220,15 +234,17 @@ pub use attach_post_check::{
     MisplacedReason,
     post_attach_check,
 };
-/// The attach's calls,
-/// the mount it made and the descriptor-bound unmount.
+/// The attach's steps and the descriptor-bound unmount.
 pub use attach_the_clone::{
+    attach_the_clone,
+    unmount_through_descriptor,
+};
+/// The words one attach speaks in, and the mount it made.
+pub use attach_the_clones_words::{
     AttachCall,
     AttachRefusal,
     AttachedMount,
     Placement,
-    attach_the_clone,
-    unmount_through_descriptor,
 };
 /// The mount facts and the enforced flags.
 pub use attached_mount_identity::{
