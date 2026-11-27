@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:48:05-05:00
+## The state at 2026-11-27T17:51:01-05:00
 
-`main` was `0f69dbfe93`.
+`main` was `aa7b4eb927`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 278 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 279 more by this time.
 
 ### Rounds running
 
@@ -630,22 +630,36 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   with nothing to build until a red run's output is kept whole.
   The commit's `Closes` line closed issue 6623 at the merge;
   a comment on that commit says `Refs` is the accurate word.
-  `0.1.5-alpha.16` waits again,
-  by the coordinator's choice with the veto open,
-  for the round of issue 6629.
-  The failure that wait prevents is measured:
-  where no user manager can be reached,
-  every call now makes five asks and takes 883.1 ms at the median,
-  against 43.2 ms and one ask for `0.1.5-alpha.15`
-  (12.90 to 29.68 times as long per round,
-  median 20.55,
-  nine interleaved rounds beside byte-identical copies),
-  and the repository's workflows install the locked binary
-  (`.github/actions/repo-tools-setup/action.yml`),
-  so releasing and locking it would put that wait into every such call.
-  That round,
-  `issue-6629-a-call-with-no-user-manager-to-reach-asks-once-and-a-reexec-is-still-ridden-through`,
-  started 2026-11-27T17:04:25-05:00.
+  That span cost a call 883.1 ms at the median where no user manager can be reached,
+  against 43.2 ms for `0.1.5-alpha.15`,
+  so `0.1.5-alpha.16` waited for the round of issue 6629,
+  which is merged (`aa7b4eb927`).
+  The discovery now reads in its own process whether anything on the host could carry an ask:
+  the runtime directory and the bus address,
+  the manager's own socket and directory,
+  and the bus socket.
+  Where nothing could,
+  the first failed ask is the answer.
+  It matches no words of another program.
+  Measured again with the same harness,
+  in both ways of having no manager:
+  one ask per call in all 72 calls,
+  and the branch's call at 1.01 to 1.28 times the released binary's per round with neither variable set
+  (median 1.11),
+  and at 0.87 to 1.05 times with a runtime directory that holds nothing
+  (median 1.00),
+  while byte-identical copies moved as much.
+  The control that reexecutes a container's own manager passed three times with the change,
+  and failed there with the asking again taken out.
+  Sampled across real reexecs,
+  the manager's socket was absent for 0.17 ms and for 0.28 ms in one run and never in another,
+  and the manager's directory was there in every sample,
+  which is why a reexec does not read as no manager.
+  One residue:
+  a host whose manager died and left its socket file or its directory behind is still asked five times.
+  Its commit's `Closes` line closed issue 6629 at the merge,
+  and the coordinator reopened the issue for that residue.
+  `0.1.5-alpha.16` is released next.
   Both rounds of the read got a note in their inbox at 2026-11-27T15:51:09-05:00,
   saying what issue 6619's merge changed in the package and that a third round works in the route discovery.
   Issue 6619's round is merged (`1ef6287246`).
@@ -2533,8 +2547,8 @@ and the two `truepeak` files wait on their branch.
   and `native:gate:verdict -- <log path> <deadline seconds>` reads its verdict.
 - Read the wrapper's alpha.50 passes whole and route their findings ("Rounds running").
 - When a tool's fix rounds have merged and `main` equals `origin/main`:
-  release `cargo-shadow` `0.1.5-alpha.16` once the round of issue 6629 has merged,
-  and `mpm-shadow` `0.2.7-alpha.17` once its rounds have,
+  release `cargo-shadow` `0.1.5-alpha.16` now,
+  and `mpm-shadow` `0.2.7-alpha.17` once the round of issue 6630 has merged,
   lock each on a branch worktree,
   install,
   put the session's `git` link back,

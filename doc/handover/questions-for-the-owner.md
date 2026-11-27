@@ -3369,6 +3369,28 @@ the coordinating session's:
 wait > release now,
 because the wait is one round long and the cost of releasing lands on every call of a kind.
 
+That wait is over:
+the round merged as `aa7b4eb927` at 2026-11-27T17:49:46-05:00,
+a call with no user manager to reach makes one ask again,
+and the release started after it.
+One thing the round left:
+a host whose manager died and left its socket file or its directory behind is still asked five times.
+
+- Leave it (taken):
+  the cost is the five asks on such a host and nothing anywhere else.
+- Tell a dead socket from a manager that is reexecuting:
+  such a host would be asked once.
+  The cost is a rule nobody has found:
+  in the round's sampling a reexec answered `Connection refused` in 393 of 399 refused asks,
+  which is what a socket file with nothing listening answers too,
+  and a wrong guess there refuses a call across a reexec.
+
+Ranking,
+the round's and the coordinating session's:
+leave it > tell them apart,
+because the second risks the failure the asking again exists to prevent.
+Issue 6629 stays open for it.
+
 ### What stays unexplained
 
 The ten failures of 2026-11-27 came after the reexec had ended,
