@@ -116,11 +116,12 @@ RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed 
     && rm --recursive --force /var/cache/pacman/pkg/*
 
 ENV CARGO_HOME=/cargo
-# Enable Slint's experimental builtins so `FlexboxLayout` (used for the wrapping,
-# variable-width page-tab bar) is recognised. slint-build reads this env var at
-# compile time (build.rs); without it the Slint compiler rejects `FlexboxLayout`
-# with "Unknown element". It is baked here so every cargo task (build, check,
-# clippy, test, run) compiles the UI consistently. The feature is experimental
-# upstream and its API may change across Slint versions.
-ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
+# Name the Slint experimental language features the UI compiles, so build, check,
+# clippy, test, and run all agree. Slint 1.19.0 reads a comma-separated list of
+# kebab-case names and rejects any other value, '1' included (the boolean switch
+# through 1.18.1). `internal-types` is what `SlintInternal.accent-color` in
+# `ui/theme.slint` needs; `FlexboxLayout` needs no feature from 1.19.0 on. The
+# feature is experimental upstream and its name may change across Slint versions
+# (doc/troubleshooting/slint-lsp-experimental-features.md).
+ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=internal-types
 WORKDIR /work
