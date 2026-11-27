@@ -6,7 +6,7 @@
  later run of the same driver can take. Only a run that never made its guest leaves one behind, and that is the one case
  where nothing is destroyed.
  */
-import type { GuestFacts, } from './guest-driver-recipe-step.ts';
+import type { GuestFacts, } from './mvm-guest-recipe-step.ts';
 
 /**
  One step of a run, and the facts it names its guest and its logs by.

@@ -48,21 +48,21 @@ import {
   holdsWordLine,
   missingMarkerRefusal,
   missingMarkers,
-} from './guest-driver-arm-log.ts';
-import { flagValue, } from './guest-driver-command-line.ts';
-import { GuestDriverError, } from './guest-driver-error.ts';
+} from '../bin/mvm-guest-arm-log.ts';
+import { flagValue, } from '../bin/mvm-guest-command-line.ts';
+import { GuestDriverError, } from '../bin/mvm-guest-error.ts';
 import {
   type GuestFacts,
   runGuestRecipeStep,
-} from './guest-driver-recipe-step.ts';
+} from '../bin/mvm-guest-recipe-step.ts';
 import {
   readStepLog,
   runRequiredStepCommand,
-} from './guest-driver-step-command.ts';
+} from '../bin/mvm-guest-step-command.ts';
 import {
   awaitDetachedGuestScript,
   startDetachedGuestScript,
-} from './guest-driver-detached-script.ts';
+} from '../bin/mvm-guest-detached-script.ts';
 import {
   ARM_LOG,
   EXPECTED_MARKERS,
@@ -73,7 +73,7 @@ import {
 import {
   type GuestRunStep,
   runWholeGuestRun,
-} from './guest-driver-whole-run.ts';
+} from '../bin/mvm-guest-whole-run.ts';
 
 //region Constants
 

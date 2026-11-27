@@ -14,21 +14,21 @@ import {
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
-import { runGateCommand, } from '../bin/native-gate-run.ts';
+import { runGateCommand, } from './native-gate-run.ts';
 import {
   detachedLaunchText,
   detachedStepText,
   endedLineHolds,
   endedStatusText,
   secondsOf,
-} from './guest-driver-command-line.ts';
-import { GuestDriverError, } from './guest-driver-error.ts';
+} from './mvm-guest-command-line.ts';
+import { GuestDriverError, } from './mvm-guest-error.ts';
 import {
   readStepLog,
   runQuietStepCommand,
   runRequiredStepCommand,
   runStepCommand,
-} from './guest-driver-step-command.ts';
+} from './mvm-guest-step-command.ts';
 
 /**
  Milliseconds one `mvm` command of a detached script's start or end may take: a push, the launch, one look at the log,

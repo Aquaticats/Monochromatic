@@ -8,12 +8,12 @@
 import {
   guestCommandLine,
   secondsOf,
-} from './guest-driver-command-line.ts';
-import { GuestDriverError, } from './guest-driver-error.ts';
+} from './mvm-guest-command-line.ts';
+import { GuestDriverError, } from './mvm-guest-error.ts';
 import {
   readStepLog,
   runStepCommand,
-} from './guest-driver-step-command.ts';
+} from './mvm-guest-step-command.ts';
 
 /**
  The `mvm` subcommand that runs one command inside a named guest, through the guest agent.

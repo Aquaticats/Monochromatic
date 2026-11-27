@@ -32,20 +32,20 @@ import {
   holdsWordLine,
   missingMarkerRefusal,
   missingMarkers,
-} from './guest-driver-arm-log.ts';
+} from '../bin/mvm-guest-arm-log.ts';
 import {
   flagGiven,
   flagValue,
   shellQuote,
-} from './guest-driver-command-line.ts';
-import { GuestDriverError, } from './guest-driver-error.ts';
-import { runGuestScript, } from './guest-driver-guest-script.ts';
-import { runGuestRecipeStep, } from './guest-driver-recipe-step.ts';
+} from '../bin/mvm-guest-command-line.ts';
+import { GuestDriverError, } from '../bin/mvm-guest-error.ts';
+import { runGuestScript, } from '../bin/mvm-guest-script.ts';
+import { runGuestRecipeStep, } from '../bin/mvm-guest-recipe-step.ts';
 import {
   readStepLog,
   runRequiredStepCommand,
-} from './guest-driver-step-command.ts';
-import { runWholeGuestRun, } from './guest-driver-whole-run.ts';
+} from '../bin/mvm-guest-step-command.ts';
+import { runWholeGuestRun, } from '../bin/mvm-guest-whole-run.ts';
 
 //region Constants
 
@@ -468,7 +468,7 @@ async function destroy({ chosen, }: { readonly chosen: Options; },): Promise<voi
 async function all({ chosen, }: { readonly chosen: Options; },): Promise<void> {
   await runWholeGuestRun({
     label: 'git-policy lock guest',
-    name: chosen.name,
+    chosen,
     steps: {
       create: async function createTheGuest() {
         await recipeStepOf({ step: 'create', },)(chosen,);

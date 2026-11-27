@@ -34,22 +34,22 @@ import {
   holdsWordLine,
   missingMarkerRefusal,
   missingMarkers,
-} from './guest-driver-arm-log.ts';
+} from '../bin/mvm-guest-arm-log.ts';
 import {
   flagGiven,
   flagValue,
-} from './guest-driver-command-line.ts';
+} from '../bin/mvm-guest-command-line.ts';
 import {
   GuestDriverError,
   refusalOf,
-} from './guest-driver-error.ts';
-import { holdsGuestName, } from './guest-driver-guest-listing.ts';
-import { runGuestScript, } from './guest-driver-guest-script.ts';
-import { runGuestRecipeStep, } from './guest-driver-recipe-step.ts';
+} from '../bin/mvm-guest-error.ts';
+import { holdsGuestName, } from '../bin/mvm-guest-listing.ts';
+import { runGuestScript, } from '../bin/mvm-guest-script.ts';
+import { runGuestRecipeStep, } from '../bin/mvm-guest-recipe-step.ts';
 import {
   readStepLog,
   runRequiredStepCommand,
-} from './guest-driver-step-command.ts';
+} from '../bin/mvm-guest-step-command.ts';
 
 //region Constants
 

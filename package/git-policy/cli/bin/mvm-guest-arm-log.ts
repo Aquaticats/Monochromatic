@@ -6,7 +6,7 @@
  measured nothing. A driver therefore judges the pulled log itself, and the two readings it makes live here.
  */
 
-import { GuestDriverError, } from './guest-driver-error.ts';
+import { GuestDriverError, } from './mvm-guest-error.ts';
 
 /**
  The markers a pulled log does not hold, in the order the driver listed them.

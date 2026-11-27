@@ -22,11 +22,11 @@ import {
 import {
   type CommandDeadline,
   stopAtDeadline,
-} from '../bin/command-deadline.ts';
+} from './command-deadline.ts';
 import {
   GuestDriverError,
   refusalOf,
-} from './guest-driver-error.ts';
+} from './mvm-guest-error.ts';
 
 /**
  Permission bits of every log a step writes: the account that runs the driver reads it, and no other account does.

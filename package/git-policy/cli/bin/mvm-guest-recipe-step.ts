@@ -10,8 +10,8 @@ import {
   resolve,
 } from 'node:path';
 
-import { GuestDriverError, } from './guest-driver-error.ts';
-import { runVisibleStepCommand, } from './guest-driver-step-command.ts';
+import { GuestDriverError, } from './mvm-guest-error.ts';
+import { runVisibleStepCommand, } from './mvm-guest-step-command.ts';
 
 /**
  The step's own bound: an hour of the host-command bound a driver gives its smaller commands, because the recipe builds
