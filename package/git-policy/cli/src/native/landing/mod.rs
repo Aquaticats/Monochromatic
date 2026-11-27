@@ -276,6 +276,11 @@
 //! - `held_push_holder_and_verdict.rs`:
 //!   which command will decide a held commit's post-commit checks,
 //!   and the verdict that command left.
+//! - `service_amend_replayed_the_commit_made_again.rs`:
+//!   the commit an amend makes on the branch as it is now:
+//!   where it is written,
+//!   how it is signed,
+//!   and the request that lands it.
 //! - `service_amend_replayed.rs`:
 //!   the commit an amend makes when the branch moved under it:
 //!   the amended commit's own author,
@@ -991,6 +996,11 @@ pub mod service_replay_conclusion;
 /// message and signature,
 /// on the replayed tree,
 /// on top of the branch as it is now.
+/// The commit an amend makes on the branch as it is now,
+/// its fields,
+/// and the request that lands it.
+pub mod service_amend_replayed_the_commit_made_again;
+
 pub mod service_amend_replayed;
 
 /// The commits real Git builds for the service:
