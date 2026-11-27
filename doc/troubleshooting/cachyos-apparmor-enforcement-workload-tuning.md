@@ -2066,6 +2066,42 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Seventeenth batch: the commit service's marks file in a container's root home, 2026-11-27T09:14:59-05:00
+
+Met when the service-manager install proof,
+with its Git now writing as the owner of `/work` (issue 6587),
+stopped at its next step:
+the commit service answered `outcome=failed:repository-permission-denied` for a landing in a folder its own user owns.
+`/var/log/audit/audit.log` held 18 records in the hour before:
+
+```text
+apparmor="DENIED" operation="mknod" class="file" profile="git" name="/root/.local/state/monochromatic-git-policy-cli/service/<hash>/marks-<n>.lock" comm="git" requested_mask="c" denied_mask="c"
+```
+
+The service hands `git fast-import` an unnamed scratch file where it can,
+which is what happens on this host
+(`local/git` already grants `scratch/#<n>` in that state folder).
+Where it cannot,
+as in the proof's container,
+`package/git-policy/cli/src/native/landing/service_land_objects_of_batch.rs` passes
+`--export-marks=<journal>/marks-<seq>`,
+and Git makes `marks-<seq>.lock` beside the journal.
+No rule covered that name,
+so Git was refused,
+the service read "permission denied",
+and the landing failed.
+Under the owner's rule recorded under "Eleventh batch",
+`/etc/apparmor.d/local/git` gained
+
+```text
+owner @{HOME}/.local/state/monochromatic-git-policy-cli/service/*/marks-@{int}{,.lock} rwlk,
+```
+
+and `apparmor_parser --replace /etc/apparmor.d/git` exited 0.
+`@{HOME}` covers `/root` as well as the account's home.
+Not yet exercised:
+the next run of the proof shows whether its landings pass.
+
 ## Sixteenth batch: the harness's diff folder, the gate fixture's relay, and a proof that runs Git as root, 2026-11-27T08:38:28-05:00
 
 Met while reading why `package/git-policy/cli/bin/service-manager-install-proof.ts` could not make a worktree in its container
