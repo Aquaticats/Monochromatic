@@ -1,7 +1,11 @@
-//! Unit tests of the sentences an install prints about the copies a killed install left:
+//! Unit tests of the sentences an install prints about the copies an earlier install left:
 //! the publish it finished,
 //! the copy it left beside a hidden name whose installer may still run,
+//! the copy it dropped for another install's publish,
+//! the copy it put back,
+//! the finished copy it left hidden because an older repository tool is never kept,
 //! the hidden directory it removed with a finished copy inside,
+//! whether that copy was a second one or the one the version had,
 //! and the copy a failed download leaves a person to deal with.
 //! Each sentence is read from a run of `sync_tools`,
 //! never from the function that words it,
@@ -21,17 +25,21 @@ use std::process::{
 
 /// Imports the marker file whose text an earlier build wrote.
 use super::archive_staging::COMPLETE_MARKER;
-/// Imports the names a killed install leaves,
+/// Imports the names an install that ended leaves,
 /// the purposes those names carry,
 /// the owner facts a name records,
 /// the write of a finished copy's marker,
-/// and the start time a control reads for a process it started.
+/// the start time a control reads for a process it started,
+/// and the plant a control arms so another install publishes the version in the instant this run does.
 use super::archive_staging::{
     Owner,
+    Plant,
     RECOVERED_PURPOSE,
     REPLACED_PURPOSE,
     STAGING_PURPOSE,
+    clear_the_plant,
     hidden_sibling,
+    plant_these_steps,
     start_time_of_a_process,
     write_complete_marker,
 };
@@ -44,24 +52,37 @@ use super::fakes::{
 };
 /// Imports the tool directory of a tool id.
 use super::layout::tool_directory;
+/// Imports the question that tells a finished install from an unfinished one.
+use super::published_archive::is_finished;
 /// Imports the constants and the helpers the archive tests share:
 /// the tool id,
 /// the program its release holds,
 /// a digest no lock vouches for,
 /// the lock at one version,
 /// the context of a run,
-/// and the digest the lock records for a release.
+/// the digest the lock records for a release,
+/// the finish of an install made by hand,
+/// and the fake network serving releases an install downloads.
 use super::published_archive_tests::{
     A_TEST_SHA256,
     BIN,
     ID,
     context_of,
+    finish_archive,
     lock_at,
     release_digest,
+    serve_releases,
 };
 /// Imports the install itself,
-/// which is the run whose report these tests read.
-use super::sync::sync_tools;
+/// which is the run whose report these tests read,
+/// and the report it answers with.
+use super::sync::{
+    SyncReport,
+    sync_tools,
+};
+/// Imports the text of a directory's own name,
+/// which the planted publish reads its version from.
+use super::util::file_name_text;
 
 /// What:
 /// The owner facts of an installer that no process answers for:
@@ -190,6 +211,32 @@ fn write_the_program(directory: &std::path::Path) {
     // writeExecutable(join(directory, 'release-folder', BIN));
     // ```
     write_executable(&directory.join("release-folder").join(BIN));
+}
+
+/// What:
+/// A finished copy of the locked version at the version's name,
+/// written as another install publishes it while this run stands before its own rename.
+/// Why:
+/// The sentence for a copy this run dropped is printed only when another install gave the version its name first,
+/// and no disposable fixture can time that;
+/// the plant makes the instant exact instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function anotherInstallPublishesTheVersion(staging: string, versionDir: string): void {
+///   writeExecutable(join(versionDir, 'release-folder', BIN));
+///   writeCompleteMarker(versionDir, ID, basename(versionDir), A_TEST_SHA256);
+/// }
+/// ```
+fn another_install_publishes_the_version(
+    _staging: &std::path::Path,
+    version_dir: &std::path::Path,
+) {
+    // What: the program and then the marker, the order an install writes them in.
+    // Why: another install's copy is only a finished one when the run finds both.
+    write_the_program(version_dir);
+    write_complete_marker(version_dir, ID, &file_name_text(version_dir), A_TEST_SHA256)
+        .expect("write the completion marker");
 }
 
 #[test]
@@ -322,7 +369,7 @@ fn the_copy_left_for_an_install_that_runs_names_that_install_and_not_a_claim() {
 }
 
 #[test]
-fn the_removal_says_when_a_finished_copy_went_with_the_hidden_directory() {
+fn the_removal_says_the_copy_went_because_no_finished_copy_is_at_the_version_name() {
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
@@ -342,13 +389,170 @@ fn the_removal_says_when_a_finished_copy_went_with_the_hidden_directory() {
     assert_eq!(
         report.recovered,
         vec![format!(
-            "removed 1 hidden directory that a killed install of {ID} left behind, \
-             1 of which held a finished copy that this run could not publish, \
-             so that copy is gone"
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a finished copy of 0.2.1 that this run did not publish, \
+             because that copy's completion marker does not record the archive this lock names; \
+             no finished copy of 0.2.1 is at its name, so that copy is gone"
         )],
-        "the sentence says a finished copy went: {report:?}"
+        "the sentence says the copy went and no finished copy is at the version's name: {report:?}"
     );
     assert!(!unvouched.exists(), "the hidden directory is gone");
+    assert!(
+        !version_dir.exists(),
+        "the sentence says it, and this run did not put a copy there: {report:?}"
+    );
+}
+
+#[test]
+fn the_removal_says_nothing_was_lost_when_the_version_is_finished_at_its_name() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // The version itself, installed by an earlier run of this package from its own lock, so its marker records the
+    // archive the lock names.
+    serve_releases(&rig, &["0.2.1"]);
+    let installing: SyncReport =
+        sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(
+        installing.failed.is_empty() && is_finished(&version_dir, BIN),
+        "the version is installed before the run this test reads: {installing:?}"
+    );
+    // And a second finished copy of that same version, the one a recovery claimed and left behind, whose marker
+    // records the lock's row as a finished copy does.
+    let second: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        RECOVERED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_the_program(&second);
+    write_complete_marker(&second, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a second finished copy of 0.2.1; \
+             0.2.1 is finished at its name, so nothing was lost with that copy"
+        )],
+        "the sentence says what went and that a finished copy is still at the version's name: {report:?}"
+    );
+    assert!(
+        is_finished(&version_dir, BIN),
+        "the version keeps the finished copy it had: {report:?}"
+    );
+    assert!(!second.exists(), "the second finished copy is gone");
+}
+
+#[test]
+fn the_copy_put_back_names_an_earlier_install_and_not_a_kill() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // The copy an install moved aside and left there when it did not finish: unfinished, as the copy that was there
+    // is before a replace step moves it.
+    let aside: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        REPLACED_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_the_program(&aside);
+
+    // Nothing is served, so the install after the recovery cannot download: the sentence is the report's one line.
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "put back the copy of {ID} 0.2.1 that an earlier install had moved aside"
+        )],
+        "the sentence names an earlier install, which is what the name it read carries: {report:?}"
+    );
+    assert!(
+        version_dir.is_dir(),
+        "the copy that was there is back at the version's name: {report:?}"
+    );
+}
+
+#[test]
+fn the_copy_dropped_for_another_publish_names_an_earlier_install_and_not_a_kill() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // The finished copy a kill after the marker leaves, whose marker records the lock's own row.
+    let finished: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_the_program(&finished);
+    write_complete_marker(&finished, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
+    // What: another install gives the version its name while this run stands before its own rename.
+    // Why: only that makes this run drop the copy it holds, and no fixture can time it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // plantTheseSteps({ anotherInstallActs: anotherInstallPublishesTheVersion });
+    // ```
+    plant_these_steps(Plant {
+        another_install_acts: Some(another_install_publishes_the_version),
+        ..Plant::default()
+    });
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    clear_the_plant();
+
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "dropped the copy of {ID} 0.2.1 that an earlier install left, \
+             because another install published that version meanwhile"
+        )],
+        "the sentence names an earlier install and the publish that took the version's name: {report:?}"
+    );
+    assert!(
+        is_finished(&version_dir, BIN),
+        "another install's publish is what the version's name holds: {report:?}"
+    );
+}
+
+#[test]
+fn the_finished_copy_left_hidden_names_an_earlier_install_and_not_a_kill() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let version_dir = tool_dir.join("0.2.1");
+    // A newer version of this repository's tool is installed, so an older one is never kept.
+    finish_archive(&root, "0.2.2");
+    let finished: std::path::PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_that_no_longer_runs(),
+    );
+    write_the_program(&finished);
+    write_complete_marker(&finished, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "left the finished copy of {ID} 0.2.1 under the hidden name an earlier install left it at, \
+             because 0.2.2 is installed and an older repository tool is never kept"
+        )],
+        "the sentence names an earlier install, which is what the name it read carries: {report:?}"
+    );
+    assert!(
+        is_finished(&finished, BIN),
+        "the copy stays hidden where a later install publishes it: {report:?}"
+    );
 }
 
 #[test]

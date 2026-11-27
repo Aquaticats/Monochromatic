@@ -110,7 +110,7 @@ pub(super) fn claim_the_finished_copy(
         // Another install claimed it first, so its copy is the one that will be published.
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(ToolchainError::failure(format!(
-            "cannot claim the finished install at {} that a killed install left: {error}; that copy is still there and nothing was published from it",
+            "cannot claim the finished install at {} that an earlier install left: {error}; that copy is still there and nothing was published from it",
             finished.path.display()
         ))),
     };

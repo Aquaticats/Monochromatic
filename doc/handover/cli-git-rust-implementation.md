@@ -103,19 +103,40 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T16:05:40-05:00
+## The state at 2026-11-27T16:37:15-05:00
 
-`main` was `7eb08ea6b9`.
+`main` was `e772d8ad66`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 263 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 266 more by this time.
 
 ### Rounds running
 
 Every round runs on Pi's virtual writer,
 pinned to no member
 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
+whose members the owner changed on 2026-11-27 at about 16:15 -05:00:
+"Change writer's list to match the reviewer's list."
+On `main` the reviewer asks the qwen plan,
+then Synthetic,
+then `opencode-go`,
+then Neuralwatt's flex lane,
+and the writer asks those without Synthetic
+(`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`);
+the round `the-virtual-writer-asks-the-members-the-virtual-reviewer-asks`,
+started 2026-11-27T16:17:49-05:00,
+makes the change and says first what context window the writer then advertises.
+Pi loads that extension from the main checkout's built copy,
+so after the merge the coordinator rebuilds it there
+(`mise run //package/pi-plugin/rate-limit-fallback:build`)
+with no round start in flight,
+and a round started before that keeps the list it loaded.
+The owner also wrote,
+of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
+"nw-large is advisor,
+and that's fine."
+The rounds run
 under the owner's "Up to 64 rounds at once."
 (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
 All were started through the driver package,
@@ -132,6 +153,11 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the `mpm-shadow` sentences,
   issue 6623 (`cargo-shadow`),
   and the rounds of the wrapper's alpha.50 reads.
+  Two more started alone:
+  `issue-6622-final-newline-warned-for-two-new-files-that-end-with-one-line-feed` at 2026-11-27T16:12:08-05:00,
+  which tries the states on `main`'s code and on the released alpha.44 and alpha.50
+  after the coordinator recovered the finding's own line from the earlier round's feed and posted it on the issue;
+  and the virtual writer's round at 2026-11-27T16:17:49-05:00.
   Every round of the list of 2026-11-27T14:54:37-05:00 is merged:
   issue 6620 (`bc24b2e688`),
   issue 6619 (`1ef6287246`),
@@ -150,7 +176,10 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   because both change `move_refusal_of`.
   A command standing in the repository's Git directory or in a bare repository has no such control:
   the round's plant changes nothing there,
-  so a control of those shapes needs another plant to be shown red.
+  so a control of those shapes needs another plant to be shown red
+  (issue 6625,
+  which starts when the wrapper round on a bare shell alias has merged,
+  because both change one test file).
   The round's first edits went to the main checkout's copy of its test file,
   by a path written without the worktree's prefix;
   it reversed them,
@@ -213,6 +242,27 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   After their merges come the tip checks,
   one whole gate,
   and `0.6.1-alpha.51`.
+  The round on the two unwired sentences is merged (`e772d8ad66`).
+  Both sentences show the name through `shown_so_it_cannot_rewrite_the_line` and stand in the guard's list;
+  `CommandWord::of` keeps the kernel's bytes and escapes nothing,
+  so a name is escaped once,
+  at the sentence.
+  A sentence that shows a name through a local of another spelling is not seen by the guard:
+  the round planted one,
+  measured two wider scans over the release sources and found each reports the program's own words,
+  and the guard's top doc now says what a reader checks.
+  `SPEC.md` says which lines the rule covers and what a record written as JSON does with a name.
+  No process that serves more than one command reads the identity file
+  (`main.rs` chooses the service and the handler's modes before the entry runs;
+  one run of a serving process said the sentence zero times,
+  with no commit through it,
+  because a fixture has no manager),
+  and the README says the sentence is said once for a command.
+  The README's bullet on other targets says one thing,
+  resting on the sources' imports and on one dated check that cannot be repeated on this machine;
+  a clause that called two dependencies unix-only was false and is gone.
+  The whole `source_guard` module passed 213 of 213 after its last merge of `main`,
+  and its picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
   Of the `0.6.1-alpha.49` behaviour pass,
   all four rounds are merged,
   and the whole gate on `main` at `3aab810dd9` passed
@@ -557,9 +607,31 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (`cda9f0c7b3`,
   `2c6513069b`,
   `7a216deafc`),
-  and a follow-up round runs since 2026-11-27T15:47:54-05:00,
-  `mpm-shadow-alpha-15-release-pass-the-sentences-about-a-leftover-say-only-what-the-run-read`;
-  `0.2.7-alpha.16` follows its merge.
+  and so is the follow-up round on the report's sentences (`a49bf155cd`).
+  `0.2.7-alpha.16` is released
+  (release commit `5db66260eb`,
+  published 2026-11-27T16:24:48-05:00 by the follower's log),
+  locked (`b2afb5b775`) and installed,
+  with the session's `git` link put back at 2026-11-27T16:26:38-05:00;
+  the install named `rustup` as an unresolved bin,
+  which the lock's Rust toolchain row declares and no toolchain folder holds;
+  the release changed nothing in how that line is computed,
+  so it is not new with this release.
+  A Claude Sonnet read of it runs since about 2026-11-27T16:26-05:00,
+  a same-vendor second pass,
+  writing `~/temp/agent/mpm-shadow-alpha-16-release-review-2026-11-27/keep/review.md`.
+  That round made a removed hidden directory that held a finished copy say which of two things happened:
+  a second copy went and nothing was lost,
+  or the one copy the version had here went,
+  with the reason this run did not publish it.
+  The sentences that said "a killed install" say "an earlier install",
+  or "an install that has ended" where the system answered that;
+  each is read from a run by a test that was red on `main`'s code;
+  the README's list was checked against the code's own literals;
+  and the suite passed 888 of 888 on its merged tree.
+  Its two wording choices wait in `doc/handover/questions-for-the-owner.md`,
+  and the package's other files still hold 76 line-break findings of the linter,
+  none on a line that round wrote.
   The rounds merged with no textual conflict and met in meaning:
   one made the list of removed leftovers carry whether each held a finished copy,
   and reworded the sentence for a publish a recovery finished,
@@ -759,7 +831,9 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-No read runs.
+One read runs as a background agent of the coordinating session,
+of `mpm-shadow` `0.2.7-alpha.16`,
+at the path this section gives beside that release.
 Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
 ("What the wrapper's alpha.50 reads found"),
 as was the linter's

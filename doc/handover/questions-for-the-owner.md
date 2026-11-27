@@ -3191,3 +3191,130 @@ the coordinating session's:
 keep it hidden > say what the removal took,
 because a sentence does not bring a finished copy back,
 and the read of the other locks is one `prune` already makes for their versions.
+
+## Open: two words in `mpm-shadow`'s install report that say more than the run read (recorded 2026-11-27T16:19:06-05:00)
+
+The round that made the report's sentences about a leftover say only what the run read
+(merged as `a49bf155cd`)
+left these as they were and returned them,
+because each trades exactness against something a person learns from the word.
+Neither holds a release.
+
+### "another install published that version meanwhile"
+
+Printed when this run drops a copy because the version's name already holds a finished one.
+What the run read is that a finished copy stood at the name which this run did not put there.
+
+- Say what was read:
+  "because a finished copy of that version appeared at its name meanwhile".
+  The sentence then claims nothing about who did it;
+  the cost is that a person is no longer told the usual writer of that name,
+  another install.
+- As now:
+  the sentence names the one writer the scheme has;
+  the cost is that a copy a person put there by hand is called an install's.
+
+Ranking,
+the coordinating session's:
+say what was read > as now,
+because the release read's finding was that these sentences name causes the tool does not know,
+and the exact words lose only a guess.
+
+### "the older version that was installed before this run"
+
+Printed when the newest-only rule removes an older version directory this run did not put there.
+The rule removes unfinished directories too,
+so "installed" is one step past what the run read.
+
+- Say which it was:
+  the run reads whether that directory held a finished copy,
+  says "installed" when it did,
+  and "an unfinished copy that was there before this run" when it did not.
+  The cost is one more read of a directory that is about to be removed.
+- Say "that was there before this run" for both:
+  exact,
+  at the cost of the word that tells a person the older version had been working.
+- As now.
+
+Ranking,
+the coordinating session's:
+say which it was > "that was there" > as now,
+because the first is exact and keeps the word where it is true,
+and the second is exact where today's sentence is not.
+
+## Veto open: three picks of the wrapper round on a process's name in two sentences nothing calls yet (recorded 2026-11-27T16:36:52-05:00)
+
+The round answering the behaviour read of `0.6.1-alpha.50` made its picks and returned each with its other way.
+The coordinating session read its report whole and wrote this entry;
+the round merged as `e772d8ad66`.
+None holds a release.
+
+### A process's recorded name is kept as the kernel gave it, and the sentence escapes it
+
+`CommandWord::of` used to escape control characters itself,
+by a rule weaker than the one every other sentence uses,
+and the two refusal sentences printed its text raw inside parentheses.
+
+- One escape and at the sentence (taken):
+  the record keeps the kernel's bytes,
+  cut to the kernel's own length,
+  and each sentence shows the name through the one function every other sentence uses.
+  The cost is a changed behaviour of a name another crate can reach:
+  a caller that relied on the record's text being escaped now gets the bytes.
+- Escape in the record as well:
+  the record's text stays safe to print as it is.
+  The cost is a name escaped twice once a sentence shows it,
+  so a line feed reads as an escaped backslash and letters,
+  or a record with two texts and two escapers again.
+
+Ranking,
+the round's and the coordinating session's:
+one escape at the sentence > an escape in the record as well,
+because the repository's rule is to encode at the final interpolation,
+and two escapers were the finding.
+The crate is not on crates.io at this version,
+so the changed behaviour is a design change and breaks no published contract.
+
+### A record written as JSON leaves a bidirectional control and U+2028 as the name's bytes
+
+`SPEC.md` said every line that names a process escapes everything outside printable ASCII.
+A JSON record is escaped by JSON's own rule,
+which leaves those characters as bytes.
+
+- Say so in `SPEC.md` and leave the record (taken):
+  the record is data a program reads,
+  and its bytes compare equal with the kernel's.
+  The cost is that a person who prints such a record in a terminal sees those characters act.
+- Escape them in the record too:
+  the record is safe to print.
+  The cost is a change of the bytes of every record that holds a name outside ASCII,
+  and of every reader that compares them.
+
+Ranking,
+the round's and the coordinating session's:
+leave the record > escape in the record,
+because the reader of a record is a program,
+and the line rule already covers every sentence a person is shown.
+
+### The sentence about an unusable identity file is remembered for the process and never reset
+
+It is said once for a command because a process is one command.
+The round showed from the source,
+and from one run of a serving process,
+that the commit service and the clone mount handler's modes never read the identity file:
+`main.rs` chooses each before the wrapper's entry runs.
+That run served its socket and no commit went through it,
+because a fixture has no service manager.
+
+- Leave it (taken):
+  the memory cannot outlive a command today.
+  The cost is that a later change which makes a serving process read the file would say the sentence once for ever,
+  and no test can show that yet.
+- Reset it per request now:
+  safe against that later change.
+  The cost is code nothing can exercise.
+
+Ranking,
+the round's and the coordinating session's:
+leave it > reset it now,
+because a reset no run reaches is held by no control.
