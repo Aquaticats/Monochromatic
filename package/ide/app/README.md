@@ -1114,7 +1114,7 @@ It then waits,
 for at most two more seconds,
 until the kernel lists no child process of the worker thread (`src/language/reap.rs`),
 so an ended server is not left in the process table as a zombie.
-`lifecycle::server_that_ignores_exit_is_killed_and_reaped_before_the_drop_returns` covers a server
+`lifecycle::shutdown::server_that_ignores_exit_is_killed_and_reaped_before_the_drop_returns` covers a server
 that ignores `exit` and the end of its input (`IDE_SCRIPTED_LINGER=1`).
 A killed process that the kernel needs more than two seconds to end,
 which was seen in measurements where processes stalled for seconds,
