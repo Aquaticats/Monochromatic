@@ -648,7 +648,8 @@ struct GroupOfItsOwn {
 /// What:
 /// `impl GroupOfItsOwn` makes one empty group below a parent and moves members into it one at a time.
 /// Why:
-/// The order control makes two such groups, one below the other,
+/// The order control makes two such groups,
+/// one below the other,
 /// and moves its members in an order the kernel cannot have produced by itself.
 ///
 /// In TS you'd write (pseudocode):
@@ -682,7 +683,8 @@ impl GroupOfItsOwn {
     }
 
     /// What:
-    /// `fn holds(&self, member: &MovedMember)` moves one member into this group, now.
+    /// `fn holds(&self, member: &MovedMember)` moves one member into this group,
+    /// now.
     /// Why:
     /// The kernel lists a group's members in the order they were moved in,
     /// so the caller's order of calls is the kernel's own order.
