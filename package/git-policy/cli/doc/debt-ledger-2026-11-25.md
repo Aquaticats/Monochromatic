@@ -1036,6 +1036,15 @@ Four `SPEC.md` citations name files that do not exist:
 `worktree/worktree_remove_hand_over.rs` near `:995` and `:1118`).
 Two more in `doc/` are historical (`doc/step-5-second-executable-2026-11-20.md:27`,
 `doc/planted-control-and-durable-survivors-resume.md:14`).
+Note, 2026-11-27: all four passages are corrected in `SPEC.md` by `52f55a54db`
+(2026-11-25T16:57:53-05:00),
+which rewrote the nested-volume bullet to point at
+`worktree/worktree_removal_goes_around_a_foreign_volume.rs`
+(`volumes_below` and `remove_around_what_is_not_this_removals`),
+so the refusal text this item placed in `worktree/worktree_remove_hand_over.rs` moved there in
+`05c202a266` (2026-11-27);
+the boundary's own refusal words are in `subvolume/subvolume_remove_walk_boundary_and_refusal.rs`
+since `f76de23f0e` (2026-11-26).
 Cost: the first passage invites the exact mistake the incident recorded.
 Fix: delete or rewrite the bullet; correct the four paths.
 Caution for the round: `Cargo.toml` says `service::service_instance_tests` and
@@ -1289,17 +1298,18 @@ over-count (inferred, small).
 The round of 2026-11-25 switched the rules on.
 The two rules now run for the whole crate
 in the block `layout-git-policy-cli` of `monochromatic-lint.config.jsonc`.
-Today's findings stand in two lists beside the crate:
+The findings of that day stood in two lists beside the crate,
+and the lists have moved since as rounds untangled them, so read the counts below as that day's:
 
-- `layout-allow-list/folder-rule.txt` holds 1014 entries:
-  524 `uses <folder> -> <folder>` lines for today's folder and entry loop edges;
+- `layout-allow-list/folder-rule.txt` held 1014 entries:
+  524 `uses <folder> -> <folder>` lines for that day's folder and entry loop edges;
   49 lines for the `pub use folder::*` re-exports,
   which keep the crate's flat module paths;
   20 lines for the findings that `health/` is a group folder
   with module files beside its child folder;
   and 421 lines for the `uses` links the crate does not hold.
-- `layout-allow-list/file-rule.txt` holds 604 entries:
-  544 `file-uses <folder> <file> -> <file>` lines for today's file loops;
+- `layout-allow-list/file-rule.txt` held 604 entries:
+  544 `file-uses <folder> <file> -> <file>` lines for that day's file loops;
   59 lines for the folders whose top doc has no file list or misses a name;
   and one for the function that `main.rs` holds beside `fn main`.
 
