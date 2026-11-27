@@ -455,29 +455,46 @@ fn a_record_larger_than_the_bound_is_left_alone() {
 ///   A synchronous read on the shared task stops the pnpm repair's quiet window and ceiling for as long as it takes,
 /// and a control holds the process's only place,
 /// so it proves the read reached the bound by asking for it.
+///  The bound belongs to the whole process and is made once,
+///  by whichever job asks first,
+///  so the body runs in a child of this test binary where this control is that job:
+///  in the run's own process another test may have made the budget already,
+///  and then the bound this control states changes nothing (issue 6477).
 #[test]
 fn the_launcher_records_are_read_as_a_job_of_the_pool() {
-    let (root, destination, _bin, environment) = scene("toolchain-asks-for-a-place");
-    record(
-        &destination,
-        "foreign",
-        root.join("source/toolchain.lock.json").as_path(),
-    );
-    let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
-    let repair = crate::lazy_runtime::spawn_on_runtime(async move {
-        return repair_toolchain_awaiting(destination.as_path(), &environment).await;
-    });
-    assert!(
-        repair.is_some(),
-        "this process's runtime has a worker of its own"
-    );
-    let asked: bool = finished
-        .recv_timeout(crate::parallel_test_support::PATIENCE)
-        .expect("the control that holds the only place answered");
-    remove(&root);
-    assert!(
-        asked,
-        "the launcher records were read without asking for a place of the process's bound on blocking jobs, so the read ran on the task that polls the repairs"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_launcher_records_are_read_as_a_job_of_the_pool",
+        || {
+            crate::process_wide_state_child_test_support::hold_the_blocking_jobs_to(1);
+            assert_eq!(
+                crate::blocking_jobs_within_the_budget::budgeted_blocking_jobs(),
+                1,
+                "this control is the first to ask for the process's places, so the bound is the one it states"
+            );
+            let (root, destination, _bin, environment) = scene("toolchain-asks-for-a-place");
+            record(
+                &destination,
+                "foreign",
+                root.join("source/toolchain.lock.json").as_path(),
+            );
+            let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
+            let repair = crate::lazy_runtime::spawn_on_runtime(async move {
+                return repair_toolchain_awaiting(destination.as_path(), &environment).await;
+            });
+            assert!(
+                repair.is_some(),
+                "this process's runtime has a worker of its own"
+            );
+            let asked: bool = finished
+                .recv_timeout(crate::parallel_test_support::PATIENCE)
+                .expect("the control that holds the only place answered");
+            remove(&root);
+            assert!(
+                asked,
+                "the launcher records were read without asking for a place of the process's bound on blocking jobs, so the read ran on the task that polls the repairs"
+            );
+        },
     );
 }
 

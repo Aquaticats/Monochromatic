@@ -419,7 +419,7 @@ impl Run<'_> {
             text.push('\n');
         }
         return MigrateError::from_io_result(
-            crate::private_storage::replace_private_file(
+            crate::private_storage_replacing_a_record::replace_private_file(
                 &self.layout.unreadable_path,
                 text.as_bytes(),
             ),

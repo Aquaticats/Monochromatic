@@ -8,24 +8,27 @@
 //! and the jobs need nothing of its decisions but the two
 //!  timed reads and the result of one workspace,
 //! so they live in a file of their own that the repair imports.
+//!  They name the program's name and the one-workspace reading where those are defined
+//!  (`package_repair_cargo_clean_arguments.rs` and `package_repair_cargo_one_workspace.rs`),
+//!  so this file uses the Cargo repair and is never used by it in turn.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! export class ReadWorkspaceJob { ... }
 //! ```
 
-use super::{
-    CargoTool,
-    Done,
-    PROGRAM,
-    repair_workspace_awaiting,
-    timed_read_workspace_awaiting,
-};
 use crate::add_timing::{
     begin_work,
     end_work,
 };
+use crate::package_repair_cargo_clean_arguments::PROGRAM;
 use crate::package_repair_cargo_concurrent::ConcurrentAwaitingWork;
+use crate::package_repair_cargo_one_workspace::{
+    CargoTool,
+    Done,
+    repair_workspace_awaiting,
+    timed_read_workspace_awaiting,
+};
 use crate::package_repair_cargo_workspaces::Workspace;
 use crate::package_repair_command::find_program;
 use std::ffi::OsString;

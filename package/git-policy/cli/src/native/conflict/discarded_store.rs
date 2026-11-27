@@ -9,8 +9,8 @@
 //!  A pass that lists a path and later removes a path can be led anywhere by a link or a rename that happens in between.
 //!  Holding the folder and each directory open means a removal lands in the directory that was judged,
 //! a name that now stands
-//!  for another directory is noticed by comparing what it is (device,
-//! inode and change time) with what the listing saw,
+//!  for another directory is noticed by comparing what it is (device and inode,
+//!  never the change time its files moving and another pass emptying it both move) with what the listing saw,
 //! and a
 //!  link met anywhere inside is removed as a link and never entered.
 //! No lock keeps two passes from removing the same tree:
