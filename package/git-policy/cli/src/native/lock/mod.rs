@@ -82,6 +82,10 @@
 //! - `single_owner_claim.rs`:
 //!   the numbered claim files that let exactly one command work on one worktree or checkout,
 //!   without a lock.
+//! - `stale_ref_lock_names.rs`:
+//!   the names a lock and its pid file are written under,
+//!   where the pid file sits,
+//!   and the process number it names.
 //! - `stale_ref_lock_found.rs`:
 //!   the record of one judged reference lock and the outcome of a clearing pass.
 //! - `stale_ref_lock_identity.rs`:
@@ -107,10 +111,10 @@
 //! - `stale_ref_lock_message.rs`:
 //!   what the wrapper prints about reference locks,
 //!   and the quoted command that clears one it will not remove.
-//! - `stale_ref_lock_retire.rs`:
-//!   removal of a proven stale lock with its companions.
 //! - `stale_ref_lock_walk.rs`:
 //!   which files below a Git directory are reference locks.
+//! - `stale_ref_lock_retire.rs`:
+//!   removal of a proven stale lock with its companions.
 //! - `stale_ref_locks.rs`:
 //!   the reference locks a killed Git left behind:
 //!   judged one by one,
@@ -220,6 +224,11 @@ pub mod stopped_git_locks;
 /// removed on a proof,
 /// otherwise described.
 pub mod stale_ref_locks;
+
+/// The names a lock and its pid file are written under,
+/// where the pid file sits,
+/// and the process number it names.
+pub mod stale_ref_lock_names;
 
 /// The record of one judged reference lock and the outcome of a clearing pass.
 pub mod stale_ref_lock_found;
