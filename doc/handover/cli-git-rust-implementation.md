@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T14:00:12-05:00
+## The state at 2026-11-27T14:04:49-05:00
 
-`main` was `946cbeb0a2`.
+`main` was `2f5cc0aeb7`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -434,6 +434,12 @@ a Claude Sonnet read of `mpm-shadow`'s `0.2.7-alpha.15`
 (same vendor as some of the authors,
 so a second pass and not an independent review),
 at the path this section gives beside that release.
+Its first agent was cut off by a usage limit with twenty transcripts kept and no review written
+(its last write was at 2026-11-27T13:55:43-05:00);
+a second agent,
+started 2026-11-27T14:04:19-05:00,
+checks those transcripts,
+does the items they leave open and writes the review.
 The coordinator rewrites what lasts from it into this file before scratch expires.
 
 What `cargo-shadow`'s alpha.14 read found
