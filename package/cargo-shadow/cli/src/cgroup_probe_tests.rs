@@ -28,8 +28,10 @@ use std::time::Duration;
 
 use crate::cgroup_test_support::{
     delegated_route,
+    group_of,
     start_in_scope,
     start_in_scope_without_waiting,
+    v2_path_of_cgroup_file,
     wait_until,
 };
 use crate::contain_counterexample_tests::{
@@ -37,6 +39,7 @@ use crate::contain_counterexample_tests::{
     is_running,
 };
 use crate::control_group::{
+    CGROUP_ROOT,
     Membership,
     Record,
     RouteSettings,
@@ -57,15 +60,6 @@ const STOP: Duration = Duration::from_secs(10);
 fn state_of(pid: i32) -> Option<char> {
     let stat: String = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     return stat.rsplit(')').next()?.trim_start().chars().next();
-}
-
-/// The group a process is in,
-/// as `/proc/<pid>/cgroup` says.
-fn group_of(pid: &str) -> String {
-    return fs::read_to_string(format!("/proc/{pid}/cgroup"))
-        .expect("a group")
-        .trim()
-        .to_string();
 }
 
 /// Probe 0,
@@ -309,8 +303,10 @@ fn probe_3_a_setsid_and_double_fork_descendant_stays_a_member() {
 fn probe_3_a_member_of_the_same_user_can_move_itself_out_which_is_assumption_a() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let own: String = group_of("self");
+    // The scope's directory is the path of this process's own version 2 line joined to the cgroup root: the line's `0::` marker is
+    // stripped and the path's leading `/` dropped, because the root is where the path begins.
     let leaf: PathBuf =
-        Path::new("/sys/fs/cgroup").join(own.trim_start_matches("0::").trim_start_matches('/'));
+        Path::new(CGROUP_ROOT).join(v2_path_of_cgroup_file(&own).trim_start_matches('/'));
     let mut scope = start_in_scope_without_waiting(
         Command::new("sh")
             .args(["-c", "echo 0 > \"$1\"/cgroup.procs; exec sleep 600", "sh"])

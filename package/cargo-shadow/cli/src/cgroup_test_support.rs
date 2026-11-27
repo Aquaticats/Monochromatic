@@ -294,7 +294,80 @@ pub(crate) fn scope_directory_of(groups_file: &str) -> PathBuf {
 }
 
 /// What:
-/// `pub(crate) fn wrapper_group() -> String` is the control group line of this process (the wrapper) as `/proc/self/cgroup` gives it.
+/// `pub(crate) fn v2_line_of_cgroup_file(text: &str) -> String` is the version 2 line of a `/proc/<pid>/cgroup` file:
+/// the one line that starts with `0::`,
+/// with the line's ending removed.
+/// Why:
+/// A host that mounts a version 1 controller beside the version 2 hierarchy writes the controller's line first
+/// (this one's is `1:net_cls:/`, measured 2026-11-27 and quoted in issue 6549),
+/// so the whole file is not a control group path and only its `0::` line names a group of the version 2 hierarchy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function v2LineOfCgroupFile(text: string): string  // throws when the file holds no such line
+/// ```
+pub(crate) fn v2_line_of_cgroup_file(text: &str) -> String {
+    // One line per hierarchy, in the order the kernel lists them; the `0::` line is the version 2 hierarchy's wherever it sits.
+    for line in text.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.starts_with("0::") {
+            // The line as the file writes it: `0::` and the path below the cgroup root, the version 1 lines left out.
+            return trimmed.to_string();
+        }
+    }
+    // What:     `panic!` ends the test with this text, which quotes the file that was read.
+    // Why:      A file with no `0::` line names no group of the version 2 hierarchy, and a test that carried on would assert about a
+    //           group it never read.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // throw new Error(`no \`0::\` line in ${JSON.stringify(text)}`);
+    // ```
+    panic!(
+        "no `0::` line in {text:?}, so this file names no control group of the version 2 hierarchy"
+    );
+}
+
+/// What:
+/// `pub(crate) fn v2_path_of_cgroup_file(text: &str) -> String` is the path of the group the file's version 2 line names:
+/// the text after `0::`.
+/// Why:
+/// A scope directory is named by that path alone,
+/// and a whole file's text compared with a path never matches on a host that also writes a version 1 line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function v2PathOfCgroupFile(text: string): string  // throws when the file holds no such line
+/// ```
+pub(crate) fn v2_path_of_cgroup_file(text: &str) -> String {
+    let line: String = v2_line_of_cgroup_file(text);
+    // The path below the cgroup root, which starts right after the `0::` marker of the line.
+    let path: Option<&str> = line.strip_prefix("0::");
+    // A line chosen for starting with `0::` keeps that start; if it ever did not, the panic names the file.
+    return path.expect("the line that starts with `0::`").to_string();
+}
+
+/// What:
+/// `pub(crate) fn group_of(pid: &str) -> String` is the version 2 line of a process's control group file,
+/// `self` naming this process.
+/// Why:
+/// Every control that reads a process's group reads the same line, whatever else the host writes into the file,
+/// and a process whose group cannot be read stops the test:
+/// two failed reads that both came back empty would otherwise pass for equal groups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function groupOf(pid: string): string  // throws
+/// ```
+pub(crate) fn group_of(pid: &str) -> String {
+    let text: String = fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_else(|error| {
+        panic!("the group of {pid} cannot be read: {error}");
+    });
+    return v2_line_of_cgroup_file(&text);
+}
+
+/// What:
+/// `pub(crate) fn wrapper_group() -> String` is the version 2 line of the control group file of this process (the wrapper).
 /// Why:
 /// A test that claims a run used a delegated scope must show the program's group differs from the wrapper's own,
 /// which may itself be
@@ -305,16 +378,15 @@ pub(crate) fn scope_directory_of(groups_file: &str) -> PathBuf {
 /// export function wrapperGroup(): string
 /// ```
 pub(crate) fn wrapper_group() -> String {
-    return fs::read_to_string("/proc/self/cgroup")
-        .expect("the wrapper's own group")
-        .trim()
-        .to_string();
+    return group_of("self");
 }
 
 /// What:
 /// `pub(crate) fn assert_ran_in_recorded_scope(groups_file: &str, program_group: &str, wrapper_group: &str)` asserts that the program
 /// ran in the very scope the journal recorded for the run,
 /// and not in the group the wrapper already had.
+/// Both texts are control group files as their processes reported them;
+/// what is compared is the path of each one's version 2 line.
 /// Why:
 /// Finding a route is not selecting it,
 /// and a group that ends in `.scope` is not the run's scope (9b 3.5):
@@ -336,14 +408,16 @@ pub(crate) fn assert_ran_in_recorded_scope(
         .expect("a UTF-8 scope path")
         .strip_prefix(crate::control_group::CGROUP_ROOT)
         .expect("a scope below the cgroup root");
+    // Both sides are read as the path of their version 2 line alone: a host that writes a version 1 line too (this one's `net_cls`)
+    // names the same path there as a unified host does, so the control proves the group and not the file's shape.
+    let program: String = v2_path_of_cgroup_file(program_group);
+    let wrapper: String = v2_path_of_cgroup_file(wrapper_group);
     assert_eq!(
-        program_group.trim(),
-        format!("0::{relative}"),
+        program, relative,
         "the program did not run in the scope the journal recorded for the run"
     );
     assert_ne!(
-        program_group.trim(),
-        wrapper_group.trim(),
+        program, wrapper,
         "the program ran in the wrapper's own group"
     );
 }
