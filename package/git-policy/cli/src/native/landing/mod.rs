@@ -186,8 +186,6 @@
 //!   and the object the worktree holds there.
 //! - `owed_index_repair_the_commit_index_writes.rs`:
 //!   the writes the repair makes to the commit's own index.
-//! - `owed_index_repair.rs`:
-//!   the repair that repeats a landed batch's owed index update for the entries the landing left.
 //! - `service_message_the_identity.rs`:
 //!   the identities a commit the service lands records.
 //! - `service_message_the_text_steps.rs`:
@@ -472,6 +470,13 @@
 //!   maintenance) left for a resident consumer:
 //!   its fields,
 //!   its one JSON line and the reader of that line.
+//! - `the_record_of_an_owed_index_update.rs`:
+//!   the index update one landed batch still owes:
+//!   its shape,
+//!   how a batch's intent becomes one,
+//!   and the records a Git directory holds.
+//! - `owed_index_repair.rs`:
+//!   the repair that repeats a landed batch's owed index update for the entries the landing left.
 //! - `work_item_claim_taking.rs`:
 //!   the steps that take one pending record out of the queue,
 //!   and the stamp that keeps a claim's lease readable.
@@ -977,6 +982,11 @@ pub mod service_land_reference_lock;
 
 /// The copy the service keeps of the conclusion state a landed commit removes.
 pub mod conclusion_state_copy;
+
+/// The index update one landed batch still owes:
+/// its shape,
+/// and how a batch's intent becomes one.
+pub mod the_record_of_an_owed_index_update;
 
 /// The record of an index update a landed batch owes.
 pub mod owed_index_update;
