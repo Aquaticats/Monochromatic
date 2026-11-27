@@ -173,6 +173,9 @@
 //! - `child_watch.rs`:
 //!   a watcher for waits that block on a child process:
 //!   notices at the cadence and the child stopped at the bound.
+//! - `child_watch_one_shot_clear_hold.rs`:
+//!   the hold a control takes between a watched step's end
+//!   and the clearing of the cell that published its child's number.
 //! - `child_watch_one_shot_run.rs`:
 //!   the one-shot run of a watched step:
 //!   the command started,
@@ -603,6 +606,10 @@ pub mod child_watch_task_loop_and_notice;
 
 /// The watched one-shot run for a caller that is itself a task of the runtime.
 pub mod child_watch_output_watched_on_the_runtime;
+
+/// The hold a control takes between a watched step's end
+/// and the clearing of the cell that published its child's number.
+pub mod child_watch_one_shot_clear_hold;
 
 /// The one-shot run of a watched step:
 /// the command started,
