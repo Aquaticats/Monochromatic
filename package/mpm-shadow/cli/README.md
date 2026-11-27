@@ -252,9 +252,10 @@ or a Java major line such as `21`).
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
-  Every program a row lists therefore comes from a component the row declares
-  or from the profile the channel installs,
-  and a program from neither is named as an unresolved bin on every install;
+  Every program a row lists that no component it declares and no profile installs is in the
+  toolchain at all,
+  so such a program is named as an unresolved bin on a machine whose rustup keeps no proxy of
+  that name in the cargo bin directory;
   `src/toolchain/the_rust_rows_own_toolchain_holds_every_bin_it_declares_tests.rs`
   is the control of that against a toolchain holding exactly what this repository's row declares.
 - The example's `rust` row above shortens that list to one bin:
