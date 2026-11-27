@@ -55,13 +55,10 @@ pub(crate) use super::push_failure_notice_record_text::LONGEST_REASON;
 /// which the controls read.
 #[cfg(test)]
 use super::push_failure_notice_record_text::branch_prefix;
-/// Publish the field names and the caps another module of this folder writes records with.
+/// Publish the field names this module and the module that words a notice write records with.
 pub(crate) use super::push_failure_notice_record_text::{
     BRANCH_FIELD,
     COMMIT_FIELD,
-    LONGEST_KEY,
-    NAME_SEPARATOR,
-    NO_REASON,
 };
 /// Import the first lines a record can carry,
 /// the kinds they name,
@@ -83,7 +80,6 @@ pub use super::push_failure_notice_record_text::{
     ORPHAN_NOTICE_DIRECTORY,
     clean_reason,
     clean_words,
-    fnv_hex,
     notice_directory,
     record_name,
 };
@@ -100,6 +96,9 @@ use super::push_failure_notice_worktrees::{
     FullCommitName,
     is_for,
 };
+/// Publish the hash a record's name is built from,
+/// which the file that names one branch's push files defines.
+pub use crate::auto_push_branch_key::fnv_hex;
 #[cfg(test)]
 use crate::lfs_output_mask::mask_url_secrets_text;
 /// Import the private storage a record is written through,

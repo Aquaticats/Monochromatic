@@ -51,9 +51,9 @@
 //! const outcome = await waitForIndexRelease({ realIndex, command: 'merge', cadence, stderr });
 //! ```
 
-/// Evidence about the holder of a lock:
-/// the sentences a wait reports it in and the two ends a line names.
-use crate::index_lock_evidence::{
+/// The sentences a wait reports the evidence in,
+/// and the two ends a line names.
+use crate::index_lock_evidence_words::{
     DEAD_OWNER_LOCK_LEFT,
     THE_ENDING_SAYS_IT,
     WaitEnd,

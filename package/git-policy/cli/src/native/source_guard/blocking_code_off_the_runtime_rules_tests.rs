@@ -349,9 +349,9 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "a step left running is watched by a thread of its own",
     },
     Allowed {
-        file: "push/manual_push_range.rs",
+        file: "push/manual_push_update_and_query_limits.rs",
         rule: "thread-start",
-        why: "the thread that feeds a push range on standard input",
+        why: "the thread that feeds a batch query the request list of a push range",
     },
     Allowed {
         file: "repository_link_check/repository_link_check_walk.rs",

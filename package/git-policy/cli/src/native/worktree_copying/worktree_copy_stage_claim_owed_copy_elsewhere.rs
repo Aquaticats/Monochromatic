@@ -18,7 +18,7 @@ use crate::worktree_copy_interrupted_add_settlement::{
     add_is_finished,
     registration_directory,
 };
-use crate::worktree_copy_recovery::{
+use crate::worktree_copy_recovery_destinations::{
     RecoveryDestinations,
     finishes_destination,
 };
@@ -84,8 +84,10 @@ pub(crate) fn copy_owed_to_another_worktree(
         return false;
     }
     // The copy has a future only where the registration and the checkout are whole under this repository.
-    if crate::worktree_copy_recovery::destination_registration(common_dir, destination.as_path())
-        != crate::worktree_copy_recovery::Registration::Registered
+    if crate::worktree_copy_recovery_destinations::destination_registration(
+        common_dir,
+        destination.as_path(),
+    ) != crate::worktree_copy_recovery_destinations::Registration::Registered
     {
         return false;
     }

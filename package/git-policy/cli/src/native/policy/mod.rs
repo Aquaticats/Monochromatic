@@ -100,9 +100,16 @@
 //! - `policy_forbidden_strings.rs`:
 //!   the optional forbidden-strings policy over the linked scanner,
 //!   with redacted findings.
+//! - `policy_linked_worktree_conflicted_file_refusal.rs`:
+//!   the refusal of a checkout or a restore that would replace a resolved file.
 //! - `policy_linked_worktree_nested_repositories.rs`:
 //!   keeping the nested Git repositories a clean would delete,
 //!   and the one place a form is let through.
+//! - `policy_linked_worktree_shared_settings_refusal.rs`:
+//!   the refusal of a write to the settings every worktree of one repository shares.
+//! - `policy_linked_worktree_work_a_form_would_discard.rs`:
+//!   whether a form ends the operation it finds waiting,
+//!   and what a clean's own exclusion patterns would delete.
 //! - `policy_linked_worktree.rs`:
 //!   the linked-worktree check,
 //!   in its own file so the registry of shipped policies stays readable.
@@ -176,6 +183,17 @@ pub mod event_hints;
 
 /// The shipped policies as checks over rule cores and repository facts.
 pub mod policy_checks;
+
+/// The refusal of a checkout or a restore that would replace a conflict's resolution.
+pub mod policy_linked_worktree_conflicted_file_refusal;
+
+/// The refusal of a write to the settings every worktree of one repository shares,
+///  with the two readings it needs.
+pub mod policy_linked_worktree_shared_settings_refusal;
+
+/// Whether a form ends the operation it finds waiting,
+///  and what a clean's own exclusion patterns would delete.
+pub mod policy_linked_worktree_work_a_form_would_discard;
 
 /// The linked-worktree check,
 /// in its own file so the registry of shipped policies stays readable.
