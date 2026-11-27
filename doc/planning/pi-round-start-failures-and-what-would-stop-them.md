@@ -110,6 +110,15 @@ so the driver's own count never applied to these rounds.
   a shell loop started each round's starter only after the round before it ended.
 - A question dialog held the coordinating session for about three and a half hours on 2026-11-26,
   while rounds ended and their merges waited.
+- It happened again the same night:
+  a dialog opened at about 21:00 on 2026-11-26 was answered at 01:19 on 2026-11-27,
+  and in that time all 62 running rounds ended,
+  none merged,
+  eight starts that had timed out under load were not started again,
+  and nothing new started.
+  The coordinator had put the choice (finish or revert the Slint update) in prose with the work already moving,
+  and a stop hook required the question tool for it,
+  as `AGENTS.md` does for anything the owner must answer.
 - A finished round merges only when the coordinator reads it and runs the merge check,
   so a busy or blocked coordinator delays every merge.
 
