@@ -148,6 +148,12 @@ pub mod control_group_records;
 /// Discovery of the route to a delegated control group (split out of the control group module).
 pub mod control_group_route_discovery;
 
+/// The mount view a control group route records (split out of the route discovery module).
+pub mod control_group_route_view;
+
+/// The short programs the route discovery runs under one deadline (split out of the route discovery module).
+pub mod control_group_route_child_runs;
+
 /// Process identity reads of `/proc` for the containment of a run (split out of the control group module).
 pub mod control_group_process_identity;
 
