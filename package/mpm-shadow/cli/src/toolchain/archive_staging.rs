@@ -37,6 +37,8 @@
 //! after a kill in the instant above,
 //! which the next install of that version publishes,
 //! putting the `.replaced` copy back only when the finished one is gone;
+//! a `.recovered` sibling when the recovery itself is killed after it claimed that copy,
+//! which the next install of that version publishes;
 //! and an unfinished `.replaced` sibling after the rename,
 //! which the next install of that tool removes.
 //! `leftovers_of_a_killed_install` holds that list with its reasoning,
@@ -97,12 +99,15 @@ pub(crate) use self::leftovers_of_a_killed_install::{
     recover_leftovers,
 };
 /// Imports the owner of a hidden sibling,
-/// and re-exports it for a caller that builds one of these names itself.
+/// and re-exports it and the two reads of a process's record for a caller that builds one of these names itself.
 pub(crate) use self::the_owner_of_a_hidden_sibling::Owner;
-/// Re-exports the reader of a process's start time,
-/// for a control that names an installer of its own choosing.
+/// Re-exports what a process's record answers,
+/// and the reader a control uses to name a process of its own choosing.
 #[cfg(test)]
-pub(crate) use self::the_owner_of_a_hidden_sibling::start_time_of;
+pub(crate) use self::the_owner_of_a_hidden_sibling::{
+    moment_in,
+    start_time_of_a_process,
+};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
@@ -120,6 +125,11 @@ pub(crate) const STAGING_PURPOSE: &str = "staging";
 
 /// The purpose in a hidden sibling's name that holds the copy being replaced.
 pub(crate) const REPLACED_PURPOSE: &str = "replaced";
+
+/// The purpose in a hidden sibling's name that holds a finished copy an install claimed
+/// before it published it,
+/// so no other install publishes from the same directory.
+pub(crate) const RECOVERED_PURPOSE: &str = "recovered";
 
 /// `<parent>/.<name>.<purpose>.<process id>.<start time>`,
 /// a hidden sibling of `version_dir` that no version scan lists.

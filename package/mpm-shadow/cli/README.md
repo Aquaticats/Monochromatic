@@ -1277,9 +1277,9 @@ whichever route installed them.
 A process killed at any instruction is normal on this host,
 so each step of an archive install either leaves nothing that a start reads
 or leaves what a later install finishes.
-The two hidden names carry the installer that made them,
+The three hidden names carry the installer that made them,
 its process id and the moment that process started,
-which no reuse of a process id repeats.
+which no reuse of a process id repeats within one boot.
 
 - During the download:
   the half file `<file>.download` in `<toolchain root>/downloads/<tool>/<version>/`,
@@ -1301,6 +1301,11 @@ which no reuse of a process id repeats.
   downloading nothing;
   when that copy is gone,
   it puts the `.replaced` one back instead.
+- During a recovery,
+  after a dead install's finished copy was claimed:
+  `.recovered` holds it,
+  and the next install of that version publishes it,
+  downloading nothing.
 - After the rename and before the `.replaced` name is removed:
   the version is finished,
   and `.replaced` holds the unfinished copy it replaced,
@@ -1311,19 +1316,35 @@ because the marker is written after the archive's SHA-256 matched the lock and a
 while the copy at the version's name was unfinished,
 which is why it was being replaced at all.
 
-A hidden directory is removed only when the installer that made it no longer runs,
+A dead install's copy is claimed before anything is published from it:
+one rename to a `.recovered` name of this process's own,
+so two installs recovering the same copy cannot both take it,
+and the one that loses finds the name gone and publishes nothing.
+Without the claim both would replace the copy at the version's name in turn,
+and the second would leave the unfinished copy there and delete the finished one.
+
+A hidden directory is removed only when the installer that made it is known to have ended,
 and that question is answered by the pair in its name:
 the system reports a process's start time,
 and a process id handed out again belongs to a process that started at another moment,
 so a reused number is never read as the installer.
-Nothing is read from that other process except its own `/proc/<pid>/stat` record.
+The answer has three values and only one of them allows a removal:
+running,
+ended,
+and the system did not say.
+A record that cannot be read is the third,
+because an unreadable record is not a dead process.
 A hidden directory whose name carries no start time was written by an earlier release,
 so it cannot be judged and is left where it is.
+Nothing is read of that other process except its own `/proc/<pid>/stat` record.
+The pair is read in this process's own process namespace and from this boot,
+so two installs in two namespaces that share one toolchain root are not told apart,
+and a directory whose installer it cannot judge is left alone.
 A finished copy under another version's name may be the only copy of that version,
 so it is left for that version's own install to publish.
 
 `install` prints one line for each version it finished this way,
-for example `toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed the 2 hidden directories it left behind`.
+for example `toolchain install: finished the publish of mpm-shadow 0.2.7-alpha.13 that a killed install left, and removed the 2 hidden directories killed installs left behind`.
 
 ### One set across both toolchain roots
 

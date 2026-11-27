@@ -41,7 +41,8 @@ pub struct SyncReport {
     pub reconciled: Vec<String>,
     /// One sentence per version this run finished the publish of,
     /// or whose copy a killed install had moved aside and this run put back,
-    /// with the hidden directories it removed.
+    /// with the hidden directories it removed,
+    /// each of which it found gone afterwards.
     pub recovered: Vec<String>,
     /// Tool id and failure text.
     pub failed: Vec<(String, String)>,
@@ -74,7 +75,7 @@ pub struct SyncReport {
 /// or `None` when the recovery found and did nothing.
 /// Why:
 /// An install that finished the publish of a version without downloading anything did something a person should see,
-/// and one that only removed hidden directories of an installer that no longer runs says what went.
+/// and one that only removed hidden directories of an installer known to have ended says what went.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -91,7 +92,7 @@ pub(crate) fn recovery_sentence(
             format!("finished the publish of {id} {version} that a killed install left");
         if removed > 0 {
             sentence.push_str(&format!(
-                ", and removed the {removed} hidden directories it left behind"
+                ", and removed the {removed} hidden directories killed installs left behind"
             ));
         }
         return Some(sentence);
@@ -101,14 +102,14 @@ pub(crate) fn recovery_sentence(
             format!("put back the copy of {id} {version} that a killed install had moved aside");
         if removed > 0 {
             sentence.push_str(&format!(
-                ", and removed the {removed} hidden directories it left behind"
+                ", and removed the {removed} hidden directories killed installs left behind"
             ));
         }
         return Some(sentence);
     }
     if removed > 0 {
         return Some(format!(
-            "removed the {removed} hidden directories that a killed install of {id} {version} left behind"
+            "removed the {removed} hidden directories that killed installs of {id} left behind"
         ));
     }
     return None;

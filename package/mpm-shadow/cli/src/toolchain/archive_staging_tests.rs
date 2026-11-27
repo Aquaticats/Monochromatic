@@ -38,11 +38,12 @@ use super::archive_staging::{
     clear_the_plant,
     has_complete_marker,
     hidden_sibling,
+    moment_in,
     plant_these_steps,
     publish_staged,
     recover_leftovers,
     staging_dir_of,
-    start_time_of,
+    start_time_of_a_process,
     write_complete_marker,
 };
 /// Imports the rig and the writer of an executable stand-in.
@@ -163,6 +164,14 @@ fn a_kill_between_the_two_renames_leaves_the_version_missing_and_a_later_run_fin
         is_finished(&version_dir, BIN),
         "the version is installed again: {report:?}"
     );
+    // The version starts: the program the version holds runs, which is what a start through `current` does.
+    let start = Command::new(version_dir.join("release-folder").join(BIN))
+        .output()
+        .expect("start the program the recovered version holds");
+    assert!(
+        start.status.success(),
+        "the version a kill left and a later run published starts: {start:?}"
+    );
     assert_eq!(
         report.recovered.len(),
         1,
@@ -258,7 +267,7 @@ impl RunningProgram {
         let pid: u32 = self.child.id();
         return Owner {
             pid,
-            started: start_time_of(pid).expect("the system reports the program's start"),
+            started: start_time_of_a_process(pid).expect("the system reports the program's start"),
         };
     }
 }
@@ -285,7 +294,8 @@ impl Drop for RunningProgram {
 /// function anInstallerThatNoLongerRuns(): Owner { return { pid: 1, started: startTimeOf(1)! + 1 }; }
 /// ```
 fn an_installer_that_no_longer_runs() -> Owner {
-    let started: u64 = start_time_of(1).expect("the system reports the first process's start");
+    let started: u64 =
+        start_time_of_a_process(1).expect("the system reports the first process's start");
     return Owner {
         pid: 1,
         started: started + 1,
@@ -429,7 +439,8 @@ fn a_number_another_program_now_holds_is_never_read_as_the_installer() {
         STAGING_PURPOSE,
         Owner {
             pid: 1,
-            started: start_time_of(1).expect("the system reports the first process's start"),
+            started: start_time_of_a_process(1)
+                .expect("the system reports the first process's start"),
         },
     );
     let gone: PathBuf = hidden_sibling(
@@ -548,5 +559,56 @@ fn a_third_party_archive_tool_also_finishes_the_publish_a_kill_left() {
         names_of(&tool_dir),
         vec![rig.tool("node").version],
         "and nothing else"
+    );
+}
+
+#[test]
+fn a_record_the_kernel_did_not_finish_is_never_read_as_a_dead_installer() {
+    // A real record: this process's own, as the kernel writes it (its program name may hold anything).
+    let record: Vec<u8> = fs::read("/proc/self/stat").expect("read this process's own record");
+    let printed: String = String::from_utf8_lossy(&record).to_string();
+    assert_eq!(
+        moment_in(&record),
+        Some(start_time_of_a_process(std::process::id()).expect("this process's own start")),
+        "the moment is the one the record names: {printed}"
+    );
+
+    // A program name holding a bracket and a space: the fields are counted from the last closing bracket.
+    let mut named: Vec<u8> = record.clone();
+    let closing = named
+        .iter()
+        .rposition(|byte| return *byte == b')')
+        .expect("a name in brackets");
+    named.splice(2..closing, b"a ) b".iter().copied());
+    assert_eq!(
+        moment_in(&named),
+        moment_in(&record),
+        "{}",
+        String::from_utf8_lossy(&named)
+    );
+
+    // A record that ends before its twenty-second field says nothing, and nothing may be concluded from it.
+    let field = record[closing + 1..]
+        .split(|byte| return byte.is_ascii_whitespace())
+        .filter(|part| return !part.is_empty())
+        .nth(19)
+        .expect("a start field");
+    let offset: usize = field.as_ptr() as usize - record.as_ptr() as usize;
+    for cut in [0usize, 2, offset] {
+        assert_eq!(
+            moment_in(&record[..cut]),
+            None,
+            "a record cut at {cut} bytes of {} says nothing",
+            record.len()
+        );
+    }
+
+    // A start field that is not a number is no record either.
+    let mut corrupt: Vec<u8> = record.clone();
+    corrupt.splice(offset..offset + 1, b"x".iter().copied());
+    assert_eq!(
+        moment_in(&corrupt),
+        None,
+        "a start field that is not a number says nothing"
     );
 }
