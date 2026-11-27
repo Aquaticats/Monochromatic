@@ -1051,56 +1051,66 @@ fn the_awaited_upload_answers_what_the_synchronous_upload_answers() {
 ///   A lookup on the task would hold every other directory of the round,
 /// and no job would ever ask for the place this control holds
 ///  (`testing/parallel_test_support.rs`).
-/// The bound is held for the life of the process,
-/// so this runs in a test process of its own.
+/// The bound is made once for the whole process and is never resized,
+/// so a hold that comes after another test's blocking job decides nothing,
+/// and this body runs in a child of its own
+/// (`foundation/blocking_jobs_within_the_budget.rs`,
+/// issue 6477).
 #[test]
 fn the_awaited_upload_asks_for_a_place_of_the_processs_bound_before_it_reads_the_path() {
-    let root: PathBuf = fixture("lfs-upload-awaiting-place");
-    std::fs::write(root.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
-    let bin: PathBuf = root.join("bin");
-    slow_stand_in(bin.as_path(), 0);
-    let context: PushGit = push_git_through(bin.as_path(), root.as_path());
-    let (given_back, finished) = crate::testing::parallel_test_support::hold_the_only_place();
-    let started = crate::lazy_runtime::spawn_on_runtime(async move {
-        return run_upload_bounded_awaiting(&context, &plan()).await;
-    });
-    assert!(
-        started.is_some(),
-        "the runtime has workers, so the awaiting upload can run on it"
+    crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_awaited_upload_asks_for_a_place_of_the_processs_bound_before_it_reads_the_path",
+        || {
+            let root: PathBuf = fixture("lfs-upload-awaiting-place");
+            std::fs::write(root.join("real-git"), b"#!/bin/sh\n").expect("stand-in real git");
+            let bin: PathBuf = root.join("bin");
+            slow_stand_in(bin.as_path(), 0);
+            let context: PushGit = push_git_through(bin.as_path(), root.as_path());
+            let (given_back, finished) =
+                crate::testing::parallel_test_support::hold_the_only_place();
+            let started = crate::lazy_runtime::spawn_on_runtime(async move {
+                return run_upload_bounded_awaiting(&context, &plan()).await;
+            });
+            assert!(
+                started.is_some(),
+                "the runtime has workers, so the awaiting upload can run on it"
+            );
+            let asked: bool = finished
+                .recv_timeout(crate::testing::parallel_test_support::PATIENCE)
+                .expect("the holder of the place answered");
+            assert!(
+                asked,
+                "the upload read the caller's PATH without asking for a place of the process's bound"
+            );
+            // The place it asked for is free again, so the upload finishes; the stand-in answers nothing and succeeds.
+            let answered = std::thread::scope(|scope| {
+                return scope
+                    .spawn(|| {
+                        return crate::lazy_runtime::run_on_runtime(async move {
+                            return match started {
+                                Some(handle) => handle.await.expect("the upload ran"),
+                                None => panic!("the runtime has workers"),
+                            };
+                        });
+                    })
+                    .join()
+                    .expect("the thread that waits for the upload ended");
+            });
+            assert!(
+                answered
+                    .expect("the runtime answered")
+                    .expect("the stand-in git-lfs answers")
+                    .is_none(),
+                "the stand-in succeeds"
+            );
+            assert!(
+                given_back.load(std::sync::atomic::Ordering::SeqCst),
+                "the holder gave the place back after the ask"
+            );
+            remove(root.as_path());
+        },
     );
-    let asked: bool = finished
-        .recv_timeout(crate::testing::parallel_test_support::PATIENCE)
-        .expect("the holder of the place answered");
-    assert!(
-        asked,
-        "the upload read the caller's PATH without asking for a place of the process's bound"
-    );
-    // The place it asked for is free again, so the upload finishes; the stand-in answers nothing and succeeds.
-    let answered = std::thread::scope(|scope| {
-        return scope
-            .spawn(|| {
-                return crate::lazy_runtime::run_on_runtime(async move {
-                    return match started {
-                        Some(handle) => handle.await.expect("the upload ran"),
-                        None => panic!("the runtime has workers"),
-                    };
-                });
-            })
-            .join()
-            .expect("the thread that waits for the upload ended");
-    });
-    assert!(
-        answered
-            .expect("the runtime answered")
-            .expect("the stand-in git-lfs answers")
-            .is_none(),
-        "the stand-in succeeds"
-    );
-    assert!(
-        given_back.load(std::sync::atomic::Ordering::SeqCst),
-        "the holder gave the place back after the ask"
-    );
-    remove(root.as_path());
 }
 
 //region An upload that shows no sign of work, and one that needed a login
