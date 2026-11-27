@@ -5,35 +5,30 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
-import { once, } from 'node:events';
 import {
   chmod,
   mkdir,
-  realpath,
-  stat,
   writeFile,
 } from 'node:fs/promises';
 import {
-  delimiter,
   dirname,
   join,
 } from 'node:path';
-import { text, } from 'node:stream/consumers';
 
+import { run, } from './daily-update-whole-path-programs-fixture.ts';
 import {
   CARGO_LOCK,
+  CHECK_SCRIPT,
   CLIPPY_SCRIPT,
+  crateManifest,
   MOVE_SCRIPT,
   PNPM_LOCK,
   PNPM_WORKSPACE,
   ROOT_MISE,
+  RUST_CATALOG,
+  SYNC_SCRIPT,
+  TIGHTEN_CARGO_SCRIPT,
 } from './daily-update-whole-path-scripts-fixture.ts';
-
-/**
- Upper bound that stops a broken fixture from hanging verification.
- */
-const WHOLE_PATH_TIMEOUT_MS = 180_000;
 
 /**
  Writes a file, making its folder first.
@@ -62,77 +57,6 @@ export async function put({
     path,
     content,
   );
-}
-
-/**
- Runs a program to its end and returns its status and output.
-
- @param program - program name or path
-
- @param args - arguments
-
- @param directory - working directory
-
- @param environment - process environment
-
- @returns the exit status and the text of both output streams
-
- @throws Error when the program runs past the fixture's bound
-
- @example
- ```ts
- const { exitCode, } = await run({ program: 'git', args: ['status',], directory: '/r', environment: {}, },);
- ```
- */
-export async function run({
-  program,
-  args,
-  directory,
-  environment,
-}: {
-  readonly program: string;
-  readonly args: readonly string[];
-  readonly directory: string;
-  readonly environment: Readonly<Record<string, string>>;
-},): Promise<{
-  readonly exitCode: number;
-  readonly stdout: string;
-  readonly stderr: string
-}> {
-  /**
-   The process, stopped when it runs past the bound.
-   */
-  const child = spawn(
-    program,
-    [...args,],
-    {
-      cwd: directory,
-      env: environment,
-      timeout: WHOLE_PATH_TIMEOUT_MS,
-      stdio: [
-        'ignore',
-        'pipe',
-        'pipe',
-      ],
-    },
-  );
-  // Reading both streams to their end while waiting for the exit keeps a full pipe from stalling the child.
-  /**
-   Both output streams, read to their end.
-   */
-  const [stdout, stderr,] = await Promise.all([
-    text(child.stdout,),
-    text(child.stderr,),
-    once(
-      child,
-      'close',
-    ),
-  ],);
-  return {
-    exitCode: child.exitCode ?? (-1),
-    stdout,
-    stderr,
-  };
 }
 
 /**
@@ -292,6 +216,59 @@ export async function layOutRepository({
     put({
       path: join(
         root,
+        'steps',
+        'sync.ts',
+      ),
+      content: SYNC_SCRIPT,
+    },),
+    put({
+      path: join(
+        root,
+        'steps',
+        'check.ts',
+      ),
+      content: CHECK_SCRIPT,
+    },),
+    put({
+      path: join(
+        root,
+        'steps',
+        'tighten-cargo.ts',
+      ),
+      content: TIGHTEN_CARGO_SCRIPT,
+    },),
+    // The Rust catalog and the manifests `sync:files` renders from it: one crate whose lock the raise leaves behind and
+    // one whose lock follows it. Both carry the exact pin the catalog ties to the slint release.
+    put({
+      path: join(
+        root,
+        'rust-catalog.toml',
+      ),
+      content: RUST_CATALOG,
+    },),
+    put({
+      path: join(
+        root,
+        'package',
+        'a',
+        'broken-crate',
+        'Cargo.toml',
+      ),
+      content: crateManifest({ name: 'broken-crate', },),
+    },),
+    put({
+      path: join(
+        root,
+        'package',
+        'c',
+        'red-crate',
+        'Cargo.toml',
+      ),
+      content: crateManifest({ name: 'red-crate', },),
+    },),
+    put({
+      path: join(
+        root,
         'package',
         'a',
         'broken-crate',
@@ -349,6 +326,7 @@ export async function layOutRepository({
     'toolchain.lock.json',
     'pnpm-workspace.yaml',
     'pnpm-lock.yaml',
+    'rust-catalog.toml',
     'steps',
     'package',
   ];
@@ -382,72 +360,4 @@ export async function layOutRepository({
     root,
     environment,
   },);
-}
-
-/**
- A folder on `PATH` with whether it holds a program.
- */
-type PathFolder = {
-  /**
-   The folder.
-   */
-  readonly directory: string;
-  /**
-   Whether the program is a file in it.
-   */
-  readonly holds: boolean;
-};
-
-/**
- Resolves the directory of an executable that is on the caller's `PATH`.
-
- @param name - executable name
-
- @returns the real directory that holds it
-
- @throws Error when it is not on `PATH`
-
- @example
- ```ts
- const miseDirectory = await directoryOf('mise',);
- ```
- */
-export async function directoryOf(name: string,): Promise<string> {
-  // Looking in one folder does not depend on looking in another, so the folders are looked in side by side.
-  /**
-   Each `PATH` folder with whether it holds the program.
-   */
-  const candidates = await Promise.all((process.env
-    .PATH
-    ?? '').split(delimiter,)
-    .map(async function lookIn(directory,): Promise<PathFolder> {
-      /**
-       Metadata of the candidate, absent when the folder has no such file.
-       */
-      const metadata = await stat(
-        join(
-          directory,
-          name,
-        ),
-        { throwIfNoEntry: false, },
-      );
-      return {
-        directory,
-        holds: metadata?.isFile() === true,
-      };
-    },),);
-  /**
-   The first folder, in `PATH` order, that holds the program.
-   */
-  const found = candidates.find(function holdsIt(candidate,) {
-    return candidate.holds;
-  },);
-  if (found === undefined)
-    throw new Error(`${name} is required on PATH for the whole-path test`,);
-  return dirname(
-    await realpath(join(
-      found.directory,
-      name,
-    ),),
-  );
 }
