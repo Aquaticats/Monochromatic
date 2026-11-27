@@ -201,8 +201,6 @@ pub fn sweep_gone_worktrees(common_dir: &Path) -> Vec<PathBuf> {
 }
 
 /// What:
-
-/// What:
 ///  Removes the half-made members a killed fill left,
 ///  as of the moment given.
 /// Why:
