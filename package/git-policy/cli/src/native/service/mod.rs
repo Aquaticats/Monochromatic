@@ -230,6 +230,9 @@
 //! - `service_instances_with_units_and_their_survey.rs`:
 //!   which instances have a unit or a journal,
 //!   and the survey that sorts them by whether their worktree is gone.
+//! - `service_own_worktree_gone_and_the_stop_of_its_socket.rs`:
+//!   what a service knows about its own worktree,
+//!   and the stop of its own socket when that worktree is gone.
 //! - `service_units_of_removed_worktrees.rs`:
 //!   the commit service units of worktrees that no longer exist:
 //!   which worktree a unit belongs to,
@@ -660,6 +663,10 @@ pub mod service_unit_folders_and_the_worktree_of_an_instance;
 /// Which instances have a unit or a journal,
 /// and the survey that sorts them by whether their worktree is gone.
 pub mod service_instances_with_units_and_their_survey;
+
+/// What a service knows about its own worktree,
+/// and the stop of its own socket when that worktree is gone.
+pub mod service_own_worktree_gone_and_the_stop_of_its_socket;
 
 /// The commit service units of worktrees that no longer exist:
 /// which worktree a unit belongs to,
