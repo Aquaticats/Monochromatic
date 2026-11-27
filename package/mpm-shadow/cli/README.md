@@ -1193,7 +1193,11 @@ whichever route installed them.
   and the tool's first declared bin is found in it as an executable file
   (a tool that declares no bin finishes on the marker alone).
 - An archive is unpacked into a hidden staging directory beside the version directory
-  (`.<version>.staging.<process id>.<process start time>.<process namespace>.<boot id>`),
+  (`.<version>.staging.<process id>.<process start time>.<process namespace>.<boot id>`,
+  or the shorter `.<version>.staging.<process id>.<process start time>` by a run that cannot read its own boot or
+  namespace,
+  which no later install judges;
+  see "What a kill leaves and what the next install does about it"),
   the first bin of a release archive is looked for in it,
   the marker is written last,
   and only then is the version's name given the finished copy.
@@ -1297,6 +1301,13 @@ so the same number and the same moment can come back after a reboot;
 the boot's identifier separates one boot from the next.
 A process id means one thing only inside its own namespace;
 the namespace's identifier separates one namespace from the next.
+A run that cannot read its own boot's identifier,
+or its own process namespace,
+writes the shorter name an earlier build wrote,
+which carries the process id and the start time alone:
+the facts it could not read are left out rather than made up,
+and no later install judges such a name,
+so a copy a kill leaves under it is never published and never removed.
 
 - During the download:
   the half file `<file>.download` in `<toolchain root>/downloads/<tool>/<version>/`,
