@@ -96,7 +96,7 @@ fn the_shown_text_holds_no_byte_that_can_act(
         if character == '\\' {
             let leads: Option<&char> = characters.get(at + 1);
             assert!(
-                leads.is_some_and(|next| ESCAPED.contains(next)),
+                leads.is_some_and(|next| return ESCAPED.contains(next)),
                 "{shape:?}: the backslash at {at} leads no escape of this program's: {shown:?} for {name:?}"
             );
             // What: how far past the backslash this escape runs.

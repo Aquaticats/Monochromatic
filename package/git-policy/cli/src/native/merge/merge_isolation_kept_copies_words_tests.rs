@@ -205,7 +205,7 @@ fn the_name_never_reaches_the_line(directory: &std::path::Path) -> Vec<String> {
         }
         std::thread::sleep(LOOK_EVERY);
     }
-    let Some(holders) = holders else {
+    let Some(found) = holders else {
         failures.push(format!(
             "no look of the process table named this process holding the copy within {} s",
             WINDOW.as_secs()
@@ -231,7 +231,7 @@ fn the_name_never_reaches_the_line(directory: &std::path::Path) -> Vec<String> {
     // const out = []; sayTheCopyStaysHeldOpen(out, copy, holders); const line = out.join('');
     // ```
     let mut out: Vec<u8> = Vec::new();
-    say_the_copy_stays_held_open(&mut out, &copy, holders.as_slice());
+    say_the_copy_stays_held_open(&mut out, &copy, found.as_slice());
     let line: String = String::from_utf8(out).expect("the line is text");
     // What: the line as a terminal takes it: the sentence's own final newline ends it, and nothing else ends a line.
     // Why:  the sentence ends with one newline of its own, so a control character anywhere before it is the name's.
