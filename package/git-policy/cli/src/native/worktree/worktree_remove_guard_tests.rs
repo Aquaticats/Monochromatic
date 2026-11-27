@@ -33,8 +33,10 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::worktree_clean::check_clean;
 use crate::worktree_command_facts::RemovePlan;
 use crate::worktree_removal_finishes_an_interrupted_destroy::finish_interrupted_destroys;
+use crate::worktree_removal_holds_the_worktree::lock_state;
 use crate::worktree_removal_interrupted_destroy::{
     record_destroy_with_owner,
     record_destroyed,
@@ -42,6 +44,10 @@ use crate::worktree_removal_interrupted_destroy::{
 use std::cell::RefCell;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// What:
 ///  Whether a removal finished and took the worktree away,
