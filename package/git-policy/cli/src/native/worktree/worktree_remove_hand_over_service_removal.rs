@@ -1,6 +1,5 @@
 //! What:
 //!  The service's own removal of one worktree a command handed over,
-//!  the removal it makes around a volume that is not this removal's own,
 //!  and the choice of which destroy a record asks for.
 //! Why:
 //!  `git worktree remove` is Git's line:
@@ -13,15 +12,13 @@
 //!  so one place decides which of the two a record asks for.
 //!  A tree that holds a subvolume or a mount point this program did not make is never given to Git,
 //!  because Git's own removal deletes what is mounted at a mount point and unlinks the files of a nested worktree,
-//!  so the removal that goes around such a volume is made here,
-//!  in the service's own process,
-//!  beside the removal it is one answer of.
+//!  so this removal answers the removal made around such a volume as one of its own endings
+//! (`worktree_remove_hand_over_around_a_foreign_volume.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! deleteSubvolumeOf(item): Verdict // Git's own removal, or the kernel's delete
 //! removeTheWorktreeOf(item, procRoot): Verdict
-//! removeAroundWhatIsNotThisRemovals(item, target, registration): Verdict
 //! ```
 
 use crate::diagnostic_log::debug;
@@ -34,8 +31,6 @@ use crate::transaction_git::{
 };
 use crate::work_item::WorkItem;
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
-use crate::worktree_command_facts::RemovePlan;
-use crate::worktree_landed_registrations::branch_of_registration;
 use crate::worktree_removal_held_commits::{
     KeptCommits,
     keep_held_commits,
@@ -44,6 +39,16 @@ use crate::worktree_removal_second_look::{
     SecondLook,
     why_the_worktree_stays,
 };
+// What:     `use crate::worktree_remove_hand_over_around_a_foreign_volume::remove_around_what_is_not_this_removals;`
+//           imports the removal made around a volume this removal did not make.
+// Why:      That answer needs the volume report and the record a person reads, which are
+//           its own file's subject, and this file only decides to ask for it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { removeAroundWhatIsNotThisRemovals } from './worktree_remove_hand_over_around_a_foreign_volume';
+// ```
+use crate::worktree_remove_hand_over_around_a_foreign_volume::remove_around_what_is_not_this_removals;
 use crate::worktree_remove_hand_over_begun_record::{
     begun_identity,
     forget_begun,
@@ -61,25 +66,6 @@ use crate::worktree_remove_hand_over_service_git_and_pool::{
     the_service_git,
 };
 use crate::worktree_remove_hand_over_subvolume_delete::destroy_the_subvolume_of;
-// What:     `use crate::worktree_remove_request_and_last_look::RemoveRequest;` imports
-//           what one removal is asked to do, from the file that defines it.
-// Why:      The handler makes one request of the person's own removal and names it here.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import type { RemoveRequest } from './worktree_remove_request_and_last_look';
-// ```
-use crate::worktree_remove_request_and_last_look::RemoveRequest;
-// What:     `use crate::worktree_remove_outcome::RemoveOutcome;` imports the endings a
-//           removal answers with, from the file that defines them.
-// Why:      The handler matches on those endings, and naming the outcome's own file
-//           keeps this file off the removal's steps.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// import type { RemoveOutcome } from './worktree_remove_outcome';
-// ```
-use crate::worktree_remove_outcome::RemoveOutcome;
 use crate::worktree_remove_registry::{
     Registration,
     registered_worktree,
@@ -372,129 +358,4 @@ pub(crate) fn remove_the_worktree_of(
         );
     }
     return Verdict::Done;
-}
-
-/// What:
-///  Remove the worktree around what someone else put inside it,
-///  in this service's own process,
-///  and say what was left where a person finds it.
-/// Why:
-///   The record this service acts on was written before the volume may have appeared,
-/// and Git must not see a tree
-///  holding one:
-/// its removal deletes what is mounted at a mount point and unlinks the files of a nested worktree.
-/// The steps are
-///  the person's own removal,
-/// made here with the checks that removal makes,
-/// so the service and the command cannot disagree about
-///  which tree may go.
-/// A removal that refuses keeps the worktree and says why,
-/// and a removal that removed what it could and stopped keeps
-///  it too,
-///  with the words for a tree that is partly gone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// removeAroundWhatIsNotThisRemovals(item, target, registration): Verdict
-/// ```
-pub(crate) fn remove_around_what_is_not_this_removals(
-    item: &WorkItem,
-    target: &Path,
-    registration: &Registration,
-) -> Verdict {
-    let context: GitContext = match the_service_git(item) {
-        Ok(found) => found,
-        Err(reason) => return Verdict::Retry(reason),
-    };
-    let plan: RemovePlan = RemovePlan {
-        target: target.to_path_buf(),
-        operand: target.as_os_str().to_os_string(),
-        force: false,
-    };
-    let request: RemoveRequest<'_> = RemoveRequest {
-        context: &context,
-        plan: &plan,
-        common_dir: item.git_dir.as_path(),
-        last_look: None,
-    };
-    match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
-        RemoveOutcome::Removed => {
-            // The record that says which worktree a half-done removal of this id was belongs to that removal, and the
-            // worktree is gone: a later attempt for the name must not read it as its own.
-            forget_begun(item.git_dir.as_path(), item.id().as_str());
-            return Verdict::Done;
-        }
-        RemoveOutcome::RemovedAroundNothingLeft => {
-            for line in
-                crate::worktree_removal_goes_around_a_foreign_volume::emptied_around_report(target)
-                    .lines()
-            {
-                crate::service_log!("{line}");
-            }
-            forget_begun(item.git_dir.as_path(), item.id().as_str());
-            return Verdict::Done;
-        }
-        RemoveOutcome::DestroyedInPlace => {
-            // The files are gone and nothing waits here; the record that names which worktree a half-done removal of this id
-            // was belongs to that removal, so it goes with the worktree.
-            forget_begun(item.git_dir.as_path(), item.id().as_str());
-            return Verdict::Done;
-        }
-        RemoveOutcome::RemovedAround(left) => {
-            let branch: String = branch_of_registration(registration.admin.as_path())
-                .unwrap_or_else(|| return String::from("a head with no branch"));
-            if let Err(reason) =
-                crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(
-                    item.git_dir.as_path(),
-                    target,
-                    branch.as_str(),
-                    left.as_slice(),
-                )
-            {
-                crate::service_warn!(
-                    "the worktree {} was removed around what was left in it, and the record of that could not be written: {reason}",
-                    target.display()
-                );
-            }
-            for line in crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(
-                target,
-                left.as_slice(),
-            )
-            .lines()
-            {
-                crate::service_log!("{line}");
-            }
-            forget_begun(item.git_dir.as_path(), item.id().as_str());
-            return Verdict::Done;
-        }
-        RemoveOutcome::Refused(report) => {
-            return keep_the_worktree(
-                item,
-                target,
-                registration.admin.as_path(),
-                report.as_str(),
-                &[],
-            );
-        }
-        RemoveOutcome::Incomplete(report) => {
-            return keep_the_worktree(
-                item,
-                target,
-                registration.admin.as_path(),
-                report.as_str(),
-                &[],
-            );
-        }
-        // Nothing here was changed and Git's own removal is not this tree's to take, so the worktree stays and the person reads
-        //  why. A record that names no removal this program can make must not be read as one that happened.
-        RemoveOutcome::LeftToGit => {
-            return keep_the_worktree(
-                item,
-                target,
-                registration.admin.as_path(),
-                "a subvolume or mount point that is not this removal's stands inside it, and the removal could not prove it may take the rest",
-                &[],
-            );
-        }
-    }
 }

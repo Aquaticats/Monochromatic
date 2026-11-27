@@ -586,6 +586,10 @@
 //! - `worktree_landed_removal_last_look.rs`:
 //!   what a removal deletes beside the files Git keeps,
 //!   and the sweep's last look that asks it again inside the removal.
+//! - `worktree_remove_hand_over_around_a_foreign_volume.rs`:
+//!   the removal a service makes around a volume that is not the removal's own,
+//!   in the service's own process,
+//!   and the words for what was left where a person finds it.
 //! - `worktree_remove_hand_over_service_removal.rs`:
 //!   the service's own removal of a whole worktree with Git,
 //!   and the choice of which destroy a record asks for.
@@ -935,6 +939,10 @@ pub mod worktree_remove_notices;
 /// and the pass.
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
+/// The removal a service makes around a volume that is not the removal's own,
+/// in the service's own process,
+/// and the words for what was left where a person finds it.
+pub mod worktree_remove_hand_over_around_a_foreign_volume;
 pub mod worktree_remove_hand_over_begun_record;
 pub mod worktree_remove_hand_over_kept_worktree_notice;
 pub mod worktree_remove_hand_over_queue_and_wake;
