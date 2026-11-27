@@ -50,6 +50,60 @@ use std::path::{
 };
 
 /// What:
+///  Which reading left a slot's state unproved,
+///  as the removal's refusal reads it.
+/// Why:
+///  The owner's answer of 2026-11-26 refuses the removal in three cases a slot
+///  proves nothing about and leaves every other unproved state to Git,
+///  so the classification keeps which reading stopped the proof rather than
+///  leaving a caller to read a sentence's words
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProofStoppedBy = 'a-mount-no-record-names' | 'a-record-of-another-path' | 'a-mount-that-cannot-be-read' | 'another-reading';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProofStoppedBy {
+    /// A mount stands at the slot's path and no record is filed under its name.
+    AMountNoRecordNames,
+    /// The record filed under the slot's name names another path.
+    ARecordOfAnotherPath,
+    /// The mount table,
+    /// or the mount at the slot,
+    /// could not be read.
+    AMountThatCannotBeRead,
+    /// Any other reading that proved nothing.
+    AnotherReading,
+}
+
+impl ProofStoppedBy {
+    /// What:
+    ///  Whether a removal of this slot must be refused for this reading.
+    /// Why:
+    ///  The owner's answer of 2026-11-26 refuses the removal where nothing proves
+    ///  what a slot holds,
+    ///  because Git's own removal would delete the registration and the underlay
+    ///  folder while a clone's files may stand behind the mount;
+    ///  a plan nobody could read and a phase that disagrees with its mount are
+    ///  readings the answer does not name,
+    ///  so they stay Git's until the owner says otherwise.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const refuses = (stopped) => stopped !== 'another-reading';
+    /// ```
+    pub fn refuses_a_removal(self) -> bool {
+        return match self {
+            ProofStoppedBy::AMountNoRecordNames
+            | ProofStoppedBy::ARecordOfAnotherPath
+            | ProofStoppedBy::AMountThatCannotBeRead => true,
+            ProofStoppedBy::AnotherReading => false,
+        };
+    }
+}
+
+/// What:
 ///  Which of the route's states one slot is in.
 /// Why:
 ///  Each answer has one next safe action,
@@ -58,7 +112,7 @@ use std::path::{
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SlotRouteState = { kind: 'not-a-managed-clone' } | { kind: 'pending-add'; phase } | { kind: 'pending-removal'; plan } | { kind: 'known-unmounted-clone'; cloneDataset } | { kind: 'mounted-managed-clone'; cloneDataset } | { kind: 'cannot-prove'; reason };
+/// type SlotRouteState = { kind: 'not-a-managed-clone' } | { kind: 'pending-add'; phase } | { kind: 'pending-removal'; plan } | { kind: 'known-unmounted-clone'; cloneDataset } | { kind: 'mounted-managed-clone'; cloneDataset } | { kind: 'cannot-prove'; reason; stoppedBy };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SlotRouteState {
@@ -96,6 +150,8 @@ pub enum SlotRouteState {
         /// Why no state could be proved,
         /// in the words of the source that refused.
         reason: String,
+        /// Which reading stopped the proof.
+        stopped_by: ProofStoppedBy,
     },
 }
 
@@ -169,6 +225,8 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the record filed under `{}` cannot be read: {reason}",
                     readings.slot
                 ),
+                // A record nobody may act on is the removal's own early refusal, so this answer is no other reading's.
+                stopped_by: ProofStoppedBy::AnotherReading,
             };
         }
         BindingReading::Absent => {
@@ -180,6 +238,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                         "no record is filed under `{}`, and the mount at its path could not be read: {reason}",
                         readings.slot
                     ),
+                    stopped_by: ProofStoppedBy::AMountThatCannotBeRead,
                 },
                 SlotMount::Something {
                     described,
@@ -188,6 +247,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                         "no record is filed under `{}`, and {described}, so nothing proves whether the route or a person put that mount there",
                         readings.slot
                     ),
+                    stopped_by: ProofStoppedBy::AMountNoRecordNames,
                 },
                 SlotMount::Nothing => SlotRouteState::NotAManagedClone,
             };
@@ -203,6 +263,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     readings.slot,
                     recorded.display()
                 ),
+                stopped_by: ProofStoppedBy::ARecordOfAnotherPath,
             };
         }
         None => {
@@ -211,6 +272,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the record filed under `{}` holds a `slot=` that is not a path, so the slot it belongs to is unproved",
                     readings.slot
                 ),
+                stopped_by: ProofStoppedBy::AnotherReading,
             };
         }
     }
@@ -232,6 +294,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the destruction plan at {} could not be read ({reason}), so nothing proves no removal is in flight for this slot",
                     plan.display()
                 ),
+                stopped_by: ProofStoppedBy::AnotherReading,
             };
         }
         PlanReading::NotAsked => {
@@ -240,6 +303,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the record filed under `{}` stands, and the plan folder was not read, so nothing proves no removal is in flight for this slot",
                     readings.slot
                 ),
+                stopped_by: ProofStoppedBy::AnotherReading,
             };
         }
         PlanReading::NoPlan => {}
@@ -268,19 +332,28 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the binding record says `phase={}`, and the mount table could not be read: {reason}",
                     record.phase.word()
                 ),
+                // A clone exists from `cloned` on, so where it is mounted is a whole worktree that table would show;
+                //  an earlier phase has no clone for a removal to delete inside, and its removal is the add's way forward.
+                stopped_by: match record.phase {
+                    Phase::Cloned | Phase::Settling => ProofStoppedBy::AMountThatCannotBeRead,
+                    _ => ProofStoppedBy::AnotherReading,
+                },
             },
             CloneMount::AtItsSlot => SlotRouteState::CannotProve {
                 reason: disagree(record.phase, "the clone's own root is mounted at the slot"),
+                stopped_by: ProofStoppedBy::AnotherReading,
             },
             CloneMount::Elsewhere {
                 described,
             } => SlotRouteState::CannotProve {
                 reason: disagree(record.phase, &format!("{described} is mounted")),
+                stopped_by: ProofStoppedBy::AnotherReading,
             },
             CloneMount::SomethingElseAtTheSlot {
                 described,
             } => SlotRouteState::CannotProve {
                 reason: disagree(record.phase, &format!("{described} stands at the slot")),
+                stopped_by: ProofStoppedBy::AnotherReading,
             },
         },
         Phase::Mounted | Phase::Filled => match mount {
@@ -297,6 +370,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the binding record says `phase={}`, and the clone is mounted somewhere else ({described}), so nothing proves the mount at its slot is the clone's",
                     record.phase.word()
                 ),
+                stopped_by: ProofStoppedBy::AnotherReading,
             },
             CloneMount::SomethingElseAtTheSlot {
                 described,
@@ -305,6 +379,7 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the binding record says `phase={}`, and {described} stands at the slot while the clone itself is not mounted there",
                     record.phase.word()
                 ),
+                stopped_by: ProofStoppedBy::AnotherReading,
             },
             CloneMount::Unreadable {
                 reason,
@@ -313,6 +388,8 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
                     "the binding record says `phase={}`, and the mount table could not be read: {reason}",
                     record.phase.word()
                 ),
+                // A record this far along names a clone, so the table would say whether it is mounted at the slot.
+                stopped_by: ProofStoppedBy::AMountThatCannotBeRead,
             },
         },
     };

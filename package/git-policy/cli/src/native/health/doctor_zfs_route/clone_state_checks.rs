@@ -217,6 +217,7 @@ pub fn check_clone_state(facts: &CloneStateFacts) -> CheckOutcome {
         ),
         SlotRouteState::CannotProve {
             reason,
+            ..
         } => unknown(format!(
             "the state of the slot `{}` cannot be proved: {reason}",
             report.slot
