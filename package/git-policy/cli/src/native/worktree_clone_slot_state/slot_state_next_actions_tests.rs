@@ -7,6 +7,7 @@
 
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_slot_state::slot_state_classification::{
+    ProofStoppedBy,
     SlotRouteState,
     classify_slot,
 };
@@ -167,6 +168,7 @@ fn a_state_nothing_proves_changes_nothing() {
     let readings: SlotReadings = readings_at(Phase::Filled);
     let unproved: SlotRouteState = SlotRouteState::CannotProve {
         reason: String::from("the mount table could not be read"),
+        stopped_by: ProofStoppedBy::AMountThatCannotBeRead,
     };
     let action: String = next_safe_action(&unproved, &readings);
     assert!(
