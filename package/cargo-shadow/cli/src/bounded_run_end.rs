@@ -69,28 +69,20 @@ use crate::bounded_run_containment::{
 /// ```
 use crate::control_group::ControlGroup;
 /// What:
-/// `use crate::control_group::retire::{RETIRE_BOUND, retire_unit};` imports the stop of a unit and its bound.
+/// `use crate::control_group::retire::{RETIRE_BOUND, retire};` imports the last look at a run's scope and the one question it
+/// may call for,
+/// with their bound.
 /// Why:
 /// The one way a unit is stopped is shared with the controls that plant such a unit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { RETIRE_BOUND, retireUnit } from 'crate/control_group/retire';
+/// import { RETIRE_BOUND, retire } from 'crate/control_group/retire';
 /// ```
 use crate::control_group::retire::{
     RETIRE_BOUND,
-    retire_unit,
+    retire,
 };
-/// What:
-/// `use crate::control_group_route_discovery::Route;` imports the route a run's scope was planned on.
-/// Why:
-/// The route holds the program that asks the manager.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Route } from 'crate/control_group_route_discovery';
-/// ```
-use crate::control_group_route_discovery::Route;
 /// What:
 /// `use std::process::Child;` imports the handle of a started child.
 /// Why:
@@ -114,69 +106,35 @@ use std::process::Child;
 use std::rc::Rc;
 
 /// What:
-/// `fn empty_now(group: &ControlGroup) -> bool` says whether the scope has no member at this moment,
-/// or its directory is gone.
+/// `fn retire_and_warn(group: &ControlGroup, systemctl: &str)` runs the last look at a run's scope and prints the one warning it
+/// answers,
+/// if it answers one.
 /// Why:
-/// The unit is only stopped when nothing can write in it:
-/// an absent group is empty,
-/// `populated 0` is the kernel's own word for empty,
-/// and a group that cannot be read is taken as one that may still have a member.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function emptyNow(group: ControlGroup): boolean
-/// ```
-fn empty_now(group: &ControlGroup) -> bool {
-    // What:     `match populated_at(...) { ... }` reads the kernel's `populated` line: `Ok(true)` is a member, `Ok(false)` is none.
-    //           `Err(error)` carries a read failure; `NotFound` and `NODEV` mean the directory is gone, which is empty, and every
-    //           other error is a group that may have a member.
-    // Why:      This is the gate the retirement hangs on, so an unreadable group is never treated as empty.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // try { return !populatedAt(group.directory) } catch (error) { return error.code === 'ENOENT' || error.code === 'ENODEV' }
-    // ```
-    return match crate::control_group::populated_at(group.directory()) {
-        Ok(populated) => !populated,
-        Err(error) => {
-            error.kind() == std::io::ErrorKind::NotFound
-                || error.raw_os_error() == Some(rustix::io::Errno::NODEV.raw_os_error())
-        }
-    };
-}
-
-/// What:
-/// `fn retire(group: &ControlGroup, route: &Route)` asks the manager to stop the scope unit of a run that has ended,
-/// and warns when the manager may still load it.
-/// Why:
-/// The scope is already shown empty,
+/// The scope is already shown empty or gone,
 /// so this is housekeeping for the unit and never a claim about a writer.
 /// A manager that cannot be asked does not turn the run into "not quiescent",
-/// but a person has to be told that the unit may stay.
+/// but a person has to be told that the unit may stay loaded,
+/// or why it was left alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function retire(group: ControlGroup, route: Route): void
+/// function retireAndWarn(group: ControlGroup, systemctl: string): void
 /// ```
-fn retire(
+fn retire_and_warn(
     group: &ControlGroup,
-    route: &Route,
+    systemctl: &str,
 ) {
-    let unit: String = group.unit();
-    // What:     `if let Err(reason) = retire_unit(...)` runs the warning only when the retire answered a failure.
-    //           `&route.systemctl` and `&unit` lend the two names to the call.
-    // Why:      A retired unit needs nothing said,
+    // What:     `if let Some(word) = retire(...)` runs the warning only when the step answered one.
+    // Why:      A retired unit, and a unit the manager will collect by itself, need nothing said,
     //           and a warning on every run would be noise.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const reason = retireUnit(route.systemctl, unit, RETIRE_BOUND).error
-    // if (reason) console.error(`... ${unit} ... ${reason}`)
+    // const word = retire(group, systemctl, RETIRE_BOUND)
+    // if (word) console.error(`cargo-shadow: warning: ${word}`)
     // ```
-    if let Err(reason) = retire_unit(&route.systemctl, &unit, RETIRE_BOUND) {
-        eprintln!(
-            "cargo-shadow: warning: the scope unit {unit} of the run that just ended may still be loaded ({reason})"
-        );
+    if let Some(word) = retire(group, systemctl, RETIRE_BOUND) {
+        eprintln!("cargo-shadow: warning: {word}");
     }
 }
 
@@ -234,20 +192,17 @@ pub(crate) fn stop_everything(
         route,
     } = containment
     {
-        // What:     `if empty_now(group)` asks the kernel, one last time, whether the scope has no member.
-        // Why:      The stop's own answer is not the only one that matters here:
-        //           it may have failed to read the scope while the scope was already empty (a refusal path),
-        //           and then the unit is the loaded-and-empty leftover this step exists for.
-        //           A scope that still has a member must keep its unit,
-        //           because the refusal's report names that member and a manager stop would kill it behind the report.
+        // What:     `retire_and_warn(group, &route.systemctl)` makes the step's one last look at the scope, asks the manager
+        //           the one question the look calls for, and prints the word the step answers.
+        // Why:      The stop of the containment is the proof that nothing can write;
+        //           ending the unit is housekeeping after it,
+        //           and the look is what keeps that housekeeping off the ordinary path.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // if (emptyNow(group)) retire(group, route)
+        // retireAndWarn(group, route.systemctl)
         // ```
-        if empty_now(group) {
-            retire(group, route);
-        }
+        retire_and_warn(group, &route.systemctl);
     }
     return outcome;
 }
