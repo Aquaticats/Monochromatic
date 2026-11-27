@@ -82,7 +82,10 @@ Installing 0.1.5-alpha.1 in the main checkout deleted the 0.1.4 version director
 and moved `current`.
 The link `current` stayed valid,
 but every other tree's record still named the 0.1.4 folder,
-and `run_launcher` in `package/mpm-shadow/cli/src/toolchain/launcher.rs` executed that path as recorded.
+and `run_launcher` in `package/mpm-shadow/cli/src/toolchain/launcher.rs` executed that path as recorded
+(it moved to `package/mpm-shadow/cli/src/toolchain/launcher/starting_it.rs`
+on 2026-11-27T02:35:05-05:00,
+commit `e15cbe64da`).
 
 An earlier reading was wrong:
 the brief for this fix suspected that a shell started in the main checkout runs the main checkout's `cargo` launcher inside a worktree.
@@ -230,7 +233,11 @@ the machine-global launcher.
 The `real` field of `toolchain-global/launchers/monochromatic-git-policy-cli.launch`,
 written at 11:30 when 0.6.0 was current.
 Nothing rewrote it afterwards:
-`mpm update -g` only publishes the global lock (`update_loaded` in `src/toolchain/update.rs` ends in `publish_lock`),
+`mpm update -g` only publishes the global lock
+(`update_loaded` in `src/toolchain/update.rs` ends in `publish_lock`;
+it moved to `package/mpm-shadow/cli/src/toolchain/update/the_update_itself.rs`
+on 2026-11-27T02:57:59-05:00,
+commit `0946c9f471`),
 and launchers and records are made only by `install` (`rebuild_exposure`,
 then `ensure_launcher`,
 in `src/toolchain/exposure.rs` and `launcher.rs`).
@@ -312,7 +319,10 @@ the records of the worktree launchers name the worktree's lock file.
 The warning did not say which lock it read,
 which made this hard to see;
 it now names the file
-(`older_lock_message_for` in `package/mpm-shadow/cli/src/toolchain/cargo_installs.rs`),
+(`older_lock_message_for` in `package/mpm-shadow/cli/src/toolchain/cargo_installs.rs`,
+which moved to `package/mpm-shadow/cli/src/toolchain/cargo_installs/the_older_lock_sentence.rs`
+on 2026-11-27T02:31:45-05:00,
+commit `ebfbbe1b78`),
 so the same message from two launchers is told apart by the path.
 
 ## Follow-up built 2026-11-08: launchers are copies of the newest installed mpm-shadow

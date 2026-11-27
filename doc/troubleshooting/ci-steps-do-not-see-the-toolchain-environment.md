@@ -139,7 +139,10 @@ that stays a property of the lock.
 It installs no `rustComponents`:
 nothing in that job compiles with them.
 
-The skip itself stayed in `sync_tools` (`package/mpm-shadow/cli/src/toolchain/sync.rs`),
+The skip itself stayed in `sync_tools` (`package/mpm-shadow/cli/src/toolchain/sync.rs`,
+which moved to `package/mpm-shadow/cli/src/toolchain/sync/the_sync_itself.rs`
+on 2026-11-27T02:39:54-05:00,
+commit `4027d53c14`),
 so any toolchain this repository did not install itself kept missing the components and targets its lock row
 declares.
 The fix went there:
