@@ -100,7 +100,8 @@ impl ConversionEnvironment {
 
 /// What:
 ///  The configuration and attributes files the real Git this command forwards to reads,
-/// for a decision about how Git would convert a file.
+/// for a decision about how Git would convert a file,
+///  and the place the wrapper records what it learned about that Git in.
 /// Why:
 ///   Git rewrites a file's bytes on the way into the index where an attribute converts them,
 /// so a file is only proven unchanged under the
@@ -110,17 +111,31 @@ impl ConversionEnvironment {
 /// never from
 ///  the wrapper's own environment,
 /// which does not carry it.
+/// The variables are the ones a child of this context runs with:
+/// this process's own with the context's overlay over them,
+///  so an entry the caller named wins over the process's own.
+/// A control names `XDG_CACHE_HOME` in its overlay (`test_support::isolated_overlay`),
+///  and hands its work a folder of its fixture that way.
+/// Without that,
+///  the wrapper recorded `git-system-attributes-<digest>` under the person's home cache
+///  (issue 6571).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const environment = ConversionEnvironment.fromVariables({ ...process.env, ...overlay, [FORWARD_TARGET]: realGit });
 /// ```
 pub fn for_context(context: &crate::transaction_git::GitContext) -> ConversionEnvironment {
-    let mut variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    variables.extend(crate::git_system_config::with_real_git(
+    // What: this process's own variables, less every one the context's overlay replaces.
+    // Why: the merge a child's environment gets is this one (`environment_with_overlay`),
+    //  so the facts below are the child's facts and not a mixture in which the process's own entry of a name the caller
+    //  named also counts.
+    let own: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    let inherited: Vec<(OsString, OsString)> = crate::child_environment::environment_with_overlay(
+        own.as_slice(),
         context.overlay.as_slice(),
-        context.real_git.as_path(),
-    ));
+    );
+    let variables: Vec<(OsString, OsString)> =
+        crate::git_system_config::with_real_git(inherited.as_slice(), context.real_git.as_path());
     return ConversionEnvironment::from_variables(variables.as_slice());
 }
 

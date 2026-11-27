@@ -8,33 +8,6 @@
 file-uses src/native/foundation diagnostic_lines_off_the_calling_thread.rs -> lines_written_by_a_thread.rs
 file-uses src/native/foundation diagnostic_log.rs -> diagnostic_lines_off_the_calling_thread.rs
 file-uses src/native/foundation lines_written_by_a_thread.rs -> diagnostic_log.rs
-file-uses src/native/worktree worktree_removal_clears_the_ahead_pool.rs -> worktree_remove_hand_over.rs
-file-uses src/native/worktree worktree_removal_clears_the_ahead_pool.rs -> worktree_snapshot_ahead.rs
-file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_clears_the_ahead_pool.rs
-file-uses src/native/worktree worktree_removal_finishes_an_interrupted_destroy.rs -> worktree_removal_interrupted_destroy.rs
-file-uses src/native/worktree worktree_removal_goes_around_a_foreign_volume.rs -> worktree_removal_takes_its_pending_deletions.rs
-file-uses src/native/worktree worktree_removal_goes_around_a_foreign_volume.rs -> worktree_remove_reports.rs
-file-uses src/native/worktree worktree_removal_interrupted_destroy.rs -> worktree_removal_finishes_an_interrupted_destroy.rs
-file-uses src/native/worktree worktree_removal_takes_its_pending_deletions.rs -> worktree_remove_hand_over.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_removal_clears_the_ahead_pool.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_removal_goes_around_a_foreign_volume.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_removal_interrupted_destroy.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_removal_takes_its_pending_deletions.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_remove_around.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_remove_hand_over.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_remove_last_look.rs
-file-uses src/native/worktree worktree_remove.rs -> worktree_remove_reports.rs
-file-uses src/native/worktree worktree_remove_around.rs -> worktree_removal_goes_around_a_foreign_volume.rs
-file-uses src/native/worktree worktree_remove_around.rs -> worktree_removal_interrupted_destroy.rs
-file-uses src/native/worktree worktree_remove_around.rs -> worktree_remove.rs
-file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_goes_around_a_foreign_volume.rs
-file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_removal_interrupted_destroy.rs
-file-uses src/native/worktree worktree_remove_hand_over.rs -> worktree_remove.rs
-file-uses src/native/worktree worktree_remove_last_look.rs -> worktree_remove.rs
-file-uses src/native/worktree worktree_remove_reports.rs -> worktree_snapshot_ahead.rs
-file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_remove_hand_over.rs
-file-uses src/native/worktree worktree_snapshot_ahead.rs -> worktree_snapshot_ahead_claim.rs
-file-uses src/native/worktree worktree_snapshot_ahead_claim.rs -> worktree_snapshot_ahead.rs
 index-item src/native/invocation/typed_network_command_relay/mod.rs enum-TypedNetworkCommandEnding
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-relay_when_ssh_carries
 index-item src/native/invocation/typed_network_command_relay/mod.rs function-sentence_after_a_refused_probe_of_a_push

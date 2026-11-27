@@ -100,6 +100,12 @@ pub(crate) mod test_support_dead_copy_owner;
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) mod fixture_content_decision;
 
+/// The variables that isolate a fixture's Git children from the person's configuration,
+/// and the cache place a fixture's work records its facts in;
+/// never part of the release executable.
+#[cfg(test)]
+pub(crate) mod fixture_environment_naming_a_cache_place;
+
 /// A Git stand-in that logs each start and runs the real Git;
 ///  never part of the release executable.
 #[cfg(test)]

@@ -154,7 +154,7 @@ fn probe_2_an_ordinary_member_is_stopped_and_the_scope_is_empty_or_absent() {
     );
 
     let _ = scope.child.kill();
-    let stopped: bool = scope.group.stop(STOP).expect("stops");
+    let stopped: bool = scope.group.stop(STOP).expect("stops").empty();
     let _ = scope.child.wait();
 
     assert!(stopped);
@@ -181,7 +181,7 @@ fn probe_2_a_thread_group_with_an_exited_leader_stays_populated_until_it_is_stop
     let populated: bool = scope.group.populated().expect("reads");
     let threads: String =
         fs::read_to_string(scope.group.directory().join("cgroup.threads")).expect("threads");
-    let stopped: bool = scope.group.stop(STOP).expect("stops");
+    let stopped: bool = scope.group.stop(STOP).expect("stops").empty();
     let _ = scope.child.wait();
 
     assert_eq!(
@@ -218,7 +218,8 @@ fn probe_2_a_scope_that_is_collected_at_once_is_accepted_as_empty_by_verified_ab
     let stopped: bool = scope
         .group
         .stop(STOP)
-        .expect("an absent scope is stopped by verified absence");
+        .expect("an absent scope is stopped by verified absence")
+        .empty();
 
     assert!(stopped);
 }
@@ -244,7 +245,7 @@ fn probe_2_a_scope_stays_observable_while_a_descendant_outlives_the_program() {
         group_of(&members[0].to_string()).contains(".scope"),
         "the descendant was moved out of its scope"
     );
-    assert!(scope.group.stop(STOP).expect("stops"));
+    assert!(scope.group.stop(STOP).expect("stops").empty());
 }
 
 /// Probe 3:
@@ -283,7 +284,7 @@ fn probe_3_a_setsid_and_double_fork_descendant_stays_a_member() {
                 .to_string();
         })
         .collect();
-    let stopped: bool = scope.group.stop(STOP).expect("stops");
+    let stopped: bool = scope.group.stop(STOP).expect("stops").empty();
     let _ = scope.child.wait();
 
     assert!(
@@ -366,7 +367,7 @@ fn probe_4_a_scope_is_found_by_its_record_and_a_different_view_is_unknown() {
         &path,
     );
     let _ = scope.child.kill();
-    let stopped: bool = scope.group.stop(STOP).expect("stops");
+    let stopped: bool = scope.group.stop(STOP).expect("stops").empty();
     let _ = scope.child.wait();
     let after: Membership = query(namespace, parent_view, &path);
 

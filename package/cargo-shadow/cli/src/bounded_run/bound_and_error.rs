@@ -74,6 +74,10 @@ pub enum RunError {
     NotQuiescent {
         /// What was running.
         what: String,
+        /// What the stop could not show:
+        /// how long it waited and what it was waiting for,
+        /// with the state of every member that was left (issue 6528).
+        shortfall: String,
     },
     /// The output could not be read to its end.
     IncompleteOutput {
@@ -115,9 +119,10 @@ impl std::fmt::Display for RunError {
             ),
             RunError::NotQuiescent {
                 what,
+                shortfall,
             } => write!(
                 formatter,
-                "{what} started a process that could not be stopped or shown to be gone, so files it may still write cannot be trusted; this tool changed no file because of that and the journal of the run was kept"
+                "{what} started a process that could not be stopped or shown to be gone, so files it may still write cannot be trusted; {shortfall}; this tool changed no file because of that and the journal of the run was kept"
             ),
             RunError::IncompleteOutput {
                 what,

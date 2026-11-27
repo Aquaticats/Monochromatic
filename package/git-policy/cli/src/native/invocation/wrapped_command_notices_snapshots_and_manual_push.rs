@@ -82,7 +82,16 @@ use crate::worktree_identity::{
     common_directory,
     worktree_root,
 };
-use crate::worktree_removal_interrupted_destroy::finish_interrupted_destroys;
+// What:     `use crate::worktree_removal_finishes_an_interrupted_destroy::finish_interrupted_destroys;`
+//           imports the finish of a removal a command killed once its destroy happened.
+// Why:      The finish stands in the file that owns it; the record of the destroy names it
+//           no longer, so every caller names it there.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { finishInterruptedDestroys } from '../worktree/worktree_removal_finishes_an_interrupted_destroy';
+// ```
+use crate::worktree_removal_finishes_an_interrupted_destroy::finish_interrupted_destroys;
 use crate::worktree_removal_rescue::{
     settle_removals,
     snapshot_linked_worktrees,

@@ -2924,7 +2924,7 @@ fn layout_a_folder_name_that_ends_in_whitespace_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     assert!(
-        message.contains("The layout rules stop at src/m\\u{20}/mod.rs,"),
+        message.contains("The layout rules stop at the folder src/m\\u{20},"),
         "{message}"
     );
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
@@ -3718,7 +3718,7 @@ fn layout_a_folder_name_that_holds_a_line_break_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     assert!(
-        message.contains("The layout rules stop at src/m\\u{a}n/mod.rs,"),
+        message.contains("The layout rules stop at the folder src/m\\u{a}n,"),
         "{message}"
     );
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
@@ -3839,7 +3839,7 @@ fn layout_a_folder_name_that_holds_a_backslash_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
-        "The layout rules stop at src/a\\b/mod.rs,",
+        "The layout rules stop at the folder src/a\\b,",
         "holds a backslash",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
@@ -3867,12 +3867,42 @@ fn layout_a_folder_name_that_holds_the_arrow_words_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
-        "The layout rules stop at src/a -> b/mod.rs,",
+        "The layout rules stop at the folder src/a -> b,",
+        "its name holds ` -> `,",
         "would read as another pair of folders",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+}
+
+/// A folder name that would be misread on a `uses` line is refused only while the folder rule is selected:
+///  the file rule reads no `uses` line,
+///  so it reads such a tree as alpha.17 did rather than stop the run.
+#[cfg(unix)]
+#[test]
+fn layout_the_file_rule_alone_reads_a_folder_named_the_arrow() {
+    let fixture: Fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+    );
+    fixture.write(CONFIG, FILE_RULES);
+    fixture.write("file.txt", "");
+    fixture.write("src/lib.rs", "#[path = \"->/mod.rs\"]\nmod a;\n");
+    fixture.write(
+        "src/->/mod.rs",
+        "//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `one.rs`: one.\nmod one;\n",
+    );
+    fixture.write("src/->/one.rs", "pub struct One;\n");
+    let read: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(
+        (read.status, read.stdout.as_str()),
+        (0, ""),
+        "{} {}",
+        read.stdout,
+        read.stderr
+    );
 }
 
 /// Write a package of two folders that use each other, with the list of one shape of `uses` line:
@@ -3926,7 +3956,8 @@ fn layout_a_folder_name_that_ends_in_the_arrow_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
-        "The layout rules stop at src/a ->/mod.rs,",
+        "The layout rules stop at the folder src/a ->,",
+        "its name ends with ` ->`,",
         "would read as another pair of folders",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
@@ -3954,7 +3985,8 @@ fn layout_a_folder_name_that_begins_with_the_arrow_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
-        "The layout rules stop at src/-> a/mod.rs,",
+        "The layout rules stop at the folder src/-> a,",
+        "its name begins with `-> `,",
         "would read as another pair of folders",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
@@ -3982,7 +4014,8 @@ fn layout_a_folder_name_that_is_the_arrow_is_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     for part in [
-        "The layout rules stop at src/->/mod.rs,",
+        "The layout rules stop at the folder src/->,",
+        "its name is `->`,",
         "would read as another pair of folders",
     ] {
         assert!(message.contains(part), "{part} missing in {message}");
@@ -4014,8 +4047,8 @@ fn layout_two_folder_names_that_could_share_one_uses_line_are_refused() {
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
     assert!(
-        message.contains("The layout rules stop at src/a ->/mod.rs,")
-            || message.contains("The layout rules stop at src/-> b/mod.rs,"),
+        message.contains("The layout rules stop at the folder src/a ->,")
+            || message.contains("The layout rules stop at the folder src/-> b,"),
         "{message}"
     );
     assert!(
@@ -4025,26 +4058,51 @@ fn layout_two_folder_names_that_could_share_one_uses_line_are_refused() {
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
 }
 
-/// A `uses` line whose spacing leaves the name before the arrow ending in whitespace is refused,
+/// A `uses` line whose spacing leaves the name before the arrow ending in whitespace names a folder the package lacks,
 ///  because no folder name of a tree the rules accept ends in whitespace:
-///  the run names the line instead of reporting the entry dead and telling the reader to delete it.
+///  the run reports that one line dead, naming the folder it read,
+///  and goes on reading the rest of the list rather than hiding every other finding of the rule.
 #[cfg(unix)]
 #[test]
-fn layout_a_use_line_whose_name_before_the_arrow_ends_in_whitespace_is_refused() {
+fn layout_a_use_line_whose_name_before_the_arrow_ends_in_whitespace_is_reported_dead() {
     let fixture: Fixture = Fixture::new();
     write_two_folder_loop(
         &fixture,
         "uses src/a  -> src/b\nuses src/b -> src/a\nmissing-link src/a -> src/b\nmissing-link src/b -> src/a\n",
     );
-    let refused: Run = run(&fixture.path, &["--debug", "src"], b"");
-    assert_eq!(refused.status, 2, "{} {}", refused.stdout, refused.stderr);
-    let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
-    assert_eq!(reported.len(), 1, "{}", refused.stdout);
-    let message: &str = reported[0]["message"].as_str().expect("message");
-    for part in ["Line 1", "ends in whitespace", "uses <folder> -> <folder>"] {
+    let listed: Run = run(&fixture.path, &["--debug", "src"], b"");
+    assert_eq!(listed.status, 1, "{} {}", listed.stdout, listed.stderr);
+    let reported: Vec<serde_json::Value> = records(listed.stdout.as_str());
+    // What: the finding about the misspaced line, and the use its dead line leaves unrecorded inside the loop the rest of the list tolerates.
+    // Why: both are what the whole list being read costs, where alpha.18 stopped the rule and showed neither.
+    assert_eq!(reported.len(), 2, "{}", listed.stdout);
+    let dead: &serde_json::Value = reported
+        .iter()
+        .find(|item| return item["filename"] == "folder.txt")
+        .expect("the dead line is reported on its own line");
+    let message: &str = dead["message"].as_str().expect("message");
+    for part in [
+        "The allow-list entry `uses src/a  -> src/b`",
+        "names the folder `src/a `",
+        "No source folder of this package has that name",
+    ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
-    assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");
+    assert_eq!(dead["code"], "rust/folder-uses-links", "{message}");
+    // The control: the loop the other three lines tolerate is not reported,
+    //  so the reader of a column-aligned list keeps every other answer of the rule.
+    assert!(
+        listed
+            .stdout
+            .contains("one loop the allow list tolerates today"),
+        "the rest of the list is read: {}",
+        listed.stdout
+    );
+    assert!(
+        !listed.stdout.contains("use each other in a loop"),
+        "the loop stays tolerated: {}",
+        listed.stdout
+    );
 }
 
 /// A `uses` line with two spaces in front of a name reads a folder whose name starts with a space,
@@ -4063,7 +4121,7 @@ fn layout_a_use_line_with_a_doubled_space_in_front_of_a_name_names_the_folder_it
     for part in [
         "The allow-list entry `uses  src/a -> src/b`",
         "names the folder ` src/a`",
-        "which no folder of this package is called",
+        "No source folder of this package has that name",
     ] {
         assert!(
             listed.stdout.contains(part),
@@ -4089,7 +4147,7 @@ fn layout_a_use_line_with_a_word_after_its_folder_names_the_folder_the_tree_lack
     for part in [
         "The allow-list entry `uses src/a -> src/b extra`",
         "names the folder `src/b extra`",
-        "which no folder of this package is called",
+        "No source folder of this package has that name",
     ] {
         assert!(
             listed.stdout.contains(part),
@@ -4192,6 +4250,8 @@ fn layout_a_glob_key_about_a_file_name_that_holds_a_backslash_keeps_its_name() {
 
 /// A `file-uses` line is five words set off with one whitespace character each,
 ///  so a folder whose name holds a space makes six words and the whole list is refused.
+///  The refusal names that folder and the space in its name, and what to do about it,
+///  because the line it was given reads as the shape the refusal would otherwise only spell out.
 ///  This is the limit the README's "Known limits" sentence states for the file rule.
 #[cfg(unix)]
 #[test]
@@ -4215,7 +4275,12 @@ fn layout_a_file_use_line_whose_folder_name_holds_a_space_is_refused() {
     let reported: Vec<serde_json::Value> = records(refused.stdout.as_str());
     assert_eq!(reported.len(), 1, "{}", refused.stdout);
     let message: &str = reported[0]["message"].as_str().expect("message");
-    for part in ["Line 1", "file-uses <folder> <file> -> <file>"] {
+    for part in [
+        "Line 1",
+        "the folder `src/a b`",
+        "holds a space",
+        "Rename the folder",
+    ] {
         assert!(message.contains(part), "{part} missing in {message}");
     }
     assert_eq!(reported[0]["code"], PROCESSING_FAILURE, "{message}");

@@ -2196,3 +2196,200 @@ fn a_completed_run_warns_exactly_past_the_count_and_not_at_or_below_it() {
         );
     }
 }
+
+/// Issue 6528:
+/// the refusal of a run that could not be settled says how long the stop waited,
+/// says what it was waiting for,
+/// and names the member that was still there.
+/// The run is a real bounded run whose stop reports that a member could not be stopped
+/// (`Point::ContainmentStopStuck`),
+/// the member is a real writer the payload left in the scope,
+/// and its process id is read from the scope the journal recorded.
+#[test]
+fn a_refusal_of_a_run_left_with_a_live_member_says_how_long_the_stop_waited_and_names_it() {
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let ready: std::path::PathBuf = root.path().join("writer-ready");
+    let script: String = format!(
+        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        ready = ready.display()
+    );
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        if arguments[0] == "update"
+            && !arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
+            crate::failpoints::arm(crate::failpoints::Point::ContainmentStopStuck);
+            let bound = crate::bounded_run::Bound {
+                limit: std::time::Duration::from_secs(30),
+                what: "cargo".to_string(),
+                rerun: "cargo".to_string(),
+            };
+            let mut command = std::process::Command::new("sh");
+            command.current_dir(cwd).args(["-c", &script]);
+            return match crate::bounded_run::output_within(&mut command, None, &bound) {
+                Ok(_) => Ok(CargoOutcome {
+                    ok: true,
+                    output: String::new(),
+                    stdout: String::new(),
+                }),
+                Err(error) => Err(error.to_string()),
+            };
+        }
+        return cargo(SATISFIED).run(cwd, arguments);
+    };
+
+    let outcome = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
+
+    let journals = crate::journal_support::journal_dirs(root.path());
+    let groups: String = journals
+        .first()
+        .expect("the journal was not kept")
+        .join("groups")
+        .display()
+        .to_string();
+    let scope: std::path::PathBuf = crate::cgroup_test_support::scope_directory_of(&groups);
+    let listed: String = fs::read_to_string(scope.join("cgroup.procs")).unwrap_or_default();
+    let _ = fs::write(scope.join("cgroup.kill"), "1");
+    // The member the stop was waiting for: the one the payload left, alive in the scope of the run.
+    let member: String = listed
+        .lines()
+        .map(str::trim)
+        .find(|line| {
+            return !line.is_empty();
+        })
+        .expect("no member was left in the scope, so the test shows nothing")
+        .to_string();
+    let message: String = match outcome {
+        StepOutcome::Refused(message) => message,
+        other => panic!("a run that could not be settled read as {other:?}"),
+    };
+    assert!(
+        message.contains("could not be stopped, so it may still write the lockfiles"),
+        "the refusal is not the not-quiescent one: {message}"
+    );
+    assert!(
+        message.contains("waited"),
+        "the refusal does not say how long the stop waited: {message}"
+    );
+    assert!(
+        message.contains(&member),
+        "the refusal does not name the member that was left ({member}): {message}"
+    );
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        SATISFIED,
+        "the lockfile cargo wrote was rolled back or accepted"
+    );
+    assert_eq!(journals.len(), 1, "the journal was not kept: {journals:?}");
+}
+
+/// Issue 6528:
+/// what the next run does with the journal a run that could not be settled kept.
+/// A real bounded run leaves a writer in its scope and cannot show it stopped,
+/// so the install step refuses and keeps the journal with the lockfile cargo wrote.
+/// The writer ends by itself,
+/// and a second install step of the same workspace finishes that journal:
+/// the leftover lockfile passes the policy,
+/// so it is kept,
+/// the journal is removed,
+/// and the second run goes on to its own check and passes.
+#[test]
+fn the_next_run_settles_the_journal_of_a_run_that_could_not_be_settled() {
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let ready: std::path::PathBuf = root.path().join("writer-ready");
+    let script: String = format!(
+        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 2' & while [ ! -e {ready} ]; do sleep 0.02; done; exit 0",
+        ready = ready.display()
+    );
+    let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
+        if arguments[0] == "update"
+            && !arguments.iter().any(|argument| {
+                return argument == "--locked";
+            })
+        {
+            // The stop reports a member it could not stop at once and kills nothing, so the writer ends on its own.
+            crate::failpoints::arm(crate::failpoints::Point::ContainmentStopStuck);
+            let bound = crate::bounded_run::Bound {
+                limit: std::time::Duration::from_secs(30),
+                what: "cargo".to_string(),
+                rerun: "cargo".to_string(),
+            };
+            let mut command = std::process::Command::new("sh");
+            command.current_dir(cwd).args(["-c", &script]);
+            return match crate::bounded_run::output_within(&mut command, None, &bound) {
+                Ok(_) => Ok(CargoOutcome {
+                    ok: true,
+                    output: String::new(),
+                    stdout: String::new(),
+                }),
+                Err(error) => Err(error.to_string()),
+            };
+        }
+        return cargo(SATISFIED).run(cwd, arguments);
+    };
+
+    let first = run_install_step(&StepRequest {
+        start_dir: &start,
+        frozen: false,
+        offline: true,
+        now: 0,
+        runner: &runner,
+        registry: &registry(),
+        lock_base: None,
+        trust_base: "HEAD",
+    });
+
+    let kept = crate::journal_support::journal_dirs(root.path());
+    assert!(
+        matches!(first, StepOutcome::Refused(_)),
+        "the first run was not refused: {first:?}"
+    );
+    assert_eq!(kept.len(), 1, "the journal was not kept: {kept:?}");
+    let groups: String = kept[0].join("groups").display().to_string();
+    let scope: std::path::PathBuf = crate::cgroup_test_support::scope_directory_of(&groups);
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        SATISFIED,
+        "the lockfile cargo wrote was rolled back or accepted"
+    );
+    // The writer ends by itself; the scope is empty (or gone) before the next run asks about it.
+    crate::cgroup_test_support::wait_until("the writer's end", &|| {
+        return !scope.exists()
+            || fs::read_to_string(scope.join("cgroup.events")).is_ok_and(|text| {
+                return text.contains("populated 0");
+            });
+    });
+
+    let second: FakeCargo = cargo(SATISFIED);
+    let outcome = step(&start, false, &second, &registry());
+
+    assert_eq!(
+        outcome,
+        StepOutcome::Passed,
+        "the second run did not go on after settling the journal"
+    );
+    assert!(
+        crate::journal_support::journal_dirs(root.path()).is_empty(),
+        "the settled journal was left behind: {:?}",
+        crate::journal_support::journal_dirs(root.path())
+    );
+    assert_eq!(
+        fs::read_to_string(start.join("Cargo.lock")).expect("lock"),
+        SATISFIED,
+        "the next run changed the leftover lockfile it kept"
+    );
+}

@@ -279,6 +279,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
     handlers: &H,
     now: &ClaimTime,
     assignment: &Assignment,
+    host: &HostResources,
 ) -> (Option<Duration>, Vec<RetryChange>) {
     let own: Drained = drain_planned_awaiting(
         assignment.directory.as_path(),
@@ -287,6 +288,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
         CLAIM_LEASE,
         &assignment.retrying,
         PUSH_KINDS,
+        host,
     )
     .await;
     let common: Drained = drain_common_records_planned_awaiting(
@@ -296,6 +298,7 @@ async fn drain_one<H: WorkHandlers + Sync>(
         CLAIM_LEASE,
         &assignment.retrying,
         PUSH_KINDS,
+        host,
     )
     .await;
     let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
@@ -329,6 +332,13 @@ struct DrainEachDirectory<H> {
     handlers: Arc<H>,
     /// The time the drain judges leases and retries by.
     now: ClaimTime,
+    /// The CPUs and memory every batch of this round is sized by,
+    /// which the caller of the round stated.
+    /// Why:
+    ///   The batches of a directory would otherwise read the machine again,
+    /// and a control would then depend on what the machine answers rather than on what it states
+    /// (issue 6567).
+    host: HostResources,
 }
 
 impl<H: WorkHandlers + Sync + Send>
@@ -342,7 +352,7 @@ impl<H: WorkHandlers + Sync + Send>
         _say: LinesToTheConsumer<(Option<Duration>, Vec<RetryChange>)>,
     ) -> Pin<Box<dyn Future<Output = (Option<Duration>, Vec<RetryChange>)> + Send + 'a>> {
         return Box::pin(async move {
-            return drain_one(self.handlers.as_ref(), &self.now, assignment).await;
+            return drain_one(self.handlers.as_ref(), &self.now, assignment, &self.host).await;
         });
     }
 }
@@ -447,6 +457,8 @@ pub async fn drain_directories_awaiting<H: WorkHandlers + Sync + Send + 'static>
             work: Arc::new(DrainEachDirectory {
                 handlers: Arc::clone(&request.handlers),
                 now: now.clone(),
+                // The round's own reading, so the batches of every directory it drains are sized by one host.
+                host: *host,
             }),
             on_event: &mut CollectWaitsAndChanges {
                 directories,

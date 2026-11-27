@@ -1,7 +1,6 @@
 //! What:
-//!  The question a removal's caller asks again as the removal runs,
-//!  immediately before anything is destroyed,
-//!  and the printing of the request that carries it.
+//!  The last look a removal's caller is asked for again as the removal runs,
+//!  immediately before anything is destroyed.
 //! Why:
 //!   A removal deletes what its caller proved it may delete,
 //!  and that proof takes time:
@@ -12,55 +11,31 @@
 //!  would go with it.
 //!  This is the last moment the caller can look,
 //!  so nothing but the destroy follows its answer.
-//!  The question is a trait rather than a closure,
-//!  because a closure a caller captures its own state in is what this codebase keeps out of its calls.
-//!  It is its own file because `worktree_remove.rs` is at the crate's line ceiling,
-//!  and because the trait and the printing of a request that carries one are read together.
+//!  The question itself,
+//!  and the request that carries it,
+//!  are in `worktree_remove_request_and_last_look.rs`;
+//!  this file is the one step of the removal that asks it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! interface LastLook { ask(): void } // throws the reason nothing is removed
 //! beforeTheDestroy(request, target); // the reason, or nothing
 //! ```
 
-use super::{
+// What:     `use crate::worktree_remove_request_and_last_look::{RemoveRequest, TAG};`
+//           imports the request this step reads and the name its log line carries.
+// Why:      The step asks the request's own question, so it needs the request and
+//           nothing else of the removal's other steps.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { RemoveRequest } from './worktree_remove_request_and_last_look';
+// ```
+use crate::diagnostic_log::debug;
+use crate::worktree_remove_request_and_last_look::{
     RemoveRequest,
     TAG,
 };
-use crate::diagnostic_log::debug;
 use std::path::Path;
-
-/// What:
-///  A question a removal's caller asks again as the removal runs,
-///  immediately before anything is destroyed.
-/// Why:
-///   See this module's description.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// interface LastLook { ask(): void }
-/// ```
-pub trait LastLook {
-    /// The question,
-    /// which answers the reason nothing is removed.
-    fn ask(&self) -> Result<(), String>;
-}
-
-impl std::fmt::Debug for RemoveRequest<'_> {
-    /// A request prints the directory it works on and whether its caller asks a question again;
-    /// a question itself is not text.
-    fn fmt(
-        &self,
-        formatter: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
-        return formatter
-            .debug_struct("RemoveRequest")
-            .field("plan", &self.plan)
-            .field("common_dir", &self.common_dir)
-            .field("last_look", &self.last_look.is_some())
-            .finish();
-    }
-}
 
 /// What:
 ///  The answer of the caller's own last look,

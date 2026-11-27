@@ -8,6 +8,9 @@
 //! the run of a whole step uses it
 //!  and none of the watch's own parts,
 //! so it sits in a file of its own and `child_watch.rs` re-exports its face.
+//!  The hold a control takes between the step's end and its clear
+//! sits in `child_watch_one_shot_clear_hold.rs`,
+//!  which this file re-exports for the controls that name it here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,6 +20,17 @@
 use crate::child_class::ChildClass;
 use crate::child_watch::ChildWatch;
 use crate::child_watch_clock_marks_and_stopping::WatchTerms;
+/// The seam where a control holds this run before its clear,
+/// which the run waits at in a test build.
+#[cfg(test)]
+use crate::child_watch_one_shot_clear_hold::hold_the_clear_where_a_control_asked;
+/// The two calls a control makes on the hold,
+/// which stay readable here for the controls that name them.
+#[cfg(test)]
+pub(crate) use crate::child_watch_one_shot_clear_hold::{
+    a_control_holds_the_clear,
+    the_clear_hold_was_reached,
+};
 use crate::child_watch_running_task::a_waiter_thread_is_refused_now;
 use crate::child_watch_step_bounds_and_errors::{
     NotKnown,
@@ -405,96 +419,4 @@ pub fn output_watched_within_for_a_stop(
         Some(error) => Err(error),
         None => output,
     };
-}
-
-#[cfg(test)]
-static THE_CLEAR_IS_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-#[cfg(test)]
-static THE_CLEAR_WAS_REACHED: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-
-#[cfg(test)]
-static THE_HELD_CLEAR: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-#[cfg(test)]
-static THE_HELD_CLEAR_LETS_GO: std::sync::Condvar = std::sync::Condvar::new();
-
-/// What:
-///  Hold the runner between the child's end and the clear of the cell that published it.
-/// Why:
-///   A control has to stand in that window to show that an abandon which comes there
-///  is not erased by the clear;
-/// no fixture can make a real `git ls-tree` end at a chosen moment inside the runner.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (THE_CLEAR_IS_HELD) await new Promise(() => {}); // the runner waits here until a control lets go
-/// ```
-#[cfg(test)]
-fn hold_the_clear_where_a_control_asked() {
-    if !THE_CLEAR_IS_HELD.load(std::sync::atomic::Ordering::SeqCst) {
-        return;
-    }
-    THE_CLEAR_WAS_REACHED.store(true, std::sync::atomic::Ordering::SeqCst);
-    let held = THE_HELD_CLEAR
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _lets_go = THE_HELD_CLEAR_LETS_GO
-        .wait_timeout(held, std::time::Duration::from_secs(30))
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-}
-
-/// What:
-///  A control that holds the runner before its clear,
-///  with the hold's own start of it.
-/// Why:
-///   See `hold_the_clear_where_a_control_asked`;
-/// the hold is a seam of the whole process,
-///  so the control runs in a child process of its own
-/// (`crate::process_wide_state_child_test_support`),
-///  and `refuse_outside_the_child` fails a body that arms it beside other tests.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const hold = aControlHoldsTheClear(); // the runner waits there until hold is dropped
-/// ```
-#[cfg(test)]
-pub(crate) fn a_control_holds_the_clear() -> TheHeldClearForTheControl {
-    crate::process_wide_state_child_test_support::refuse_outside_the_child(
-        "THE_CLEAR_IS_HELD, the hold every watched Git run of this process waits at before its clear",
-    );
-    THE_CLEAR_WAS_REACHED.store(false, std::sync::atomic::Ordering::SeqCst);
-    THE_CLEAR_IS_HELD.store(true, std::sync::atomic::Ordering::SeqCst);
-    return TheHeldClearForTheControl;
-}
-
-/// The hold of `a_control_holds_the_clear`,
-/// released when it is dropped.
-#[cfg(test)]
-pub(crate) struct TheHeldClearForTheControl;
-
-/// Lets the held runner go.
-#[cfg(test)]
-impl Drop for TheHeldClearForTheControl {
-    fn drop(&mut self) {
-        THE_CLEAR_IS_HELD.store(false, std::sync::atomic::Ordering::SeqCst);
-        THE_HELD_CLEAR_LETS_GO.notify_all();
-    }
-}
-
-/// What:
-///  Whether the held runner has reached the seam before its clear,
-/// so a control can abandon the read exactly there.
-/// Why:
-///   The window is between the child's end and the clear;
-/// a control that looked at any other moment would see the cell already cleared.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const reached = () => THE_CLEAR_WAS_REACHED;
-/// ```
-#[cfg(test)]
-pub(crate) fn the_clear_hold_was_reached() -> bool {
-    return THE_CLEAR_WAS_REACHED.load(std::sync::atomic::Ordering::SeqCst);
 }

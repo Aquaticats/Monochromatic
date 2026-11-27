@@ -519,7 +519,7 @@ fn findings_with(
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"), root)
         .expect("the fixture list is valid");
     let prefix: String = format!("{}/", root.display());
     return check_folder_links(&tree, uses.as_slice(), root, Some(&list))
@@ -940,7 +940,7 @@ fn findings_asked_with(
     let tree = tree_of(root);
     assert!(tree.problems.is_empty(), "{:?}", tree.problems);
     let uses = collect_uses(&tree);
-    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"))
+    let list = crate::layout_allow_list::parse_allow_list(lines, Path::new("allow-list.txt"), root)
         .expect("the fixture list is valid");
     return check_folder_links(&tree, uses.as_slice(), root, Some(&list));
 }
@@ -1000,4 +1000,134 @@ fn a_use_joining_a_tolerated_own_file_loop_says_how_to_migrate_the_list() {
             "the help says what to do: {help}"
         );
     }
+}
+
+/// Write a package with one group whose own file uses `src/x`,
+///  where `src/x` uses a child of the group only when `closing` is set,
+///  so the group's own file closes a loop in one shape and none in the other.
+fn package_of_one_group_that_may_close(closing: bool) -> crate::test_fs::Fixture {
+    // What: the used folder's code, which reaches the group back only in the closing shape.
+    // Why: that one use is what decides whether the group has a loop and therefore a walk at all.
+    let used: &str = if closing {
+        "use crate::g::c0::C;\npub struct X;\n"
+    } else {
+        "pub struct X;\n"
+    };
+    return package_with(&[
+        ("src/lib.rs", "mod g;\nmod x;\n"),
+        ("src/g/mod.rs", "pub mod c0;\npub mod own;\n"),
+        ("src/g/c0/mod.rs", "pub struct C;\n"),
+        ("src/g/own.rs", "use crate::x::X;\n"),
+        ("src/x/mod.rs", used),
+    ]);
+}
+
+/// Write the shape one directly answered own-file use is measured on:
+///  one group whose own file uses `src/p0`,
+///  `src/p0` uses a child folder of the group,
+///  and each later `src/pN` uses the folder before it,
+///  so `plain` folders reach the one the group's own file uses.
+fn package_of_a_chain_behind_one_direct_use(plain: usize) -> crate::test_fs::Fixture {
+    // What: the module declarations of the root, which every folder below needs.
+    // Why: a folder that no `mod` line reaches is no folder of the tree.
+    let mut lib: String = String::from("mod g;\n");
+    let mut files: Vec<(String, String)> = Vec::<(String, String)>::new();
+    files.push((
+        String::from("src/g/mod.rs"),
+        String::from("pub mod c0;\npub mod own;\n"),
+    ));
+    files.push((
+        String::from("src/g/c0/mod.rs"),
+        String::from("pub struct C;\n"),
+    ));
+    // What: the own file's use of the first folder of the chain, which is the use the finding reports.
+    // Why: that folder reaches the group directly, so its route is one use long however long the chain behind it is.
+    files.push((
+        String::from("src/g/own.rs"),
+        String::from("use crate::p0::P;\n"),
+    ));
+    for index in 0..plain {
+        lib.push_str(format!("mod p{index};\n").as_str());
+        // What: the use that puts this folder one step further from the group.
+        // Why: the first folder uses the group itself, and every later one uses the folder before it.
+        let used: String = if index == 0 {
+            String::from("use crate::g::c0::C;\n")
+        } else {
+            format!("use crate::p{}::P;\n", index - 1)
+        };
+        files.push((
+            format!("src/p{index}/mod.rs"),
+            format!("{used}pub struct P;\n"),
+        ));
+    }
+    let mut listed: Vec<(&str, &str)> = vec![("src/lib.rs", lib.as_str())];
+    for (path, body) in &files {
+        listed.push((path.as_str(), body.as_str()));
+    }
+    return package_with(listed.as_slice());
+}
+
+/// A group whose own file uses an entry that reaches the group directly
+///  walks that entry and no other,
+///  however many entries reach the one it uses:
+///  the walk stops once every use of the group has its route.
+#[test]
+fn a_directly_answered_use_reaches_no_entry_behind_it() {
+    // What: how many folders reach the one the group's own file uses, named so the count is no magic number.
+    // Why: the graph behind the group is as large as this, so a walk that reads it costs that much for one use.
+    const BEHIND: usize = 200;
+    // What: the entries one answered use needs, which are the group and the entry the own file uses.
+    // Why: that is the whole route the finding spells, so anything more is a walk that read entries no use asked for.
+    const ENTRIES_OF_ONE_ANSWERED_USE: usize = 2;
+    let fixture = package_of_a_chain_behind_one_direct_use(BEHIND);
+    counted_work::reset();
+    let loops: Vec<String> = own_file_loops_of(&fixture.path);
+    assert_eq!(loops.len(), 1, "{loops:#?}");
+    assert!(
+        loops[0].contains("src/p0 uses src/g"),
+        "the finding spells the one use that leads back: {}",
+        loops[0]
+    );
+    // What: how many entries the walk reached to answer that one use.
+    // Why: the use reaches the group directly, so the chain that reaches the used entry is no part of its route.
+    let reached: usize = counted_work::reached();
+    assert!(
+        reached <= ENTRIES_OF_ONE_ANSWERED_USE,
+        "one use that reaches the group directly reached {reached} entries over {BEHIND} entries behind it"
+    );
+}
+
+/// A package whose groups close no loop builds no reverse index and walks nothing,
+///  which is what the README says such a package pays.
+#[test]
+fn a_package_whose_groups_close_no_loop_builds_no_reverse_index() {
+    let open: crate::test_fs::Fixture = package_of_one_group_that_may_close(false);
+    counted_work::reset();
+    assert_eq!(own_file_loops_of(&open.path).len(), 0);
+    assert_eq!(
+        counted_work::reverse_indexes(),
+        0,
+        "no own file closes a loop, so the package builds no reverse index"
+    );
+    assert_eq!(
+        counted_work::walks(),
+        0,
+        "no own file closes a loop, so nothing is walked"
+    );
+    assert_eq!(
+        counted_work::reached(),
+        0,
+        "no own file closes a loop, so no entry is reached"
+    );
+    // What: the control, the same package whose used folder reaches the group back.
+    // Why: a count of zero is only an answer if this package's shape can reach one.
+    let closing: crate::test_fs::Fixture = package_of_one_group_that_may_close(true);
+    counted_work::reset();
+    assert_eq!(own_file_loops_of(&closing.path).len(), 1);
+    assert_eq!(
+        counted_work::reverse_indexes(),
+        1,
+        "the control package builds the reverse index once"
+    );
+    assert_eq!(counted_work::walks(), 1, "the control package walks once");
 }

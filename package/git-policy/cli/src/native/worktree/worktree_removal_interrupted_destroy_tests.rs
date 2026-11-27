@@ -12,6 +12,15 @@
 //! ```
 
 use super::*;
+// What:     `use crate::worktree_removal_finishes_an_interrupted_destroy::finish_interrupted_destroys;`
+//           imports the finish these controls drive.
+// Why:      The finish is the subject of a file of its own, and these controls used to
+//           reach it through the record file's re-export.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { finishInterruptedDestroys } from './worktree_removal_finishes_an_interrupted_destroy';
+// ```
 use crate::fs_beneath::identity_of;
 use crate::fs_btrfs_ioctl::{
     subvolume_create_at,
@@ -26,6 +35,7 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::worktree_removal_finishes_an_interrupted_destroy::finish_interrupted_destroys;
 use std::fs::File;
 use std::path::PathBuf;
 

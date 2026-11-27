@@ -943,13 +943,17 @@ so a finding is never reported twice.
   and a group whose own file closes no loop is walked not at all,
   so a package of such groups pays that one pass and no walk.
   One walk answers every own-file use of one group:
-  it reads the uses backwards from that group once,
+  it reads the uses backwards from that group,
   breadth first,
+  and stops as soon as every use of that group has its route,
   so each message spells the fewest uses that lead back,
   and each use takes its route from that one table.
   The table every walk reads is built once for the package,
   so a package of many groups whose own files close loops reads its graph once,
   not once per group.
+  A walk stops once every use of its group has its route,
+  so an entry that reaches the group directly costs the uses that reach the group
+  and nothing of the graph behind that entry.
   When several routes are equally short,
   each step takes the entry whose path sorts first,
   so the message spells the smallest route,
@@ -996,23 +1000,42 @@ so a finding is never reported twice.
   against 1.00 to 1.02 between two runs of one binary,
   and 1.01 to 1.04 on the three-layer package,
   where the walk costs alpha.16 0.90 to 1.05 of the run with empty own files and this release 1.00 to 1.05.
-  The shape the release read measured is the one with many groups that each close a loop
+  The alpha.17 pass measured one shape of many closing groups
   (300 folders that each use every later one,
   beside 100 groups whose own files each close one loop,
   about 45,000 uses),
-  and there the closing arm costs 0.80 to 1.10 times the same binary's open arm on this branch,
+  and on it the closing arm cost 0.80 to 1.10 times the same binary's open arm on its branch,
   where alpha.17's costs 3.83 to 5.49 times its own and alpha.16's 0.77 to 0.94;
   on the same shape in miniature (120 folders,
-  40 groups) the three are 1.07 to 1.14,
+  40 groups) the three were 1.07 to 1.14,
   1.94 to 2.06 and 1.03 to 1.06
   (three interleaved rounds,
   each figure inside one binary and its control arm in the same round,
   on the run's own CPU time,
   2026-11-27).
-  No ratio between two of these three binaries is a finding here,
-  because a binary built in this worktree spends 1.02 to 1.54 times the released alpha.16's and alpha.17's time
-  on the same shape with its loop open,
-  where no walk runs.
+  This branch was measured on that shape and on one where each own file's use reaches its group
+  through everything that reaches it:
+  every folder also uses a child of every group,
+  and each own file uses the first folder,
+  which reaches every folder (about 45,000 uses again),
+  so a walk that read every entry reaching the group would cost that whole graph for each of the 100 groups.
+  With 300 folders and 100 groups,
+  three interleaved rounds and the three binaries rotated,
+  on the run's own CPU time (2026-11-27):
+  on the first shape the closing arm costs 0.86 to 1.00 times this branch's own open arm,
+  alpha.18's 1.01 to 1.35 and alpha.16's 1.03 to 1.20,
+  and this branch costs 0.80 to 1.07 times alpha.16's closing arm and 0.72 to 1.04 times alpha.18's;
+  on the second shape the closing arm costs 0.98 to 1.36 times this branch's own open arm,
+  alpha.18's 2.22 to 2.72 and alpha.16's 0.98 to 1.36,
+  and this branch costs 0.92 to 1.13 times alpha.16's closing arm and 0.43 to 0.51 times alpha.18's.
+  The same graph with its loop open costs this branch 0.99 to 1.32 times alpha.16's time
+  and 1.09 to 1.22 times alpha.18's on the first shape,
+  and 1.05 to 1.12 and 0.85 to 1.06 on the second,
+  where no walk runs,
+  so a ratio inside one binary and its control arm in the same round is the finding,
+  never a ratio between two builds.
+  Every binary's output on both shapes is byte-identical,
+  keys and messages included.
   A dense loop a group's own file closes is written down in one run too:
   on a package of 200 groups whose own files all use one folder,
   which uses a child folder of every group,
@@ -1223,6 +1246,9 @@ The words are compared without their capital letters,
 so the same words in another case are a near miss too.
 A text two words away is a different sentence that its author wrote on purpose,
 so no finding asks for it to be changed.
+The search reads each doc line a bounded number of times,
+so a long run of blank or plain-comment lines after the first doc line
+costs its own length and never the square of it.
 Which texts count,
 with one example of each:
 
@@ -1367,15 +1393,24 @@ and a line that reads as none of them fails the run:
   the folder before the arrow,
   and the folder after it.
   The four words are read from the line when it sets them off with one whitespace character each,
-  and any other line is read from its arrow with no space taken off either side,
+  and any other line is read from its arrow,
+  with exactly the one space taken off each side of the shape,
   because a folder name may start with a space,
   and the space a line sets its words off with must never be read as part of a name or the other way round.
-  A run of two spaces in front of a name is therefore read as that name's own leading space,
-  so a hand-aligned line names a folder the package does not hold,
-  and its finding says which folder the line read and that no folder is called that.
-  A space left at the end of a name is a misspelling and not a name,
-  because a folder whose name ends in whitespace is refused before any check:
-  such a line fails the run with a `core/processing-failure` that names its line.
+  One rule holds for the space after the word `uses`,
+  for the space before the arrow and for the space after it:
+  a second whitespace character beside a name belongs to that name,
+  on either side of the arrow,
+  so a run of two spaces in front of a name is read as that name's own leading space,
+  a hand-aligned line names a folder the package does not hold,
+  and its finding says which folder the line read and that no source folder is called that.
+  A space left at the end of a name is part of that name too,
+  and no folder of a tree the rules accept ends in whitespace,
+  because such a name is refused before any check:
+  so a line that leaves one before its arrow names a folder no tree holds,
+  and the run reports that one line dead,
+  naming the folder it read,
+  while every other line of the list is still read and every other finding of the rule is still reported.
   A line holds one arrow only,
   because no folder name holds the words it is set off with.
   A line stays alive while its two folders still make that use and still sit in one loop together,
@@ -1390,6 +1425,13 @@ the way findings show it,
 written with `/` on every platform,
 never absolute,
 and no line may repeat another.
+Every listed path is read back against the package folder before it is compared,
+so one spelling of a use decides tolerance,
+death and the repeat a second line would be,
+in both rules alike:
+with the package folder named `p`,
+`uses ../p/src/a -> src/b` names the use `uses src/a -> src/b` names,
+and a line holding both spellings is refused as a repeat.
 A folder outside the package,
 which a `#[path]` can declare,
 is written by the walk from the package folder,
@@ -1521,6 +1563,15 @@ Every key names exactly one finding:
   ends with ` ->`,
   or is `->` alone,
   because the `uses` line naming such a folder would be read as another pair of folders.
+  That last refusal is wider than the shapes a run of alpha.17 read back wrongly,
+  and it is deliberately a rule about the name:
+  a folder name is refused whether or not any `uses` line names it,
+  so no later edit of a tree can print a line that the next run cannot read,
+  and the price is that a package selecting the folder rule stops on such a name
+  even where no line of its list carries it.
+  The file rule reads no `uses` line and names such a folder in a key,
+  which holds the name as written,
+  so the arrow words of a folder name are refused only while the folder rule is selected.
   A file name and an entry of a `uses` folder keep their backslashes and arrow words as the source writes them,
   because neither is a path:
   a `file-uses` line names a file as written,
@@ -1587,7 +1638,8 @@ and the list's own record of today's findings is the only thing that does:
   or whose key no finding reports,
   fails the run until it is gone.
   An entry of the two use shapes whose folder the package does not hold
-  names that folder and says that no folder of the package is called it,
+  names that folder and says that no source folder of the package has that name,
+  which is true of a folder that is missing and of one that holds no module file,
   because a hand-aligned or mistyped line reads as a folder no tree holds,
   and its reader has to re-space the line rather than delete it.
 - A use added between two folders or two files that the list already tolerates in one loop is a finding.
@@ -1924,10 +1976,84 @@ and every other line stays as it is.
   `uses src/a -> src/b` names:
   that line tolerates its use where alpha.17 kept it alive and tolerated nothing,
   and a folder outside the package keeps the spelling `../outside` its keys print.
-- A group whose own file closes a loop costs the size of the graph once for the package
+- A group whose own file closes a loop reads the reverse index of its graph once for the package
   and not once per group,
-  so a package of many such groups pays for its graph once,
-  as alpha.16 did,
+  so a package of many such groups no longer clones the graph for each of them,
+  and no key changes.
+  Each group's walk still read every entry that reaches it:
+  with 300 folders and 100 groups whose own files each close a loop,
+  every folder using a child of every group
+  and each own file using the first folder,
+  which reaches every folder,
+  the closing arm cost 2.22 to 2.72 times alpha.18's own open arm,
+  against alpha.16's 0.98 to 1.36
+  (three interleaved rounds,
+  each figure inside one binary and its control arm in the same round,
+  on the run's own CPU time,
+  2026-11-27).
+
+#### How a list written before alpha.19 maps
+
+No key any rule prints changes shape,
+and no line a run printed reads back differently,
+so a list written for alpha.18 needs no new line from this release.
+A list that holds one use under two spellings needs one line fewer,
+and a `file-uses` line that climbs out with `..` and comes back in stops being dead.
+What else changes is which runs stop,
+what they say and what a walk costs.
+
+- A `uses` line whose name before the arrow ends in whitespace is reported dead,
+  naming the folder it read,
+  where alpha.18 refused the whole list with one `core/processing-failure`
+  and so hid every other finding of the rule.
+  The line names a folder no tree holds,
+  so it is re-spaced or deleted,
+  and the rest of the list is read in that same run.
+  One rule now holds for the space after the word `uses`,
+  for the space before the arrow and for the space after it:
+  a second whitespace character beside a name belongs to that name.
+- A folder name that begins with `-> `,
+  ends with ` ->`,
+  or is `->` stops the run only while the folder rule is selected.
+  A package that selects the file rule alone reads such a tree as alpha.17 did,
+  because that rule reads no `uses` line and names such a folder in a key,
+  which holds the name as written.
+- The message of that refusal names the folder whose name is the cause,
+  and the one shape that name has,
+  where alpha.18 named the module file inside that folder and listed four shapes.
+  A folder whose name ends in whitespace,
+  holds a backslash,
+  or holds a line break is named the same way.
+- Two spellings of one use are one line:
+  `uses src/a -> src/b` beside `uses ../p/src/a -> src/b`
+  is refused as the repeat it is,
+  where alpha.18 accepted both and kept both alive.
+  A `file-uses` line whose folder is written that way now tolerates the use its key names,
+  where alpha.18 reported it dead.
+- A dead `uses` or `file-uses` line says that no source folder of the package has the name it read,
+  where alpha.18 said that no folder of the package is called it,
+  which was untrue of a folder on disk that holds no module file.
+- A `file-uses` line for a folder whose name holds a space is refused for that cause:
+  the refusal names the folder and says that the five words of the shape cannot carry a name holding one,
+  where alpha.18 spelled only the shape of the line.
+- A group whose own file closes a loop stops its walk as soon as every use of that group has its route,
+  so an entry that reaches the group directly costs what it cost on alpha.16
+  however large the graph behind it is.
+  With 300 folders and 100 groups whose own files each close a loop,
+  where every folder uses a child of every group and each own file uses the first folder,
+  which reaches every folder,
+  the closing arm costs 0.98 to 1.36 times this branch's own open arm,
+  where alpha.18's costs 2.22 to 2.72 and alpha.16's 0.98 to 1.36,
+  and this branch costs 0.92 to 1.13 times alpha.16's closing arm and 0.43 to 0.51 times alpha.18's;
+  on the shape where each own file uses a folder that uses a child of its group back,
+  it costs 0.86 to 1.00 times this branch's own open arm,
+  where alpha.18's costs 1.01 to 1.35 and alpha.16's 1.03 to 1.20,
+  and this branch costs 0.80 to 1.07 times alpha.16's closing arm and 0.72 to 1.04 times alpha.18's
+  (three interleaved rounds,
+  the three binaries rotated,
+  each figure inside one binary and its control arm in the same round,
+  on the run's own CPU time,
+  2026-11-27),
   and no key changes.
 
 ### Known limits
@@ -1970,7 +2096,8 @@ and every other line stays as it is.
   The file rule reports such a folder and no `file-uses` line can tolerate a use in it,
   because that shape is five words set off with one whitespace character each
   and a folder name holding a space makes a sixth,
-  so the whole list is refused:
+  so the whole list is refused,
+  and the refusal names that folder and says that the space in its name is why:
   a loop of files in such a folder is untangled or the folder is renamed.
   Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
@@ -1994,6 +2121,10 @@ and every other line stays as it is.
   is `->`,
   or holds ` -> `,
   because no line could name the folder such a name belongs to.
+  The arrow words of a folder name are refused only while the folder rule is selected,
+  so the file rule alone reads a tree that holds one,
+  names such a folder in a key,
+  and keeps that key as it always did.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.

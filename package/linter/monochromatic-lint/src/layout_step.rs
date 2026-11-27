@@ -55,6 +55,7 @@ use crate::{
         select_packages,
     },
     layout_step_unlistable_names::{
+        UnlistableFound,
         unlistable_link_name,
         unlistable_name,
     },
@@ -149,37 +150,55 @@ fn check_package(
         }
         return;
     }
+    // What: whether a folder name that a `uses` line could not carry stops the run.
+    // Why: the file rule reads no `uses` line, so it names such a folder in a key, and a key holds the name as written.
+    let arrow_words_are_refused: bool = selection.folder.is_some();
     // What: the first name of the package the list reader could never read back.
     // Why: the rules cannot answer for a tree whose findings no line could hold,
     // and an entry of a `uses` folder is such a name as much as a module file is.
-    let unlistable: Option<(PathBuf, String, UnlistableName)> =
-        unlistable_name(&tree, package).or_else(|| return unlistable_link_name(&tree, package));
-    if let Some((file, written, reason)) = unlistable {
-        // What: the reason, and what renaming the file must give, in the words of the refusal.
-        // Why: a name fails for one of four causes, and the reader must know which one to fix.
-        let (why, fix): (&str, &str) = match reason {
+    let unlistable: Option<UnlistableFound> =
+        unlistable_name(&tree, package, arrow_words_are_refused)
+            .or_else(|| return unlistable_link_name(&tree, package, arrow_words_are_refused));
+    if let Some(found) = unlistable {
+        // What: the reason, and what renaming the name must give, in the words of the refusal.
+        // Why: a name fails for one cause, and the reader must know which one to fix.
+        let (why, fix): (String, &str) = match found.reason {
             UnlistableName::EndsInTrimmedWhitespace => (
-                "its name ends in whitespace that an allow-list reader trims away",
+                String::from("its name ends in whitespace that an allow-list reader trims away"),
                 "its name ends in a visible character",
             ),
             UnlistableName::HoldsLineBreak => (
-                "its name holds a line break, which ends a list line",
+                String::from("its name holds a line break, which ends a list line"),
                 "its name holds no line break",
             ),
             UnlistableName::HoldsBackslash => (
-                "its name holds a backslash, which a `uses` line writes as the folder separator `/` on a machine that separates folders with it, so such a line would name another folder",
+                String::from(
+                    "its name holds a backslash, which a `uses` line writes as the folder separator `/` on a machine that separates folders with it, so such a line would name another folder",
+                ),
                 "its name holds no backslash",
             ),
+            // What: the one arrow shape this name has, and what a line naming it would read as.
+            // Why: four alternatives in one sentence leave the reader to work out which one is theirs.
             UnlistableName::HoldsArrowWords => (
-                "its name holds ` -> `, begins with `-> `, ends with ` ->`, or is `->`, so a `uses` line naming it would read as another pair of folders",
+                format!(
+                    "its name {}, so a `uses` line naming it would read as another pair of folders",
+                    found.shape.unwrap_or("holds an arrow word")
+                ),
                 "its name holds no arrow word at its beginning or its end",
             ),
         };
+        // What: the name to rename, which is a folder inside the path or the file the path ends in.
+        // Why: the file the finding points at is not always the name to change, and a sentence that named it would send its reader to the wrong place.
+        let (subject, noun): (String, &str) = if found.is_folder {
+            (format!("the folder {}", found.written), "the folder")
+        } else {
+            (found.written.clone(), "the file")
+        };
         outcome.findings.push(processing_failure(
-            display_name(&file, cwd).as_str(),
-            spans.span(&file, 1),
+            display_name(&found.file, cwd).as_str(),
+            spans.span(&found.file, 1),
             format!(
-                "The layout rules stop at {written}, because {why}, so no key could name it and no line could tolerate a finding about it. Rename it so {fix}, then run the rules again."
+                "The layout rules stop at {subject}, because {why}. No key could name it and no line could tolerate a finding about it, so rename {noun} so {fix}, then run the rules again."
             ),
         ));
         return;
@@ -193,7 +212,7 @@ fn check_package(
         uses.len()
     ));
     if let Some(severity) = selection.folder
-        && let Ok(allow) = list_for(&selection.folder_allow, FOLDER_RULE, cwd, outcome)
+        && let Ok(allow) = list_for(&selection.folder_allow, package, FOLDER_RULE, cwd, outcome)
     {
         let found: Vec<LayoutFinding> =
             check_folder_links(&tree, uses.as_slice(), package, allow.as_ref());
@@ -203,7 +222,7 @@ fn check_package(
             .extend(diagnostics(found, FOLDER_RULE, severity, cwd, spans));
     }
     if let Some(severity) = selection.order
-        && let Ok(allow) = list_for(&selection.order_allow, FILE_RULE, cwd, outcome)
+        && let Ok(allow) = list_for(&selection.order_allow, package, FILE_RULE, cwd, outcome)
     {
         let found: Vec<LayoutFinding> =
             check_file_order(&tree, uses.as_slice(), package, allow.as_ref());

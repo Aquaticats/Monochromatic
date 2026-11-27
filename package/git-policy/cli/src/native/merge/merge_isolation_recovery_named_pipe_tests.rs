@@ -38,7 +38,7 @@ use crate::merge_isolation_journal::{
     intent_directory,
     intent_path,
 };
-use crate::merge_isolation_kept_copies_decisions::merges_whose_owner_runs;
+use crate::merge_isolation_kept_copies_decisions_sweep::merges_whose_owner_runs;
 use crate::merge_isolation_recovery_records::{
     merge_intents_to_recover,
     recover_interrupted_merges,

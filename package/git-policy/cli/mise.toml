@@ -122,6 +122,10 @@ run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 description = "Lint the native wrapper with the controls' test-only switches compiled in, so no line of a build made for a control goes unlinted; the feature is off in every build the release ships, and this task exists only beside it"
 run = "cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings"
 
+[tasks."native:clippy:start-probe-raised-deadline"]
+description = "Lint the native wrapper with the start probe's raised deadline compiled in, so no line of a build made for the raised-deadline control goes unlinted; the feature is off in every build the release ships, only a build made for that control turns it on, and this task exists only beside it"
+run = "cargo clippy --locked --offline --all-targets --features start-probe-raised-deadline -- -D warnings"
+
 [tasks."native:clippy:windows"]
 description = "Type-check and lint the native wrapper library for x86_64-pc-windows-gnu with warnings denied; nothing is run"
 # Needs the Windows GNU standard library on the host: `rustup target add x86_64-pc-windows-gnu`.

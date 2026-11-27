@@ -71,7 +71,16 @@ use crate::work_item::{
     enqueue,
     requeue_after_giving_up,
 };
-use crate::worktree_remove_hand_over::DELETE_REFERENCE;
+// What:     `use crate::worktree_removal_leaves_a_subvolume_for_the_service::DELETE_REFERENCE;`
+//           imports the reference a record of a subvolume delete carries.
+// Why:      The record this file enqueues is written by the file that owns it, and
+//           naming that file keeps the snapshots off the hand-over record.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { DELETE_REFERENCE } from './worktree_removal_leaves_a_subvolume_for_the_service';
+// ```
+use crate::worktree_removal_leaves_a_subvolume_for_the_service::DELETE_REFERENCE;
 use crate::worktree_snapshot_ahead_asks::TAG;
 use crate::worktree_snapshot_ahead_asks::wake_the_service;
 use crate::worktree_snapshot_index_step::Proof;
@@ -300,12 +309,6 @@ pub fn hand_over_with(
     );
     return Ok(());
 }
-
-/// The add's own look for a snapshot the service made ahead of it:
-/// the proof,
-/// the claim,
-/// the bounded wait and the sweep.
-pub use crate::worktree_snapshot_ahead_claim::look_for_a_snapshot_ahead;
 
 /// Controls of the snapshots made ahead stay out of the release executable.
 #[cfg(test)]
