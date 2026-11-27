@@ -489,13 +489,23 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
         !error.contains("A use between two files is written"),
         "{error}"
     );
-    // What: two lines of six words whose words between the folder's place and the arrow name no folder.
-    // Why: a third file name and a doubled arrow are misspellings of the shape, and the folder they seem to name neither exists nor holds a space.
+    // What: what is wrong with each line of six words whose words between the folder's place and the arrow name no folder.
+    // Why: a third file name and a doubled arrow are misspellings of the shape, and telling their reader only the shape sends them back to a line that already looks like it.
     let plain: Fixture = Fixture::new();
     std::fs::create_dir_all(plain.path.join("src/ab")).expect("create the folder the line names");
-    for line in [
-        "file-uses src/ab one.rs two.rs -> three.rs\n",
-        "file-uses src/ab one.rs -> -> two.rs\n",
+    for (line, wrong) in [
+        (
+            "file-uses src/ab one.rs two.rs -> three.rs\n",
+            "which is five words; this line is 6 words",
+        ),
+        (
+            "file-uses src/ab one.rs -> -> two.rs\n",
+            "two `->` are set off by whitespace",
+        ),
+        (
+            "file-uses src/ab one.rs -> two.rs extra\n",
+            "which is five words; this line is 6 words",
+        ),
     ] {
         // What: the refusal one mistyped line earns, named apart from the spaced folder's own sentence above.
         // Why: one name for each answer keeps the two failures apart in a run's output.
@@ -507,8 +517,48 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
             "`{line}` must be told about the shape it misspells: {mistyped}"
         );
         assert!(
+            mistyped.contains(wrong),
+            "`{line}` must be told what is wrong with it, `{wrong}`: {mistyped}"
+        );
+        assert!(
             !mistyped.contains("holds a space"),
             "`{line}` names no folder that holds a space: {mistyped}"
+        );
+    }
+}
+
+/// A `file-uses` line cannot name a folder whose name holds any whitespace character,
+///  because its shape is five words set off with one whitespace character each,
+///  so a tab, a no-break space or a doubled space in that name makes a sixth word exactly as a space does.
+///  The refusal names that folder and says what to do about it,
+///  rather than sending its reader back to a line that already reads as the shape it names.
+#[test]
+fn a_file_use_line_whose_folder_name_holds_other_whitespace_is_refused_by_that_cause() {
+    // What: one folder per whitespace class, and its name as the refusal spells it.
+    // Why: only a space was held before, so a reader that asked the joined words for a folder stayed green for the others.
+    for (named, spelled) in [
+        ("src/c\td", "src/c\\u{9}d"),
+        ("src/c\u{a0}d", "src/c\\u{a0}d"),
+        ("src/c  d", "src/c  d"),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        std::fs::create_dir_all(fixture.path.join(named))
+            .expect("create the folder whose name holds the whitespace");
+        let error: String = parse_allow_list(
+            format!("file-uses {named} one.rs -> two.rs\n").as_str(),
+            Path::new("allow-list.txt"),
+            fixture.path.as_path(),
+        )
+        .expect_err("no line can name that folder");
+        assert!(error.contains("Line 1"), "{error}");
+        assert!(
+            error.contains(format!("the folder `{spelled}`").as_str()),
+            "the refusal must name `{spelled}`: {error}"
+        );
+        assert!(error.contains("Rename the folder"), "{error}");
+        assert!(
+            !error.contains("A use between two files is written"),
+            "`{named}` must not be told about the shape: {error}"
         );
     }
 }

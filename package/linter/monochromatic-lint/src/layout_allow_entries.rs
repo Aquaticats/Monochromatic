@@ -24,9 +24,13 @@
 //! ```
 
 /// Import the spelling every listed path is read into,
+///  the spelling of the characters a message cannot show,
 ///  and the reading that removes the `.` segments and the folders a `..` reads back over.
 use crate::{
-    layout_finding::key_path,
+    layout_finding::{
+        key_path,
+        spelled_whitespace,
+    },
     markdown_lfs_target::lexical_normal,
 };
 /// Import the set that keeps one line from repeating another,
@@ -239,28 +243,34 @@ fn listed_path(text: &str) -> PathBuf {
 
 /// What:
 ///  The folder a `file-uses` line names,
-///  when its words are more than the shape has and the ones in the folder's place hold a space.
+///  when its words are more than the shape has and the ones in the folder's place hold whitespace.
 /// Why:
 ///  The shape is five words set off with one whitespace character each,
-///  so a folder whose name holds a space makes six and the line cannot be read at all.
+///  so a folder whose name holds a space, a tab, a no-break space or a doubled space makes six
+///  and the line cannot be read at all.
 ///  The five-word sentence alone would send its reader back to a line that already reads as the shape it names,
-///  so the refusal names the folder and the space in its name instead.
-///  A file name never holds a space in a tree the rules accept (that is `space-in-file-name`),
-///  so the words between the word and the arrow are the folder's own.
+///  so the refusal names the folder and the whitespace in its name instead.
+///  A file name never holds whitespace in a tree the rules accept (that is `space-in-file-name`),
+///  so the raw text between the word and the file before the arrow is the folder's own name.
+///  That raw text is read rather than the words joined with one space,
+///  because joining them would name a folder the package does not hold for every whitespace character but a space.
 ///  Those words are the folder's own only while they name one:
 ///  a third file name and a doubled arrow make six words whose middle ones are no folder,
 ///  and telling that reader to rename a folder that is fine sends them to the wrong place.
-///  Only a folder of the tree can hold the space, so the caller gives the package folder the words are read from.
+///  Only a folder of the tree can hold the whitespace, so the caller gives the package folder the words are read from.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const spacedFolder = (words: string[], base: Path) => {
+/// const spacedFolder = (text: string, words: string[], base: Path) => {
 ///   if (words.length < 6 || words[words.length - 2] !== '->') return undefined
-///   const folder = words.slice(1, words.length - 3).join(' ')
-///   return folder.includes(' ') && isDirectory(base.join(folder)) ? folder : undefined
+///   const afterWord = text.slice('file-uses'.length + 1)
+///   const file = words[words.length - 3]
+///   const folder = afterWord.slice(0, -file.length).slice(0, -1)
+///   return /\s/.test(folder) && isDirectory(base.join(folder)) ? folder : undefined
 /// }
 /// ```
 fn spaced_file_use_folder(
+    text: &str,
     words: &[&str],
     base: &Path,
 ) -> Option<String> {
@@ -269,20 +279,87 @@ fn spaced_file_use_folder(
     if words.len() < 6 || words[words.len() - 2] != ARROW {
         return None;
     }
-    // What: the words between the word that starts the line and the file before the arrow.
-    // Why: the shape puts the folder there, and a folder name holding a space is the one reason those words are more than one.
-    let folder: String = words[1..words.len() - 3].join(" ");
-    if !folder.contains(' ') {
+    // What: the one file name the shape puts just before the arrow.
+    // Why: the folder is the raw text between the word that starts the line and that file.
+    let file: &str = words[words.len() - 3];
+    // What: the line after the word `file-uses`, with the one whitespace character that sets the folder off.
+    // Why: exactly one character is the separator, and a whitespace character beside the name is part of the name.
+    let after_the_word: &str = text
+        .strip_prefix(FILE_USE_WORD)?
+        .strip_prefix(char::is_whitespace)?;
+    // What: where the line's own arrow begins, which is the first one whitespace sets off on both sides.
+    // Why: a file name is read as written and may hold a bare `->`, so only the set-off arrow ends the folder.
+    let arrow: usize = arrow_between_whitespace(after_the_word)?;
+    // What: the words before the arrow, with the whitespace that sets the arrow off taken away.
+    // Why: the folder and the file before the arrow are what those words hold.
+    let before_arrow: &str = after_the_word[..arrow].strip_suffix(char::is_whitespace)?;
+    // What: the folder's name exactly as the line writes it, whitespace and all.
+    // Why: a joined spelling would turn `src/c<TAB>d` into `src/c d`, which is no folder the package holds.
+    let folder: &str = before_arrow
+        .strip_suffix(file)?
+        .strip_suffix(char::is_whitespace)?;
+    // What: whether that name holds any whitespace character, which is the one reason the shape's five words become six.
+    // Why: a line whose middle words are no folder at all is a misspelling of the shape, so the sentence about the folder would be false.
+    if !folder.chars().any(char::is_whitespace) {
         return None;
     }
     // What: whether those words name a folder of the package.
-    // Why: a line whose middle words name no folder is a misspelling of the shape, so the sentence about the folder would be false.
-    if !base.join(&folder).is_dir() {
+    // Why: only a folder that is really there can be the one the line cannot carry.
+    if !base.join(folder).is_dir() {
         return None;
     }
     // What: the folder name the line cannot carry.
     // Why: the caller's sentence names it, so its reader sees which name to change.
-    return Some(folder);
+    return Some(String::from(folder));
+}
+
+/// What:
+///  The plain name of the whitespace character a folder name holds,
+///  with its code point.
+/// Why:
+///  A tab or a no-break space prints as nothing in a terminal,
+///  so a sentence that called it "a whitespace character" would leave its reader no way to tell it from a space.
+///  The first character that is not a space is the one named, because a space is the one whitespace a reader can see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whitespaceName = (name: string) => {
+///   const letter = [...name].find((one) => /\s/.test(one) && one !== ' ')
+///   if (!letter) return 'a whitespace character'
+///   return `${plainName(letter)} (\u{${letter.codePointAt(0)!.toString(16)}})`
+/// }
+/// ```
+fn whitespace_character_description(name: &str) -> String {
+    // What: the first whitespace character that is not a space, or nothing when the name holds none.
+    // Why: a space is visible between two words, so only another whitespace character needs its code point.
+    let Some(letter) = name
+        .chars()
+        .find(|letter| return letter.is_whitespace() && *letter != ' ')
+    else {
+        return String::from("a whitespace character");
+    };
+    // What: the plain name of that character.
+    // Why: a reader who is told `\u{9}` alone still has to look the code point up.
+    let named: &str = match letter {
+        '\t' => "a tab",
+        '\u{a0}' => "a no-break space",
+        '\u{202f}' => "a narrow no-break space",
+        '\u{3000}' => "an ideographic space",
+        '\u{2000}'..='\u{200a}' => "a typographic space",
+        '\u{1680}' => "an ogham space mark",
+        '\u{205f}' => "a medium mathematical space",
+        '\u{2028}' => "a line separator",
+        '\u{2029}' => "a paragraph separator",
+        '\u{85}' => "a next-line character",
+        '\u{b}' => "a vertical tab",
+        '\u{c}' => "a form feed",
+        '\r' => "a carriage return",
+        _ => "a whitespace character",
+    };
+    // What: the character's code point, in the spelling every message of this rule uses.
+    // Why: the name above is worth little without the exact character the line holds.
+    let code_point: u32 = letter as u32;
+    return format!("{named} (`\\u{{{code_point:x}}}`)");
 }
 
 /// What:
@@ -318,14 +395,40 @@ fn entry_of(
             to: spelled_path(base, &listed_path(to)),
         }
     } else if words.first() == Some(&FILE_USE_WORD) {
-        if let Some(folder) = spaced_file_use_folder(words.as_slice(), base) {
+        if let Some(folder) = spaced_file_use_folder(text, words.as_slice(), base) {
+            // What: the folder's name with every character a reader cannot see spelled, so the message names the folder that is there.
+            // Why: a tab or a no-break space prints as nothing, and a reader shown `src/cd` would look for a folder the package may well hold.
+            let spelled_folder: String = spelled_whitespace(folder.as_str());
+            // What: whether every whitespace character in the name is a space.
+            // Why: a space is the one whitespace character a reader can see, so only another one needs its name and code point.
+            let holds_only_spaces: bool = folder
+                .chars()
+                .all(|letter| return !letter.is_whitespace() || letter == ' ');
+            // What: what the name holds, and what renaming must give.
+            // Why: a name holding a tab is fixed by a rename that also keeps spaces, and the sentence must not send its reader to the wrong place.
+            let (holds, fix): (String, &str) = if holds_only_spaces {
+                (String::from("which holds a space"), "space")
+            } else {
+                (
+                    format!("which holds {}", whitespace_character_description(folder.as_str())),
+                    "whitespace character",
+                )
+            };
             return Err(format!(
-                "Line {line} names the folder `{folder}`, which holds a space: a `file-uses` line sets its five words off with one whitespace character each, so it cannot carry a name that holds one. Rename the folder so its name holds no space, or untangle the loop of files inside it."
+                "Line {line} names the folder `{spelled_folder}`, {holds}: a `file-uses` line sets its five words off with one whitespace character each, so it cannot carry a name that holds one. Rename the folder so its name holds no {fix}, or untangle the loop of files inside it."
             ));
         }
         if words.len() != 5 || words[3] != ARROW {
+            // What: whether the line sets more than one arrow off with whitespace, which is one way its five words become more.
+            // Why: a doubled arrow is a different mistake from an extra word, and its reader has to know which one is theirs.
+            if arrows_between_whitespace(text) > 1 {
+                return Err(format!(
+                    "Line {line} reads `{text}`. A use between two files is written `file-uses <folder> <file> {ARROW} <file>`, and it holds one `{ARROW}` only: two `{ARROW}` are set off by whitespace."
+                ));
+            }
             return Err(format!(
-                "Line {line} reads `{text}`. A use between two files is written `file-uses <folder> <file> {ARROW} <file>`."
+                "Line {line} reads `{text}`. A use between two files is written `file-uses <folder> <file> {ARROW} <file>`, which is five words; this line is {} words.",
+                words.len()
             ));
         }
         if let Some(reason) = unusable_reason(words[1]) {
@@ -374,6 +477,33 @@ fn spelled_path(
 }
 
 /// What:
+///  Whether the `->` at a position is set off with one whitespace character on each side.
+/// Why:
+///  A `uses` or `file-uses` line sets its arrow off that way,
+///  and both the arrow search and the doubled-arrow check must read the same rule,
+///  or a line one of them refuses would be a line the other reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const setOff = (text: string, at: number) =>
+///   /\s/.test(text[at - 1] ?? '') && /\s/.test(text[at + 2] ?? '')
+/// ```
+fn set_off_by_whitespace(
+    text: &str,
+    at: usize,
+) -> bool {
+    // What: the character before this `->`, or nothing when the text begins with it.
+    // Why: a name's own `->` has no whitespace in front of it, so it is never taken for the arrow.
+    let before: Option<char> = text[..at].chars().next_back();
+    // What: the character after this `->`, or nothing when the text ends with it.
+    // Why: an arrow at the end of a line names nothing, so the line holds no such arrow.
+    let after: Option<char> = text[at + ARROW.len()..].chars().next();
+    // What: whether whitespace stands on both sides, which is what sets an arrow off.
+    // Why: that is the shape a printed line writes and a reader takes as its own arrow.
+    return before.is_some_and(char::is_whitespace) && after.is_some_and(char::is_whitespace);
+}
+
+/// What:
 ///  Where the first `->` a text sets off with one whitespace character on each side begins,
 ///  or nothing when it sets none off that way.
 /// Why:
@@ -391,23 +521,35 @@ fn spelled_path(
 /// }
 /// ```
 pub(crate) fn arrow_between_whitespace(text: &str) -> Option<usize> {
-    for (index, found) in text.match_indices(ARROW) {
-        // What: the character before this `->`, or nothing when the text begins with it.
-        // Why: a name's own `->` has no whitespace in front of it, so it is never taken for the arrow.
-        let before: Option<char> = text[..index].chars().next_back();
-        // What: the character after this `->`, or nothing when the text ends with it.
-        // Why: an arrow at the end of a line names nothing, so the line holds no such arrow.
-        let after: Option<char> = text[index + found.len()..].chars().next();
-        // What: whether whitespace stands on both sides, which is what sets an arrow off.
-        // Why: that is the shape a printed `uses` line writes and a reader takes as its own arrow.
-        let set_off: bool =
-            before.is_some_and(char::is_whitespace) && after.is_some_and(char::is_whitespace);
-        if !set_off {
-            continue;
+    for (index, _found) in text.match_indices(ARROW) {
+        if set_off_by_whitespace(text, index) {
+            return Some(index);
         }
-        return Some(index);
     }
     return None;
+}
+
+/// What:
+///  How many `->` a text sets off with one whitespace character on each side.
+/// Why:
+///  A `file-uses` line holds one arrow only,
+///  and a line of six words is either a doubled arrow or an extra word:
+///  counting the arrows is what tells its reader which of the two mistakes it made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const arrowsSetOff = (text) => [...text.matchAll(/->/g)].filter((one) => setOff(text, one.index!)).length
+/// ```
+fn arrows_between_whitespace(text: &str) -> usize {
+    // What: the number of arrows set off on both sides found so far.
+    // Why: the caller compares it with one, so it counts rather than stops at the first.
+    let mut count: usize = 0;
+    for (index, _found) in text.match_indices(ARROW) {
+        if set_off_by_whitespace(text, index) {
+            count += 1;
+        }
+    }
+    return count;
 }
 
 /// What:
