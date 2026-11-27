@@ -98,6 +98,9 @@ use std::path::PathBuf;
 
 /// Imports the order the tools are installed in.
 use super::the_install_order::sync_order;
+/// Imports the one instant this rule's two steps are apart,
+/// which a control stands in with a start of the tool and may end a run at.
+use super::a_control_holds_the_instant_between_the_two_steps::reached_the_instant_between_the_two_steps;
 /// Imports the report a run answers with,
 /// the warning for a replaced version,
 /// the sentence for a version a killed install left unfinished,
@@ -248,6 +251,15 @@ fn settle_the_newest_only_rule(
             .failed
             .push((tool.declaration.id.clone(), error.message)),
     }
+    // What: the one instant between this rule's two steps, which a control stands in and may end a run at.
+    // Why: a start made there and a run killed there are the two facts the order of the two steps decides, and neither
+    //  can be shown from the end state of a run that finished.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // reachedTheInstantBetweenTheTwoSteps(ctx.scope);
+    // ```
+    reached_the_instant_between_the_two_steps(ctx.scope);
 }
 
 /// What:
