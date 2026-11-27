@@ -24,6 +24,11 @@
 //! - `worktree_copy_ceiling.rs`:
 //!   the bound one command holds when it finishes a copy it did not start,
 //!   and the words a copy stopped at that bound is reported with.
+//! - `worktree_copy_interrupted_add_settlement_checkout_proof.rs`:
+//!   what proves the checkout of an interrupted `git worktree add` whole or gone:
+//!   Git's index,
+//!   the lock a killed Git left beside it,
+//!   and what the destination holds beside its pointer.
 //! - `worktree_copy_interrupted_add_settlement.rs`:
 //!   what an interrupted `git worktree add` settles to,
 //!   with the proof its checkout is whole or gone.
@@ -431,6 +436,10 @@ pub mod worktree_copy_stage_snapshot_origin;
 /// and the words a sweep says about a stage it keeps or removes.
 #[cfg(unix)]
 pub mod worktree_copy_stage_reaping_proof_and_words;
+
+/// What proves the checkout of an interrupted `git worktree add` whole or gone.
+#[cfg(unix)]
+pub mod worktree_copy_interrupted_add_settlement_checkout_proof;
 
 /// What an interrupted `git worktree add` settles to,
 /// with the proof its checkout is whole or gone.
