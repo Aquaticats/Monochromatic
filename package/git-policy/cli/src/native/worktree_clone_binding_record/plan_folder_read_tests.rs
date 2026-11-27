@@ -64,7 +64,8 @@ fn a_guid(digits: &str) -> DatasetGuid {
 }
 
 /// The first write's history,
-/// which is one line per snapshot at attempt `0`, saying `planned`.
+/// which is one line per snapshot at attempt `0`,
+/// saying `planned`.
 const A_PLANS_FIRST_WRITE: &[(u64, SnapshotOutcome)] = &[(0, SnapshotOutcome::Planned)];
 
 /// One snapshot's history where the removal planned it and then proved it gone,

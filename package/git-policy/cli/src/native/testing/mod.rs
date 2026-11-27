@@ -221,8 +221,8 @@ pub(crate) mod standing_slot_mounts;
 /// named once here for the plan helper both test targets include by `#[path]`:
 /// that helper reaches these names through `super::`,
 /// and the `native_binary` crate declares the same module over its own paths to them;
-/// never part of the release executable.
-#[cfg(test)]
+/// never part of the release executable,
+/// which holds no test-only module to mark this one against.
 pub(crate) mod the_destruction_plans_writer {
     pub(crate) use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
     pub(crate) use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;

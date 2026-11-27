@@ -104,13 +104,13 @@ fn a_plan_under_the_clone_guid_names_it() {
     let root: PathBuf = fixture("slot-state-plan-names");
     let guid =
         crate::worktree_clone_slot_state::slot_state_test_records::guid("4821193048571903102");
-    let plan: APlanAControlPlants =
+    let planted_plan: APlanAControlPlants =
         APlanAControlPlants::a_removals_first_write(ACloneAPlanNames::a_fixture_clone(
             root.as_path(),
             crate::worktree_clone_slot_state::slot_state_test_records::CLONE_DATASET,
             guid,
         ));
-    let planted: PathBuf = plant(&plan);
+    let planted: PathBuf = plant(&planted_plan);
     let reading: PlanReading = read_plan(
         root.as_path(),
         Some(guid),
