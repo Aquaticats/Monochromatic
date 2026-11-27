@@ -1,5 +1,6 @@
 //! The methods the compositor state answers for:
-//!  building it from the event loop, the display and the backend pieces,
+//!  building it from the event loop,
+//!  the display and the backend pieces,
 //!  recording the failure that ends the session,
 //!  and finding the surface under a point.
 //!
