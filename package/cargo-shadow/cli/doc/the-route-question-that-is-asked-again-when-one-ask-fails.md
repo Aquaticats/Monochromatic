@@ -575,11 +575,11 @@ and that the refusal names what the read found.
 Measured 2026-11-27 on this host:
 
 - with the change,
-  both passed in 0.020 s and 0.027 s,
+  both passed in 0.023 s and 0.027 s,
   each with one ask;
 - with the read's refusal taken out of `ask_where_the_slice_is`,
   which is the code before this change,
-  both failed in 0.85 s each with
+  both failed in 0.846 s and 0.849 s with
   `the question was put again where no manager can be reached: "--user start app.slice"` five times.
 
 ## A failing run leaves its messages
