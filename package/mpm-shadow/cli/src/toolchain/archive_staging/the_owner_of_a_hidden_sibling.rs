@@ -594,6 +594,8 @@ impl Owner {
     /// a number now held by another program carries a different start and is that program,
     /// while a record that could not be read says nothing at all.
     /// A name from another boot is an installer that reboot certainly ended.
+    /// A name that carries no start time cannot be judged,
+    /// because a record this reader cannot read says nothing about the process it belongs to.
     /// A name from another namespace,
     /// or one an earlier build wrote without these facts,
     /// is never judged.
@@ -601,11 +603,11 @@ impl Owner {
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// function liveness(owner: Owner): Liveness {
-    ///   if (owner.started === 0) return 'unknown';
     ///   const reader = thisReader();
     ///   if (reader.boot === undefined || reader.namespace === undefined) return 'unknown';
     ///   if (owner.boot === undefined || owner.namespace === undefined) return 'unknown';
     ///   if (owner.boot !== reader.boot) return 'gone';
+    ///   if (owner.started === 0) return 'unknown';
     ///   if (owner.namespace !== reader.namespace) return 'unknown';
     ///   const seen = startTimeOf(owner.pid);
     ///   if (seen === 'gone') return 'gone';
@@ -614,9 +616,6 @@ impl Owner {
     /// }
     /// ```
     pub(crate) fn liveness(&self) -> Liveness {
-        if self.started == 0 {
-            return Liveness::Unknown;
-        }
         let reader: Reader = this_reader();
         let (Some(this_boot), Some(this_namespace)) = (reader.boot, reader.namespace) else {
             return Liveness::Unknown;
@@ -624,8 +623,17 @@ impl Owner {
         let (Some(named_boot), Some(named_namespace)) = (&self.boot, self.namespace) else {
             return Liveness::Unknown;
         };
+        // What: the boot this name belongs to, which decides before anything the name says about its own process.
+        // Why: no process survives a reboot, so a name of another boot is an installer that certainly ended, whatever
+        //  its start time field holds; the zero a run writes when it cannot read its own record cannot keep it for ever.
         if *named_boot != this_boot {
             return Liveness::Gone;
+        }
+        // What: a name of this boot that carries no start time.
+        // Why: the record this reader gets is no evidence about which startup wrote the name, so nothing may be
+        //  concluded; a record it can read would be compared with a moment no run ever reported.
+        if self.started == 0 {
+            return Liveness::Unknown;
         }
         if named_namespace != this_namespace {
             return Liveness::Unknown;
