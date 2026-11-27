@@ -75,6 +75,9 @@
 //!   the paths of a migration and the refusals that stop it before anything is created.
 //! - `subvolume_registered_worktrees.rs`:
 //!   the linked worktrees of a main checkout and the registrations that are not one of them.
+//! - `subvolume_remove_walk_boundary_and_refusal.rs`:
+//!   the boundary a removal may not cross,
+//!   and the words of the refusal it gives.
 //! - `subvolume_remove_walk.rs`:
 //!   empty a directory that is held open,
 //!   one descriptor-relative step at a time,
@@ -341,6 +344,10 @@ pub mod subvolume_remove;
 /// The look that finds every volume below a tree without changing it, and the pass that empties a tree around
 /// each one it did not make.
 pub mod subvolume_remove_around;
+
+/// The boundary a removal may not cross,
+/// and the words of the refusal it gives.
+pub mod subvolume_remove_walk_boundary_and_refusal;
 
 pub mod subvolume_remove_walk;
 
