@@ -283,10 +283,6 @@ file-uses src/native/push push_wait_until_done.rs -> push_progress.rs
 file-uses src/native/push stacked_merge_push.rs -> push_stacking.rs
 file-uses src/native/repair package_repair_cargo.rs -> package_repair_cargo_jobs.rs
 file-uses src/native/repair package_repair_cargo_jobs.rs -> package_repair_cargo.rs
-file-uses src/native/repair package_repair_relink_notice.rs -> package_repair_toolchain.rs
-file-uses src/native/repair package_repair_toolchain.rs -> package_repair_toolchain_install.rs
-file-uses src/native/repair package_repair_toolchain_copy_removal.rs -> package_repair_relink_notice.rs
-file-uses src/native/repair package_repair_toolchain_install.rs -> package_repair_toolchain_copy_removal.rs
 file-uses src/native/repo_read git_metadata.rs -> repo_read_hook.rs
 file-uses src/native/repo_read repo_read_diff.rs -> repo_read_object.rs
 file-uses src/native/repo_read repo_read_diff.rs -> repo_read_tree.rs
