@@ -30,9 +30,6 @@ use crate::commit_stop_reason::reason_of_stop;
 use crate::commit_timing::CommitTiming;
 /// What a transaction stopped with.
 use crate::commit_transaction::TransactionStop;
-/// The last Git step of this process that failed,
-/// which a stop's reason names beside the route.
-use crate::git_step_failure::drain_failed_step;
 use crate::policy_events::{
     EngineFailureHint,
     PolicyEvent,
@@ -111,7 +108,10 @@ pub(crate) fn report_stop(
 ) -> CommitEnding {
     // Why the command stopped is written down here, before the process is told how it ended, so a record of a commit that
     //  did not land names the route that stopped it and not only the status it returned (`commit_stop_reason.rs`).
-    timing.stop = Some(reason_of_stop(&stop, drain_failed_step()));
+    timing.stop = Some(reason_of_stop(
+        &stop,
+        crate::git_step_failure::drain_failed_step(),
+    ));
     match stop {
         TransactionStop::NativeExit(code) => {
             return CommitEnding {
