@@ -60,8 +60,9 @@ use std::time::{
 };
 
 /// How long the child that runs this control's body may take before the control counts it as one that did not end.
-///  The sibling a reader might expect is `CHILD_TEST_DEADLINE`, which every control whose body is a handful of files
-///  takes, and which this body crossed on a loaded host.
+///  The sibling a reader might expect is `CHILD_TEST_DEADLINE`,
+///  which every control whose body is a handful of files takes,
+///  and which this body crossed on a loaded host.
 /// Why:
 ///  This body is not a handful of files:
 ///  it makes 4,196 paths of which two change lists past `MAX_CHANGES` are landed,

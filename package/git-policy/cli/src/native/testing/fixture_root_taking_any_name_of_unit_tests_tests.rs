@@ -39,7 +39,8 @@ const THE_CHILD_HALF: &str = "CLI_GIT_TEST_WINDOW_STATED_CONTROL";
 /// How long the deadline control's body holds inside its child.
 const THE_BODY_HOLDS: Duration = Duration::from_secs(3);
 
-/// The window the deadline control states for its child, which is shorter than the body it runs.
+/// The window the deadline control states for its child,
+///  which is shorter than the body it runs.
 const THE_WINDOW: Duration = Duration::from_secs(1);
 
 /// The capability sets a program starts with,
@@ -165,9 +166,11 @@ fn capability_set_from(
 ///  and the failure names the figure the control stated.
 /// Why:
 ///  A control whose body does more than a handful of files' work states its own window
-///  (`service_landing_state::awkward_change_lists_land_as_native_git_commits_them`, issue 6546),
+///  (`service_landing_state::awkward_change_lists_land_as_native_git_commits_them`,
+///  issue 6546),
 ///  and a window that never reaches the child leaves such a control failing on the host's load instead;
-///  the default answers `CHILD_TEST_DEADLINE`, whose 120 s this control's own message would name.
+///  the default answers `CHILD_TEST_DEADLINE`,
+///  whose 120 s this control's own message would name.
 ///  The child is this test binary on this test,
 ///  so the body that holds is written here as the half that reads `THE_CHILD_HALF`.
 ///

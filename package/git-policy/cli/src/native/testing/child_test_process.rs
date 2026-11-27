@@ -119,7 +119,8 @@ use super::test_process_owner::own_group;
 /// and the container gate stops any test after five minutes (`.config/nextest.toml`),
 /// which leaves room for this file's message to reach the log.
 /// Gotcha:
-///  The watchdog's window is a stretch that shows no sign of work, not the length of a run,
+///  The watchdog's window is a stretch that shows no sign of work,
+///  not the length of a run,
 ///  so this number is a wall clock and a child is ended by it whether it worked or not.
 ///  A control whose body does more than a handful of files' work states its own `ChildTest::deadline`
 ///  from what that body does (issue 6546).

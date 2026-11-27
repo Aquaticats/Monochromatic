@@ -51,7 +51,8 @@ use super::child_test_process::{
 };
 /// `OsStr` is borrowed operating-system text of raw bytes.
 use std::ffi::OsStr;
-/// `Duration` is a span, which a control states for the child that runs its body.
+/// `Duration` is a span,
+///  which a control states for the child that runs its body.
 use std::time::Duration;
 
 /// What:
