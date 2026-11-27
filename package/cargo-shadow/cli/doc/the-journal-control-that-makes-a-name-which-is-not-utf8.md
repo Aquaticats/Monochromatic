@@ -185,6 +185,50 @@ which is why the case asserts that and not only the message.
   the new control,
   and the shared journal helper takes the manifest path its index names.
 
+## The whole suite, this branch beside `main`
+
+Both arms ran on this host on 2026-11-27,
+each once,
+each inside its own `systemd-run --user --scope --slice=agent-work.slice` with `MemoryMax`,
+`CPUQuota`,
+`TasksMax`,
+`IOWeight=1` and `RuntimeMaxSec`,
+with the host's load average near 138 both times.
+
+`main` is `origin/main` `2eb4228f0f`,
+the split round for this package merged,
+extracted with `git archive` into the round's scratch folder so the repository's own files
+stand around the package,
+and run with the task's own command (`cargo nextest run --release --no-fail-fast`):
+
+```text
+Summary [  68.712s] 872 tests run: 857 passed, 15 failed, 21 skipped
+```
+
+This branch,
+merged with that `main` (`c86dfea9ba`) and then `d2c105d1cd`,
+through the package's task (`mise run //package/cargo-shadow/cli:test`,
+which is that same command):
+
+```text
+Summary [  66.115s] 873 tests run: 859 passed, 14 failed, 21 skipped
+```
+
+Every test that still fails here also fails on `main`,
+and each of the fourteen is another issue's:
+nine are issue 6549 (the controls read `/proc/<pid>/cgroup` as one cgroup v2 line and this
+host's file holds a `1:net_cls:/` line first),
+two are issue 6551 (proc-scan fixtures below a home folder of mode 700),
+two are issue 6552 (ZFS reports a file's blocks only after its transaction group syncs),
+and one is issue 6554 (the unrecorded launcher shim control hitting its own 20 s bound).
+The two arms differ in one name:
+`main` fails `journal_tests::a_manifest_path_that_is_not_utf8_is_recovered_exactly`,
+which is this issue and passes here.
+The 6553 control (an unsorted `read_dir` compared with a fixed order) failed in this branch's
+pre-merge run and passed in this one,
+which is that issue's own record:
+it fails in some runs and passes in others.
+
 ## Checks
 
 Run on 2026-11-27 in `package/cargo-shadow/cli`,
@@ -207,7 +251,15 @@ on a host whose load average was about 138:
   exit 0,
   no warning;
 - `mise run //package/cargo-shadow/cli:test`:
-  see the report of the round for its summary line.
+  exit 100 on the summary line above,
+  whose fourteen failures are all `main`'s and another issue's;
+- `/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint package/cargo-shadow/cli`
+  from the worktree root:
+  one warning,
+  `rust/avoidable-closure`,
+  which says the Dylint driver for this toolchain is absent and that nothing in this package
+  was checked by that rule,
+  and no finding on any line of this change.
 
 What was not run,
 and why:
