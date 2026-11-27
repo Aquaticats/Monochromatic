@@ -510,6 +510,34 @@ fn a_dead_use_line_spells_the_whitespace_that_is_part_of_the_name() {
     );
 }
 
+/// A dead `uses` line whose gap holds two whitespace characters names the character the reader kept
+///  and which one it took off as the separator,
+///  because the line already reads as the shape it spells and its reader has to know which of the two to remove.
+#[test]
+fn a_dead_use_line_whose_gap_holds_two_characters_says_which_to_remove() {
+    let base: &Path = Path::new("package");
+    let list: AllowList = parsed("uses  src/alpha  ->  src/b\n");
+    // What: the folder of the fixture the package holds, so only the mis-read name before the arrow is absent.
+    // Why: a help that spoke of two absent folders would answer about a different line.
+    let folders: BTreeSet<PathBuf> = ["src/b"]
+        .iter()
+        .map(|name| return base.join(name))
+        .collect::<BTreeSet<PathBuf>>();
+    let findings: Vec<LayoutFinding> =
+        dead_entry_findings(&list, &BTreeSet::<usize>::new(), &folders, base);
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    let help: &str = findings[0].help.as_deref().expect("a dead line has help");
+    for part in [
+        "One whitespace character sets each word off",
+        "took the character nearest the word `uses` or the arrow as the separator",
+        "kept `\\u{20}` after the word `uses`, before `src/alpha`",
+        "`\\u{20}` after `->`, before `src/b`",
+        "remove that character",
+    ] {
+        assert!(help.contains(part), "{part} missing in {help}");
+    }
+}
+
 /// A `file-uses` line cannot name a folder whose name holds a space,
 ///  because its shape is five words set off with one whitespace character each,
 ///  so the refusal names that folder and says what to do about it

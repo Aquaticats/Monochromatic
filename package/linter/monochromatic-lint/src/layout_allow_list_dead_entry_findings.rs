@@ -28,6 +28,7 @@ use crate::{
         FOLDER_USE_WORD,
     },
     layout_allow_list::{
+        AllowEntry,
         AllowKind,
         AllowList,
     },
@@ -164,6 +165,9 @@ pub fn dead_entry_findings(
             } else {
                 "the folders"
             };
+            // What: each whitespace character the line read as part of a name, with where it stands.
+            // Why: the line already reads as the shape it spells, so its reader has to know which of two characters to remove.
+            let kept: Vec<String> = the_characters_a_dead_line_kept(entry);
             // What: the line as the message quotes it, with every character a reader cannot see spelled.
             // Why: a name holding a zero-width space prints as a name the package does hold, and the reader would look for it in vain.
             let spelled_text: String = spelled_unreadable(entry.text.as_str());
@@ -173,11 +177,18 @@ pub fn dead_entry_findings(
                 .text
                 .chars()
                 .find(|letter| return is_format_character(*letter));
-            // What: the sentence about re-spacing, extended when the line holds a character a reader cannot see.
-            // Why: one edit fixes each cause, and a reader told only about doubled whitespace would keep the invisible one.
-            let mut help: String = String::from(
-                "Write the folder name the rule prints, or delete the line if the use is gone: a doubled space, or a tab beside a name, is read as part of that name.",
-            );
+            // What: the sentence about the one edit, which names the character kept and the one taken off.
+            // Why: a reader told only that a doubled space is part of a name has to work out which of the two to delete.
+            let mut help: String = if kept.is_empty() {
+                String::from(
+                    "Write the folder name the rule prints, or delete the line if the use is gone: a doubled space, or a tab beside a name, is read as part of that name.",
+                )
+            } else {
+                format!(
+                    "Write the folder name the rule prints, or delete the line if the use is gone. One whitespace character sets each word off: the reader took the character nearest the word `uses` or the arrow as the separator and read the character beside the name as part of it. It kept {}; remove that character and leave the one nearest the word or the arrow in place.",
+                    kept.join(", and ")
+                )
+            };
             if let Some(letter) = invisible {
                 let name: &str = format_character_name(letter)
                     .unwrap_or("a character a reader cannot see");
@@ -237,4 +248,70 @@ fn reads_as_a_line_without_format_characters(text: &str) -> bool {
         || trimmed.starts_with('#')
         || trimmed.starts_with(FOLDER_USE_WORD)
         || trimmed.starts_with(FILE_USE_WORD);
+}
+
+/// What:
+///  Each whitespace character a dead `uses` line read as part of a name, with where it stands.
+/// Why:
+///  One whitespace character on each side of a name is the separator and a second belongs to the name,
+///  so a reader whose line is dead has to remove the second one and leave the first,
+///  and a help that named only the character would leave them to work out which of two identical spaces it meant.
+///  A `file-uses` line has no such character, because its folder is one word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keptCharacters = (entry) => {
+///   if (entry.kind !== 'folder-use') return []
+///   const kept: string[] = []
+///   if (/\s/.test(entry.from[0])) kept.push(`\`\\u{...}\` after the word \`uses\`, before \`${entry.from.trim()}\``)
+///   if (/\s/.test(entry.from.at(-1))) kept.push(`\`\\u{...}\` after \`${entry.from.trim()}\`, before \`->\``)
+///   if (/\s/.test(entry.to[0])) kept.push(`\`\\u{...}\` after \`->\`, before \`${entry.to.trim()}\``)
+///   return kept
+/// }
+/// ```
+fn the_characters_a_dead_line_kept(entry: &AllowEntry) -> Vec<String> {
+    // What: the two names of a folder use, or nothing when the line is of another shape.
+    // Why: only a `uses` line sets two folder names off with whitespace.
+    let AllowKind::FolderUse {
+        from,
+        to,
+    } = &entry.kind
+    else {
+        return Vec::new();
+    };
+    // What: the two names as the reader read them, whitespace included.
+    // Why: the whitespace at either end is the character the line kept, and its place says which one to remove.
+    let from_text: String = from.display().to_string();
+    let to_text: String = to.display().to_string();
+    // What: the characters kept so far, each written with its place.
+    // Why: a line can hold one on each side of the arrow, and each needs its own edit.
+    let mut kept: Vec<String> = Vec::<String>::new();
+    if let Some(letter) = from_text.chars().next()
+        && letter.is_whitespace()
+    {
+        kept.push(format!(
+            "`{}` after the word `uses`, before `{}`",
+            spelled_unreadable(letter.to_string().as_str()),
+            from_text.trim()
+        ));
+    }
+    if let Some(letter) = from_text.chars().next_back()
+        && letter.is_whitespace()
+    {
+        kept.push(format!(
+            "`{}` after `{}`, before `->`",
+            spelled_unreadable(letter.to_string().as_str()),
+            from_text.trim()
+        ));
+    }
+    if let Some(letter) = to_text.chars().next()
+        && letter.is_whitespace()
+    {
+        kept.push(format!(
+            "`{}` after `->`, before `{}`",
+            spelled_unreadable(letter.to_string().as_str()),
+            to_text.trim()
+        ));
+    }
+    return kept;
 }
