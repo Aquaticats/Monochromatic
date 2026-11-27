@@ -346,8 +346,6 @@ file-uses src/native/repo_read repository_facts_staged_entries.rs -> repository_
 file-uses src/native/repo_read repository_facts_staged_selection.rs -> repository_facts.rs
 file-uses src/native/repo_read repository_facts_untracked_files.rs -> repository_facts.rs
 file-uses src/native/repo_read repository_facts_untracked_files.rs -> repository_facts_ignored_files.rs
-file-uses src/native/service service_files_of_a_stopped_instance.rs -> service_instance.rs
-file-uses src/native/service service_instance.rs -> service_files_of_a_stopped_instance.rs
 file-uses src/native/service service_protocol.rs -> service_protocol_decode_lines_to_messages.rs
 file-uses src/native/service service_protocol_decode_lines_to_messages.rs -> service_protocol_forgetting_programs.rs
 file-uses src/native/service service_protocol_forgetting_programs.rs -> service_protocol.rs
