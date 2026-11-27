@@ -208,3 +208,15 @@ here so a reader never mistakes it for evidence.
   matches, Unicode text and split words are kept.
 - `Stand-in <member> answered a <N>-character request.` (`src/verify-stand-in-member-extension.ts`):
   boundary: a stand-in answer names the member that produced it and the request size it saw.
+- The repeated `x` padding of `src/member-limits-fixture.ts`
+  (`paddingOf`,
+  `paddingAboveWindow`,
+  `paddingBelowWindow`,
+  `paddingNearWindow`)
+  and `src/request-size.unit.test.ts` (`PADDING`):
+  boundary:
+  a request's estimated size,
+  which decides whether a member's own window can hold it
+  and whether the same member is asked again on the next request.
+  No provider writes this text,
+  and no claim about a provider's wording rests on it.

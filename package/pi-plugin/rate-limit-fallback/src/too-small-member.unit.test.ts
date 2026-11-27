@@ -51,14 +51,26 @@ const SECOND_LIMITS = memberLimitsOf(SECOND,);
 const LAST_LIMITS = memberLimitsOf(LAST,);
 
 /**
- Every member registered with the window and output limit it reports, so a request's size decides
- which of them is asked.
+ One member with the window and output limit it reports, so a request's size decides whether it is
+ asked.
+
+ @param target - catalog record naming the member
+
+ @returns that record carrying the member's own reported limits
  */
-const MEMBER_MODELS: readonly Model<Api>[] = WRITER_TARGETS.map(function withOwnLimits(target,) {
+function withOwnLimits(target: Model<Api>,): Model<Api> {
   return {
     ...target,
     ...memberLimitsOf(target,),
   };
+}
+
+/**
+ Every member registered with the window and output limit it reports, so a request's size decides
+ which of them is asked.
+ */
+const MEMBER_MODELS: readonly Model<Api>[] = WRITER_TARGETS.map(function each(target,) {
+  return withOwnLimits(target,);
 },);
 
 /**
@@ -344,7 +356,7 @@ await describe({
         // Pi's own clamp is what fits the pair into the window, and it is the member's installed
         // adapter that applies it, so the sum a member receives never exceeds its window.
         const fitted = clampMaxTokensToContext(
-          MEMBER_MODELS[1] as Model<Api>,
+          withOwnLimits(SECOND,),
           request,
           carried ?? SECOND_LIMITS.maxTokens,
         );

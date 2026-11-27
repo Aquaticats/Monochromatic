@@ -24,10 +24,14 @@ import { estimateContextTokens, } from '@earendil-works/pi-ai/utils/estimate';
  member that could have held the request, which is the capacity this change exists to keep, and an
  under-estimate ends in the member's own rejection: under a virtual selection Pi then compacts and
  retries the turn once (`README.md`, "What the route gives Pi", verified by
- `src/verify-stand-in-member-extension.ts`). The one recorded comparison of this ratio with a real
- tokenizer is in `README.md`, "What the router knows of a request's size": Pi's 3.5 characters per
- token landed 0.61% below that request's own chat-template count, and the estimator's own reported
- part is exact.
+ `src/verify-stand-in-member-extension.ts`).
+
+ The measurement a margin would have cited is in `README.md`, "What the router knows of a request's
+ size": over 35,773 requests in 200 of the driver's runs, in sessions Pi never compacted or edited,
+ the estimate was within 1% of the count the member itself reported for 98.0% of them, and within 5%
+ for 99.4% of them, the 95th percentile standing 0.2% above and the 5th 0.1% below. A margin of that
+ size is a thousandth of a member's window: it would pass over members to answer requests they can
+ hold, and the remainder is what the member's own rejection covers.
 
  @param context - normalized transcript Pi is about to send
 
