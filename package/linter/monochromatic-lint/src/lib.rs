@@ -52,6 +52,9 @@ pub use directive_findings::{
 mod closure_cargo;
 /// The offline check that the Dylint driver exists or can be built from the cargo cache.
 mod closure_driver;
+/// Where this machine keeps its Dylint driver,
+///  and what it reports about the driver and the cargo cache.
+mod closure_driver_probe;
 /// Mapping of compiler reports to findings with the configured severity.
 mod closure_findings;
 /// The per-package prerequisite manifest of the closure check.
