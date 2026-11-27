@@ -1,6 +1,9 @@
 //! What:
 //!  The sinks a control reads a notice from:
-//! a buffer shared with the reader and a buffer that runs an action once a counted line is finished.
+//! a buffer shared with the reader,
+//! a buffer that runs an action once a counted line is finished,
+//! and a stream that refuses every byte,
+//! with the release's own standard error given one.
 //! Why:
 //!  Several controls watch a wait's notices without a timer,
 //!  so the wait stops on an event and not on the host's speed;
@@ -9,7 +12,18 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const sink = new SharedBuffer(); const counted = new ActionBuffer(sink, 3, () => done());
+//! giveTheThread(new RefusingSink()); const notes = new StandardErrorOffTheCallingThread();
 //! ```
+
+/// The stream a release's notes are shown through,
+/// and the answer its hand gives about one line.
+/// Why:
+///  A control shows a notice through the release stream
+///  to read what a record does whose line never reached the person.
+use crate::standard_error_off_the_calling_thread::{
+    StandardErrorHand,
+    StandardErrorOffTheCallingThread,
+};
 
 /// A sink a test reads after the code under test wrote its notices to a clone of it.
 #[derive(Clone, Default)]
@@ -112,4 +126,62 @@ impl std::io::Write for ActionSink {
     fn flush(&mut self) -> std::io::Result<()> {
         return Ok(());
     }
+}
+
+/// What:
+///  A stream that refuses every byte it is given,
+///  as a closed terminal does.
+/// Why:
+///  A control whose subject is a notice the person could not be shown
+///  needs a stream that says so,
+///  both where `Notice::show` is handed a writer directly
+///  and where the thread that writes standard error is given one.
+///  One stand-in answers both,
+///  so a control reads the same refusal either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class AStreamThatRefusesEveryByte { write() { throw brokenPipe } flush() { throw brokenPipe } }
+/// ```
+pub(crate) struct AStreamThatRefusesEveryByte;
+
+impl std::io::Write for AStreamThatRefusesEveryByte {
+    /// Refuse the bytes,
+    /// as a stream nobody reads does.
+    fn write(
+        &mut self,
+        _bytes: &[u8],
+    ) -> std::io::Result<usize> {
+        return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
+    }
+
+    /// Refuse the flush,
+    /// for the same reason.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe));
+    }
+}
+
+/// What:
+///  This process's standard error as the stream the notices are shown through,
+///  with the thread that writes it given a stream that refuses every byte.
+/// Why:
+///   A control that shows a notice through the release stream meets the answer the thread gives
+///  when the line did not reach the person,
+///  which is the answer a notice's record outlives the line by;
+///  a writer handed to `show` directly cannot show that.
+///  The queue and its thread are one for the whole process,
+///  so the control that calls this runs its body in a child of its own
+///  (`run_the_body_in_a_child_of_its_own`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// giveTheThread(new AStreamThatRefusesEveryByte()); return new StandardErrorOffTheCallingThread()
+/// ```
+pub(crate) fn standard_error_whose_writer_refuses_every_line()
+-> StandardErrorOffTheCallingThread<StandardErrorHand> {
+    crate::diagnostic_lines_off_the_calling_thread::give_the_thread(Box::new(
+        AStreamThatRefusesEveryByte,
+    ));
+    return StandardErrorOffTheCallingThread::new();
 }
