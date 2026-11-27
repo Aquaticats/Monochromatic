@@ -232,6 +232,9 @@ pub mod policy;
 /// the counterpart of `pnpm install`.
 pub mod install;
 
+/// The stale crate roots of an install and the update that repairs them (split out of the install module).
+pub mod install_stale_roots;
+
 /// The helpers of the install that decide which policy checks a lockfile still needs,
 /// split out of `install.rs`.
 pub mod install_verify;
