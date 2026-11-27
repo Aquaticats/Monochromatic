@@ -131,6 +131,21 @@ so a control that counts its own command's figures runs its body in a child of i
 and one that names any of them without one fails
 `source_guard/no_control_reads_the_commit_ledgers_in_the_run_tests.rs`
 (issue 6509).
+The add timing record is one list of the whole process as well
+(`worktree/add_timing_steps.rs`:
+`begin` replaces its empty list and `finish` takes it),
+and beginning a recording also publishes the step the add's standing notice names,
+so a control that begins one runs its body in a child of its own
+(`worktree/add_timing_tests.rs`),
+and a control that ran its body beside another's recording read a line holding none of its own work
+(issue 6532).
+No `source_guard` ban covers that record yet:
+the scan such a ban is built on reads every test-only source,
+and seven controls of four other files still begin a recording in the run's own process
+(`worktree/add_standing_notice_tests.rs`, which is issue 6533,
+`worktree/worktree_clone_tests.rs`,
+`worktree/worktree_ladder_finish_tests.rs` and
+`worktree/worktree_ladder_target_tree_skip_tests.rs`).
 The two windows a notice reads are one window for the process as well,
 so a control that steps a notice takes them before it starts
 (`take_the_windows_a_notice_control_reads` in `commit/native_commit_waiting_notice_tests.rs`),
