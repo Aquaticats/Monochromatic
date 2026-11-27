@@ -1,0 +1,608 @@
+//! Announcing the playing track and pumping its samples into the output.
+//!
+//! What:
+//! `emit_now_playing` tells the window what started,
+//! `seek` moves the decoder and the clock,
+//! `pump_audio` pushes decoded samples through the gain stage into the ring
+//! buffer,
+//! and `report_audio_meters` reports the output's underrun counters.
+//! Why:
+//! those four are the path from a decoder to the speaker and the window,
+//! so they are read together,
+//! split from `src/controller_audio.rs` to stay within the line budget.
+
+/// What:
+///      `use ringbuf::traits::Producer` brings the ring buffer's push methods into
+///           scope.
+/// Why:
+///      Samples are pushed into the buffer the output handed over,
+///  and `push_slice` is a trait method.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // no equivalent: importing an interface to unlock .pushSlice()
+/// ```
+use ringbuf::traits::Producer;
+/// What:
+///      `use std::path::Path` brings the borrowed filesystem path type.
+/// Why:
+///      The playing track's display name is taken from its path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // a path is just a string in TS
+/// ```
+use std::path::Path;
+
+/// What:
+///      `use crate::audio_meter::MeterReporter` brings the once-a-second reporter for the
+///           output's counters.
+/// Why:
+///      The engine loop owns one,
+///  and these methods feed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { MeterReporter } from "./audioMeter";
+/// ```
+use crate::audio_meter::MeterReporter;
+/// What:
+///      `use crate::command::Update` brings the engine-to-window message enum.
+/// Why:
+///      The position,
+///  the playing track and the end of a queue are all announced with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Update } from "./command";
+/// ```
+use crate::command::Update;
+/// What:
+///      `use crate::controller::Controller` brings the state struct these methods are
+///           added to.
+/// Why:
+///      This file is one `impl Controller` block,
+///  so the type must be in scope.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Controller } from "./controller";
+/// ```
+use crate::controller::Controller;
+/// What:
+///      `use crate::playback::{...}` brings the display-name extraction and the
+///           per-sample gain stage.
+/// Why:
+///      Every sample pushed through the output is gained and clamped there,
+///  and the announced title comes from the file name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fileNameOf, processSample } from "./playback";
+/// ```
+use crate::playback::{
+    file_name_of,
+    process_sample,
+};
+
+/// What:
+///      `impl Controller` with the four methods that announce the playing track,
+///  seek,
+///  pump samples into the output and report its meters.
+/// Why:
+///       The type is declared in `controller.rs`,
+///  and Rust lets one type's methods live in several `impl` blocks,
+///  which is what keeps each file within the line budget.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // Controller.prototype.pumpAudio = function () { ... }
+/// ```
+impl Controller {
+    /// What:
+    ///      `fn emit_now_playing(&self, path: &Path, duration_secs: f64)`.
+    ///  Announce the queue's current track to the UI (its row,
+    /// its display name,
+    /// its length)
+    ///  and reset the seek bar to zero.
+    /// Why:
+    ///       Both a freshly loaded track and a track that follows the audible one without a gap
+    ///  are announced this way,
+    /// at the moment they become audible.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// emitNowPlaying(path: string, durationSecs: number): void { ... }
+    /// ```
+    pub(crate) fn emit_now_playing(
+        &self,
+        path: &Path,
+        duration_secs: f64,
+    ) {
+        // What:     `let index = self.queue.current_index();`. Its LOAD-ORDER position in the
+        //           queue (an `Option<usize>`).
+        // Why:      Lets the UI highlight the current row, and indexes the display paths for
+        //           the name below.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const index = this.queue.currentIndex();
+        // ```
+        let index = self.queue.current_index();
+        // What:     `let shown = match index { ... }` takes the queue's display path at the index, and `let name =
+        //           match shown { ... }` falls back to the bare file name of `path` when there is none.
+        // Why:      The window title shows this name, so it must match the list row, not just
+        //           the filename. Still filesystem-derived (no embedded tags).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const name = index != null ? this.queue.displayPaths()[index] : fileNameOf(path);
+        // ```
+        let shown = match index {
+            Some(position) => self.queue.display_paths().into_iter().nth(position),
+            None => None,
+        };
+        let name = match shown {
+            Some(display_path) => display_path,
+            None => file_name_of(path),
+        };
+        // What:     `self.emit(Update::NowPlaying { index, name, duration: duration_secs });`.
+        //           Tell the UI the new track (struct-variant literal).
+        // Why:      Update the now-playing label and seek-bar maximum.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.emit({ kind: "nowPlaying", index, name, duration: durationSecs });
+        // ```
+        self.emit(Update::NowPlaying {
+            index,
+            name,
+            duration: duration_secs,
+        });
+        // What:     `self.emit(Update::Position(0.0));`. Reset the seek bar to 0.
+        // Why:      New track starts at the beginning.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.emit({ kind: "position", secs: 0 });
+        // ```
+        self.emit(Update::Position(0.0));
+    }
+
+    /// What:
+    ///      `pub(crate) fn seek(&mut self, secs: f64)`.
+    ///  Move playback to `secs` and
+    ///           flush buffered audio.
+    ///  `pub(crate)` so the command-handling half can call it.
+    /// Why:
+    ///       Seek-bar control.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// seek(secs: number): void { ... }
+    /// ```
+    pub(crate) fn seek(
+        &mut self,
+        secs: f64,
+    ) {
+        // What:     `if self.staged.is_some() && !self.return_to_audible_track() { return; }`. When the next track
+        //           was opened early, switch the decoder back to the track the listener still hears.
+        // Why:      The seek bar belongs to the audible track; seeking the staged one would play the wrong file.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (this.staged && !this.returnToAudibleTrack()) return;
+        // ```
+        if self.staged.is_some() && !self.return_to_audible_track() {
+            return;
+        }
+        // What:     `let spec = match self.spec { Some(s) => s, None => return };`. Copy the
+        //           format out, or do nothing if no track is loaded.
+        // Why:      Need the rate to recompute the frame position.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const spec = this.spec; if (!spec) return;
+        // ```
+        let spec = match self.spec {
+            // What:     `Some(s) => s`. Copy the spec (`AudioSpec` is `Copy`).
+            // Why:      No borrow held.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // spec = this.spec;
+            // ```
+            Some(s) => s,
+            // What:     `None => return`. Nothing loaded.
+            // Why:      Ignore the seek.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return;
+            // ```
+            None => return,
+        };
+
+        // What:     `if let Some(source) = self.source.as_mut() { ... } else { return; }`.
+        //           `.as_mut()` borrows the optional source mutably; seek the decoder, or
+        //           bail if there is no source.
+        // Why:      The decoder must reposition.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!this.source) return; this.source.seek(secs);
+        // ```
+        if let Some(source) = self.source.as_mut() {
+            // What:     `if let Err(e) = source.seek(secs) { eprintln!(...); return; }`.
+            //           Attempt the seek; on the error variant, log and abort.
+            // Why:      A failed seek should not corrupt position state.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // try { source.seek(secs); } catch (e) { console.error(e); return; }
+            // ```
+            if let Err(e) = source.seek(secs) {
+                tracing::warn!(error = %e, "seek failed");
+                return;
+            }
+        } else {
+            // What:     `return;`. No source -> nothing to seek.
+            // Why:      Guard.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return;
+            // ```
+            return;
+        }
+
+        // What:     `if let Some(output) = self.output.as_mut() { ... }`. Rebuild the stream
+        //           at the SAME format to flush stale buffered audio.
+        // Why:      Otherwise ~1s of pre-seek audio would still play.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (this.output) { this.producer = output.reconfigure(spec.rate, spec.channels, spec.rate); }
+        // ```
+        if let Some(output) = self.output.as_mut() {
+            // What:     `match output.reconfigure(spec.rate, spec.channels, spec.rate as usize) { ... }`.
+            //           Same rate/channels, ~1s buffer; new empty producer.
+            // Why:      Clean slate after the jump.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // try { this.producer = output.reconfigure(spec.rate, spec.channels, spec.rate); } catch (e) { ... }
+            // ```
+            match output.reconfigure(spec.rate, spec.channels, spec.rate as usize) {
+                // What:     `Ok(prod) => self.producer = Some(prod)`. Replace the producer.
+                // Why:      Flush.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // this.producer = prod;
+                // ```
+                Ok(prod) => self.producer = Some(prod),
+                // What:     `Err(e) => eprintln!(...)`. Log a reconfigure failure.
+                // Why:      Keep going (position still updates).
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // console.error(e);
+                // ```
+                Err(e) => tracing::warn!(error = %e, "seek reconfigure failed"),
+            }
+        }
+
+        // What:     `self.pending.clear(); self.pending_pos = 0;`. Drop leftover pre-seek
+        //           samples we had not pushed yet.
+        // Why:      They belong to the old position.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.pending = []; this.pendingPos = 0;
+        // ```
+        self.pending.clear();
+        self.pending_pos = 0;
+
+        // What:     `self.clock.restart((secs * spec.rate as f64) as u64);`. Convert the
+        //           target seconds to a frame count (`as u64` truncates the float) and count from the
+        //           new, empty ring that starts at that frame; this also sets the throttle baseline to
+        //           the target and clears an end-of-track drain.
+        // Why:      Keep position reporting consistent after the jump: the sound resumes at `secs`,
+        //           so the audible position is `secs` until the output consumes more.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.clock.restart(Math.floor(secs * spec.rate));
+        // ```
+        self.clock.restart((secs * spec.rate as f64) as u64);
+        // What:     `self.emit(Update::Position(secs));`. Snap the UI seek bar.
+        // Why:      Reflect the jump immediately.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.emit({ kind: "position", secs });
+        // ```
+        self.emit(Update::Position(secs));
+    }
+
+    /// What:
+    ///      `pub(crate) fn pump_audio(&mut self) -> bool`.
+    ///  Push at most one block of
+    ///           audio into the ring buffer.
+    ///  Returns whether it did meaningful work.
+    ///           `pub(crate)` so `engine::run` can call it each loop iteration.
+    /// Why:
+    ///       The decode->buffer feeding step.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// pumpAudio(): boolean { ... }
+    /// ```
+    pub(crate) fn pump_audio(&mut self) -> bool {
+        // What:     `if !self.playing { return false; }`. Paused: no work.
+        // Why:      Respect pause.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!this.playing) return false;
+        // ```
+        if !self.playing {
+            return false;
+        }
+        // What:     `if self.clock.is_draining() { return false; }`. The decoder already reached the end
+        //           of the track; the ring is being played out and `tick_playback` starts the next track.
+        // Why:      Decoding again at end of stream would only repeat the end-of-track signal.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (this.clock.isDraining()) return false;
+        // ```
+        if self.clock.is_draining() {
+            return false;
+        }
+        // What:     `if self.producer.is_none() || self.source.is_none() { return false; }`.
+        //           Need both a write end and a decoder. `.is_none()` is true for the empty
+        //           `Option`.
+        // Why:      Nothing to do otherwise.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (!this.producer || !this.source) return false;
+        // ```
+        if self.producer.is_none() || self.source.is_none() {
+            return false;
+        }
+
+        // What:     `if self.pending_pos < self.pending.len() { ... }`. Leftover samples from
+        //           last time; push them first.
+        // Why:      Finish the previous block before decoding more.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (this.pendingPos < this.pending.length) { ... }
+        // ```
+        if self.pending_pos < self.pending.len() {
+            // What:     `let pushed = if let Some(producer) = self.producer.as_mut() { producer.push_slice(&self.pending[self.pending_pos..]) } else { 0 };`.
+            //           Push the unsent tail; `push_slice` returns how many were accepted.
+            //           `&self.pending[a..]` borrows a sub-slice (disjoint from the producer).
+            // Why:      Make progress draining `pending`.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const pushed = this.producer.pushSlice(this.pending.slice(this.pendingPos));
+            // ```
+            let pushed = if let Some(producer) = self.producer.as_mut() {
+                producer.push_slice(&self.pending[self.pending_pos..])
+            } else {
+                0
+            };
+            // What:     `self.pending_pos += pushed;`. Advance the sent cursor.
+            // Why:      Track what is left.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // this.pendingPos += pushed;
+            // ```
+            self.pending_pos += pushed;
+            // What:     `if self.pending_pos >= self.pending.len() { self.pending.clear(); self.pending_pos = 0; }`.
+            //           Fully drained -> reset the buffer.
+            // Why:      Ready to decode next time.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // if (this.pendingPos >= this.pending.length) { this.pending = []; this.pendingPos = 0; }
+            // ```
+            if self.pending_pos >= self.pending.len() {
+                self.pending.clear();
+                self.pending_pos = 0;
+            }
+            // What:     `self.record_pushed(pushed);`. Count the pushed frames.
+            // Why:      The audible position is pushed minus what is still queued in the ring.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // this.recordPushed(pushed);
+            // ```
+            self.record_pushed(pushed);
+            // What:     `return pushed > 0;`. Did work only if something was pushed.
+            // Why:      Tell the caller whether to sleep.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return pushed > 0;
+            // ```
+            return pushed > 0;
+        }
+
+        // What:     `let decoded = if let Some(source) = self.source.as_mut() { source.next_chunk() } else { return false; };`.
+        //           Decode the next block; `next_chunk()` returns `Result<Vec<f32>, _>`.
+        // Why:      Produce more audio.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const decoded = this.source.nextChunk();
+        // ```
+        let decoded = if let Some(source) = self.source.as_mut() {
+            source.next_chunk()
+        } else {
+            return false;
+        };
+
+        // What:     `let mut chunk = match decoded { ... };`. Unwrap; on error, log, start the
+        //           end-of-track drain, and report work done. `mut` because the samples are gained in
+        //           place below.
+        // Why:      Handle decode failures without crashing.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // let chunk; try { chunk = decoded; } catch (e) { console.error(e); this.beginTrackEnd(); return true; }
+        // ```
+        let mut chunk = match decoded {
+            // What:     `Ok(c) => c`. The decoded samples.
+            // Why:      Continue.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // chunk = c;
+            // ```
+            Ok(c) => c,
+            // What:     `Err(e) => { tracing::warn!(...); self.begin_track_end(); return true; }`. Treat
+            //           a decode error as end-of-track.
+            // Why:      Move on rather than stall.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // catch (e) { console.error(e); this.beginTrackEnd(); return true; }
+            // ```
+            Err(e) => {
+                tracing::warn!(error = %e, "decode error; treating as end of track");
+                self.begin_track_end();
+                return true;
+            }
+        };
+
+        // What:     `if chunk.is_empty() { self.begin_track_end(); return true; }`. An empty
+        //           chunk is the end-of-stream signal.
+        // Why:      Every sample of the track is now in the ring; the next track starts after the
+        //           output consumed them (`tick_playback`), not now.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (chunk.length === 0) { this.beginTrackEnd(); return true; }
+        // ```
+        if chunk.is_empty() {
+            self.begin_track_end();
+            return true;
+        }
+
+        // What:     `let gain = self.volume * self.track_gain;`. Combine the user volume with
+        //           the track's true-peak normalization gain.
+        // Why:      One scalar applied per sample below.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const gain = this.volume * this.trackGain;
+        // ```
+        let gain = self.volume * self.track_gain;
+        // What:     `for sample in chunk.iter_mut() { *sample = process_sample(*sample, gain); }`.
+        //           Run every sample through the output stage in place. `iter_mut` yields
+        //           `&mut f32`; the right `*sample` reads, the left `*sample =` writes back.
+        // Why:      Apply gain + clamp in one tested place.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // for (let i = 0; i < chunk.length; i++) chunk[i] = processSample(chunk[i], gain);
+        // ```
+        for sample in chunk.iter_mut() {
+            *sample = process_sample(*sample, gain);
+        }
+
+        // What:     `let pushed = if let Some(producer) = self.producer.as_mut() { producer.push_slice(&chunk) } else { 0 };`.
+        //           Push the gained chunk; `push_slice` returns the accepted count.
+        // Why:      Feed the audio thread.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const pushed = this.producer.pushSlice(chunk);
+        // ```
+        let pushed = if let Some(producer) = self.producer.as_mut() {
+            producer.push_slice(&chunk)
+        } else {
+            0
+        };
+        // What:     `self.record_pushed(pushed);`. Count the pushed frames.
+        // Why:      The audible position is pushed minus what is still queued in the ring.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // this.recordPushed(pushed);
+        // ```
+        self.record_pushed(pushed);
+        // What:     `if pushed < chunk.len() { self.pending = chunk; self.pending_pos = pushed; }`.
+        //           Stash the remainder if the buffer could not take all of it (MOVES
+        //           `chunk` into `self.pending`).
+        // Why:      Push the rest next cycle instead of dropping samples.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (pushed < chunk.length) { this.pending = chunk; this.pendingPos = pushed; }
+        // ```
+        if pushed < chunk.len() {
+            self.pending = chunk;
+            self.pending_pos = pushed;
+        }
+        // What:     `true`. We decoded and pushed: work was done. Tail expression -> return.
+        // Why:      Caller should not sleep.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return true;
+        // ```
+        return true;
+    }
+
+    /// What:
+    ///      `pub(crate) fn report_audio_meters(&self, reporter: &mut MeterReporter)`.
+    ///  Logs the output's underrun counters once a second,
+    /// and only when they moved.
+    /// Why:
+    ///       The realtime callback only counts;
+    /// this runs on the engine thread,
+    /// where logging is allowed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reportAudioMeters(reporter: MeterReporter): void { ... }
+    /// ```
+    pub(crate) fn report_audio_meters(
+        &self,
+        reporter: &mut MeterReporter,
+    ) {
+        let Some(output) = self.output.as_ref() else {
+            return;
+        };
+        let now = std::time::Instant::now();
+        if !reporter.is_due(now) {
+            return;
+        }
+        let Some(change) = reporter.record(now, output.meter_snapshot()) else {
+            return;
+        };
+        if change.short_callbacks > 0 {
+            tracing::warn!(
+                short_callbacks = change.short_callbacks,
+                silent_frames = change.silent_frames,
+                requested_frames = change.last_requested_frames,
+                buffer_frames = change.last_buffer_frames,
+                "audio output underran in the last second"
+            );
+            return;
+        }
+        tracing::info!(
+            requested_frames = change.last_requested_frames,
+            buffer_frames = change.last_buffer_frames,
+            "audio output buffer sizes"
+        );
+    }
+}
