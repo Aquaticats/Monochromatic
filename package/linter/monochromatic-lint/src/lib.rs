@@ -148,6 +148,19 @@ mod layout_folder_index_files;
 ///  `uses` links that match the folders the code uses,
 ///  and no loop between folders.
 mod layout_folder_links;
+/// The findings about the links of one folder,
+///  its glob re-exports,
+///  and the source folders below a `uses` folder.
+mod layout_folder_links_entries;
+/// The loops each source folder and each entry of a group sits in,
+///  and the searches over the uses that answer it.
+mod layout_folder_links_loops;
+/// The loop a group's own file closes,
+///  and the uses that sit inside it.
+mod layout_folder_links_own_file_loops;
+/// What the allow list tolerates of a package's folder uses,
+///  and the uses a tolerated loop holds.
+mod layout_folder_links_tolerated_uses;
 /// The folders each folder uses with a proving reference,
 ///  and loops among folders or entries.
 mod layout_folder_uses;
