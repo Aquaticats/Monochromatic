@@ -128,7 +128,10 @@ access. Read access is sufficient for the measured payload open; the source also
 permissions for the receiver.
 
 The pre-change local policy is retained privately at
-`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/helium-local.before-spectacle-drag-read`.
+`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/helium-local.before-spectacle-drag-read`
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 ## What does not work
 
