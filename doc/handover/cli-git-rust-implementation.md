@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T17:33:10-05:00
+## The state at 2026-11-27T17:35:16-05:00
 
-`main` was `ca0f353f5c`.
+`main` was `21c91bc9fd`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 275 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 276 more by this time.
 
 ### Rounds running
 
@@ -831,7 +831,27 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and `a-link-move-that-fails-once-and-what-a-put-back-does-to-current`.
   The round of issue 6626 got a note in its inbox at 2026-11-27T17:10:09-05:00,
   naming the files those two have.
-  `0.2.7-alpha.17` follows the merges of all three.
+  The first of the two,
+  on the sentences,
+  is merged (`21c91bc9fd`):
+  each of its seven points held on `main` and was shown red there by a test that reads the sentence from a run.
+  A failed listing names the hidden names an earlier install left;
+  the second-copy clause says the version holds its completion marker and its program at its name,
+  where it said nothing was lost;
+  the step by hand is a copy of the copy's contents,
+  printed as a command,
+  where a move nested the copy inside a directory already at the version's name;
+  the failed download's clause names a download that matches the lock's digest and that the install can keep;
+  and `prune --toolchain` says one of five things it read.
+  The README says which sentences its list holds.
+  Its whole test task passed 901 of 901 on its merged tree.
+  It left the rule behind the second-copy clause alone,
+  as its brief said,
+  and priced it:
+  keeping a second copy whose program differs means reading both programs on every recovery,
+  and still cannot tell a program cut short from one rebuilt at the same size.
+  The other round of the read and the round of issue 6630 got a note at 2026-11-27T17:35-05:00 on what it reworded.
+  `0.2.7-alpha.17` follows the merges of the two that still run.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
