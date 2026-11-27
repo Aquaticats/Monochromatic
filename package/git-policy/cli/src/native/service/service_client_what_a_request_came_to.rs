@@ -1,5 +1,6 @@
 //! What:
-//!  What a commit request came to, as the wrapper's own side of the service reads it:
+//!  What a commit request came to,
+//!  as the wrapper's own side of the service reads it:
 //!  the commit is on the branch,
 //!  the commit is written and kept behind a reference lock,
 //!  the commit must be prepared again from a base the branch moved to,

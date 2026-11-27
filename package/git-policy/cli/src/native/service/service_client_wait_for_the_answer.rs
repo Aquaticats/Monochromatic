@@ -92,11 +92,13 @@ pub(crate) struct TheWaitForTheAnswer<'a> {
     pub(crate) inside_write: &'a mut bool,
     /// Who the service last named as holding what the commit waits for.
     pub(crate) holder: &'a mut Option<String>,
-    /// When the wait began, which the ceiling is measured from.
+    /// When the wait began,
+    /// which the ceiling is measured from.
     pub(crate) waiting_since: Instant,
     /// When the extra wait for a write the request is inside ends.
     pub(crate) answer_deadline: Instant,
-    /// When the request line was written, which this wait is measured from.
+    /// When the request line was written,
+    /// which this wait is measured from.
     pub(crate) written_at: Instant,
 }
 
