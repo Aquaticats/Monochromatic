@@ -18,7 +18,9 @@
 //! type AnOlderVersion = 'may-stay' | { newer: string };
 //! type FinishedCopy = 'nothing-to-publish' | { publishedHere: string } | 'published-by-another-install' | { newer: string };
 //! type HoldingInstaller = { path: string; running: boolean; finishedCopy: boolean };
-//! type RemovedLeftover = { path: string; heldAFinishedCopy: boolean };
+//! type RemovedLeftover = { path: string; finishedCopy: RemovedFinishedCopy };
+//! type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
+//! type WhyNotPublished = 'the-lock-does-not-record-its-archive' | { anOlderRepositoryToolIsNeverKept: string };
 //! type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall?: HoldingInstaller; removed: RemovedLeftover[] };
 //! function holdsOf(purpose: string): Holds | undefined;
 //! function mayBePublished(holds: Holds): boolean;
@@ -172,22 +174,82 @@ pub(crate) struct HoldingInstaller {
 }
 
 /// What:
-/// One hidden sibling this run removed,
-/// with whether it held a finished copy when it went.
+/// Why this run did not publish a finished copy that it removed:
+/// the two facts of the publish rule that keep such a copy out of the version's name.
 /// Why:
-/// The report says that a finished copy went with a removed directory,
-/// so a person knows the version comes back only from a download or another copy.
+/// The report has to say why the copy went,
+/// and both reasons are facts this run read:
+/// one from the copy's completion marker and the lock's row,
+/// the other from the finished version that is installed beside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemovedLeftover = { path: string; heldAFinishedCopy: boolean };
+/// type WhyNotPublished = 'the-lock-does-not-record-its-archive' | { anOlderRepositoryToolIsNeverKept: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum WhyNotPublished {
+    /// The copy's completion marker does not record the archive this lock names for the version,
+    /// so nothing here could vouch for its bytes.
+    TheLockDoesNotRecordItsArchive,
+    /// A newer finished version of this repository-published tool is installed,
+    /// and an older repository tool is never kept.
+    AnOlderRepositoryToolIsNeverKept {
+        /// The newer finished version that is installed.
+        newer: String,
+    },
+}
+
+/// What:
+/// What this run read about the finished copy that went with a hidden sibling it removed:
+/// nothing at all,
+/// a copy whose version is finished at its name,
+/// or a copy whose version holds no finished copy at its name and that this run did not publish.
+/// Why:
+/// A removed finished copy may be a second one the version can spare or the one copy it had here,
+/// and the run answers that by reading the version's own name,
+/// never by calling the copy's version lost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum RemovedFinishedCopy {
+    /// The hidden sibling held no finished copy, so nothing went with it.
+    NoFinishedCopy,
+    /// It held a finished copy of `version`,
+    /// and a finished copy of that version is at its name.
+    SecondCopy {
+        /// The version the removed copy belonged to.
+        version: String,
+    },
+    /// It held a finished copy of `version`,
+    /// and no finished copy of that version is at its name.
+    NotAtItsName {
+        /// The version the removed copy belonged to.
+        version: String,
+        /// Why this run did not publish the copy.
+        why_not_published: WhyNotPublished,
+    },
+}
+
+/// What:
+/// One hidden sibling this run removed,
+/// with what it read about the finished copy that went with it.
+/// Why:
+/// The report says whether a finished copy went with a removed directory and what that cost,
+/// so a person knows whether the version still has a copy or comes back only from a download.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RemovedLeftover = { path: string; finishedCopy: RemovedFinishedCopy };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RemovedLeftover {
     /// The hidden sibling that is gone when the recovery returns.
     pub(crate) path: PathBuf,
-    /// Whether that directory held a finished copy of its version.
-    pub(crate) held_a_finished_copy: bool,
+    /// What this run read about the finished copy the directory held when it went.
+    pub(crate) finished_copy: RemovedFinishedCopy,
 }
 
 /// What:

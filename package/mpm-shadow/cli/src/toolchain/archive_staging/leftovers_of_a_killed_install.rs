@@ -139,7 +139,9 @@ pub(crate) use self::what_a_recovery_answers::{
     Holds,
     Leftover,
     Recovered,
+    RemovedFinishedCopy,
     RemovedLeftover,
+    WhyNotPublished,
     holds_of,
     may_be_published,
 };
@@ -431,12 +433,54 @@ fn put_back_the_copy(
             return Ok(false);
         }
         return Err(ToolchainError::failure(format!(
-            "cannot put back the copy at {} that a killed install had moved aside: {error}; that copy is still there, and nothing was put back at {}",
+            "cannot put back the copy at {} that an earlier install had moved aside: {error}; that copy is still there, and nothing was put back at {}",
             replaced.display(),
             version_dir.display()
         )));
     }
     return Ok(true);
+}
+
+/// What:
+/// Why this run did not publish a finished copy of a version whose own name holds no finished copy.
+/// Why:
+/// Both answers are facts this run read:
+/// a version that may not be kept beside a newer one never reached a publish at all,
+/// and a version that may be kept was left for the claim above,
+/// which takes only a copy whose marker records the archive this lock names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whyThisRunDidNotPublishIt(olderVersion: AnOlderVersion): WhyNotPublished {
+///   return olderVersion === 'may-stay'
+///     ? 'the-lock-does-not-record-its-archive'
+///     : { anOlderRepositoryToolIsNeverKept: olderVersion.newer };
+/// }
+/// ```
+fn why_this_run_did_not_publish_it(older_version: &AnOlderVersion) -> WhyNotPublished {
+    // What: `match` on the rule's two answers, which is a discriminated union in TS.
+    // Why: only the older-version rule keeps the publish path from running at all, so only it names that rule.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (olderVersion !== 'may-stay') return { anOlderRepositoryToolIsNeverKept: olderVersion.newer };
+    // return 'the-lock-does-not-record-its-archive';
+    // ```
+    return match older_version {
+        AnOlderVersion::MayStay => WhyNotPublished::TheLockDoesNotRecordItsArchive,
+        // What: `.clone()` copies the newer version's name into the answer, because the answer outlives this borrow.
+        // Why: the sentence is built after this function returns.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return { anOlderRepositoryToolIsNeverKept: newer };
+        // ```
+        AnOlderVersion::NeverKept {
+            newer,
+        } => WhyNotPublished::AnOlderRepositoryToolIsNeverKept {
+            newer: newer.clone(),
+        },
+    };
 }
 
 /// What:
@@ -563,19 +607,41 @@ pub(crate) fn recover_leftovers(
         if fs::symlink_metadata(&sibling.path).is_err() {
             continue;
         }
-        // What: whether this directory holds a finished copy of its version, read before the directory goes.
-        // Why: the report says a finished copy went with it, and a directory that is gone cannot be read.
+        // What: what this run reads about the finished copy that is about to go with the directory:
+        //  whether the version's own name holds a finished copy, which makes the removed one a second one,
+        //  and, when it holds none, why this run did not publish it.
+        // Why: the report has to tell a second copy from the version's only copy here, and the directory is gone
+        //  after this loop, so both questions are read first.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const heldAFinishedCopy = isFinished(sibling.path, firstBin);
+        // const finishedCopy = isFinished(sibling.path, firstBin)
+        //   ? isFinished(join(directory, sibling.version), firstBin)
+        //     ? { secondCopy: sibling.version }
+        //     : { notAtItsName: sibling.version, whyNotPublished: theRuleThatKeptItOut() }
+        //   : 'no-finished-copy';
         // ```
-        let held_a_finished_copy: bool = is_finished(&sibling.path, first_bin);
+        let finished_copy: RemovedFinishedCopy = if is_finished(&sibling.path, first_bin) {
+            let version_is_finished: bool =
+                is_finished(&directory.join(&sibling.version), first_bin);
+            if version_is_finished {
+                RemovedFinishedCopy::SecondCopy {
+                    version: sibling.version.clone(),
+                }
+            } else {
+                RemovedFinishedCopy::NotAtItsName {
+                    version: sibling.version.clone(),
+                    why_not_published: why_this_run_did_not_publish_it(&older_version),
+                }
+            }
+        } else {
+            RemovedFinishedCopy::NoFinishedCopy
+        };
         discard_path(&sibling.path);
         if fs::symlink_metadata(&sibling.path).is_err() {
             outcome.removed.push(RemovedLeftover {
                 path: sibling.path.clone(),
-                held_a_finished_copy,
+                finished_copy,
             });
         }
     }
