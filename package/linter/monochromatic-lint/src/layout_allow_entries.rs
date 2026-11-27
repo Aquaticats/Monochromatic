@@ -263,9 +263,12 @@ fn listed_path(text: &str) -> PathBuf {
 /// ```ts
 /// const spacedFolder = (text: string, words: string[], base: Path) => {
 ///   if (words.length < 6 || words[words.length - 2] !== '->') return undefined
-///   const afterWord = text.slice('file-uses'.length + 1)
+///   const afterWord = text.slice('file-uses'.length).replace(/^\s/, '')
+///   const arrow = arrowBetweenWhitespace(afterWord)
+///   if (arrow === undefined) return undefined
+///   const beforeArrow = afterWord.slice(0, arrow).replace(/\s$/, '')
 ///   const file = words[words.length - 3]
-///   const folder = afterWord.slice(0, -file.length).slice(0, -1)
+///   const folder = beforeArrow.slice(0, -file.length).replace(/\s$/, '')
 ///   return /\s/.test(folder) && isDirectory(base.join(folder)) ? folder : undefined
 /// }
 /// ```
