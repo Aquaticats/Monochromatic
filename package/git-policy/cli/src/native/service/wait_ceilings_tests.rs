@@ -382,17 +382,19 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
 /// and the rung no longer takes one.
 #[test]
 fn an_add_takes_its_own_snapshot_and_waits_for_none_made_ahead() {
-    let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
+    let finish: &str = include_str!("../worktree/worktree_ladder_finish.rs");
+    let snapshot: &str = include_str!("../worktree/worktree_ladder_finish_snapshot.rs");
     assert!(
-        rung.contains("take_snapshot("),
+        snapshot.contains("take_snapshot("),
         "the snapshot rung takes the add's own snapshot"
     );
     assert!(
-        !rung.contains("look_for_a_snapshot_ahead"),
+        !finish.contains("look_for_a_snapshot_ahead")
+            && !snapshot.contains("look_for_a_snapshot_ahead"),
         "the add claims no copy the service made ahead"
     );
     assert!(
-        !rung.contains("SNAPSHOT_AHEAD_CEILING"),
+        !finish.contains("SNAPSHOT_AHEAD_CEILING") && !snapshot.contains("SNAPSHOT_AHEAD_CEILING"),
         "nothing bounds a wait the add does not make"
     );
     let ceilings: &str = include_str!("wait_ceilings.rs");

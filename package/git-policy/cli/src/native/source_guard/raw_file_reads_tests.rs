@@ -198,7 +198,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("transaction/recovery_files.rs", 1, "own-record"),
     ("worktree/worktree_clone_block_cloning.rs", 1, "system"),
     (
-        "worktree/worktree_clone_conversion_fence.rs",
+        "worktree/worktree_clone_conversion_fence_write.rs",
         2,
         "git-directory",
     ),
