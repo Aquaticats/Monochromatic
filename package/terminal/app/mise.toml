@@ -60,8 +60,11 @@ const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 // fetchGhosttyOfflineInputs leaves Ghostty's source and the Zig packages of libghostty-vt-sys under target/ghostty-offline (bin/fetch-ghostty-offline-inputs.ts, SHA-256 pinned in ghostty-offline-inputs.json, a no-op when current), so no cargo run downloads while compiling: libghostty-vt-sys reads GHOSTTY_SOURCE_DIR and GHOSTTY_ZIG_SYSTEM_DIR (the closure check of monochromatic-lint sets the same two variables itself).
 const fetchGhosttyOfflineInputs = () => execFileSync('node', ['bin/fetch-ghostty-offline-inputs.ts'], { stdio: 'inherit' })
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts `intercept-cc` last, which has no `include/stdbool.h`.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}`, ZIG_GLOBAL_CACHE_DIR: `${process.cwd()}/target/zig-global-cache`, GHOSTTY_SOURCE_DIR: `${process.cwd()}/target/ghostty-offline/source`, GHOSTTY_ZIG_SYSTEM_DIR: `${process.cwd()}/target/ghostty-offline/packages` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's

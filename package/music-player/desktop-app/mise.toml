@@ -82,8 +82,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'libpipewire-0.3', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts `intercept-cc` last, which has no `include/stdbool.h`.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, LIBCLANG_PATH: '/usr/lib64', BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}` }
 }
 const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', limits: containerLimitArguments(cargoContainerBound), env: [], program: 'cargo' }

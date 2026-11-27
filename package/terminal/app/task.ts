@@ -51,8 +51,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -91,8 +94,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -219,8 +225,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -258,8 +267,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -297,8 +309,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -336,8 +351,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -375,8 +393,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -483,8 +504,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -523,8 +547,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -562,8 +589,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -601,8 +631,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
@@ -643,8 +676,11 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
 const hostEnv = () => {
-  const clangDirs = globSync('/usr/lib/clang/*').sort()
-  const resourceDir = clangDirs[clangDirs.length - 1]
+  // Only a versioned clang resource directory holds the C headers: the clang package also installs
+  // its analyzer driver scripts (ccc-analyzer, intercept-cc and so on) beside the version directory,
+  // and sorting the whole glob puts intercept-cc last, which has no include/stdbool.h.
+  const clangDirs = globSync('/usr/lib/clang/*/include/stdbool.h').sort()
+  const resourceDir = (clangDirs[clangDirs.length - 1] ?? '').split('/include/stdbool.h')[0]
   return { ...process.env, BINDGEN_EXTRA_CLANG_ARGS: \`-resource-dir=\${resourceDir}\`, ZIG_GLOBAL_CACHE_DIR: \`\${process.cwd()}/target/zig-global-cache\` }
 }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
