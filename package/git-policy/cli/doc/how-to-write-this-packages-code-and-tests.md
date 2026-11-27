@@ -353,7 +353,7 @@ Measured on 2026-11-27 at this host's load average of 86.0 to 142.5:
 over 15398 hand-overs of one query's standard output in one threaded module run,
 the median came 0.003 ms after the pipe's end and the worst 110.4 ms,
 which the window cleared by 2.3 times.
-The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_commands.rs`:
+The window is asked of the pipe itself now (`has_ended_within` in `testing/fixture_git_pipes_read_beside_the_query.rs`:
 the kernel reports a pipe's end the instant its last writing end closes and keeps that news until it is read),
 and the reader's hand-over of the bytes is bounded by `REPORTING_THE_END`,
 sixty seconds,
