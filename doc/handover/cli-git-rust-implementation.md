@@ -147,7 +147,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (no round yet;
   part 1 was told of both sets by an inbox note);
 - three rounds for what part 2's report left,
-  started 2026-11-27T11:40 from one list:
+  started 2026-11-27T11:40:23-05:00 from one list:
   `issue-6608-verification-process-tests-wait-for-the-child-by-a-fact-it-gives`;
   `issue-6610-a-check-scopes-last-counters-keep-every-part-they-read`
   (a unit test of what a check's scope counted failed once in one whole run,
@@ -186,7 +186,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   it waits for issue 6610's round,
   which holds two of its files);
 - for `cargo-shadow`'s `0.1.5-alpha.13` pass,
-  three rounds started 2026-11-27T12:05 from one list,
+  three rounds started 2026-11-27T12:00:02-05:00 from one list,
   each named `cargo-shadow-alpha-13-release-pass-` and then:
   `the-retire-gates-fallback-and-its-words-are-held-by-controls`;
   `the-refusals-listing-and-its-records-say-what-the-code-does`;
@@ -195,7 +195,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   it shows the state in a guest and adds it to
   `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
 - for `mpm-shadow`'s `0.2.7-alpha.14` pass,
-  four rounds started 2026-11-27T12:20 from one list,
+  four rounds started 2026-11-27T12:11:40-05:00 from one list,
   each named `mpm-shadow-alpha-14-release-pass-` and then:
   `a-failed-or-raced-publish-never-costs-the-finished-copy`;
   `a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`;
@@ -310,7 +310,8 @@ each a Claude Sonnet read
 (same vendor as some of the authors,
 so a second pass and not an independent review)
 of the wrapper's `0.6.1-alpha.49` against `0.6.1-alpha.48`,
-started 2026-11-27T12:10:
+started 2026-11-27T12:08-05:00
+(their scratch folders were made at 12:08:26 and 12:08:58):
 one of the merges that change behaviour
 (`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`),
 one of the two that claim to change none,
