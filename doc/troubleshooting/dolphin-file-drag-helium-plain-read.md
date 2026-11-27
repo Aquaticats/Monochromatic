@@ -142,7 +142,10 @@ this file is being dragged" with this pathname rule. The grant provides no write
 execute, capability, or broader-home permission. Files outside `Plain` retain their existing policy.
 
 The pre-change local policy is retained privately at
-`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/helium-local.before-dolphin-plain-drag-read`.
+`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/helium-local.before-dolphin-plain-drag-read`
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 ## What does not work
 
