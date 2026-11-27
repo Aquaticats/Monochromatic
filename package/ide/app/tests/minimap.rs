@@ -7,13 +7,15 @@
 //!  and a visual row.
 //!  The picture has its own test file (`minimap_scene.rs`).
 
-/// The picture's width, scale and slide,
+/// The picture's width,
+/// scale and slide,
 ///  the box over the view,
 ///  and the ends a position is held to.
 #[path = "minimap/picture_scale_and_the_box.rs"]
 mod picture_scale_and_the_box;
 
-/// The maps between a position, a text position and a drag,
+/// The maps between a position,
+/// a text position and a drag,
 ///  and the share of the text's width across the picture.
 #[path = "minimap/positions_on_the_picture.rs"]
 mod positions_on_the_picture;

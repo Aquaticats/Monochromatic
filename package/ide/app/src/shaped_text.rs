@@ -120,7 +120,8 @@ pub(crate) use layout::LineRequest;
 
 /// The shaper's construction,
 ///  its row and view entry points,
-///  and its counters, fork and forget.
+///  and its counters,
+/// fork and forget.
 mod shaper;
 
 /// What:

@@ -81,7 +81,8 @@ const POLL: Duration = Duration::from_millis(20);
 /// Pause before a position request is repeated while a server warms up.
 const REPEAT: Duration = Duration::from_millis(500);
 
-/// One plan step, dispatched to the session,
+/// One plan step,
+/// dispatched to the session,
 ///  and the counters printed when it ends.
 mod plan_steps;
 

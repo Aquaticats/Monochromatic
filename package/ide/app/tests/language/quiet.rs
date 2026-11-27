@@ -15,7 +15,8 @@
 //!  and the level is set here,
 //!  because these tests read records below the default.
 
-/// The captured log: its writer,
+/// The captured log:
+/// its writer,
 ///  the records read out of it,
 ///  and one clean lifetime.
 #[path = "quiet/log_capture.rs"]

@@ -1,5 +1,7 @@
 //! The underlines a frame draws for its marks:
-//!  their runs over tabs, CJK, combining marks and ligatures,
+//!  their runs over tabs,
+//! CJK,
+//! combining marks and ligatures,
 //!  every row of a multi-line range,
 //!  a point range,
 //!  and the order overlapping ranges are drawn in.

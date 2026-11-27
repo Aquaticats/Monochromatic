@@ -99,11 +99,16 @@ pub use severity::{
 };
 
 /// The records of one frame and one store:
-///  marks, problems, labels, visible parts,
-///  held space, packed rows and assembly work.
+///  marks,
+/// problems,
+/// labels,
+/// visible parts,
+///  held space,
+/// packed rows and assembly work.
 mod records;
 
-/// The flattened diagnostics, their sort keys,
+/// The flattened diagnostics,
+/// their sort keys,
 ///  and the reach index a window search skips by.
 mod problem_index;
 
@@ -130,7 +135,8 @@ pub use records::{
     Problem,
     Visible,
 };
-/// The packing and breaking records of one line, which this store alone keeps.
+/// The packing and breaking records of one line,
+/// which this store alone keeps.
 use records::{
     Fitted,
     Placed,

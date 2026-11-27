@@ -10,7 +10,8 @@
 //!  message rows at the x of their diagnostics,
 //!  and code rows whose inner geometry never changes.
 
-/// The shaper, the records and the one block
+/// The shaper,
+/// the records and the one block
 ///  every test of this file lays out.
 #[path = "annotation_layout/fixtures.rs"]
 mod fixtures;

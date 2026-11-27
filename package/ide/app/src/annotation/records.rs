@@ -20,7 +20,8 @@ use crate::virtual_row::{
 ///  single-thread `Rc`,
 ///  owning `Box`).
 /// Why:
-///  A visible frame holds the same blocks the window holds, so taking one copies pointers.
+///  A visible frame holds the same blocks the window holds,
+/// so taking one copies pointers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

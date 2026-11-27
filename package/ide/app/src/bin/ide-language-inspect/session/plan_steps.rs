@@ -32,6 +32,8 @@ use serde_json::json;
 /// Deadlines of the waits a step makes.
 use std::time::Duration;
 
+/// One plan step at a time,
+/// and the counters when the session ends.
 impl Session {
     /// What:
     ///  Run one plan step and print its result.

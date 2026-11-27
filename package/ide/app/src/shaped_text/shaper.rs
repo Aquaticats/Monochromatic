@@ -3,7 +3,8 @@
 //!  the row and whole-file shaping entry points,
 //!  the counters a resize is measured by,
 //!  and the fork and forget a reload needs.
-//!  The steps of one line, of a pass and of reading a view live in their own files.
+//!  The steps of one line,
+//! of a pass and of reading a view live in their own files.
 
 /// The shaper type whose steps these are,
 ///  and the request one shaped row takes.
@@ -32,7 +33,8 @@ use crate::row_map::{
     CODE_ROW,
     RowMap,
 };
-/// One shaped source line, kept by the row cache.
+/// One shaped source line,
+/// kept by the row cache.
 use crate::shaped_row::ShapedRow;
 /// Shaped rows kept by line for one text revision and scale.
 use crate::shaped_row_cache::RowCache;

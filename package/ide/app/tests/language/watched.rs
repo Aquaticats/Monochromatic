@@ -8,7 +8,8 @@
 //!  new folders are followed,
 //!  and a server that registered nothing hears nothing.
 
-/// The worker, the change watcher and the waits,
+/// The worker,
+/// the change watcher and the waits,
 ///  the fixture project,
 ///  and the questions asked of a report.
 #[path = "watched/watcher_session.rs"]
