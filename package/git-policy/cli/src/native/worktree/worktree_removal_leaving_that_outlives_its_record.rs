@@ -43,10 +43,8 @@ use crate::diagnostic_log::{
     debug,
     warn,
 };
-use crate::private_storage::{
-    create_private_directory_all,
-    replace_private_file_unsynced,
-};
+use crate::private_storage::create_private_directory_all;
+use crate::private_storage_replacing_a_record::replace_private_file_unsynced;
 use crate::process_identity::current_birth_identity;
 use crate::service_work::work_directory;
 use crate::work_item::{

@@ -427,7 +427,7 @@ fn the_verdict_a_commit_records_flushes_nothing() {
     // The positive control: the recorders do report the flushes of the writer that keeps them.
     let probe: std::path::PathBuf = root.join("probe.json");
     std::fs::write(probe.as_path(), b"before\n").expect("a record to replace");
-    crate::private_storage::replace_private_file(probe.as_path(), b"after\n")
+    crate::private_storage_replacing_a_record::replace_private_file(probe.as_path(), b"after\n")
         .expect("the synced writer");
     assert_eq!(
         crate::private_storage::take_file_syncs(),
