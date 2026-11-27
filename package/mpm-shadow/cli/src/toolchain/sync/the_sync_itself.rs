@@ -387,16 +387,17 @@ pub fn sync_tools(
             if let Some(problem) = recovery_problem {
                 // What: the recovery's own words, followed by the fact that left them without a consequence.
                 // Why: its last clause says a later run publishes the copy it kept,
-                //  and a version already at its name means a later run publishes nothing from that copy and removes it.
+                //  and this arm is reached only when the edition the lock asks for is there anyway,
+                //  so what a person needs to know is that nothing failed for it.
+                //  The copy's fate is not promised: a later run may publish nothing from it and remove it,
+                //  and the failure this arm can carry may be one that stops that run reading it at all.
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
-                // report.warnings.push(`${problem}; ${id} ${version} is at its name already, so a later run publishes nothing from that copy and removes it`);
+                // report.warnings.push(`${problem}; this tree's lock is satisfied anyway, so the run does not fail for it`);
                 // ```
-                let at_the_name: &str = observed.as_deref().unwrap_or(tool.version.as_str());
                 report.warnings.push(format!(
-                    "{problem}; {} {at_the_name} is at its name already, so a later run publishes nothing from that copy and removes it",
-                    tool.declaration.id
+                    "{problem}; this tree's lock is satisfied anyway, so the run does not fail for it"
                 ));
             }
             continue;
