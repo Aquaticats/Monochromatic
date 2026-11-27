@@ -144,11 +144,98 @@ pub(crate) enum Emptiness {
     /// the manager collected the unit.
     Collected,
     /// Nothing could be read as emptiness,
-    /// and why it could not.
+    /// and why it could not,
+    /// and whether the kernel's `populated 0` line was read before that.
     Unproven {
         /// Why the scope could not be read as empty or gone.
         reason: String,
+        /// Whether an emptiness was read before the reason applied:
+        /// the peak arm reads `populated 0` and then loses the group's directory,
+        /// so the read that failed is not a read of the members.
+        an_empty_line_was_read: bool,
     },
+}
+
+/// What:
+/// `fn the_populated_line(group: &ControlGroup) -> io::Result<bool>` reads the kernel's `populated` line of the group,
+/// or the failure a control arms in its place.
+/// Why:
+/// The read goes through one place,
+/// so a control can answer what a removed group's control file answers (`ENODEV`)
+/// where no directory of this host does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function thePopulatedLine(group: ControlGroup): boolean  // throws
+/// ```
+fn the_populated_line(group: &ControlGroup) -> io::Result<bool> {
+    // A test makes this read answer the error a control file of a removed group answers, which nothing here produces:
+    // a read of a file whose directory is gone answers `ENOENT` before the file is opened.
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::RetirePopulatedReadSeesTheGoneGroup) {
+        return Err(io::Error::from_raw_os_error(
+            rustix::io::Errno::NODEV.raw_os_error(),
+        ));
+    }
+    return populated_at(group.directory());
+}
+
+/// What:
+/// `fn the_peak_of(group: &ControlGroup) -> io::Result<u64>` reads how many processes have ever been counted in the group,
+/// or the failure a control arms in its place.
+/// Why:
+/// The read goes through one place,
+/// so a control can answer the absence a group the manager removed answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function thePeakOf(group: ControlGroup): number  // throws
+/// ```
+fn the_peak_of(group: &ControlGroup) -> io::Result<u64> {
+    // A test makes this read answer the absence of a group the manager removed, which is the window the look's two reads
+    // can straddle: nothing outside holds that window open.
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::RetirePeakReadSeesTheGoneGroup) {
+        return Err(io::Error::from_raw_os_error(
+            rustix::io::Errno::NOENT.raw_os_error(),
+        ));
+    }
+    return pids_peak_at(group.directory());
+}
+
+/// What:
+/// `fn the_group_s_directory_is_gone(group: &ControlGroup) -> bool` says whether the group's own directory is not there.
+/// Why:
+/// Both reads of the look can answer an absence,
+/// and only a directory that is gone makes that absence the manager's collection:
+/// a read of a file that is not there inside a directory that is means the kernel has no such file,
+/// not that the group went away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theGroupDirectoryIsGone(group: ControlGroup): boolean
+/// ```
+fn the_group_s_directory_is_gone(group: &ControlGroup) -> bool {
+    // What:     `fs::metadata(group.directory())` examines the directory itself: `Ok` is one that is there (a file counts),
+    //           and `Err` is the reason it could not be examined.
+    // Why:      A read of a file inside the directory cannot tell a missing file from a missing directory, and this is the
+    //           one read that can.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // try { statSync(group.directory) } catch (error) { return isGone(error) }
+    // ```
+    match fs::metadata(group.directory()) {
+        Ok(_there) => {}
+        Err(error) => return is_the_group_being_gone(&error),
+    }
+    // A test makes this check answer the absence of a group the manager removed between the look's two reads: a directory
+    // that is there answers no such thing.
+    #[cfg(test)]
+    if crate::failpoints::fires(crate::failpoints::Point::RetireDirectoryCheckSeesTheGoneGroup) {
+        return true;
+    }
+    return false;
 }
 
 /// What:
@@ -176,8 +263,8 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
     if crate::failpoints::fires(crate::failpoints::Point::RetireSeesStuckScope) {
         return Emptiness::EmptiedWithoutAProcess;
     }
-    // What:     `populated_at(...)` reads the kernel's `populated` line: `Ok(true)` is a member, `Ok(false)` is none, and
-    //           `Err(error)` is a read that failed. `NotFound` and `NODEV` are a group whose directory is gone.
+    // What:     `the_populated_line(...)` reads the kernel's `populated` line: `Ok(true)` is a member, `Ok(false)` is none,
+    //           and `Err(error)` is a read that failed. `NotFound` and `NODEV` are a group whose directory is gone.
     // Why:      A group whose absence cannot be verified is not read as empty, and every other failure is a group that may
     //           still have a member.
     //
@@ -185,10 +272,26 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
     // ```ts
     // try { populated = populatedAt(group.directory) } catch (error) { ... }
     // ```
-    let populated: bool = match populated_at(group.directory()) {
+    let populated: bool = match the_populated_line(group) {
         Ok(found) => found,
-        Err(error) if is_the_group_being_gone(&error) => {
-            // What:     `collected_or_unproven(group)` says whether the absence can be read as emptiness.
+        // What:     `the_group_s_directory_is_gone(group)` is the second half of reading an absence as the manager's: the
+        //           `populated` read can fail because the group's directory went away, and it can fail because the
+        //           directory is there without a `cgroup.events` in it.
+        // Why:      The kernel makes a group's directory before it adds the group's control files, so a look that arrives in
+        //           that window reads `ENOENT` for a group that is there and holds nothing
+        //           (`cgroup_create` creates the directory at `kernel/cgroup/cgroup.c:5590`,
+        //           and `cgroup_mkdir` adds the base files afterwards through `css_populate_dir` at `:5743`,
+        //           at v6.1).
+        //           Without this check that window reads as the manager's collection, and the unit stays loaded with nothing
+        //           printed, which is the silence the peak arm's check exists to close.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (isGone(error) && theGroupDirectoryIsGone(group)) return collectedOrUnproven(group, false)
+        // ```
+        Err(error) if is_the_group_being_gone(&error) && the_group_s_directory_is_gone(group) => {
+            // What:     `collected_or_unproven(group, false)` says whether the absence can be read as emptiness, and that no
+            //           emptiness was read before it.
             // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too: an
             //           absence it cannot verify keeps the unit and says so.
             //
@@ -196,26 +299,27 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
             // ```ts
             // return collectedOrUnproven(group)
             // ```
-            return collected_or_unproven(group);
+            return collected_or_unproven(group, false);
         }
         Err(error) => {
             return Emptiness::Unproven {
                 reason: format!("the scope's `populated` line could not be read ({error})"),
+                an_empty_line_was_read: false,
             };
         }
     };
     if populated {
         return Emptiness::Member;
     }
-    // What:     `pids_peak_at(...)` reads how many processes the group has ever held. `Ok(0)` means none was ever counted in
+    // What:     `the_peak_of(...)` reads how many processes the group has ever held. `Ok(0)` means none was ever counted in
     //           it, which is the stuck scope; any other answer means the manager was told the group emptied.
     // Why:      Asking the manager costs a program start, and this read costs a file read.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return pidsPeakAt(group.directory) > 0 ? 'emptied after a process' : 'emptied without one'
+    // return thePeakOf(group) > 0 ? 'emptied after a process' : 'emptied without one'
     // ```
-    return match pids_peak_at(group.directory()) {
+    return match the_peak_of(group) {
         Ok(peak) if peak > 0 => Emptiness::EmptiedAfterAProcess,
         // What:     `group_gone_at_the_peak(group, &error)` says whether this failure means the group's directory went away
         //           between the two reads, which is a collected unit, or something else.
@@ -288,8 +392,8 @@ fn group_gone_at_the_peak(
     if !is_the_group_being_gone(error) {
         return None;
     }
-    // What:     `fs::metadata(group.directory())` is the check that tells a file that is not there from a directory that is
-    //           not, and its error is read as an absence only when `is_the_group_being_gone` says the group is gone.
+    // What:     `the_group_s_directory_is_gone(group)` is the check that tells a file that is not there from a directory
+    //           that is not: it answers the absence only when the directory itself is gone.
     // Why:      A directory that is there without `pids.peak` is a kernel that has no such file (before Linux 6.1), or a group
     //           whose parent does not enable the pids controller, and only the manager can be asked about that.
     //           A directory that cannot be read for another reason is not a directory that went away either: `Path::is_dir`
@@ -297,37 +401,42 @@ fn group_gone_at_the_peak(
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // try { statSync(group.directory) } catch (error) { if (!isTheGroupBeingGone(error)) return undefined }
-    // if (existsSync(group.directory)) return undefined
+    // if (!theGroupDirectoryIsGone(group)) return undefined
     // ```
-    // `gone_error` is the directory check's own failure, kept apart from the peak read's `error` it answers about.
-    match fs::metadata(group.directory()) {
-        Err(gone_error) if is_the_group_being_gone(&gone_error) => {}
-        _ => return None,
+    if !the_group_s_directory_is_gone(group) {
+        return None;
     }
-    // What:     `Some(collected_or_unproven(group))` is the answer the absent `populated` read gets.
-    // Why:      The two reads are of the same group, so an absence seen at the second is the absence the first would have seen.
+    // What:     `Some(collected_or_unproven(group, true))` is the answer the absent `populated` read gets, and it says that
+    //           an empty `populated` line was read before the peak read.
+    // Why:      The two reads are of the same group, so an absence seen at the second is the absence the first would have seen,
+    //           and the sentence built from it may say what the first read showed.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return collectedOrUnproven(group)
+    // return collectedOrUnproven(group, true)
     // ```
-    return Some(collected_or_unproven(group));
+    return Some(collected_or_unproven(group, true));
 }
 
 /// What:
-/// `fn collected_or_unproven(group: &ControlGroup) -> Emptiness` says what a group whose directory is gone means for its unit:
+/// `fn collected_or_unproven(group: &ControlGroup, an_empty_line_was_read: bool) -> Emptiness` says what a group whose
+/// directory is gone means for its unit:
 /// `Collected` when this process still sees the directory the scope was planned in,
-/// and `Unproven` with the reason when it does not.
+/// and `Unproven` with the reason when it does not,
+/// carrying whether an emptiness had been read before the absence.
 /// Why:
 /// Both reads of the group can find it gone,
-/// and an absence the stop accepts as emptiness is the only absence the retirement may read as a free unit.
+/// and an absence the stop accepts as emptiness is the only absence the retirement may read as a free unit;
+/// the warning that follows must not deny an emptiness the same look read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function collectedOrUnproven(group: ControlGroup): Emptiness
+/// function collectedOrUnproven(group: ControlGroup, anEmptyLineWasRead: boolean): Emptiness
 /// ```
-fn collected_or_unproven(group: &ControlGroup) -> Emptiness {
+fn collected_or_unproven(
+    group: &ControlGroup,
+    an_empty_line_was_read: bool,
+) -> Emptiness {
     // What:     `group.absence_is_verified()` asks whether this process still sees the directory the scope was planned in.
     // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too.
     //
@@ -342,6 +451,7 @@ fn collected_or_unproven(group: &ControlGroup) -> Emptiness {
                 "the scope's directory {} is gone, and its absence could not be read as emptiness ({reason})",
                 group.directory().display()
             ),
+            an_empty_line_was_read,
         },
     };
 }
@@ -382,13 +492,31 @@ pub(crate) fn retire(
             )),
         },
         Emptiness::Member => Some(format!(
-            "the scope unit {unit} of the run that just ended was left loaded: its control group still has a member, and a stop would kill it; a member that joins after this look is killed by that stop with nothing printed"
+            "the scope unit {unit} of the run that just ended was left loaded: its control group still has a member, so this step asked for no stop; a stop this step makes for a stuck scope would kill that member, and a member that joins after this look is killed by that stop with nothing printed"
         )),
+        // What:     `an_empty_line_was_read` decides the tail of the warning: the peak arm read `populated 0` before the group's
+        //           directory went away, and the arm that failed to read that line read nothing about the members.
+        // Why:      A warning that ended "so it is not shown that no member is left" would deny the emptiness the same look
+        //           read (`doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`, "A `populated 0`
+        //           line is the proof that no member is left").
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const tail = anEmptyLineWasRead
+        //   ? "after the kernel's `populated 0` line was read for it"
+        //   : ', so it is not shown that no member is left'
+        // ```
         Emptiness::Unproven {
             reason,
-        } => Some(format!(
-            "the scope unit {unit} of the run that just ended may be left loaded: {reason}, so it is not shown that no member is left"
-        )),
+            an_empty_line_was_read,
+        } => Some(match an_empty_line_was_read {
+            true => format!(
+                "the scope unit {unit} of the run that just ended may be left loaded: {reason}, after the kernel's `populated 0` line was read for it"
+            ),
+            false => format!(
+                "the scope unit {unit} of the run that just ended may be left loaded: {reason}, so it is not shown that no member is left"
+            ),
+        }),
     };
 }
 

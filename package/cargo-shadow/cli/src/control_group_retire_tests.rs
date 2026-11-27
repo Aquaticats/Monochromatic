@@ -625,6 +625,18 @@ fn a_scope_that_holds_a_member_keeps_its_unit_and_the_run_says_so() {
         ),
         "the sentence about a stop does not say what becomes of a member that joins after the look: {said}"
     );
+    assert!(
+        said.contains("so this step asked for no stop"),
+        "the sentence does not say that this look asked for no stop: {said}"
+    );
+    assert!(
+        said.contains("a stop this step makes for a stuck scope would kill that member"),
+        "the sentence names a stop without saying which one it means: {said}"
+    );
+    assert!(
+        !said.contains("and a stop would kill it"),
+        "the sentence describes a stop this branch never makes: {said}"
+    );
     assert_eq!(
         calls(&log),
         "",
@@ -665,6 +677,15 @@ fn an_absence_that_cannot_be_verified_keeps_the_unit_and_the_run_says_so() {
     assert!(
         said.contains("may be left loaded"),
         "the unit was never read as loaded, so the run must not say that it was: {said}"
+    );
+    // Nothing was read about this group's members: the `populated` read itself is the read that found the absence.
+    assert!(
+        said.contains("so it is not shown that no member is left"),
+        "the warning does not say that nothing was read about the members: {said}"
+    );
+    assert!(
+        !said.contains("`populated 0` line was read for it"),
+        "the warning says an emptiness was read, where the read that failed is the one about the members: {said}"
     );
     assert_eq!(
         calls(&log),
@@ -1066,6 +1087,160 @@ fn a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away() {
     assert!(
         refused_answer.is_none(),
         "a read failure that is not an absence was read as a collected group: {refused_answer:?}"
+    );
+}
+
+/// The control of the arm that reads a failed `pids.peak` as a collected group, driven through `retire`:
+/// a group whose directory went away between the look's two reads keeps its unit and asks nothing,
+/// and a `populated` read that answers the error a removed group's file answers is read the same way.
+/// Neither window can be held open from outside: the manager removes a group the moment its last member leaves,
+/// and a path that is gone answers `ENOENT` before a file in it is opened,
+/// so a test build answers for the two reads.
+/// The request is the guard: a look that read such a failure as a group that never held a process asks the manager
+/// once, and the log says so.
+#[test]
+fn the_look_reads_a_group_that_goes_away_between_its_reads_as_collected() {
+    let route: Route = delegated_route();
+    // The peak arm: `populated 0` was read, and then the group's directory went away.
+    let vanishing = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(vanishing.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &vanishing.path().join("vanishing"),
+        "cargo-shadow-test-vanishing",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    arm(Point::RetirePeakReadSeesTheGoneGroup);
+    arm(Point::RetireDirectoryCheckSeesTheGoneGroup);
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    let reached_peak: bool = !crate::failpoints::fires(Point::RetirePeakReadSeesTheGoneGroup);
+    let reached_check: bool =
+        !crate::failpoints::fires(Point::RetireDirectoryCheckSeesTheGoneGroup);
+    assert!(
+        reached_peak,
+        "the peak read never answered the armed failure, so this control shows nothing about the arm that reads it"
+    );
+    assert!(
+        reached_check,
+        "the directory check after the peak read was never reached"
+    );
+    assert_eq!(
+        word, None,
+        "a group that went away between the two reads is a unit the manager collected, and the run says nothing about it"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager about a unit the manager had already collected"
+    );
+
+    // The first read: the group's own `cgroup.events` answered the error a removed group's file answers.
+    let removed = crate::test_scratch::scratch();
+    let (removed_systemctl, removed_log) = answering_systemctl(removed.path());
+    let removed_group: ControlGroup = an_absent_group(&route, "cargo-shadow-test-removed-file");
+    arm(Point::RetirePopulatedReadSeesTheGoneGroup);
+
+    let removed_word: Option<String> = retire(&removed_group, &removed_systemctl, RETIRE_BOUND);
+
+    assert!(
+        !crate::failpoints::fires(Point::RetirePopulatedReadSeesTheGoneGroup),
+        "the `populated` read never answered the armed failure"
+    );
+    assert_eq!(
+        removed_word, None,
+        "`ENODEV` is one of the two errors a removed group answers, so the run says nothing about its unit"
+    );
+    assert_eq!(
+        calls(&removed_log),
+        "",
+        "the step asked the manager about a unit whose `populated` read said the group is gone"
+    );
+}
+
+/// The control of the warning a unit kept for an unverifiable absence carries on the peak arm:
+/// the look read `populated 0` before the group's directory went away,
+/// so the warning may not say that nothing was read about the members.
+/// The absence is planted (a failpoint) because no run can make this process see another cgroup view.
+#[test]
+fn a_unit_kept_after_an_emptiness_was_read_says_what_the_look_read() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = recording_systemctl(directory.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("vanishing"),
+        "cargo-shadow-test-vanishing-unproven",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    arm(Point::RetirePeakReadSeesTheGoneGroup);
+    arm(Point::RetireDirectoryCheckSeesTheGoneGroup);
+    arm(Point::AbsenceUnverifiable);
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    assert!(
+        !crate::failpoints::fires(Point::RetirePeakReadSeesTheGoneGroup)
+            && !crate::failpoints::fires(Point::RetireDirectoryCheckSeesTheGoneGroup)
+            && !crate::failpoints::fires(Point::AbsenceUnverifiable),
+        "the look did not walk the peak arm and its absence check, so this control shows nothing"
+    );
+    let said: String = word.expect("a unit kept because its absence was not shown is reported");
+    assert!(said.contains("may be left loaded"), "{said}");
+    assert!(
+        said.contains("`populated 0` line was read for it"),
+        "the warning does not say that an emptiness was read before the directory went away: {said}"
+    );
+    assert!(
+        !said.contains("so it is not shown that no member is left"),
+        "the warning denies the emptiness the same look read: {said}"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager to stop a unit whose emptiness it had not shown"
+    );
+}
+
+/// The control of the directory check the `populated` read makes before an absence is read as the manager's:
+/// a group's directory that is there without a `cgroup.events` in it answers `ENOENT`,
+/// and the kernel makes that state for a moment while it creates a group
+/// (its directory before its control files),
+/// so the run must say what it could not read rather than report a collected unit in silence.
+#[test]
+fn a_directory_that_is_there_without_a_populated_line_is_not_read_as_collected() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(directory.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("half-made"),
+        "cargo-shadow-test-half-made",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    fs::remove_file(group.directory().join("cgroup.events"))
+        .expect("take the populated line out of the directory");
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    let said: String =
+        word.expect("a group whose directory is there and whose members were not read is reported");
+    assert!(
+        said.contains("may be left loaded"),
+        "the unit was never read as loaded, so the run must not say that it was: {said}"
+    );
+    assert!(
+        said.contains("`populated` line could not be read"),
+        "the warning does not say what could not be read: {said}"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager about a group whose directory is there"
     );
 }
 

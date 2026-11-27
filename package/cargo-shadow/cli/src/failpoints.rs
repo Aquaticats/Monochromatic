@@ -104,6 +104,12 @@ thread_local! {
     /// an empty group that no process was ever counted in,
     /// which a run of a real program cannot leave.
     static RETIRE_SEES_STUCK_SCOPE: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next `pids.peak` read of a run's scope on this thread answers the absence of a group the manager removed.
+    static RETIRE_PEAK_READ_SEES_THE_GONE_GROUP: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next check of a run's scope directory on this thread answers that the directory is gone.
+    static RETIRE_DIRECTORY_CHECK_SEES_THE_GONE_GROUP: Cell<bool> = const { Cell::new(false) };
+    /// Whether the next `populated` read of a run's scope on this thread answers the error a removed group's file answers.
+    static RETIRE_POPULATED_READ_SEES_THE_GONE_GROUP: Cell<bool> = const { Cell::new(false) };
     /// Whether the next check of an absent scope's absence on this thread fails,
     /// as it does when this process sees another cgroup namespace or mount than the one the scope was planned in.
     static ABSENCE_UNVERIFIABLE: Cell<bool> = const { Cell::new(false) };
@@ -216,6 +222,19 @@ pub enum Point {
     /// which cannot be produced from outside,
     /// because a scope whose control group has held a process keeps that count for its life.
     RetireSeesStuckScope,
+    /// The `pids.peak` read of a run's scope answers the absence a group the manager removed answers,
+    /// as it does when the manager removes the group between the two reads of the look:
+    /// a window too short to hold open from outside,
+    /// because a removal before the first read makes the look report the scope gone at once.
+    RetirePeakReadSeesTheGoneGroup,
+    /// The check of the group's own directory after that read answers that the directory is not there,
+    /// which a directory that is there never answers.
+    RetireDirectoryCheckSeesTheGoneGroup,
+    /// The `populated` read of a run's scope answers the error a control file of a removed group answers (`ENODEV`),
+    /// as a group removed while its file is read does;
+    /// no directory of this host answers it,
+    /// because a path that is gone answers `ENOENT` before the file is opened.
+    RetirePopulatedReadSeesTheGoneGroup,
     /// The check that makes an absent scope's absence readable as emptiness fails,
     /// as it does when this process sees another cgroup namespace or mount than the scope was planned in.
     AbsenceUnverifiable,
@@ -496,6 +515,19 @@ pub fn arm(point: Point) {
         Point::RetireSeesStuckScope => RETIRE_SEES_STUCK_SCOPE.with(|slot| {
             slot.set(true);
         }),
+        Point::RetirePeakReadSeesTheGoneGroup => {
+            RETIRE_PEAK_READ_SEES_THE_GONE_GROUP.with(|slot| {
+                slot.set(true);
+            })
+        }
+        Point::RetireDirectoryCheckSeesTheGoneGroup => RETIRE_DIRECTORY_CHECK_SEES_THE_GONE_GROUP
+            .with(|slot| {
+                slot.set(true);
+            }),
+        Point::RetirePopulatedReadSeesTheGoneGroup => RETIRE_POPULATED_READ_SEES_THE_GONE_GROUP
+            .with(|slot| {
+                slot.set(true);
+            }),
         Point::AbsenceUnverifiable => ABSENCE_UNVERIFIABLE.with(|slot| {
             slot.set(true);
         }),
@@ -553,6 +585,15 @@ pub fn fires(point: Point) -> bool {
             CONTAINMENT_LISTING_FINDS_NO_MEMBER.with(Cell::take)
         }
         Point::RetireSeesStuckScope => RETIRE_SEES_STUCK_SCOPE.with(Cell::take),
+        Point::RetirePeakReadSeesTheGoneGroup => {
+            RETIRE_PEAK_READ_SEES_THE_GONE_GROUP.with(Cell::take)
+        }
+        Point::RetireDirectoryCheckSeesTheGoneGroup => {
+            RETIRE_DIRECTORY_CHECK_SEES_THE_GONE_GROUP.with(Cell::take)
+        }
+        Point::RetirePopulatedReadSeesTheGoneGroup => {
+            RETIRE_POPULATED_READ_SEES_THE_GONE_GROUP.with(Cell::take)
+        }
         Point::AbsenceUnverifiable => ABSENCE_UNVERIFIABLE.with(Cell::take),
         Point::FinishCompletion => FINISH_COMPLETION.with(Cell::take),
     };
