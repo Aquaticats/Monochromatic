@@ -15,7 +15,7 @@
 //! output latency probe.
 //!  The entries that drive a playback engine handle live in
 //! `engine_jni.rs`,
-//!  and the true-peak service's entries in `service.rs`,
+//!  and the true-peak service's entries in `service_jni.rs`,
 //!  so this
 //! file stays under the per-file code-line budget (`AGENTS.md`,
 //! MXL).
