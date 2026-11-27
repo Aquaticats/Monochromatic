@@ -714,7 +714,7 @@ and pins that.
 ## What a future writer must do
 
 A program this tool publishes is written under a name no start resolves,
-and given its own name in one call:
+and given its own name without opening that name for writing:
 a `rename` of a temporary file beside the target for one program,
 and for an archive a hidden staging directory beside the version directory,
 which one `renameat2` with `RENAME_EXCHANGE` puts in place where the file system can,
@@ -728,7 +728,8 @@ for paths no start through this tool resolves.
 
 ## What this record rests on
 
-Each figure above is derived from the trace line or the prober line quoted beside it,
+Each figure above is derived from a trace line or a prober line,
+quoted beside it or kept in this record's measurements folder,
 and every quoted line comes from a run made in a throwaway root on this machine,
 2026-11-27.
 The prober source is beside this record;
