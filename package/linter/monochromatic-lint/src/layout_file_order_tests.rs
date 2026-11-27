@@ -980,3 +980,111 @@ fn an_unreadable_index_beside_a_crate_root_is_not_the_folders_index() {
         "{found:#?}"
     );
 }
+
+/// The lines one allow list earns on a fixture package,
+///  read from a file of that package so a message quotes its name and shows it as a person sees it.
+fn findings_with_list(
+    root: &Path,
+    lines: &str,
+) -> Vec<String> {
+    let tree = tree_of(root);
+    assert!(tree.problems.is_empty(), "{:?}", tree.problems);
+    let uses = collect_uses(&tree);
+    let source: std::path::PathBuf = root.join("allow-list.txt");
+    std::fs::write(&source, lines).expect("write the fixture list");
+    let list = crate::layout_allow_list::parse_allow_list(lines, source.as_path(), root)
+        .expect("the fixture list reads");
+    let prefix: String = format!("{}/", root.display());
+    return check_file_order(&tree, uses.as_slice(), root, Some(&list))
+        .iter()
+        .map(|item| {
+            return format!("{}:{} {}", item.file.display(), item.line, item.message)
+                .replace(prefix.as_str(), "");
+        })
+        .collect::<Vec<String>>();
+}
+
+/// A dead `file-uses` line is told to take a character out only when that character stands in a file name
+/// the folder's modules do not hold,
+///  because a line that spells a real module file's own name is dead for another reason,
+///  and the file name is what the finding prints.
+#[test]
+fn a_dead_file_use_line_takes_a_character_out_only_when_no_module_of_the_folder_holds_its_file_name() {
+    // What: one folder whose module file really is named with the character, and its line, spelled as the file is.
+    // Why: the use the line records sits in no loop, so the line is dead although its name is the file's own.
+    let genuine = package_with(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n[lib]\npath = \"lib.rs\"\n",
+        ),
+        (
+            "lib.rs",
+            "//! Index.\n#[path = \"src/f/mod.rs\"]\npub mod m0;\n",
+        ),
+        (
+            "src/f/mod.rs",
+            "//! Folder.\n//!\n//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `two.rs`: two.\n//! - `o\u{200b}ne.rs`: one.\n#[path = \"o\u{200b}ne.rs\"]\nmod one;\nmod two;\n",
+        ),
+        ("src/f/two.rs", "/// Two.\npub struct Two;\n"),
+        (
+            "src/f/o\u{200b}ne.rs",
+            "use super::two::Two;\n/// One.\npub struct One(pub Two);\n",
+        ),
+    ]);
+    let message: String = findings_with_list(
+        genuine.path.as_path(),
+        "file-uses src/f o\u{200b}ne.rs -> two.rs\n",
+    )
+    .join("\n");
+    assert!(
+        message.contains("tolerates nothing any more. Delete the line"),
+        "the name is the file's own, so the use is what is gone: {message}"
+    );
+    assert!(
+        !message.contains("A file name is read exactly as the line writes it"),
+        "the file name here is the real one: {message}"
+    );
+    // What: the control, a file name the folder does not hold, which is the case the advice is for.
+    // Why: an advice that never fired would pass the lines above and leave a mistyped name unreported.
+    let mistyped: String =
+        findings_with_list(genuine.path.as_path(), "file-uses src/f one\u{200b}.rs -> two.rs\n")
+            .join("\n");
+    assert!(
+        mistyped.contains("Take that character out of the line"),
+        "no module of the folder is called `one\u{200b}.rs`: {mistyped}"
+    );
+    // What: a character in the folder's own name, which is no file name and so gets no file-name advice.
+    // Why: the folder is real, so the line is dead because its use is gone, and taking the character out would name another folder.
+    let folder_name = package_with(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n[lib]\npath = \"lib.rs\"\n",
+        ),
+        (
+            "lib.rs",
+            "//! Index.\n#[path = \"src/e\u{200c}f/mod.rs\"]\npub mod m0;\n",
+        ),
+        (
+            "src/e\u{200c}f/mod.rs",
+            "//! Folder.\n//!\n//! Files in this folder,\n//! each using only files listed before it:\n//!\n//! - `two.rs`: two.\n//! - `three.rs`: three.\nmod three;\nmod two;\n",
+        ),
+        ("src/e\u{200c}f/two.rs", "/// Two.\npub struct Two;\n"),
+        (
+            "src/e\u{200c}f/three.rs",
+            "/// Three.\npub struct Three;\n",
+        ),
+    ]);
+    let in_folder: String = findings_with_list(
+        folder_name.path.as_path(),
+        "file-uses src/e\u{200c}f three.rs -> two.rs\n",
+    )
+    .join("\n");
+    assert!(
+        !in_folder.contains("A file name is read exactly as the line writes it"),
+        "the character stands in the folder's name, not a file's: {in_folder}"
+    );
+    assert!(
+        in_folder.contains("tolerates nothing any more. Delete the line"),
+        "the use is gone, so the line is deleted: {in_folder}"
+    );
+}
