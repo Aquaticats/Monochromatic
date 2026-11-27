@@ -517,11 +517,6 @@ mod cgroup_probe_tests;
 /// finding the host's route and starting a launcher in a scope.
 #[cfg(test)]
 mod cgroup_test_support;
-/// Tests of that support's reading of a process's control group file:
-/// the version 2 line of `/proc/<pid>/cgroup`,
-/// whatever lines the host writes beside it.
-#[cfg(test)]
-mod cgroup_test_support_tests;
 /// Round 7 tests built from the sixth review's counterexamples to the containment of a bounded run.
 #[cfg(test)]
 mod contain_counterexample_tests;
