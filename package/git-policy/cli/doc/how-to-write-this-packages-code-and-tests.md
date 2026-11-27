@@ -465,11 +465,13 @@ sixty seconds,
 which only stops a hang.
 A control's own bound then rests on a promise the test's own threads do not have to keep.
 
-A control of a step the kernel holds states both of the facts such a hold gives the wait:
-the kernel's answer about the process's state
-(`the_kernel_holds`, `commit/scratch_step_look_below_control_window.rs`),
-and the step's end not collected until the control lets it go
-(`hold_the_reap`, `process/wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs`).
+A control of a step the kernel holds states both of the facts such a hold gives the wait.
+One is the kernel's answer about the process's state,
+which `the_kernel_holds` states
+(`commit/scratch_step_look_below_control_window.rs`).
+The other is the step's end not collected until the control lets it go,
+which `hold_the_reap` states
+(`process/wait_after_the_stop_saying_the_kernel_holds_it_control_window.rs`).
 One without the other tests a wait that never lasts:
 the step acts on the `SIGKILL` at once,
 the wait after the stop returns before its first look,

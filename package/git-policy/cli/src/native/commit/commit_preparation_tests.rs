@@ -1211,7 +1211,8 @@ const A_CEILING_A_STEP_OUTLASTS: std::time::Duration = std::time::Duration::from
 const A_STALL_BOUND: std::time::Duration = std::time::Duration::from_millis(1_200);
 
 /// How many times the bound the step is ended at the control holds its end past that bound.
-///  More than once, so the wait that owns the step is still waiting when the control lets the kernel's release go,
+///  More than once,
+///  so the wait that owns the step is still waiting when the control lets the kernel's release go,
 ///  and a command that stopped waiting earlier answers before the control did.
 const A_HOLD_OUTLASTS_THE_BOUND_BY: u32 = 2;
 
@@ -1321,7 +1322,8 @@ fn the_signer_and_the_step_in(
 }
 
 /// What:
-///  The signer's number and the step's, from the line the signer wrote,
+///  The signer's number and the step's number,
+///  read from the line the signer wrote,
 ///  and nothing at all until that line ended.
 /// Why:
 ///  The two numbers are one line,
