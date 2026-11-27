@@ -497,6 +497,9 @@ A service push or LFS upload to an `ssh://` endpoint still asked the desktop's p
 while the decision above said the service never asks anyone for a login.
 The audit's reproduction
 (`/home/user/temp/agent/lfs-path-of-main-audit-on-sonnet-2026-11-19/reproductions/F-ssh-askpass-still-opens-for-a-command-without-a-terminal/`)
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here)
 ran a typed push with no controlling terminal against a throwaway `sshd` on `127.0.0.1`,
 with a made-up passphrase-protected key and a recorder standing in for the dialog,
 and counted two questions:
@@ -553,6 +556,9 @@ with no controlling terminal,
 with a recorder standing in for the desktop's password program
 (`~/temp/agent/git-policy-cli-lfs-review-findings-and-owner-answers-fixed-2026-11-19/scratch/measure-openssh-askpass-never.ts`,
 `logs/openssh-askpass-never.txt` there).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 Each case ran in a `known_hosts` file of its own,
 because a control that accepted the key would hide the next question:
 
@@ -893,7 +899,10 @@ moved verbatim on 2026-11-23:
   the lows,
   one whole gate;
   brief under
-  `~/temp/agent/git-policy-cli-lfs-narrow-check-findings-and-owner-answers-fixed-2026-11-20/`.
+  `~/temp/agent/git-policy-cli-lfs-narrow-check-findings-and-owner-answers-fixed-2026-11-20/`
+  (scratch,
+  deleted on 2026-11-27;
+  not kept).
 
 ## A sentence in `SSH_ASKPASS` killed every proxied connection (found 2026-11-25)
 

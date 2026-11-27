@@ -8,6 +8,8 @@ use crate::test_support::{
     git,
     remove,
 };
+use crate::worktree_clean_content::CONTENT_LIMIT;
+use crate::worktree_clean_content_attribute_bytes::INTERRUPTED_TRIES;
 use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
 use std::cell::Cell;
 
@@ -387,9 +389,9 @@ fn repeatedly_interrupted_attribute_reads_end_in_a_refusal() {
         "a read that never gets through refuses the attributes, and answered {outcome:?}"
     );
     assert!(
-        attempts.get() <= 1 + super::INTERRUPTED_TRIES,
+        attempts.get() <= 1 + INTERRUPTED_TRIES,
         "at most {} tries, and the read was tried {} times",
-        1 + super::INTERRUPTED_TRIES,
+        1 + INTERRUPTED_TRIES,
         attempts.get()
     );
     remove(root.as_path());
