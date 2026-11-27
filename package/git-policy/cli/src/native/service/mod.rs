@@ -316,6 +316,19 @@
 //! - `service_provision_refusals_before_the_wait.rs`:
 //!   the states in which provisioning already knows no service can answer this command,
 //!   so the command says why instead of waiting out the start ceiling.
+//! - `service_provision_the_unit_texts.rs`:
+//!   the two unit files for one host,
+//!   with every placeholder filled in.
+//! - `service_provision_the_links_the_units_run.rs`:
+//!   the links the unit files run,
+//!   and the one write both come to.
+//! - `service_provision_what_is_already_in_place.rs`:
+//!   whether there is anything left to do,
+//!   read without touching the session bus.
+//! - `service_provision_the_calls_to_the_manager.rs`:
+//!   the reset,
+//!   the start,
+//!   and the stop of the earlier release's socket.
 //! - `service_provision.rs`:
 //!   the wrapper's own provisioning of the commit service's socket activation.
 //! - `service_client_settings_and_watches.rs`:
@@ -719,6 +732,23 @@ pub mod service_provision_host_and_manager;
 
 /// The retirement of the single service of the earlier releases.
 pub mod service_provision_earlier_service_retirement;
+
+/// The two unit files for one host,
+/// with every placeholder filled in.
+pub mod service_provision_the_unit_texts;
+
+/// The links the unit files run,
+/// and the one write both come to.
+pub mod service_provision_the_links_the_units_run;
+
+/// Whether there is anything left to do,
+/// read without touching the session bus.
+pub mod service_provision_what_is_already_in_place;
+
+/// The reset,
+/// the start,
+/// and the stop of the earlier release's socket.
+pub mod service_provision_the_calls_to_the_manager;
 
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
