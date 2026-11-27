@@ -67,8 +67,10 @@ The options, none of them decided:
 - Express the tie in the catalog as a field (the floor a pin must equal), then let `catalog:tighten` raise the floor and
   the pin together.
 - Have `catalog:tighten` refuse to raise a default floor that a selected exact pin cannot resolve with, naming both
-  rows, so the notification carries the whole story and the other floors still land.
-- Keep today's behaviour, land nothing and notify, and raise the pin by hand.
+  rows, so the notification carries the whole story and the other floors still land. This leaves the floor where it is,
+  which the owner rejected for the Slint case, so it would need that decision reopened.
+- Keep today's behaviour, land nothing and notify, and move the pin by hand, which is what the Consequences section of
+  `doc/decision/rust-dependency-catalog.md` already describes.
 
 ## What was verified, and what was not
 
