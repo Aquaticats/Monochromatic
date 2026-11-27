@@ -50,7 +50,8 @@ use std::time::{
 };
 use tokio::sync::mpsc::UnboundedReceiver;
 
-/// The pin of a step's root, taken when the child started,
+/// The pin of a step's root,
+/// taken when the child started,
 /// and the signals and the process tree read through it,
 /// which the stop below ends a child through.
 pub(crate) use crate::child_watch_signalling_only_the_child_that_was_started::{
