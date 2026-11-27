@@ -40,21 +40,16 @@
 //! const layout: RepoLayout | undefined = readLayout({ globalPrefix, overlay }); // undefined: ask Git
 //! ```
 
-/// A pathname from the bytes a `gitdir:` line holds.
-use crate::hooks_path_values::path_answer;
 use crate::private_storage::read_regular_file;
 use crate::repo_read_config_scan::{
     ScopeEnvironment,
     discovery_key,
     entries_avoid_keys,
     outer_scopes_avoid_keys,
-    read_following,
 };
 use crate::repo_read_config_text::{
     CONFIG_TEXT_LIMIT,
     ConfigEntry,
-    last_entry,
-    parse_bool,
     parse_config_text,
 };
 use crate::repo_read_config_typed::{
@@ -68,10 +63,8 @@ use crate::repo_read_layout_disk_and_directory_facts::{
     device_of,
     has_git_directory_entries,
     has_git_directory_entries_split,
-    is_hex_byte,
     owned_by_current_user,
     small_file,
-    small_file_bytes,
 };
 pub use crate::repo_read_layout_environment_rules::{
     WRAPPER_ENVIRONMENT_PREFIX,
@@ -81,43 +74,20 @@ pub(crate) use crate::repo_read_layout_environment_rules::{
     effective_environment,
     environment_is_plain,
 };
+pub use crate::repo_read_layout_git_entry_and_head::dot_git_target;
+use crate::repo_read_layout_git_entry_and_head::head_is_valid;
+use crate::repo_read_layout_repository_format::{
+    WORKTREE_CONFIG_NAME,
+    format_of,
+    without_false_bare,
+    worktree_entries,
+};
+pub use crate::repo_read_object_format::ObjectFormat;
 use std::ffi::OsString;
 use std::path::{
     Path,
     PathBuf,
 };
-
-/// The per-worktree configuration file in a worktree's own Git directory.
-const WORKTREE_CONFIG_NAME: &str = "config.worktree";
-
-/// The hash algorithms of object names.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ObjectFormat {
-    /// 20-byte names,
-    /// 40 hexadecimal digits.
-    Sha1,
-    /// 32-byte names,
-    /// 64 hexadecimal digits.
-    Sha256,
-}
-
-impl ObjectFormat {
-    /// The name `rev-parse --show-object-format` prints.
-    pub fn name(self) -> &'static str {
-        return match self {
-            ObjectFormat::Sha1 => "sha1",
-            ObjectFormat::Sha256 => "sha256",
-        };
-    }
-
-    /// The number of hexadecimal digits of one object name.
-    pub fn hex_length(self) -> usize {
-        return match self {
-            ObjectFormat::Sha1 => 40,
-            ObjectFormat::Sha256 => 64,
-        };
-    }
-}
 
 /// What:
 ///  Where one worktree and its repository are,
@@ -144,187 +114,6 @@ pub struct RepoLayout {
     pub prefix: Vec<u8>,
     /// The object hash of the repository.
     pub object_format: ObjectFormat,
-}
-
-/// Whether the `HEAD` text is one of the two spellings Git accepts that this reader knows.
-fn head_is_valid(
-    text: &str,
-    format: ObjectFormat,
-) -> bool {
-    let Some(line) = text.strip_suffix('\n') else {
-        return false;
-    };
-    if let Some(name) = line.strip_prefix("ref: ") {
-        return name.starts_with("refs/") && !name.contains('\n');
-    }
-    return line.len() == format.hex_length() && line.bytes().all(is_hex_byte);
-}
-
-/// What:
-///  The Git directory a `.git` entry names:
-/// the entry itself when it is a directory,
-///  the `gitdir:` line of a plain file,
-/// `None` for a link or anything else.
-/// Why:
-///   The line is read as the bytes the file holds and the path it names is built from them,
-///  because a Git directory whose own path is not UTF-8 is still the one this worktree uses,
-/// and declining it sent every read of that worktree to Git.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const named = contents.subarray('gitdir: '.length).trimEnd('\r\n'); // Buffer, never a string
-/// ```
-pub fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
-    let dot_git: PathBuf = worktree.join(".git");
-    let metadata = match std::fs::symlink_metadata(&dot_git) {
-        Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Some(None),
-        Err(_) => return None,
-    };
-    if metadata.is_dir() {
-        return Some(Some((dot_git, false)));
-    }
-    if !metadata.is_file() {
-        return None;
-    }
-    let contents: Vec<u8> = small_file_bytes(dot_git.as_path())?;
-    // Git strips every trailing carriage return and line feed (`read_gitfile_gently` in `setup.c`).
-    let mut target: &[u8] = contents.strip_prefix(b"gitdir: ")?;
-    while matches!(target.last(), Some(b'\r' | b'\n')) {
-        target = &target[..target.len() - 1];
-    }
-    if target.is_empty() || target.contains(&b'\n') {
-        return None;
-    }
-    return Some(Some((worktree.join(path_answer(target)), true)));
-}
-
-/// What:
-///  The repository format keys the layout needs from the repository's own configuration file:
-///  the object format,
-/// and whether `extensions.worktreeConfig` turns the per-worktree file on.
-/// Why:
-///   The object format decides the length of a name;
-/// any other extension may change how the repository is read.
-///  Git respects `extensions.worktreeConfig` at every `core.repositoryFormatVersion`
-///  (`Documentation/config/extensions.adoc`,
-/// `handle_extension_v0` in `setup.c`);
-/// the last entry decides,
-/// as a boolean.
-///  A repository whose configuration names no `core.repositoryformatversion` has no format at all to Git,
-/// so the
-///  extension is off there.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const format: { objectFormat: ObjectFormat; worktreeConfig: boolean } | undefined = readFormat(entries); // undefined: ask Git
-/// ```
-fn format_of(entries: &[ConfigEntry]) -> Option<(ObjectFormat, bool)> {
-    // A bare `core.repositoryformatversion` is an error in Git, not an absent key.
-    let version: Option<&[u8]> = match last_entry(entries, "core.repositoryformatversion") {
-        Some(entry) => Some(entry.value.as_deref()?),
-        None => None,
-    };
-    let version_one: bool = match version {
-        None | Some(b"0") => false,
-        Some(b"1") => true,
-        Some(_) => return None,
-    };
-    let mut format: ObjectFormat = ObjectFormat::Sha1;
-    let mut worktree_config: bool = false;
-    for entry in entries {
-        if !entry.key.starts_with("extensions.") {
-            continue;
-        }
-        if entry.key == "extensions.worktreeconfig" {
-            worktree_config = parse_bool(entry.value.as_deref())?;
-            continue;
-        }
-        if !version_one {
-            return None;
-        }
-        let value: &[u8] = entry.value.as_deref().unwrap_or_default();
-        match (entry.key.as_str(), value) {
-            ("extensions.noop", _) => {}
-            ("extensions.preciousobjects", _) if parse_bool(entry.value.as_deref()).is_some() => {}
-            ("extensions.objectformat", b"sha1") => format = ObjectFormat::Sha1,
-            ("extensions.objectformat", b"sha256") => format = ObjectFormat::Sha256,
-            ("extensions.refstorage", b"files") => {}
-            _ => return None,
-        }
-    }
-    // Git clears the whole format when no version was found (`read_repository_format` in `setup.c`), the extension with
-    // it, so an absent version never turns the per-worktree file on.
-    return Some((format, worktree_config && version.is_some()));
-}
-
-/// What:
-///  The entries of the worktree's own `config.worktree`,
-/// or none when the extension is off or the file is absent;
-///  `None` when the file cannot be read or parsed.
-/// Why:
-///   Git reads `<git dir>/config.worktree` (the worktree's own Git directory,
-/// not the common one) after the common
-///  file,
-/// and only when `extensions.worktreeConfig` is on;
-/// a missing file is an empty file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const entries = enabled ? parse(await readIfExists(join(gitDir, 'config.worktree'))) : []; // undefined: ask Git
-/// ```
-fn worktree_entries(
-    git_dir: &Path,
-    enabled: bool,
-) -> Option<Vec<ConfigEntry>> {
-    if !enabled {
-        return Some(Vec::new());
-    }
-    return match read_following(git_dir.join(WORKTREE_CONFIG_NAME).as_path())? {
-        Some(bytes) => parse_config_text(bytes.as_slice()),
-        None => Some(Vec::new()),
-    };
-}
-
-/// What:
-///  The entries with every direct `core.bare` removed when the last one leaves the repository non-bare;
-///  `None` when it makes the repository bare or any of them is not a boolean.
-/// Why:
-///   Git takes the last `core.bare` of the common file then the per-worktree file (`read_worktree_config` in
-///  `setup.c`);
-/// a bare repository,
-/// an unreadable boolean and a `core.worktree` are left to Git by the key scan.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const kept = lastBare(files) === true ? undefined : files.map((entries) => entries.filter((e) => e.key !== 'core.bare'));
-/// ```
-fn without_false_bare(files: [&[ConfigEntry]; 2]) -> Option<[Vec<ConfigEntry>; 2]> {
-    let mut last: Option<bool> = None;
-    for entries in files {
-        for entry in entries {
-            if entry.key == "core.bare" {
-                last = Some(parse_bool(entry.value.as_deref())?);
-            }
-        }
-    }
-    if last == Some(true) {
-        return None;
-    }
-    let [common, per_worktree] = files;
-    return Some([without_bare(common), without_bare(per_worktree)]);
-}
-
-/// The entries without `core.bare`,
-/// in their order.
-fn without_bare(entries: &[ConfigEntry]) -> Vec<ConfigEntry> {
-    let mut kept: Vec<ConfigEntry> = Vec::new();
-    for entry in entries {
-        if entry.key != "core.bare" {
-            kept.push(entry.clone());
-        }
-    }
-    return kept;
 }
 
 /// What:

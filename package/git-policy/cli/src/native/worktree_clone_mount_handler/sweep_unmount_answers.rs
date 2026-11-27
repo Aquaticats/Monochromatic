@@ -11,7 +11,7 @@
 //! ```
 
 use super::sweep_clone_check::VerifiedClone;
-use super::sweep_one_clone::{
+use super::sweep_turn_context_and_outcome::{
     CloneOutcome,
     RECEIPT_STEP,
     SweepContext,

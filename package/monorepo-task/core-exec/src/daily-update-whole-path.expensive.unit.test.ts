@@ -23,6 +23,13 @@ import {
   type RecordedGhCall,
   runWholePath,
 } from './daily-update-whole-path-fixture.ts';
+import {
+  CARGO_LOCK,
+  crateManifest,
+  PNPM_LOCK,
+  PNPM_WORKSPACE,
+  RUST_CATALOG,
+} from './daily-update-whole-path-scripts-fixture.ts';
 
 /**
  The repository root, where the recorder's build is looked for.
@@ -93,7 +100,7 @@ await describe({
     it({
       name: 'opens one issue for the crate the update broke, none for the crate that was already red, and keeps both commits',
       fn: async () => {
-        const result = await runWholePath({ ghExitCode: 0, pnpmSkipsLockfileWrite: false, },);
+        const result = await runWholePath({ cargoShadowSkipsLockWrite: false, ghExitCode: 0, pnpmSkipsLockfileWrite: false, },);
         expect(result.exitCode,).toBe(0,);
         expect(result.commitSubjects.slice(0, 2,),).toEqual([
           'chore(*): daily update of the pnpm and Cargo dependency locks',
@@ -117,6 +124,20 @@ await describe({
         expect(result.notifications.map((notification,) => notification.summary,),).toEqual(['Daily update needs a look',],);
         expect(result.notifications[0]?.app,).toBe('toolchain-daily-update',);
         expect(result.notifications[0]?.body,).toContain('issue opened (https://github.com/example/fixture/issues/1)',);
+        // The raised catalog floor, the manifests rendered from it and every lock that has to satisfy them land in one
+        // commit: the group is the unit issue 6398 asks for.
+        const dependency = result.commits.find(function isDependency(commit,) {
+          return commit.subject === 'chore(*): daily update of the pnpm and Cargo dependency locks';
+        },);
+        expect([...dependency?.files ?? [],].toSorted(),).toEqual([
+          'package/a/broken-crate/Cargo.lock',
+          'package/a/broken-crate/Cargo.toml',
+          'package/c/red-crate/Cargo.lock',
+          'package/c/red-crate/Cargo.toml',
+          'pnpm-lock.yaml',
+          'pnpm-workspace.yaml',
+          'rust-catalog.toml',
+        ],);
         for (const call of result.ghCalls) {
           expect(call.environment.GIT_ASKPASS,).toBe('',);
           expect(call.environment.GIT_TERMINAL_PROMPT,).toBe('0',);
@@ -127,7 +148,7 @@ await describe({
     it({
       name: 'keeps the issue for the next run when gh fails, and still exits as the update did',
       fn: async () => {
-        const result = await runWholePath({ ghExitCode: 1, pnpmSkipsLockfileWrite: false, },);
+        const result = await runWholePath({ cargoShadowSkipsLockWrite: false, ghExitCode: 1, pnpmSkipsLockfileWrite: false, },);
         expect(result.exitCode,).toBe(0,);
         expect(result.commitSubjects.length,).toBe(3,);
         expect(callsOf({ calls: result.ghCalls, verb: 'issue create', },).length,).toBe(0,);
@@ -140,7 +161,7 @@ await describe({
     it({
       name: 'lands no dependency lock when the install left the pnpm lock out of step with the catalog, and names it',
       fn: async () => {
-        const result = await runWholePath({ ghExitCode: 0, pnpmSkipsLockfileWrite: true, },);
+        const result = await runWholePath({ cargoShadowSkipsLockWrite: false, ghExitCode: 0, pnpmSkipsLockfileWrite: true, },);
         expect(result.exitCode,).toBe(1,);
         // The toolchain group still lands; only the dependency group's files go back.
         expect(result.commitSubjects,).toEqual([
@@ -152,6 +173,37 @@ await describe({
         expect(result.journal,).toContain('nothing from this group was landed',);
         expect(result.journal,).toContain('pnpm-workspace.yaml has ">=1.94", pnpm-lock.yaml has ">=1.93"',);
         // The desktop body is the journal's opening, so only the start is on the bus.
+        expect(result.notifications.length,).toBe(1,);
+        expect(result.notifications[0]?.body,).toContain('dependency locks',);
+      },
+    },),
+    it({
+      name: 'lands no dependency file when an install reports success and leaves a Cargo lock stale after the floor moved',
+      fn: async () => {
+        const result = await runWholePath({ cargoShadowSkipsLockWrite: true, ghExitCode: 0, pnpmSkipsLockfileWrite: false, },);
+        expect(result.exitCode,).toBe(1,);
+        // The toolchain group still lands; the raised floor, the manifests rendered from it and both locks go back.
+        expect(result.commitSubjects,).toEqual([
+          'chore(toolchain): daily update of the repository toolchain lock',
+          'fixture: first commit',
+        ],);
+        expect(result.journal,).toContain('mise exec -- cargo-shadow install --frozen-lockfile',);
+        expect(result.journal,).toContain(
+          'Frozen install failed: 1 Cargo.lock file(s) are present but need an update to satisfy their manifests.',
+        );
+        expect(result.journal,).toContain('- package/a/broken-crate',);
+        expect(result.journal,).toContain('nothing from this group was landed',);
+        // The floor, the manifests rendered from it and the locks are every one back to the text the first commit holds, so
+        // `file-enforcer check` stays clean on the branch that carries the update.
+        expect(result.dependencyFileTexts,).toEqual({
+          'package/a/broken-crate/Cargo.lock': CARGO_LOCK,
+          'package/a/broken-crate/Cargo.toml': crateManifest({ name: 'broken-crate', },),
+          'package/c/red-crate/Cargo.lock': CARGO_LOCK,
+          'package/c/red-crate/Cargo.toml': crateManifest({ name: 'red-crate', },),
+          'pnpm-lock.yaml': PNPM_LOCK,
+          'pnpm-workspace.yaml': PNPM_WORKSPACE,
+          'rust-catalog.toml': RUST_CATALOG,
+        },);
         expect(result.notifications.length,).toBe(1,);
         expect(result.notifications[0]?.body,).toContain('dependency locks',);
       },

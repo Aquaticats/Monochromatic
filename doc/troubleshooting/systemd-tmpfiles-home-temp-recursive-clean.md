@@ -173,7 +173,10 @@ necessary for complete traversal and cleanup of that designated tree. It makes a
 `--clean` operation consequential, so only the dry-run was used for verification.
 
 The pre-change state, an absent local file, is recorded privately at
-`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/systemd-tmpfiles-local.before-temp-recursion`.
+`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/systemd-tmpfiles-local.before-temp-recursion`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The temp-only policy and system configuration before the user migration are retained beside it as
 `systemd-tmpfiles-local.before-cargo-and-user-migration` and
 `systemd-tmpfiles-temp-clean-2026-11-26/temp.conf.system-before-user-migration`.

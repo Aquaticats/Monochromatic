@@ -165,7 +165,10 @@ besides the directory entries. PID values and socket inodes are evidence for thi
 values to reuse on another run.
 
 The stale-removal evidence is private at
-`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/keepassxc-native-messaging-lock-2026-11-24/removed-empty-unheld-stale-locks.json`.
+`/home/user/temp/agent/apparmor-full-system-cachyos-2026-11-17/keepassxc-native-messaging-lock-2026-11-24/removed-empty-unheld-stale-locks.json`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## Verified workarounds
 

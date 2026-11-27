@@ -5,6 +5,13 @@
 //! and the shapes a capture refuses.
 
 use super::*;
+/// The ref of its own that keeps a capture,
+/// which is a file of its own beside the capture's objects.
+use crate::merge_isolation_carry_ref::{
+    CARRIED_REF_PREFIX,
+    drop_capture_ref,
+    keep_capture,
+};
 use crate::test_support::{
     fixture,
     git,

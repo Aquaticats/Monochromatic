@@ -18,7 +18,6 @@
 //! ```
 
 use crate::diagnostic_log::debug;
-use crate::merge_isolation_carry::drop_capture_ref_awaiting;
 use crate::merge_isolation_carry_apply::{
     CarryFailure,
     LandedFile,
@@ -28,6 +27,7 @@ use crate::merge_isolation_carry_apply::{
     restore_awaiting,
 };
 use crate::merge_isolation_carry_notice::report_lines;
+use crate::merge_isolation_carry_ref::drop_capture_ref_awaiting;
 use crate::merge_isolation_changes::Change;
 use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery_cleanup::partly_installed;

@@ -18,9 +18,27 @@ use crate::merge_second_pass::tests::{
 };
 use crate::merge_second_pass::{
     GitReply,
+    GitRunner,
+    Stage,
+    Verdict,
     resolved_record,
+    second_pass,
+    write_blob,
+};
+use crate::merge_second_pass_worktree_install::{
+    install,
+    restore_records,
 };
 use crate::merge_second_pass_worktree_unchanged::LARGEST_RECORDED_BYTES;
+use crate::merge_second_pass_worktree_unchanged::{
+    Before,
+    Kept,
+    still_the_same,
+};
+use crate::repo_read_index::{
+    IndexEntry,
+    parse_index,
+};
 use crate::test_support::{
     git,
     git_context,

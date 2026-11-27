@@ -117,7 +117,10 @@ and `stop_the_service` and `serve_the_service` are the only places the control e
   `push_without_its_transport::gone` answered `None` for a record whose service holds nothing,
   which is the guard the control stands on,
   saved as `keep/plant-the-gone-guard-removed.patch` in
-  `~/temp/agent/push-control-restarted-service-scene-2026-11-24`.
+  `~/temp/agent/push-control-restarted-service-scene-2026-11-24`
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
   The new service logged `pushed branch="refs/heads/main" ... outcome=done push_ms=142`,
   and the control failed at `never happened: the push records what stopped it` after 123 seconds.
 - Green with the guard restored:
@@ -157,7 +160,10 @@ form the scene with the record held at `AFTER_THE_VERDICT`,
 promote the record while no service runs,
 and then serve the next instance,
 as this control does.
-Its evidence is in `~/temp/agent/end-to-end-push-program-controls-run-in-the-gate-2026-11-24/keep/`:
+Its evidence is in `~/temp/agent/end-to-end-push-program-controls-run-in-the-gate-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here):
 twelve green runs of that control,
 and a red one with the source of the searched list classified as the command's own `PATH`,
 which failed at `the refusal names the service's own list` in 1.57 s.
