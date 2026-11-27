@@ -265,10 +265,16 @@ Outside the wrapper:
   and,
   for the wrapper,
   its guide.
-- After the cleanup of 2026-11-27T15:26:37-05:00 the coordinator's scratch launcher and merge script are gone:
-  a round starts through the driver package's `start-pi-run-in-a-worktree` once its fix has merged,
-  and a merge is `git merge --no-ff <branch>` in the main checkout,
-  after `git merge-tree` shows no conflict.
+- A round starts through the driver package's launcher,
+  whose fix merged as `b194726011`:
+  `mise run //package/pi-shared/subagent-driver:start-pi-run-in-a-worktree -- --name=<round> --branch=<branch> --prompt=<brief> --cpu=<threads> --memory=<cap> --tasks=<count> --wall=<seconds> --turn-cap=<turns> --provider=rate-limit-fallback --model=writer`.
+  It removes the worktree of a run that ended idle with nothing uncommitted,
+  and the package's `list-runs-that-ended-since` and `print-the-final-report-of-the-newest-run-of-each-agent`
+  read its runs folder (`~/temp/agent/pi-runs`).
+  The rounds started before 2026-11-27T01:55-05:00 went through the coordinator's scratch launcher,
+  which the cleanup of 2026-11-27T15:26:37-05:00 deletes with its merge script;
+  after that a merge is `git merge --no-ff <branch>` in the main checkout,
+  once `git merge-tree` shows no conflict.
 - Owner questions wait in `doc/handover/questions-for-the-owner.md`,
   among them the next step a typed network command names at a new host key
   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).
