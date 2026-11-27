@@ -364,7 +364,8 @@ fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
     );
 }
 
-/// The installed-parts listings ask about the same channel `packageId` names, not the locked version,
+/// The installed-parts listings ask about the same channel `packageId` names,
+/// not the locked version,
 /// so a real install is not read as missing and re-added forever.
 #[test]
 fn the_installed_parts_are_listed_for_the_package_id_channel() {

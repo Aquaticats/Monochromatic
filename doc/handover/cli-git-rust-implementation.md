@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T18:11:08-05:00
+## The state at 2026-11-27T18:17:40-05:00
 
-`main` was `50e4b07543`.
+`main` was `f6b4dc0947`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 283 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 285 more by this time.
 
 ### Rounds running
 
@@ -279,8 +279,13 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   it changes a driver this round moves,
   so it starts when this round has merged;
 - the linter,
-  where no round runs:
-  the round for the Claude Sonnet read of `0.5.2-alpha.21`
+  where one round runs,
+  `monochromatic-lint-alpha-22-release-pass-a-list-lines-sentence-is-true-for-the-name-it-wrote-and-its-controls-can-fail`,
+  started 2026-11-27T18:16:37-05:00,
+  on what the read of `0.5.2-alpha.22` found
+  ("What the linter's alpha.22 read found");
+  `0.5.2-alpha.23` follows its merge.
+  The round for the Claude Sonnet read of `0.5.2-alpha.21`
   ("What the linter's alpha.21 read found") is merged (`83d10dd296`),
   and `0.5.2-alpha.22` is released
   (release commit `f10132d60f`,
@@ -288,9 +293,10 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   whose run ended 2026-11-27T17:21:26-05:00),
   locked (`0b90e1d87e`) and installed,
   with the session's `git` link put back at 2026-11-27T17:23:24-05:00.
-  A Claude Sonnet read of it runs since about 2026-11-27T17:22-05:00,
+  Its Claude Sonnet read,
   a same-vendor second pass,
-  writing `~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`.
+  started 2026-11-27T17:21:51-05:00 and wrote its review at 2026-11-27T18:12:31-05:00:
+  `~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`.
   A `file-uses` line of six words now names the folder its words name for every spelling of its gaps:
   1,152 of the read's 1,296 lines,
   against 324 in alpha.21,
@@ -957,8 +963,10 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the README's list was checked against the code's own literals;
   and the suite passed 888 of 888 on its merged tree.
   Its two wording choices wait in `doc/handover/questions-for-the-owner.md`,
-  and the package's other files still hold 76 line-break findings of the linter,
-  none on a line that round wrote.
+  and the package's other files held 76 line-break findings of the linter,
+  none on a line that round wrote;
+  the linter's own `--fix` took them out (`ee8871b190`),
+  as "The Markdown the line-break sweep left out" says.
   The rounds merged with no textual conflict and met in meaning:
   one made the list of removed leftovers carry whether each held a finished copy,
   and reworded the sentence for a publish a recovery finished,
@@ -1158,10 +1166,11 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Three reads run as background agents of the coordinating session:
-of the linter's `0.5.2-alpha.22`,
+Two reads run as background agents of the coordinating session,
 of `cargo-shadow`'s `0.1.5-alpha.16` and of `mpm-shadow`'s `0.2.7-alpha.17`,
 each at the path this section gives beside its release.
+The linter's read of `0.5.2-alpha.22` returned and was read whole
+("What the linter's alpha.22 read found").
 Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
 ("What the wrapper's alpha.50 reads found"),
 as was the linter's
@@ -1422,6 +1431,64 @@ one of which gives a ratio outside its own control's range),
 two controls that stay green under named edits,
 and a state outside these merges:
 a scope that does not exist yet may be read as collected and its unit left loaded in silence.
+
+What the linter's alpha.22 read found
+(`~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass,
+written 2026-11-27T18:12:31-05:00):
+no High finding,
+no Medium and nine Low.
+What it confirmed with the released binaries:
+over 10,081 lists no line moved between read and refused between alpha.21 and alpha.22,
+and no exit status or set of findings changed,
+with a probe first that shows the comparison sees a move (alpha.19 against alpha.21 moves 163 lists);
+on a clean tree only `--version` differs;
+the table of unseen characters equals Unicode 17.0.0's own data,
+and over every scalar value alpha.22 spells 4,288 where alpha.21 spelled 29;
+a `file-uses` line of six words names the folder it wrote in 1,152 of 1,296 lines against 324;
+and the help of a dead line names every character a gap kept,
+in 992 of 992 lines.
+Its Low findings:
+a folder named with an arrow that a tab,
+a no-break space or two spaces set off is still told its line holds two arrows;
+a folder whose own name begins with whitespace is named for single gaps only,
+72 of 200 lines,
+and with a sibling the sibling is named;
+a line written for a folder the tree does not hold names the folder its words make;
+the name is judged against any directory on disk,
+so an absolute path in a six-word line is told to be renamed for a space;
+a dead `file-uses` line is told to take a character out whenever the line holds one,
+also where the file is really named so,
+which alpha.21 answered rightly;
+the loop and missing-link messages,
+the commands they give and the help of a dead `uses` line still print such characters raw;
+three refusals quote no line and one names no character;
+the README says the place is "the column an editor shows",
+where `vim` shows a byte column and a tab's width,
+and a sentence says a line "reads as a `uses` line" that is refused after the edit;
+and three controls stay green under a named edit,
+the ones on the range table among them,
+because they read the table they hold.
+Of the alpha.21 read's points,
+its two Medium are closed for the shapes it named,
+and the rename for each arrow shape and the wall time of a long dead list are as they were,
+the second inside its control's spread.
+The read's `vim` runs,
+headless,
+rewrote `~/.viminfo` in the account's home at 2026-11-27T18:09:40-05:00;
+the brief of the round that follows forbids running an editor.
+The coordinator's weighing:
+one round takes the dead `file-uses` advice,
+the refusals that quote no line,
+the README's and the sentences' overstatements,
+the controls,
+the two shapes of the readings,
+and the absolute path in a six-word line;
+a line for a folder the tree does not hold keeps its reading,
+and the README says so;
+and the raw characters in the other messages wait for the owner,
+because a command a person copies must hold the name raw
+(`doc/handover/questions-for-the-owner.md`).
 
 What the linter's alpha.21 read found
 (`~/temp/agent/monochromatic-lint-alpha-21-release-review-2026-11-27/keep/review.md`,
@@ -2899,13 +2966,22 @@ because the branches that were changing them could not take the diff:
 `main`,
 and everything under `package/git-policy/cli` and `package/pi-shared/subagent-driver/README.md` is the
 same.
-`fix-whitespace-only-line-breaks.ts` in `~/temp/agent/lint-line-breaks-of-the-2026-11-23-markdown/`
-applies that fix,
-and each file it rewrites is equal to its old text with whitespace collapsed,
-which is how the sweep's 108 files were committed.
-Run it once the rounds that edit those files have merged,
-one file's commit each;
-the script is in scratch and expires with it.
+The installed linter applies that fix itself with `--fix`,
+which changes whitespace only,
+so the scratch script of 2026-11-23 is not needed.
+On 2026-11-27 it took 76 findings out of `package/mpm-shadow/cli` (`ee8871b190`)
+and 11 out of `package/cargo-shadow/cli` (`f6b4dc0947`),
+every one in a Rust doc comment,
+in a window when no round worked in either package:
+in a worktree per package,
+each changed file was equal to its old text once whitespace and comment markers were taken off,
+`cargo fmt --check`,
+`cargo check` and Clippy exited 0,
+and the whole test task passed,
+910 of 910 and 968 of 968.
+Do the same for the files this passage names once the rounds that edit them have merged.
+`cargo-shadow`'s `src/lib.rs` stays over the line budget,
+305 code lines against 300.
 
 #### The release passes
 

@@ -153,7 +153,8 @@ pub fn install_cargo_binstall(
 /// What:
 /// Installs one crate from a git source at a pinned revision into the tool's own install directory.
 /// Why:
-/// The revision is the request's range with a leading `ref:` removed, or the range as it stands.
+/// The revision is the request's range with a leading `ref:` removed,
+/// or the range as it stands.
 /// A request that pins no revision carries the range `latest`,
 /// which is passed to `--rev` unchanged and that cargo refuses,
 /// so a git entry must pin the revision it wants.

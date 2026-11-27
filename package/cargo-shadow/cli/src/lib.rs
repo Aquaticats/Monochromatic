@@ -546,7 +546,8 @@ mod finish_phase_tests;
 /// and of the bounds on the waits.
 #[cfg(test)]
 mod quiescence_failure_tests;
-/// The journals a refusal keeps, and what each kind of next run of the same workspace does with one.
+/// The journals a refusal keeps,
+/// and what each kind of next run of the same workspace does with one.
 #[cfg(test)]
 mod refusal_journal_next_runs_tests;
 /// Round 11 tests:

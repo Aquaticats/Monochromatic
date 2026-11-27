@@ -31,7 +31,8 @@ fn global_flag() -> Arg {
         .help("Act on the machine-global toolchain (the plan and lock under the per-user config directory)");
 }
 
-/// The tool arguments `install` takes: the ids and requests it adds to the plan before installing.
+/// The tool arguments `install` takes:
+/// the ids and requests it adds to the plan before installing.
 fn install_tools_arg() -> Arg {
     return Arg::new("tool")
         .num_args(0..)

@@ -59,11 +59,13 @@ fn file_names_convert_and_missing_ones_are_empty() {
 //region The mode of the temporary an atomic write builds
 
 /// What:
-/// The process's umask, set for one test and put back when the guard drops.
+/// The process's umask,
+/// set for one test and put back when the guard drops.
 /// Why:
 /// The mode the kernel gives a created file is the mode `open` was asked for,
 /// less the umask,
-/// so proving "never wider than the kept mode, whatever the umask" needs two umasks in one run.
+/// so proving "never wider than the kept mode,
+/// whatever the umask" needs two umasks in one run.
 /// The tested write never widens a file beyond the mode it is asked for,
 /// so a test that lowers the umask cannot make a sibling test's file wider than it asked for;
 /// nextest also gives each test a process of its own.
@@ -74,7 +76,8 @@ fn file_names_convert_and_missing_ones_are_empty() {
 /// ```
 #[cfg(unix)]
 struct Umask(
-    /// The umask this test found, put back when it ends.
+    /// The umask this test found,
+    /// put back when it ends.
     u32,
 );
 

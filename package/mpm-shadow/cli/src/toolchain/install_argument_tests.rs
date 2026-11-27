@@ -87,7 +87,9 @@ const TOKEI_CRATE: &str = r#"{
   "versions": [ { "num": "15.0.0", "bin_names": ["tokei"] } ]
 }"#;
 
-/// A lock for `plan`: every tool at `VERSION`, as a hand edit and `update` would leave it.
+/// A lock for `plan`:
+/// every tool at `VERSION`,
+/// as a hand edit and `update` would leave it.
 fn lock_for(plan: &Plan) -> Lock {
     let mut tools: Vec<LockedTool> = Vec::new();
     for declaration in &plan.tools {
@@ -102,7 +104,10 @@ fn lock_for(plan: &Plan) -> Lock {
     };
 }
 
-/// What a test needs: a scope on disk, its environment, the fakes and the host.
+/// What a test needs:
+/// a scope on disk,
+/// its environment,
+/// the fakes and the host.
 struct Fixture {
     /// Keeps the disposable directory alive until the fixture drops.
     directory: tempfile::TempDir,

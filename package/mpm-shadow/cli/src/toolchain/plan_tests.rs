@@ -222,8 +222,10 @@ fn an_entry_with_a_cargo_id_on_the_archive_route_takes_a_tag_prefix_and_a_postin
     ));
 }
 
-/// A postinstall holding both a link and a run is refused, with both fields named:
-/// the model carries one step, and silently keeping the link would drop the run.
+/// A postinstall holding both a link and a run is refused,
+/// with both fields named:
+/// the model carries one step,
+/// and silently keeping the link would drop the run.
 #[test]
 fn a_postinstall_holding_both_a_link_and_a_run_is_refused_with_both_fields_named() {
     let source = "{\"schemaVersion\": 1, \"tools\": {\"x\": {\"request\": \"node@latest\", \"route\": \"archive\", \"bins\": [\"x\"], \"options\": {\"postinstall\": {\"when\": \"always\", \"link\": {\"sourceBin\": \"x\", \"linkName\": \"x\"}, \"run\": {\"sourceBin\": \"x\", \"args\": []}}}}}}";
@@ -232,7 +234,9 @@ fn a_postinstall_holding_both_a_link_and_a_run_is_refused_with_both_fields_named
     assert!(error.message.contains("run"), "{error}");
 }
 
-/// A `cargo-git` entry names a git source, not a crate, so the crate comes from `packageId`;
+/// A `cargo-git` entry names a git source,
+/// not a crate,
+/// so the crate comes from `packageId`;
 /// without it the plan key was passed to `cargo install --git` as the crate name and failed there.
 #[test]
 fn a_cargo_git_plan_entry_without_a_package_id_is_refused_at_decode_time() {

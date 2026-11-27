@@ -32,7 +32,8 @@ use super::update_resolve::{
     is_arm64,
     text_at,
 };
-/// Imports the crate's one version comparison, which also orders pre-releases.
+/// Imports the crate's one version comparison,
+/// which also orders pre-releases.
 use crate::version::compare_versions;
 
 /// One Go release's Linux archive for an architecture (`amd64` or `arm64`):
