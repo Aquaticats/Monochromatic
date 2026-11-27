@@ -585,42 +585,14 @@ export function argumentTextOfTheChainedCalls({
     to,
   },);
   return {
-    text: calls.map(argumentTextOfAChainedCall,)
+    text: calls.map(function textOf(call,) {
+      return call.text;
+    },)
       .join(', ',),
-    inArrayLiteral: calls.some(argumentTextHeldByAnArrayLiteral,),
+    inArrayLiteral: calls.some(function heldByAnArrayLiteral(call,) {
+      return call.inArrayLiteral;
+    },),
   };
-}
-
-/**
- The argument text one call of a chain passed the program.
-
- @param call - the call
-
- @returns the text the call passed
-
- @example
- ```ts
- const text = argumentTextOfAChainedCall(call);
- ```
- */
-function argumentTextOfAChainedCall(call: ChainedCall,): string {
-  return call.text;
-}
-
-/**
- Whether an array literal held the argument text one call of a chain passed the program.
-
- @param call - the call
-
- @returns true when brackets held the text
-
- @example
- ```ts
- const held = argumentTextHeldByAnArrayLiteral(call);
- ```
- */
-function argumentTextHeldByAnArrayLiteral(call: ChainedCall,): boolean {
-  return call.inArrayLiteral;
 }
 
 /**
