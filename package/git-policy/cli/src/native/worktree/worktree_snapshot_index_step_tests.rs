@@ -101,16 +101,25 @@ fn source_of(
 }
 
 /// What:
-///  The installed index never records the edited file's own stat fields,
-/// so Git hashes that file instead of taking the
-///  edit for the entry's content.
+///  The installed index keeps every stat field the source's own index recorded,
+/// so it never records the edited
+///  file's own fields and Git takes the edit for the entry's content.
 /// Why:
 ///   The fields of a file an edit changed would vouch for bytes the entry does not name;
 /// keeping the recorded
 ///  fields is what makes the restore settle the file by content.
+/// The difference between the recorded fields and the
+///  file's own is the nanosecond part of the modification time,
+/// which the fixture states on both sides:
+/// every other
+///  field is equal by what makes the edit hidden from Git's own check,
+/// and a change time is this file
+///  system's to keep (it advances once per tick,
+/// `doc/troubleshooting/openzfs-file-times-advance-in-one-millisecond-steps.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// expect(installedEntry('a.txt').stored).toEqual(sourceEntry('a.txt').stored);
 /// expect(matchesStored(fieldsOf(statOf(stage, 'a.txt')), installedEntry('a.txt').stored)).toBe(false);
 /// ```
 #[test]
@@ -147,21 +156,41 @@ fn the_index_a_source_with_changes_installs_keeps_the_fields_that_prove_an_edit(
         .expect("the entry of the edited file");
     let file: std::fs::Metadata = std::fs::metadata(repo.join("a.txt")).expect("the file's stat");
     assert_eq!(std::fs::read(repo.join("a.txt")).expect("the edit"), EDITED);
+    let carried: Vec<StatEntry> = stored_stats(seed.as_slice(), source.clean.hash_length)
+        .expect("the source's entries are plain");
+    let carried_entry: &StatEntry = carried
+        .iter()
+        .find(|found: &&StatEntry| {
+            return found.path == b"a.txt";
+        })
+        .expect("the source's entry of the edited file");
+    assert_eq!(
+        entry.stored, carried_entry.stored,
+        "the installed index keeps every stat field the source's own index recorded, so no field was taken from the file"
+    );
     assert_eq!(
         (file.size(), file.mtime()),
         (
             EDITED.len() as u64,
             crate::worktree_ladder_test_support::HIDDEN_EDIT_SECONDS as i64
         ),
-        "the edit keeps the length and the modification time the index recorded"
+        "the edit keeps the length and the second of the modification time the index recorded"
+    );
+    assert_eq!(
+        (file.mtime_nsec() as u32, entry.stored.mtime_nanos),
+        (
+            crate::worktree_ladder_test_support::HIDDEN_EDIT_EDITED_NANOS,
+            crate::worktree_ladder_test_support::HIDDEN_EDIT_RECORDED_NANOS
+        ),
+        "the fixture states both sides of the difference the check below rests on"
     );
     assert!(
         !matches_stored(&fields_of(&file), &entry.stored),
-        "the installed index records the edited file's own stat fields (ctime {}:{}, recorded {}:{}), so Git takes the edit for the entry's content",
-        file.ctime(),
-        file.ctime_nsec(),
-        entry.stored.ctime_seconds,
-        entry.stored.ctime_nanos
+        "the installed index records the edited file's own stat fields (modification time {}:{}, recorded {}:{}), so Git takes the edit for the entry's content",
+        file.mtime(),
+        file.mtime_nsec(),
+        entry.stored.mtime_seconds,
+        entry.stored.mtime_nanos
     );
     remove(root.as_path());
 }

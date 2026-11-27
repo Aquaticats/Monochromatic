@@ -4744,9 +4744,18 @@ because it pairs one side's deleted line with the other side's kept line and kee
 (issue 6529;
 the allow list of a merge of 2026-11-27,
 whose record stays deleted in `24f8c1947b`).
-A region whose word merge would write back a line one side deleted while the other side left it
-as it was keeps both sides instead,
-so you resolve it.
+That holds for a region at the end of a file as well,
+whether the file's last line ends with a line end or has none,
+and whether the file's lines end with a line feed or with a carriage return and a line feed:
+the merge writes the lines' own bytes,
+so a file keeps the ending it has,
+and a merge that ends a file writes no line end that file did not hold.
+A region whose word merge would write back more copies of a line one side deleted
+than that side still holds,
+while the other side left it as it was,
+keeps both sides instead,
+so you resolve it;
+a merge that writes only the copies that side still holds is right and resolves.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every

@@ -21237,6 +21237,11 @@ and replaced by the word pass.
 A marker of a file whose lines end with a carriage return and a line feed ends with both bytes,
 as Git writes that file's markers,
 so both endings are a marker's own and such a file is still merged.
+A region's own text is the bytes of its stages at the places found,
+not the bytes of the answer:
+Git writes a line end after the last line of every side,
+so a region that ends a file whose last line has no line end of its own holds that byte in the answer alone,
+and the merge writes the ending the file has rather than Git's.
 Those three labels do not reach the split marker,
 which Git writes as seven equals signs and a line end with no room for a label,
 so a line of the person's file that is exactly that cannot be told from Git's own by its bytes.
@@ -21311,9 +21316,9 @@ merge `b928c5fa6999`,
 whose resolution `24f8c1947b` corrected by hand).
 A base line written twice in the region is read by word:
 which copy a side deleted cannot be told there.
-A region whose word merge would write back a line the base held,
-while one side's part holds that line fewer times than the base did
-and the other side's part holds it as often as the base did,
+A region whose word merge would write more copies of a line the base held
+than the side that holds it fewer times than the base did still holds,
+while the other side's part holds it as often as the base did,
 is refused rather than merged,
 and keeps both sides
 (`keeps_a_deleted_line` in the same file).

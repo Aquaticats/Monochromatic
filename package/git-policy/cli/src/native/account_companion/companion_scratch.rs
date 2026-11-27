@@ -105,17 +105,29 @@ pub struct RuntimeFolder {
 
 impl RuntimeFolder {
     /// What:
-    ///  The account's runtime directory as this process's environment names it,
+    ///  The runtime directory the session names,
     ///  which the add route reads once before the check.
     /// Why:
-    ///  A variable that names nothing is the refusal a person already reads,
+    ///  A session that names nothing is the refusal a person already reads,
     ///  and it is answered here rather than by the call site.
+    ///  The name is read in the one place this crate reads it
+    ///  (`foundation/session_runtime_directory_and_bus_address.rs`),
+    ///  because a build made for tests answers only a runtime directory a control handed in
+    ///  (issue 6586).
     ///
     /// # Errors
     /// The variable is unset,
     ///  or what it names is no directory.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// fromEnvironment() { return fromName(session.runtimeDirectory()); }
+    /// ```
     pub fn from_environment() -> Result<RuntimeFolder, ScratchRefusal> {
-        return RuntimeFolder::from_name(std::env::var_os(RUNTIME_VARIABLE));
+        return RuntimeFolder::from_name(
+            crate::session_runtime_directory_and_bus_address::runtime_directory()
+                .map(PathBuf::into_os_string),
+        );
     }
 
     /// What:
