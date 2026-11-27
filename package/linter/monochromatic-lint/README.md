@@ -1367,15 +1367,24 @@ and a line that reads as none of them fails the run:
   the folder before the arrow,
   and the folder after it.
   The four words are read from the line when it sets them off with one whitespace character each,
-  and any other line is read from its arrow with no space taken off either side,
+  and any other line is read from its arrow,
+  with exactly the one space taken off each side of the shape,
   because a folder name may start with a space,
   and the space a line sets its words off with must never be read as part of a name or the other way round.
-  A run of two spaces in front of a name is therefore read as that name's own leading space,
-  so a hand-aligned line names a folder the package does not hold,
-  and its finding says which folder the line read and that no folder is called that.
-  A space left at the end of a name is a misspelling and not a name,
-  because a folder whose name ends in whitespace is refused before any check:
-  such a line fails the run with a `core/processing-failure` that names its line.
+  One rule holds for the space after the word `uses`,
+  for the space before the arrow and for the space after it:
+  a second whitespace character beside a name belongs to that name,
+  on either side of the arrow,
+  so a run of two spaces in front of a name is read as that name's own leading space,
+  a hand-aligned line names a folder the package does not hold,
+  and its finding says which folder the line read and that no source folder is called that.
+  A space left at the end of a name is part of that name too,
+  and no folder of a tree the rules accept ends in whitespace,
+  because such a name is refused before any check:
+  so a line that leaves one before its arrow names a folder no tree holds,
+  and the run reports that one line dead,
+  naming the folder it read,
+  while every other line of the list is still read and every other finding of the rule is still reported.
   A line holds one arrow only,
   because no folder name holds the words it is set off with.
   A line stays alive while its two folders still make that use and still sit in one loop together,
@@ -1390,6 +1399,13 @@ the way findings show it,
 written with `/` on every platform,
 never absolute,
 and no line may repeat another.
+Every listed path is read back against the package folder before it is compared,
+so one spelling of a use decides tolerance,
+death and the repeat a second line would be,
+in both rules alike:
+with the package folder named `p`,
+`uses ../p/src/a -> src/b` names the use `uses src/a -> src/b` names,
+and a line holding both spellings is refused as a repeat.
 A folder outside the package,
 which a `#[path]` can declare,
 is written by the walk from the package folder,
@@ -1521,6 +1537,15 @@ Every key names exactly one finding:
   ends with ` ->`,
   or is `->` alone,
   because the `uses` line naming such a folder would be read as another pair of folders.
+  That last refusal is wider than the shapes a run of alpha.17 read back wrongly,
+  and it is deliberately a rule about the name:
+  a folder name is refused whether or not any `uses` line names it,
+  so no later edit of a tree can print a line that the next run cannot read,
+  and the price is that a package selecting the folder rule stops on such a name
+  even where no line of its list carries it.
+  The file rule reads no `uses` line and names such a folder in a key,
+  which holds the name as written,
+  so the arrow words of a folder name are refused only while the folder rule is selected.
   A file name and an entry of a `uses` folder keep their backslashes and arrow words as the source writes them,
   because neither is a path:
   a `file-uses` line names a file as written,
@@ -1587,7 +1612,8 @@ and the list's own record of today's findings is the only thing that does:
   or whose key no finding reports,
   fails the run until it is gone.
   An entry of the two use shapes whose folder the package does not hold
-  names that folder and says that no folder of the package is called it,
+  names that folder and says that no source folder of the package has that name,
+  which is true of a folder that is missing and of one that holds no module file,
   because a hand-aligned or mistyped line reads as a folder no tree holds,
   and its reader has to re-space the line rather than delete it.
 - A use added between two folders or two files that the list already tolerates in one loop is a finding.
@@ -1930,6 +1956,50 @@ and every other line stays as it is.
   as alpha.16 did,
   and no key changes.
 
+#### How a list written before alpha.19 maps
+
+No key any rule prints changes shape,
+and no line a run printed reads back differently,
+so a list written for alpha.18 needs no new line from this release.
+A list that holds one use under two spellings needs one line fewer,
+and a `file-uses` line that climbs out with `..` and comes back in stops being dead.
+What else changes is which runs stop and what they say.
+
+- A `uses` line whose name before the arrow ends in whitespace is reported dead,
+  naming the folder it read,
+  where alpha.18 refused the whole list with one `core/processing-failure`
+  and so hid every other finding of the rule.
+  The line names a folder no tree holds,
+  so it is re-spaced or deleted,
+  and the rest of the list is read in that same run.
+  One rule now holds for the space after the word `uses`,
+  for the space before the arrow and for the space after it:
+  a second whitespace character beside a name belongs to that name.
+- A folder name that begins with `-> `,
+  ends with ` ->`,
+  or is `->` stops the run only while the folder rule is selected.
+  A package that selects the file rule alone reads such a tree as alpha.17 did,
+  because that rule reads no `uses` line and names such a folder in a key,
+  which holds the name as written.
+- The message of that refusal names the folder whose name is the cause,
+  and the one shape that name has,
+  where alpha.18 named the module file inside that folder and listed four shapes.
+  A folder whose name ends in whitespace,
+  holds a backslash,
+  or holds a line break is named the same way.
+- Two spellings of one use are one line:
+  `uses src/a -> src/b` beside `uses ../p/src/a -> src/b`
+  is refused as the repeat it is,
+  where alpha.18 accepted both and kept both alive.
+  A `file-uses` line whose folder is written that way now tolerates the use its key names,
+  where alpha.18 reported it dead.
+- A dead `uses` or `file-uses` line says that no source folder of the package has the name it read,
+  where alpha.18 said that no folder of the package is called it,
+  which was untrue of a folder on disk that holds no module file.
+- A `file-uses` line for a folder whose name holds a space is refused for that cause:
+  the refusal names the folder and says that the five words of the shape cannot carry a name holding one,
+  where alpha.18 spelled only the shape of the line.
+
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,
@@ -1970,7 +2040,8 @@ and every other line stays as it is.
   The file rule reports such a folder and no `file-uses` line can tolerate a use in it,
   because that shape is five words set off with one whitespace character each
   and a folder name holding a space makes a sixth,
-  so the whole list is refused:
+  so the whole list is refused,
+  and the refusal names that folder and says that the space in its name is why:
   a loop of files in such a folder is untangled or the folder is renamed.
   Only a module file name of a folder is refused with `space-in-file-name`,
   and only for the space character itself:
@@ -1994,6 +2065,10 @@ and every other line stays as it is.
   is `->`,
   or holds ` -> `,
   because no line could name the folder such a name belongs to.
+  The arrow words of a folder name are refused only while the folder rule is selected,
+  so the file rule alone reads a tree that holds one,
+  names such a folder in a key,
+  and keeps that key as it always did.
 - A macro call's key holds its whole argument text,
   so a call written over 6,000 lines gave an 87,828-character key (measured 2026-11-26),
   and any edit inside the call changes that key.

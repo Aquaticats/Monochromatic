@@ -22,6 +22,7 @@
 ///  the code check of an index file and the tree.
 use crate::{
     layout_allow_entries::{
+        ARROW,
         FOLDER_USE_WORD,
         SET_OFF_ARROW,
     },
@@ -134,40 +135,74 @@ pub(crate) fn unlistable_name_part(name: &str) -> Option<(String, UnlistableName
 ///  this check is for the folders alone,
 ///  because a file name and an entry of a `uses` folder are no paths and their keys write them as they are.
 ///  A `uses` line is read from the two sides of the arrow it holds,
-///  so a folder name that leaves the line unable to say where one folder ends is refused too.
+///  so a folder name that leaves the line unable to say where one folder ends is refused too,
+///  while the caller that selects no rule reading a `uses` line passes `arrow_words_are_refused` false:
+///  the file rule names such a folder in a key, and a key holds the name as written.
 ///  Everything a key cannot write of any name is refused here as well.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function unlistableFolderNamePart(name: string): [string, UnlistableName] | undefined;
+/// function unlistableFolderNamePart(name: string, arrowWordsAreRefused: boolean): [string, UnlistableName] | undefined;
 /// ```
-pub(crate) fn unlistable_folder_name_part(name: &str) -> Option<(String, UnlistableName)> {
+pub(crate) fn unlistable_folder_name_part(
+    name: &str,
+    arrow_words_are_refused: bool,
+) -> Option<(String, UnlistableName)> {
     if name.contains('\\') {
         return Some((String::from(name), UnlistableName::HoldsBackslash));
     }
-    if cannot_be_set_off_from_the_arrow(name) {
+    if arrow_words_are_refused && arrow_word_shape(name).is_some() {
         return Some((String::from(name), UnlistableName::HoldsArrowWords));
     }
     return unlistable_name_part(name);
 }
 
 /// What:
-///  Whether a folder name would leave a `uses` line unable to say which folder is the one used.
+///  The one shape of the arrow words a folder name has,
+///  or nothing when its name holds none of them.
 /// Why:
 ///  The rule prints `uses <folder> -> <folder>`,
 ///  and the reader takes the first ` -> ` of that line as the arrow.
-///  A name that ends in ` ->`, begins with `-> `, or is `->` closes another ` -> ` with the space the line sets its words off with,
-///  so the reader would split inside the name and read another pair of folders.
-///  The check is the line's own shape,
-///  so it cannot drift from what the printer writes and the reader reads.
+///  A name that closes another ` -> ` with the space the line sets its words off with
+///  makes the reader split inside the name and read another pair of folders.
+///  The line's own shape is the guard: a name is refused only when the line that would name it on the side before the arrow
+///  really does hold a second ` -> `,
+///  so the check cannot drift from what the printer writes and the reader reads.
+///  The sentence that shape earns names exactly one cause, never a list of four,
+///  because a reader who is told four reasons has to check which one is theirs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const cannotBeSetOffFromTheArrow = (name: string) =>
-///   `${FOLDER_USE_WORD} ${name} `.includes(SET_OFF_ARROW);
+/// const arrowWordShape = (name: string) => {
+///   if (!`uses ${name} `.includes(' -> ')) return undefined
+///   if (name === '->') return 'is `->`'
+///   if (name.startsWith('-> ')) return 'begins with `-> `'
+///   if (name.endsWith(' ->')) return 'ends with ` ->`'
+///   if (name.includes(' -> ')) return 'holds ` -> `'
+///   return 'holds an arrow word'
+/// }
 /// ```
-fn cannot_be_set_off_from_the_arrow(name: &str) -> bool {
-    return format!("{FOLDER_USE_WORD} {name} ").contains(SET_OFF_ARROW);
+pub(crate) fn arrow_word_shape(name: &str) -> Option<&'static str> {
+    // What: whether the line naming this folder before its arrow would hold a second arrow.
+    // Why: the four shapes below are the ways a name does that, and this is the one test they must all satisfy.
+    if !format!("{FOLDER_USE_WORD} {name} ").contains(SET_OFF_ARROW) {
+        return None;
+    }
+    if name == ARROW {
+        return Some("is `->`");
+    }
+    if name.starts_with("-> ") {
+        return Some("begins with `-> `");
+    }
+    if name.ends_with(" ->") {
+        return Some("ends with ` ->`");
+    }
+    if name.contains(SET_OFF_ARROW) {
+        return Some("holds ` -> `");
+    }
+    // What: a name the line cannot be set off from in a way the four shapes above do not name.
+    // Why: the guard above already refused it, so the run says the name holds an arrow word rather than letting it pass.
+    return Some("holds an arrow word");
 }
 
 /// What:
