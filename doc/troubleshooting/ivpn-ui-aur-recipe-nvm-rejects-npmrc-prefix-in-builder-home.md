@@ -259,7 +259,10 @@ with the repo toolchain's node first on `PATH`,
 (`~/.local/share/monochromatic-dev/toolchain/node/26.13.1/node-v26.13.1-linux-x64`).
 `~/.local/lib/node_modules` was empty,
 so nothing installed depended on the setting.
-The previous file is kept at `~/temp/agent/ivpn-ui-npmrc-prefix-removal-check-2026-11-26/keep/`.
+The previous file is kept at `~/temp/agent/ivpn-ui-npmrc-prefix-removal-check-2026-11-26/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ## What does not work
 
