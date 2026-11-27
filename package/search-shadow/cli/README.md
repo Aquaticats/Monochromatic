@@ -168,7 +168,7 @@ the same check and the same marker are in the other three shadows
 (`package/cargo-shadow/cli`,
 `package/mpm-shadow/cli`,
 `package/pnpm-shadow/cli`),
-as byte-identical copies of `src/shadow_identity.rs`:
+as byte-identical copies of `src/shadow_identity.rs` and its parts under `src/shadow_identity/`:
 the four crates share no dependency,
 and `tests/shadow_identity_copies.rs` fails when the copies differ.
 
