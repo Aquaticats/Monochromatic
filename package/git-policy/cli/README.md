@@ -7644,18 +7644,43 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   so two runs of one check started in the same second ask the manager for two names:
   one shared name would make the manager refuse the second run's scope while the first was active,
   which ended that check with status 2 without running it.
-  The caps the scopes carry are the ones the scratch script used
-  (`CPUQuota=200%`,
+  The caps the scopes carry are sized from readings of these checks' own control groups
+  (`bin/native-capped-scope-command.ts`),
+  taken on 2026-11-27 on this host:
+  `CPUQuota=800%`,
   `MemoryMax=4G`,
-  `TasksMax=400`)
-  except the disk weight,
-  which is 1 rather than that script's 30,
-  because a per-command control group never carries more than 10 (rule `RXS`);
+  `TasksMax=1024`
+  and `IOWeight=1`.
+  `TasksMax` was 400 until this round,
+  below the 434 to 463 tasks the unit suite peaks at,
+  so a loaded host turned that bound into six test failures (issue 6605);
+  1024 is 2.2 times the highest peak measured.
+  `MemoryMax=4G` is 1.85 times the highest charge those runs reached (2,218.8 MiB).
+  At the 200% every earlier run carried,
+  the same round took 2.66 to 2.79 times the wall time for the unit suite
+  (37.81 to 39.06 s against 13.72 to 14.46 s at 800%),
+  2.6 to 3.4 times for the type check and 1.4 to 2.4 times for the lint,
+  and the suite's tasks waited 8.77 to 9.19 times as long for the quota as they ran;
+  at 800% they waited 1.35 to 1.59 times.
+  The disk weight is 1 rather than the scratch script's 30,
+  because a per-command control group never carries more than 10 (rule `RXS`).
   `--unit-cpu-quota`,
   `--unit-memory-max`,
   `--unit-tasks-max`
   and `--unit-io-weight`
   override them.
+  A check whose scope met one of its bounds says so under its own result and never instead of it
+  (`bin/native-check-scope-bound-lines.ts`),
+  naming the reading:
+  a refused fork at `TasksMax`,
+  a kill for memory at `MemoryMax`,
+  and,
+  for a check that did not pass,
+  a CPU quota its tasks waited more than twice as long for as they ran.
+  Each line names the option that raises that bound and that the bound and not a test is what failed.
+  The counters are read every 50 ms while the check runs
+  (`bin/native-check-scope-accounting.ts`),
+  because a scope takes its control group with it.
   The exit status is 0 when every check passed and 2 when one failed or ran past its deadline,
   so a coordinator can branch on it;
   a command line or a cap that is refused exits 1 and prints the reason.
@@ -8727,25 +8752,38 @@ The repository's layout rules are on for this crate since 2026-11-25
 The crate does not satisfy them yet,
 so today's findings stand in the two allow lists beside this file:
 
-- `layout-allow-list/folder-rule.txt`:
-  524 `uses <folder> -> <folder>` lines for the uses of today's folder and entry loops,
-  49 lines for the `pub use folder::*` re-exports,
-  which keep the crate's flat module paths,
-  20 lines for the findings that `health/` is a group folder
-  with module files beside its child folder,
-  and 421 lines for the `uses` links the crate does not hold.
-- `layout-allow-list/file-rule.txt`:
-  544 `file-uses <folder> <file> -> <file>` lines for the uses of today's file loops,
-  59 lines for the folders whose top doc has no file list or misses a name,
-  and one for the function that `main.rs` holds beside `fn main`.
+- `layout-allow-list/folder-rule.txt` holds what `rust/folder-uses-links` still reports:
+  a `uses <folder> -> <folder>` line for the uses inside a folder or an entry loop,
+  a `glob <file> <module>` line for a `pub use folder::*` re-export,
+  which keeps the crate's flat module paths,
+  a `missing-link <folder> -> <folder>` line for a `uses` link the crate does not hold,
+  and the lines of the rule's other findings,
+  among them the module files a group folder holds beside its child folders.
+- `layout-allow-list/file-rule.txt` holds what `rust/file-order-in-folder` still reports:
+  a `file-uses <folder> <file> -> <file>` line for the uses inside a file loop,
+  and an `index-item <index file> <kind>-<name>` line for an item an index file holds
+  beside its top doc,
+  its `mod` lines and its re-exports,
+  such as the function `main.rs` holds beside `fn main`.
 
-The 421 links are recorded rather than written,
+Each round deletes the lines of the findings it untangles,
+so a list only shrinks and no number of lines on this page can stay true:
+count each kind of line from the list itself.
+
+```sh
+# Run from the repository top level: one line per kind of line, with its count.
+cut --delimiter=' ' --fields=1 package/git-policy/cli/layout-allow-list/folder-rule.txt | sort | uniq --count
+cut --delimiter=' ' --fields=1 package/git-policy/cli/layout-allow-list/file-rule.txt | sort | uniq --count
+```
+
+The `missing-link` lines are recorded rather than written,
 because a link set that holds mutual uses makes `cargo package --list` walk without end:
 cargo follows every `uses` link,
 and the crate's loops make those paths multiply.
-Measured on 2026-11-25:
-1.9 s for the whole list with the 109 links the crate had,
-and no answer after 120 s with the 421 added ones.
+Measured on 2026-11-25 in the round whose commit `457a1f6142` wrote it into
+`doc/planning/cli-git-source-layout.md`:
+`cargo package --list` answered in 1.9 s with the 109 links the crate had then,
+and gave no answer after 120 s with the 421 links it owed then.
 The crate's own control `source_guard::packaged_uses_links_tests` reads that list,
 and a release runs `cargo publish --dry-run`.
 So a round writes a folder's links when that folder's uses no longer loop,

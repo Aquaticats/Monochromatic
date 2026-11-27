@@ -500,7 +500,41 @@ fn a_linked_worktrees_settled_head_uses_the_read_beside_the_check() {
     );
 }
 
-/// A read that outlives its deadline refuses the rung in the sentence a failed read gives.
+/// What:
+///  The wait this control gives the join's deadline:
+///  fifty milliseconds,
+///  where the release's own wait is two minutes and seven seconds.
+/// Why:
+///   The join waits `THE_JOIN_DEADLINE`,
+///  which is `PLUMBING_STEP_CEILING` plus `SHORT_EXTRA_WAIT`
+///  (`worktree_clone_conversion_size_read_answer.rs`),
+///  and a control that shows the sentence a deadline gives cannot spend two minutes on it;
+/// the sentence names whatever deadline is in force,
+///  so the assertion below is derived from this value and not from a copy of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_CONTROL_DEADLINE = 50; // ms
+/// ```
+const THE_CONTROL_DEADLINE: Duration = Duration::from_millis(50);
+
+/// What:
+///  A read that outlives the join's deadline refuses the rung in the sentence a failed read gives.
+/// Why:
+///   That deadline is measured from the join's own wait
+///  (`SizeReadBesideTheCheck::answer_within_the_deadline` hands it to `recv_timeout`),
+///  never from the read's start,
+///  and the join runs after the source check and after `git check-attr`:
+/// a read started before them can answer inside a window that begins later than it did,
+///  which is what held the rung in a wide threaded run of the `worktree` module (issue 6603).
+///  So the hold that keeps the read from answering covers the read's whole life:
+///  it is taken before the read is started,
+///  and its release waits until the fixture this control built is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a read that outlives its deadline refuses the rung', () => { /* the body is in a child of its own */ });
+/// ```
 #[test]
 fn a_read_that_outlives_its_deadline_refuses_the_rung() {
     // What: the body runs in a child of its own (see the import's file). Why: the hold that makes this control's read
@@ -512,24 +546,41 @@ fn a_read_that_outlives_its_deadline_refuses_the_rung() {
             let root: PathBuf = fixture("deadline");
             let repo: PathBuf = a_clean_source(root.as_path(), "deadline");
             let context: GitContext = git_context();
+            // What: the hold that makes this read answer nothing, taken before the read it holds is started. Why: see
+            //  the doc comment above; armed after the start, the read passes the seam unheld on a host that keeps this
+            //  thread from reaching the arm, and answers inside a deadline that began after it did.
+            let hold = a_control_holds_the_read();
             let started: SizeReadBesideTheCheck =
                 start_beside_the_check(&context, &main_identity(repo.as_path()))
                     .expect("a read starts");
-            let hold = a_control_holds_the_read();
-            let shortened = a_control_shortens_the_deadline_to(Duration::from_millis(50));
+            let shortened = a_control_shortens_the_deadline_to(THE_CONTROL_DEADLINE);
             let mut held: Option<SizeReadBesideTheCheck> = Some(started);
-            let outcome: Result<Fence, String> = the_fence(repo.as_path(), &context, &mut held);
-            let Err(reason) = outcome else {
-                panic!("the rung is refused rather than held")
+            let refusal: String = match the_fence(repo.as_path(), &context, &mut held) {
+                // What: the fence decided, which it does only with an answer the read sent inside the deadline. Why:
+                //  a held read sends none, so this is the control's own failure and it names what the fence decided
+                //  with.
+                Ok(decided) => panic!(
+                    "the rung is held rather than refused: the fence decided with {} path(s) for Git to write and {} it may carry, and the read it joined answered inside {THE_CONTROL_DEADLINE:?}",
+                    decided.git_writes.len(),
+                    decided.carried,
+                ),
+                // What: the sentence a fence whose read answered nothing gives. Why: the assertions below judge it.
+                Err(reason) => reason,
             };
             assert!(
-                reason.starts_with("a Git run of the fence could not start ("),
-                "{reason}"
+                refusal.starts_with("a Git run of the fence could not start ("),
+                "{refusal}"
             );
-            assert!(reason.contains("did not answer within 50ms"), "{reason}");
+            assert!(
+                refusal
+                    .contains(format!("did not answer within {THE_CONTROL_DEADLINE:?}").as_str()),
+                "{refusal}"
+            );
+            // What: the fixture goes first, and the hold's release last. Why: the release hands the read on to its Git
+            //  run, and a release before this line would let that run start inside a folder being deleted here.
+            remove(root.as_path());
             drop(hold);
             drop(shortened);
-            remove(root.as_path());
         },
     );
 }

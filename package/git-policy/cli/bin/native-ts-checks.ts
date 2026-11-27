@@ -8,8 +8,10 @@
  integration branch; this command names the checks of this package by default and takes any other task name as a
  positional, so the same run serves any change.
 
- The bounds the scratch script had are kept and stated: each check runs in a scope of its own with a CPU quota, a memory
- cap, a task limit and a disk weight, and every check now has a deadline, which the scratch script did not have.
+ The caps each check's scope carries are sized from readings of these checks' own control groups, with the readings and
+ their date beside each value (`bin/native-capped-scope-command.ts`); every check has a deadline, which the scratch script
+ did not have. What a scope counted while the check ran is read and kept, so a check says when its own bound and not a
+ failing test is what stopped it (`bin/native-check-scope-bound-lines.ts`).
  */
 import {
   taskRunnerProgram,
@@ -35,6 +37,7 @@ import {
   runTokenOfScopes,
   type ScopeOutcome,
 } from './native-capped-scope-command.ts';
+import { boundLinesOf, } from './native-check-scope-bound-lines.ts';
 import { NativeGateError } from './native-gate-error.ts';
 import {
   printLine,
@@ -290,9 +293,13 @@ type CheckRun = {
 /**
  The lines one check's result prints.
 
+ A check's own failure lines are followed by the lines its scope's bounds earn (`bin/native-check-scope-bound-lines.ts`),
+ so a person reads a bound and not a test as the cause of what went wrong, and never instead of the check's own account of
+ it.
+
  @param check - the check and its outcome
 
- @returns the status line, and for a check that did not pass the lines that say why
+ @returns the status line, for a check that did not pass the lines that say why, and the bound lines its scope earned
 
  @example
  ```ts
@@ -300,6 +307,22 @@ type CheckRun = {
  ```
  */
 export function resultLinesOf({ check }: { readonly check: CheckRun; }): readonly string[] {
+  /**
+   Whether the check passed, which a bound is reported beside and never for.
+   */
+  const passed = (!check.outcome
+    .timedOut) && (check.outcome
+      .status
+      === 0);
+  /**
+   What the check's own scope counted, which says whether a bound and not a test failed it.
+   */
+  const boundLines = boundLinesOf({
+    task: check.task,
+    accounting: check.outcome
+      .accounting,
+    passed,
+  });
   if (check.outcome
     .timedOut)
     return [
@@ -307,17 +330,20 @@ export function resultLinesOf({ check }: { readonly check: CheckRun; }): readonl
       ...failureLinesOf({ output: `${check.outcome
         .stdout}\n${check.outcome
           .stderr}`, }),
+      ...boundLines,
     ];
-  if (check.outcome
-    .status
-    === 0)
-    return [`${check.task}: exit 0`];
+  if (passed)
+    return [
+      `${check.task}: exit 0`,
+      ...boundLines
+    ];
   return [
     `${check.task}: exit ${String(check.outcome
       .status)}`,
     ...failureLinesOf({ output: `${check.outcome
       .stdout}\n${check.outcome
         .stderr}`, }),
+    ...boundLines,
   ];
 }
 

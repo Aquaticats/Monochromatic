@@ -1,6 +1,6 @@
 //! What:
 //! Stops the delegated control group of one run and waits for the kernel to say it is empty,
-//! and reads the `populated` line of any group's `cgroup.events`.
+//! and reads the `populated` line and the `pids.peak` count of any group.
 //! Why:
 //! The stop is the one proof the contract needs,
 //! that every writer a command started has stopped,
@@ -20,6 +20,7 @@
 //! // control-group-stop.ts
 //! ControlGroup.prototype.stop = (boundMs: number): boolean
 //! export function populatedAt(directory: string): boolean
+//! export function pidsPeakAt(directory: string): number
 //! ```
 
 /// What:
@@ -284,17 +285,25 @@ impl ControlGroup {
     }
 
     /// What:
-    /// `fn absence_is_verified(&self) -> io::Result<()>` checks that the absence of the scope can be read as emptiness.
+    /// `pub(crate) fn absence_is_verified(&self) -> io::Result<()>` checks that the absence of the scope can be read as emptiness.
     /// Why:
     /// The manager removes a scope only when it is empty or after stopping its members (probed),
     /// so a scope that is absent from the directory that held it had no member.
-    /// That holds only when the directory is seen as it was when the scope was planned (contract assumption c).
+    /// That holds only when the directory is seen as it was when the scope was planned (contract assumption c),
+    /// and the end of a run reads an absence the same way the stop does.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// absenceIsVerified(): void  // throws when the view differs
     /// ```
-    fn absence_is_verified(&self) -> io::Result<()> {
+    pub(crate) fn absence_is_verified(&self) -> io::Result<()> {
+        // A test makes a scope's absence unreadable without changing this process's cgroup view, which no run can do.
+        #[cfg(test)]
+        if crate::failpoints::fires(crate::failpoints::Point::AbsenceUnverifiable) {
+            return Err(io::Error::other(
+                "injected: the absence of the scope cannot be verified",
+            ));
+        }
         let namespace: u64 = namespace_id()?;
         if namespace != self.namespace {
             return Err(io::Error::other(
@@ -537,4 +546,40 @@ fn populated_through(events: &fs::File) -> io::Result<bool> {
 /// ```
 pub(crate) fn populated_at(directory: &Path) -> io::Result<bool> {
     return parse_populated(&fs::read_to_string(directory.join("cgroup.events"))?);
+}
+
+/// What:
+/// `pub(crate) fn pids_peak_at(directory: &Path) -> io::Result<u64>` reads how many processes have ever been counted in a
+/// group,
+/// from the `pids.peak` file of its pids controller.
+/// Why:
+/// The manager watches a unit's `cgroup.events` from the moment it realizes the group,
+/// and ends the unit on the empty change
+/// (`unit_watch_cgroup` at `src/core/cgroup.c:2011` and `scope_notify_cgroup_empty_event` at `src/core/scope.c:566` of
+/// systemd 262.2,
+/// the version on this host),
+/// so a group that has held a process has already told the manager that it emptied.
+/// A group that has held none never changed its `populated` line,
+/// which is the state issue 6578 leaves behind;
+/// and this is the one kernel statement that tells the two apart without starting a program.
+/// The kernel documents the file as "the maximum value that the number of processes in the cgroup and its descendants has
+/// ever reached"
+/// (`Documentation/admin-guide/cgroup-v2.rst`,
+/// "pids.peak"),
+/// and it read 1 for a scope whose program ran and 0 for a scope the manager attached an already exiting process to
+/// (probed 2026-11-27,
+/// kernel 7.3.5-2-cachyos).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pidsPeakAt(directory: string): number
+/// ```
+pub(crate) fn pids_peak_at(directory: &Path) -> io::Result<u64> {
+    let text: String = fs::read_to_string(directory.join("pids.peak"))?;
+    return text.trim().parse::<u64>().map_err(|error| {
+        return io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("pids.peak holds {text:?} ({error})"),
+        );
+    });
 }

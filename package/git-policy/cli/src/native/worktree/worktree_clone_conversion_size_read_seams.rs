@@ -163,16 +163,24 @@ pub(crate) fn die_where_a_control_asked() {
 
 /// What:
 ///  A control that holds the read until this value is dropped,
-/// with the read's own start of it.
+/// taken before the read it holds is started.
 /// Why:
 ///   The seams are process-wide because the read runs on a thread of its own,
 ///  so the control runs in a child process of its own
 /// (`crate::process_wide_state_child_test_support`),
 ///  and `refuse_outside_the_child` fails a body that arms it beside other tests.
+///  The hold is taken before `start_beside_the_check`,
+///  and never after it:
+/// a read started first reaches this seam while the flag below is still false whenever the host
+///  keeps the arming thread from running between the two,
+///  passes it unheld,
+///  and answers
+///  (issue 6603:
+///  a wide threaded `worktree` run held the rung the control says the read cannot answer in).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const hold = aControlHoldsTheRead(); // the read waits at its start until hold.release()
+/// const hold = aControlHoldsTheRead(); // the read started next waits at its start until hold.release()
 /// ```
 #[cfg(test)]
 pub(crate) fn a_control_holds_the_read() -> TheHeldReadForTheControl {

@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T10:22:35-05:00
+## The state at 2026-11-27T10:46:13-05:00
 
-`main` was `be93c14734`.
+`main` was `316c54b72a`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 200 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 209 more by this time.
 
 ### Rounds running
 
@@ -127,43 +127,42 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
 - for the wrapper package's lint,
   which was red on `main` with nothing running it,
-  three rounds for the guest scripts of issue 6581
-  (`issue-6581-oxlint-clean-guest-scripts-part-<n>-of-3`,
+  two rounds for the guest scripts of issue 6581
+  (`issue-6581-oxlint-clean-guest-scripts-part-1-of-3` and `-part-2-of-3`,
   each writing `Refs #6581`,
-  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`;
-  the round for the `perf/` and service-manager scripts is merged as `2218beae78`,
-  and `lint:oxlint` then reported 594 errors,
-  all in those guest scripts);
+  so the issue is closed by hand once the package's `lint:oxlint` exits 0 on `main`).
+  Part 3 is merged (`3621047a9d`):
+  the four ZFS guest drivers lint clean,
+  share their plumbing in `bin/guest-route-*.ts`,
+  and two of them build one target at two jobs,
+  because one release `rustc` of this crate's tests takes 6.7 to 6.9 GiB of an 8 GiB guest
+  and the kernel had killed both builds;
+- `issue-6595-slot-state-guest-arm-plants-a-plan-its-reader-accepts`:
+  with its build reachable,
+  the slot-state guest arm fails in its guest at its own assertion,
+  because it plants a plan with no `head=` line,
+  which the reader has refused since 2026-11-25;
+  every assertion after `SLOT-STATE pending-add` in that arm is unverified until it is fixed.
+  The container gate does not run that arm;
 - `issue-6605-typescript-checks-scope-caps-come-from-a-measurement`
+  and `issue-6607-the-wrapper-after-a-failed-exec-ends-as-it-means-to`
   ("What the rounds found");
-- four rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
-  each named `wrapper-alpha-48-release-pass-<what>`.
-  For the behaviour pass:
-  `four-small-points-outside-the-slot-route`;
-  its other three are merged
-  (the slot refusals read every shell alias the guard can follow,
-  `cd62517318`;
-  the merge pass reaches a last line with no line end,
-  `f583a0d9bf`,
+- two rounds for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27"),
+  each named `wrapper-alpha-48-release-pass-<what>`:
+  `four-small-points-outside-the-slot-route`
+  and `list-guards-name-the-files-the-splits-made`.
+  Merged from those passes:
+  the items a split had made bare `pub` are narrowed,
+  28 platform gates are back,
+  and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
+  the slot refusals read every shell alias the guard can follow (`cd62517318`);
+  the merge pass reaches a last line with no line end (`f583a0d9bf`),
   where a generated control also found and fixed a correct merge that was refused;
-  a notice's record stays until its line is known written,
-  `be93c14734`,
-  kept in 20 of 20 runs with the reader gone against none of 20 on `main`,
-  at a cost no run could measure with a reader that keeps up).
-  For the splits pass:
-  `splits-keep-the-reach-and-the-platform-gates-items-had`,
-  `readme-layout-numbers-and-the-shutdown-unmount-help-row`
-  and `list-guards-name-the-files-the-splits-made`,
-  started once issue 6598's walk was on `main` (`da3d1505ef`:
-  the control that held 890 MiB now holds 29 MiB);
-- three rounds for what issue 6586's round met in its threaded runs:
-  `issue-6602-moved-log-control-owns-the-claim-it-reads`,
-  `issue-6603-size-read-deadline-control-states-the-clock-it-is-judged-by`
-  and `issue-6604-no-control-changes-the-test-process-sigpipe-disposition`
-  (a threaded run of ten library modules in one process died of `SIGPIPE`);
+  a notice's record stays until its line is known written (`be93c14734`),
+  kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
+  the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
 - in `cargo-shadow`,
-  `issue-6599-recycled-time-namespace-control-builds-its-own-schedule`
-  and two rounds for its alpha.12 release pass ("Releases of 2026-11-27"):
+  two rounds for its alpha.12 release pass ("Releases of 2026-11-27"):
   `cargo-shadow-alpha-12-release-pass-the-retire-costs-an-ordinary-run-nothing-and-stops-no-live-scope`
   and `cargo-shadow-alpha-12-release-pass-the-refusals-branches-and-the-listing-bound-are-held-by-controls`.
   Issue 6578's second round is merged (`6de3eee877`):
@@ -171,10 +170,14 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the issue stays open for the unit a killed shadow leaves,
   whose choices are `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`;
 - in `mpm-shadow`,
-  two rounds for its alpha.13 release pass,
-  `mpm-shadow-alpha-13-release-pass-a-refused-or-vanished-start-says-only-what-is-known`
-  and `mpm-shadow-alpha-13-release-pass-the-no-retry-record-claims-only-what-was-traced`,
-  and `issue-6600-republish-killed-between-its-two-renames-leaves-a-working-version`.
+  `issue-6600-republish-killed-between-its-two-renames-leaves-a-working-version`
+  and `issue-6606-a-refused-shadow-says-what-was-found-and-what-repairs-it`.
+  Both rounds for its alpha.13 pass are merged
+  (the record claims only what was traced,
+  `45cac92526`;
+  a refused or vanished start says only what is known,
+  `c388b2b725`),
+  and `0.2.7-alpha.14` is released once those two have merged.
 
 Issue 6586 is merged (`7d6bd90c92`).
 A build made for tests now reads the session's runtime directory and bus address only from two switches a control sets,
@@ -660,7 +663,7 @@ and the two `truepeak` files wait on their branch.
 ### What the rounds found
 
 - What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6605,
+  issues 6524 to 6607,
   each filed after a search.
   Closed by a merged round:
   all of them except those with a round ("Rounds running") and these,
@@ -801,6 +804,25 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
+- Rust's `CommandExt::exec` sets `SIGPIPE` back to its default in the calling process,
+  and a failed `execve` leaves it there.
+  Two controls did that inside the test process,
+  which is what ended a ten-module threaded run by signal
+  (issue 6604,
+  `e4d7915941`,
+  `doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`).
+  What the release does in the same state is issue 6607.
+- `gh issue view <number> --comments`,
+  piped,
+  prints the comments alone and nothing for an issue without any;
+  `doc/agent/issue-tracker.md` now gives the `--json` form.
+- Three more controls that failed only in wide or loaded runs are fixed by what each owns,
+  none through a fault of release code:
+  issue 6599 (`0a2b5b0176`,
+  a recycled time-namespace number another process took first),
+  issue 6602 (the moved-log control met a journal lock a fork of another test's thread had copied)
+  and issue 6603 (`286f9d6dfc`,
+  a deadline control armed its hold after the read had started).
 - An alpha's release workflow runs no test:
   it commits the bump without compiling,
   and `cargo-publish.yml` builds the binaries.

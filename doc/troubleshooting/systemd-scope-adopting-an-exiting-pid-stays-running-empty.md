@@ -895,38 +895,80 @@ because the launcher is then never killed.
 
 #### What cargo-shadow does now
 
-The run asks the manager to stop the unit it started,
-after the kernel's last `populated` read says the control group has no member,
+The run ends the unit it started,
+after one last look at the scope,
 on every path that ends a run:
 a normal end,
 a bound that passes,
 a refusal after the program started,
 and a launcher that is gone
-(`retire_unit` in `package/cargo-shadow/cli/src/control_group_retire.rs`,
-called from `stop_everything` in `bounded_run_end.rs`):
+(`retire` in `package/cargo-shadow/cli/src/control_group_retire.rs`,
+called from `stop_everything` in `bounded_run_end.rs`).
+The look is answered from the kernel and it is what keeps the ordinary run free of a program start:
+
+- A `populated 1` line keeps the unit, and the run says so: the member may still write,
+  the refusal's report names it,
+  and a manager stop would kill it behind that report.
+- An absent directory counts only when `absence_is_verified` holds, the same check the stop accepts,
+  so that unit was collected and nothing is asked.
+  An absence that cannot be verified keeps the unit, and the run says so.
+  A `populated` read that failed is reported.
+- A `populated 0` line is the proof that no member is left,
+  and `pids.peak` then says whether any process was ever counted in the group.
+  A group that held one changed its `populated` line,
+  which is the change the manager watches (`unit_watch_cgroup` at `src/core/cgroup.c:2011` of systemd 262.2)
+  and ends the unit on (`scope_notify_cgroup_empty_event` at `src/core/scope.c:566`),
+  so that run asks nothing.
+  A group that never held one is the leftover this step exists for,
+  and only that run asks:
 
 ```sh
 systemctl --user --no-ask-password stop <name>.scope
 ```
 
 A unit the manager had already collected is not a refusal:
-that stop fails with "Unit <name>.scope not loaded.",
-and the question after it (`show <name>.scope --property=LoadState --value`) reads `not-found`.
-A stop the manager refuses for another reason is a warning naming the unit and the state,
+`systemctl` answers exit status 5 (`EXIT_NOTINSTALLED`) for a unit it does not load,
+and that is read as the collected unit it is,
+so one question settles both cases
+(the twelve stops of collected units measured on 2026-11-27 all answered 5).
+A stop the manager refuses for another reason is a warning naming the exact command that ran,
+with the flags it carried,
+and the manager's own first line,
 because the run already proved that no writer is left;
 the unit is housekeeping after the proof,
 not part of it.
-A run whose scope still has a member does not ask for the unit to be stopped:
-the member may still write,
-the refusal's report names it,
-and a manager stop would kill it behind that report.
-That unit is populated,
-not the loaded-and-empty leftover this step exists for.
-A stop that failed to read the scope while the scope was already empty still retires it,
-because the gate is the kernel's own last `populated` line and not the stop's answer.
-The cost is one `systemctl` call per scoped run:
-`systemctl --user stop` of such an empty scope took 4 ms to 5 ms in three probes on 2026-11-27,
-and the manager showed the unit `not-found` as soon as the stop returned in all three.
+The question keeps one bound (`RETIRE_BOUND`, five seconds),
+and a request the bound kills is given a measured grace (100 ms,
+against a longest measured reap of 282 us)
+to be reaped before the note is built.
+
+The cost, measured 2026-11-27 through builds of this branch and alpha.11's release binary,
+interleaved in the same rounds with a byte-identical copy of alpha.11 as the control,
+four arms,
+six rounds,
+on a trivial shadow call of four scoped runs:
+
+```text
+before this change:  ratio to alpha.11 2.431 (1.912 to 3.597), +36.8 ms per scoped run
+                     control          0.993 (0.916 to 1.271)
+after it:            ratio to alpha.11 0.874 (0.518 to 2.115)
+                     control          0.993 (0.916 to 1.271)
+```
+
+That is four stop questions and up to one `LoadState` question per trivial call before, and none after
+(counted through a `systemctl` that logs every call and then runs the real one).
+A waited `systemctl --user stop` of a collected unit cost 3.82 ms median (twelve calls) and a spawned one 1.01 ms,
+which is why nothing of the sort is left on the ordinary path.
+
+The directory the manager removes on collection would be the most direct fact,
+but it arrives too late to gate anything:
+measured 2026-11-27,
+the directory was still present when the run looked, and it went 0.7 ms
+to 307 ms after the `populated 0` the run had just read.
+The manager removes it when the unit becomes inactive (`unit_prune_cgroup` at `src/core/cgroup.c:2828`,
+called from `unit_notify` at `src/core/unit.c:2787`),
+which is after the empty event,
+which the run has already seen.
 
 A recovery reads such a unit as what it is:
 `query` (`src/control_group_records.rs`) finds the scope's directory present and its
@@ -935,21 +977,30 @@ and answers `Membership::Gone`.
 The manager's active state does not enter that answer,
 so a unit it left `active (running)` is still an ended run for the journal.
 The controls `a_recovery_reads_a_loaded_empty_scope_as_gone`,
-`retiring_a_loaded_empty_scope_unit_removes_it`
+`a_scope_that_never_held_a_process_is_retired`,
+`a_scope_that_held_a_process_is_left_to_the_manager`,
+`a_scope_that_holds_a_member_keeps_its_unit_and_the_run_says_so`,
+`an_absence_that_cannot_be_verified_keeps_the_unit_and_the_run_says_so`,
+`a_populated_read_that_fails_is_reported`,
+`the_one_question_is_bounded_and_its_killed_program_is_reaped`,
+`a_retire_the_manager_refuses_is_reported_with_the_command_that_ran`
 and one per run-ending path
 (`a_run_that_ends_by_itself_retires_its_scope_unit`,
 `a_run_whose_bound_passes_retires_its_scope_unit`,
 `a_refused_run_retires_its_scope_unit`,
 `a_run_whose_launcher_is_gone_retires_its_scope_unit`)
-hold this;
-each was run with its guard taken out and each failed
-(the retirement removed:
-the four path controls found no stop request,
-and the unit stayed loaded;
-the stop itself removed:
-the planted unit stayed `loaded`).
-The scope's own `populated` read is what allows the retirement after a stop that failed,
-and the controls that keep a live writer still see their writer in the scope and leave its unit alone.
+hold this,
+and `an_ordinary_run_asks_the_manager_nothing` holds the cost.
+Each was run with its guard taken out and each failed:
+the look answered `EmptiedWithoutAProcess` whatever the kernel said,
+and the reap grace was zero,
+which failed `a_scope_that_held_a_process_is_left_to_the_manager`,
+`an_ordinary_run_asks_the_manager_nothing`,
+`an_absence_that_cannot_be_verified_keeps_the_unit_and_the_run_says_so`,
+`a_populated_read_that_fails_is_reported`
+and `the_one_question_is_bounded_and_its_killed_program_is_reaped`.
+The stop itself removed leaves the planted unit `loaded`.
+The controls that keep a live writer still see their writer in the scope and leave its unit alone.
 
 #### The test that left one, found and closed (2026-11-27)
 

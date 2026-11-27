@@ -47,7 +47,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 ///  by a thread of their own (`service_journal_restored_at_start.rs`),
 /// so the task starts with what the service that stopped last left and no storage wait of
 ///  that reading holds a worker.
-pub fn start_the_after_commit_work_or_exit(
+pub(super) fn start_the_after_commit_work_or_exit(
     receiver: UnboundedReceiver<Wake>,
     handlers: GitHandlers,
     busy: Arc<AtomicUsize>,

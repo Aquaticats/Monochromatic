@@ -12,6 +12,7 @@
 use super::{
     GROUP_DROP_PREFIX,
     HostSettings,
+    RESTRICTION_ON,
     group_drop_report,
     report_of,
 };
@@ -24,8 +25,6 @@ use crate::group_drop_report::group_drop_probe::{
 const NAMESPACES: &str = "15000";
 /// The value a kernel without the distribution's own switch reads.
 const ABSENT: &str = "absent";
-/// The value the AppArmor restriction reads where it is on.
-const RESTRICTION_ON: &str = "1";
 
 /// One host's three settings,
 /// as the skip's report prints them.
