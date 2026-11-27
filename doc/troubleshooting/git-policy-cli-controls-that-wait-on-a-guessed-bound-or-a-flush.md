@@ -349,3 +349,175 @@ which holds the measured cause and the two arrangement fixes.
 The Markdown notice controls were added to this record on 2026-11-10;
 that handover was not the place the coordinator kept them,
 and the failing run's own log names the control.
+
+## What the awkward change list control's child deadline measured (2026-11-27T04:59:18-05:00)
+
+`service_landing_state::awkward_change_lists_land_as_native_git_commits_them`
+failed once on 2026-11-26 in the first threaded run of its module,
+`13 passed; 1 failed` in 156.53 s,
+with the child this crate runs a control's body in killed at `CHILD_TEST_DEADLINE`
+(issue 6546):
+
+```text
+test service_landing_state::awkward_change_lists_land_as_native_git_commits_them has been running for over 60 seconds
+thread 'service_landing_state::awkward_change_lists_land_as_native_git_commits_them' panicked at src/native/binary/../testing/child_test_process.rs:366:9:
+the child test service_landing_state::awkward_change_lists_land_as_native_git_commits_them did not end within 120 s, so it was killed: give its `ChildTest` a longer `deadline` if its work is slower than that on this host
+```
+
+### Why that control runs in a child at all
+
+The control makes a file whose name is not valid UTF-8,
+so it asks `in_a_fixture_root_taking_any_name` whether this run's fixture root takes such a name.
+This host's home dataset is ZFS with `utf8only=on`,
+which refuses such a name with `EILSEQ`,
+so the control re-executes itself inside a user and mount namespace with a tmpfs at the fixture root
+(`src/native/testing/fixture_root_taking_any_name.rs`),
+and the whole body runs in that child.
+The child's window was `CHILD_TEST_DEADLINE`,
+a wall clock of 120 s over all of it.
+
+### What was measured
+
+One host,
+under other sessions' builds.
+Every figure below is one run of the control alone
+(`--exact`,
+`--test-threads=1`,
+in a scope capped at 400 percent of a processor),
+with the load average taken before and after it,
+alternating with a light control of the same module
+(`service_landing_state::a_policy_rewrite_lands_and_reaches_the_worktree`,
+one change list of a few paths):
+
+- 70.25 s,
+  the round's first run:
+  no reading was taken at that run,
+  and the one taken before the build that made the test binary was 91.5.
+- An alternation that ended at load average 139:
+  the light control 42.26 s,
+  the body 75.68 s,
+  the light control 30.39 s.
+- Load average 121 before the run and 83 after:
+  73.77 s.
+- Load average 124 before the run and 186 after:
+  79.97 s,
+  and that run failed the second case's `the service landed it` assertion,
+  which is not the deadline and is named under "What is not claimed".
+- Load average 246 read right after the run:
+  the body did not end within 120 s and was killed,
+  the failure the issue records,
+  seen here without anything planted in the tree.
+- 55.70 s,
+  load average 43 before the run and 37 after,
+  which is the quietest this session came.
+- The same body with 130 s planted in it
+  (`std::thread::sleep`,
+  a scratch change,
+  reverted),
+  load average 95 before the run and 165 after:
+  killed at 120 s with the same line,
+  and load average 88 before the run and 84 after:
+  `1 passed` in 214.23 s once the control stated its own window.
+
+So the body is 55.70 s at the quietest load measured,
+70 to 80 s at a load average of 90 to 186,
+and it crossed 120 s at 246.
+None of these is noise around another:
+the body's time is the disk's,
+and the disk is what the other sessions on this host load.
+
+### What the body spends its time on
+
+By a scratch instrument of both arms of the twin harness,
+in one run at load average 123 to 186:
+
+- the two byte copies of the repository:
+  0.43 to 0.50 s together;
+- native Git,
+  committing the same change list in one copy:
+  0.595 s and 0.607 s;
+- the wrapper,
+  through the service,
+  in the other copy:
+  33.5 s and 34.9 s.
+
+Inside the wrapper's arm,
+`build the index` took 30.5 s and 32.1 s,
+and of that the landing's in-process index reset is 30.3 s and 29.8 s:
+the reset hashes every one of the 4,097 changed paths' worktree files to prove each one holds the commit's bytes
+(`src/native/index/index_reset_worktree_stat.rs`).
+That cost,
+and the cheap form it could take,
+is measured in
+`doc/troubleshooting/git-policy-cli-landing-index-reset-reads-every-changed-path.md`.
+
+### What changed
+
+The window is now the control's to state.
+`in_a_root_namespace_within`,
+`in_a_root_taking_any_name_within` and
+`in_a_fixture_root_taking_any_name_within` take the deadline the calling control states,
+and each one without a stated deadline passes `CHILD_TEST_DEADLINE`,
+so every other control that runs a child is as it was.
+`awkward_change_lists_land_as_native_git_commits_them` states
+`AWKWARD_CHANGE_LISTS_DEADLINE`,
+four times the 60 s that `NATIVE_GIT_BOUND_SECONDS` bounds one command of this
+harness with:
+240 s,
+which is 4.3 times the 55.70 s measured at the quietest load,
+3.0 times the 79.97 s measured at load average 186,
+and below the five minutes after which the container gate stops a test,
+so a child that really never ends is still a named failure and not a timeout.
+
+`CHILD_TEST_DEADLINE`'s own documentation said 120 s is the window the run's own watchdog uses.
+That window is a stretch in which the run shows no sign of work,
+not the length of a run
+(`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`),
+so it never made a wall clock over a body that was working safe;
+the constant says so now and names the control that states its own.
+
+`the_window_a_control_states_is_the_window_its_child_gets`
+(`src/native/testing/fixture_root_taking_any_name_of_unit_tests_tests.rs`)
+is the guard for the plumbing:
+its body holds 3 s in the child,
+it states a 1 s window,
+and it requires the failure to name `did not end within 1 s`.
+With the `deadline` line of the request taken out it failed
+
+```text
+the child that holds 3s was not ended by the 1s window the control stated for it
+```
+
+and passed with the line restored.
+
+The planted 130 s delay,
+with the control's own window stated,
+is the green above:
+`1 passed; 0 failed` in 214.23 s.
+
+### What is not claimed
+
+- No idle host was available for this measurement:
+  every run above was taken while other sessions built on this machine,
+  at the load average recorded beside it,
+  and the quietest it came was 37,
+  so the "on a quiet host" half of the issue's question rests on that run and not on an idle one.
+  What the round has is 55.70 s there,
+  the range 70 to 80 s at load average 90 to 186,
+  and one failure at 246.
+- The window is still a wall clock,
+  so a host several times slower than the worst measured above will cross it too.
+  The bound that the load does not move is the run's own watchdog,
+  which judges whether the run's tasks moved and not how long they took,
+  and a child judged that way needs a reader of the child's own process tree;
+  `src/native/testing/run_progress.rs` reads the whole run's tree and the binary test target does not include it,
+  so that is a larger change than this issue's.
+- The control's own work was not made smaller.
+  Its change list must exceed `MAX_CHANGES` to be the case it proves,
+  and the release code's index reset is what its two landings spend their time in.
+  The decision on making that reset cheap is issue 6566.
+- One run at load average 185 failed the second case's `the service landed it` assertion
+  while the wrapper's output matched native Git's and the service logged that commit's push,
+  with no `answered request` line and no journal `.done` record for it.
+  That is a different question from this record and was not investigated;
+  it is named so that a round which meets it starts from its log.
