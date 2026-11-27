@@ -11,7 +11,7 @@ a recorded number that names a later,
 different time namespace must not turn a live launcher's differing start time into "gone".
 The record holds no time-namespace number at all,
 so the question answers "unknown",
-and the control's job is to build the state in which a number that *was* the writer's is now the recovery's.
+and the control's job is to build the state in which a number that was the writer's is now the recovery's.
 
 ## The schedule it needs
 
@@ -87,7 +87,7 @@ and the recovery's is Some("4026533637"); the planted other session took 4026533
   2026-11-27).
   So the number waits for the next ask,
   and the ask is what a control has to own.
-- The numbers *below* a long-lived namespace's number are free too on a busy host:
+- The numbers below a long-lived namespace's number are free too on a busy host:
   the three runs of the fixed control before the reader passed over the free numbers below the writer's
   were handed numbers two,
   four and forty-four below it.
@@ -146,7 +146,7 @@ so the release binary compiles neither.
   fetched on 2026-11-27.
   The kernel of this host is `7.3.5-2-cachyos`,
   whose full source is not on the machine,
-  so no line of *that* tree was read.
+  so no line of that tree was read.
 - Whether a merge between `b6190b8ce1` and `c59a4f5fd5` changed the control's outcome:
   none did.
   No commit in that range touches `src/round_fourteen_tests.rs`,
