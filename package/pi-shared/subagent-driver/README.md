@@ -133,6 +133,9 @@ and the order a run that names no model of its own takes the pools that accept o
   "Qwen, opencode-go, flex (Recommended)"
   (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The writers' order"),
   and kept its room of 5 until a run measures this model's.
+  The writer's own member list is the reviewer's since 2026-11-27
+  ("The writer's members become the reviewer's"),
+  which leaves this pool first for a run that names no model of its own.
   The owner reopened it on 2026-11-18:
   "Add my qwen individual token plan deepseek-v4.1-flash-1017 to the deepseek pool."
   and
@@ -294,16 +297,18 @@ or on the reviewer selection the same way,
 holds no slot in any member pool,
 because the router moves a refused request on by itself.
 The members each selection's router may take are read from `VIRTUAL_POOLS` in `src/pool-limits.ts`,
-in the order it tries them:
+in the order it tries them.
+Both selections ask Synthetic's DeepSeek model second,
+which belongs to no pool of this table and so is not listed:
 
 - `rate-limit-fallback/writer`:
-  `qwen-plan-deepseek`, `opencode-go`, `neuralwatt-flex`,
-  the owner's writer order of 2026-11-26.
+  `qwen-plan-deepseek`, `opencode-go`, `neuralwatt-flex`.
+  The writer asks the reviewer's members since 2026-11-27,
+  when the owner typed "Change writer's list to match the reviewer's list."
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+  "The writer's members become the reviewer's").
 - `rate-limit-fallback/reviewer`:
   the same three pools.
-  Its fourth member,
-  Synthetic's DeepSeek model,
-  belongs to no pool of this table.
 
 No pool's room decides whether a run on a virtual selection may start,
 so it starts whatever any member's own count reads,

@@ -40,6 +40,10 @@ Qwen's room is 5 runs at once,
 the figure the pool table took from another model on the same plan,
 until a run measures this model's.
 
+The writer's order here is superseded on 2026-11-27 by
+"The writer's members become the reviewer's", below.
+This section stands as what was decided on 2026-11-26.
+
 ## The virtual writer
 
 Asked whether rounds start on the virtual writer,
@@ -66,6 +70,8 @@ as three were on the night this was decided.
 Merged as `7c82b27ad0` (2026-11-26T07:09:30-05:00):
 the virtual writer's members are the owner's order with standard Neuralwatt removed
 (`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`, guarded by `src/writer-order.unit.test.ts`);
+those members are the reviewer's since 2026-11-27
+("The writer's members become the reviewer's", below);
 the README's open check runs as the task `verify:quota-deadline`,
 whose record is `package/pi-plugin/rate-limit-fallback/doc/quota-read-latency-records/`;
 and the driver counts a run on the virtual writer in no pool at all
@@ -159,3 +165,60 @@ and a run on the virtual writer or the virtual reviewer holds no slot in any mem
 because the router moves a refused request on by itself.
 The driver round that was building the combined-room count was told so through its inbox the same minute,
 since that count was the coordinator's design and not the owner's.
+
+## The writer's members become the reviewer's (owner, 2026-11-27)
+
+Recorded 2026-11-27T16:15-05:00.
+The owner typed to the coordinating session:
+"Change writer's list to match the reviewer's list."
+
+So the writer asks what the reviewer asks, in the reviewer's order:
+`qwen-token-plan-individual/deepseek-v4.1-flash-1017`,
+then `synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
+then `opencode-go/deepseek-v4.1-flash`,
+then `neuralwatt/deepseek-v4.1-flash-flex`.
+The member the writer's list lacked was Synthetic's, and it now stands second, where the reviewer has it.
+The order of 2026-11-26 ("Qwen, opencode-go, flex (Recommended)") is superseded for the writer
+and stands in this record as history;
+the reviewer's order is unchanged.
+Standard Neuralwatt's DeepSeek lane stays closed to writers,
+and the provider named `deepseek` stays no member of either pool.
+`package/pi-plugin/rate-limit-fallback/src/model-pools.ts` carries one list, `BOTH_POOLS_MEMBERS`,
+that both pools name, so the two orders cannot drift apart,
+and `src/writer-order.unit.test.ts` fails if either pool stops asking it.
+
+The limits Pi advertises for a selection are its smallest registered member's,
+so this changes what a writer run may carry before it compacts.
+Measured on 2026-11-27 over the members Pi 1.6.0 registers on this machine:
+qwen's member reports 1,000,000 tokens of window and 384,000 of output,
+Synthetic's 524,288 and 65,536,
+opencode-go's 1,000,000 and 384,000,
+and Neuralwatt's flex lane 1,048,560 and 393,216.
+The writer advertises 524,288 tokens of window and 65,536 of output,
+where it advertised 1,000,000 and 384,000 before this change,
+a window smaller by 475,712 tokens and an output limit smaller by 318,464;
+the reviewer advertises 524,288 and 65,536 both before and after,
+because Synthetic's member was already the smallest one it asks.
+
+The driver's table needs no change:
+`VIRTUAL_WRITER.memberPools` in `package/pi-shared/subagent-driver/src/pool-limits.ts`
+names the same three pools as `VIRTUAL_REVIEWER.memberPools`,
+because Synthetic's member belongs to no pool of `PROVIDER_POOLS`
+and that table's rule lists no member outside a pool.
+A launcher's line for a run on the virtual writer names those three pools
+and says the run holds no slot in any pool.
+
+### Advisor runs on Neuralwatt's `nw-large` (owner, 2026-11-27)
+
+The same minute,
+a round's session held one result of the `advisor` tool
+naming provider `neuralwatt` and model `nw-large`,
+and told the owner of it, having asked nothing.
+The owner wrote:
+"nw-large is advisor, and that's fine."
+
+So `neuralwatt/nw-large` is the model the `advisor` tool's reviews run on there,
+a reader of another model's work rather than a writer or reviewer member,
+and no pool of the driver's table lists it.
+The sentence decides that this use of the model needs no change,
+not that a writer or reviewer run may name it.
