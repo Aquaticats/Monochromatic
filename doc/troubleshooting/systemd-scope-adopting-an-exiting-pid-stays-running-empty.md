@@ -1012,6 +1012,15 @@ no process of the run can end;
 the options for that are
 `doc/planning/cargo-shadow-a-scope-unit-a-killed-shadow-leaves.md`.
 
+This branch closes the test's path.
+A unit a killed wrapper leaves is still nobody's to retire when the wrapper's launcher dies with
+it,
+and the options for that are the proposal above.
+The test support's own guard (`TestScope::drop` in `src/cgroup_test_support.rs`) stops a scope's
+control group and retires no unit,
+so a test that fails while its launcher is still entering the scope can leave the same state,
+and it stands as it is because no control was found that makes that way out happen on purpose.
+
 #### What was tried and did not work, or was not chosen
 
 - Leaving the scope to the manager:
