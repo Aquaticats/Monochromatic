@@ -8,7 +8,8 @@
 //!  so the finish applies the same words to the options it reads,
 //!  and a stop appends a blank line,
 //!  a `Conflicts:` line and one line per conflicted path
-//!  (`append_conflicts_hint`, `sequencer.c` lines 722 to 745),
+//!  (`append_conflicts_hint`,
+//!  `sequencer.c` lines 722 to 745),
 //!  which a clean run's message never holds.
 //!  A pull runs either a merge or a rebase as a child (`builtin/pull.c` lines 525 and 750),
 //!  so the word `pull` alone names no ending command;
