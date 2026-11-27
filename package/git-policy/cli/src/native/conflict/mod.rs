@@ -22,8 +22,11 @@
 //! - `conflict_side_modes.rs`:
 //!   the pathspec modes and their spellings,
 //!   which decide whether a token names one file.
+//! - `conflict_side_source_finding_the_file.rs`:
+//!   finding the worktree file a command replaces,
+//!   as a name held open beside the directory that holds it.
 //! - `conflict_side_source.rs`:
-//!   finding and copying the file a command replaces.
+//!   copying the file a command replaces.
 //! - `conflict_side_state.rs`:
 //!   the operation in progress and the conflicted paths.
 //! - `conflict_side_guard.rs`:
@@ -100,6 +103,9 @@
 
 /// The `checkout` and `restore` command lines that take one side of a conflicted file.
 pub mod command_conflict_side;
+
+/// Finding the worktree file a conflict-side command is about to replace.
+pub mod conflict_side_source_finding_the_file;
 
 /// Finding and copying the file a command replaces.
 pub mod conflict_side_source;
