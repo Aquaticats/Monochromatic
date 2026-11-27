@@ -247,7 +247,10 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     `mkdir --parents ${CHECKOUT}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked --features test-only-switches > /root/slot-state-build.log 2>&1',
+    // The one target the arm starts, two jobs at a time: a release rustc of this crate's tests took 6.9 GiB of this
+    // guest's 8 GiB, and the kernel killed it at four jobs on 2026-11-27 (issue 6581; cargo exited 101). The lib test
+    // harness the arm never runs is not built here.
+    'cargo build --release --test native_binary --locked --features test-only-switches -j 2 > /root/slot-state-build.log 2>&1',
     'tail --lines=3 /root/slot-state-build.log',
   ]
     .join('\n',);
