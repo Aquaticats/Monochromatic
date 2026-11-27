@@ -317,8 +317,7 @@ fn push_of_folder_links_only_ends_green_and_says_what_it_left_out() {
         result.stdout.contains("Every changed entry in")
             && result
                 .stdout
-                .contains("the next step scans their names and link target texts"),
-        "the file-scan step must announce no file scan and must say what runs next\nstdout: {}\nstderr: {}",
+                .contains("the next step scans their names and link target texts"),        "the file-scan step must announce no file scan and must say what runs next\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
     );

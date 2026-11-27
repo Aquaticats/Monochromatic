@@ -42,7 +42,7 @@ use crate::{
 // Why:      A gate that drops entries must say where they went; without this
 //           sentence a reader cannot tell the left-out step from a silent loss.
 const WHICH_ENTRIES_SCAN_NEXT: &str =
-    "The next step scans their own names and each link's stored target text.";
+    "The next step scans their own names and, for each link, its stored target text.";
 
 // What:     `const LEFT_OUT_SCAN_LINE` is the opening of the left-out step's
 //           narration, up to the count it prints.
