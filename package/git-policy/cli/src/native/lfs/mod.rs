@@ -44,13 +44,17 @@
 //! - `lfs_destination_confirms_tracking_refs.rs`:
 //!   whether this clone's tracking refs for a remote describe the server a push goes to,
 //!   asked of the destination itself.
-//! - `lfs_upload_plan_arguments.rs`:
-//!   what the arguments of a push and the configuration decide about an upload,
-//!   before either face of the plan asks Git anything.
 //! - `lfs_upload_refspecs.rs`:
 //!   the refs one refspec names,
 //!   which both faces of the plan expand,
 //!   beside the plan itself so that neither file passes the package's length limit.
+//! - `lfs_upload_plan_destination.rs`:
+//!   what the destination of an upload is,
+//!   and the server it is connected to,
+//!   beside the plan itself so that each file passes the package's length limit.
+//! - `lfs_upload_plan_arguments.rs`:
+//!   what the arguments of a push and the configuration decide about an upload,
+//!   before either face of the plan asks Git anything.
 //! - `lfs_upload_plan.rs`:
 //!   what the Git LFS upload sends:
 //!   the remote and the refs,
@@ -112,6 +116,11 @@ pub mod lfs_upload_plan_awaiting;
 /// which both faces of the plan expand,
 /// beside the plan itself so that neither file passes the package's length limit.
 pub mod lfs_upload_refspecs;
+
+/// What the destination of an upload is,
+/// and the server it is connected to,
+/// beside the plan itself so that each file passes the package's length limit.
+pub mod lfs_upload_plan_destination;
 
 /// The configuration the Git LFS upload plan reads,
 /// and the default remote derived from it.
