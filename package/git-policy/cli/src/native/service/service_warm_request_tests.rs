@@ -61,26 +61,49 @@ fn a_command_line_nothing_writes(path: &Path) {
 }
 
 /// What:
-///  A folder of this test process whose path one socket address holds,
-///  and that the thread's own cleanup removes.
+///  A folder of the control's own thread whose socket path fits one socket address,
+///  which the thread's own cleanup removes.
 /// Why:
 ///  One socket address holds 107 bytes and the fixture root under the build directory is longer than that,
-///  so a control of a socket keeps its own folder somewhere short
-///  (`foundation/unix_socket_connect_within_a_deadline_tests.rs` does the same for the connect it controls).
+///  so a control of a socket keeps its own folder somewhere short,
+///  which the test support tracks for this thread;
+///  the root is this thread's own,
+///  so a control that ends removes its own folder and no other control's.
+///  A root named by the process alone was shared by every control of a threaded run,
+///  and the first thread that ended removed it while its siblings still worked in it:
+///  measured on 2026-11-26,
+///  `a_request_into_a_queue_nothing_accepts_ends_at_its_bound` met a refused connection after 4.1 ms
+///  where its own ceiling of 250 ms ended the wait,
+///  because the accepting control's thread had taken the shared root with it (issue 6522).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const folder = shortFolder('full-queue');
 /// ```
 fn short_folder(name: &str) -> PathBuf {
-    let root: PathBuf = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .expect("a home directory")
-        .join("temp/agent")
-        .join(format!("warm{}", std::process::id()));
+    // What: the bytes the socket path takes below the root: a separator, the folder's name, another
+    //       separator, and the file's name.
+    // Why:  the root must leave that many bytes of the 107 one socket address holds.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const belowTheRoot = 1 + name.length + 1 + name.length + '.sock'.length;
+    // ```
+    let below_the_root: usize = 1 + name.len() + 1 + name.len() + ".sock".len();
+    let longest_root: usize =
+        crate::service_instance::LONGEST_SOCKET_PATH.saturating_sub(below_the_root);
+    // What: the root this thread owns, named by the shortest place this account offers that leaves room for the
+    //       socket's path.
+    // Why:  the helper names a folder this thread alone owns and makes it exclusively, so two controls of a run
+    //       never share one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const root = runtimeDirectoryParent('warm', longestRoot);
+    // ```
+    let root: PathBuf = crate::test_support::runtime_directory_parent("warm", longest_root);
     let folder: PathBuf = root.join(name);
     std::fs::create_dir_all(folder.as_path()).expect("the short folder");
-    crate::test_support::track_for_this_thread(root.as_path());
     return folder;
 }
 
@@ -304,4 +327,43 @@ fn a_request_into_a_socket_that_accepts_is_the_clients_warm_line() {
     });
     expected.push('\n');
     assert_eq!(line, expected);
+}
+
+/// What:
+///  Two controls of one process keep a short folder each,
+///  and the one that ends takes nothing of the other's.
+/// Why:
+///  The root was once named by the process alone and tracked by every control of the run,
+///  so the first thread that ended removed it while a sibling still worked in it:
+///  measured on 2026-11-26,
+///  `a_request_into_a_queue_nothing_accepts_ends_at_its_bound` met a refused connection after 4.1 ms
+///  where its own ceiling of 250 ms ended the wait (issue 6522).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const here = shortFolder('one'); const elsewhere = onAnotherThread(() => shortFolder('two')); expect(parentOf(elsewhere)).not.toEqual(parentOf(here)); expect(exists(here)).toBe(true);
+/// ```
+#[test]
+fn two_controls_of_one_process_keep_a_short_folder_each() {
+    let here: PathBuf = short_folder("one");
+    let (told, heard) = std::sync::mpsc::channel::<PathBuf>();
+    let sibling = std::thread::spawn(move || {
+        let elsewhere: PathBuf = short_folder("two");
+        let _sent = told.send(elsewhere);
+        // What: the thread ends here, and its own cleanup removes the root it made.
+        // Why:  a root the whole process shared would take this control's folder with it.
+    });
+    let elsewhere: PathBuf = heard
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the sibling's folder");
+    sibling.join().expect("the sibling ends");
+    assert_ne!(
+        here.parent(),
+        elsewhere.parent(),
+        "two controls of one process share no root: {here:?} and {elsewhere:?}"
+    );
+    assert!(
+        here.exists(),
+        "the sibling's cleanup took no other control's folder: {here:?}"
+    );
 }
