@@ -389,14 +389,21 @@ alternating with a light control of the same module
 (`service_landing_state::a_policy_rewrite_lands_and_reaches_the_worktree`,
 one change list of a few paths):
 
-- load average 90:
-  the body took 70.25 s,
-  then 75.68 s;
-  the light control took 42.26 s,
-  then 30.39 s in the same alternation.
-- load average 120 to 186:
-  73.77 s and 79.97 s.
-- load average 246:
+- 70.25 s,
+  the round's first run:
+  no reading was taken at that run,
+  and the one taken before the build that made the test binary was 91.5.
+- An alternation that ended at load average 139:
+  the light control 42.26 s,
+  the body 75.68 s,
+  the light control 30.39 s.
+- Load average 121 before the run and 83 after:
+  73.77 s.
+- Load average 124 before the run and 186 after:
+  79.97 s,
+  and that run failed the second case's `the service landed it` assertion,
+  which is not the deadline and is named under "What is not claimed".
+- Load average 246 read right after the run:
   the body did not end within 120 s and was killed,
   the failure the issue records,
   seen here without anything planted in the tree.
@@ -404,9 +411,10 @@ one change list of a few paths):
   (`std::thread::sleep`,
   a scratch change,
   reverted),
-  at load average 88 to 165:
+  load average 95 before the run and 165 after:
   killed at 120 s with the same line,
-  and `1 passed` in 214.23 s once the control stated its own window.
+  and load average 88 before the run and 84 after:
+  `1 passed` in 214.23 s once the control stated its own window.
 
 So the body is 70 to 80 s on this host at a load average of 90 to 186,
 and it crossed 120 s at 246.
@@ -499,6 +507,7 @@ is the green above:
 - The control's own work was not made smaller.
   Its change list must exceed `MAX_CHANGES` to be the case it proves,
   and the release code's index reset is what its two landings spend their time in.
+  The decision on making that reset cheap is issue 6566.
 - One run at load average 185 failed the second case's `the service landed it` assertion
   while the wrapper's output matched native Git's and the service logged that commit's push,
   with no `answered request` line and no journal `.done` record for it.

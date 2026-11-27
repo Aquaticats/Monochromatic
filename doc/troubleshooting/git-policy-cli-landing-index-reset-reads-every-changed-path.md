@@ -143,3 +143,4 @@ or `git add --all` after an import,
 waits one read of every changed file where native Git waits none.
 This record exists so that cost is a named,
 measured one and not a control's flake.
+The decision on the cheap form is issue 6566.
