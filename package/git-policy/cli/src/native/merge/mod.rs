@@ -167,6 +167,12 @@
 //!   the bytes a path holds as Git's object store reads them,
 //!   the proof that no program can write into a file whose last name is about to go,
 //!   and the last look a kept copy's removal is decided by.
+//! - `merge_isolation_take_asides_finish.rs`:
+//!   what comes of the files one take moved aside:
+//!   the putting back of the ones no write reached,
+//!   the proof that nothing can write into one any more,
+//!   the removal of the private names once the merge's content is in place,
+//!   and the restore of what Git did not write.
 //! - `merge_isolation_kept_copies_decisions_evidence.rs`:
 //!   the evidence one decision about a kept copy rests on:
 //!   which merge names the copy,
@@ -591,6 +597,13 @@ pub mod merge_isolation_take_asides;
 
 /// The proof that no program can write into a file whose last name is about to go.
 pub mod merge_isolation_take_asides_proof;
+
+/// What comes of the files one take moved aside:
+/// the putting back of the ones no write reached,
+/// the proof that nothing can write into one any more,
+/// the removal of the private names once the merge's content is in place,
+/// and the restore of what Git did not write.
+pub mod merge_isolation_take_asides_finish;
 
 /// Why a carry or a clear stopped,
 /// and the words a write that stopped leaves about the copy it kept.
