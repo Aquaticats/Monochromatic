@@ -225,6 +225,7 @@ pub fn next_safe_action(
         ),
         SlotRouteState::CannotProve {
             reason,
+            ..
         } => format!(
             "nothing until the reason is resolved: {reason} Do not add here, do not move or remove the slot, and do not write a mount request; read the record, the mount table or the folder the reason names, then run the command again."
         ),

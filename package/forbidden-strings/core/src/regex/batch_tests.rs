@@ -434,7 +434,7 @@ fn line_matches_does_not_match_a_seed_spanning_a_line_boundary() {
 
 #[test]
 fn line_matches_equals_per_line_matches_across_rulesets() {
-    // What:    Across the rulesets integration.rs exercises (leading-literal, a
+    // What:    Across the rulesets the integration test modules exercise (leading-literal, a
     //          line-start marker, a weak inner seed, seedless class runs, and a
     //          multi-rule set) and both `\n` and CRLF terminators, line_matches equals
     //          the per-line matches() oracle built from the known line contents.
@@ -446,7 +446,7 @@ fn line_matches_equals_per_line_matches_across_rulesets() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     // What:    The final byte is escaped `\x50` ('P') so the source text carries no
-    //          contiguous AKIA-key literal, matching integration.rs and keeping the
+    //          contiguous AKIA-key literal, matching the integration test modules and keeping the
     //          repo's own forbidden-strings pre-commit gate clean; the runtime bytes
     //          are the valid 20-byte key.
     // Why:     The nearby value needs this note so the test records the exact bytes

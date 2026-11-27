@@ -7,8 +7,11 @@
 //!  ends the command with.
 
 use super::*;
+use crate::commit_transaction::TransactionStop;
 use crate::policy_events::PolicyEvent;
 use crate::service_messages::DENYLIST;
+use crate::service_protocol::LandedCapture;
+use crate::service_replay_the_word_pass::toplevel_of;
 use crate::test_support::{
     fixture,
     git,
@@ -17,6 +20,8 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::transaction_git::GitContext;
+use std::path::PathBuf;
 
 const FILE: &str = "f.txt";
 
