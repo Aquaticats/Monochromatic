@@ -25,11 +25,6 @@
 //!   its program,
 //!   start time and the way to end it,
 //!   and a summary of unreadable processes.
-//! - `index_lock_evidence_words.rs`:
-//!   the sentences a lock's evidence is reported in:
-//!   the line naming a holder,
-//!   the line at a wait's ceiling,
-//!   and the diagnostic for a PID number this process table does not have.
 //! - `index_lock_holders_accounts.rs`:
 //!   which account owns one process of the scan,
 //!   which tells a holder this account cannot read from another account's.
@@ -42,6 +37,11 @@
 //!   found by device and inode.
 //! - `index_lock_evidence.rs`:
 //!   evidence about a foreign `index.lock` and the verdict it supports.
+//! - `index_lock_evidence_words.rs`:
+//!   the sentences a lock's evidence is reported in:
+//!   the line naming a holder,
+//!   the line at a wait's ceiling,
+//!   and the diagnostic for a PID number this process table does not have.
 //! - `index_wait_outcome.rs`:
 //!   what came of one wait:
 //!   not held,
