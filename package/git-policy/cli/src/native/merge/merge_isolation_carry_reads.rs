@@ -19,7 +19,7 @@
 //! ```
 
 use crate::lazy_runtime::run_on_runtime;
-use crate::merge_isolation_carry::git_cwd;
+use crate::merge_isolation_carry_objects::git_cwd;
 use crate::merge_isolation_changes::{
     Change,
     worktree_path,

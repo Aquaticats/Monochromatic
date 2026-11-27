@@ -310,7 +310,9 @@ The crate is a library plus a thin binary so the pure logic is unit-testable wit
   a manual Next wraps.
    `display_paths` builds the UI list as each track's path relative to the opened folder (via `relpath`),
   so a library with one top-level folder keeps that folder's name.
-- `src/session.rs`:
+- `src/session.rs`,
+  `src/session_record.rs`,
+  `src/session_file_replacement.rs`:
    save and restore of the last session under the platform config directory
   (the Source Root,
    the selected track path,
@@ -329,6 +331,10 @@ The crate is a library plus a thin binary so the pure logic is unit-testable wit
    it keeps no queue,
    so nothing is pruned or remapped:
   the launch rescan rebuilds the queue).
+   The record shapes and their defaults are in `session_record.rs`,
+   the atomic replacement of the file is in `session_file_replacement.rs`,
+   and `session.rs` reads,
+   migrates and saves through them.
 - `src/error.rs`:
    `PlayerError`,
    the single error type all fallible functions return.

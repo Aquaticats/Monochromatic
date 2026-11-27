@@ -364,7 +364,7 @@ pub fn remove_merge_intent(path: &Path) -> std::io::Result<()> {
 /// once that carry has ended,
 /// the capture's objects are no longer needed by that record,
 /// and only its name has to be settled
-/// (`merge_isolation_carry.rs`,
+/// (`merge_isolation_carry_ref.rs`,
 /// which decides who drops the ref).
 /// The marker is a sibling rather than a rewrite of the record,
 /// because a record is written once and never replaced,
@@ -387,7 +387,7 @@ pub fn settled_marker(record: &Path) -> PathBuf {
 /// so the state a kill leaves between them is one the next command finishes:
 /// the marker says the carry needs nothing,
 /// and the refusal of a missing ref is the drop's own wish
-/// (`merge_isolation_carry.rs`).
+/// (`merge_isolation_carry_ref.rs`).
 /// Two commands finishing the same record both write it; the second finds it,
 /// which is not a failure.
 /// The marker is not synced,
