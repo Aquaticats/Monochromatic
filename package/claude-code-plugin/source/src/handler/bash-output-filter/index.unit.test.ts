@@ -16,7 +16,19 @@ import {
 import {
   BLOCKING_TIMEOUT_ENABLED_ENV,
   BLOCKING_TIMEOUT_MS,
+  SLEEP_PREFIX,
 } from './blocking-timeout.ts';
+
+/**
+ Caller timeout main sessions sent most often among long waits (58 minutes),
+ per `doc/planning/claude-code-bash-caller-timeout-cap.md`.
+ */
+const OBSERVED_LONG_CALLER_TIMEOUT_MS = 3_480_000;
+
+/**
+ Start of every command the output filter wraps.
+ */
+const FILTER_WRAPPER_START = 'set -o pipefail && ';
 
 function environmentOverride(env: Readonly<NodeJS.ProcessEnv>,): { [Symbol.dispose]: () => void } {
   const original = process.env;
@@ -120,6 +132,16 @@ await describe({
       },
     },),
     it({
+      name: 'clamps a long filter-skipped caller timeout without changing the command',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'xxd file.bin', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(updatedInput(output,).command,).toBe('xxd file.bin',);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
+      },
+    },),
+    it({
       name: 'passes through a filter-skipped caller timeout unchanged',
       fn: async () => {
         const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
@@ -146,6 +168,24 @@ await describe({
         expect(updatedInput(output,).command,).toContain('printf ok',);
         expect(updatedInput(output,).timeout,).toBeUndefined();
         expect(updatedInput(output,).run_in_background,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'keeps a subagent caller timeout',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ agentId: 'agent-1', input: { command: 'printf ok', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(updatedInput(output,).timeout,).toBe(OBSERVED_LONG_CALLER_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'leaves a subagent leading sleep unprefixed',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ agentId: 'agent-1', input: { command: 'sleep 5 > result.txt', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(output,).toEqual({},);
       },
     },),
     it({
@@ -177,14 +217,43 @@ await describe({
         expect(updatedInput(output,).timeout,).toBe(500,);
       },
     },),
-    ...([0, 500, 600_000,] as const).map(function callerTimeout(timeout,) {
+    it({
+      name: 'keeps an explicit background call with a long timeout',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'printf ok', run_in_background: true, timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(updatedInput(output,).timeout,).toBe(OBSERVED_LONG_CALLER_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'leaves an explicit background leading sleep unprefixed',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'sleep 5 > result.txt', run_in_background: true, timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(output,).toEqual({},);
+      },
+    },),
+    ...([1, BLOCKING_TIMEOUT_MS / 2, BLOCKING_TIMEOUT_MS,] as const).map(function keptTimeout(timeout,) {
       return it({
-        name: `preserves foreground caller timeout ${timeout}`,
+        name: `keeps foreground caller timeout ${timeout}`,
         fn: async () => {
           const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
             bashEvent({ input: { command: 'printf ok', timeout, }, }),
           ) },);
           expect(updatedInput(output,).timeout,).toBe(timeout,);
+        },
+      },);
+    },),
+    ...([0, BLOCKING_TIMEOUT_MS + 1, OBSERVED_LONG_CALLER_TIMEOUT_MS,] as const).map(function clampedCallerTimeout(timeout,) {
+      return it({
+        name: `clamps foreground caller timeout ${timeout} to the default`,
+        fn: async () => {
+          const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+            bashEvent({ input: { command: 'printf ok', timeout, }, }),
+          ) },);
+          expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
         },
       },);
     },),
@@ -199,23 +268,63 @@ await describe({
       },
     },),
     it({
-      name: 'keeps a bare numeric sleep exempt while filtering it',
+      name: 'times a bare numeric sleep and filters it without a prefix',
       fn: async () => {
         const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
           bashEvent({ input: { command: 'sleep 5', }, }),
         ) },);
-        expect(updatedInput(output,).command,).toContain('sleep 5',);
-        expect(updatedInput(output,).timeout,).toBeUndefined();
+        expect(updatedInput(output,).command.startsWith(`${FILTER_WRAPPER_START}sleep 5`,),).toBe(true,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
       },
     },),
     it({
-      name: 'times an unwrapped sleep with a redirect because it is not bare',
+      name: 'filters a leading sleep chain without a prefix',
       fn: async () => {
         const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
-          bashEvent({ input: { command: 'sleep 5 > result.txt', }, }),
+          bashEvent({ input: { command: 'sleep 5 && printf ok', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
         ) },);
-        expect(updatedInput(output,).command,).toBe('sleep 5 > result.txt',);
+        expect(updatedInput(output,).command.startsWith(`${FILTER_WRAPPER_START}sleep 5 && printf ok`,),).toBe(true,);
         expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'prefixes and times an unwrapped leading sleep',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'sleep 5 > result.txt', description: 'wait then write', }, }),
+        ) },);
+        expect(updatedInput(output,).command,).toBe(`${SLEEP_PREFIX}sleep 5 > result.txt`,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
+        expect(updatedInput(output,).description,).toBe('wait then write',);
+      },
+    },),
+    it({
+      name: 'prefixes an unwrapped leading sleep and clamps its long caller timeout',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: '# wait\nsleep 300 && check > out', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(updatedInput(output,).command,).toBe(`${SLEEP_PREFIX}# wait\nsleep 300 && check > out`,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS,);
+      },
+    },),
+    it({
+      name: 'prefixes an unwrapped leading sleep that keeps a short caller timeout',
+      fn: async () => {
+        const output = withEnv({ env: {}, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'sleep 5 > result.txt', timeout: BLOCKING_TIMEOUT_MS / 2, }, }),
+        ) },);
+        expect(updatedInput(output,).command,).toBe(`${SLEEP_PREFIX}sleep 5 > result.txt`,);
+        expect(updatedInput(output,).timeout,).toBe(BLOCKING_TIMEOUT_MS / 2,);
+      },
+    },),
+    it({
+      name: 'leaves a leading sleep unprefixed when the policy is disabled',
+      fn: async () => {
+        const output = withEnv({ env: { [BLOCKING_TIMEOUT_ENABLED_ENV]: 'off', }, fn: () => bashOutputFilterHandler(
+          bashEvent({ input: { command: 'sleep 5 > result.txt', timeout: OBSERVED_LONG_CALLER_TIMEOUT_MS, }, }),
+        ) },);
+        expect(output,).toEqual({},);
       },
     },),
     it({

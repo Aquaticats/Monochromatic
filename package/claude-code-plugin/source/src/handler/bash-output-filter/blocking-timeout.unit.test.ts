@@ -6,42 +6,72 @@ import {
 import {
   BLOCKING_TIMEOUT_ENABLED_ENV,
   BLOCKING_TIMEOUT_MS,
+  clampedTimeout,
   DISABLE_BACKGROUND_TASKS_ENV,
   disabledBackgroundTasksWarning,
   isBlockingTimeoutEnabled,
-  isPlainSleep,
-  shouldApplyBlockingTimeout,
+  isTimeoutPolicyCall,
+  SLEEP_PREFIX,
+  startsWithSleepWord,
+  withSleepPrefix,
 } from './blocking-timeout.ts';
 
 const DISABLED_INPUTS = ['0', 'false', 'off',] as const;
 const ENABLED_INPUTS = [undefined, '', '1', 'FALSE', 'Off',] as const;
-const EXEMPT_SLEEPS = ['sleep 30', '  sleep   0.5\n', 'sleep\t2', 'sleep .5', 'sleep 5.',] as const;
-const ELIGIBLE_SLEEP_FORMS = [
-  'sleep',
-  'sleep 1m',
-  'sleep .',
-  'sleep 1.2.3',
-  'sleep -1',
-  'sleep 1 2',
-  'sleep 5; ls',
-  'sleep 5 && ls',
-  'sleep 5 > out.txt',
-  'sleeper 5',
-  'printf ok',
-  'sleep5',
+
+/**
+ Caller timeout main sessions sent most often among long waits (58 minutes),
+ per `doc/planning/claude-code-bash-caller-timeout-cap.md`.
+ */
+const OBSERVED_LONG_CALLER_TIMEOUT_MS = 3_480_000;
+
+const KEPT_TIMEOUTS = [1, BLOCKING_TIMEOUT_MS / 2, BLOCKING_TIMEOUT_MS,] as const;
+const CLAMPED_TIMEOUTS = [
+  undefined,
+  0,
+  -BLOCKING_TIMEOUT_MS,
+  Number.NaN,
+  BLOCKING_TIMEOUT_MS + 1,
+  OBSERVED_LONG_CALLER_TIMEOUT_MS,
 ] as const;
 
-function apply(
+const LEADING_SLEEP_COMMANDS = [
+  'sleep',
+  'sleep 5',
+  'sleep 5 && make',
+  'sleep 5;printf x',
+  'sleep&&x',
+  'sleep|cat',
+  'sleep>out',
+  'sleep<in',
+  'sleep\t2',
+  '  sleep 5',
+  '\nsleep 5',
+  '# note\nsleep 5',
+  '# a\n  # b\n\nsleep 1 > out',
+] as const;
+const OTHER_COMMANDS = [
+  '',
+  'sleeper 5',
+  'sleep5',
+  'printf sleep',
+  'X=1 sleep 5',
+  'true && sleep 5',
+  '(sleep 5)',
+  '{ sleep 5; }',
+  '# only a comment',
+  '#sleep 5',
+  '# note sleep 5',
+] as const;
+
+function policyCall(
   overrides: Readonly<{
     agentId?: string;
-    command?: string;
     env?: Readonly<NodeJS.ProcessEnv>;
     runInBackground?: boolean;
-    timeout?: number;
   }>,
 ): boolean {
-  return shouldApplyBlockingTimeout({
-    command: 'printf ok',
+  return isTimeoutPolicyCall({
     env: {},
     ...overrides,
   },);
@@ -69,6 +99,13 @@ await describe({
           name: 'uses the owner-selected one-second default',
           fn: async () => {
             expect(BLOCKING_TIMEOUT_MS,).toBe(1_000,);
+          },
+        },),
+        it({
+          name: 'prefixes with a no-op whose first word is not sleep',
+          fn: async () => {
+            expect(SLEEP_PREFIX,).toBe('true && ',);
+            expect(startsWithSleepWord(SLEEP_PREFIX,),).toBe(false,);
           },
         },),
         it({
@@ -103,90 +140,122 @@ await describe({
       ],
     },),
     describe({
-      name: shouldApplyBlockingTimeout.name,
+      name: isTimeoutPolicyCall.name,
       children: [
         it({
-          name: 'applies to a main-agent foreground call without a timeout',
+          name: 'covers a main-agent foreground call',
           fn: async () => {
-            expect(apply({},),).toBe(true,);
+            expect(policyCall({},),).toBe(true,);
           },
         },),
         it({
-          name: 'does not apply to a native subagent',
+          name: 'covers an explicit foreground call',
           fn: async () => {
-            expect(apply({ agentId: 'agent-1', },),).toBe(false,);
+            expect(policyCall({ runInBackground: false, },),).toBe(true,);
           },
         },),
         it({
-          name: 'does not apply to an explicit background call',
+          name: 'excludes a native subagent',
           fn: async () => {
-            expect(apply({ runInBackground: true, },),).toBe(false,);
+            expect(policyCall({ agentId: 'agent-1', },),).toBe(false,);
           },
         },),
         it({
-          name: 'applies to an explicit foreground call',
+          name: 'excludes an explicit background call',
           fn: async () => {
-            expect(apply({ runInBackground: false, },),).toBe(true,);
+            expect(policyCall({ runInBackground: true, },),).toBe(false,);
           },
         },),
-        ...([0, 500, 600_000,] as const).map(function callerTimeout(timeout,) {
-          return it({
-            name: `preserves caller timeout ${timeout}`,
-            fn: async () => {
-              expect(apply({ timeout, },),).toBe(false,);
-            },
-          },);
-        },),
         it({
-          name: 'does not apply when disabled by the new variable',
+          name: 'excludes every call when the policy is disabled',
           fn: async () => {
-            expect(apply({ env: { [BLOCKING_TIMEOUT_ENABLED_ENV]: 'off', }, },),).toBe(false,);
+            expect(policyCall({ env: { [BLOCKING_TIMEOUT_ENABLED_ENV]: 'off', }, },),).toBe(false,);
           },
         },),
         it({
           name: 'ignores the removed legacy variable',
           fn: async () => {
-            expect(apply({ env: { MONOCHROMATIC_BASH_FORCE_BACKGROUND: 'off', }, },),).toBe(true,);
+            expect(policyCall({ env: { MONOCHROMATIC_BASH_FORCE_BACKGROUND: 'off', }, },),).toBe(true,);
           },
         },),
-        ...EXEMPT_SLEEPS.map(function exemptSleep(command,) {
+      ],
+    },),
+    describe({
+      name: clampedTimeout.name,
+      children: [
+        ...KEPT_TIMEOUTS.map(function keptTimeout(timeout,) {
           return it({
-            name: `exempts bare numeric form ${JSON.stringify(command)}`,
+            name: `keeps caller timeout ${timeout}, which already moves no later than the default`,
             fn: async () => {
-              expect(apply({ command, },),).toBe(false,);
+              expect(clampedTimeout(timeout,),).toBe(timeout,);
             },
           },);
         },),
-        ...ELIGIBLE_SLEEP_FORMS.map(function eligibleSleepForm(command,) {
+        ...CLAMPED_TIMEOUTS.map(function clamped(timeout,) {
           return it({
-            name: `applies outside the bare numeric exemption for ${JSON.stringify(command)}`,
+            name: `replaces caller timeout ${String(timeout,)} with the default`,
             fn: async () => {
-              expect(apply({ command, },),).toBe(true,);
+              expect(clampedTimeout(timeout,),).toBe(BLOCKING_TIMEOUT_MS,);
             },
           },);
         },),
       ],
     },),
     describe({
-      name: isPlainSleep.name,
+      name: startsWithSleepWord.name,
       children: [
-        ...EXEMPT_SLEEPS.map(function plainSleep(command,) {
+        ...LEADING_SLEEP_COMMANDS.map(function leadingSleep(command,) {
           return it({
-            name: `accepts ${JSON.stringify(command)}`,
+            name: `sees a leading sleep in ${JSON.stringify(command,)}`,
             fn: async () => {
-              expect(isPlainSleep(command,),).toBe(true,);
+              expect(startsWithSleepWord(command,),).toBe(true,);
             },
           },);
         },),
-        ...ELIGIBLE_SLEEP_FORMS.map(function nonPlainSleep(command,) {
+        ...OTHER_COMMANDS.map(function otherCommand(command,) {
           return it({
-            name: `rejects ${JSON.stringify(command)}`,
+            name: `sees no leading sleep in ${JSON.stringify(command,)}`,
             fn: async () => {
-              expect(isPlainSleep(command,),).toBe(false,);
+              expect(startsWithSleepWord(command,),).toBe(false,);
             },
           },);
         },),
       ],
-    },)
+    },),
+    describe({
+      name: withSleepPrefix.name,
+      children: [
+        ...LEADING_SLEEP_COMMANDS.map(function prefixed(command,) {
+          return it({
+            name: `prefixes ${JSON.stringify(command,)} and keeps its text`,
+            fn: async () => {
+              expect(withSleepPrefix(command,),).toBe(`${SLEEP_PREFIX}${command}`,);
+            },
+          },);
+        },),
+        ...OTHER_COMMANDS.map(function unprefixed(command,) {
+          return it({
+            name: `leaves ${JSON.stringify(command,)} unchanged`,
+            fn: async () => {
+              expect(withSleepPrefix(command,),).toBe(command,);
+            },
+          },);
+        },),
+        it({
+          name: 'keeps quotes, operators, and newlines of the original text',
+          fn: async () => {
+            const command = 'sleep 1\nprintf \'a && b; c | d\' > "out file" 2>&1 &';
+            expect(withSleepPrefix(command,),).toBe(`${SLEEP_PREFIX}${command}`,);
+          },
+        },),
+        it({
+          name: 'adds the prefix once',
+          fn: async () => {
+            const once = withSleepPrefix('sleep 5 > out',);
+            expect(withSleepPrefix(once,),).toBe(once,);
+          },
+        },),
+      ],
+    },),
   ],
 },);
