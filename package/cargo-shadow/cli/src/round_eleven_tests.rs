@@ -35,11 +35,12 @@ use crate::bounded_run::{
 };
 use crate::cgroup_test_support::{
     delegated_route,
+    gate_looks,
     scope_directory_of,
     start_in_scope,
     wait_until,
+    wait_up_to,
 };
-use crate::contain_counterexample_tests::wait_for_file;
 use crate::control_group::{
     ControlGroup,
     LauncherState,
@@ -71,6 +72,15 @@ const LEFT_BY_THE_KILLED_RUN: &str = "unchecked output of the killed run";
 
 /// The environment variable that gives the helper process its workspace.
 const FIXTURE_ROOT: &str = "CARGO_SHADOW_ROUND_ELEVEN_FIXTURE_ROOT";
+
+/// How often the program of the killed-wrapper control looks at its release gate (issue 6576).
+/// It ends by itself once `gate_patience` is spent in looks of this length,
+/// so a control that fails before its release line
+/// (a failed assertion,
+/// a panic,
+/// or the whole run killed from outside)
+/// cannot leave a shell polling for hours.
+const PAYLOAD_GATE_LOOK: Duration = Duration::from_millis(50);
 
 /// A snapshot of the lockfile of the case.
 fn snapshot(source: &str) -> LockSnapshot {
@@ -128,12 +138,16 @@ impl HeldLauncher {
     /// Starts it.
     fn start(directory: &Path) -> HeldLauncher {
         let gate: PathBuf = directory.join("gate");
+        // The gate is one the tests never make, so the loop counts its looks and gives up on its own (issue 6576): a control that
+        // fails before it ends this process leaves nothing polling at a gate nobody will open.
+        let script: String = format!(
+            "i=0; while [ ! -e {gate} ] && [ $i -lt {looks} ]; do sleep 0.02; i=$((i+1)); done; exec sleep 600",
+            gate = gate.display(),
+            looks = gate_looks(Duration::from_millis(20))
+        );
         let child: Child = Command::new("sh")
             .arg("-c")
-            .arg(format!(
-                "while [ ! -e {} ]; do sleep 0.02; done; exec sleep 600",
-                gate.display()
-            ))
+            .arg(script)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
@@ -765,6 +779,240 @@ fn a_torn_launcher_line_never_reads_as_a_gone_launcher() {
     );
 }
 
+/// The identity of the program the killed-wrapper control runs,
+/// as the program publishes it:
+/// the process id,
+/// start time and process id namespace the run's own launcher record holds.
+#[derive(Clone, Copy)]
+struct PublishedProgram {
+    /// The program's process id.
+    pid: i32,
+    /// Its start time in procfs.
+    start: u64,
+    /// The inode of its process id namespace.
+    pid_namespace: u64,
+}
+
+/// What the killed-wrapper control holds while its program runs:
+/// the fixture that runs the program through a delegated scope,
+/// and what this process needs to end that program and its scope however the control ends.
+/// Why:
+/// The fixture is the process the control kills on purpose,
+/// so it cannot be what ends the program:
+/// a control that fails after that kill (a failed assertion,
+/// a panic)
+/// left the program polling at its release gate,
+/// in a scope of the manager's that outlived the run
+/// (issue 6576:
+/// twenty-five such shells on this host on 2026-11-27,
+/// the oldest twelve hours old).
+/// The program's own bound ends it even when nothing here runs;
+/// this guard ends it at once on the paths that do run,
+/// and lets a test prove the program and its scope gone.
+struct ProgramInItsScope {
+    /// The fixture:
+    /// it begins a transaction and runs the program through the bounded runner.
+    fixture: Child,
+    /// Where the program publishes who it is and where its release gate is made.
+    root: PathBuf,
+    /// The program's identity,
+    /// once it has published it.
+    program: Option<PublishedProgram>,
+    /// The scope the program runs in,
+    /// read from the program's own control group once it has published it.
+    scope: Option<PathBuf>,
+}
+
+/// The methods of the type above.
+impl ProgramInItsScope {
+    /// What:
+    /// `fn start(root: &Path) -> ProgramInItsScope` spawns the fixture for `root`.
+    /// Why:
+    /// The guard owns the fixture from the first moment,
+    /// so a failure before the control's deliberate kill still ends it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// static start(root: string): ProgramInItsScope
+    /// ```
+    fn start(root: &Path) -> ProgramInItsScope {
+        let fixture: Child = Command::new(std::env::current_exe().expect("this test executable"))
+            .args([
+                "--ignored",
+                "--exact",
+                "round_eleven_tests::wrapper_running_a_program_fixture",
+                "--nocapture",
+            ])
+            .env(FIXTURE_ROOT, root)
+            .spawn()
+            .expect("the wrapper helper");
+        return ProgramInItsScope {
+            fixture,
+            root: root.to_path_buf(),
+            program: None,
+            scope: None,
+        };
+    }
+
+    /// What:
+    /// `fn published(&mut self) -> PublishedProgram` waits for the program to publish its process id and answers that identity,
+    /// which the guard keeps for its end.
+    /// Why:
+    /// The record the wrapper writes is checked against what the program says about itself,
+    /// and the guard must ask about the same process later.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// published(): PublishedProgram
+    /// ```
+    fn published(&mut self) -> PublishedProgram {
+        let id_file: PathBuf = self.root.join("payload-pid");
+        wait_until("the program's process id", &|| {
+            return id_file.exists();
+        });
+        let pid: i32 = fs::read_to_string(&id_file)
+            .expect("the program's id")
+            .trim()
+            .parse::<i32>()
+            .expect("a process id");
+        let program: PublishedProgram = PublishedProgram {
+            pid,
+            start: process_start(pid).expect("the program's start time"),
+            pid_namespace: pid_namespace_id().expect("the namespace"),
+        };
+        self.program = Some(program);
+        self.scope = scope_of_cgroup_file(&self.root.join("payload-cgroup"));
+        return program;
+    }
+
+    /// What:
+    /// `fn scope(&self) -> Option<PathBuf>` is the scope the program reported,
+    /// once it has.
+    /// Why:
+    /// A test asserts about the scope the program itself named,
+    /// on the path where it reads no journal at all.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// scope(): string | undefined
+    /// ```
+    fn scope(&self) -> Option<PathBuf> {
+        return self.scope.clone();
+    }
+
+    /// What:
+    /// `fn kill_the_fixture(&mut self)` kills and reaps the fixture.
+    /// Why:
+    /// This is the control's deliberate kill:
+    /// the program must stay alive across it,
+    /// so it cannot be what ends the program,
+    /// and the kill must not leave the fixture behind either.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// killTheFixture(): void
+    /// ```
+    fn kill_the_fixture(&mut self) {
+        let _ = self.fixture.kill();
+        let _ = self.fixture.wait();
+    }
+
+    /// What:
+    /// `fn release(&self)` makes the release gate the program waits at.
+    /// Why:
+    /// The control makes it at its own line of the schedule,
+    /// and the guard makes the same file again when that line is never reached;
+    /// making it twice is the same as making it once.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// release(): void
+    /// ```
+    fn release(&self) {
+        let _ = fs::write(self.root.join("release"), "go");
+    }
+}
+
+/// How the guard cleans up.
+impl Drop for ProgramInItsScope {
+    /// What:
+    /// `fn drop(&mut self)` ends the fixture,
+    /// releases the program,
+    /// and,
+    /// where the program or its scope is still there,
+    /// kills them and waits for both to be gone.
+    /// Why:
+    /// A control that fails before its release line must leave neither a program polling at a gate nobody will open
+    /// nor a scope of the manager's behind (issue 6576).
+    /// Nothing here may panic,
+    /// because a panic while a test unwinds ends the test binary:
+    /// every step ignores its failure and every wait has a bound,
+    /// and a test's own last lines are what prove the program and the scope gone.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// [Symbol.dispose](): void
+    /// ```
+    fn drop(&mut self) {
+        let _ = self.fixture.kill();
+        let _ = self.fixture.wait();
+        let _ = fs::write(self.root.join("release"), "go");
+        if let Some(program) = self.program {
+            let _ = wait_up_to(end_wait(), &|| {
+                return launcher_state(program.pid, program.start, program.pid_namespace)
+                    == LauncherState::Gone;
+            });
+        }
+        if let Some(scope) = &self.scope {
+            if scope.exists() {
+                let _ = fs::write(scope.join("cgroup.kill"), "1");
+            }
+            let _ = wait_up_to(end_wait(), &|| {
+                return !scope.exists();
+            });
+        }
+    }
+}
+
+/// What:
+/// `fn end_wait() -> Duration` is how long the guard gives the program to end and the manager to collect its scope.
+/// Why:
+/// The release gate is looked at every `PAYLOAD_GATE_LOOK`,
+/// so the program ends within a look or two of the release,
+/// and a stop that has to be forced is what `QUIESCE_BOUND` bounds;
+/// twice that is a wait no correct host spends and no broken one waits out for long.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endWait(): number  // milliseconds
+/// ```
+fn end_wait() -> Duration {
+    return crate::bounded_run::QUIESCE_BOUND * 2;
+}
+
+/// What:
+/// `fn scope_of_cgroup_file(path: &Path) -> Option<PathBuf>` is the scope the program's own `/proc/self/cgroup` text names,
+/// as a path below the cgroup root,
+/// or nothing where the program has not written that file yet.
+/// Why:
+/// The guard must stop the scope even where the control failed before it read the journal's record,
+/// and this host writes a version 1 line before the version 2 one (issue 6549),
+/// so only the `0::` line names the group.
+/// It answers instead of panicking because it runs in `Drop`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function scopeOfCgroupFile(path: string): string | undefined
+/// ```
+fn scope_of_cgroup_file(path: &Path) -> Option<PathBuf> {
+    let text: String = fs::read_to_string(path).ok()?;
+    let v2: &str = text.lines().map(str::trim).find(|line| {
+        return line.starts_with("0::");
+    })?;
+    let relative: &str = v2.strip_prefix("0::")?.trim_start_matches('/');
+    return Some(PathBuf::from(crate::control_group::CGROUP_ROOT).join(relative));
+}
+
 /// The helper process of the killed-wrapper test:
 /// it begins a transaction and runs a program through the bounded runner;
 /// the program publishes its own process id,
@@ -780,11 +1028,18 @@ fn wrapper_running_a_program_fixture() {
     let root: PathBuf = PathBuf::from(root_text);
     let _transaction = begin(&root, &[snapshot("original")], false).expect("begin");
     // The program is the launcher (same process), so `$$` is the launcher's process id; the pid file appears whole.
+    // It looks at its release gate for `gate_patience` in looks of `PAYLOAD_GATE_LOOK` and then ends by itself, so a control that
+    // fails before its release line (a failed assertion, a panic, or the run killed from outside) leaves no polling shell behind
+    // (issue 6576). The bound is three times the control's own worst case before that line: two `wait_until` waits of one
+    // `STATE_WAIT` each.
     let script: String = format!(
-        "cat /proc/self/cgroup > {cgroup}.part; mv {cgroup}.part {cgroup}; echo $$ > {pid}.part; mv {pid}.part {pid}; while [ ! -e {release} ]; do sleep 0.05; done",
+        "cat /proc/self/cgroup > {cgroup}.part; mv {cgroup}.part {cgroup}; echo $$ > {pid}.part; mv {pid}.part {pid}; \
+         i=0; while [ ! -e {release} ] && [ $i -lt {looks} ]; do sleep {look}; i=$((i+1)); done",
         cgroup = root.join("payload-cgroup").display(),
         pid = root.join("payload-pid").display(),
-        release = root.join("release").display()
+        release = root.join("release").display(),
+        looks = gate_looks(PAYLOAD_GATE_LOOK),
+        look = PAYLOAD_GATE_LOOK.as_secs_f64()
     );
     let bound: Bound = Bound {
         limit: Duration::from_secs(600),
@@ -813,22 +1068,9 @@ fn wrapper_running_a_program_fixture() {
 fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
     crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository();
-    let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
-        .args([
-            "--ignored",
-            "--exact",
-            "round_eleven_tests::wrapper_running_a_program_fixture",
-            "--nocapture",
-        ])
-        .env(FIXTURE_ROOT, root.path())
-        .spawn()
-        .expect("the wrapper helper");
-    wait_for_file(&root.path().join("payload-pid"));
-    let payload: i32 = fs::read_to_string(root.path().join("payload-pid"))
-        .expect("the program's id")
-        .trim()
-        .parse::<i32>()
-        .expect("a process id");
+    let mut control: ProgramInItsScope = ProgramInItsScope::start(root.path());
+    let published: PublishedProgram = control.published();
+    let payload: i32 = published.pid;
     let journal: PathBuf = journal_dirs(root.path())
         .into_iter()
         .next()
@@ -857,10 +1099,9 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
     else {
         panic!("no launcher record in {record:?}");
     };
-    wrapper
-        .kill()
-        .expect("kill the wrapper while its program waits");
-    let _ = wrapper.wait();
+    // The kill the control makes on purpose: the program stays alive across it, and the guard is what ends the program on every
+    // path that does not reach the release line below (issue 6576).
+    control.kill_the_fixture();
 
     assert_eq!(
         pid, payload,
@@ -885,7 +1126,7 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
         &crate::cgroup_test_support::wrapper_group(),
     );
     let while_running: Option<String> = survivor_note(&journal);
-    fs::write(root.path().join("release"), "go").expect("release the program");
+    control.release();
     wait_until("the launcher to be gone", &|| {
         return launcher_state(pid, start, pid_namespace) == LauncherState::Gone;
     });
@@ -914,4 +1155,62 @@ fn a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone() {
         journal_dirs(root.path()).is_empty(),
         "the journal was not completed and removed: {messages:?}"
     );
+    // The control proves at its end that the program's process and its scope are gone (issue 6576): the two things a failure
+    // before the release line used to leave behind.
+    assert_eq!(
+        launcher_state(payload, start, pid_namespace),
+        LauncherState::Gone,
+        "the program was still there when the control ended"
+    );
+    assert!(
+        !scope.exists(),
+        "the program's scope was still there when the control ended"
+    );
+}
+
+/// The control for the leak itself (issue 6576):
+/// a control that fails before its release line,
+/// the way a failed assertion or a panic does,
+/// leaves neither the program it started nor that program's scope behind.
+/// It judges only what it started:
+/// other tests' programs and scopes are alive while it looks,
+/// and it asks about none of them.
+/// What no single test can judge is a scope left by a test it did not start;
+/// there the program's own bound (`gate_patience`) is what ends it,
+/// and this test does not see it.
+#[test]
+fn a_control_that_fails_before_its_release_line_leaves_no_program_and_no_scope() {
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let root = repository();
+    let mut began: Option<(PublishedProgram, PathBuf)> = None;
+    let failed: std::thread::Result<()> =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut control: ProgramInItsScope = ProgramInItsScope::start(root.path());
+            let program: PublishedProgram = control.published();
+            let scope: PathBuf = control.scope().expect("the program's scope");
+            began = Some((program, scope.clone()));
+            // Both things this test judges were there to be left behind, so a green run of it proves something.
+            assert_eq!(
+                launcher_state(program.pid, program.start, program.pid_namespace),
+                LauncherState::Alive,
+                "the program was not running when the control failed"
+            );
+            assert!(
+                scope.exists(),
+                "the program's scope was not there when the control failed"
+            );
+            panic!("the control fails before its release line, as a failed assertion does");
+        }));
+    let (program, scope) = began.expect("the control started a program");
+    assert!(
+        failed.is_err(),
+        "the control did not fail, so this case proves nothing"
+    );
+    wait_until("the program to be gone", &|| {
+        return launcher_state(program.pid, program.start, program.pid_namespace)
+            == LauncherState::Gone;
+    });
+    wait_until("the manager to collect the scope", &|| {
+        return !scope.exists();
+    });
 }

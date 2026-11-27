@@ -95,30 +95,6 @@ const LINT_LEVELS: &[(&str, &str)] = &[
         "#[cfg_attr(not(test),expect(dead_code))]",
     ),
     (
-        "landing/service_land_side_reference_write.rs",
-        "#[cfg_attr(not(test),expect(dead_code))]",
-    ),
-    (
-        "landing/service_land_side_reference_write.rs",
-        "#[cfg_attr(not(test),expect(dead_code))]",
-    ),
-    (
-        "landing/service_land_side_reference_write.rs",
-        "#[cfg_attr(not(test),expect(dead_code))]",
-    ),
-    (
-        "landing/service_land_side_reference_write.rs",
-        "#[cfg_attr(not(test),expect(dead_code))]",
-    ),
-    (
-        "landing/service_land_side_reference_write.rs",
-        "#[cfg_attr(not(test),expect(dead_code))]",
-    ),
-    (
-        "landing/service_land_side_reference_write.rs",
-        "#[cfg_attr(not(test),expect(dead_code))]",
-    ),
-    (
         "landing/service_prepare_own_git_steps.rs",
         "#[cfg_attr(not(test),expect(dead_code))]",
     ),
@@ -141,6 +117,30 @@ const LINT_LEVELS: &[(&str, &str)] = &[
     (
         "landing/service_work_git_handlers.rs",
         "#[cfg_attr(not(test),expect(unused_mut))]",
+    ),
+    (
+        "landing/the_answer_of_one_git_step_of_a_side_reference.rs",
+        "#[cfg_attr(not(test),expect(dead_code))]",
+    ),
+    (
+        "landing/the_commit_a_side_reference_did_not_keep.rs",
+        "#[cfg_attr(not(test),expect(dead_code))]",
+    ),
+    (
+        "landing/the_side_references_a_commit_is_kept_on.rs",
+        "#[cfg_attr(not(test),expect(dead_code))]",
+    ),
+    (
+        "landing/the_side_references_a_commit_is_kept_on.rs",
+        "#[cfg_attr(not(test),expect(dead_code))]",
+    ),
+    (
+        "landing/the_side_references_a_commit_is_kept_on.rs",
+        "#[cfg_attr(not(test),expect(dead_code))]",
+    ),
+    (
+        "landing/the_write_of_a_side_reference.rs",
+        "#[cfg_attr(not(test),expect(dead_code))]",
     ),
     ("main.rs", "#[allow(clippy::disallowed_methods)]"),
     (

@@ -103,8 +103,11 @@ fn script_leaving_a_writer(ready: &Path) -> String {
     return format!(
         // The handshake is inside the payload (sixth certification pass): the writer's ready marker is seen first, then the payload
         // records its own control group and that it saw the marker, and only then ends, so the stop (and a fault in it) comes after.
-        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
-        ready = ready.display()
+        // The writer makes the gate; where it fails to, the loop counts its looks and gives up instead of polling for ever
+        // (issue 6576).
+        "setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
+        ready = ready.display(),
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20))
     );
 }
 

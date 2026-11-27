@@ -366,6 +366,59 @@ A beats B because the service already holds that one value for every child it ru
 B beats C because B fixes the place for every route that reaches the work,
 where C only refuses the write.
 
+## Open: how long cargo-shadow's stop waits for a killed scope (issue 6577, recorded 2026-11-27T07:55:00-05:00)
+
+On 2026-11-26 `cargo-shadow`'s install step refused a command with
+"a process started by cargo could not be stopped",
+on a host with about sixty rounds building and a disk stall near `some avg10=75`,
+and left the lockfile change cargo had written (issue 6528).
+The round for it measured that the kernel does not count a member that has exited and waits to be reaped,
+so the zombie the issue named was not the cause,
+and made the refusal say how long the stop waited and name each member left (`41b9597adf`).
+What refused that day is not known and cannot be recovered.
+A live member past the bound is what is left:
+a killed process inside an uninterruptible disk wait does not end until that wait returns.
+
+The bound,
+`QUIESCE_BOUND` in `package/cargo-shadow/cli/src/bounded_run.rs`,
+is 5 s,
+a delegated pick with veto open,
+sized from probes of 2026-11-04 that took 1 ms to 5 ms on a host without that load.
+The round left it:
+a shipped bound needs a workload measurement or the owner's decision.
+
+The options are the coordinator's and none is measured.
+
+- A:
+  keep 5 s and rely on the message.
+  Nothing new to build,
+  and the next refusal states the wait and each member's state,
+  which is the measurement the bound lacks.
+  The refusal recurs under the load that is normal on this host,
+  and each one fails a command and leaves a lockfile change for the next run to settle.
+- B:
+  keep waiting while every listed member has the kill pending and is in an uninterruptible wait,
+  saying so every few seconds,
+  up to a ceiling sized from the worst stall measured here,
+  then refuse.
+  The wait follows the cause,
+  so a command under disk load runs late where today it is refused.
+  It is a new rule in release code with a ceiling that still needs its measurement,
+  and a command can wait as long as that ceiling.
+- C:
+  raise the fixed bound to a figure sized from the next occurrence's message.
+  One constant changes.
+  One occurrence sizes it,
+  so a longer stall refuses again,
+  and until that occurrence it is A.
+
+Ranking:
+B > C > A.
+B beats C because its wait ends when the member's own wait ends,
+where C's figure holds only for stalls no longer than the one that sized it.
+C beats A because A leaves the refusal recurring under load,
+which this host has every day.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.

@@ -1607,6 +1607,27 @@ so one such window does not hide the other 800 results,
 and it takes no arguments:
 `cargo nextest run --release <filter>` runs a subset.
 
+A script a test starts that waits at a gate file counts the looks it takes and gives up after `gate_patience`
+(`gate_looks` and `gate_patience` in `src/cgroup_test_support.rs`),
+so it ends by itself where the test that would make the gate fails first.
+Issue 6576 is why:
+the program of `a_killed_wrapper_recovers_by_itself_once_its_launcher_is_gone` waited at its release gate with no bound of its
+own,
+its only bound was the 600 s of the bounded runner **in the process the control kills on purpose**,
+and twenty-five such shells were left on this host on 2026-11-27,
+the oldest twelve hours old,
+each polling every 50 ms in a `cargo-shadow-*.scope` of its own under `app.slice` that outlives the run.
+A gate wait inside a bounded run has that run's bound as well,
+but that bound lives in the test's own process,
+so the script's own count is what ends it where the test process dies.
+That control also holds its program in a guard (`ProgramInItsScope`),
+which releases the program and stops its scope when the control's scope ends,
+a panic included,
+and the control's last lines assert the program's process and the scope gone;
+`a_control_that_fails_before_its_release_line_leaves_no_program_and_no_scope` is the control for that guard,
+and it judges only what it started,
+because other tests' programs and scopes are alive while it looks.
+
 Most of these tests need a delegated control group,
 which every run of the shadow makes for its child with
 `systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect`.

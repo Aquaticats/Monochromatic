@@ -458,12 +458,15 @@ fn zombie_leader_run(at_the_bound: bool) {
         "echo done"
     };
     let script: String = format!(
-        "echo $$ > {direct}; cat /proc/self/cgroup > {group}; setsid {leader} {ready} </dev/null >/dev/null 2>&1 & echo $! > {pid}; while [ ! -e {ready} ]; do sleep 0.02; done; {finish}",
+        "echo $$ > {direct}; cat /proc/self/cgroup > {group}; setsid {leader} {ready} </dev/null >/dev/null 2>&1 & echo $! > {pid}; n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; {finish}",
         direct = direct_file.display(),
         group = group_file.display(),
         leader = leader.display(),
         ready = ready.display(),
         pid = pid_file.display(),
+        // The gate is made by the leader of this same script; where the control fails first, the loop gives up instead of polling
+        // for the rest of the machine's uptime (issue 6576).
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20)),
     );
     let limit: Duration = if at_the_bound {
         Duration::from_secs(8)
@@ -564,9 +567,12 @@ fn orphans_of_parents_that_exit_while_the_run_ends_are_all_stopped() {
     // Forty orphans: each double-forked child records its process id and lives on; the program waits until all forty have.
     let script: String = format!(
         "cat /proc/self/cgroup > {group}; i=0; while [ $i -lt 40 ]; do ( ( sh -c 'echo $$ >> {pids}; exec sleep 600' ) & ) & i=$((i+1)); done; \
-         while [ \"$(wc -l < {pids} 2>/dev/null || echo 0)\" -lt 40 ]; do sleep 0.02; done; echo done",
+         n=0; while [ \"$(wc -l < {pids} 2>/dev/null || echo 0)\" -lt 40 ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; echo done",
         pids = pids.display(),
-        group = group_file.display()
+        group = group_file.display(),
+        // The orphans write their ids; where the control fails before they do, the loop gives up instead of polling for ever
+        // (issue 6576).
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20))
     );
 
     let output = output_within(

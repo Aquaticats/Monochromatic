@@ -56,9 +56,11 @@ fn script_with_escaped_writer(
     let pid_file = directory.join("pid");
     return format!(
         "setsid sh -c 'exec </dev/null >/dev/null 2>&1; echo $$ > {pid}; : > {ready}; exec sleep 600' & \
-         while [ ! -e {ready} ]; do sleep 0.02; done; {after}",
+         n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; {after}",
         ready = ready.display(),
-        pid = pid_file.display()
+        pid = pid_file.display(),
+        // The writer makes the gate; where it fails to, the loop gives up instead of polling for ever (issue 6576).
+        looks = crate::cgroup_test_support::gate_looks(Duration::from_millis(20))
     );
 }
 

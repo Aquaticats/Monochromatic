@@ -52,7 +52,10 @@ use crate::control_group::{
 const TEST_STOP: Duration = Duration::from_secs(10);
 
 /// How long a test waits for a state it is looking for.
-const STATE_WAIT: Duration = Duration::from_secs(20);
+/// Not private to this module:
+/// `gate_patience` is built from it,
+/// and a test that sizes its own waits states the same number by referring to it.
+pub(crate) const STATE_WAIT: Duration = Duration::from_secs(20);
 
 /// The prefix of the line a test that cannot run prints,
 /// which names the test between brackets.
@@ -182,6 +185,34 @@ pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> TestScope
 }
 
 /// What:
+/// `pub(crate) fn wait_up_to(bound: Duration, condition: &dyn Fn() -> bool) -> bool` waits for a condition for at most `bound`,
+/// and answers whether it held.
+/// Why:
+/// A guard that runs while a test unwinds cannot panic,
+/// because a panic in `Drop` during a panic ends the test binary,
+/// so it asks whether the state it waits for arrived instead of asserting it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function waitUpTo(boundMs: number, condition: () => boolean): boolean
+/// ```
+pub(crate) fn wait_up_to(
+    bound: Duration,
+    condition: &dyn Fn() -> bool,
+) -> bool {
+    let deadline: Instant = Instant::now() + bound;
+    loop {
+        if condition() {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// What:
 /// `pub(crate) fn wait_until(what: &str, condition: &dyn Fn() -> bool)` waits for a condition,
 /// up to twenty seconds.
 /// Why:
@@ -197,11 +228,52 @@ pub(crate) fn wait_until(
     what: &str,
     condition: &dyn Fn() -> bool,
 ) {
-    let deadline: Instant = Instant::now() + STATE_WAIT;
-    while !condition() {
-        assert!(Instant::now() < deadline, "{what} did not happen in time");
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    assert!(
+        wait_up_to(STATE_WAIT, condition),
+        "{what} did not happen in time"
+    );
+}
+
+/// What:
+/// `pub(crate) fn gate_patience() -> Duration` is how long a script a test starts may look for a gate file before it ends by
+/// itself.
+/// Why:
+/// A gate is a file a test or a peer of its program makes.
+/// When the test fails,
+/// or the control that would make the gate ends,
+/// the gate is never made,
+/// and a loop with no bound of its own outlives every process that could have ended it:
+/// on 2026-11-27 twenty-five such shells were left on this host,
+/// each polling every 50 ms for hours (issue 6576).
+/// Sized from the waits a test itself may take:
+/// `STATE_WAIT` is the longest it gives one state,
+/// a control makes a few of them,
+/// and this leaves a script three controls' worth.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function gatePatience(): number  // milliseconds
+/// ```
+pub(crate) fn gate_patience() -> Duration {
+    let waits_of_one_control: u32 = 2;
+    let controls: u32 = 3;
+    return STATE_WAIT * waits_of_one_control * controls;
+}
+
+/// What:
+/// `pub(crate) fn gate_looks(look: Duration) -> u128` is how many times a gate-waiting script looks at its gate,
+/// one look every `look`,
+/// before `gate_patience` is spent.
+/// Why:
+/// The shell loops count their looks;
+/// the number comes from the constant instead of a second copy of it in each script.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function gateLooks(lookMs: number): number
+/// ```
+pub(crate) fn gate_looks(look: Duration) -> u128 {
+    return gate_patience().as_millis() / look.as_millis();
 }
 
 /// What:
