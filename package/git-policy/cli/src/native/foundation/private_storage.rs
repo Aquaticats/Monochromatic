@@ -15,6 +15,9 @@
 //!  Each primitive is the one place that rule is written,
 //!  so every record of the wrapper is created,
 //!      synced and read the same way.
+//!  The publish that replaces the record a name already holds is
+//!      `private_storage_replacing_a_record.rs`,
+//!  a file of its own because this one reached the repository's line limit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -640,16 +643,6 @@ pub fn write_exclusive_scratch(
     }
     return Ok(());
 }
-
-/// Publishing a record over the one its name holds,
-/// which is a module of its own because this file reached the repository's line limit.
-#[path = "private_storage_replacing_a_record.rs"]
-mod replacing_a_record;
-
-pub use replacing_a_record::{
-    replace_private_file,
-    replace_private_file_unsynced,
-};
 
 /// What:
 ///  Create one directory with mode `0700`;

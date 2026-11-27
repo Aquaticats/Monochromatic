@@ -26,10 +26,8 @@
 //! const path = folder.publish(plan);
 //! ```
 
-use crate::private_storage::{
-    create_private_directory_all,
-    replace_private_file_unsynced,
-};
+use crate::private_storage::create_private_directory_all;
+use crate::private_storage_replacing_a_record::replace_private_file_unsynced;
 use crate::worktree_clone_binding_record::plan_folder_read::is_canonical_guid_name;
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
 use crate::worktree_clone_removal_proof_and_plan::plan_parse::parse_plan;

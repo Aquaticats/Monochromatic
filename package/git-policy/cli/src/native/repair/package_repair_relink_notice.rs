@@ -27,10 +27,8 @@ use crate::package_repair_relink::{
     decode,
 };
 use crate::plain_file::read_plain_file;
-use crate::private_storage::{
-    create_private_directory_all,
-    replace_private_file_unsynced,
-};
+use crate::private_storage::create_private_directory_all;
+use crate::private_storage_replacing_a_record::replace_private_file_unsynced;
 use crate::the_commands_a_repair_prints::MANUAL_COMMAND;
 use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use std::path::{

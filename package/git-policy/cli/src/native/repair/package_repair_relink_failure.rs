@@ -22,10 +22,8 @@ use crate::plain_file::{
     SMALL_FILE_LIMIT,
     read_plain_text_at,
 };
-use crate::private_storage::{
-    create_private_directory_all,
-    replace_private_file_unsynced,
-};
+use crate::private_storage::create_private_directory_all;
+use crate::private_storage_replacing_a_record::replace_private_file_unsynced;
 use std::path::{
     Path,
     PathBuf,
