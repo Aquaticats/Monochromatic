@@ -5,9 +5,9 @@ state.
 Nothing on it is approved or final:
 it is an agent's account,
 and only the owner declares work complete.
-It was rewritten on 2026-11-25T23:30-05:00 to the state the coordinating session read at
-2026-11-25T23:25-05:00,
-when the owner asked for the page to hold tonight's state and nothing that has landed.
+It was rewritten on 2026-11-26T18:55-05:00 to the state the coordinating session read then,
+when the owner asked for the handover to be updated,
+holding the current state and nothing that has landed.
 
 What landed left this page for the record that owns it:
 a root cause or a workaround went to `doc/troubleshooting/`,
@@ -103,350 +103,199 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-25T23:25-05:00
+## The state at 2026-11-26T20:11:42-05:00
 
-`main` was `7bc2c0d820`.
+What landed before this time is in its own records and closed issues,
+and the merges are in `git log --merges`.
 
-### Rounds open (2026-11-26T04:45-05:00)
+### Rounds running
 
-Writers take Qwen first,
-then OpenCode Go,
-then Neuralwatt flex,
-by `doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`;
-the round launcher (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/writer-pool-for-a-round.ts`)
-takes `virtual` (`--provider=rate-limit-fallback --model=writer`) from 2026-11-26T07:10-05:00,
-once the virtual writer merged as `7c82b27ad0`;
-`WRITER_POOL` pins one member.
-Rounds started earlier run on the pool they named.
+About 64 Pi rounds run at once,
+the owner's "Up to 64 rounds at once."
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
+Every one runs on Pi's virtual writer,
+pinned to no member
+(`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
+and each round's brief is `~/temp/agent/<round>-2026-11-26/prompt.md`.
 
-- The crate split's round 1 (the rest of move-order step 2),
-  briefed in `~/temp/agent/cli-git-split-single-item-moves-2026-11-26/prompt.md`,
-  starts when no open round touches `worktree_copying/`, `policy/`, `invocation/`, `landing/` or `transaction/`;
-  the last two that did (6494 and the setgroups skip) merged by 07:57,
-  so its start (launcher `bol0het40`) rechecks the open branches and starts it on the virtual writer.
-  The rescan's points for the owner hold only rounds 7, 9, 10 and 11 (`doc/handover/questions-for-the-owner.md`).
-- At about 09:50 the virtual writer's Qwen endpoint refused connections for some minutes (`UND_ERR_CONNECT_TIMEOUT`),
-  and seven rounds ended with `model-error` at once: 6500, 6501, 6509, 6510, 6511, the alpha.16 linter round and the alpha.47 High round;
-  five others rode it out on Pi's retries.
-  The router moves on only for 429, 503 and 520 to 526, so it is issue 6515, whose round runs pinned to flex
-  (window `issue-6515-virtual-writer-moves-on-from-an-unreachable-member`).
-  The seven were restarted with their unfinished work committed (6509 `e3d1b942ea`, the linter round `7c0299a40c`; the rest had committed as they went)
-  and a note in each brief, and queued as run 2 ahead of the four new rounds.
-  Those two commits were made with `--no-verify`, a bypass the repository's rules forbid making pre-emptively;
-  it skipped nothing here: `--no-verify` skips `pre-commit` and `commit-msg`, and `.git/hooks` holds `post-checkout`, `post-commit`, `post-merge` and `pre-push`.
-  The outage also killed four queued starters through an uncaught `git fetch` failure; the starter now treats a failed fetch as "not yet".
-- Issue 6503's round replaced `started_within_a_child_of_its_own` (a yes or no) with `run_the_body_in_a_child_of_its_own(module_path!(), name, || { .. })`
-  across 106 call sites; its merge of `main` met issue 6514's new call to the old starter, which the coordinator moved to the new one (`18ce8792ee`).
-  It merged as `75fbf8d59b` (11:15). Any round still open that adds a call to the old starter (6509, 6510, 6511 and the alpha.47 rounds may) no longer builds after merging `main`:
-  its merge check then fails at `cargo check`, and the call is moved the same way, the body handed to the starter as a closure.
-- 6509's run 2 met exactly that:
-  its 28 guards now hand their body to `run_the_body_in_a_child_of_its_own` (`81b2f37109`),
-  and the merged tree answered `commit::` `test result: ok. 474 passed; 0 failed` in both runs,
-  `source_guard::` `ok. 151 passed`,
-  and every one of the 34 controls `1 passed` alone with `--exact`.
-- State at 2026-11-26T16:35-05:00, after the owner answered three questions (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`,
-  `doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`):
-  every round queued at noon ran and ended while the question dialog was open;
-  the gate at `42a59e812e` passed 12028 of 12028 with no leaky test;
-  6515 merged as `5b53cd976d` (the plugin's `dist/` rebuilt in the main checkout) and the linter's alpha.16 fixes as `8ea771d19a`;
-  ten wrapper branches run their merge checks in three lanes (`~/temp/agent/merge-lanes-for-the-afternoon-rounds-2026-11-26/check-one-branch.bash`):
-  6510, the notices round, the small Lows, the option table check; the pipes round, the host-key sentence, the service and landing splits; the three `worktree` splits.
-  The removal split stopped `worktree/worktree_remove.rs` (581 lines) on a tolerated loop, so it waits for round 3's loop breaks.
-  Started or queued on the virtual writer: the two removal refusals the owner answered, then 6517, 6518, 6519,
-  then 30 split rounds for the other crates' 144 files over 300 (`~/temp/agent/split-*-files-over-the-line-budget*-2026-11-26/`; the linter's 8 wait for its release and 6513).
-  The wrapper's remaining 262 files get their briefs once the lanes merge, so each folder is briefed against its merged state.
-  The linter's alpha.16 release dry run (run 45897381547) passed; the release (run 45897688752) published nothing:
-  its push of the version bump refused because `main` moved under it (a lane merged the notices round, and the bump depends on `package/git-policy/cli` files).
-  Rerun after the lanes, it released as `215d8538e3` (GitHub release `monochromatic-lint-v0.5.2-alpha.16`, 8 archives; an alpha label skips crates.io),
-  and its lock merged as `0fb64d8c9e`. Its Sonnet release pass runs (`~/temp/agent/monochromatic-lint-alpha-16-release-review-2026-11-26/`);
-  issue 6513's linter round and the linter's 8 files over the budget come after it.
-- The crate split's round 2, the files over the 300-line budget, reads the linter after the reformat:
-  281 files are over on `987635373a`, 19 of them over before `00b6a940b4` and 262 only because of it (code lines grew 1.472 times).
-  13 of the 19 run in five branches queued behind the small Lows round, one starting after the other
-  (`~/temp/agent/split-*-files-over-the-line-budget-2026-11-26/prompt.md`: the removal hand-over pair, the copy pair, the service and supervisor three,
-  the landing replanning handlers with the ZFS route test facts, then four more `worktree/` files).
-  The other six wait for the rounds beside them: four `merge/isolation` files for the record-folder pipes round,
-  `commit/native_commit_waiting_notice.rs` and `invocation/entry.rs` for the notices round.
-  The 262 wait for the owner's answer on the budget (`doc/handover/questions-for-the-owner.md`), since splitting them answers only the layout.
-- 6519 (filed 12:40): the notice sink control fails in a threaded `commit::` run, three of three, and passes alone and in its module; it is queued after the notices round, which works beside it.
-- One whole gate on `main` for the batch from 6512 to 6509 started about 12:45 (unit `whole-gate-on-main-<tip>`, background task of this session).
-- Queued behind split round 1's merge, in this order, each three minutes after the one before it starts and only while fewer than five drivers run on the virtual writer
-  (`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/start-a-round-in-turn-after-split-round-1.ts`):
-  the alpha.47 ZFS pass's High (the removal and move refusals skip global options before `worktree`, `-C <git dir>` and `--git-dir`),
-  6500, 6501, 6514, 6503, the alpha.47 ZFS pass's words round, its guards round, 6512,
-  then the other alpha.47 pass's four rounds (`~/temp/agent/wrapper-alpha-47-release-review-the-rest-2026-11-26/keep/review.md`: no High;
-  a named pipe in a record folder holds every command, pre-command notices write on the command's thread so a stalled terminal holds a commit,
-  the host-key sentence is wrong for common URL shapes, and small Lows).
-  Briefs in `~/temp/agent/<round>-2026-11-26/prompt.md`.
-  The ZFS pass (`~/temp/agent/wrapper-alpha-47-release-review-zfs-route-2026-11-26/keep/review.md`) found one High, two Mediums and nine Lows;
-  its finding 12 is decided text and waits in `doc/handover/questions-for-the-owner.md`.
-- The split's round 1 ended at 09:14 with four of step 2's five items moved and `copy_file_exclusive` stopped on an open point
-  (`doc/handover/questions-for-the-owner.md`);
-  it ran no `cargo fmt` because `~/temp/agent/rounds-common-rules-2026-11-25.md` still said the crate was unformatted,
-  so the coordinator formatted its 28 files (`a715581524`) and corrected that rule;
-  it merged as `3418cdaebc` (09:42) after its one branch-only red, the started-as-git control (6514), failed on `main` too in an alternating rerun.
-  It filed, through the coordinator, 6512 (folder docs misspell the file-list marker, so the layout lint reads none of their lists),
-  6513 (the linter reads a near-miss marker as no list, silently) and 6514 (the started-as-git record control can read the parent's record).
-- Issues 6509 (five more commit ledgers whose controls fill and empty each other in a threaded run)
-  and 6510 (the interactive selection control reads the run's terminal and never ends),
-  both found by 6507's round, start on the virtual writer after its merge (starters `brvxjo7uf` and `bu9d1ahqg`).
-- Issue 6494 merged as `c72c68f022` (07:57) and was closed by comment, its branch carrying no closing keyword.
-  Its merge check's one red, `commit::commit_index`'s span control (the `index::` filter also matches `commit::commit_index::`),
-  passed alone and in its module and reads a process-wide span ledger, so it is issue 6507, outside this branch.
-  The round filed two issues:
-  6503 (the process-wide-state child helper answers a flag a control can read inverted, about 55 callers),
-  which waits for the split's round 1 (6493, which edited that helper, merged at 08:53);
-  and 6505 (the two queued-rewrite controls pass with the claim removed, because one blocking job drains one shard of tokio's pool),
-  briefed in `~/temp/agent/issue-6505-queued-rewrite-controls-drain-every-shard-2026-11-26/prompt.md`,
-  merged as `5bb5e7161f` (09:14): two claims guarded the one queued rewrite, each hiding the other; the bound's claim now decides.
-- One whole gate on `main` holding 6494's merge (runner `bmwf4d0b7`, unit `whole-gate-on-main-<tip>`).
-- Issue 6511 (twelve `push::child_watch::` controls fail on `main` under load, a different set each run),
-  window `issue-6511-push-child-watch-controls-own-their-clock`, on the virtual writer since 09:04.
-- Issue 6500 (the service work controls share the review runner, read from the code by 6499's round),
-  briefed in `~/temp/agent/issue-6500-service-work-controls-share-the-review-runner-2026-11-26/prompt.md`,
-  starts when the split's round 1 merges, because both edit `landing/` and the split comes first in the owner's order.
-- Issue 6501 (the relay control leaves its sleeping grandchild running; every gate reports it leaky),
-  briefed in `~/temp/agent/issue-6501-relay-control-leaves-its-grandchild-running-2026-11-26/prompt.md`,
-  starts when the split's round 1 merges, because both edit `invocation/`.
-- The linter's `alpha.14` fixes for the `alpha.13` release pass
-  (`~/temp/agent/monochromatic-lint-alpha-13-release-review-2026-11-26/keep/review.md`: no High;
-  a cycle closed by two own-file uses unseen, the own-file finding with no key, six behaviours no test holds, and Lows),
-  merged as `d127a911a0`, released from `73f1091ce0`, locked as `925cec1406`.
-  Its Sonnet release pass (`~/temp/agent/monochromatic-lint-alpha-14-release-review-2026-11-26/keep/review.md`) found no High;
-  its two Mediums (a listed `own-file-loop` line lets the loop grow with no finding; a nested group's own-file use is never searched)
-  and its Lows were fixed by the `alpha.15` round, merged as `6976fefd42`, released from `464773a972`, locked as `34181a0b2a`
-  (no allow-list key shape changed, so no list was regenerated).
-  Its Sonnet release pass (`~/temp/agent/monochromatic-lint-alpha-15-release-review-2026-11-26/keep/review.md`) found no High
-  and one Medium regression: a listed own-file loop's uses on other routes are reported with no key,
-  so printed keys written as the list exit 1 where alpha.14 exits 0 (48 of 104 such random trees); `main` holds no such key.
-  It and the Lows go to the `alpha.16` fix round, window `monochromatic-lint-alpha-15-release-pass-fixes`,
-  on the virtual writer since about 09:10.
-  The fix round's 244 `rust/folder-uses-links` findings on `main` came from a tree whose 139 `uses` links all dangled;
-  clean `git archive` exports of `main` give 0.
+- The crate split's file rounds,
+  after the owner's "Keep 300,
+  split everything"
+  (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`):
+  the wrapper's rounds (`split-wrapper-<folder>-files-over-the-line-budget-<n>`)
+  and the other crates' (`split-<package>-files-over-the-line-budget[-part-<n>-of-<m>]`),
+  on branches `refactor/<package>-split-files-over-the-line-budget[-part-<n>-of-<m>]`.
+  Each brief tells its round to leave a file another open branch changes,
+  so rounds in one folder may still meet at merge.
+- Issue 6521 (the service log-line controls share one queue).
+- The linter's alpha.16 release pass fixes
+  (`monochromatic-lint-alpha-16-release-pass-fixes`;
+  the pass found one Medium and six Lows).
+  The coordinator releases alpha.17 after it merges.
+- The driver round whose pool gate counts no virtual-writer run,
+  the owner's "No count (Recommended)" of 2026-11-26
+  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
+  "The pool gate counts no virtual run").
+  Its folder keeps the name of the count it began with
+  (`subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room`).
+  After its merge the coordinator rebuilds the package's `dist` in the main checkout.
+- The six rounds that restate what repository documents use from scratch
+  (`restate-the-scratch-evidence-cited-by-<family>`),
+  all started by 2026-11-26T19:55-05:00;
+  the cleanup deletes what they read at 2026-11-27T15:26:37-05:00.
+- The driver's worktree launcher fix
+  (`subagent-driver-worktree-launcher-skips-pnpm-install-after-the-add`,
+  issue 6339).
+  After it merges,
+  rounds start through `start-pi-run-in-a-worktree`.
+- `slint-1-19-pin-and-locks-so-three-apps-resolve-again`,
+  which finishes the half-applied Slint update ("What the split rounds found").
+- Issue 6491 (`forbidden-strings`' embedding control fails on a `utf8only` home)
+  and issue 6398 (the daily update moves a catalog floor without the manifests and locks).
 
-Flex timed out three runs between 05:55 and 06:10 ("The model did not begin responding in time"),
-so a flex run that ends with `model-error` has its work committed and restarts on Qwen with a note to continue.
+Nothing waits for a place under the 64.
+Waiting on a named merge:
 
-### Merged tonight
+- The music player's split rounds part 1 and 2 of 3 (second runs) and part 3 of 3,
+  on the Slint round's merge.
+- Issues 6524,
+  6525 and 6526 (three landing controls that fail only threaded),
+  on the merge of the landing split rounds 2 to 4,
+  which change the same folder.
+- Issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy"),
+  on the merge of the `mpm-shadow` and `cargo-shadow` split rounds.
 
-- The reformat of every Rust crate with the root `rustfmt.toml` as `00b6a940b4`.
-- The crate split's rescan of `main` after the reformat as `6329f89af0`,
-  with its round order in `doc/planning/cli-git-source-layout-target-tree.md`, "Next".
-- 6492 (the descriptor-limit controls in child processes) as `1a03e26dfe`.
-- 6483 as `ae1a14676b`,
-  6484 as `b50016e728`,
-  6485 as `d124f60f82`,
-  6486 as `ff8b9427c2`,
-  6487 as `f9096f7531`,
-  6498 as `ed9766ffad`,
-  6496 as `03212a32ff`,
-  6497 as `ad67562f20`,
-  6499 as `2f5b9c87bd`,
-  6495 as `2024335d64` and
-  6489 as `6b67efe5ef` (its control waited on a pipe no read waits on since `98f943d61a`).
-- 6502 (the live gate arm reads the header the module declares) as `bd180d7de9`, proved in CachyOS 7.3.5 and Ubuntu 6.8 guests.
-- 6504 (two driver controls size their wall clock from a run of their own and own the child they read) as `6ffc826871`,
-  the first round written on the virtual writer.
-- 6506 as `0db3828916`: the watch control read the feed while the run's record still held its last line in the write stream
-  (a probe missed the line in 99 of 100 reads with no gap, none after close), so its reader closes the record first; the clock was not the cause.
-- 6494 as `c72c68f022`: the no-threads and umask child helpers take the body they run.
-- 6518 as `ca5c45de6f` (17:25): every fixture commit starts `git maintenance run --auto`, whose `worktree prune` removed a hand-made registration;
-  the controls now make it with `git worktree add --no-checkout --lock`. The round looped its module 60 times, so `~/temp/agent/rounds-common-rules-2026-11-25.md`
-  now says a module loop is the banned repeated load and names what to do instead.
-- 6519 as `176ded09cb` (17:20): the notice sink control reaches its dropped line by one `try_send` and waits 15 s, not 2 s,
-  because a late-woken thread under load missed the old window; its stated limit is that a `finish` waiting 3 to 10 s would now pass.
-- The owner's two removal answers merged as `cfa14e5968` (17:05): a removal or move behind an unknown global option is refused where slot records exist,
-  and the removal of a slot whose record cannot be read is refused. The owner's two follow-up answers (the `-C` spelling, three more unproven slots;
-  `doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`) are briefed in `~/temp/agent/wrapper-zfs-removal-refusals-for-the-c-spelling-and-three-unproven-slots-2026-11-26/`, starting now.
-- The rest of split round 2, after the owner's "Keep 300, split everything": on `main` at 16:55, 269 wrapper files are over 300;
-  265 are briefed in 42 rounds (`~/temp/agent/split-wrapper-*-files-over-the-line-budget-*-2026-11-26/`, list in
-  `~/temp/agent/wrapper-line-budget-after-the-reformat-2026-11-26/keep/wrapper-split-rounds.tsv`), up to eight files each, folders interleaved,
-  running as one chain beside the other crates' chain. Four wait: `worktree/worktree_remove.rs` for round 3's loop breaks,
-  and the files the open issue and refusal rounds change (each brief also tells its round to leave a file an open branch changes).
-- Lane 2: the alpha.47 record-folder pipes round as `9ee93e7873`, the host-key sentence as `5466fe1000`, the landing split as `4d7eed1014`.
-  All four alpha.47 rounds outside the ZFS route are on `main`.
-  The service split did not merge: `service::service_log_lines_off_the_calling_thread::tests::a_line_handed_before_the_end_waits_and_reaches_the_stream`
-  failed on its branch and passed on `main` twice; rerun, the module `service::service_log_lines_off_the_calling_thread::` fails four or five of its six controls
-  threaded on `main` itself, before the notices merge (`66d4b6fb08`) and after it, and passes in the gate: issue 6521, its round queued after 6520.
-  Rechecked with that module skipped on both sides, the service split merged as `4cfa4d8fb8` (16:52); all five split round 2 branches are on `main`.
-  `service::` threaded on `main` still fails ten controls with that module skipped: their modules fail threaded and pass one test at a time,
-  sharing `static MANAGER` and the stop flag: issue 6522, its round queued after 6521. 6517 merged as `c4c7590d2f` (ETXTBSY traced to a sibling test's fork; the fixture-Git controls run in children of their own).
-  `service::` threaded fails 14 and 15 on `main` itself; 12 of those failed on both sides.
-  The host-key round's `ssh_terminal` binary tests failed 4 of 4 on `main` too: AppArmor's `sshd` profile refused the fixture's `sshd_config` under `~/.cargo/build/`;
-  after the fourteenth AppArmor batch (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`) they pass 4 of 4 on the host.
-- Lane 3: the removal split as `66d4b6fb08` (`worktree_remove_hand_over.rs` split; `worktree_remove.rs` waits for round 3's loop breaks),
-  the copy split as `4bfbcbe591` (eight allow-list lines deleted with the loop it broke; its one red, `a_source_written_after_the_stamp_fails_the_final_check`, failed on `main` too and is issue 6520).
-  The ladder split's check named a filter that matches no test; rerun without it, it merged as `df41971d71` (16:37).
-- Lane 1 (16:18 to 16:30): 6510 as `9ccf38f5b9` (the selection controls read the null device in a child of their own);
-  the alpha.47 notices round as `dde4ad5da9` (pre-command notices leave the command's thread, and a full pipe no longer holds a line's write);
-  the alpha.47 small Lows as `c49cf43483`; the option table check as `0f4621fe96` (a test fails when the installed Git is newer than the table).
-- 6509 as `09a3e73ab5`: six process-wide commit ledgers' controls run in children of their own; `commit::` on `main` failed 11 and 13 of 474 in two runs, the branch 1,
-  `native_commit_waiting_notice::tests::a_notice_whose_sink_stopped_reading_does_not_hold_the_commit`, which fails on `main` too (its two-second bound at line 862) and has no issue yet.
-- The alpha.47 ZFS pass's High as `6aeba4328d`: the slot removal and move refusals read Git's whole global option table,
-  a command run in the Git directory runs the slot endings, and a same-leaf plain worktree no longer opens the pool.
-  Its one open point (a global option a newer Git adds) waits for the owner in `doc/handover/questions-for-the-owner.md`.
-  All three alpha.47 ZFS-route rounds are on `main`.
-- 6511 as `e8915aeb0c`: the push child watch controls that arm the lazy runtime's two process-wide stand-ins, and the two descriptor counters,
-  run in a child of their own, so `push::child_watch::` passes threaded (47 of 47; the gate read 7 and 8 failures of 48).
-- 6501 as `1755e4d894`: the relay control's child leads a process group the control owns and ends, so no gate reports it leaky again,
-  and a guard refuses a relay control that does not own its child's group.
-- 6500 as `a1f6b3414e`: the two handler review controls run their review in a runner of their own, and a guard refuses one that does not.
-- The alpha.47 ZFS pass's words round as `632a8aa40b`: every printed sentence names commands this release has,
-  and `SPEC.md` and `README.md` carry a passage for each of steps 17 to 21, held by a source guard.
-  Its merge with `main` met 6512's now-read folder lists, so the coordinator reordered one entry (`09310cac9a`).
-- The alpha.47 ZFS pass's guards round as `62ba6c6bf6`: the three unheld guards each have a control that fails without them,
-  the add preflight's host controls open no `/dev/zfs`, an inherited `legacy` container is refused before any write,
-  and `doctor`'s group-drop report appears only on a ZFS checkout. It found 6518 (an add-index control failed once).
-- 6512 as `cafd22a1ab`: 48 folder docs spell the file-list marker the linter reads and list every file in dependency order,
-  so the layout allow list's `file-rule.txt` shrank from 1949 lines to 582 with none added.
-- 6514 as `7ca3772424`: the started-as-git control's child closes the chain record it inherited before it makes its own.
-  Its round found 6517 (the git version cache controls fail threaded with `Text file busy`).
-- 6508 as `b9eb433b0a`: the compaction silence control owns its clock; the measured loss was a stall between arming the bound and registering the sleep.
-- 6493 as `65b27b84cc`: 22 size-read controls run in children of their own,
-  and the holds they arm refuse a body outside a child; its `push::child_watch::` reds fail on `main` too (issue 6511).
-- 6507 as `3d11fc0526`: the five controls that drain the preparation-span ledger run in children of their own,
-  and `source_guard/no_control_reads_the_preparation_steps_in_the_run_tests.rs` refuses one that does not.
-- The wrapper's `0.6.1-alpha.47`, released from `68af165851` after the gate at `196b8d0c87`;
-  its two Sonnet release passes run on the detached worktrees `wrapper-alpha-47-release-review-zfs-route` and `-the-rest`.
-- The Ubuntu 24.04 `setgroups` skip and its `doctor` report as `12c04b4e59`:
-  the companion skips at `EACCES` from the `setgroups` open and `doctor` names the AppArmor setting and both remedies,
-  proved in an Ubuntu 6.8 guest with the remedy arm.
-- ZFS plan step 23, the host-kernel qualification run, as `0c4064831d`:
-  record `doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`;
-  every arm passed on `7.3.5-1-cachyos` with OpenZFS `2.4.4-1` except the gate arm issue 6502 fixes.
-  The template is `~/.local/share/mvm/images/cachyos-7.3.5-1-zfs-2.4.4.qcow2`,
-  its four pinned packages (gone from the mirrors) are copied with signatures and `SHA256SUMS` to
-  `~/.local/share/mvm/images/cachyos-7.3.5-1-zfs-2.4.4-packages/`,
-  and its build driver is in `~/temp/agent/zfs-step-23-host-kernel-qualification-2026-11-26/keep/template-build/`.
-  Left: the owner declares the release qualified or not;
-  the template carries `cargo-nextest` `0.9.151` against the recipe's `0.9.152`;
-  a guest of it needs a hostname rename (no cloud-init) before a driver's guard lets arms run.
-- The linter's `alpha.12` fixes as `a48f7bac54`, its lock as `cbe57584e5`.
-- The linter's `alpha.13` fixes as `88e77f3553`,
-  the release commit `e58ba6f078`,
-  its lock as `07c8785fa9`
-  (checksum matched; no layout finding for `package/git-policy/cli` with the repository config).
-- The linter's `alpha.14` fixes as `d127a911a0`, the release commit `73f1091ce0`, its lock as `925cec1406`.
-- Pi's virtual writer with the owner's order, and the driver counting its runs in every member pool, as `7c82b27ad0`
-  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`, "The virtual writer is ready").
-- Debt ledger item 19 (lists of names held as slices, with a source guard) as `df7e6467c5`;
-  whether the 297 local lists join it is in `doc/handover/questions-for-the-owner.md`.
+Not yet briefed:
+issue 6513 (the linter reads a near-miss file-list marker as no list),
+and the linter's own files over the line budget,
+after alpha.17.
 
-- 6462 as `d169557d37`:
-  a clone inherits `mountpoint=legacy` from its container,
-  so the add's clone needs no forbidden grant.
-- The attach path's A5 as `d647717f85`:
-  the attach step answers `done` for a clone already at its slot,
-  and the owner kept the `first-attach` record naming the standing mount,
-  in `doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md` A5.
-- The host-key relay as `5a25462296`:
-  option K of `doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`.
-- The merge's file calls on the blocking pool as `10f4826fdc`,
-  debt ledger item 18.
-- The test-binary children through one helper and the fixture support both test targets share as
-  `1911c927c0`,
-  debt ledger items 10 and 11.
-- 6478 as `3ce0c713e9`,
-  debt ledger item 3b's descriptor room.
-- 6473,
-  6466,
-  6468,
-  6471 and 6480 to 6482 by their own rounds.
+A round that has ended is found by listing the round folders whose latest `run-<n>/summary.json` exists
+while `.claude/worktrees/<round>` still does.
+The coordinator's watcher named only the first round to end after it was started,
+and nine ended rounds sat unmerged for up to three hours on 2026-11-26 because of it.
+A `git worktree add` through the session wrapper took from about 17 minutes to more than 30 that evening,
+with two to five adds copying at once beside about sixty running rounds
+(disk stall `some avg10` between 55 and 64).
 
-### The whole container gate
+### What the split rounds found
 
-One gate runs on `main` per batch of merges,
-and its tip is the batch's.
-The last gate was at `a6c155bea4` (about 2026-11-26T09:47-05:00, after split round 1),
-and it failed nothing: `11996 tests run: 11996 passed (5 slow, 1 leaky), 49 skipped`;
-its one leaky test is issue 6501's relay control.
-Every gate run,
-with its counts and what it failed,
-is in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`,
-"The gates run on `main`,
-in order,
-with what each failed".
-The merges after `b6d160365e` (6499 and what follows) are the next batch;
-its gate runs on `main`'s tip once that batch lands, and a failure outside the recorded baseline starts a fix round.
+- `package/music-player/desktop-app` and `package/ide/app` resolve no dependency set on `main`:
+  the daily update raised the Slint floor to `>=1.19.0` (`aead90ed51`,
+  issue 6398),
+  `f4a30120e8` wrote the floor into four manifests,
+  and the pinned row `i-slint-backend-testing = "=1.18.1"` still stands,
+  which `rust-catalog.toml` says must equal the resolved Slint release.
+  The music player's split rounds part 1 and 2 of 3 stopped before their first edit;
+  their worktrees are kept for a second run,
+  and part 3 of 3 is not started,
+  until the round `slint-1-19-pin-and-locks-so-three-apps-resolve-again` has merged.
+  The IDE's rounds work around it with an uncommitted manifest edit.
+- The landing round 1 left three files over the budget,
+  each for a reason a move cannot fix:
+  `service_land_batch_body.rs` (one 387-line function around a retry loop that shares eight mutable values),
+  `held_commit_settle.rs` (in a tolerated loop with `held_commit_settle_move.rs` and `service_land_finish.rs`)
+  and `service_land_side_reference_write.rs`
+  (in a tolerated loop with `service_land_without_its_scratch_reference.rs`).
+  They wait,
+  with `worktree/worktree_remove.rs`,
+  for the split plan's round 3 loop breaks (`doc/planning/cli-git-source-layout-target-tree.md`,
+  "Next").
+- `monochromatic-lint.config.jsonc` turns `rust/max-lines` off for `**/tests/**/*.rs`,
+  so the linter never reported the integration test files the briefs named;
+  the rounds split them to the same budget anyway.
+- `forbidden-strings`' `embedding::public_embedding_runs_without_real_user_state` fails on `main`
+  on this machine's `utf8only` home (issue 6491).
+- Two rounds split the four byte-identical copies of `src/shadow_identity.rs` into different parts,
+  because each scanned the open branches before the other pushed.
+  The `pnpm-shadow` round's layout landed first (`0eac88f14d`),
+  the `search-shadow` branch took it in its merge (`f216e142a3`,
+  on `main` as `437293c4b0`),
+  and the two rounds still running with that file in their brief were told to leave it.
+  A file that several crates must keep identical belongs to one round.
+
+### Next
+
+- Merge each round when it has ended and its report is read,
+  by the merge bar in "Standing directions".
+- One whole container gate on `main` once this batch has landed.
+  The gate is `package/git-policy/cli/bin/test-native-container.ts`,
+  run in a capped unit of its own;
+  the last one ran at `42a59e812e` and passed 12028 of 12028
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`).
+- A new brief names `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`
+  and,
+  for the wrapper,
+  its guide;
+  the coordinator's scratch rules files are not named again (`cf78109e15`,
+  `dfdf83a21f`).
+- Owner questions wait in `doc/handover/questions-for-the-owner.md`,
+  among them the next step a typed network command names at a new host key
+  (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).
+
+### Scratch expires after a day
+
+The owner set `/etc/tmpfiles.d/temp.conf` on 2026-11-26 to `d /home/user/temp - - - 24h -`.
+`systemd-tmpfiles-clean.timer` runs daily (next at 2026-11-27T15:26:37-05:00) and 15 minutes after a boot,
+and the home dataset is mounted `noatime`,
+so a file under `~/temp` survives only if it changed in the last 24 hours.
+The owner,
+the same evening:
+"Don't promote anything in ~/temp that breaks repo rules or plain broken into the repo.
+If you can't move everything before the scheduled cleanup,
+too bad.
+That is for you to learn."
+
+So the coordinator's private launchers,
+merge lanes and gate runner under `~/temp/agent` expire
+and are not carried into the repository.
+What replaces them is built in the repository by its own rules;
+until then a round starts through the driver package's commands
+and a merge runs by hand under the merge bar.
+801 repository documents cite paths under `~/temp/agent` (3827 citations,
+counted 2026-11-26),
+and those citations point at nothing once the cleanup reaches them.
 
 ### The session wrapper is a build of 2026-11-22
 
 `.cache/monochromatic-git-policy-cli-bin/git` links to
-`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`
-(measured 2026-11-26T04:08-05:00).
+`.cache/wrapper-built-by-cargo-from-main-ee0cf2268b-2026-11-22/monochromatic-git-policy-cli`.
 That build predates `4acb1b04b6` (2026-11-24T19:39:21-05:00),
 so every `git worktree remove` warns and keeps the removed worktree's service journal
-because it "holds rules-repository, a file this release does not know";
-`package/git-policy/cli/SPEC.md`'s sweep on `main` removes that file with the journal.
-The kept journals are harmless and sit in `~/.local/state/monochromatic-git-policy-cli/service/`.
-The fix shipped in `0.6.1-alpha.46` already;
-`0.6.1-alpha.47` (release commit `68af165851`, 2026-11-26T08:26:34-05:00, after the green gate at `196b8d0c87`)
-is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`, its sha256 matching the release's digest,
-and its sweep, run by absolute path, removed 201 kept journals at 08:50
-(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`, "The wrapper link a toolchain install repoints").
+because it "holds rules-repository,
+a file this release does not know";
+the kept journals are harmless and sit in `~/.local/state/monochromatic-git-policy-cli/service/`.
+`0.6.1-alpha.47` (release commit `68af165851`) is unpacked at `.cache/wrapper-release-0.6.1-alpha.47/`,
+and its sweep,
+run by absolute path,
+removes them.
 The session link stays on the reviewed build:
-the AppArmor rules name that exact path, and pointing them at a newer build takes the fresh review the records ask for,
-which waits in `doc/handover/questions-for-the-owner.md`.
-Until then, run alpha.47's sweep by absolute path after each batch.
+the AppArmor rules name that exact path,
+and pointing them at a newer build takes the fresh review that waits in `doc/handover/questions-for-the-owner.md`.
 
 ### Threaded-only test failures
 
 A control that passes in the gate and fails in a threaded `cargo test` is that control's defect
-(`AGENTS.md`'s SUF,
-`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`,
+(`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`,
 "Tests hold as threads of one process").
-Of those filed tonight,
-6483,
-6484,
-6485,
-6486,
-6487,
-6498,
-6496,
-6497,
-6499,
-6489 and
-6495 are merged (`### Merged tonight`),
-and 6493 and
-6494 have rounds open (`### Rounds open (2026-11-26T04:45-05:00)`).
-They are debt ledger item 3's.
-
 A `panicked at` line from a thread named `git-policy-worker` in a combined run is not a failure:
 it is the wrapper or the service started as a child by the fault-limit controls,
 by the same guide's section.
 
-### Owner questions open tonight
+### Memory
 
-`doc/handover/questions-for-the-owner.md` holds:
-the account companion on Ubuntu 24.04,
-where AppArmor refuses `setgroups` (recorded 2026-11-25T23:30-05:00);
-the forced arm's two refusals,
-a locked holder and a taskless namespace,
-which wait for step 17's guest result (the same time);
-and `doctor`'s two managed-lock wordings,
-which wait for step 18 to be wired (2026-11-25T20:35-05:00).
-
-The next step a typed network command names at a new host key is also undecided:
-the owner chose neither K2 nor C,
-C2 or D,
-and K alone is what runs today
-(`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).
-
-### Memory, and how many rounds build at once
-
-Memory is judged by the stall and by `MemAvailable` plus the ZFS ARC above `c_min`,
-because `MemAvailable` understates the free memory the ARC can give back.
-The settings in force and the measurement that ended the swapping are in
-`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`.
-One scope's build peaked at 7,080 MiB on 2026-11-25,
-which sizes how many rounds compile at once,
-and the guest memory a round holds is what
-`doc/planning/mvm-guest-memory-held-for-a-rounds-life.md` measures.
+Memory is judged by the stall and by `MemAvailable` plus the ZFS ARC above `c_min`
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`).
 No start or merge check waits on memory or on a spacing between starts:
-the coordinator had applied both, and the owner, 2026-11-26: "I didn't tell you to apply the 3 minutes apart and memory test rules."
-The only start rule is the owner's 64 rounds at once.
-No synthetic load is made to force a wait
-(`AGENTS.md`'s NLG).
+the coordinator had applied both,
+and the owner,
+2026-11-26:
+"I didn't tell you to apply the 3 minutes apart and memory test rules."
+At 18:25 that evening,
+with 58 worktree adds copying at once,
+the disk stall read `some avg10=76.24` and `MemAvailable` 10290 MiB:
+each add through the session wrapper copies about 39,000 ignored entries,
+the cost the owner's hold of 2026-11-18 on heavy worktree use names.
 
 ## Initiatives
 
@@ -459,7 +308,7 @@ The design is decided in `doc/decision/cli-git-zfs-worktree-design.md`
 and built step by step from `doc/planning/cli-git-zfs-worktree-implementation-plan.md`.
 
 State,
-at 2026-11-25T23:25-05:00,
+at 2026-11-26T18:55-05:00,
 by the plan's 23 steps.
 Steps 1 to 16 are on `main`,
 with 12 to 16 wired;
@@ -485,7 +334,7 @@ so nothing calls `enter_the_removal` yet and `source_guard`'s
   and their limits are `SPEC.md`'s "What this release does not yet do".
 - Step 17's cancel command merged as `df15f27a7a`,
   and the forced arm's decision half as `64a71a4c9b`;
-  its kernel calls are tonight's round.
+  and its kernel calls are proven in a guest (`3ebc78c3dc`).
   The forced removal is measured for the holder kinds the guest showed and refuses the rest
   (`doc/decision/cli-git-zfs-worktree-design.md`,
   "What still gates shipping").
@@ -499,9 +348,13 @@ so nothing calls `enter_the_removal` yet and `source_guard`'s
 - Step 20 merged unwired (`a7502138a4`);
   writing `sanoid.conf` is the owner's act.
   Step 21 merged.
-- Step 22's guest half is a round tonight,
-  and its storage half is the owner's act.
-- Step 23 is not started.
+- Step 22's guest half is measured (`2ddf2853ad`);
+  its storage half is the agent's act,
+  logged,
+  by the owner's answers of 2026-11-26.
+- Step 23's host-kernel qualification run merged as `0c4064831d`
+  (`doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`);
+  the owner declares the release qualified or not.
 
 Before a person's add takes the route:
 wiring steps 17 and 18 with step 22's request budget and lifting the removal path's cut;
@@ -511,26 +364,39 @@ steps 19,
 and a release carrying them,
 installed.
 Nothing of the route is installed on this machine.
-The checkout migration of plan steps 12, 18 and 19 is the agent's act, run with sudo when no process has the checkout open,
+The checkout migration of plan steps 12,
+18 and 19 is the agent's act,
+run with sudo when no process has the checkout open,
 by the owner's answer of 2026-11-24 ("You run it whenever you feel convenient.",
-`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`, "Who runs the checkout migration").
+`doc/decision/cli-git-zfs-step-10-reach-plan-text-grants-and-migration-timing.md`,
+"Who runs the checkout migration").
 The other host changes the plan keeps for the owner
-(`zfs allow`, the units, the zedlet, the immutable entry, `sanoid.conf`, other datasets' properties,
-step 22's storage half, step 23's image build and any reboot)
-are the agent's act too, logged, by the owner's answers of 2026-11-26
+(`zfs allow`,
+the units,
+the zedlet,
+the immutable entry,
+`sanoid.conf`,
+other datasets' properties,
+step 22's storage half,
+step 23's image build and any reboot)
+are the agent's act too,
+logged,
+by the owner's answers of 2026-11-26
 (`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`);
-the owner chooses the moment of the migration and of any reboot, which the agent prepares.
+the owner chooses the moment of the migration and of any reboot,
+which the agent prepares.
 
 Next:
-merge step 17's round and step 22's when they end,
-read each report,
-and start what its "Next" names in the same turn.
+the wiring of steps 17 and 18 with step 22's request budget,
+which lifts the removal path's cut.
+It edits the crate the split rounds rewrite now,
+so the coordinator briefs it against `main` once they have merged
+(the coordinator's sequencing,
+not an owner decision).
 
 Rounds keep their files under `~/temp/agent/<round name>-<date>/`,
-with the report in its `keep/`.
-The scripts that start a round,
-the briefs and the note every guest start reads are in
-`~/temp/agent/zfs-open-item-design-rounds-launch-2026-11-22/`.
+which expires a day after its last change ("Scratch expires after a day");
+a round's durable findings land in its branch's records.
 
 #### Accepted designs that wait for their build steps
 
@@ -576,25 +442,13 @@ measured 2026-11-25").
 The owner chose how to cut it on 2026-11-25 at about 22:05:
 "Window after live rounds (Recommended)".
 
-State:
-no new round starts in `package/git-policy/cli` until the two rounds open tonight,
-step 17's forced kernel calls and step 22's guest half,
-have merged.
-Then the layout rules' two lists are regenerated against `main` with their round's generator and merged,
-the crate is formatted by the root `rustfmt.toml` in one commit of its own,
-and the split's rounds run on that tree
-(`doc/planning/cli-git-source-layout.md`,
-"The window,
-as the owner set it on 2026-11-25").
-
-Waiting for that window:
-debt ledger items 3 (the directory-chain descriptor tests),
-7,
-12,
-15 and 19
-(`package/git-policy/cli/doc/debt-ledger-2026-11-25.md`),
-and issues 6483 to 6487,
-the threaded-only failures.
+State,
+at 2026-11-26T18:55-05:00:
+the split's round 1 merged as `3418cdaebc`,
+round 2's 19 files that were over the budget before the reformat merged in five branches,
+and the owner's "Keep 300,
+split everything" put every Rust file over 300 lines in a round
+("Rounds running").
 
 The layout rules `AGENTS.md` sets for every crate are switched on for this one,
 with every finding of the two rules on a list that only shrinks,
@@ -602,14 +456,7 @@ by the owner's answer "Everything now,
 untangle over time."
 (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`,
 "What the list holds").
-`monochromatic-lint` `0.5.2-alpha.9` carries the `allow` option the list needs and is locked
-(`ef648a619e`).
-Against tonight's `main` the branch's lists are stale,
-and the defects the alpha.9 release pass found are fixed on `main`,
-released as `alpha.10` (`6cfbcbb5f4`);
-`toolchain.lock.json` still locks `alpha.9`,
-so the lock's bump is a step of its own
-(that record's "When the rules land").
+`toolchain.lock.json` locks `monochromatic-lint` `0.5.2-alpha.16` (`0fb64d8c9e`).
 
 Every crate outside this one is formatted by the root `rustfmt.toml`,
 which the owner set on 2026-11-25.
@@ -654,34 +501,17 @@ applies that fix,
 and each file it rewrites is equal to its old text with whitespace collapsed,
 which is how the sweep's 108 files were committed.
 Run it once the rounds that edit those files have merged,
-one file's commit each.
+one file's commit each;
+the script is in scratch and expires with it.
 
 #### The release passes
 
-`0.6.1-alpha.46` is released,
-the first with one program:
-`monochromatic-git-policy-cli-v0.6.1-alpha.46` published
-(publish run 45608993443,
-archives for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`,
-and an alpha is not published to crates.io).
-The three Sonnet passes over `alpha.45..955051b29f` are read,
-and the owner answered their four questions
-(`doc/decision/cli-git-alpha-46-release-pass-four-answers.md`):
-"Put `false` back (Recommended)",
-"A:
-full spelling,
-not yet (Recommended)",
-"B:
-refuse only the slot (Recommended)" and
-"B:
-skip the check below alpha.46 (Recommended)".
-Their fixes are merged:
-the ZFS route's as `7ed5ec0b34`,
-the one-program pass's as `88f5fff28c` and `ff474f29ee`,
-and the commit,
-push and LFS pass's as `90848c599c`.
-The one defect the passes left open is the next step a typed network command names at a new host key,
-which is the owner's question "Owner questions open tonight" names.
+`0.6.1-alpha.47` is released from `68af165851`.
+Its two Sonnet passes are read and their fixes are on `main`,
+except the owner's two follow-up refusals,
+which are in their merge check
+(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+The next alpha follows the next batch's gate.
 
 ### The desktop stays usable under agent runs
 
@@ -705,8 +535,7 @@ and the zram writeback to the old NVMe are in
 
 Next:
 after the next reboot,
-read both values once to confirm the files applied them,
-and read `/proc/pressure/memory` once before starting rounds.
+read both values once to confirm the files applied them.
 
 ## Held work
 
@@ -748,7 +577,11 @@ or that is no issue:
   "I didn't need to run it myself but I just ran it as a courtesy."
   The rule against acting on the system service manager in the skill `pi-as-subagent` binds the agents a
   session briefs.
-  The checkout migration is the agent's act by the owner's answer of 2026-11-24; the other ZFS host changes are the agent's act, logged (owner, 2026-11-26), and the owner picks the moment of the migration and of any reboot.
+  The checkout migration is the agent's act by the owner's answer of 2026-11-24;
+  the other ZFS host changes are the agent's act,
+  logged (owner,
+  2026-11-26),
+  and the owner picks the moment of the migration and of any reboot.
 - No round runs `mise run toolchain:install`,
   not even for one tool in its own worktree:
   it waits for issue 6316,
@@ -761,15 +594,17 @@ or that is no issue:
 - A round's report is not evidence of its edits.
   Read the diff before a design goes to the owner or a branch is merged.
 - A Pi round can hang in one command of its own without the driver noticing.
-  The unit `watch-pi-rounds-for-a-command-that-never-returns`,
-  started from the script of that name in the launch folder,
-  ends and prints the process when a round's tool call is older than 100 minutes.
-  It runs for three hours at a time;
-  start it again while rounds are going.
+  The coordinator's watcher for that was a script in scratch,
+  and it expires with it.
 - The repository's tool links live in the main checkout's `.cache/toolchain-bin`,
   so `monochromatic-lint` and `file-enforcer` are there and not in a fresh worktree.
 - Orphaned cargo build folders under `~/.cargo/build`,
   left by integration passes,
   are not removed without the owner.
-- The checkout migration is the agent's act (owner, 2026-11-24); the other ZFS host changes are the agent's act, logged (owner, 2026-11-26), and the owner picks the moment of the migration and of any reboot.
+- The checkout migration is the agent's act (owner,
+  2026-11-24);
+  the other ZFS host changes are the agent's act,
+  logged (owner,
+  2026-11-26),
+  and the owner picks the moment of the migration and of any reboot.
   Old drives stay read-only and unwiped until the ZFS route is released.
