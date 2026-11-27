@@ -86,6 +86,24 @@ use super::published_archive_tests::{
 /// Imports the install itself.
 use super::sync::sync_tools;
 
+/// The control of a publish a second install races between its two renames,
+/// and of the copy an install's own failed publish keeps.
+#[path = "archive_staging_tests/the_publishes_that_fail_or_race_tests.rs"]
+mod the_publishes_that_fail_or_race_tests;
+
+/// The controls of the copies a recovery may not publish:
+/// an older version beside a newer one in either toolchain root,
+/// and a marker that matches the lock's row on some fields but not all.
+#[path = "archive_staging_tests/the_copies_a_recovery_may_not_publish_tests.rs"]
+mod the_copies_a_recovery_may_not_publish_tests;
+
+/// The controls of what a hidden name's boot and its process record decide:
+/// a record `/proc` hides,
+/// a name written by a run that could not read its boot,
+/// and a name of another boot that carries no start time.
+#[path = "archive_staging_tests/the_liveness_of_a_hidden_name_tests.rs"]
+mod the_liveness_of_a_hidden_name_tests;
+
 /// The variable the installer this control kills reads the tool directory of its fixture from.
 const TOOL_DIRECTORY_VARIABLE: &str = "MPM_SHADOW_TEST_FIXTURE_TOOL_DIRECTORY";
 
