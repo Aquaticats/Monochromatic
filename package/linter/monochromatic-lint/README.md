@@ -2317,6 +2317,32 @@ through nested doc tests and adversarial edit groups.
 Evidence belongs to its recorded source snapshot;
 new source does not inherit a previous campaign's completion status.
 
+## Splitting a source file
+
+`rust/max-lines` allows 300 code lines per `.rs` file,
+so a file that grows past that is split by role into sibling modules in `src/`,
+declared in `src/lib.rs` beside it.
+The parts keep every item at the path callers already write:
+a caller names `crate::markdown_source::MarkdownSource` and calls its methods
+wherever the `impl` block that holds them lives,
+and a function that moves while callers still name the old file is re-exported
+(`pub use crate::closure_step_package::ClosureOutcome;`).
+A file that keeps its items and gains siblings names them in its top doc.
+
+A private field of a struct is visible only in the module that declares it and
+in that module's children,
+so the `impl` block of a struct cannot read its fields from a sibling file
+without a change.
+The splits of 2026-11-26 and 2026-11-27 widened the fields and helper methods
+the moved `impl` reads to `pub(crate)`,
+which is how `src/markdown_traversal.rs` already hands `Traversal` to
+`src/markdown_source.rs`,
+and left every module a crate-root sibling,
+because the mutation scopes in `bin/mutation-scopes.ts` select files by
+`src/<name>_*.rs` globs that a file in a subfolder would leave.
+A module inside a folder named after the origin keeps those fields private,
+and is the other way to split such a type.
+
 ## Script linting
 
 The verification scripts in `bin` are TypeScript.
