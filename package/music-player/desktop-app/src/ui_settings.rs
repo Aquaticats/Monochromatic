@@ -13,14 +13,10 @@
 use music_player::row_activation::auto_play_on_select_supporting_text;
 /// Imports the session that stores the settings.
 use music_player::session::Session;
-/// Imports the edit type that the editor applies.
-use music_player::template_editor::TemplateEditorEdit;
 /// Imports the template editor state that the page edits.
 use music_player::template_editor_state::TemplateEditorState;
 /// Imports the template kind that a row opens.
 use music_player::template_model::TemplateKind;
-/// Imports the lookup of measures by name.
-use music_player::track_measure::lookup_by_name;
 /// Imports the component handle that reaches the window.
 use slint::ComponentHandle;
 
@@ -32,24 +28,15 @@ use crate::ui_screen::{
     read_screen,
     write_screen,
 };
-/// Imports the route and the screen state.
-use crate::ui_screen_view::{
-    Route,
-    ScreenState,
-};
-/// Imports the pure rows and editor view and the kind and index conversions.
+/// Imports the screen state the editor is held in.
+use crate::ui_screen_view::ScreenState;
+/// Imports the pure rows and editor view and the index conversion.
 use crate::ui_settings_model::{
     EditorView,
     SettingsRow,
     editor_view,
     index_of_kind,
-    kind_of_index,
     settings_rows,
-};
-/// Imports the editor library and the offset conversion.
-use crate::ui_templates::{
-    editor_library,
-    utf16_offset,
 };
 /// Imports the window and the generated settings row types.
 use crate::{
@@ -239,313 +226,110 @@ fn wire_editor(app: &AppWindow) {
         }
     });
 }
-
 /// What:
-/// `build_editor` starts the editor on the queue with the saved templates applied.
+///      `mod ui_settings_pages;` loads the sibling `src/ui_settings_pages.rs`,
+///  the functions that open,
+///  close and switch the Settings page and the editor.
 /// Why:
-/// a saved template that still applies becomes the editor's draft and applied text;
-/// others fall back to the default.
-pub(crate) fn build_editor(state: &ScreenState) -> TemplateEditorState {
-    let measures = lookup_by_name(&state.names, &state.paths, &state.measures);
-    let mut editor = TemplateEditorState::initial(&editor_library(&state.names, &measures));
-    for (kind, saved) in [
-        (
-            TemplateKind::TrackRows,
-            state.track_rows_template.as_deref(),
-        ),
-        (
-            TemplateKind::PlayingTrack,
-            state.playing_template.as_deref(),
-        ),
-    ] {
-        if let Some(text) = saved {
-            let length = text.encode_utf16().count();
-            editor = editor.open(kind).with_edit(TemplateEditorEdit {
-                text: text.to_string(),
-                selection_start: length,
-                selection_end: length,
-            });
-        }
-    }
-    // A draft that did not apply when the editor was left comes back as the draft; it does not change what is applied.
-    let (kept_track_rows, kept_playing) = KEPT_DRAFTS.with(std::cell::RefCell::clone).into_inner();
-    for (kind, kept) in [
-        (TemplateKind::TrackRows, kept_track_rows),
-        (TemplateKind::PlayingTrack, kept_playing),
-    ] {
-        if let Some(text) = kept {
-            let length = text.encode_utf16().count();
-            tracing::debug!(?kind, "restoring a draft that did not apply");
-            editor = editor.open(kind).with_edit(TemplateEditorEdit {
-                text,
-                selection_start: length,
-                selection_end: length,
-            });
-        }
-    }
-    return editor.open(TemplateKind::TrackRows);
-}
-
-/// What:
-/// `open_settings` opens the Settings route with the template rows.
-/// Why:
-/// Settings shows the applied line of each template,
-/// so the editor value is built from the saved texts.
-pub(crate) fn open_settings(window: &AppWindow) {
-    window.set_settings_start_on_licenses(false);
-    {
-        let mut state = write_screen();
-        state.editor = Some(build_editor(&state));
-        state.route = Route::Settings;
-    }
-    project(window);
-}
-
-/// What:
-/// `open_template` opens the editor on the template of Settings row `index`.
-/// Why:
-/// a tap on a Templates row opens that template's editor page.
-fn open_template(
-    window: &AppWindow,
-    index: i32,
-) {
-    let Some(kind) = usize::try_from(index).ok().and_then(kind_of_index) else {
-        return;
-    };
-    if let Some(editor) = current_editor() {
-        store_editor(editor.open(kind));
-    }
-    {
-        let mut state = write_screen();
-        state.route = Route::TemplateEditor;
-    }
-    project(window);
-}
-
-/// What:
-/// `select_template` shows the editor of Settings row `index` in the right pane without leaving Settings.
-/// Why:
-/// on a wide window a row selects instead of navigating (D110);
-/// the template being left is applied and saved
-/// first,
-/// exactly as leaving its editor page does,
-/// so no draft is lost by choosing the other row.
-fn select_template(
-    window: &AppWindow,
-    index: i32,
-) {
-    let Some(kind) = usize::try_from(index).ok().and_then(kind_of_index) else {
-        tracing::warn!(
-            index,
-            "ignored a selection of a Settings row that does not exist"
-        );
-        return;
-    };
-    let already_selected = match read_screen().editor.as_ref() {
-        Some(editor) => editor.kind() == kind,
-        None => false,
-    };
-    if already_selected {
-        tracing::debug!(
-            ?kind,
-            "the selected Settings row was chosen again; nothing changes"
-        );
-        return;
-    }
-    tracing::info!(?kind, "selected a Settings row");
-    commit_templates();
-    if let Some(editor) = current_editor() {
-        store_editor(editor.open(kind));
-    }
-    project(window);
-}
-
-/// What:
-/// `close_settings` applies and saves the templates,
-/// then returns from Settings to the player.
-/// Why:
-/// Back and Escape close Settings in both forms (D110);
-/// on a wide window the drafts were never left through an
-/// editor page,
-/// so closing is where they are saved.
-/// The editor value is dropped afterwards.
-pub(crate) fn close_settings(window: &AppWindow) {
-    tracing::info!("closing Settings");
-    commit_templates();
-    {
-        let mut state = write_screen();
-        state.editor = None;
-        state.route = Route::Player;
-    }
-    project(window);
-}
-
-/// What:
-/// `toggle_auto_play_on_select` flips Auto-play on select,
-/// saves it and reprojects the switch row.
-/// Why:
-/// the row toggles in place (D129):
-/// the route,
-/// the selected template and the editor are left as they are,
-/// and the
-/// new value governs the next click,
-/// Enter or Search result at once.
-fn toggle_auto_play_on_select(window: &AppWindow) {
-    let enabled = !read_screen().auto_play_on_select;
-    {
-        let mut state = write_screen();
-        state.auto_play_on_select = enabled;
-    }
-    tracing::info!(enabled, "toggled Auto-play on select");
-    if let Err(error) = AUTO_PLAY_SAVER.get()(enabled) {
-        tracing::warn!(?error, "failed to save the Auto-play on select setting");
-    }
-    project(window);
-    // The end-to-end run reads the setting from this line: the switch row handles Space itself, so no key line follows.
-    crate::ui_state_log::emit(window, "auto-play");
-}
-
-/// What:
-/// `layout_changed` reacts to the window crossing the two-pane width.
-/// Why:
-/// a template editor page only exists in the single form;
-/// when the window widens while it is open,
-/// the same editor
-/// continues in the right pane of the two-pane Settings,
-/// so the route becomes Settings and the template stays selected.
-fn layout_changed(
-    window: &AppWindow,
-    wide: bool,
-) {
-    let on_editor_page = {
-        let state = read_screen();
-        state.route == Route::TemplateEditor
-    };
-    tracing::debug!(
-        wide,
-        on_editor_page,
-        "window crossed the Settings width switch"
-    );
-    if wide && on_editor_page {
-        {
-            let mut state = write_screen();
-            state.route = Route::Settings;
-        }
-        project(window);
-    }
-    if !wide {
-        // Narrowing destroys the right pane's text field, which may never report that it lost focus, and a focus left
-        // set would make Escape on the list page look like typing in a template line.
-        if let Some(editor) = current_editor() {
-            store_editor(editor.with_focus(false));
-        }
-        // The template line's focus zone went with it.
-        let focus = window.global::<crate::Focus>();
-        if focus.get_zone() == 7 {
-            focus.set_zone(0);
-            focus.set_label("".into());
-        }
-    }
-    // The end-to-end run waits for the layout it asked for before it presses keys.
-    crate::ui_state_log::emit(window, "layout");
-}
-
-/// What:
-/// `edit_text` applies one text edit with byte offsets from the editor.
-/// Why:
-/// the editor reports byte offsets,
-/// and the template state expects UTF-16 code units;
-/// the callback also fires for caret moves,
-/// so a repeated report leaves the state unchanged.
-fn edit_text(
-    window: &AppWindow,
-    text: &str,
-    start_bytes: usize,
-    end_bytes: usize,
-) {
-    if let Some(editor) = current_editor() {
-        store_editor(editor.with_edit(TemplateEditorEdit {
-            text: text.to_string(),
-            selection_start: utf16_offset(text, start_bytes),
-            selection_end: utf16_offset(text, end_bytes),
-        }));
-    }
-    project(window);
-}
-
-/// What:
-/// `field_mode_at` gives the mode of the field row `index` of the open editor,
-/// or nothing when the row does not exist or no editor is open.
-/// Why:
-/// a tap reports a row number from the window,
-/// which may be stale by the time it arrives.
+///       Every route change goes through them,
+///           and this module keeps the wiring and the saved values.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const fieldModeAt = (state: ScreenState, index: number): string | null => state.editor?.fields[index]?.mode ?? null;
+/// import * as uiSettingsPages from "./ui_settings_pages";
 /// ```
-fn field_mode_at(
-    state: &ScreenState,
-    index: i32,
-) -> Option<&'static str> {
-    let position = usize::try_from(index).ok()?;
-    let editor = state.editor.as_ref()?;
-    return match editor.fields().get(position) {
-        Some(field) => Some(field.mode),
-        None => None,
-    };
-}
+#[path = "ui_settings_pages.rs"]
+mod ui_settings_pages;
 
 /// What:
-/// `insert_field` inserts the call of the field row `index` at the caret.
+///      `pub(crate) use ui_settings_pages::{...}` re-exports the three page entry
+///           points other modules call at this module's path.
 /// Why:
-/// a tap on a field row inserts its call (D96).
-fn insert_field(
-    window: &AppWindow,
-    index: i32,
-) {
-    let field_mode = field_mode_at(&read_screen(), index);
-    if let Some(mode) = field_mode {
-        if let Some(editor) = current_editor() {
-            store_editor(editor.insert_field(mode));
-        }
-        project(window);
-    }
-}
+///       The key actions and the window tests name `ui_settings::open_settings` and
+///           its siblings,
+///  and only where they are declared moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { build_editor, close_settings, open_settings } from "./ui_settings_pages";
+/// ```
+pub(crate) use ui_settings_pages::{
+    build_editor,
+    close_settings,
+    open_settings,
+};
 
 /// What:
-/// `reset_open_template` resets the open template to its default and shows it.
+///      `mod ui_settings_editor_edits;` loads the sibling
+///           `src/ui_settings_editor_edits.rs`,
+///  the editor's text,
+///  insert,
+///  reset and leaving callbacks.
 /// Why:
-/// the Reset control and Ctrl+Shift+Backspace (D106) do the same thing.
-pub(crate) fn reset_open_template(window: &AppWindow) {
-    if let Some(editor) = current_editor() {
-        store_editor(editor.reset_to_default());
-    }
-    project(window);
-}
+///       Each is one editor report turned into one state change,
+///  and the projections in `ui_settings_pages` are the other half.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as uiSettingsEditorEdits from "./ui_settings_editor_edits";
+/// ```
+#[path = "ui_settings_editor_edits.rs"]
+mod ui_settings_editor_edits;
 
 /// What:
-/// `apply_templates` applies and saves the drafts without leaving Settings.
+///      `pub(crate) use ui_settings_editor_edits::{...}` re-exports the three editing
+///           entry points the key actions call.
 /// Why:
-/// Ctrl+Enter in the two-pane Settings page applies the open template and returns to the list (D106).
-pub(crate) fn apply_templates(window: &AppWindow) {
-    commit_templates();
-    project(window);
-}
+///       Ctrl+Enter,
+///  Ctrl+Shift+Backspace and Escape on the editor page reach them as
+///  `ui_settings::apply_templates` and its siblings,
+///  and only where they are declared moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { apply_templates, editor_back, reset_open_template } from "./ui_settings_editor_edits";
+/// ```
+pub(crate) use ui_settings_editor_edits::{
+    apply_templates,
+    editor_back,
+    reset_open_template,
+};
 
 /// What:
-/// `editor_back` saves the valid templates to the session file and returns to Settings.
+///      `use ui_settings_pages::{...}` brings the four callbacks that `wire_callbacks`
+///           registers.
 /// Why:
-/// a template that does not apply keeps its previously applied text,
-/// so the rows never show a broken template.
-pub(crate) fn editor_back(window: &AppWindow) {
-    commit_templates();
-    {
-        let mut state = write_screen();
-        state.route = Route::Settings;
-    }
-    project(window);
-}
+///       Opening a template,
+///  selecting one,
+///  toggling the setting and the layout switch are handled in the sibling file,
+///  and this module only connects them to the window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { layout_changed, open_template, select_template, toggle_auto_play_on_select } from "./ui_settings_pages";
+/// ```
+use ui_settings_pages::{
+    layout_changed,
+    open_template,
+    select_template,
+    toggle_auto_play_on_select,
+};
+
+/// What:
+///      `use ui_settings_editor_edits::{...}` brings the two callbacks that
+///           `wire_editor` registers.
+/// Why:
+///       The editor's text and field reports are handled in the sibling file,
+///  and this module only connects them to the window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { edit_text, insert_field } from "./ui_settings_editor_edits";
+/// ```
+use ui_settings_editor_edits::{
+    edit_text,
+    insert_field,
+};
 
 /// What:
 ///      `#[path = "ui_settings_commit_and_projection.rs"] mod commit_and_projection;` declares a child module
@@ -565,9 +349,8 @@ mod commit_and_projection;
 /// which the screen projection calls.
 pub(crate) use commit_and_projection::project_pages;
 
-/// Imports the commit and the editor update that the callbacks call.
+/// Imports the editor value and its setter that the focus callback uses.
 use commit_and_projection::{
-    commit_templates,
     current_editor,
     store_editor,
 };

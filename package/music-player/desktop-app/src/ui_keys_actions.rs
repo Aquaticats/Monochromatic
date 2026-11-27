@@ -29,27 +29,13 @@ use crate::AppWindow;
 use crate::ui_host::Host;
 /// Imports the key context that tells where the key was pressed.
 use crate::ui_keys::KeyContext;
-/// Imports the focus target and the calls that move keyboard focus.
-use crate::ui_keys_focus::{
-    FocusTarget,
-    request_focus,
-    set_target,
-};
-/// Imports the projection and the state accessors of the screen.
+/// Imports the state accessors the playback actions read.
 use crate::ui_screen::{
-    project,
     read_screen,
     read_state,
-    write_screen,
 };
-/// Imports the scroll request that revealing the playing row sends.
-use crate::ui_screen_scroll::ScrollRequest;
-/// Imports the route,
-/// the screen state and the page scope lookup.
-use crate::ui_screen_view::{
-    Route,
-    selected_page_scope,
-};
+/// Imports the page scope lookup the mode actions read.
+use crate::ui_screen_view::selected_page_scope;
 
 /// Seconds a plain seek moves.
 const SEEK_SHORT_SECONDS: f64 = 10.0;
@@ -231,299 +217,77 @@ fn seek_by(
 }
 
 /// What:
-/// `run_player_page_action` runs the actions that change the page,
-/// the folder or the focus on the player page.
+///      `mod ui_keys_player_page_actions;` loads the sibling
+///           `src/ui_keys_player_page_actions.rs`,
+///  the chords that act on the player page.
 /// Why:
-/// they act on the window and the screen state.
-fn run_player_page_action(
-    window: &AppWindow,
-    host: &dyn Host,
-    action: ShortcutAction,
-) -> bool {
-    match action {
-        ShortcutAction::Search => crate::ui_search::open_search_route(window),
-        ShortcutAction::Settings => crate::ui_settings::open_settings(window),
-        ShortcutAction::Picker => toggle_picker(window),
-        ShortcutAction::Reveal => reveal_playing(window),
-        ShortcutAction::RevealFolder => reveal_playing_folder(window),
-        ShortcutAction::PreviousFolder => step_folder(window, host, -1),
-        ShortcutAction::NextFolder => step_folder(window, host, 1),
-        ShortcutAction::FocusFolders => focus_folders(window),
-        ShortcutAction::FocusTracks => focus_tracks(window),
-        ShortcutAction::ClosePicker => close_picker(window),
-        _ => return false,
-    }
-    return true;
-}
+///       They change the window's pages and focus,
+///  and `run` only dispatches to them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as uiKeysPlayerPageActions from "./ui_keys_player_page_actions";
+/// ```
+#[path = "ui_keys_player_page_actions.rs"]
+mod ui_keys_player_page_actions;
 
 /// What:
-/// `toggle_picker` opens or closes the folder picker overlay on the folded layout,
-/// and focuses the picker on the
-/// unfolded layout where it is always shown.
+///      `use ui_keys_player_page_actions::run_player_page_action` brings the dispatcher
+///           the player-page chords go through.
 /// Why:
-/// Ctrl+O is "the folder picker" (D25,
-/// D102);
-/// on the two-pane layout the picker is already open,
-/// so the useful
-/// meaning is to move the keyboard to it.
-fn toggle_picker(window: &AppWindow) {
-    if window.get_unfolded() {
-        focus_folders(window);
-        return;
-    }
-    let was_open = read_screen().picker_open;
-    if was_open {
-        close_picker(window);
-    } else {
-        focus_folders(window);
-    }
-}
+///       `run` matches the action and hands it on,
+///  and the chords themselves are in the sibling file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { run_player_page_action } from "./ui_keys_player_page_actions";
+/// ```
+use ui_keys_player_page_actions::run_player_page_action;
 
 /// What:
-/// `focus_folders` moves the keyboard to the folder picker,
-/// opening the overlay first on the folded layout.
-/// On the
-/// folded layout it does nothing while the queue has no names.
+///      `pub(crate) use ui_keys_player_page_actions::{...}` re-exports the two reveal
+///           actions at this module's path.
 /// Why:
-/// Alt+1 (D106).
-/// The target is set before the projection so a picker created by it takes focus when it appears.
-/// The folder button already refuses to open a picker with nothing to list (EM5);
-/// the keys must refuse too,
-/// or Alt+1 or
-/// Ctrl+O pressed at launch,
-/// before the engine has reported the saved library,
-/// opens a Folders pane with no rail and no
-/// names that the first-run pane does not cover either.
-fn focus_folders(window: &AppWindow) {
-    if !window.get_unfolded() && read_screen().names.is_empty() {
-        tracing::debug!("the folder picker was not opened: the library has no folders to list yet");
-        return;
-    }
-    set_target(window, FocusTarget::Folders);
-    if !window.get_unfolded() {
-        {
-            let mut state = write_screen();
-            state.picker_open = true;
-        }
-        project(window);
-    }
-    request_focus(window, FocusTarget::Folders);
-}
+///       The deck's title and folder name call `ui_keys_actions::reveal_playing` and
+///  its sibling,
+///  and only where they are declared moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { reveal_playing, reveal_playing_folder } from "./ui_keys_player_page_actions";
+/// ```
+pub(crate) use ui_keys_player_page_actions::{
+    reveal_playing,
+    reveal_playing_folder,
+};
 
 /// What:
-/// `focus_tracks` moves the keyboard to the track list,
-/// closing the picker overlay first on the folded layout.
+///      `mod ui_keys_settings_and_search_actions;` loads the sibling
+///           `src/ui_keys_settings_and_search_actions.rs`,
+///  the chords that act on the Settings page and the Search page.
 /// Why:
-/// Alt+2 (D106).
-/// The target is set before the projection so a list created by it takes focus when it appears.
-fn focus_tracks(window: &AppWindow) {
-    set_target(window, FocusTarget::Tracks);
-    if !window.get_unfolded() {
-        {
-            let mut state = write_screen();
-            state.picker_open = false;
-        }
-        project(window);
-    }
-    request_focus(window, FocusTarget::Tracks);
-}
+///       The Escape ladder and the editor chords read the route,
+///  which the player-page actions do not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import * as uiKeysSettingsAndSearchActions from "./ui_keys_settings_and_search_actions";
+/// ```
+#[path = "ui_keys_settings_and_search_actions.rs"]
+mod ui_keys_settings_and_search_actions;
 
 /// What:
-/// `close_picker` closes the folder picker overlay and moves focus to the track list it uncovers.
+///      `use ui_keys_settings_and_search_actions::{...}` brings the two dispatchers
+///           `run` hands those chords to.
 /// Why:
-/// Escape closes the innermost thing first (D106),
-/// and the keyboard must not be left on a destroyed list.
-fn close_picker(window: &AppWindow) {
-    focus_tracks(window);
-}
-
-/// What:
-/// `step_folder` shows the folder `delta` pages from the selected one and scopes the engine to it.
-/// Why:
-/// Alt+Up and Alt+Down move to the previous and next folder (D106);
-/// the ends do not wrap.
-fn step_folder(
-    window: &AppWindow,
-    host: &dyn Host,
-    delta: isize,
-) {
-    let chosen: Option<Vec<usize>> = {
-        let mut state = write_screen();
-        let target_identity = {
-            let pages = state.current_pages();
-            let count = pages.pages().count();
-            let here = state.selected_page_position();
-            let target = match here.checked_add_signed(delta) {
-                Some(position) if position < count => Some(position),
-                _ => None,
-            };
-            match target {
-                Some(position) => pages.identity_at(position),
-                None => None,
-            }
-        };
-        match target_identity {
-            Some(identity) => {
-                state.selected_key = identity;
-                Some(state.selected_page_scope_indices())
-            }
-            None => None,
-        }
-    };
-    match chosen {
-        Some(scope) => {
-            crate::ui_wire::mark_user_acted();
-            host.send(Command::SetPageScope(scope));
-            project(window);
-        }
-        None => tracing::debug!(delta, "there is no folder in that direction"),
-    }
-}
-
-/// What:
-/// `reveal_playing` moves the list to the folder that holds the playing track,
-/// closes the picker and asks
-/// the list to scroll so the playing row is at the top.
-/// Why:
-/// Ctrl+G and a click on the deck's title jump to the playing track;
-/// the request makes the list scroll even
-/// when the folder and the row did not change.
-pub(crate) fn reveal_playing(window: &AppWindow) {
-    show_playing_page(ScrollRequest::PlayingRow);
-    project(window);
-}
-
-/// What:
-/// `reveal_playing_folder` moves the list to the folder that holds the playing track,
-/// closes the picker and
-/// asks the list to scroll so the subfolder header above the playing row is at the top,
-/// or the folder start for a
-/// track directly in it.
-/// Why:
-/// a click on the deck's folder name shows the folder;
-/// the request makes the list scroll even when the folder
-/// and the header did not change.
-pub(crate) fn reveal_playing_folder(window: &AppWindow) {
-    show_playing_page(ScrollRequest::PlayingFolder);
-    project(window);
-}
-
-/// What:
-/// `show_playing_page` selects the page that holds the playing track,
-/// closes the picker,
-/// and queues the scroll
-/// request for the next projection when a track is playing.
-/// Why:
-/// both reveal actions show the playing track's folder,
-/// so they share this state change;
-/// with nothing playing
-/// there is no row to reveal,
-/// so the list keeps its position.
-fn show_playing_page(request: ScrollRequest) {
-    {
-        let mut state = write_screen();
-        state.picker_open = false;
-        if let Some(index) = state.current_index {
-            state.scroll_request = Some(request);
-            let page = state.page_key_of_index(index);
-            if let Some(page_key) = page {
-                state.selected_key = page_key;
-            }
-        }
-    }
-}
-
-/// What:
-/// `run_settings_action` runs the Escape ladder and the editor chords of Settings and the editor page.
-/// Why:
-/// D106 and the human's corrections:
-/// the field's Escape returns to the list,
-/// the list's Escape closes Settings,
-/// and
-/// the editor page's Escape leaves it like Back.
-fn run_settings_action(
-    window: &AppWindow,
-    action: ShortcutAction,
-    context: &KeyContext,
-) -> bool {
-    match action {
-        ShortcutAction::Back => match context.route {
-            Route::Settings => crate::ui_settings::close_settings(window),
-            Route::Search => crate::ui_search::close_search_route(window),
-            Route::Licenses => crate::ui_licenses::close_licenses(window),
-            Route::Player | Route::TemplateEditor => {
-                tracing::warn!(route = ?context.route, "Back was classified on a page that has no Back target");
-                return false;
-            }
-        },
-        ShortcutAction::SettingsFocusList => request_focus(window, FocusTarget::SettingsList),
-        ShortcutAction::EditorLeave => crate::ui_settings::editor_back(window),
-        ShortcutAction::EditorApply => return apply_template(window, context),
-        ShortcutAction::EditorReset => return reset_template(window, context),
-        _ => return false,
-    }
-    return true;
-}
-
-/// What:
-/// `apply_template` applies the open template and leaves the editor (Ctrl+Enter).
-/// Why:
-/// on the editor page that is Back;
-/// on the two-pane Settings page the editor is a pane,
-/// so leaving means returning to
-/// the list.
-/// On the single-column Settings list there is no editor to apply.
-fn apply_template(
-    window: &AppWindow,
-    context: &KeyContext,
-) -> bool {
-    match context.route {
-        Route::TemplateEditor => crate::ui_settings::editor_back(window),
-        Route::Settings if window.get_unfolded() => {
-            crate::ui_settings::apply_templates(window);
-            request_focus(window, FocusTarget::SettingsList);
-        }
-        _ => return false,
-    }
-    return true;
-}
-
-/// What:
-/// `reset_template` resets the open template to its default (Ctrl+Shift+Backspace).
-/// Why:
-/// the editor page and the two-pane Settings page have an editor with a Reset control;
-/// the single-column list has none.
-fn reset_template(
-    window: &AppWindow,
-    context: &KeyContext,
-) -> bool {
-    let has_editor = match context.route {
-        Route::TemplateEditor => true,
-        Route::Settings => window.get_unfolded(),
-        _ => false,
-    };
-    if !has_editor {
-        return false;
-    }
-    crate::ui_settings::reset_open_template(window);
-    return true;
-}
-
-/// What:
-/// `run_search_action` runs Up,
-/// Down and Enter on the Search page.
-/// Why:
-/// the query field keeps the typing focus while these move through the results (D106).
-fn run_search_action(
-    window: &AppWindow,
-    host: &dyn Host,
-    action: ShortcutAction,
-) -> bool {
-    match action {
-        ShortcutAction::SearchUp => crate::ui_search::move_ring(window, -1),
-        ShortcutAction::SearchDown => crate::ui_search::move_ring(window, 1),
-        ShortcutAction::SearchOpen => crate::ui_search::open_ringed_result(window, host),
-        _ => return false,
-    }
-    return true;
-}
+///       `run` matches the action and hands it on,
+///  and the chords themselves are in the sibling file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { run_search_action, run_settings_action } from "./ui_keys_settings_and_search_actions";
+/// ```
+use ui_keys_settings_and_search_actions::{
+    run_search_action,
+    run_settings_action,
+};

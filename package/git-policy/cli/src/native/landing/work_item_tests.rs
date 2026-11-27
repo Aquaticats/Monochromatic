@@ -7,6 +7,8 @@
 //! and refusal of bad records.
 
 use super::*;
+use crate::claim_time::ClaimTime;
+use crate::private_storage::create_private_directory_all;
 use crate::test_support::{
     fixture,
     remove,
@@ -27,6 +29,14 @@ use crate::work_item_recovery::{
 use crate::work_item_state_directories_and_claim_names::{
     NAME_SEPARATOR,
     take_listings,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::time::{
+    Duration,
+    SystemTime,
 };
 
 /// A function-like value with the right shape is an expiry test in these controls:
