@@ -195,7 +195,10 @@ async function run(chosen: GuestRouteOptions,): Promise<void> {
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    'cargo build --release --tests --locked --features test-only-switches > /root/deferred-origin-build.log 2>&1',
+    // The one harness the arm starts, two jobs at a time: a release rustc of this crate's tests took 6.9 GiB of this
+    // guest's 8 GiB and the kernel killed it at four jobs on 2026-11-27 (issue 6581; cargo exited 101), so this is the
+    // shape the forced-act driver already uses for the same arm.
+    'cargo test --release --lib --no-run --locked --features test-only-switches -j 2 > /root/deferred-origin-build.log 2>&1',
     'tail --lines=3 /root/deferred-origin-build.log',
   ]
     .join('\n',);
