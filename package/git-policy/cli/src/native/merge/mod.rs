@@ -52,6 +52,10 @@
 //!   the index read the way a merge's recovery needs it.
 //! - `merge_isolation_journal.rs`:
 //!   the durable intent record of an isolated merge.
+//! - `merge_isolation_recovery_refusals.rs`:
+//!   the words a recovery refuses a merge with:
+//!   each names the paths,
+//!   the record and what the person can do.
 //! - `merge_isolation_carry.rs`:
 //!   reading the person's work and keeping it outside the checkout.
 //! - `merge_isolation_carry_landed.rs`:
@@ -321,6 +325,11 @@ pub mod merge_isolation_moved;
 
 /// The durable intent record of an isolated merge.
 pub mod merge_isolation_journal;
+
+/// The words a recovery refuses a merge with:
+/// each names the paths,
+/// the record and what the person can do.
+pub mod merge_isolation_recovery_refusals;
 
 /// The raw differences of an isolated merge and the worktree state of each changed path.
 pub mod merge_isolation_changes;
