@@ -15,7 +15,7 @@
 //! waitingOperation({ mergeHead: true, /* ... */ }) === 'merge';
 //! ```
 
-use crate::rule_linked_worktree::GuardedCommand;
+use crate::the_guarded_commands::GuardedCommand;
 /// `OsStr` is borrowed operating-system text of raw bytes.
 use std::ffi::OsStr;
 

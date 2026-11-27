@@ -105,6 +105,11 @@
 //!   pure decision of the status-hints transform.
 //! - `rule_worktree_dirty.rs`:
 //!   the query and reading of "does this worktree hold uncommitted state?".
+//! - `the_guarded_commands.rs`:
+//!   the command forms the linked-worktree policy guards,
+//!   and the list of all of them that a control walks.
+//! - `rule_linked_worktree_messages.rs`:
+//!   the rejection texts of the linked-worktree-only policy.
 //! - `rule_linked_worktree.rs`:
 //!   pure decision of the linked-worktree-only policy.
 //! - `rule_abort_operation.rs`:
@@ -112,8 +117,6 @@
 //!   and whether that operation waits.
 //! - `rule_abort_messages.rs`:
 //!   the plain-language texts of the abort carve-out.
-//! - `rule_linked_worktree_messages.rs`:
-//!   the rejection texts of the linked-worktree-only policy.
 //! - `rule_linked_worktree_nested_repository_messages.rs`:
 //!   the notice that names where a clean's nested repository went,
 //!   and the rejection when it could not be moved there.
@@ -257,6 +260,10 @@ pub mod command_branch_delete;
 
 /// The facts one audit line of a deleted branch carries.
 pub mod branch_delete_audit;
+
+/// The forms the linked-worktree policy guards:
+///  every command form that can throw away uncommitted work.
+pub(crate) mod the_guarded_commands;
 
 /// Pure decision of the linked-worktree-only policy.
 pub mod rule_linked_worktree;
