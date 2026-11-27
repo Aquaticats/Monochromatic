@@ -281,6 +281,17 @@
 //!   and its cleanup.
 //! - `worktree_trash_exclude_line.rs`:
 //!   the repository's own exclude line that keeps a standing trash out of every `git add --all`.
+//! - `worktree_snapshot_source_cheap_refusals.rs`:
+//!   the reasons a snapshot rung or a clone rung cannot serve a planned add,
+//!   read from the two filesystems before anything is copied.
+//! - `worktree_snapshot_source_refusal.rs`:
+//!   why a source cannot be copied,
+//!   and which kind of check said so.
+//! - `worktree_snapshot_source_reads.rs`:
+//!   the reads the source's checks make,
+//!   each timed as the work it is:
+//!   the Git configuration and the reasons it rules a source out,
+//!   and the cleanliness of the files.
 //! - `worktree_snapshot_source.rs`:
 //!   the snapshot source:
 //!   whether the creating worktree can be snapshotted for a new worktree,
@@ -769,6 +780,20 @@ pub mod worktree_clone_domain;
 /// for the snapshot source.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_source_changed_paths;
+
+/// The cheap reasons a snapshot rung or a clone rung cannot serve a planned add.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_cheap_refusals;
+
+/// Why a source cannot be copied,
+/// and which kind of check said so.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_refusal;
+
+/// The reads the source's checks make,
+/// each timed as the work it is.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_source_reads;
 
 /// The snapshot source:
 /// whether the creating worktree can be snapshotted for a new worktree,
