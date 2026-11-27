@@ -37,15 +37,23 @@
 //! - `staging_folder_name.rs`:
 //!   the folder,
 //!   record and claim names one GUID derives.
+//! - `staged_folder_record_text.rs`:
+//!   the record's fields and the one JSON object it is written as,
+//!   with the parse of that text.
 //! - `staged_folder_record.rs`:
-//!   the record's shape,
+//!   the names the record is written under,
 //!   its atomic write and its bounded read.
+//! - `staging_call_words.rs`:
+//!   the call names a receipt carries and one refusal's words.
+//! - `staging_calls_contract.rs`:
+//!   the trait every staging call and its control keeps.
 //! - `staging_calls.rs`:
+//!   the kernel calls:
 //!   the bind,
 //!   propagation change,
 //!   move,
-//!   unmount and handle calls,
-//!   and the reads that decide whether they may run.
+//!   unmount and handle reads,
+//!   with the two kernel files they read.
 //! - `slot_walk_calls.rs`:
 //!   the checkout's root,
 //!   the two final hops and the fresh lookup.
@@ -58,15 +66,33 @@
 //!   the identity comparisons before any move.
 //! - `reattach.rs`:
 //!   the checked move back to the slot.
+//! - `user_cache_pin_record.rs`:
+//!   the pin's two fields,
+//!   its file and its bounded read,
+//!   and the words a person checks a refusal by.
+//! - `user_cache_pin_home_and_cache.rs`:
+//!   the account's passwd home and the cache descriptor.
+//! - `user_cache_pin.rs`:
+//!   the check of the cache's mount against the pin,
+//!   the live check both the wrapper and the handler run.
+//! - `unmount_turn_answers.rs`:
+//!   what one turn answered and the refusals it builds.
+//! - `unmount_turn_request.rs`:
+//!   the facts and seams one turn reads and acts on.
 //! - `unmount_record.rs`:
 //!   the pre-bind shape checks and the record's write.
-//! - `user_cache_pin.rs`:
-//!   the `user-cache` pin,
-//!   the account's passwd home and the cache descriptor.
+//! - `staged_unmount_held.rs`:
+//!   the two unmounts a held descriptor takes,
+//!   with the topmost read before each and the transition check after it.
+//! - `staged_unmount_recovery.rs`:
+//!   the finish of an interrupted unmount from the record's handle.
 //! - `staged_unmount.rs`:
-//!   the held-descriptor unmount and the later sweep from the record.
+//!   the later sweep's reading of one record and the word it answers with.
 //! - `staging_cleanup.rs`:
 //!   the wrapper's rmdir-only cleanup and the folder's creation.
+//! - `unmount_pair.rs`:
+//!   the topmost read,
+//!   the pair's two unmounts and the move back.
 //! - `unmount_turn.rs`:
 //!   the record,
 //!   bind,
@@ -93,13 +119,28 @@ pub mod staged_folder_identity;
 /// The record beside a staging folder and its write and read.
 pub mod staged_folder_record;
 
-/// The `user-cache` pin,
-/// the account's home and the cache descriptor.
+/// The record's fields and the text it is written as.
+pub mod staged_folder_record_text;
+
+/// The `user-cache` pin's file and the words a refusal carries.
+pub mod user_cache_pin_record;
+
+/// The account's passwd home and the cache descriptor.
+pub mod user_cache_pin_home_and_cache;
+
+/// The `user-cache` pin's check against the cache's mount.
 pub mod user_cache_pin;
 
 /// The kernel calls the unmount route makes,
 /// behind one trait.
 pub mod staging_calls;
+
+/// The call names a refusal carries,
+/// and its errno.
+pub mod staging_call_words;
+
+/// The trait every staging call and its control keeps.
+pub mod staging_calls_contract;
 
 /// The order the staged-folder record is judged in.
 pub mod staged_record_reading;
@@ -119,8 +160,25 @@ pub mod unmount_record;
 /// One removal's unmount turn.
 pub mod unmount_turn;
 
+/// What one turn answered and the refusals it builds.
+pub mod unmount_turn_answers;
+
+/// The facts and seams one unmount turn reads and acts on.
+pub mod unmount_turn_request;
+
+/// The topmost read,
+/// the pair's two unmounts and the move back.
+pub mod unmount_pair;
+
 /// The held-descriptor unmount and the later sweep from the record.
 pub mod staged_unmount;
+
+/// The two unmounts a held descriptor takes,
+/// with their checks.
+pub mod staged_unmount_held;
+
+/// The finish of an interrupted unmount from the record's handle.
+pub mod staged_unmount_recovery;
 
 /// The staging claim one repository keeps.
 pub mod staging_claim;
