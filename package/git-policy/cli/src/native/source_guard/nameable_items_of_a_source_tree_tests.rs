@@ -65,6 +65,10 @@ const QUALIFIERS: &[&str] = &["async", "unsafe", "extern", "default"];
 /// The kinds whose body publishes a field.
 const KINDS_WITH_FIELDS: &[&str] = &["struct", "union"];
 
+/// The kinds whose name another crate can reach,
+/// so that a `pub` method of an `impl` of one publishes a name through it.
+const KINDS_THAT_OWN_MEMBERS: &[&str] = &["struct", "enum", "union", "trait", "type"];
+
 /// What:
 ///  `pub(crate) struct NameableItem` is one item another crate can name:
 ///  the entry the list beside this file writes for it,
@@ -685,7 +689,7 @@ pub(crate) fn surface_of(root: &Path) -> Result<Surface, String> {
         }
         let text: String = read_module(root, module)?;
         for (kind, name) in first_column_declarations(text.as_str()) {
-            if KINDS_WITH_FIELDS.contains(&kind.as_str()) {
+            if KINDS_THAT_OWN_MEMBERS.contains(&kind.as_str()) {
                 published_types.insert(name);
             }
         }
