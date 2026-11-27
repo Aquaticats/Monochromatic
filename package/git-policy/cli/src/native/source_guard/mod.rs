@@ -153,6 +153,13 @@ mod no_control_folds_a_log_twice_in_the_run_tests;
 #[path = "no_control_records_or_reads_the_service_stop_in_the_run_tests.rs"]
 mod no_control_records_or_reads_the_service_stop_in_the_run_tests;
 
+/// The ban on a control leaving `SIGPIPE` at its default in the process the run holds:
+/// such a control starts a child of its own first,
+/// so its action reaches no other thread's next write to a pipe nobody reads.
+#[cfg(test)]
+#[path = "no_control_leaves_sigpipe_at_its_default_tests.rs"]
+mod no_control_leaves_sigpipe_at_its_default_tests;
+
 /// The ban on a control taking the process's one queue of log lines in the process the run holds:
 /// such a control starts a child of its own first,
 /// whose queue holds nothing but what that control handed it.

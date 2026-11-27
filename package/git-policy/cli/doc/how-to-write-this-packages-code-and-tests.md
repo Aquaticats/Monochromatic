@@ -52,7 +52,39 @@ Threads share the process, so a test never changes the current directory, the en
 a signal's disposition or a resource limit of its own process.
 Give them to the child it starts instead (`Command::current_dir`, `env`, `env_clear`, a `pre_exec` that only calls
 async-signal-safe functions).
-Issue 6454 removed the current-directory changes; keep them out.
+Issue 6454 removed the current-directory changes;
+keep them out.
+
+A signal's disposition is one of those facts,
+and the standard library hands the test process its first one:
+it sets `SIGPIPE` to its ignore at the start of every Rust program
+(`library/std/src/sys/pal/unix/mod.rs:181`),
+so a write to a pipe nobody reads only answers `EPIPE`.
+A start that cannot run its program puts that default back in the process that tried it:
+`Command::exec` runs the standard library's `do_exec` in the caller,
+not in a child
+(`library/std/src/sys/process/unix/unix.rs:374`),
+so `forwarding::replace_process_with_real_git` and `push::start_retry::exec_retrying`
+leave `SIGPIPE` at its default when the program is missing or the start is refused,
+and every later write to a broken pipe ends every thread of the run
+(issue 6604:
+a threaded run of ten library modules ended with `signal: 13` after 2,985 of its 7,764 tests,
+and the two controls that ran such a start were
+`invocation/forwarding_tests.rs`'s `unstartable_program_is_an_error`
+and `push/start_retry_tests.rs`'s `a_failed_exec_returns_its_error_at_once`;
+the measurement is in
+`doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`).
+So a control that runs one of those starts,
+or a body that ends the process by a signal
+(`forwarding::end_as_git_ended`,
+`landing/service_commit_input_notes_and_embedded_commit.rs`'s `print_summary`,
+`process/stop_of_the_service_noticed_by_its_children.rs`'s `end_by_the_signal`),
+runs its body in a child of its own (`testing/process_wide_state_child_test_support.rs`),
+reads the action in place before and after with `sigaction` and a null new action
+(`testing/signal_disposition_of_the_process.rs`),
+and `source_guard/no_control_leaves_sigpipe_at_its_default_tests.rs` refuses a control that does not.
+A control that only reads an action changes nothing,
+so it may run in the run's own process.
 
 The same holds for what a test reads:
 `crate::run_progress::look` and `look_now` add up every task of this process,
@@ -624,6 +656,17 @@ three of them finding the step,
 so the record proved 639.47 ms and the control failed (issue 6592;
 `doc/troubleshooting/git-policy-cli-commit-index-span-control-counts-another-tests-spans.md`).
 
+A control that shortens a deadline the release code keeps itself holds the work that deadline governs before that work starts.
+The fence's size read is joined with a deadline measured from the wait and not from the read's start
+(`SizeReadBesideTheCheck::answer_within_the_deadline` hands it to `recv_timeout`),
+and the join runs after the source check and after `git check-attr`,
+so a read started first answers inside a window that began after it did.
+The join's control arms `a_control_holds_the_read` before `start_beside_the_check` for that reason
+(issue 6603:
+a wide threaded `worktree` run answered `3311 passed; 1 failed`,
+with the rung held where the control says a held read cannot answer,
+and 100 ms of delay planted between the start and the arm reproduced it in a run whose child finished in 0.15 s).
+
 ## Write less code
 
 Reuse what `testing/test_support.rs` and the package's modules already have before writing a helper
@@ -724,6 +767,34 @@ two readers of this package list a folder recursively and each follows a link it
 `perf/fence-size-read-beside-the-check-2026-11-21-control-identical-fence.ts` (the fixture trees it compares),
 and neither fixture holds a link as of 2026-11-27,
 because no script of the package makes one there.
+
+A Rust test that reads this crate's sources walks them through the shared scan of `source_guard`:
+`source_scan_tests::discover` lists every `.rs` file under a root once,
+`source_scan_tests::classified_sources` adds the module tree's answer about which of them are test-only,
+and `source_scan_tests::source_text` reads one listed file.
+`discover` enters each folder once,
+reads nothing through a symbolic link,
+skips a `uses` link that names a folder below the root and refuses every other link,
+and its control `the_walk_reaches_a_linked_back_source_once_where_a_recursive_read_reaches_it_again`
+(`source_guard/source_scan_walk_tests.rs`) holds a fixture of one source file and one link back into the tree:
+the walk lists that file once and the `read_dir` recursion the walk replaces reaches it once per link above it.
+No test of this crate lists a source folder with a `read_dir` recursion of its own,
+and every walk of one asks an entry's own type with `entry.file_type()`,
+never `path.is_dir()`,
+which follows a link.
+A check that looks for a needle reads one file at a time and holds that file's text alone.
+Measured 2026-11-27 (issue 6598):
+the sources were 3,905 Rust files of 46,090,082 bytes when these readings were taken,
+and the control that held them all read through the `uses` links read 165,978 entries,
+104,219 files and
+888,676,493 bytes,
+holding 890.5 MiB of resident memory for 22.1 s of a suite that runs for about sixteen minutes;
+the same control reads one file at a time now,
+in 0.8 to 7.7 s and 27.2 to 28.0 MiB.
+A control that builds a tree from the sources reads them the same way,
+because a walk that descends one link builds that tree forty times over:
+`binary/binary_worktree_clone_zfs_measurement_tests.rs` read 163,706 files and 1,658,426,907 bytes of `src`
+where the tree held 4,110 files and 49,829,839 bytes.
 
 A planted control names one file and one needle in it,
 and a needle goes stale without anything renaming it:

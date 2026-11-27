@@ -24,10 +24,22 @@
 //! for (const file of sources) for (const line of lockLines(file)) expect(inventory.has(file) && reasonAbove(file, line)).toBe(true);
 //! ```
 
-use std::path::{
-    Path,
-    PathBuf,
+// What:
+//  `discover` is the shared walk of this crate's source tree and `source_text` reads one of the files it lists,
+//  both from the module the source-scan checks keep their base in.
+// Why:
+//  This guard walked the sources with a listing of its own,
+//  so how it treats a `uses` link was a second decision beside the shared one (issue 6598).
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { discover, source_text, source_root } from './source_scan_tests'
+// ```
+use crate::source_guard::source_scan_tests::{
+    source_root,
+    source_text,
 };
+use crate::source_scan_tests::walk::discover;
 
 /// The sources this guard covers,
 /// by the start of the file name:
@@ -135,39 +147,6 @@ const INVENTORY: &[&str] = &[
     "landing/service_index_prestage_the_markers_made_ahead.rs",
 ];
 
-/// Every `.rs` file below `root`,
-///  as `/`-separated paths relative to it,
-///  found with a work stack,
-///  so that the sources of the subsystem folders are covered as well as the files beside `lib.rs`.
-fn rust_files_below(root: &Path) -> Vec<String> {
-    let mut found: Vec<String> = Vec::new();
-    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        for entry in std::fs::read_dir(&directory)
-            .expect("a readable source directory")
-            .flatten()
-        {
-            let path: PathBuf = entry.path();
-            // The entry's own type, so a link is seen as a link: a `uses` folder holds one link per source folder its
-            // code uses (`AGENTS.md`, rule LYD), and following one would scan those sources under a second name.
-            let kind: std::fs::FileType = entry.file_type().expect("an entry's own type");
-            if kind.is_symlink() {
-                continue;
-            }
-            if kind.is_dir() {
-                pending.push(path);
-            } else if path.extension().is_some_and(|extension| {
-                return extension == "rs";
-            }) {
-                let relative: &Path = path.strip_prefix(root).expect("a path below the root");
-                found.push(relative.to_string_lossy().replace('\\', "/"));
-            }
-        }
-    }
-    found.sort();
-    return found;
-}
-
 /// Whether the file name of `path` starts with one of the covered prefixes.
 fn is_covered(path: &str) -> bool {
     let name: &str = path.rsplit('/').next().unwrap_or(path);
@@ -176,17 +155,24 @@ fn is_covered(path: &str) -> bool {
     });
 }
 
-/// The covered sources of this package:
-///  path relative to `src/native` and text,
-///  from every subsystem folder.
+/// What:
+///  The covered sources of this package,
+///  each as its `/`-separated identity under `src/native` and its text.
+/// Why:
+///  The walk lists every source file once and reads nothing through a `uses` link,
+///  and each file's text is read on its own from that listing;
+///  a control of this guard asserts on the names and the text beside each other,
+///  and the covered files are the few whose names start with one of `COVERED_PREFIXES`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const coveredSources = () => discover(sourceRoot()).filter((path) => isCovered(path) && !path.endsWith('_tests.rs')).map((path) => [path, sourceText(path)])
+/// ```
 fn covered_sources() -> Vec<(String, String)> {
-    let directory: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/native");
     let mut found: Vec<(String, String)> = Vec::new();
-    for relative in rust_files_below(directory.as_path()) {
+    for relative in discover(&source_root()).expect("the crate's sources") {
         if is_covered(relative.as_str()) && !relative.ends_with("_tests.rs") {
-            let text: String = std::fs::read_to_string(directory.join(relative.as_str()))
-                .expect("a readable source");
-            found.push((relative, text));
+            found.push((relative.clone(), source_text(relative.as_str())));
         }
     }
     found.sort();

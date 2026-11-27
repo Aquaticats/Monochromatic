@@ -144,6 +144,13 @@ pub(crate) mod descriptor_limit_child_test_support;
 #[cfg(test)]
 pub(crate) mod process_wide_state_child_test_support;
 
+/// The action in place for a signal,
+/// which belongs to the whole process and which a control reads before and after the body it judges;
+/// never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+pub(crate) mod signal_disposition_of_the_process;
+
 /// A point where threads must all arrive,
 /// for controls that prove work overlapped.
 #[cfg(test)]

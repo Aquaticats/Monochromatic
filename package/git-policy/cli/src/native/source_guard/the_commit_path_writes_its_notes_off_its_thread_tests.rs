@@ -208,7 +208,7 @@ fn the_check_fails_on_a_note_file_that_takes_the_shared_standard_error() {
     let planted: Vec<(String, String)> = vec![(
         String::from("landing/a_note.rs"),
         String::from(
-            "fn say(line: &str) { let mut notes: StandardErrorOffTheCallingThread<fn(&[u8])> = StandardErrorOffTheCallingThread::new(); let _ = writeln!(std::io::stderr(), \"{line}\"); }\n",
+            "fn say(line: &str) { let mut notes: StandardErrorOffTheCallingThread<StandardErrorHand> = StandardErrorOffTheCallingThread::new(); let _ = writeln!(std::io::stderr(), \"{line}\"); }\n",
         ),
     )];
     let found: Vec<String> = findings_of_the_notes(planted.as_slice());

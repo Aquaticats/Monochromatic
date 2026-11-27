@@ -4744,9 +4744,18 @@ because it pairs one side's deleted line with the other side's kept line and kee
 (issue 6529;
 the allow list of a merge of 2026-11-27,
 whose record stays deleted in `24f8c1947b`).
-A region whose word merge would write back a line one side deleted while the other side left it
-as it was keeps both sides instead,
-so you resolve it.
+That holds for a region at the end of a file as well,
+whether the file's last line ends with a line end or has none,
+and whether the file's lines end with a line feed or with a carriage return and a line feed:
+the merge writes the lines' own bytes,
+so a file keeps the ending it has,
+and a merge that ends a file writes no line end that file did not hold.
+A region whose word merge would write back more copies of a line one side deleted
+than that side still holds,
+while the other side left it as it was,
+keeps both sides instead,
+so you resolve it;
+a merge that writes only the copies that side still holds is right and resolves.
 The wrapper's own merges from objects (the merge of a staged-index checkout above,
 the merge of an auto-push that lost a race,
  and the replay of a commit another commit beat to the branch) use the same pass and publish or commit a merge only when every
@@ -7414,6 +7423,14 @@ mise run //package/git-policy/cli:test:service-manager:install -- --image <tag> 
   and the arm from `main` has to end the stand-in while the other keeps it,
   so `--harm-seed-wrapper <path>` names an older release,
   which is what makes the arm from `main` meet a template that release did not write.
+  That arm needs a release from before the remedy of 2026-11-12 (`ef1bbc27b6`,
+  first released in `0.6.1-alpha.20`) to pass at all:
+  a release from `0.6.1-alpha.20` onwards never asks the manager to read every unit,
+  so no seed makes the arm reproduce the harm,
+  and a run with such a release ends in
+  `THE PROOF FAILED: the release from main asked for no reload, so this fixture would prove nothing about it`.
+  The choices for that arm are in
+  `doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`.
 - `test:service-manager:install` (`bin/service-manager-install-proof.ts`)
   proves that an install of one release over the one before it leaves no wrapper unit failing a start,
   and that two commits of one worktree made at once across the upgrade each land once.

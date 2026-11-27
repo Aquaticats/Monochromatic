@@ -166,6 +166,16 @@ pub(crate) fn await_it<Output>(work: impl std::future::Future<Output = Output>) 
     return crate::lazy_runtime::run_on_runtime(work).expect("the runtime runs the work");
 }
 
+/// The one merged file of a world's verdicts,
+/// or a panic naming what became of every path instead,
+/// so a control that expects a merge says what it met.
+fn the_one_merged_file(verdicts: &[Verdict]) -> &Merged {
+    let [Verdict::Merged(file)] = verdicts else {
+        panic!("expected one merged file: {verdicts:?}")
+    };
+    return file;
+}
+
 /// The verdicts of the second pass over the world's merge.
 fn verdicts_of(world: &World) -> Vec<Verdict> {
     let (_, conflicts) = merge_tree_of(world);
@@ -711,6 +721,239 @@ fn a_file_whose_lines_end_with_both_bytes_is_merged() {
         file.bytes,
         b"head\r\nALPHA uno\r\n".to_vec(),
         "the word merge of the two sides keeps the file's own line ending"
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  Both sides delete lines of a region at the end of a file whose last line has no line end,
+///  and the region resolves to the union of the two deletions.
+/// Why:
+///   The line merge writes a line end after the last line of every side,
+///  so a region there holds one byte fewer in its stage than in the answer;
+///  a pass that demands the answer's bytes finds no region and leaves the file,
+///  although the union rule has one answer for it.
+/// This side deletes `r3` and the other side deletes `r4`,
+/// which has no line end of its own,
+/// so the union keeps `r1` and `r2` and the merged file ends with the `r2` line's own line end.
+#[test]
+fn the_union_of_two_deletions_reaches_a_last_line_with_no_line_end() {
+    let world: World = world(
+        "second-pass-end-without-line-end",
+        &[("a.md", b"r1\nr2\nr3\nr4")],
+        &[("a.md", Change::Write(b"r1\nr2\nr4"))],
+        &[("a.md", Change::Write(b"r1\nr2\nr3\n"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let file: &Merged = the_one_merged_file(&verdicts);
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "r1\nr2\n",
+        "the union of the two deletions keeps `r1` and `r2` alone"
+    );
+    assert_eq!(
+        file.parts,
+        vec![MergedPart {
+            base: LineSpan {
+                first: 3,
+                count: 2
+            },
+            ours: LineSpan {
+                first: 3,
+                count: 1
+            },
+            theirs: LineSpan {
+                first: 3,
+                count: 1
+            },
+            merged: Vec::new(),
+        }],
+        "the region is the two lines both sides deleted from"
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The same union where this side keeps the line the other side deletes,
+///  so the deleted line is the one with no line end.
+/// Why:
+///   A side that keeps a line with no line end holds it without one,
+///  and the pass must find it there rather than reading the answer's line end as part of the line.
+/// The union deletes `r2` from this side's answer and `r3` from the other's,
+/// so nothing of the file's last two lines is left and the merged file ends with `r1`'s own line end.
+#[test]
+fn the_union_of_two_deletions_reaches_a_kept_last_line_with_no_line_end() {
+    let world: World = world(
+        "second-pass-end-without-line-end-kept",
+        &[("a.md", b"r1\nr2\nr3")],
+        &[("a.md", Change::Write(b"r1\nr3"))],
+        &[("a.md", Change::Write(b"r1\nr2\n"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let file: &Merged = the_one_merged_file(&verdicts);
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "r1\n",
+        "the union of the two deletions keeps `r1` alone"
+    );
+    assert_eq!(
+        file.parts.len(),
+        1,
+        "the region of deletions is reported as one part"
+    );
+    assert!(
+        file.parts[0].merged.is_empty(),
+        "the part's own text is what the union of the deletions left: nothing"
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The same union in a file whose lines end with both bytes,
+///  whose last line has neither.
+/// Why:
+///   Git writes the file's own line ending after the last line of every side,
+///  so both bytes are the answer's alone there;
+///  a pass that reads only a lone line feed off the end finds no region in such a file.
+/// This side deletes `r3` and the other side deletes `r4`,
+/// so the union keeps `r1` and `r2` with the endings they have.
+#[test]
+fn the_union_of_two_deletions_reaches_a_last_line_with_no_line_end_both_bytes() {
+    let world: World = world(
+        "second-pass-end-without-line-end-crlf",
+        &[("a.md", b"r1\r\nr2\r\nr3\r\nr4")],
+        &[("a.md", Change::Write(b"r1\r\nr2\r\nr4"))],
+        &[("a.md", Change::Write(b"r1\r\nr2\r\nr3\r\n"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let file: &Merged = the_one_merged_file(&verdicts);
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "r1\r\nr2\r\n",
+        "the union keeps the carriage return and the line feed the kept lines have"
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A word merge of the last line of a file whose last line has no line end writes no line end either.
+/// Why:
+///   The word pass reads the region's own text,
+///  and the answer's line end after a side's last line is Git's,
+///  not the file's;
+///  a merge that took it would write a line end no side holds.
+/// The two sides edit different words of that line,
+/// so the region resolves to both edits and keeps the file's own ending.
+#[test]
+fn a_word_merge_of_a_region_that_ends_a_file_writes_no_line_end() {
+    let world: World = world(
+        "second-pass-word-merge-without-line-end",
+        &[("a.md", b"A\nB\nlast line here")],
+        &[("a.md", Change::Write(b"A\nB\nlast line THERE"))],
+        &[("a.md", Change::Write(b"A\nB\nLAST line here"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let file: &Merged = the_one_merged_file(&verdicts);
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "A\nB\nLAST line THERE",
+        "the merged last line has no line end, as neither side's had one"
+    );
+    assert_eq!(
+        file.parts,
+        vec![MergedPart {
+            base: LineSpan {
+                first: 3,
+                count: 1
+            },
+            ours: LineSpan {
+                first: 3,
+                count: 1
+            },
+            theirs: LineSpan {
+                first: 3,
+                count: 1
+            },
+            merged: b"LAST line THERE".to_vec(),
+        }]
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The same word merge in a file whose lines end with both bytes.
+/// Why:
+///   A file whose last line has neither byte gives the answer a carriage return and a line feed,
+///  so a pass that reads only the line feed off the end writes the carriage return no side holds.
+#[test]
+fn a_word_merge_of_a_region_that_ends_a_file_keeps_both_bytes() {
+    let world: World = world(
+        "second-pass-word-merge-without-line-end-crlf",
+        &[("a.md", b"A\r\nB\r\nlast line here")],
+        &[("a.md", Change::Write(b"A\r\nB\r\nlast line THERE"))],
+        &[("a.md", Change::Write(b"A\r\nB\r\nLAST line here"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let file: &Merged = the_one_merged_file(&verdicts);
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "A\r\nB\r\nLAST line THERE",
+        "the merged last line has neither byte, as neither side's had one"
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  The reverse:
+///  every kept line ends with the byte it had,
+///  so a file whose last line has a line end keeps it.
+/// Why:
+///   The ending is the kept line's own,
+///  never one the pass adds or drops;
+///  a pass that took the answer's bytes as the file's would pass every control above
+///  and strip a line end that is there.
+/// The two sides edit different words of the last line,
+/// which ends with a line end of its own,
+/// so the merged file ends with one too.
+#[test]
+fn a_word_merge_of_a_region_that_ends_a_file_keeps_its_line_end() {
+    let world: World = world(
+        "second-pass-word-merge-with-line-end",
+        &[("a.md", b"A\nB\nlast line here\n")],
+        &[("a.md", Change::Write(b"A\nB\nlast line THERE\n"))],
+        &[("a.md", Change::Write(b"A\nB\nLAST line here\n"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let file: &Merged = the_one_merged_file(&verdicts);
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "A\nB\nLAST line THERE\n",
+        "the merged last line keeps the line end every side has"
+    );
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A union that leaves the file's last line standing keeps the line end the file had,
+///  which is none.
+/// Why:
+///   The last line both sides keep is written exactly as the base wrote it,
+///  and Git settles it outside the region it left;
+///  a pass that rebuilt it from the answer would add the line end Git wrote for its own marker.
+#[test]
+fn a_union_that_keeps_a_last_line_with_no_line_end_keeps_that() {
+    let world: World = world(
+        "second-pass-union-keeps-without-line-end",
+        &[("a.md", b"r1\nr2\nr3")],
+        &[("a.md", Change::Write(b"r1\nr3"))],
+        &[("a.md", Change::Write(b"r2\nr3"))],
+    );
+    let verdicts: Vec<Verdict> = verdicts_of(&world);
+    let file: &Merged = the_one_merged_file(&verdicts);
+    assert_eq!(
+        String::from_utf8_lossy(file.bytes.as_slice()),
+        "r3",
+        "the union keeps the last line alone, with the ending the base gave it"
     );
     remove(world.root.as_path());
 }

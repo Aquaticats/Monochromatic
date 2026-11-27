@@ -23,6 +23,12 @@ use super::{
     run_real_git_until,
 };
 use crate::hooks_off::StartOwner;
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
+use crate::signal_disposition_of_the_process::{
+    put_the_ignore_back,
+    the_disposition_of,
+    the_word_for,
+};
 use crate::test_support::{
     executable,
     fixture,
@@ -172,19 +178,89 @@ fn run_reports_exit_codes_and_signals() {
 
 /// A program that cannot be started is an error for both forwarding forms,
 ///  never a fake exit code.
+/// The body runs in a child,
+/// because a replacement that cannot run its program leaves that process's `SIGPIPE` at its default
+/// (issue 6604):
+/// a later write to a pipe nobody reads would end the whole run.
 #[test]
 fn unstartable_program_is_an_error() {
-    let missing: &Path = Path::new("/nonexistent-directory/git");
-    assert_eq!(
-        run_real_git(missing, &[], &[], StartOwner::Wrapper)
-            .expect_err("missing program")
-            .kind(),
-        std::io::ErrorKind::NotFound
-    );
-    // Process replacement returns only on failure, leaving this test process running.
-    assert_eq!(
-        replace_process_with_real_git(missing, &[], &[]).kind(),
-        std::io::ErrorKind::NotFound
+    run_the_body_in_a_child_of_its_own(module_path!(), "unstartable_program_is_an_error", || {
+        let missing: &Path = Path::new("/nonexistent-directory/git");
+        assert_eq!(
+            run_real_git(missing, &[], &[], StartOwner::Wrapper)
+                .expect_err("missing program")
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        // Process replacement returns only on failure, leaving this child of the control running.
+        assert_eq!(
+            replace_process_with_real_git(missing, &[], &[]).kind(),
+            std::io::ErrorKind::NotFound
+        );
+    });
+}
+
+/// What:
+///  A replacement that cannot run its program leaves `SIGPIPE` at its default in the process that tried,
+///  which is the one fact about this process a control must not set.
+/// Why:
+///  Every control of the suite runs as a thread of one process,
+///  and that process ignores `SIGPIPE` from its start,
+///  so the first write to a pipe nobody reads only answers `EPIPE`.
+///  Once the action is the default instead,
+///  that same write ends every thread of the run,
+///  which is how a threaded run of ten modules ended with `signal: 13` (issue 6604).
+///  The body runs in a child of its own,
+///  so the action it leaves reaches no other control.
+/// Measured 2026-11-27:
+///  a probe interposing on `sigaction` and `signal` read `SIG_IGN` in the test process at its start,
+///  then `SIG_DFL` from `std::sys::process::unix::common::Command::do_exec`
+///  on each of the two threads that ran a start that could not run its program,
+///  and never again `SIG_IGN`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // in a child: expect(theWordFor(theDispositionOf(SIGPIPE))).toBe('SIG_IGN');
+/// // expect(replaceProcessWithRealGit('/nonexistent-directory/git', [], []).code).toBe('ENOENT');
+/// // expect(theWordFor(theDispositionOf(SIGPIPE))).toBe('SIG_DFL');
+/// ```
+#[test]
+fn a_replacement_that_cannot_run_the_program_leaves_sigpipe_at_its_default() {
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_replacement_that_cannot_run_the_program_leaves_sigpipe_at_its_default",
+        || {
+            // What: the action in place before the suspect body, which a Rust program's start set.
+            // Why:  a reading equal to the one after would say the body changed nothing.
+            let before: libc::sigaction = the_disposition_of(libc::SIGPIPE);
+            assert_eq!(
+                the_word_for(&before),
+                "SIG_IGN",
+                "a test binary starts with SIGPIPE ignored, so the control begins where a run does"
+            );
+            let missing: &Path = Path::new("/nonexistent-directory/git");
+            assert_eq!(
+                replace_process_with_real_git(missing, &[], &[]).kind(),
+                std::io::ErrorKind::NotFound
+            );
+            // What: the action in place after the replacement was refused with `ENOENT`.
+            // Why:  this is the change the control is about: the kernel would have taken this process by `SIGPIPE`
+            //       at its next write to a pipe nobody reads.
+            let after: libc::sigaction = the_disposition_of(libc::SIGPIPE);
+            assert_eq!(
+                the_word_for(&after),
+                "SIG_DFL",
+                "the replacement left SIGPIPE at its default in the process that called it"
+            );
+            // What: puts back the ignore a Rust program starts with, so this child ends unarmed.
+            // Why:  a child that returned armed could still be ended by a write the control never meant to test.
+            put_the_ignore_back(libc::SIGPIPE);
+            assert_eq!(
+                the_word_for(&the_disposition_of(libc::SIGPIPE)),
+                "SIG_IGN",
+                "the child hands the ignore back"
+            );
+        },
     );
 }
 
