@@ -382,8 +382,9 @@ fn recycled_number_reader_fixture() {
     let mut made: u64 = 0;
     for _ask in 0..READER_ASSIGNMENTS {
         unsafe {
-            rustix::thread::unshare_unsafe(rustix::thread::UnshareFlags::NEWTIME)
-                .expect("a new time namespace (this host lets the writer's user namespace make one)");
+            rustix::thread::unshare_unsafe(rustix::thread::UnshareFlags::NEWTIME).expect(
+                "a new time namespace (this host lets the writer's user namespace make one)",
+            );
         }
         made = namespace_number(Path::new("/proc/thread-self/ns/time_for_children"));
         if made == recorded {
@@ -395,7 +396,8 @@ fn recycled_number_reader_fixture() {
         );
     }
     assert_eq!(
-        made, recorded,
+        made,
+        recorded,
         "{} time namespace numbers below the writer's {recorded} were handed to this reader and none was the writer's, so the recycled-number schedule was not made (a precondition this host did not give, not a finding about the code under test)",
         passed_over.len()
     );
@@ -885,7 +887,10 @@ fn plant_foreign_namespace(
         .expect("the other session's namespace number")
         .trim()
         .to_string();
-    return ForeignNamespace { holder, number };
+    return ForeignNamespace {
+        holder,
+        number,
+    };
 }
 
 /// One attempt,
@@ -959,9 +964,12 @@ fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
         .expect(
             "the armed reader (it needs nsenter with permission for the user namespace the launcher is in)",
         );
-    crate::cgroup_test_support::wait_until("the armed reader to hold the writer's time namespace", &|| {
-        return root.path().join(NAMESPACE_HELD).exists();
-    });
+    crate::cgroup_test_support::wait_until(
+        "the armed reader to hold the writer's time namespace",
+        &|| {
+            return root.path().join(NAMESPACE_HELD).exists();
+        },
+    );
 
     // The writer's time namespace loses its last process: its processes are killed (the launcher is in another namespace and lives).
     for member in processes_in_time_namespace(time_namespace) {
@@ -1005,7 +1013,8 @@ fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
     .expect("records");
     // The journal and its record stand before the reader takes the number, because the recovery they describe runs once it is released.
     {
-        let mut release: std::process::ChildStdin = reader.stdin.take().expect("the reader's input");
+        let mut release: std::process::ChildStdin =
+            reader.stdin.take().expect("the reader's input");
         release
             .write_all(b"released\n")
             .expect("release the reader");
@@ -1016,8 +1025,8 @@ fn recycled_attempt(route: &crate::control_group::Route) -> Attempt {
         status.success(),
         "the armed reader did not make the recovery's time namespace: {status:?}"
     );
-    let result: String = fs::read_to_string(root.path().join("fixture-result"))
-        .expect("the fixture's result");
+    let result: String =
+        fs::read_to_string(root.path().join("fixture-result")).expect("the fixture's result");
     return Attempt {
         still_alive,
         time_namespace,
