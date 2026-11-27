@@ -108,6 +108,13 @@ mod no_control_takes_the_production_runner_tests;
 #[path = "heartbeat_controls_own_their_manager_switch_tests.rs"]
 mod heartbeat_controls_own_their_manager_switch_tests;
 
+/// The ban on a control writing the service client's manager stand-in or its stop flag in the process the run holds:
+/// such a control starts a child of its own first,
+/// whose stand-in and flag hold nothing but what that control wrote (issue 6522).
+#[cfg(test)]
+#[path = "service_client_controls_own_their_process_wide_state_tests.rs"]
+mod service_client_controls_own_their_process_wide_state_tests;
+
 /// The ban on a control asking a question about the whole kill registry in the process the run holds:
 /// such a control starts a child of its own first,
 /// whose registry no other control planted in.
