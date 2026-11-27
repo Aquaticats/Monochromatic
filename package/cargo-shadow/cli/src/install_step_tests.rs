@@ -1785,8 +1785,10 @@ fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_ke
         std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&calls);
     let script: String = format!(
-        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & while [ ! -e {ready} ]; do sleep 0.02; done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
-        ready = ready.display()
+        "printf '# satisfied\\nversion = 4\\n' > Cargo.lock; setsid sh -c 'exec </dev/null >/dev/null 2>&1; : > {ready}; exec sleep 600' & n=0; while [ ! -e {ready} ] && [ $n -lt {looks} ]; do sleep 0.02; n=$((n+1)); done; cat /proc/self/cgroup > {ready}.group; : > {ready}.seen; exit 0",
+        ready = ready.display(),
+        // The writer makes the gate; where it fails to, the loop gives up instead of polling for ever (issue 6576).
+        looks = crate::cgroup_test_support::gate_looks(std::time::Duration::from_millis(20))
     );
     let runner = move |cwd: &Path, arguments: &[String]| -> Result<CargoOutcome, String> {
         seen.lock().expect("the call log").push(arguments.join(" "));
