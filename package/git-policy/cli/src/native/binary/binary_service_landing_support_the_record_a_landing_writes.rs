@@ -74,7 +74,8 @@ pub(super) fn finished(fixture: &Fixture) -> usize {
 }
 
 /// What:
-///  Waits, within `FINISHED_RECORD_WAIT`,
+///  Waits,
+///  within `FINISHED_RECORD_WAIT`,
 ///  until the journal holds more finished records than it held before the command,
 ///  and fails at that bound with the records it does hold and what the wrapper printed.
 /// Why:
@@ -118,9 +119,11 @@ was:\n{}",
 ///  and the finished record of one that has.
 /// Why:
 ///  A failure that names them tells those two apart
-///  (`OPEN_EXTENSION` and `DONE_EXTENSION`),
-///  and every other entry of the journal (a claim, a temporary file, a note for the next service)
-///  says nothing about a landing of this control.
+///  (`OPEN_EXTENSION` and `DONE_EXTENSION`).
+///  Every other entry of the journal says nothing about a landing of this control:
+///  a claim,
+///  a temporary file,
+///  and a note for the next service.
 fn the_batch_records(fixture: &Fixture) -> String {
     let journal: PathBuf = fixture.root.join("journal");
     let Ok(entries) = std::fs::read_dir(&journal) else {

@@ -203,8 +203,9 @@ pub(super) fn run_served(
 /// Why:
 ///  The record is written after the index the landing installs,
 ///  and a wrapper whose answer was lost answers the landed commit from the branch already moved,
-///  so the command can end before the record exists (issue 6572);
-///  the repository is read after that, which is the state the landing leaves.
+///  so the command can end before the record exists (issue 6572).
+///  The repository is read after that,
+///  which is the state the landing leaves.
 pub(super) fn finish_a_landing(
     fixture: &Fixture,
     repo: &Path,

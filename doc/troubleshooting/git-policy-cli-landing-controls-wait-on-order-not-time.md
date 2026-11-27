@@ -345,7 +345,8 @@ a finished batch names it,
 and an open batch's commit that the branch already holds is a landed commit,
 which the command reports with exit 0 through the function a received answer uses
 (`SPEC.md`,
-"Before that read, and for every failure that means an answer was lost after the request was sent").
+"Before that read,
+and for every failure that means an answer was lost after the request was sent").
 On a loaded host that fallback is reachable without any defect:
 the beats come from a task of the service's runtime,
 and one that loses five seconds makes the client call the service stopped
@@ -366,14 +367,20 @@ and each plant was reverted before the next arm.
 The control alone passed in 49.9 s,
 and the service's answered lines for its two landings carried `index_update_ms=25796` and `index_update_ms=17505`.
 
-- A 30 s delay before the finished record: `1 passed`, 116.4 s,
+- A 30 s delay before the finished record:
+  `1 passed`,
+  116.4 s,
   and the command printed no silence notice,
   so a command that receives its answer cannot answer before that record.
-- A 30 s delay before the answer: `1 passed`, 120.8 s,
+- A 30 s delay before the answer:
+  `1 passed`,
+  120.8 s,
   with `answer_ms=30008` and `answer_ms=30001` in the two answered lines,
   so the record is written before the answer and counted.
-- Every word a waiting client hears held six seconds, past its silence bound:
-  `1 passed`, 71.3 s,
+- Every word a waiting client hears held six seconds,
+  past its silence bound:
+  `1 passed`,
+  71.3 s,
   and the five copies it sent again were answered `already` in one burst when the landing ended,
   so a lost answer alone does not fail this control while the record is already there.
 - That hold and the 30 s delay before the record together:
