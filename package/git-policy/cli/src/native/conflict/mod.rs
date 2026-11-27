@@ -47,6 +47,15 @@
 //!   their defaults and the reading of a size such as `256m`.
 //! - `discarded_store_records.rs`:
 //!   the plain values of the descriptor-based reader of the folder of saved copies.
+//! - `discarded_store_calls_by_descriptor.rs`:
+//!   the descriptor-relative system calls that reader makes:
+//!   open a name without following a link,
+//!   ask what it is,
+//!   list a directory,
+//!   remove a name.
+//! - `discarded_store_directory_walk.rs`:
+//!   one directory of the folder held open,
+//!   counted and emptied through its own descriptor.
 //! - `discarded_store.rs`:
 //!   the folder of saved copies opened once without following a link,
 //!   with every read and removal addressed through descriptors.
@@ -179,6 +188,15 @@ pub mod discarded_store;
 
 /// The plain values of the descriptor-based reader of the folder of saved copies.
 pub mod discarded_store_records;
+
+/// The descriptor-relative system calls the folder of saved copies is read and removed through.
+#[cfg(unix)]
+pub mod discarded_store_calls_by_descriptor;
+
+/// One directory of the folder of saved copies held open,
+/// counted and emptied through its own descriptor.
+#[cfg(unix)]
+pub mod discarded_store_directory_walk;
 
 /// The marker lines a committed file still holds,
 /// and the line about an operation a commit left open.

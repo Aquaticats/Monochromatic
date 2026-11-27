@@ -49,17 +49,20 @@
 use crate::conflict_sides::SAVED_DIRECTORY;
 /// The audit record's own path.
 use crate::discard_audit::AUDIT_FILE;
-/// The listing of the folder, and why the folder cannot be used.
+/// The listing of the folder,
+/// and why the folder cannot be used.
 use crate::discarded_prune_listing::{
     list_in,
     unusable,
 };
-/// One chosen directory removed, and the pass that removes it.
+/// One chosen directory removed,
+/// and the pass that removes it.
 use crate::discarded_prune_removal::{
     Removal,
     remove_entry,
 };
-/// The folder of saved copies, opened once without following a link.
+/// The folder of saved copies,
+/// opened once without following a link.
 use crate::discarded_store::Store;
 /// Whether the audit record can take the line a removal is about to write.
 use crate::log_lines_appended_without_a_lock::check_appendable;
@@ -80,9 +83,8 @@ pub use crate::discarded_prune_limits::{
     Limits,
     parse_size,
 };
-/// The listing of the folder the current name holds.
-pub use crate::discarded_prune_listing::list_stamped;
-/// The folder's listing, which `discarded_report.rs` reads for the doctor's section.
+/// The folder's listing,
+/// which `discarded_report.rs` reads for the doctor's section.
 pub(crate) use crate::discarded_prune_listing::list_stamped_below;
 pub use crate::discarded_prune_plan::{
     Reason,
@@ -93,7 +95,8 @@ pub use crate::discarded_prune_problems::{
     Problem,
     ProblemKind,
 };
-/// What a pass did, which its callers and controls read.
+/// What a pass did,
+/// which its callers and controls read.
 pub use crate::discarded_prune_removal::PruneOutcome;
 pub use crate::discarded_prune_stamps::{
     STAMP_RESOLUTION_MILLISECONDS,
@@ -102,6 +105,25 @@ pub use crate::discarded_prune_stamps::{
     parse_stamp,
 };
 pub use crate::discarded_store::Identity;
+
+/// What:
+///  Every directory of the folder that is named like the wrapper's own,
+/// oldest first,
+/// with its size and what it was when
+///  listed,
+/// and what could not be read.
+/// Why:
+///  The pruning pass works on the folder the current name holds,
+/// because it is the pass that may write,
+/// so the folder's own name is read here beside the pass that uses it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { entries, problems } = await listStamped(commonDir);
+/// ```
+pub fn list_stamped(common_dir: &Path) -> Listing {
+    return list_stamped_below(common_dir, SAVED_DIRECTORY);
+}
 /// What:
 ///  Something told for each chosen directory after the listing and before its removal.
 ///  A `trait` is a named set of methods that different types can each supply,

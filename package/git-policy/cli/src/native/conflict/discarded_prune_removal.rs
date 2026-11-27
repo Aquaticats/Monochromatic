@@ -29,7 +29,8 @@ use crate::discarded_prune_audit_line::{
 };
 /// The limits the audit line states.
 use crate::discarded_prune_limits::Limits;
-/// Why a directory was chosen, and what a pass says went wrong.
+/// Why a directory was chosen,
+/// and what a pass says went wrong.
 use crate::discarded_prune_plan::Reason;
 use crate::discarded_prune_problems::{
     Problem,
@@ -37,7 +38,8 @@ use crate::discarded_prune_problems::{
 };
 /// A directory's name as a time.
 use crate::discarded_prune_stamps::Stamped;
-/// The opened folder, a directory's contents and what a walk left.
+/// The opened folder,
+/// a directory's contents and what a walk left.
 use crate::discarded_store::{
     Interrupted,
     Store,

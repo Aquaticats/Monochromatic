@@ -19,20 +19,20 @@
 //! const { entries, problems, listedFiles } = listStamped(commonDir);
 //! ```
 
-/// The folder of saved copies inside a Git directory.
-use crate::conflict_sides::SAVED_DIRECTORY;
 /// The listing's shape and what a pass can say went wrong.
 use crate::discarded_prune_problems::{
     Listing,
     Problem,
     ProblemKind,
 };
-/// A directory's name as a time, and the reading of that name.
+/// A directory's name as a time,
+/// and the reading of that name.
 use crate::discarded_prune_stamps::{
     Stamped,
     parse_stamp,
 };
-/// The opened folder, the plain values of one directory and what a walk left.
+/// The opened folder,
+/// the plain values of one directory and what a walk left.
 use crate::discarded_store::{
     Identity,
     Interrupted,
@@ -87,16 +87,15 @@ pub(crate) fn list_stamped_below(
 ///  listed,
 /// and what could not be read.
 /// Why:
-///  The pruning pass works on the folder the current name holds,
+///  The listing has no opinion about which folder is read,
+/// so the caller names it:
+/// the pass in `discarded_prune.rs` names the folder the current name holds,
 /// because it is the pass that may write.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { entries, problems } = await listStamped(commonDir);
+/// const { entries, problems } = await listStampedBelow(commonDir, 'discarded');
 /// ```
-pub fn list_stamped(common_dir: &Path) -> Listing {
-    return list_stamped_below(common_dir, SAVED_DIRECTORY);
-}
 
 /// The problem that says why the folder cannot be used.
 pub(crate) fn unusable(
