@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T13:13:22-05:00
+## The state at 2026-11-27T13:23:53-05:00
 
-`main` was `4e858efdee`.
+`main` was `9480230fea`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 240 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 242 more by this time.
 
 ### Rounds running
 
@@ -215,24 +215,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the two sweeps can,
   and the ranking stays as it was,
   with its first pair closer;
-- for `mpm-shadow`'s `0.2.7-alpha.14` pass,
-  `mpm-shadow-alpha-14-release-pass-the-publish-and-the-hidden-name-rounds-joined-on-one-tree`,
-  started 2026-11-27T12:46:15-05:00;
-  `0.2.7-alpha.15` follows its merge;
-  issue 6616's fix,
-  which that release also waited for,
-  is merged (`4e858efdee`).
-  The round on who owns a hidden name has ended and is not merged:
-  its branch,
-  `fix/mpm-shadow-cli-mpm-shadow-alpha-14-release-pass-a-hidden-name-is-judged-only-by-a-reader-that-can-see-its-owner`,
-  meets `main` in four files,
-  because the publish round changed the same module and merged first.
-  They also meet where no text conflicts:
-  the publish round's controls build hidden names and markers in the alpha.14 shape,
-  and under the hidden-name round's rule a name of that shape is never judged and such a marker is never published.
-  The joining round merges that branch into one made from `main` and must lose no control of either.
-  What the hidden-name round built:
-  a hidden name carries the process id,
+- nothing for `mpm-shadow`:
+  every round of its `0.2.7-alpha.14` pass is merged,
+  and `0.2.7-alpha.15` is being released
+  (started 2026-11-27T13:22:46-05:00,
+  release commit `9480230fea`),
+  to be locked,
+  installed and read by a Claude Sonnet pass once published.
+  The two rounds that changed one module are joined (`d3f0628c0b`),
+  with both rounds' rules kept,
+  and the package's suite passed 866 of 866 on the joined tree against 857 of 857 on `main`.
+  A hidden name carries the process id,
   its start time,
   its process namespace and the boot's identifier
   (`/proc/sys/kernel/random/boot_id`,
@@ -241,7 +234,15 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   one from another namespace or in an earlier build's shape is never judged;
   the completion marker carries the archive's SHA-256 and a copy is published only when the lock's row matches;
   and `prune --toolchain` removes hidden directories whose owner provably ended and names what it cannot judge.
-  The other three rounds of the first list are merged.
+  Where the two rounds' words could not both hold,
+  the joining round chose,
+  and both choices wait in `doc/handover/questions-for-the-owner.md` with veto open:
+  a finished copy of an older version stays hidden only when the lock vouches for it,
+  and one no lock vouches for is removed;
+  the copy a kill moved aside waits while a name of this boot whose installer cannot be judged may hold the version,
+  and does not wait for a name in an earlier build's shape,
+  which nothing ever removes.
+  A run that holds no row for an archive removes no finished copy it could not judge.
   A failed or raced publish no longer costs the finished copy (`1add32a8fb`):
   a claimed copy that could not be published stays at the claim for the next install,
   which publishes it with no download;

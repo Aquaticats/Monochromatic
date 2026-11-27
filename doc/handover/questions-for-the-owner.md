@@ -1205,6 +1205,55 @@ A > B,
 because a narrower reach lets the compiler find dead code that a `pub` hides,
 and the control already keeps the surface from growing either way.
 
+## Picks the round that joined two `mpm-shadow` rounds made, veto open (recorded 2026-11-27T13:23:53-05:00)
+
+Two rounds of the `0.2.7-alpha.14` pass changed one module,
+and their words could not both hold in two places.
+The joining round chose (merge `d3f0628c0b`,
+released in `0.2.7-alpha.15`),
+and each choice is one line or one arm to turn round.
+
+### Which hidden names hold back the copy a kill moved aside
+
+The copy a kill moved aside is put back only when nothing may still hold that version.
+One round said a name whose installer cannot be judged does not hold it back;
+the other said a name from another process namespace may belong to a live installer this reader cannot see.
+The choice:
+a hidden name of this boot whose installer cannot be judged
+(another process namespace,
+a record `/proc` hides,
+a start time of zero)
+holds the copy back,
+and a name in an earlier build's shape does not.
+Holding costs no copy:
+a later install puts the copy back once nothing may hold the version.
+The cost taken,
+which the README states:
+a live install by an earlier build that holds an earlier-shape name loses the finished copy it holds,
+because its own publish does not retry over a name that appeared.
+The other way,
+one line in `may_still_be_running`:
+an earlier-shape name holds the put-back for ever,
+since nothing removes such a name,
+and the version's name stays empty after every run until a person deletes the hidden name by hand.
+
+### What becomes of a finished copy of an older version
+
+A recovery never publishes an older version beside a newer installed one.
+The choice:
+such a finished copy stays under its hidden name only when its marker records the lock's row,
+so a later install of that version publishes it with no download;
+one whose marker the lock does not vouch for is removed,
+since no install can ever publish it;
+and a run that holds no row for the archive removes nothing.
+The other way,
+one arm of `a_finished_copy_nothing_here_publishes`:
+keep every such copy.
+
+The round also split two files over the line budget and named the new ones
+`the_completion_marker.rs` and `what_a_recovery_answers.rs`;
+the names are open to renaming.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.
