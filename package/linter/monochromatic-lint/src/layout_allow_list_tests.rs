@@ -321,7 +321,10 @@ fn a_file_use_line_whose_folder_name_holds_a_space_is_refused_by_that_cause() {
     assert!(error.contains("the folder `src/a b`"), "{error}");
     assert!(error.contains("holds a space"), "{error}");
     assert!(error.contains("Rename the folder"), "{error}");
-    assert!(!error.contains("A use between two files is written"), "{error}");
+    assert!(
+        !error.contains("A use between two files is written"),
+        "{error}"
+    );
 }
 
 /// A listed path is read back against the package folder,
@@ -368,8 +371,8 @@ fn a_repeated_entry_is_an_error() {
 fn a_list_file_that_is_not_there_is_an_error() {
     let fixture: Fixture = Fixture::new();
     let missing = fixture.path.join("absent.txt");
-    let error: String = read_allow_list(&missing, fixture.path.as_path())
-        .expect_err("an absent list is an error");
+    let error: String =
+        read_allow_list(&missing, fixture.path.as_path()).expect_err("an absent list is an error");
     assert!(error.contains("cannot be read"), "{error}");
     assert!(error.contains("absent.txt"), "{error}");
 }
@@ -383,8 +386,8 @@ fn a_list_file_that_is_there_is_read_whole() {
         "allow-list.txt",
         "# one entry\nuses src/a -> src/b\n",
     );
-    let list: AllowList = read_allow_list(&written, fixture.path.as_path())
-        .expect("the fixture list reads");
+    let list: AllowList =
+        read_allow_list(&written, fixture.path.as_path()).expect("the fixture list reads");
     assert_eq!(list.entries().len(), 1);
     assert_eq!(list.source(), written.as_path());
 }
@@ -466,8 +469,8 @@ fn a_list_as_long_as_the_dense_loop_needs_is_read() {
     }
     let fixture: Fixture = Fixture::new();
     let written = write(&fixture.path, "allow-list.txt", text.as_str());
-    let list: AllowList = read_allow_list(&written, fixture.path.as_path())
-        .expect("the dense loop's list reads");
+    let list: AllowList =
+        read_allow_list(&written, fixture.path.as_path()).expect("the dense loop's list reads");
     assert_eq!(list.entries().len(), lines);
 }
 

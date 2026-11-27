@@ -23,6 +23,12 @@
 //! function parseEntries(text: string): AllowEntry[];
 //! ```
 
+/// Import the spelling every listed path is read into,
+///  and the reading that removes the `.` segments and the folders a `..` reads back over.
+use crate::{
+    layout_finding::key_path,
+    markdown_lfs_target::lexical_normal,
+};
 /// Import the set that keeps one line from repeating another,
 ///  the one spelling of a listed path,
 ///  and native paths.
@@ -32,12 +38,6 @@ use std::{
         Path,
         PathBuf,
     },
-};
-/// Import the spelling every listed path is read into,
-///  and the reading that removes the `.` segments and the folders a `..` reads back over.
-use crate::{
-    layout_finding::key_path,
-    markdown_lfs_target::lexical_normal,
 };
 
 /// The word that starts an entry tolerating one use between two folders.
@@ -353,9 +353,7 @@ fn spelled_path(
     base: &Path,
     listed: &Path,
 ) -> PathBuf {
-    return PathBuf::from(
-        key_path(&lexical_normal(&base.join(listed)), base).as_str(),
-    );
+    return PathBuf::from(key_path(&lexical_normal(&base.join(listed)), base).as_str());
 }
 
 /// What:
