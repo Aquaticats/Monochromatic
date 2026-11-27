@@ -155,7 +155,12 @@ moves to the background like any other command.
 
 Explicit background calls preserve their flag and their present or absent timeout,
 because that timeout is how long the command may run in the background.
-With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` a caller timeout stays as given,
+When `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` holds a value Claude Code reads as true
+(`1`,
+`true`,
+`yes` or `on`,
+in any case),
+a caller timeout stays as given and no prefix is added,
 because a timeout there stops the command instead of moving it;
 only an absent timeout becomes `1000`.
 
@@ -169,10 +174,19 @@ A filter-wrapped command starts with `set -o pipefail`,
 so it always moves.
 For a policy call the filter leaves unwrapped,
 the hook adds `true && ` in front when the first command word,
-after blank and whole comment lines,
-is `sleep`:
-`sleep 300 && check > out` runs as `true && sleep 300 && check > out`
+after blanks,
+backslash-newlines and whole comment lines,
+is `sleep`,
+or when the first statement starts with a redirection such as `> log`,
+which Claude Code skips when it looks for the first word:
+`sleep 20 && check > out` runs as `true && sleep 20 && check > out`
 and moves instead of being stopped.
+Output,
+exit status and working directory are unchanged;
+only `$!` after a prefixed `sleep N &` names the background subshell instead of the `sleep`.
+Claude Code itself refuses a leading `sleep` of 25 seconds or more before the hook runs
+(probed live on 2026-11-27;
+see [`doc/troubleshooting/claude-code-foreground-sleep-block.md`](../../../doc/troubleshooting/claude-code-foreground-sleep-block.md)).
 The rule follows Claude Code 2.1.332's own check,
 traced in
 [`doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md`](../../../doc/troubleshooting/claude-code-bash-timeout-moves-or-stops-a-command.md);

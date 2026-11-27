@@ -679,6 +679,14 @@ each for as long as its own work takes.
 some other process,
 that the file is the program itself or the interpreter named on the program's first line,
 and that mpm-shadow cannot tell which process holds it or why.
+A later change (2026-11-27,
+issue 6616) made that sentence name the interpreter the program's own file names instead of the program's
+first line,
+which a compiled program does not have,
+and gave the function the program as a parameter,
+so the launcher mode says which file it can name too
+(`doc/troubleshooting/mpm-shadow-a-start-that-does-not-happen-says-what-is-known.md`,
+"What the code does now").
 It names no usual cause,
 so it does not say that an upgrade or an install is one,
 and it does not claim a replacement is in progress:

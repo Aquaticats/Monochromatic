@@ -470,6 +470,7 @@ pub(crate) use source_scan_banned_lines_tests::{
     MayHold,
     anchors_the_scope_no_longer_holds,
     entries_that_match_nothing,
+    lines_calling_one_of,
     lines_holding_one_of,
     lines_no_entry_excuses,
     release_sources_holding,

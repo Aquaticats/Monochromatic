@@ -23,12 +23,16 @@
 //! so the split that moved `write_stderr` out of `commit/commit_command.rs` into
 //! `commit/commit_command_words.rs` covered the receiver the day it landed
 //! (issue 6599).
+//! The lane is the vocabulary a file names,
+//! so a file that writes the shared handle without naming any of its words is one this guard does not read;
+//! `THE_NOTE_FILES` fails a file that leaves the lane,
+//! and a reader asks whether every file of the commit path that writes a note still names one of the three words.
 //! Two files of the lane talk to the shared handle for reasons that are not a note,
-//! and `MAY_HOLD` records each of those.
+//! and `MAY_HOLD` records each with the one use it holds.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(releaseSourcesHolding(NOTE_LANE).flatMap(([file, text]) => linesNoEntryExcuses(linesHoldingOneOf(file, text, THE_SHARED_HANDLE).filter((line) => !line.includes(THE_ONE_ALLOWED)), MAY_HOLD))).toEqual([]);
+//! expect(releaseSourcesHolding(NOTE_LANE).flatMap(([file, text]) => linesNoEntryExcuses(linesHoldingOneOf([[file, text]], THE_SHARED_HANDLE).filter((line) => !line.includes(THE_ONE_ALLOWED)), MAY_HOLD))).toEqual([]);
 //! ```
 
 use super::{
@@ -114,27 +118,31 @@ const THE_NOTE_FILES: &[&str] = &[
 ];
 
 /// What:
-///  `MAY_HOLD` is the one note file that keeps the shared handle,
-///  and the reason it does.
+///  `MAY_HOLD` is the note file that keeps the shared handle,
+///  each entry naming the one use of its text that file holds and the reason it may.
 /// Why:
 ///  The measured stream is built over any stream,
 ///  and the shared one is the other arm of that measurement rather than a note of the commit path;
-///  an entry whose line went fails here instead of excusing the file for ever.
+///  an entry whose line went fails here instead of excusing the file for ever,
+///  and a second use of either text in that file fails,
+///  because the entry names the count it holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const MAY_HOLD = [{ file: 'foundation/time_spent_outside_the_phases.rs', text: 'std::io::stderr(', why: '...' }];
+/// const MAY_HOLD = [{ file: 'foundation/time_spent_outside_the_phases.rs', text: 'std::io::stderr(', uses: 1, why: '...' }];
 /// ```
 const MAY_HOLD: &[MayHold] = &[
     MayHold {
         file: "foundation/time_spent_outside_the_phases.rs",
         text: "std::io::stderr(",
+        uses: 1,
         why: "the measured stream's other arm is built over this process's own standard error, which is what the \
               timing record counts; it says no note of the commit path",
     },
     MayHold {
         file: "foundation/time_spent_outside_the_phases.rs",
         text: "std::io::Stderr",
+        uses: 1,
         why: "the same arm, named as the type the measured stream is built over",
     },
 ];
@@ -244,7 +252,9 @@ fn the_lane_still_reads_every_file_that_says_a_note() {
     );
 }
 
-/// The scan fails on a note file that asks for the shared standard error.
+/// The scan fails on a note file that asks for the shared standard error,
+/// and it fails on a second use in the file an entry excuses,
+/// because that entry names the one use the file holds.
 #[test]
 fn the_check_fails_on_a_note_file_that_takes_the_shared_standard_error() {
     let planted: Vec<(String, String)> = vec![(
@@ -262,6 +272,21 @@ fn the_check_fails_on_a_note_file_that_takes_the_shared_standard_error() {
             .iter()
             .any(|sentence| return sentence.contains("std::io::stderr(")),
         "a note file that writes standard error where the command stands is a finding: {found:?}"
+    );
+    let excused_file: Vec<(String, String)> = vec![(
+        String::from("foundation/time_spent_outside_the_phases.rs"),
+        String::from(
+            "use crate::standard_error_off_the_calling_thread::MeasuredStandardError;\nfn say() { let _ = writeln!(std::io::stderr(), \"one\"); }\nfn also() { let _ = writeln!(std::io::stderr(), \"two\"); }\n",
+        ),
+    )];
+    let excused: Vec<String> = lines_no_entry_excuses(
+        writes_where_the_command_stands(excused_file.as_slice()).as_slice(),
+        MAY_HOLD,
+    );
+    assert_eq!(
+        excused.len(),
+        2,
+        "a second write in the file the entry excuses fails, because the entry names one use: {excused:?}"
     );
 }
 

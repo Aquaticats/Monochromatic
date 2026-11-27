@@ -1128,6 +1128,132 @@ and its round runs.
   and brings back the question per scoped run that alpha.13 removed.
   The choice stays the owner's and stays open.
 
+## Open: two choices the wrapper's alpha.49 reads left (recorded 2026-11-27T13:13:22-05:00)
+
+Neither holds a round or a release.
+Both come from Claude Sonnet reads of `0.6.1-alpha.49`,
+same-vendor second passes and not independent reviews.
+Each is to be filled in from its round's report before it is asked:
+the rounds measure what the options cost.
+
+### What a batch's width is when the host's free memory cannot be read
+
+The service sizes each batch of its work from the CPUs and the free memory it reads when the batch starts
+(`worker_budget` in `package/git-policy/cli/src/native/foundation/parallel_budget.rs`).
+When the CPU count cannot be read the width is one.
+When the memory reading fails there is no memory bound at all,
+so the width is the CPUs less their margin;
+the read of alpha.49 points out that one failure narrows and the other widens.
+Alpha.48 did the same per round of work.
+The round `wrapper-alpha-49-release-pass-four-small-points-of-the-behaviour-read` writes a control that holds what the code does now,
+and reports the width each caller gets with no reading.
+
+- A,
+  keep the last good reading:
+  a batch that cannot read memory uses the reading of the batch before it.
+  It never widens past what memory last allowed and never drops to one for a passing failure.
+  It costs a value kept between batches,
+  and a first batch with no reading still needs one of the other two answers.
+- B,
+  no memory bound,
+  as now:
+  work runs as wide as the CPUs allow,
+  which is what ran before the memory bound existed.
+  On a host short of memory it can start more than memory holds.
+- C,
+  width one:
+  the safe answer,
+  and the slowest:
+  a passing failure makes a whole batch run one item at a time.
+
+Ranking:
+A > B > C.
+A beats B because it keeps the bound the reading exists to give,
+at the price of one remembered number.
+B beats C because C makes a whole batch run one item at a time behind a failure that may say nothing about memory:
+nothing measured says a failed reading goes with a host short of memory,
+and the coordinator has not looked for a failed reading in any log.
+A and C are limits the shipped wrapper would carry,
+and `AGENTS.md` asks such a limit to cite a workload measurement or the owner's decision beside its value.
+
+### Whether the wrapper crate's published functions should be narrowed
+
+The control that stops a split from widening an item's reach
+(`source_guard/nothing_becomes_nameable_from_outside_tests.rs`)
+did not see a function written `pub async fn`:
+154 of them are nameable from outside the crate with no line in its list,
+by the read's count.
+The round `wrapper-alpha-49-release-pass-the-surface-control-sees-every-shape-of-published-name`
+makes the control see them and gives each a line,
+and narrows only an item a split widened.
+Whether the rest should be public was never decided.
+
+- A,
+  a round narrows each one that still builds narrower:
+  the compiler then warns about any that nothing uses,
+  which it never does for a `pub` item,
+  and the list shrinks to what is meant to be published.
+  It touches many files at once,
+  so it meets every other round at merge.
+- B,
+  leave them listed:
+  the control holds the line from here,
+  and nothing moves.
+
+Ranking:
+A > B,
+because a narrower reach lets the compiler find dead code that a `pub` hides,
+and the control already keeps the surface from growing either way.
+
+## Picks the round that joined two `mpm-shadow` rounds made, veto open (recorded 2026-11-27T13:23:53-05:00)
+
+Two rounds of the `0.2.7-alpha.14` pass changed one module,
+and their words could not both hold in two places.
+The joining round chose (merge `d3f0628c0b`,
+released in `0.2.7-alpha.15`),
+and each choice is one line or one arm to turn round.
+
+### Which hidden names hold back the copy a kill moved aside
+
+The copy a kill moved aside is put back only when nothing may still hold that version.
+One round said a name whose installer cannot be judged does not hold it back;
+the other said a name from another process namespace may belong to a live installer this reader cannot see.
+The choice:
+a hidden name of this boot whose installer cannot be judged
+(another process namespace,
+a record `/proc` hides,
+a start time of zero)
+holds the copy back,
+and a name in an earlier build's shape does not.
+Holding costs no copy:
+a later install puts the copy back once nothing may hold the version.
+The cost taken,
+which the README states:
+a live install by an earlier build that holds an earlier-shape name loses the finished copy it holds,
+because its own publish does not retry over a name that appeared.
+The other way,
+one line in `may_still_be_running`:
+an earlier-shape name holds the put-back for ever,
+since nothing removes such a name,
+and the version's name stays empty after every run until a person deletes the hidden name by hand.
+
+### What becomes of a finished copy of an older version
+
+A recovery never publishes an older version beside a newer installed one.
+The choice:
+such a finished copy stays under its hidden name only when its marker records the lock's row,
+so a later install of that version publishes it with no download;
+one whose marker the lock does not vouch for is removed,
+since no install can ever publish it;
+and a run that holds no row for the archive removes nothing.
+The other way,
+one arm of `a_finished_copy_nothing_here_publishes`:
+keep every such copy.
+
+The round also split two files over the line budget and named the new ones
+`the_completion_marker.rs` and `what_a_recovery_answers.rs`;
+the names are open to renaming.
+
 ## Picks rounds made on 2026-11-27, veto open (recorded 2026-11-27T06:40:00-05:00)
 
 Each is merged.

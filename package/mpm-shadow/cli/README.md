@@ -1193,7 +1193,7 @@ whichever route installed them.
   and the tool's first declared bin is found in it as an executable file
   (a tool that declares no bin finishes on the marker alone).
 - An archive is unpacked into a hidden staging directory beside the version directory
-  (`.<version>.staging.<process id>.<process start time>`),
+  (`.<version>.staging.<process id>.<process start time>.<process namespace>.<boot id>`),
   the first bin of a release archive is looked for in it,
   the marker is written last,
   and only then is the version's name given the finished copy.
@@ -1220,7 +1220,7 @@ whichever route installed them.
   `EPERM` or `EACCES` for a rename of the type it does not allow,
   and `ENOSYS` on a kernel without the call),
   the copy that is there is moved aside first
-  (`.<version>.replaced.<process id>.<process start time>`)
+  (`.<version>.replaced.<process id>.<process start time>.<process namespace>.<boot id>`)
   and the finished one renamed in after it,
   which leaves one instant in which the version's name holds nothing.
   Two of those answers,
@@ -1287,9 +1287,16 @@ whichever route installed them.
 A process killed at any instruction is normal on this host,
 so each step of an archive install either leaves nothing that a start reads
 or leaves what a later install finishes.
-The three hidden names carry the installer that made them,
-its process id and the moment that process started,
-which no reuse of a process id repeats within one boot.
+The three hidden names carry the installer that made them:
+its process id,
+the moment that process started,
+the process namespace that gave the id out,
+and the boot's identifier.
+The moment is counted from the start of the boot,
+so the same number and the same moment can come back after a reboot;
+the boot's identifier separates one boot from the next.
+A process id means one thing only inside its own namespace;
+the namespace's identifier separates one namespace from the next.
 
 - During the download:
   the half file `<file>.download` in `<toolchain root>/downloads/<tool>/<version>/`,
@@ -1326,6 +1333,17 @@ because the marker is written after the archive's SHA-256 matched the lock and a
 while the copy at the version's name was unfinished,
 which is why it was being replaced at all.
 
+The completion marker records the tool,
+the version,
+and the archive's SHA-256 that the download matched before the copy was unpacked.
+A later install publishes a hidden copy only when all three match the lock's row for that version,
+so the path that skips the download keeps the same check the download makes.
+A marker an earlier build wrote records the tool and the version but no archive digest;
+it cannot vouch for the bytes,
+so its copy is never published.
+When its installer has ended and it belongs to the version this run installs,
+that copy is removed as an unverified leftover.
+
 A recovery whose own publish fails keeps the copy it claimed:
 the copy stays under its `.recovered` name with that run's pair,
 which the next install of that version finds dead,
@@ -1339,15 +1357,26 @@ A publish that finds a copy at the version's name in the instant between its own
 in the same step it uses for a copy that was there all along,
 so a second install's put-back costs no finished copy.
 
-The copy a killed install moved aside is put back only when no installer the system reports as running holds a claim or
+The copy a killed install moved aside is put back only when no installer that may still run holds a claim or
 a staging name for that version:
 such an installer is between its claim and its publish,
 and a copy put at the version's name in that instant would make its rename fail.
+An installer that may still run is one the system reports as running,
+and one whose name belongs to this boot but that this reader cannot see:
+a process id in another process namespace,
+a record `/proc` hides,
+and a name that carries no start time.
 Then the copy waits where it is,
-and a later install puts it back once nothing live holds that version.
-A name whose installer cannot be judged does not hold the copy back,
-because putting it back costs nothing once the publish replaces a name that appeared,
-and an earlier release's name carries no start time to judge it by.
+and a later install puts it back once nothing may hold that version.
+A name written by an earlier build carries neither a boot nor a namespace,
+so it cannot be placed in any boot,
+and no install ever removes it;
+waiting for it would keep the copy of a killed install aside for ever,
+so it does not hold the copy back.
+That is the one cost this rule accepts:
+a live install of an earlier build holding such a name loses the finished copy it holds,
+because its own publish does not retry over a name that appeared.
+`prune --toolchain` prints such a name and leaves it for a person to delete.
 
 A dead install's copy is claimed before anything is published from it:
 one rename to a `.recovered` name of this process's own,
@@ -1356,25 +1385,27 @@ and the one that loses finds the name gone and publishes nothing.
 Without the claim both would replace the copy at the version's name in turn,
 and the second would leave the unfinished copy there and delete the finished one.
 
-A hidden directory is removed only when the installer that made it is known to have ended,
-and that question is answered by the pair in its name:
-the system reports a process's start time,
-and a process id handed out again belongs to a process that started at another moment,
-so a reused number is never read as the installer.
+A hidden directory is removed only when its installer is known to have ended.
+That question is answered by the facts in its name:
+a name from another boot names an installer that reboot certainly ended;
+a name from this boot and this process namespace is judged by the process id and the start time;
+a name from another process namespace is not judged,
+because a process id there means another process.
 The answer has three values and only one of them allows a removal:
 running,
 ended,
 and the system did not say.
 A record that cannot be read is the third,
 because an unreadable record is not a dead process.
-A hidden directory whose name carries no start time was written by an earlier release,
+When `/proc/<pid>/stat` says the number is free,
+the kernel's `pidfd_open` is asked whether any process holds it,
+so a `hidepid` mount that hides a live process's record does not make it read as ended.
+A hidden directory whose name carries no boot or no namespace was written by an earlier release,
 so it cannot be judged and is left where it is.
-Nothing is read of that other process except its own `/proc/<pid>/stat` record.
-The pair is read in this process's own process namespace and from this boot,
-so two installs in two namespaces that share one toolchain root are not told apart,
-and a directory whose installer it cannot judge is left alone.
+Nothing is read of that other process except its own `/proc/<pid>/stat` record and whether its number is held.
 A finished copy under another version's name may be the only copy of that version,
-so it is left for that version's own install to publish.
+so it is left for that version's own install to publish,
+and `prune --toolchain` removes it once no known lock names that version.
 
 `install` prints one sentence for each version a recovery touched.
 The publish it finished:
@@ -1414,10 +1445,22 @@ an older repository tool is never kept,
 which the run also warns about,
 so a version that is older than a finished one installed in either toolchain root stays under its hidden name,
 where a later install publishes it if that version may be kept again.
+A finished copy of that version whose marker records the lock's row stays with it;
+one whose marker the lock does not vouch for is removed instead,
+since no install can ever publish it.
 After a recovery that does put a version at its name,
 `install` removes every version directory older than the newest finished one,
 as it does after an install,
 and the report names each version it removed that way.
+
+`prune --toolchain` also reports and removes hidden directories whose installer has provably ended,
+except a vouched finished copy of a version some known lock names,
+which that version's own install may still publish.
+A hidden name it cannot judge is printed on standard error and left.
+To delete such a directory by hand,
+remove the hidden name whose version and purpose it carries,
+for example `rm -r <toolchain root>/<tool id>/.<version>.staging.<process id>.<start>.<namespace>.<boot>`
+once no install is using that tool.
 
 ### One set across both toolchain roots
 
@@ -1683,15 +1726,19 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
   A file that vanishes between the check and the start still gets a `could not start` line:
-  the program is gone,
-  or the interpreter named on its first line is,
-  and the launcher cannot tell which,
+  the message names the file that is missing,
+  read from the program's own bytes (`src/named_interpreter.rs`):
+  the interpreter its first line names for a script,
+  or the dynamic linker a compiled program's own file names,
+  and both kinds and neither when the program itself is gone,
   because `execve` answers one error for both;
   the message gives the command that writes the tool's links again,
-  and adds installing the interpreter when the interpreter is the file that is missing.
+  and then installing the interpreter or the linker when that is the file that is missing.
   A start the system refused because another process holds a file it needs open for writing gets the same explanation the shadow mode gives:
   some process holds open for writing the program's file,
-  or the interpreter named on its first line,
+  or the interpreter the program's own file names,
+  which is the program after `#!` on a script's first line or a compiled program's dynamic linker,
+  and which of the two whenever the program's own file says so,
   the shadow cannot tell which process holds it or why,
   the same command works once that write has finished and left a whole program,
   and a write cut short leaves a broken program,
@@ -1733,6 +1780,15 @@ It runs only when asked;
 - Known locks are this scope's lock,
   the `toolchain.lock.json` of every worktree `git worktree list --porcelain` reports,
   and each file given with `--lock` (a clone that git does not list).
+- Hidden installs under `<toolchain root>/<tool id>/` are judged too:
+  one whose installer has provably ended is removed,
+  except a vouched finished copy of a version some known lock names,
+  which that version's own install may still publish.
+  A name whose installer cannot be judged is printed on standard error and left;
+  that covers another process namespace,
+  a name an earlier release wrote without a boot and a namespace,
+  and a copy whose marker an earlier release wrote without an archive digest.
+  Delete such a directory by hand once no install is using that tool.
 - A third-party version is kept when any known lock names it;
   a repository-published crate keeps only its newest finished version,
   and nothing when no known lock names the crate.

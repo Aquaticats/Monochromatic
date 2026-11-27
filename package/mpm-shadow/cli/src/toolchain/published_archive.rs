@@ -68,6 +68,9 @@ mod what_a_lock_names;
 /// What counts as a release archive of this repository.
 mod what_counts_as_a_release_of_this_repository;
 
+/// Re-exports the read of every archive a lock names,
+/// which the cleanup of hidden installs uses.
+pub(crate) use self::what_a_lock_names::every_archive_named;
 /// Re-exports the lock reading,
 /// the present versions and the prune's plan.
 pub use self::what_a_lock_names::{
