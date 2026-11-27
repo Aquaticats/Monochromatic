@@ -427,10 +427,14 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   nor from 14:07:28.709 to 14:07:29.935;
   and the red run's first scope starts are at 14:07:28.533 and 14:07:28.664,
   for the two controls that finished just before the ten.
-  So the ten asked half a second after the reexec had ended,
-  not inside it.
+  So the ten asked no earlier than half a second after the reexec had ended,
+  and not inside it;
+  that is a lower bound,
+  and how much later they asked is not on record.
   The coordinator first wrote on issues 6619 and 6623 that the reexec's own 365 ms was the trigger,
-  and corrected both with a comment once the journal was read whole.
+  corrected both with a comment once the journal was read whole,
+  and then took back one clause of that correction,
+  which had placed the asks inside the second span without a unit start.
   Issue 6623's round measures asks across a reexec and after one in a container or a guest,
   never on this account's manager,
   and sizes nothing if every ask there answers.
@@ -571,12 +575,15 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   while the version is installed and nothing is lost.
   The same round takes the sentences that say "a killed install" after an install that failed without being killed,
   none of which a test read.
-  Before the release the coordinator still reads `git diff 468c2450a7 b5034231f0` for the Rust files both sides of that merge touched
+  The coordinator read both sides of that merge in the Rust files each side touched
   (`archive_staging.rs`,
   `archive_staging_tests.rs`,
   `toolchain/mod.rs`,
-  `sync/what_the_sync_did.rs`);
-  the README section "What a kill leaves and what the next install does about it" was read whole on the merged tree.
+  `sync/what_the_sync_did.rs`;
+  `git diff 468c2450a7 b5034231f0` and `git diff 2c6513069b b5034231f0`):
+  each side's changes stand in places of their own and nothing of either was lost.
+  The README section "What a kill leaves and what the next install does about it" was read whole on the merged tree,
+  and the locked linter finds nothing in the package's README on `main`.
   The round on a raced publish is merged (`2c6513069b`):
   a publish that finds a copy at the version's name between its own check and its rename replaces it,
   in the step it uses for a copy that was there all along;
