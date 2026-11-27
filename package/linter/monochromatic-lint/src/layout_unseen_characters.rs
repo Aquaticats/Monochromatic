@@ -107,6 +107,13 @@ pub(crate) fn prints_as_nothing(letter: char) -> bool {
 /// const isFormatOrControl = (letter) => /\p{Cf}|\p{Cc}/u.test(letter)
 /// ```
 fn is_format_or_control(letter: char) -> bool {
+    // What: the answer for an ASCII character, which the tables would give the same way at the price of a search.
+    // Why: every code point below U+0080 is a printable ASCII character, which none of the three properties names,
+    // or a control character, which `Cc` names, so this answer is the table's and no search is owed for it.
+    // A list line is mostly ASCII, and every character of it is asked this question twice by the message that quotes it.
+    if letter.is_ascii() {
+        return letter.is_ascii_control();
+    }
     // What: the general category the linked Unicode tables give this character.
     // Why: `Cf` and `Cc` are exactly the two categories whose code points print as nothing of their own.
     let category: unicode_properties::GeneralCategory = letter.general_category();
@@ -125,6 +132,11 @@ fn is_format_or_control(letter: char) -> bool {
 /// const isDefaultIgnorable = (letter) => DEFAULT_IGNORABLE_CODE_POINTS.some(([from, to]) => letter >= from && letter <= to)
 /// ```
 fn is_default_ignorable(letter: char) -> bool {
+    // What: the answer for an ASCII character, which no range of the table holds.
+    // Why: the table's smallest code point is above ASCII, and a range lookup per ASCII character is work a list line pays for nothing.
+    if letter.is_ascii() {
+        return false;
+    }
     return DEFAULT_IGNORABLE_CODE_POINTS
         .iter()
         .any(|(from, to)| return *from <= letter && letter <= *to);
