@@ -10,6 +10,10 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `repo_read_object_format.rs`:
+//!   the object name hash a repository's configuration selects,
+//!   SHA-1 or SHA-256,
+//!   and the name and length each one gives.
 //! - `git_directory_roots.rs`:
 //!   the Git directories a command works in,
 //!   found without starting Git.
@@ -59,6 +63,14 @@
 //!   the rules about the environment of a Git command:
 //!   which variables can move discovery,
 //!   and the effective environment.
+//! - `repo_read_layout_repository_format.rs`:
+//!   the repository format keys a layout read needs:
+//!   the object format,
+//!   whether `extensions.worktreeConfig` is on,
+//!   and the configuration entries once the last `core.bare` has settled.
+//! - `repo_read_layout_git_entry_and_head.rs`:
+//!   the `.git` entry a directory names,
+//!   and the `HEAD` text a plain layout must hold.
 //! - `repo_read_layout.rs`:
 //!   in-process repository reads:
 //!   the location,
@@ -227,6 +239,21 @@ pub mod repo_read_config_typed;
 
 /// The table of which configuration keys Git reads at startup and what kind of value each takes.
 pub mod repo_read_config_value_kinds;
+
+/// The object name hash a repository's configuration selects,
+/// SHA-1 or SHA-256,
+/// and the name and length each one gives.
+pub mod repo_read_object_format;
+
+/// The repository format keys a layout read needs:
+/// the object format,
+/// whether `extensions.worktreeConfig` is on,
+/// and the configuration entries once the last `core.bare` has settled.
+pub mod repo_read_layout_repository_format;
+
+/// The `.git` entry a directory names,
+/// and the `HEAD` text a plain layout must hold.
+pub mod repo_read_layout_git_entry_and_head;
 
 /// In-process repository reads:
 /// the location,
