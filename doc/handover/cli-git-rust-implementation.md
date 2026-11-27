@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T18:17:40-05:00
+## The state at 2026-11-27T18:25:42-05:00
 
-`main` was `f6b4dc0947`.
+`main` was `e6026dbd46`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 285 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 286 more by this time.
 
 ### Rounds running
 
@@ -2689,6 +2689,33 @@ and the two `truepeak` files wait on their branch.
   After its merge,
   read the first push run on `main`:
   the issue closes when that run is green.
+- `cargo-shadow`'s `src/lib.rs` holds 218 `mod` declarations and no function,
+  and is the package's one `rust/max-lines` finding.
+  The round `cargo-shadow-lib-rs-is-under-the-line-budget-with-room-for-the-modules-to-come`
+  started 2026-11-27T18:20:36-05:00,
+  under the owner's "Keep 300,
+  split everything"
+  (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`).
+  Its brief asks that no public item move,
+  that the tests' names stay the same set,
+  and for a control that goes red when the file is over again.
+- The store fixture that tests of several packages build with `createSopsFixture`
+  joins a tool's output when the tool exits,
+  before its pipe has closed,
+  so a store is now and then written empty or cut:
+  issue 6410,
+  met again in the driver's suite at 2026-11-27T18:19:55-05:00.
+  A branch of 2026-11-18 holds most of the fix and was never merged,
+  with four review findings open.
+  The round
+  `issue-6410-the-sops-fixture-joins-a-tools-output-after-its-pipe-closes-inside-a-deadline-and-names-the-failure`
+  started 2026-11-27T18:24:49-05:00:
+  it merges that branch in,
+  applies the four findings,
+  and measures both deadlines on the host as it finds it.
+  After its merge,
+  delete the old fix branch and its review branch,
+  once the old tip `945ff70a94` is shown to be an ancestor of `main`.
 - A merge of a branch whose worktree still stands makes the wrapper hand that worktree's removal to the commit service,
   and says so in a notice;
   check that the folder,
@@ -2964,15 +2991,16 @@ sweep of 2026-11-23 left out,
 because the branches that were changing them could not take the diff:
 `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` alone reports 683 findings on
 `main`,
-and everything under `package/git-policy/cli` and `package/pi-shared/subagent-driver/README.md` is the
-same.
+and everything under `package/git-policy/cli` is the same.
 The installed linter applies that fix itself with `--fix`,
 which changes whitespace only,
 so the scratch script of 2026-11-23 is not needed.
 On 2026-11-27 it took 76 findings out of `package/mpm-shadow/cli` (`ee8871b190`)
 and 11 out of `package/cargo-shadow/cli` (`f6b4dc0947`),
 every one in a Rust doc comment,
-in a window when no round worked in either package:
+and 778 out of five Markdown files of `package/pi-shared/subagent-driver` (`e6026dbd46`),
+whose six Markdown files render to the same text as before,
+in a window when no round worked in those packages:
 in a worktree per package,
 each changed file was equal to its old text once whitespace and comment markers were taken off,
 `cargo fmt --check`,
@@ -2980,8 +3008,14 @@ each changed file was equal to its old text once whitespace and comment markers 
 and the whole test task passed,
 910 of 910 and 968 of 968.
 Do the same for the files this passage names once the rounds that edit them have merged.
-`cargo-shadow`'s `src/lib.rs` stays over the line budget,
-305 code lines against 300.
+The driver package's build,
+`lint` and `lint:types` exited 0 in its worktree,
+and its unit suite printed 228 `[PASS]` lines beside one failure that is not the fix's:
+the store fixture of issue 6410,
+which the Next list names.
+`cargo-shadow`'s `src/lib.rs` is over the line budget,
+305 code lines against 300,
+and the Next list names its round.
 
 #### The release passes
 
