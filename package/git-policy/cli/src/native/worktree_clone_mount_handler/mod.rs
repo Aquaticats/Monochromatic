@@ -93,6 +93,14 @@
 //! - `record_checkout_mode_record_file.rs`:
 //!   the record as the file it is,
 //!   its folder's proofs and the three lines an answer prints.
+//! - `record_checkout_mode_places.rs`:
+//!   where one run reads and writes,
+//!   with the installed places by default.
+//! - `record_checkout_mode_paths_and_datasets.rs`:
+//!   what a checkout's path and a dataset's name have to be.
+//! - `record_checkout_mode_record_comparison.rs`:
+//!   the record the mode compares and writes,
+//!   and the write a `--replace` token admits.
 //! - `record_checkout_mode.rs`:
 //!   the checkout's path, dataset, GUID, container and pool,
 //!   recorded under root control,
@@ -290,6 +298,17 @@ pub mod record_checkout_mode_record;
 /// its read,
 /// its write and its folder's proofs.
 pub mod record_checkout_mode_record_file;
+
+/// Where one run reads and writes,
+/// with the installed places by default.
+pub mod record_checkout_mode_places;
+
+/// What a checkout's path and a dataset's name have to be.
+pub mod record_checkout_mode_paths_and_datasets;
+
+/// The record the mode compares and writes,
+/// and the write a `--replace` token admits.
+pub mod record_checkout_mode_record_comparison;
 
 /// The checkout's path, dataset, GUID, container and pool,
 /// and the GUID a legitimate restore replaces.
