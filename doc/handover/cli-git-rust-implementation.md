@@ -103,9 +103,9 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T18:42:35-05:00
+## The state at 2026-11-27T18:49:32-05:00
 
-`main` was `60ecd08eef`.
+`main` was `487fed53b0`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
@@ -386,6 +386,12 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (`doc/planning/cli-git-source-layout-target-tree.md`,
   the note of 2026-11-26T20:03:52-05:00).
   Its three picks wait in `doc/handover/questions-for-the-owner.md`.
+  The tip checks passed on `beb61ec46b`,
+  from 2026-11-27T18:40:16-05:00 to 2026-11-27T18:46:23-05:00 in a worktree no merge moved:
+  `native:check`,
+  the four Clippy tasks,
+  the `source_guard` module (225 of 225),
+  `native:ts-checks` and `lint:oxlint` with no warning and no error.
   The whole gate runs on `main` at `beb61ec46b` since 2026-11-27T18:39:13-05:00
   (unit `gpc-gate-wrapper-next-alpha-on-beb61ec46b-20261127T183913-0500`,
   log `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-beb61ec46b-20261127T183913-0500.log`),
@@ -986,12 +992,25 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   (the release workflows install a toolchain with `rustup` themselves,
   and `music-player-release.yml` alone runs the toolchain install);
   the drift gate in `advisory-core.yml` passed on the merge and after it.
-  The real arm,
-  a toolchain at the `minimal` profile with no `rustfmt` in a container,
-  is point 3 of the release's Claude Sonnet second pass,
-  which started 2026-11-27T18:05:48-05:00,
-  with its review at `~/temp/agent/mpm-shadow-alpha-17-release-review-2026-11-27/keep/review.md`.
-  A failure of that arm comes before every other finding of the package.
+  The real arm passed,
+  in the release's Claude Sonnet second pass
+  ("What `mpm-shadow`'s alpha.17 read found"):
+  with a real `rustup` and the pinned toolchain at the `minimal` profile holding no `rustfmt`,
+  `0.2.7-alpha.17` asked `rustup component add rustfmt --toolchain nightly-2026-11-16`,
+  the two programs were in the toolchain's `bin` afterwards and ran,
+  and the report named no unresolved bin;
+  `0.2.7-alpha.16` in the same state asked nothing and named three.
+  Two rounds on that read's findings run,
+  with files of their own:
+  `mpm-shadow-alpha-17-release-pass-the-exposure-folder-links-the-pinned-toolchain-and-only-what-the-plan-declares`
+  (its first feed line written 2026-11-27T18:48:59-05:00;
+  issue 6634)
+  and `mpm-shadow-alpha-17-release-pass-a-warning-promises-only-what-the-next-run-does-and-each-prune-line-has-a-test`
+  (2026-11-27T18:49:12-05:00).
+  `0.2.7-alpha.18` follows their merges.
+  Before that release is installed here,
+  read the first round's list of the names in this machine's exposure folder that no row declares:
+  its rebuild removes a link for such a name.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -1205,11 +1224,12 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-Two reads run as background agents of the coordinating session,
-of `cargo-shadow`'s `0.1.5-alpha.16` and of `mpm-shadow`'s `0.2.7-alpha.17`,
-each at the path this section gives beside its release.
-The linter's read of `0.5.2-alpha.22` returned and was read whole
-("What the linter's alpha.22 read found").
+One read runs as a background agent of the coordinating session,
+of `cargo-shadow`'s `0.1.5-alpha.16`,
+at the path this section gives beside its release.
+The reads of the linter's `0.5.2-alpha.22` and of `mpm-shadow`'s `0.2.7-alpha.17` returned and were read whole
+("What the linter's alpha.22 read found",
+"What `mpm-shadow`'s alpha.17 read found").
 Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
 ("What the wrapper's alpha.50 reads found"),
 as was the linter's
@@ -1470,6 +1490,56 @@ one of which gives a ratio outside its own control's range),
 two controls that stay green under named edits,
 and a state outside these merges:
 a scope that does not exist yet may be read as collected and its unit left loaded in silence.
+
+What `mpm-shadow`'s alpha.17 read found
+(`~/temp/agent/mpm-shadow-alpha-17-release-review-2026-11-27/keep/review.md`,
+a same-vendor second pass,
+written 2026-11-27T18:45:20-05:00):
+no High finding,
+one Medium and six Low.
+What it confirmed with the released binaries:
+the real `rustup` arm of issue 6630,
+as the release's passage says;
+that 38 commands on an input with nothing left behind differ in the version string alone;
+that a move of `current` that fails once and a put-back behave in alpha.17 as in alpha.16;
+and that the README's blocks for a kill match what alpha.17 prints.
+Its Medium finding,
+shown with a real `rustup` and two real toolchains:
+the exposure folder links each program of the Rust row from the first toolchain in name order that holds it,
+and never looks at the row's own channel,
+so an older toolchain that sorts before the pin owns the folder's `rustc`,
+`cargo` and `rustfmt` while `list` says `ok`.
+The code is older than alpha.16.
+On this machine,
+measured between 2026-11-27T18:45:20-05:00 and 2026-11-27T18:46:47-05:00
+(the review's own time and the clock of the command after the measurement),
+the toolchains are the pin and an unpinned `nightly`,
+the pin sorts first,
+and every Rust link of the folder points into the pin;
+the fault bites when the pin moves to a later date while the older toolchain stays,
+and the daily update moves the pin.
+It is issue 6634.
+Its Low findings:
+the warning after a publish that failed once says running the command again publishes the copy,
+where the next run removes it,
+and alpha.16 said so rightly;
+a version whose program is cut short under its marker is still called the holder of a second copy,
+by the install and by `prune`;
+the folder keeps a link an earlier row made for a name no row declares;
+two README sentences about `rustup` are not so where rustup's proxies stand in the cargo bin directory;
+`list` says a toolchain is in sync while a declared component is missing;
+and two of the five `prune` lines,
+and the cleanup after a real failed rename,
+are asserted by no test.
+The read broke its brief in one place and said so:
+one driver ran an install that tried to resolve a fixture tool through `api.github.com` from the host,
+from a throwaway home with no credential,
+and nothing was fetched.
+The coordinator's weighing:
+all seven are taken,
+by the two rounds the release's passage names;
+their picks are the coordinator's with the veto open,
+and are written into `doc/handover/questions-for-the-owner.md` when the rounds' reports are read.
 
 What the linter's alpha.22 read found
 (`~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`,
