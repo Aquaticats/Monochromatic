@@ -54,8 +54,9 @@
 //!   the file's GUID name,
 //!   a dataset's name and a snapshot's.
 //! - `removal_stop.rs`:
-//!   every way the removal stops,
-//!   and the sentence each prints.
+//!   every way the removal stops.
+//! - `removal_stop_sentences.rs`:
+//!   the sentence each way of stopping prints.
 //! - `fresh_holder_scan.rs`:
 //!   the fresh all-namespace scan each destroy is preceded by.
 //! - `removal_identities.rs`:
@@ -181,6 +182,7 @@ pub mod removal_settle;
 pub mod removal_settle_step;
 pub mod removal_slot_claim;
 pub mod removal_stop;
+pub mod removal_stop_sentences;
 pub mod started_moment;
 pub mod unmount_request;
 
