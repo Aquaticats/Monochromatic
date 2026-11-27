@@ -446,6 +446,14 @@
 //! - `worktree_snapshot_ahead.rs`:
 //!   the snapshots the wrapper makes ahead of an add,
 //!   and the add's claim of one instead of a snapshot of its own.
+//! - `worktree_snapshot_ahead_claim_facts.rs`:
+//!   the plain facts one add's claim of a snapshot ahead is written from,
+//!   none of which reads the pool or the commit service:
+//!   whether a name below the pool is a directory,
+//!   which object a name leads to now,
+//!   what the wait came to,
+//!   whether the service gave up the add's request,
+//!   and the ceiling in the words a person reads.
 //! - `worktree_snapshot_ahead_claim.rs`:
 //!   what one add does with the snapshots the service made ahead of it:
 //!   the proof,
@@ -796,6 +804,11 @@ pub mod worktree_snapshot_index_step;
 /// and the add's claim of one instead of a snapshot of its own.
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot_ahead;
+
+/// The plain facts one add's claim of a snapshot ahead is written from,
+/// none of which reads the pool or the commit service.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_ahead_claim_facts;
 
 /// What one add does with the snapshots the service made ahead of it:
 /// the proof,
