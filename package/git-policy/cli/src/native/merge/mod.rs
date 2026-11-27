@@ -9,6 +9,11 @@
 //! Files in this folder,
 //! each using only files listed before it:
 //!
+//! - `merge_isolation_recovery_place.rs`:
+//!   where recovery runs Git:
+//!   the real Git and its environment,
+//!   the directory every command starts in,
+//!   and the repository's common Git directory.
 //! - `merge_isolation_carry_parts.rs`:
 //!   the person's own work in the paths a merge changes:
 //!   what the worktree and the index held,
@@ -20,6 +25,10 @@
 //!   and the permission bits a person set on their own entry.
 //! - `merge_isolation_changes.rs`:
 //!   the raw differences of an isolated merge and the worktree state of each changed path.
+//! - `merge_isolation_the_merges_paths_judged.rs`:
+//!   the judgement of each path a merge changes:
+//!   how the worktree stands at it against the two sides,
+//!   and a directory the branch's own files explain.
 //! - `merge_isolation_a_special_file_the_merge_changes.rs`:
 //!   a named pipe,
 //!   a socket or a device standing where the merge writes or deletes a path,
@@ -308,6 +317,17 @@ pub mod merge_isolation_recovery_carry;
 
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
+
+/// The judgement of each path a merge changes:
+/// how the worktree stands at it against the two sides,
+/// and a directory the branch's own files explain.
+pub mod merge_isolation_the_merges_paths_judged;
+
+/// Where recovery runs Git:
+/// the real Git and its environment,
+/// the directory every command starts in,
+/// and the repository's common Git directory.
+pub mod merge_isolation_recovery_place;
 
 /// The write of a merge into the index and the worktree,
 /// and what it does when the checkout changed under it.
