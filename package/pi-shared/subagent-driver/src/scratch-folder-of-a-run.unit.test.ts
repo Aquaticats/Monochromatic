@@ -645,10 +645,14 @@ await describe({
           KEPT_FOLDER_NAME,
           'locked',
         ],);
-        expect(await entriesIn(join(
+        /**
+         What the folder the operating system refused to write in still holds.
+         */
+        const lockedHolds = await entriesIn(join(
           folder,
           'locked',
-        ),),).toEqual(['inside.txt',],);
+        ),);
+        expect(lockedHolds,).toEqual(['inside.txt',],);
       },
     },),
     it({

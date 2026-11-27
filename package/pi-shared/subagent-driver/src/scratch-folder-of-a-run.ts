@@ -28,6 +28,7 @@ import {
   join,
 } from 'node:path';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { folderSomeProcessWorksIn, } from './finished-worktrees.ts';
 import { attemptsOfARun, } from './newest-finished-run-of-a-name.ts';
@@ -428,7 +429,15 @@ async function newerAttemptOfTheNameIsThere({
     runsFolder,
     runName,
   },);
-  return attempts[0]?.folder !== basename(runFolder,);
+  /**
+   The newest attempt of the name the runs folder holds, when one is there.
+   */
+  const [newest,] = attempts;
+  // A runs folder that holds no attempt of the name cannot say the folder is this run's, so the folder is kept.
+  if (newest === undefined) {
+    return true;
+  }
+  return newest.folder !== basename(runFolder,);
 }
 
 /**
@@ -478,15 +487,19 @@ async function clearBesideTheKeptFolder({
     );
   },),);
   /**
+   The removals that went.
+   */
+  const went = attempts.filter(function wasRemoved(attempt: ForeignBorrowed<PromiseSettledResult<void>>,) {
+    return attempt.status === 'fulfilled';
+  },);
+  /**
    How many entries went.
    */
-  const removed = attempts.filter(function wasRemoved(attempt,) {
-    return attempt.status === 'fulfilled';
-  },).length;
+  const removed = went.length;
   /**
    What the operating system answered for each entry it refused to remove, in words for a reader.
    */
-  const refused = attempts.flatMap(function refusalOf(attempt,) {
+  const refused = attempts.flatMap(function refusalOf(attempt: ForeignBorrowed<PromiseSettledResult<void>>,) {
     return (attempt.status === 'rejected') ? [caughtValueText(attempt.reason,)] : [];
   });
   if (refused.length > 0) {
