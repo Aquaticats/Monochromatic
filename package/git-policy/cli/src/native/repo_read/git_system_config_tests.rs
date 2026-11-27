@@ -3,18 +3,34 @@
 //! one start per executable identity,
 //!  a replaced executable is asked again,
 //! and a path outside `/etc` is the file the readers look at.
+//!  Every control that copies or rewrites a fixture Git hands its body to
+//!  `run_the_body_in_a_child_of_its_own`,
+//!  so it is the only test of the process that writes that file:
+//!  the copy is opened for writing in the process that makes it,
+//!  a `fork` by another thread of a threaded run duplicates that descriptor into a child
+//!  that holds it until its own exec,
+//!  and an exec of the same file in that window is refused with `ETXTBSY` (issues 6517 and 6541).
+//!  A question that gave nothing is also said in the wrapper's diagnostics (issue 6540).
 
 use super::*;
+use crate::captured_child_run_to_its_end::output_of_within_bound;
+use crate::diagnostic_log::take_lines_written;
+use crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own;
 use crate::repo_read_config_scan::ScopeEnvironment;
 use crate::repo_read_layout::read_layout_with;
 use crate::test_support::{
     REAL_GIT,
+    executable,
     fixture,
     git_output,
     remove,
     repository,
 };
-use std::cell::Cell;
+use crate::wait_ceilings::PLUMBING_STEP_CEILING;
+use std::cell::{
+    Cell,
+    RefCell,
+};
 
 /// Copy the host's Git to `root/name` so the copy is a real ELF executable named as asked.
 fn copy_git(
@@ -26,14 +42,28 @@ fn copy_git(
     return target;
 }
 
-/// What the host Git prints for itself when the environment has no override.
+/// What the host Git prints for itself when the environment has no override,
+/// waited for within the code's own ceiling for that question.
+/// Why:
+///  The control compares the reader's answer with this one,
+///  and a child waited on without an end would hold the whole run when the host is slow.
 fn printed_by_git() -> PathBuf {
-    let output = std::process::Command::new(REAL_GIT)
-        .args(["var", "GIT_CONFIG_SYSTEM"])
-        .env_clear()
-        .output()
-        .expect("git var");
-    assert!(output.status.success());
+    let mut command = std::process::Command::new(REAL_GIT);
+    command.args(["var", "GIT_CONFIG_SYSTEM"]).env_clear();
+    // What: `output_of_within_bound` runs the child on this thread, and the ceiling ends it and says how long it waited.
+    // Why: `Command::output` waits with no end; the ceiling is the one the release code gives the same question.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const output = outputOfWithinBound(command, PLUMBING_STEP_CEILING);
+    // ```
+    let output = output_of_within_bound(&mut command, PLUMBING_STEP_CEILING)
+        .expect("the host Git answers the question about its system configuration file");
+    assert!(
+        output.status.success(),
+        "the host Git ended with {}",
+        output.status
+    );
     return parse_path_line(output.stdout.as_slice()).expect("an absolute path");
 }
 
@@ -41,23 +71,29 @@ fn printed_by_git() -> PathBuf {
 /// asked once for an executable and then read from the cache.
 #[test]
 fn the_learned_path_equals_what_git_prints_and_is_asked_once() {
-    let root = fixture("system-config-learned");
-    let git_copy = copy_git(root.as_path(), "git");
-    let cache = root.join("xdg").join("monochromatic-git-policy-cli");
-    let starts: Cell<usize> = Cell::new(0);
-    let counting = |path: &Path| -> Option<Vec<u8>> {
-        starts.set(starts.get() + 1);
-        return ask_git(path);
-    };
-    let first = system_config_of(git_copy.as_path(), Some(cache.as_path()), &counting);
-    assert_eq!(first, Some(printed_by_git()));
-    assert_eq!(starts.get(), 1);
-    assert_eq!(
-        system_config_of(git_copy.as_path(), Some(cache.as_path()), &counting),
-        first
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_learned_path_equals_what_git_prints_and_is_asked_once",
+        || {
+            let root = fixture("system-config-learned");
+            let git_copy = copy_git(root.as_path(), "git");
+            let cache = root.join("xdg").join("monochromatic-git-policy-cli");
+            let starts: Cell<usize> = Cell::new(0);
+            let counting = |path: &Path| -> Option<Vec<u8>> {
+                starts.set(starts.get() + 1);
+                return ask_git(path);
+            };
+            let first = system_config_of(git_copy.as_path(), Some(cache.as_path()), &counting);
+            assert_eq!(first, Some(printed_by_git()));
+            assert_eq!(starts.get(), 1);
+            assert_eq!(
+                system_config_of(git_copy.as_path(), Some(cache.as_path()), &counting),
+                first
+            );
+            assert_eq!(starts.get(), 1, "the second read must come from the cache");
+            remove(root.as_path());
+        },
     );
-    assert_eq!(starts.get(), 1, "the second read must come from the cache");
-    remove(root.as_path());
 }
 
 /// A replaced executable has another identity,
@@ -68,32 +104,65 @@ fn the_learned_path_equals_what_git_prints_and_is_asked_once() {
 /// not `/etc/gitconfig`.
 #[test]
 fn a_replaced_executable_is_asked_again_and_another_prefix_is_believed() {
-    let root = fixture("system-config-replaced");
-    let git_copy = copy_git(root.as_path(), "git");
-    let cache = root.join("xdg").join("monochromatic-git-policy-cli");
-    let elsewhere = root.join("opt").join("etc").join("gitconfig");
-    let from_prefix = |_: &Path| -> Option<Vec<u8>> {
-        return Some(format!("{}\n", elsewhere.display()).into_bytes());
-    };
-    assert_eq!(
-        system_config_of(git_copy.as_path(), Some(cache.as_path()), &from_prefix),
-        Some(elsewhere.clone())
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_replaced_executable_is_asked_again_and_another_prefix_is_believed",
+        || {
+            let root = fixture("system-config-replaced");
+            let git_copy = copy_git(root.as_path(), "git");
+            let cache = root.join("xdg").join("monochromatic-git-policy-cli");
+            let elsewhere = root.join("opt").join("etc").join("gitconfig");
+            let from_prefix = |_: &Path| -> Option<Vec<u8>> {
+                return Some(format!("{}\n", elsewhere.display()).into_bytes());
+            };
+            assert_eq!(
+                system_config_of(git_copy.as_path(), Some(cache.as_path()), &from_prefix),
+                Some(elsewhere.clone())
+            );
+            // Appending a byte changes the size and times, so the identity differs.
+            let mut bytes = std::fs::read(&git_copy).expect("read");
+            bytes.push(0);
+            std::fs::write(&git_copy, bytes).expect("rewrite");
+            let asked: Cell<bool> = Cell::new(false);
+            // What: the reason the second ask gives nothing, kept for the assertion below.
+            // Why: an unknown answer alone cannot tell a refused start from a path that is not the one Git prints.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const refusal: { reason?: string } = {};
+            // ```
+            let refusal: RefCell<Option<String>> = RefCell::new(None);
+            let host = |path: &Path| -> Option<Vec<u8>> {
+                asked.set(true);
+                // What: `Ok` is the bytes Git printed and `Err` is the reason it printed nothing.
+                // Why: both arms answer the reader, and the failure arm leaves the reason this control reports.
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // try { return askGitVarExplaining(path, 'GIT_CONFIG_SYSTEM'); } catch (error) { refusal.reason = String(error); return undefined; }
+                // ```
+                match ask_git_var_explaining(path, "GIT_CONFIG_SYSTEM") {
+                    Ok(stdout) => return Some(stdout),
+                    Err(reason) => {
+                        refusal.replace(Some(reason));
+                        return None;
+                    }
+                }
+            };
+            let second = system_config_of(git_copy.as_path(), Some(cache.as_path()), &host);
+            let why: Option<String> = refusal.take();
+            if second.is_none() {
+                panic!(
+                    "the second ask gave nothing: {}",
+                    why.as_deref()
+                        .unwrap_or("no ask was made, so the executable's identity was not read")
+                );
+            }
+            assert_eq!(second, Some(printed_by_git()));
+            assert!(asked.get(), "the stale entry must not be trusted");
+            remove(root.as_path());
+        },
     );
-    // Appending a byte changes the size and times, so the identity differs.
-    let mut bytes = std::fs::read(&git_copy).expect("read");
-    bytes.push(0);
-    std::fs::write(&git_copy, bytes).expect("rewrite");
-    let asked: Cell<bool> = Cell::new(false);
-    let host = |path: &Path| -> Option<Vec<u8>> {
-        asked.set(true);
-        return ask_git(path);
-    };
-    assert_eq!(
-        system_config_of(git_copy.as_path(), Some(cache.as_path()), &host),
-        Some(printed_by_git())
-    );
-    assert!(asked.get(), "the stale entry must not be trusted");
-    remove(root.as_path());
 }
 
 /// Output that is not one absolute path,
@@ -101,85 +170,135 @@ fn a_replaced_executable_is_asked_again_and_another_prefix_is_believed() {
 /// and a failed start are unknown.
 #[test]
 fn unknown_answers_are_none() {
-    for refused in [
-        "",
-        "\n",
-        "relative/gitconfig\n",
-        "/two\n/lines\n",
-        "/no/newline",
-        "/nul\0byte\n",
-    ] {
-        assert_eq!(parse_path_line(refused.as_bytes()), None, "{refused:?}");
-    }
-    let root = fixture("system-config-unknown");
-    let script = root.join("git");
-    std::fs::write(&script, "#!/bin/sh\n").expect("script");
-    let never = |_: &Path| -> Option<Vec<u8>> {
-        panic!("a script has no identity, so Git is never asked");
-    };
-    assert_eq!(system_config_of(script.as_path(), None, &never), None);
-    let git_copy = copy_git(root.as_path(), "named-git");
-    let failing = |_: &Path| -> Option<Vec<u8>> {
-        return None;
-    };
-    // Only an executable named `git` has an identity.
-    assert_eq!(system_config_of(git_copy.as_path(), None, &failing), None);
-    // An executable with an identity whose start fails is unknown too.
-    let named = copy_git(root.as_path(), "git-dir");
-    let subdirectory = root.join("bin");
-    std::fs::create_dir(&subdirectory).expect("directory");
-    std::fs::rename(&named, subdirectory.join("git")).expect("move");
-    assert_eq!(
-        system_config_of(subdirectory.join("git").as_path(), None, &failing),
-        None
+    run_the_body_in_a_child_of_its_own(module_path!(), "unknown_answers_are_none", || {
+        for refused in [
+            "",
+            "\n",
+            "relative/gitconfig\n",
+            "/two\n/lines\n",
+            "/no/newline",
+            "/nul\0byte\n",
+        ] {
+            assert_eq!(parse_path_line(refused.as_bytes()), None, "{refused:?}");
+        }
+        let root = fixture("system-config-unknown");
+        let script = root.join("git");
+        std::fs::write(&script, "#!/bin/sh\n").expect("script");
+        let never = |_: &Path| -> Option<Vec<u8>> {
+            panic!("a script has no identity, so Git is never asked");
+        };
+        assert_eq!(system_config_of(script.as_path(), None, &never), None);
+        let git_copy = copy_git(root.as_path(), "named-git");
+        let failing = |_: &Path| -> Option<Vec<u8>> {
+            return None;
+        };
+        // Only an executable named `git` has an identity.
+        assert_eq!(system_config_of(git_copy.as_path(), None, &failing), None);
+        // An executable with an identity whose start fails is unknown too.
+        let named = copy_git(root.as_path(), "git-dir");
+        let subdirectory = root.join("bin");
+        std::fs::create_dir(&subdirectory).expect("directory");
+        std::fs::rename(&named, subdirectory.join("git")).expect("move");
+        assert_eq!(
+            system_config_of(subdirectory.join("git").as_path(), None, &failing),
+            None
+        );
+        remove(root.as_path());
+    });
+}
+
+/// A question that gives nothing says why:
+/// a start the host refused names the program and the refusal,
+/// and an exit that is not a success names the status and Git's own words.
+#[test]
+fn a_question_that_gives_nothing_says_why() {
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_question_that_gives_nothing_says_why",
+        || {
+            let root = fixture("system-config-question-refusal");
+            let not_a_program = root.join("git");
+            std::fs::write(&not_a_program, "not a program\n").expect("fixture");
+            let refused = ask_git_var_explaining(not_a_program.as_path(), "GIT_CONFIG_SYSTEM")
+                .expect_err("a file that is not a program is refused");
+            assert!(
+                refused.contains(not_a_program.display().to_string().as_str()),
+                "the refusal names the program: {refused}"
+            );
+            assert!(
+                refused.contains("GIT_CONFIG_SYSTEM"),
+                "the refusal names the question: {refused}"
+            );
+            let failing = root.join("failing-git");
+            executable(
+                failing.as_path(),
+                b"#!/bin/sh\necho 'no system configuration' >&2\nexit 3\n",
+            );
+            let ended = ask_git_var_explaining(failing.as_path(), "GIT_CONFIG_SYSTEM")
+                .expect_err("a Git that ends badly gives nothing");
+            assert!(
+                ended.contains("ended with"),
+                "the refusal names the ending: {ended}"
+            );
+            assert!(
+                ended.contains("no system configuration"),
+                "the refusal carries Git's own words: {ended}"
+            );
+            remove(root.as_path());
+        },
     );
-    remove(root.as_path());
 }
 
 /// The scope built from the child's variables learns the path of the Git the forward target names,
 /// and reads that file.
 #[test]
 fn the_scope_reads_the_file_the_git_names() {
-    let root = fixture("system-config-scope");
-    let git_copy = copy_git(root.as_path(), "git");
-    let variables: Vec<(OsString, OsString)> = vec![
-        (
-            OsString::from(FORWARD_TARGET_VARIABLE),
-            git_copy.clone().into_os_string(),
-        ),
-        (
-            OsString::from("XDG_CACHE_HOME"),
-            root.join("cache").into_os_string(),
-        ),
-        (OsString::from("HOME"), root.join("home").into_os_string()),
-    ];
-    let scope = ScopeEnvironment::from_variables(variables.as_slice());
-    assert_eq!(scope.system_default, Some(printed_by_git()));
-    assert!(!scope.unresolvable);
-    assert_eq!(
-        scope.labelled_files().first().map(|(label, file)| {
-            return (*label, file.clone());
-        }),
-        Some(("system", printed_by_git()))
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "the_scope_reads_the_file_the_git_names",
+        || {
+            let root = fixture("system-config-scope");
+            let git_copy = copy_git(root.as_path(), "git");
+            let variables: Vec<(OsString, OsString)> = vec![
+                (
+                    OsString::from(FORWARD_TARGET_VARIABLE),
+                    git_copy.clone().into_os_string(),
+                ),
+                (
+                    OsString::from("XDG_CACHE_HOME"),
+                    root.join("cache").into_os_string(),
+                ),
+                (OsString::from("HOME"), root.join("home").into_os_string()),
+            ];
+            let scope = ScopeEnvironment::from_variables(variables.as_slice());
+            assert_eq!(scope.system_default, Some(printed_by_git()));
+            assert!(!scope.unresolvable);
+            assert_eq!(
+                scope.labelled_files().first().map(|(label, file)| {
+                    return (*label, file.clone());
+                }),
+                Some(("system", printed_by_git()))
+            );
+            // Without the target the path is unknown, and the scope says so instead of assuming `/etc/gitconfig`.
+            let unknown = ScopeEnvironment::from_variables(&[(
+                OsString::from("HOME"),
+                root.join("home").into_os_string(),
+            )]);
+            assert!(unknown.unresolvable);
+            // With the system file removed or replaced, nothing needs to be learned.
+            let removed = ScopeEnvironment::from_variables(&[(
+                OsString::from("GIT_CONFIG_NOSYSTEM"),
+                OsString::from("1"),
+            )]);
+            assert!(!removed.unresolvable);
+            let replaced = ScopeEnvironment::from_variables(&[(
+                OsString::from("GIT_CONFIG_SYSTEM"),
+                OsString::from("/replaced"),
+            )]);
+            assert!(!replaced.unresolvable);
+            remove(root.as_path());
+        },
     );
-    // Without the target the path is unknown, and the scope says so instead of assuming `/etc/gitconfig`.
-    let unknown = ScopeEnvironment::from_variables(&[(
-        OsString::from("HOME"),
-        root.join("home").into_os_string(),
-    )]);
-    assert!(unknown.unresolvable);
-    // With the system file removed or replaced, nothing needs to be learned.
-    let removed = ScopeEnvironment::from_variables(&[(
-        OsString::from("GIT_CONFIG_NOSYSTEM"),
-        OsString::from("1"),
-    )]);
-    assert!(!removed.unresolvable);
-    let replaced = ScopeEnvironment::from_variables(&[(
-        OsString::from("GIT_CONFIG_SYSTEM"),
-        OsString::from("/replaced"),
-    )]);
-    assert!(!replaced.unresolvable);
-    remove(root.as_path());
 }
 
 /// A system file outside `/etc` that carries a decisive key makes the readers decline;
@@ -211,4 +330,42 @@ fn a_system_file_outside_etc_is_the_one_the_readers_check() {
     let real = git_output(repo.as_path(), &["rev-parse", "--git-dir"]);
     assert!(real.status.success());
     remove(root.as_path());
+}
+
+/// A question that gives nothing is said in the wrapper's diagnostics:
+/// the line names the program,
+/// the question and the refusal.
+#[test]
+fn a_question_that_gives_nothing_is_said_in_the_diagnostics() {
+    run_the_body_in_a_child_of_its_own(
+        module_path!(),
+        "a_question_that_gives_nothing_is_said_in_the_diagnostics",
+        || {
+            let root = fixture("system-config-question-reported");
+            let not_a_program = root.join("git");
+            std::fs::write(&not_a_program, "not a program\n").expect("fixture");
+            // What: the lines this thread wrote, emptied first so the read below holds this question's alone.
+            // Why: a reason that is discarded leaves a caller's failure naming no cause (issue 6540).
+            let _ = take_lines_written();
+            assert_eq!(
+                ask_git_var(not_a_program.as_path(), "GIT_CONFIG_SYSTEM"),
+                None
+            );
+            let said: Vec<String> = take_lines_written();
+            assert_eq!(said.len(), 1, "one question says one line: {said:?}");
+            assert!(
+                said[0].contains(not_a_program.display().to_string().as_str()),
+                "the line names the program: {said:?}"
+            );
+            assert!(
+                said[0].contains("git var GIT_CONFIG_SYSTEM"),
+                "the line names the question: {said:?}"
+            );
+            assert!(
+                said[0].contains("gave no answer"),
+                "the line says what happened: {said:?}"
+            );
+            remove(root.as_path());
+        },
+    );
 }

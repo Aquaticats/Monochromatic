@@ -17,11 +17,15 @@
 //! - `git_directory_roots.rs`:
 //!   the Git directories a command works in,
 //!   found without starting Git.
+//! - `git_system_config_asking.rs`:
+//!   the question one real Git executable is asked about a file it compiles in,
+//!   and the reason when it printed none.
 //! - `git_system_config.rs`:
 //!   the system configuration file a real Git executable reads,
 //!   learned once per executable identity.
-//! - `git_metadata.rs`:
-//!   captured read-only real-Git queries over raw bytes.
+//! - `the_output_a_captured_query_gives.rs`:
+//!   what one captured Git query produced:
+//!   its exit status and the exact bytes of each stream.
 //! - `object_abbreviation_byte_and_prefix_checks.rs`:
 //!   small byte and name checks the abbreviation uses:
 //!   a NUL,
@@ -59,16 +63,9 @@
 //! - `repo_read_config_typed.rs`:
 //!   in-process repository reads:
 //!   proof that every configuration value Git types at startup is one Git accepts silently.
-//! - `repo_read_diff.rs`:
-//!   in-process repository reads:
-//!   the difference between two sorted entry lists and the output spellings.
-//! - `repo_read_hook.rs`:
-//!   in-process repository reads:
-//!   the two runner entry points that try the answers before starting Git.
-//! - `repo_read_index.rs`:
-//!   in-process repository reads:
-//!   the entries of an index file,
-//!   versions 2 to 4.
+//! - `the_switch_that_turns_the_answers_off.rs`:
+//!   the environment switch that turns the in-process answers off,
+//!   and the overlay entry a control writes to set it.
 //! - `repo_read_layout_disk_and_directory_facts.rs`:
 //!   small file system and command line facts a layout read needs:
 //!   owner,
@@ -91,55 +88,67 @@
 //!   in-process repository reads:
 //!   the location,
 //!   Git paths and object format found from the file system.
-//! - `repo_read_main_worktree.rs`:
-//!   the one query for the worktree a repository's shared settings belong to.
 //! - `repo_read_object.rs`:
 //!   in-process repository reads:
 //!   object kinds,
 //!   names and the zlib step shared by loose objects and packs.
+//! - `repo_read_index.rs`:
+//!   in-process repository reads:
+//!   the entries of an index file,
+//!   versions 2 to 4.
+//! - `object_abbreviation_pack_index.rs`:
+//!   one pack index and one multi-pack-index of an object directory,
+//!   read for the count and the sorted names they hold.
+//! - `repo_read_pack.rs`:
+//!   in-process repository reads:
+//!   one pack,
+//!   its index lookup and delta resolution.
 //! - `repo_read_odb.rs`:
 //!   in-process repository reads:
 //!   the object database of a repository,
 //!   its packs and alternates.
-//! - `object_abbreviation_pack_index.rs`:
-//!   one pack index and one multi-pack-index of an object directory,
-//!   read for the count and the sorted names they hold.
 //! - `object_abbreviation.rs`:
 //!   the abbreviated object name Git prints (`core.abbrev`,
 //!   the automatic length,
 //!   uniqueness),
 //!   computed without starting Git.
-//! - `repo_read_pack.rs`:
-//!   in-process repository reads:
-//!   one pack,
-//!   its index lookup and delta resolution.
-//! - `repo_read_query.rs`:
-//!   in-process repository reads:
-//!   answers to the exact read-only command lines the wrapper issues.
-//! - `repo_read_query_request_answer_and_context.rs`:
-//!   what the in-process Git queries share:
-//!   the request,
-//!   the answer,
-//!   the parsed command line and the query context.
 //! - `repo_read_refs.rs`:
 //!   in-process repository reads:
 //!   the files ref storage,
 //!   one ref by name,
 //!   a symbolic chain and the list of all refs.
-//! - `repo_read_query_quiet.rs`:
-//!   in-process repository reads:
-//!   the exit status of `diff-index --cached --quiet`.
-//! - `repo_read_query_refs.rs`:
-//!   in-process repository reads:
-//!   answers for the reference and configuration command lines.
 //! - `repo_read_tree.rs`:
 //!   in-process repository reads:
 //!   trees,
 //!   flattened trees and commit fields.
+//! - `repo_read_diff.rs`:
+//!   in-process repository reads:
+//!   the difference between two sorted entry lists and the output spellings.
+//! - `repo_read_query_request_answer_and_context.rs`:
+//!   what the in-process Git queries share:
+//!   the request,
+//!   the answer,
+//!   the parsed command line and the query context.
+//! - `repo_read_query_refs.rs`:
+//!   in-process repository reads:
+//!   answers for the reference and configuration command lines.
 //! - `repo_read_tree_cached.rs`:
 //!   in-process repository reads:
 //!   the part of a tree that differs from an index,
 //!   found beside its cache-tree.
+//! - `repo_read_query_quiet.rs`:
+//!   in-process repository reads:
+//!   the exit status of `diff-index --cached --quiet`.
+//! - `repo_read_query.rs`:
+//!   in-process repository reads:
+//!   answers to the exact read-only command lines the wrapper issues.
+//! - `repo_read_hook.rs`:
+//!   in-process repository reads:
+//!   the two runner entry points that try the answers before starting Git.
+//! - `git_metadata.rs`:
+//!   captured read-only real-Git queries over raw bytes.
+//! - `repo_read_main_worktree.rs`:
+//!   the one query for the worktree a repository's shared settings belong to.
 //! - `repository_location.rs`:
 //!   the one query for repository identity,
 //!   top level and the path below it.
@@ -156,8 +165,9 @@
 //!   the record of the commit an abort restores,
 //!   read in bounded time from a regular file only,
 //!   read beside the reading that asks for it.
-//! - `repository_facts_abort_discard.rs`:
-//!   what one abort form would discard besides the state of the operation it undoes.
+//! - `the_facts_a_repository_reads.rs`:
+//!   the interface a repository-fact provider answers,
+//!   and the two shapes the question about an abort form answers in.
 //! - `repository_facts_abort_discard_worktree_entries.rs`:
 //!   whether the worktree still holds an entry at a path a listing named,
 //!   read beside the reading that asks for it.
@@ -167,6 +177,8 @@
 //! - `repository_facts_staged_entries.rs`:
 //!   the listed paths whose staged content an abort would discard,
 //!   read beside the provider so its interface file stays within its line bound.
+//! - `repository_facts_abort_discard.rs`:
+//!   what one abort form would discard besides the state of the operation it undoes.
 //! - `repository_facts_staged_selection.rs`:
 //!   what one `git add` selects,
 //!   counted from real Git's own listings.
@@ -188,6 +200,14 @@
 //! ```ts
 //! // repo_read/index.ts: one `export * from './file'` per module below.
 //! ```
+
+/// What one captured Git query produced:
+/// its exit status and the exact bytes of each stream.
+pub mod the_output_a_captured_query_gives;
+
+/// The environment switch that turns the in-process answers off,
+/// and the overlay entry a control writes to set it.
+pub mod the_switch_that_turns_the_answers_off;
 
 /// Captured read-only real-Git queries over raw bytes.
 pub mod git_metadata;
@@ -229,6 +249,10 @@ pub mod repository_facts_untracked_files;
 ///  read beside the provider so its interface file stays within its line bound.
 pub mod repository_facts_staged_entries;
 
+/// The interface a repository-fact provider answers,
+/// and the two shapes the question about an abort form answers in.
+pub mod the_facts_a_repository_reads;
+
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
 
@@ -257,6 +281,10 @@ pub mod sequencer_marker;
 /// The Git directories a command works in,
 /// found without starting Git.
 pub mod git_directory_roots;
+
+/// The question one real Git executable is asked about a file it compiles in,
+/// and the reason when it printed none.
+pub mod git_system_config_asking;
 
 /// The system configuration file a real Git executable reads,
 /// learned once per executable identity.

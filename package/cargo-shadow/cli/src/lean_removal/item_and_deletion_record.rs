@@ -28,7 +28,8 @@ pub struct Item {
 /// What a completed deletion did.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Deleted {
-    /// The disk bytes of the files whose last link in this walk went.
+    /// The bytes of the files whose last link in this walk went,
+    /// by the rule the caller set.
     pub bytes: u64,
     /// The directories whose owner read,
     /// write and search permission this deletion added so it could remove what they held.

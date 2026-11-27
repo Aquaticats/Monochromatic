@@ -39,9 +39,11 @@ use crate::lean_proc_scan::{
     scan_processes,
 };
 /// Imports the claim and the deletion that finish a removal,
-/// and the words the proof line is made of.
+/// the words the proof line is made of,
+/// and the rule the tool counts bytes by.
 use crate::lean_removal::{
     Refusal,
+    allocated_bytes_of,
     claim_into_trash,
     delete_claimed,
     item_of,
@@ -125,7 +127,7 @@ pub(super) fn collect_one(
         Err(refusal) => return TreeVerdict::Skip(refusal.to_string()),
     };
     drop(held);
-    return match delete_claimed(&claimed, item.identity) {
+    return match delete_claimed(&claimed, item.identity, allocated_bytes_of) {
         Ok(deleted) => {
             emit(
                 log,

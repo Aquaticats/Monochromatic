@@ -70,6 +70,9 @@
 //! - `word_merge_invented_text.rs`:
 //!   the text a word merge of one region may not write,
 //!   which keeps that region in conflict.
+//! - `word_merge_deleted_lines.rs`:
+//!   the lines both sides kept in a region they only deleted lines from,
+//!   and the check that keeps a line one side deleted out of a merged region.
 //! - `word_merge.rs`:
 //!   the three-way merge by line and by word that resolves a conflict Git's line merge reports.
 //! - `merge_second_pass_git_runner.rs`:
@@ -363,6 +366,10 @@ pub mod word_merge;
 /// The text a word merge of one region may not write,
 /// which keeps that region in conflict.
 pub mod word_merge_invented_text;
+
+/// The lines both sides kept in a region they only deleted lines from,
+/// and the check that keeps a line one side deleted out of a merged region.
+pub mod word_merge_deleted_lines;
 
 /// The limits a file is merged under,
 /// the reasons a conflicted path is left,

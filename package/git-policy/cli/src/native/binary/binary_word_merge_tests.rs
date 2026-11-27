@@ -58,6 +58,31 @@ pub(super) const ADJACENT: &str = "md1b";
 /// the word pass leaves it a conflict.
 pub(super) const BOTH_APPEND: &str = "md2";
 
+/// The path of the file that holds one record per line,
+/// which the two sides of the deleted-records control delete records from.
+const DELETED_RECORDS: &str = "records.txt";
+
+/// The records both sides start from:
+/// two this side deletes,
+/// then two the other side deletes right after them.
+const DELETED_RECORDS_BASE: &str =
+    "alpha one\nalpha two\nbeta one\nbeta two\ngamma one\ngamma two\ndelta one\ndelta two\n";
+
+/// This side's records:
+/// the `beta` records are gone.
+const DELETED_RECORDS_OURS: &str =
+    "alpha one\nalpha two\ngamma one\ngamma two\ndelta one\ndelta two\n";
+
+/// The other side's records:
+/// the `gamma` records are gone.
+const DELETED_RECORDS_THEIRS: &str =
+    "alpha one\nalpha two\nbeta one\nbeta two\ndelta one\ndelta two\n";
+
+/// The answer both sides' records leave:
+/// every record either side deleted stays deleted,
+/// and no record is added.
+const DELETED_RECORDS_UNION: &str = "alpha one\nalpha two\ndelta one\ndelta two\n";
+
 /// The bytes of one stored corpus file.
 pub(super) fn corpus(
     name: &str,
@@ -450,6 +475,103 @@ fn a_file_with_one_unresolvable_part_stays_fully_conflicted() {
         "{said}"
     );
     assert!(merge_lines(&observed).is_empty(), "{said}");
+    remove(&fixture);
+}
+
+/// What:
+///  Two sides that each delete different adjacent records of a file
+///  that holds one record per line,
+///  merged the way the wrapper merges,
+///  stage the union of the deletions and nothing else.
+/// Why:
+///  Merge `b928c5fa6999` of this repository's own history finished a conflict of this shape by itself
+///  and kept the records `main` had deleted
+///  (`package/git-policy/cli/layout-allow-list/file-rule.txt`,
+///  issue 6529),
+///  so a reader of the merge commit could not tell what the pass had decided.
+///  A record one side deleted is text no side kept,
+///  and the merge that stages it is the defect this control holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = preparedRepository({ file: 'records.txt', base, ours, theirs });
+/// const merged = await runWrapped(fixture, repo, ['merge', '--no-edit', 'topic']);
+/// expect(stagedBlob(repo, 'records.txt')).toEqual(unionOfDeletions);
+/// expect(readFile(repo, 'records.txt')).toEqual(unionOfDeletions);
+/// ```
+#[test]
+fn two_sides_deleting_adjacent_records_stage_only_the_union() {
+    let fixture: Fixture = fixture("word-merge-deleted-records");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let write = |text: &str| {
+        std::fs::write(repo.join(DELETED_RECORDS), text).expect("the file");
+    };
+    let commit_all = |message: &str| {
+        git(&fixture, repo.as_path(), &["add", "--", DELETED_RECORDS]);
+        git(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", format!("--message={message}").as_str()],
+        );
+    };
+    write(DELETED_RECORDS_BASE);
+    commit_all("base");
+    git(
+        &fixture,
+        repo.as_path(),
+        &["switch", "--quiet", "--create", "topic"],
+    );
+    write(DELETED_RECORDS_THEIRS);
+    commit_all("theirs deletes the gamma records");
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    write(DELETED_RECORDS_OURS);
+    commit_all("ours deletes the beta records");
+    let observed: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        arguments_of(Stop::Merge).as_slice(),
+    );
+    let said: String = stderr_of(&observed);
+    let staged: Vec<u8> = run_direct(
+        &fixture,
+        repo.as_path(),
+        &["show", format!(":{DELETED_RECORDS}").as_str()],
+    )
+    .stdout;
+    let worktree: Vec<u8> = std::fs::read(repo.join(DELETED_RECORDS)).expect("the file");
+    let staged_text: String = String::from_utf8_lossy(staged.as_slice()).into_owned();
+    assert_eq!(
+        staged_text, DELETED_RECORDS_UNION,
+        "the pass stages the union of the deletions: {said}"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(worktree.as_slice()),
+        DELETED_RECORDS_UNION,
+        "the worktree holds what the pass staged: {said}"
+    );
+    for line in DELETED_RECORDS_BASE.lines() {
+        if DELETED_RECORDS_OURS.lines().any(|kept| return kept == line)
+            && DELETED_RECORDS_THEIRS
+                .lines()
+                .any(|kept| return kept == line)
+        {
+            continue;
+        }
+        assert!(
+            !staged_text.contains(line),
+            "a record one side deleted came back: {line}\n{said}"
+        );
+    }
+    assert!(
+        unmerged(&fixture, repo.as_path()).is_empty(),
+        "nothing is left for the person to resolve: {said}"
+    );
+    assert!(
+        merge_lines(&observed).iter().any(|line| {
+            return line.contains(DELETED_RECORDS);
+        }),
+        "the pass says which file it merged: {said}"
+    );
     remove(&fixture);
 }
 

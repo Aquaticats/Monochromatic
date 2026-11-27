@@ -11,8 +11,12 @@
 //! type TrashSweep = { bytes: number; modesAdded: string[]; failures: string[] };
 //! export function emptyTrash(trash: string): TrashSweep
 //! ```
-/// Imports the deletion a swept entry goes through.
-use super::deletion_walk::delete_claimed;
+/// Imports the deletion a swept entry goes through,
+/// and the rule the tool counts bytes by.
+use super::deletion_walk::{
+    allocated_bytes_of,
+    delete_claimed,
+};
 /// Imports what a finished deletion did.
 use super::item_and_deletion_record::Deleted;
 /// Imports the refusals a swept entry can answer with.
@@ -84,7 +88,7 @@ pub fn empty_trash(trash: &Path) -> TrashSweep {
                 continue;
             }
         };
-        match delete_claimed(&entry.path(), judged) {
+        match delete_claimed(&entry.path(), judged, allocated_bytes_of) {
             Ok(deleted) => sweep.add(deleted),
             Err(Refusal::Gone(_)) => {}
             Err(Refusal::PartlyRemoved {

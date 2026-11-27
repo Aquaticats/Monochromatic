@@ -17,13 +17,13 @@
 //! // ignoredFilesTheTreeTracks(facts, 'HEAD') => ['debug.log']
 //! ```
 
-/// The provider whose Git,
-///  global options and environment answer the queries.
-use super::repository_facts::GitFacts;
 /// The expression Git resolves for a shorthand only `switch` and `checkout` read.
 use crate::command_discard::previous_branch_expression;
 /// The captured-query runner's output type and its byte helpers.
 use crate::git_metadata::MetadataOutput;
+/// The provider whose Git,
+///  global options and environment answer the queries.
+use crate::repository_facts_git_provider::GitFacts;
 /// The reading of one `git check-ignore` answer over the asked paths.
 use crate::rule_worktree_dirty::{
     ignored_paths_from_answer,

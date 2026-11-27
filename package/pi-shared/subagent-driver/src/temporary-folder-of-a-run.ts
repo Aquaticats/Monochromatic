@@ -25,6 +25,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { noteTheTemporaryFolderThatCannotBeMade, } from './a-start-that-ended-before-pi.ts';
 
 //region The folder
 
@@ -222,3 +223,41 @@ export function variablesNamingTemporaryFolder({ folder, }: { readonly folder: s
 }
 
 //endregion The variables that name it
+
+/**
+ Makes the folder this run's Pi writes its temporary files in, and leaves the line that says how the start ended when it cannot be
+ made.
+
+ @param runFolder - the run's own folder
+
+ @returns the temporary folder's path
+
+ @throws TemporaryFolderNotMadeError when the folder cannot be made, after the line is written
+
+ @example
+ ```ts
+ const folder = await temporaryFolderOfTheRun({ runFolder: '/runs/a-1', },);
+ ```
+ */
+export async function temporaryFolderOfTheRun({
+  runFolder,
+}: {
+  readonly runFolder: string;
+},): Promise<string> {
+  try {
+    /**
+     What making the folder answered.
+     */
+    const made = await makeTemporaryFolderOfARun({ runFolder, },);
+    return made.folder;
+  }
+  catch (error) {
+    if (error instanceof TemporaryFolderNotMadeError) {
+      await noteTheTemporaryFolderThatCannotBeMade({
+        runFolder,
+        detail: error.message,
+      },);
+    }
+    throw error;
+  }
+}

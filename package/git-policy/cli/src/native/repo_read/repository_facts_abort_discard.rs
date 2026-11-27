@@ -28,7 +28,6 @@
 
 /// `use` brings the names this file needs from the sibling modules that own them.
 use crate::git_metadata::MetadataOutput;
-use crate::repository_facts::GitFacts;
 pub use crate::repository_facts_abort_discard_query_arguments_and_readings::StateAnswer;
 pub use crate::repository_facts_abort_discard_query_arguments_and_readings::both_listings;
 pub use crate::repository_facts_abort_discard_query_arguments_and_readings::listed_paths;
@@ -38,6 +37,7 @@ pub use crate::repository_facts_abort_discard_query_arguments_and_readings::stat
 pub use crate::repository_facts_abort_discard_query_arguments_and_readings::state_query_arguments;
 pub use crate::repository_facts_abort_discard_query_arguments_and_readings::uncommitted_queries;
 pub use crate::repository_facts_abort_discard_query_arguments_and_readings::unresolved_query;
+use crate::repository_facts_git_provider::GitFacts;
 use crate::rule_abort_operation::{
     AbortOperation,
     OperationEnd,
@@ -50,94 +50,15 @@ use crate::rule_abort_operation::{
     restored_revision,
 };
 use crate::rule_linked_worktree::GuardedCommand;
+pub use crate::the_facts_a_repository_reads::{
+    AbortDiscard,
+    DiscardBaseline,
+};
 use std::ffi::{
     OsStr,
     OsString,
 };
 use std::path::PathBuf;
-
-/// What:
-///  What an abort form would discard,
-///  from the shape of the repository alone.
-/// Why:
-///   The guard needs three different answers from this:
-///  no state of this operation is there (Git refuses the command itself),
-///  the operation this command ends waits and these paths hold the person's work,
-///  or the commit whose tree the abort writes back is recorded somewhere.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AbortDiscard = { kind: 'nothing-waiting' } | { kind: 'waiting'; inProgress: AbortOperation; restored: string; worktree: string[]; staged: string[] };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AbortDiscard {
-    /// The state this command's own operation writes is absent,
-    ///  so Git refuses the command and discards nothing.
-    NothingWaiting,
-    /// The command's operation waits,
-    ///  and these paths hold the work its command would discard besides its own.
-    Waiting {
-        /// Which operation this command ends.
-        in_progress: AbortOperation,
-        /// Whether the command ends the operation or goes on with the next commit or patch.
-        ends: OperationEnd,
-        /// The revision whose tree the abort writes back into the worktree,
-        ///  as Git's own implementation of this abort finds it:
-        ///  a name Git resolves,
-        ///  or the commit read from the record Git wrote.
-        restored: OsString,
-        /// What the two listings below compare each side with:
-        ///  the result Git recorded for a merge,
-        ///  or the state the operation started from.
-        baseline: DiscardBaseline,
-        /// The repository-relative paths where the worktree differs from that baseline,
-        ///  in a settled order and each once.
-        worktree: Vec<Vec<u8>>,
-        /// The listed paths whose index holds a whole entry (stage 0),
-        ///  in a settled order and each once:
-        ///  that is content the command's reset drops from the index itself.
-        ///  A path whose index entry was erased is not among them and is no reason to refuse,
-        ///  because the tree the reset writes back holds that path and its content:
-        ///  an abort undoes the deletion and loses nothing of the person's.
-        staged: Vec<Vec<u8>>,
-        /// The paths the operation is still stopped at,
-        ///  named by the worktree listing,
-        ///  when Git recorded no result for the conflict.
-        ///  Nothing tells the conflict text Git wrote there from a resolution the person wrote over it,
-        ///  so each of them is kept as the person's and named as one the wrapper cannot judge.
-        conflicted: Vec<Vec<u8>>,
-    },
-}
-
-/// What:
-///  What the two listings of a waiting command compare the worktree and the index with.
-/// Why:
-///   Git records the result it computed for the conflict it stopped at (`AUTO_MERGE`),
-///  for a merge and for the rebase,
-///  pick and `am` that use the same merge machinery (measured with Git 2.56.0),
-///  so a path that still holds that result was never touched by the person.
-///  A path whose worktree file still holds the recorded result and whose index entry differs
-///  is content that stands only in the index.
-///  Where Git recorded no result (an older Git,
-/// a state it does not write for),
-///  the listings compare each side with the other,
-///  and a staged path's content is in the worktree as well.
-///  A refusal that named the wrong one would tell the person the wrong place to look.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type DiscardBaseline = 'recorded-result' | 'operation-start';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum DiscardBaseline {
-    /// `AUTO_MERGE` holds the result Git computed for the conflict it stopped at,
-    ///  and both listings are read against it.
-    RecordedResult,
-    /// No such result is recorded:
-    ///  the worktree is read against the index,
-    ///  and the index against `HEAD`.
-    OperationStart,
-}
 
 /// What:
 ///  The paths the operation is still stopped at,
