@@ -141,6 +141,9 @@
 //! - `service_provision_host_and_manager.rs`:
 //!   what provisioning knows about the machine and the manager it asks,
 //!   the earlier release's unit names and what a refused call is to the person.
+//! - `service_files_of_a_stopped_instance_note_beside_socket.rs`:
+//!   the note an instance's units leave beside their socket,
+//!   and the two functions that write it.
 //! - `service_instance.rs`:
 //!   which commit service instance belongs to a worktree:
 //!   its name,
@@ -168,6 +171,9 @@
 //!   and the ceiling that bounds what the record remembers.
 //! - `service_busy_step_record_on_this_thread.rs`:
 //!   the step record a thread keeps while it is inside a write that is never ended.
+//! - `service_files_of_a_stopped_instance_journal_entries.rs`:
+//!   the entries of a stopped instance's journal,
+//!   and what each name in it says about keeping the journal.
 //! - `service_files_of_a_stopped_instance.rs`:
 //!   the files an instance of the commit service keeps between runs:
 //!   the note beside its socket,
@@ -550,6 +556,10 @@ pub mod service_client_reach_service;
 /// the earlier release's unit names and what a refused call is to the person.
 pub mod service_provision_host_and_manager;
 
+/// The note an instance's units leave beside their socket,
+/// and the two functions that write it.
+pub mod service_files_of_a_stopped_instance_note_beside_socket;
+
 /// The retirement of the single service of the earlier releases.
 pub mod service_provision_earlier_service_retirement;
 
@@ -601,6 +611,10 @@ pub mod service_address_of_a_worktree;
 /// the note and socket file that say it has units,
 /// and the journal that remembers its batches.
 pub mod service_files_of_a_stopped_instance;
+
+/// The entries of a stopped instance's journal,
+/// and what each name in it says about keeping the journal.
+pub mod service_files_of_a_stopped_instance_journal_entries;
 
 /// The two folders every question about an instance's units is asked of,
 /// which worktree a unit instance belongs to,
