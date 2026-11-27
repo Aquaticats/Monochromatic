@@ -24,6 +24,41 @@
 //! ```
 
 /// What:
+/// `use crate::bounded_run::{Bound, RunError, ScopeState};` imports the bound of a run,
+/// its error and the state of its journal.
+/// Why:
+/// The path that fails a run after its program started takes all three.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Bound, RunError, ScopeState } from 'crate/bounded_run';
+/// ```
+use crate::bounded_run::{
+    Bound,
+    RunError,
+    ScopeState,
+};
+/// What:
+/// `use crate::bounded_run_containment::{Containment, lose, settle, stop_containment};` imports the containment of a run,
+/// the mark that writers may remain,
+/// the record that a run ended and the stop itself.
+/// Why:
+/// The end asks the containment to stop,
+/// keeps that answer,
+/// adds the end of the unit after it,
+/// and settles or marks the journal the same way the containment does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Containment, lose, settle, stopContainment } from 'crate/bounded_run_containment';
+/// ```
+use crate::bounded_run_containment::{
+    Containment,
+    lose,
+    settle,
+    stop_containment,
+};
+/// What:
 /// `use crate::control_group::ControlGroup;` imports the scope whose unit is stopped.
 /// Why:
 /// The unit name and the scope's directory belong to that type.
@@ -32,40 +67,6 @@
 /// ```ts
 /// import { ControlGroup } from 'crate/control_group';
 /// ```
-use crate::bounded_run::{
-    Bound,
-    RunError,
-    ScopeState,
-};
-/// What:
-/// `use crate::bounded_run_containment::{Containment, stop_containment};` imports the containment of a run and its stop.
-/// Why:
-/// The end asks the containment to stop,
-/// keeps that answer,
-/// and adds the end of the unit after it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { Containment, stopContainment } from 'crate/bounded_run_containment';
-/// ```
-use crate::bounded_run_containment::{
-    Containment,
-    stop_containment,
-};
-/// What:
-/// `use crate::bounded_run_containment::{lose, settle};` imports the mark that writers may remain and the record that a run ended.
-/// Why:
-/// A run that fails after its program started ends through the same stop,
-/// and its journal must say whether that stop held.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { lose, settle } from 'crate/bounded_run_containment';
-/// ```
-use crate::bounded_run_containment::{
-    lose,
-    settle,
-};
 use crate::control_group::ControlGroup;
 /// What:
 /// `use crate::control_group::retire::{RETIRE_BOUND, retire_unit};` imports the stop of a unit and its bound.
@@ -90,7 +91,6 @@ use crate::control_group::retire::{
 /// import { Route } from 'crate/control_group_route_discovery';
 /// ```
 use crate::control_group_route_discovery::Route;
-use std::process::Child;
 /// What:
 /// `use std::process::Child;` imports the handle of a started child.
 /// Why:
@@ -99,6 +99,17 @@ use std::process::Child;
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { ChildProcess } from 'node:child_process';
+/// ```
+use std::process::Child;
+/// What:
+/// `use std::rc::Rc;` imports the reference-counted pointer type.
+/// Its siblings are `Box` (which owns its value) and `Arc` (which counts atomically for several threads).
+/// Why:
+/// The failed-start path lends the journal state to the settle and lose calls.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // every object reference in TS is shared and counted by the garbage collector
 /// ```
 use std::rc::Rc;
 

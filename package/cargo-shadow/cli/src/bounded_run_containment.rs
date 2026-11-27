@@ -316,9 +316,15 @@ pub(crate) enum Containment {
     /// quiescence is shown by the kernel.
     Scope {
         /// The scope of this run.
-        /// Shared behind an `Rc` (the sibling of `Box`, which owns its value, and of `Arc`, which shares across threads) so this
-        /// variant stays small enough for `clippy::large_enum_variant` now that a route names two programs; the count is cheap
-        /// because one thread uses it.
+        /// Shared behind an `Rc`.
+        /// Its siblings are `Box`,
+        /// which owns its value,
+        /// and `Arc`,
+        /// which shares across threads.
+        /// Why `Rc` and not `Box` or `Arc`:
+        /// this variant has to stay small enough for `clippy::large_enum_variant`
+        /// now that a route names two programs,
+        /// and the count is cheap because one thread uses it.
         group: Rc<ControlGroup>,
         /// The route it was planned on.
         route: Route,

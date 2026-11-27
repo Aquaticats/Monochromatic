@@ -920,7 +920,8 @@ A run whose stop could not show the scope empty does not ask for the unit to be 
 a member may still write,
 the refusal's report names it,
 and a manager stop would kill it behind that report.
-Such a unit is populated, not the loaded-and-empty leftover this step exists for.
+Such a unit is populated,
+not the loaded-and-empty leftover this step exists for.
 The cost is one `systemctl` call per scoped run:
 `systemctl --user stop` of such an empty scope took 4 ms to 5 ms in three probes on 2026-11-27,
 and the manager showed the unit `not-found` as soon as the stop returned in all three.
