@@ -43,7 +43,8 @@ fn a_script_names_the_program_after_the_hash_and_bang() {
     }
 }
 
-/// The rest of the first line is the interpreter's arguments, so only the first word is the program.
+/// The rest of the first line is the interpreter's arguments,
+/// so only the first word is the program.
 #[test]
 fn a_script_line_with_arguments_still_names_only_the_program() {
     let directory = scratch();
@@ -84,7 +85,8 @@ fn a_wide_little_endian_program_names_the_linker_its_entry_holds() {
     }
 }
 
-/// The 32-bit, most-significant-byte-first layout carries the same answer.
+/// The 32-bit,
+/// most-significant-byte-first layout carries the same answer.
 #[test]
 fn a_narrow_big_endian_program_names_its_linker_too() {
     let directory = scratch();
@@ -99,7 +101,8 @@ fn a_narrow_big_endian_program_names_its_linker_too() {
     }
 }
 
-/// A compiled program with no interpreter entry names no interpreter, so its own file is the only file it needs.
+/// A compiled program with no interpreter entry names no interpreter,
+/// so its own file is the only file it needs.
 #[test]
 fn a_program_with_no_interpreter_entry_names_none() {
     let directory = scratch();
@@ -135,7 +138,8 @@ fn a_file_cut_inside_its_header_cannot_be_read_as_a_program() {
     ));
 }
 
-/// A path that holds nothing answers nothing, which is the case a vanished program makes.
+/// A path that holds nothing answers nothing,
+/// which is the case a vanished program makes.
 #[test]
 fn a_path_that_is_not_there_cannot_be_read() {
     let directory = scratch();

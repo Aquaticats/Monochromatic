@@ -2030,7 +2030,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   started it,
   and the chain repeated until the host refused new processes (issue 6259).
   When no candidate is left,
-  the message names every `mpm` the lookup saw, in the order it read them, with the reason each was passed over
+  the message names every `mpm` the lookup saw,
+  in the order it read them,
+  with the reason each was passed over
   (this shadow,
   a launcher of it,
   a shadow of another version,
@@ -2072,7 +2074,9 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   the fact that the same path was not a shadow when the lookup read it a moment earlier,
   so the file there or a launcher record beside it changed in between,
   and what repairs it:
-  the message itself lists every `mpm` the lookup read, in that order, with why it took or passed over each,
+  the message itself lists every `mpm` the lookup read,
+  in that order,
+  with why it took or passed over each,
   so no sentence sends the reader to a command a shell may reject,
   the shadow's own directory belongs first and the real `mpm`'s after it,
   and `mpm install` in a launcher's tree writes a record that names a shadow again.
@@ -2185,7 +2189,8 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   An error no arm classifies keeps the system's own words and names no step that cannot show the error:
   it does not send the reader to run the program by hand,
   which cannot reproduce a refusal of this start,
-  and for `E2BIG`, `ENAMETOOLONG` and `ELOOP` it says that running the same command again cannot succeed
+  and for `E2BIG`,
+  `ENAMETOOLONG` and `ELOOP` it says that running the same command again cannot succeed
   and names what to change instead,
   while the words about a damaged file and the words about a limit stay what to act on.
   The file the kernel will not start has an arm of its own for the same reason.

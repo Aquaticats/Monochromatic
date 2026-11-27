@@ -10,7 +10,8 @@
 //!           that resolves to this executable is skipped,
 //! not only the first.
 //! A person who reads "no real `mpm` found on PATH" has to know which files were skipped and why,
-//! because a file without its execute bit, a directory of that name and a link that leads nowhere
+//! because a file without its execute bit,
+//! a directory of that name and a link that leads nowhere
 //! all look the same from outside and need three different repairs.
 //!
 //! In TS you'd write (pseudocode):
@@ -99,13 +100,15 @@ pub enum SkipReason {
     ThisShadow,
     /// The file is a launcher whose record names this running shadow.
     LauncherOfThisShadow,
-    /// The file carries a shadow's identity, of this version or another.
+    /// The file carries a shadow's identity,
+    /// of this version or another.
     Shadow {
         /// What that shadow says it is,
         /// as its own file writes it.
         identity: String,
     },
-    /// The path is a directory, not a program.
+    /// The path is a directory,
+    /// not a program.
     Directory,
     /// The path is a regular file with no execute bit.
     NoExecuteBit {
@@ -136,7 +139,8 @@ pub enum SkipReason {
 /// ```
 #[derive(Debug)]
 pub struct Candidate {
-    /// The path the lookup joined its directory with, as it was on PATH.
+    /// The path the lookup joined its directory with,
+    /// as it was on PATH.
     pub path: PathBuf,
     /// Why the lookup passed it over,
     /// or `None` when this is the one it chose.
@@ -156,9 +160,11 @@ pub struct Candidate {
 /// ```
 #[derive(Debug)]
 pub struct Lookup {
-    /// Every `mpm` the lookup saw, in PATH order.
+    /// Every `mpm` the lookup saw,
+    /// in PATH order.
     /// A directory on PATH with no `mpm` in it adds nothing here:
-    /// the list is of programs found, not of directories read.
+    /// the list is of programs found,
+    /// not of directories read.
     pub candidates: Vec<Candidate>,
     /// The real `mpm` to start,
     /// or `None` when every candidate was skipped and none was left.
@@ -181,10 +187,14 @@ pub struct Lookup {
 enum Inspection {
     /// The path holds a program the lookup starts.
     Runnable,
-    /// Nothing is at this path: neither a file nor a link.
+    /// Nothing is at this path:
+    /// neither a file nor a link.
     NothingThere,
     /// Something is at this path and the lookup passed it over.
-    Skipped(SkipReason),
+    Skipped {
+        /// Why the lookup passed this path over.
+        reason: SkipReason,
+    },
 }
 
 /// What:
@@ -242,25 +252,33 @@ fn inspect_candidate(
             Ok(followed) => followed,
             // `fs::read_link` reads the text the link itself holds; an unreadable one leaves an empty path.
             Err(_) => {
-                return Inspection::Skipped(SkipReason::BrokenLink {
-                    target: fs::read_link(candidate).unwrap_or_default(),
-                });
+                return Inspection::Skipped {
+                    reason: SkipReason::BrokenLink {
+                        target: fs::read_link(candidate).unwrap_or_default(),
+                    },
+                };
             }
         }
     } else {
         link
     };
     if target.is_dir() {
-        return Inspection::Skipped(SkipReason::Directory);
+        return Inspection::Skipped {
+            reason: SkipReason::Directory,
+        };
     }
     if !target.is_file() {
-        return Inspection::Skipped(SkipReason::NotARegularFile);
+        return Inspection::Skipped {
+            reason: SkipReason::NotARegularFile,
+        };
     }
     let mode: u32 = target.permissions().mode();
     if mode & EXECUTE_BITS == 0 {
-        return Inspection::Skipped(SkipReason::NoExecuteBit {
-            mode: mode & PERMISSION_BITS,
-        });
+        return Inspection::Skipped {
+            reason: SkipReason::NoExecuteBit {
+                mode: mode & PERMISSION_BITS,
+            },
+        };
     }
     // What:     `fs::canonicalize` resolves every symlink to the final path (a `Result`); the `&` lends the path.
     // Why:      Every link to the shadow resolves to the one executable, so comparing resolved paths recognizes
@@ -268,18 +286,24 @@ fn inspect_candidate(
     //           own bytes below instead of being skipped.
     if let Ok(resolved) = fs::canonicalize(candidate) {
         if resolved == skip {
-            return Inspection::Skipped(SkipReason::ThisShadow);
+            return Inspection::Skipped {
+                reason: SkipReason::ThisShadow,
+            };
         }
         if is_launcher_of(&resolved, skip) {
-            return Inspection::Skipped(SkipReason::LauncherOfThisShadow);
+            return Inspection::Skipped {
+                reason: SkipReason::LauncherOfThisShadow,
+            };
         }
     }
     // A candidate that is a shadow of any version, or a launcher that leads to one, is skipped without being started:
     // what a file is does not depend on its path or its version (`shadow_identity.rs`).
     if let Some(identity) = shadow_behind(candidate) {
-        return Inspection::Skipped(SkipReason::Shadow {
-            identity,
-        });
+        return Inspection::Skipped {
+            reason: SkipReason::Shadow {
+                identity,
+            },
+        };
     }
     return Inspection::Runnable;
 }
@@ -289,7 +313,8 @@ fn inspect_candidate(
 /// answers the program to start and every `mpm` it passed over.
 /// Why:
 /// `skip` is the shadow executable's own resolved path,
-/// so the loop never returns the shadow, and the list it keeps is the evidence a person needs when it returns
+/// so the loop never returns the shadow,
+/// and the list it keeps is the evidence a person needs when it returns
 /// none.
 ///
 /// In TS you'd write (pseudocode):
@@ -310,7 +335,9 @@ pub fn lookup_in_path(
         let candidate: PathBuf = Path::new(directory).join(name);
         match inspect_candidate(&candidate, skip) {
             Inspection::NothingThere => continue,
-            Inspection::Skipped(reason) => candidates.push(Candidate {
+            Inspection::Skipped {
+                reason,
+            } => candidates.push(Candidate {
                 path: candidate,
                 skipped_because: Some(reason),
             }),

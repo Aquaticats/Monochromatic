@@ -1,5 +1,6 @@
 //! What:
-//! The bytes of a compiled program, built by hand for the tests:
+//! The bytes of a compiled program,
+//! built by hand for the tests:
 //! a header,
 //! one program-header entry,
 //! and the interpreter's path when the program names one.
@@ -83,7 +84,8 @@ fn put(
 /// What:
 /// `pub fn elf(layout: &Layout, big_endian: bool, interpreter: Option<&str>) -> Vec<u8>` builds a compiled
 /// program's bytes with the interpreter's path as its one entry.
-/// `None` writes an entry of another kind, as a program that names no interpreter does.
+/// `None` writes an entry of another kind,
+/// as a program that names no interpreter does.
 /// Why:
 /// One builder covers all four combinations of class and byte order,
 /// so each test states only what it is about.

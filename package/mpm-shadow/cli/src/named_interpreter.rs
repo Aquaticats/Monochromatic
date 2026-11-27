@@ -20,15 +20,19 @@
 
 /// Imports `File`,
 /// the handle this module reads a program's first bytes through
-/// (siblings: `fs::read` reads a whole file into memory, which a large program makes wasteful).
+/// (siblings:
+/// `fs::read` reads a whole file into memory,
+/// which a large program makes wasteful).
 use std::fs::File;
-/// Imports `Read` (the `read` method), `Seek` and `SeekFrom` (moving to a byte offset inside the open file).
+/// Imports `Read` (the `read` method),
+/// `Seek` and `SeekFrom` (moving to a byte offset inside the open file).
 use std::io::{
     Read,
     Seek,
     SeekFrom,
 };
-/// Imports `Path` (a borrowed path) and `PathBuf` (an owned one, which outlives this module's buffers).
+/// Imports `Path` (a borrowed path) and `PathBuf` (an owned one,
+/// which outlives this module's buffers).
 use std::path::{
     Path,
     PathBuf,
@@ -79,7 +83,8 @@ const IDENTITY_SIZE: usize = 16;
 
 /// What:
 /// `const HEADER_READ: u64 = 64;` is how many bytes this module reads from the start of a program file first:
-/// the whole 64-bit header, which also holds the 32-bit one.
+/// the whole 64-bit header,
+/// which also holds the 32-bit one.
 /// `u64` is a 64-bit unsigned integer (siblings:
 /// `u32`,
 /// `usize`);
@@ -135,14 +140,18 @@ const FIRST_LINE_LIMIT: u64 = 512;
 /// ```
 #[derive(Debug)]
 pub enum NamedInterpreter {
-    /// A script: the program its first line names after `#!`.
+    /// A script:
+    /// the program its first line names after `#!`.
     Script {
-        /// The interpreter's path, as the first line writes it.
+        /// The interpreter's path,
+        /// as the first line writes it.
         interpreter: PathBuf,
     },
-    /// A compiled program for this system: the dynamic linker its own file points at.
+    /// A compiled program for this system:
+    /// the dynamic linker its own file points at.
     DynamicLinker {
-        /// The linker's path, as the file writes it.
+        /// The linker's path,
+        /// as the file writes it.
         linker: PathBuf,
     },
     /// A compiled program that names no interpreter,
@@ -187,7 +196,8 @@ struct ProgramHeaderTable {
 /// Why:
 /// Both messages about a refused start need this,
 /// and both must not be able to fail:
-/// a file that cannot be read is one more case, not an error that stops the message.
+/// a file that cannot be read is one more case,
+/// not an error that stops the message.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -212,13 +222,17 @@ pub fn named_interpreter(program: &Path) -> NamedInterpreter {
 
 /// What:
 /// `fn read_at(file: &mut File, offset: u64, length: u64) -> Option<Vec<u8>>` reads at most `length` bytes from
-/// `offset` and answers them, or `None` when the file cannot be read at all.
+/// `offset` and answers them,
+/// or `None` when the file cannot be read at all.
 /// `&mut File` lends the open file for changing (the read position moves);
-/// `Option<Vec<u8>>` is "a growable byte buffer, or nothing to read" (siblings:
-/// `Result<Vec<u8>, Error>`, which would make every caller handle a file that merely ends early).
+/// `Option<Vec<u8>>` is "a growable byte buffer,
+/// or nothing to read" (siblings:
+/// `Result<Vec<u8>, Error>`,
+/// which would make every caller handle a file that merely ends early).
 /// Why:
 /// A file shorter than asked for is normal here (a small script),
-/// so a short read is an answer, not a failure.
+/// so a short read is an answer,
+/// not a failure.
 fn read_at(
     file: &mut File,
     offset: u64,

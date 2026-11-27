@@ -319,7 +319,8 @@ fn a_file_without_an_execute_bit_is_named_with_its_mode() {
     assert_eq!(lookup.chosen, Some(second.path().join("mpm")));
 }
 
-/// A directory of the name is named as a directory, and the lookup goes on to the program after it.
+/// A directory of the name is named as a directory,
+/// and the lookup goes on to the program after it.
 #[test]
 fn a_directory_of_that_name_is_named_as_a_directory() {
     let first = scratch();
@@ -357,7 +358,9 @@ fn a_link_that_leads_to_no_file_is_named_with_its_target() {
     assert_eq!(lookup.chosen, None);
 }
 
-/// A directory on PATH that holds no `mpm` adds no candidate: the list is of programs found, not of directories read.
+/// A directory on PATH that holds no `mpm` adds no candidate:
+/// the list is of programs found,
+/// not of directories read.
 #[test]
 fn a_directory_on_path_with_no_mpm_adds_no_candidate() {
     let empty = scratch();

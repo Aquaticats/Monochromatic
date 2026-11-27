@@ -285,7 +285,8 @@ fn a_refusal_because_a_script_is_being_written_names_the_interpreter_its_first_l
 
 /// What:
 /// A compiled program another process holds open for writing is refused with the dynamic linker its own file
-/// names, and the message never claims that program has a first line.
+/// names,
+/// and the message never claims that program has a first line.
 /// Why:
 /// The realistic case is a system's linker being replaced during an upgrade,
 /// and a reader sent to the program's first line is sent to a line it does not have.
@@ -310,7 +311,8 @@ fn a_refusal_because_a_compiled_program_is_being_written_names_its_dynamic_linke
     );
 }
 
-/// A file the code cannot read as a program is described by both kinds of interpreter, not by one of them.
+/// A file the code cannot read as a program is described by both kinds of interpreter,
+/// not by one of them.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_refusal_because_an_unreadable_file_is_being_written_names_both_kinds_of_interpreter() {
@@ -402,7 +404,8 @@ fn a_program_that_is_gone_keeps_both_kinds_of_interpreter_and_the_two_step_remed
 
 /// What:
 /// An error no arm knows keeps the system's words and names no step that cannot show the error:
-/// no hand run of the program, and running the same command again only where repeating it can work.
+/// no hand run of the program,
+/// and running the same command again only where repeating it can work.
 /// Why:
 /// The arm used to send every reader to run the program by hand,
 /// which cannot reproduce a refusal of the shadow's own start.
@@ -588,7 +591,8 @@ fn a_program_that_is_or_leads_to_a_shadow_prints_the_commands_the_lookup_read() 
 }
 
 /// What:
-/// The message for a PATH whose only `mpm` is a file with no execute bit names that file, its mode,
+/// The message for a PATH whose only `mpm` is a file with no execute bit names that file,
+/// its mode,
 /// and the `chmod` that repairs it.
 /// Why:
 /// The message used to say `mpm` is not installed or that every `mpm` is a shadow,

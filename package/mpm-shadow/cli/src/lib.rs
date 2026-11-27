@@ -158,6 +158,7 @@ mod cargo_home_tests;
 #[cfg(test)]
 mod test_scratch;
 
-/// The bytes of a compiled program, built by the unit tests that need one with a linker of its own.
+/// The bytes of a compiled program,
+/// built by the unit tests that need one with a linker of its own.
 #[cfg(test)]
 mod program_bytes;
