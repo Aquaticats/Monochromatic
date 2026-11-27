@@ -1,4 +1,5 @@
 import {
+  mkdir,
   readFile,
   realpath,
   writeFile,
@@ -74,6 +75,16 @@ const failTaskVariable = 'CHECK_TEST_FAIL_TASK';
 const hangTaskVariable = 'CHECK_TEST_HANG_TASK';
 
 /**
+ Environment variable that says how many `[PASS]` suite lines the stand-in `mise` prints.
+
+ A harness run prints one `[info]` `[PASS]` line per suite it ran (`package/test-harness/core/src/describe.ts`, the
+ `logPass` line of `runOnce`), and the level and stamp are the console sink's (`formatRecord`,
+ `package/logger/core/src/sink/console.ts:214`). This stand-in builds that shape itself, so it says nothing about a real
+ harness run.
+ */
+const passLinesVariable = 'CHECK_TEST_PASS_LINES';
+
+/**
  The stand-in `mise`: records the call, then passes, fails with the lines a failing TypeScript check prints, or keeps
  running for a task the fixture named.
  */
@@ -96,6 +107,10 @@ if (process.env.${failTaskVariable} === task) {
   process.stdout.write('error TS2322: Type string is not assignable to type number.\\n');
   process.stdout.write('  at bin/a.ts:3:1\\n');
   process.exit(1);
+}
+const passLines = Number(process.env.${passLinesVariable} ?? '0');
+for (let index = 0; index < passLines; index += 1) {
+  process.stdout.write('[info] [' + new Date().toISOString() + '] [suite ' + String(index) + '] [PASS] a test (1ms)\\n');
 }
 process.stdout.write('ok 2 tests\\n');
 process.exit(0);
@@ -131,6 +146,50 @@ async function withStandInMise({
     ...standIn.environment,
     ...environment,
   };
+}
+
+/**
+ Writes the unit test files a fixture package holds, named the way the harness discovers them.
+
+ The harness globs `**\/*.unit.test.ts` below the package it runs (`mise.toml`,
+ `[task_templates."test:unit"]`), so a fixture package holds however many of these a test writes, and the count a check
+ holds its suite lines against is that many.
+
+ @param checkout - the fixture checkout the package sits in
+
+ @param packagePath - the package's path inside the checkout, as a task name spells it
+
+ @param count - how many unit test files the package holds
+ */
+async function writeUnitTestFiles({
+  checkout,
+  packagePath,
+  count,
+}: {
+  readonly checkout: string;
+  readonly packagePath: string;
+  readonly count: number;
+},): Promise<void> {
+  /**
+   The package's own directory, which the files go in.
+   */
+  const directory = join(
+    checkout,
+    packagePath
+  );
+  await mkdir(
+    directory,
+    { recursive: true, }
+  );
+  for (let index = 0; index < count; index += 1) {
+    await writeFile(
+      join(
+        directory,
+        `suite-${String(index)}.unit.test.ts`
+      ),
+      '',
+    );
+  }
 }
 
 /**
@@ -661,6 +720,105 @@ await describe({
         expect(printed,).toContain('400-task bound',);
         expect(printed,).toContain('That is the bound and not a failing test',);
         expect(printed,).toContain('--unit-tasks-max',);
+      },
+    }),
+    it({
+      name: 'refuses a passing check that printed no suite line',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        // Two unit test files, so two `[PASS]` suite lines are the least this package's run could report.
+        await writeUnitTestFiles({
+          checkout: scratch.path,
+          packagePath: 'package/a',
+          count: 2,
+        });
+        /**
+         How the command ended: its check exited 0 and printed no suite line at all.
+         */
+        const printed = await tsChecks({
+          worktree: scratch.path,
+          args: ['//package/a:test:unit',],
+          environment: await withStandInMise({
+            standIn,
+            environment: { [passLinesVariable]: '0', },
+          }),
+        });
+        expect(printed.status,).toBe(2,);
+        expect(printed.stdout,).toContain('no [PASS] suite line',);
+        expect(printed.stdout,).toContain('2 unit test files',);
+        // A run that checked nothing is not a pass, so no line of it reads as one.
+        expect(printed.stdout,).not.toContain('//package/a:test:unit: exit 0\n',);
+      },
+    }),
+    it({
+      name: 'refuses a passing check that reported fewer suites than the package holds files',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        await writeUnitTestFiles({
+          checkout: scratch.path,
+          packagePath: 'package/a',
+          count: 2,
+        });
+        /**
+         How the command ended: one suite reported, and the package holds two files.
+         */
+        const printed = await tsChecks({
+          worktree: scratch.path,
+          args: ['//package/a:test:unit',],
+          environment: await withStandInMise({
+            standIn,
+            environment: { [passLinesVariable]: '1', },
+          }),
+        });
+        expect(printed.status,).toBe(2,);
+        // The refusal names the count it saw and the count it expected.
+        expect(printed.stdout,).toContain('1 suite reported [PASS]',);
+        expect(printed.stdout,).toContain('2 unit test files',);
+      },
+    }),
+    it({
+      name: 'names the files the package holds and the suites that reported [PASS]',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        await writeUnitTestFiles({
+          checkout: scratch.path,
+          packagePath: 'package/a',
+          count: 1,
+        });
+        /**
+         How the command ended: one file, and three suites inside it reporting.
+         */
+        const printed = await tsChecks({
+          worktree: scratch.path,
+          args: ['//package/a:test:unit',],
+          environment: await withStandInMise({
+            standIn,
+            environment: { [passLinesVariable]: '3', },
+          }),
+        });
+        expect(printed.status,).toBe(0,);
+        expect(printed.stdout,).toContain('//package/a:test:unit: exit 0',);
+        expect(printed.stdout,).toContain('1 unit test file, and 3 suites reported [PASS]',);
+      },
+    }),
+    it({
+      name: 'says a passing type check reports no count of the files it checked',
+      fn: async () => {
+        await using standIn = await createScopeStandIn();
+        await using scratch = await createGateScratchDirectory({ prefix: 'git-policy-ts-checks-', });
+        /**
+         How the command ended.
+         */
+        const printed = await tsChecks({
+          worktree: scratch.path,
+          args: ['//package/a:lint:types',],
+          environment: await withStandInMise({ standIn, }),
+        });
+        expect(printed.status,).toBe(0,);
+        expect(printed.stdout,).toContain('reports no count of the files it checked',);
       },
     }),
   ],
