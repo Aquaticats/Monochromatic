@@ -238,3 +238,29 @@ fn a_program_that_is_gone_says_nothing() {
         MissingInterpreter::SaysNothing
     ));
 }
+
+/// What:
+/// An interpreter whose path the system cannot look at says nothing,
+/// because only the system's own "no file exists there" lets a message say a file is not there.
+/// Why:
+/// `Path::exists` answers `false` for a path whose metadata cannot be read as well;
+/// here a part of the interpreter's path is a regular file (the loop,
+/// per `ENOTDIR`),
+/// so the answer is an error and not an absence.
+#[test]
+fn an_interpreter_the_system_cannot_look_at_says_nothing() {
+    let directory = scratch();
+    let program: std::path::PathBuf = directory.path().join("mpm");
+    let first_line: String = format!("#!{}/interpreter\nexit 0\n", program.display());
+    fs::write(&program, first_line).expect("write the fixture script");
+    assert!(
+        std::path::Path::new(&format!("{}/interpreter", program.display()))
+            .try_exists()
+            .is_err(),
+        "a part of the path is a regular file, so the system answers an error"
+    );
+    assert!(matches!(
+        missing_interpreter(&program),
+        MissingInterpreter::SaysNothing
+    ));
+}

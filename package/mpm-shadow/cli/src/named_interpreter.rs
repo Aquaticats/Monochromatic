@@ -201,7 +201,8 @@ pub enum MissingInterpreter {
     /// it is gone,
     /// it cannot be read,
     /// its first bytes are not a program this module understands,
-    /// or the interpreter it names is there.
+    /// the interpreter it names is there,
+    /// or the system could not say whether that interpreter is there.
     SaysNothing,
 }
 
@@ -272,6 +273,9 @@ pub fn named_interpreter(program: &Path) -> NamedInterpreter {
 /// and both must not be able to fail:
 /// a file that cannot be read is one more answer,
 /// not an error that stops the message.
+/// A file is named only when the operating system itself says no file exists at its path,
+/// never when it could not answer:
+/// a message that says "is not there" of a file whose metadata could not be read would be false.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -281,16 +285,28 @@ pub fn missing_interpreter(program: &Path) -> MissingInterpreter {
     return match named_interpreter(program) {
         NamedInterpreter::Script {
             interpreter,
-        } if !interpreter.exists() => MissingInterpreter::Script {
+        } if is_absent(&interpreter) => MissingInterpreter::Script {
             interpreter,
         },
         NamedInterpreter::DynamicLinker {
             linker,
-        } if !linker.exists() => MissingInterpreter::DynamicLinker {
+        } if is_absent(&linker) => MissingInterpreter::DynamicLinker {
             linker,
         },
         _ => MissingInterpreter::SaysNothing,
     };
+}
+
+/// What:
+/// `fn is_absent(path: &Path) -> bool` answers whether the operating system says that no file exists at
+/// `path`.
+/// Why:
+/// `Path::exists` answers `false` both for a file that is not there and for one whose metadata could
+/// not be read,
+/// and a sentence about a missing file may only say so when the system's own answer does;
+/// a path the system cannot look at is the case that keeps both kinds of interpreter in the message.
+fn is_absent(path: &Path) -> bool {
+    return matches!(path.try_exists(), Ok(false));
 }
 
 /// What:
