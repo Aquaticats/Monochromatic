@@ -43,11 +43,6 @@ use super::archive_staging::{
     start_time_of_a_process,
     write_complete_marker,
 };
-/// Imports the question that tells a finished install from an unfinished one.
-use super::published_archive::is_finished;
-/// Imports the text of a directory's own name,
-/// which the planted publish reads its version from.
-use super::util::file_name_text;
 /// Imports the rig of a disposable home,
 /// the fake network and the fake runner,
 /// and the writer of an executable stand-in.
@@ -57,6 +52,8 @@ use super::fakes::{
 };
 /// Imports the tool directory of a tool id.
 use super::layout::tool_directory;
+/// Imports the question that tells a finished install from an unfinished one.
+use super::published_archive::is_finished;
 /// Imports the constants and the helpers the archive tests share:
 /// the tool id,
 /// the program its release holds,
@@ -64,7 +61,8 @@ use super::layout::tool_directory;
 /// the lock at one version,
 /// the context of a run,
 /// the digest the lock records for a release,
-/// and the finish of an install made by hand.
+/// the finish of an install made by hand,
+/// and the fake network serving releases an install downloads.
 use super::published_archive_tests::{
     A_TEST_SHA256,
     BIN,
@@ -73,10 +71,18 @@ use super::published_archive_tests::{
     finish_archive,
     lock_at,
     release_digest,
+    serve_releases,
 };
 /// Imports the install itself,
-/// which is the run whose report these tests read.
-use super::sync::sync_tools;
+/// which is the run whose report these tests read,
+/// and the report it answers with.
+use super::sync::{
+    SyncReport,
+    sync_tools,
+};
+/// Imports the text of a directory's own name,
+/// which the planted publish reads its version from.
+use super::util::file_name_text;
 
 /// What:
 /// The owner facts of an installer that no process answers for:
@@ -403,16 +409,25 @@ fn the_removal_says_nothing_was_lost_when_the_version_is_finished_at_its_name() 
     let root = rig.scope.toolchain_root.clone();
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
     let version_dir = tool_dir.join("0.2.1");
-    // The version itself, finished before this run: an earlier install published it.
-    finish_archive(&root, "0.2.1");
-    // And a second finished copy of that same version under a dead installer's name, which this run removes.
+    // The version itself, installed by an earlier run of this package from its own lock, so its marker records the
+    // archive the lock names.
+    serve_releases(&rig, &["0.2.1"]);
+    let installing: SyncReport =
+        sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
+    assert!(
+        installing.failed.is_empty() && is_finished(&version_dir, BIN),
+        "the version is installed before the run this test reads: {installing:?}"
+    );
+    // And a second finished copy of that same version, the one a recovery claimed and left behind, whose marker
+    // records the lock's row as a finished copy does.
     let second: std::path::PathBuf = hidden_sibling(
         &version_dir,
-        STAGING_PURPOSE,
+        RECOVERED_PURPOSE,
         an_installer_that_no_longer_runs(),
     );
     write_the_program(&second);
-    write_complete_marker(&second, ID, "0.2.1", A_TEST_SHA256).expect("write the completion marker");
+    write_complete_marker(&second, ID, "0.2.1", &release_digest("0.2.1"))
+        .expect("write the completion marker");
 
     let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.1")), None);
 

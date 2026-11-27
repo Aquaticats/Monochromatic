@@ -1580,6 +1580,16 @@ fn a_finished_copy_of_an_older_version_that_no_lock_vouches_for_is_removed_besid
         "a finished copy no install can publish is not kept: {:?}",
         names_of(&tool_dir)
     );
+    assert_eq!(
+        report.recovered,
+        vec![format!(
+            "removed 1 hidden directory left behind by an install of {ID} that has ended, \
+             1 of which held a finished copy of 0.2.1 that this run did not publish, \
+             because 0.2.2 is installed and an older repository tool is never kept; \
+             no finished copy of 0.2.1 is at its name, so that copy is gone"
+        )],
+        "the sentence names the rule that kept the copy out of the version's name: {report:?}"
+    );
     assert!(
         !report
             .recovered
