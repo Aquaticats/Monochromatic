@@ -21,6 +21,7 @@
 //! function execProgram(program: string, arguments: string[]): Error
 //! function refreshStaleRecord(record: LaunchRecord, program: string): void  // throws
 //! function sayWhyTheLockIsUnreadable(lockFile: string): void
+//! function missingLines(record: LaunchRecord, program: string, error: Error): [string, string]
 //! export function runLauncher(record: LaunchRecord, args: string[]): number
 //! function reportProgramNotFound(record: LaunchRecord, program: string, lockText?: string): number
 //! ```
@@ -67,6 +68,12 @@ use super::{
 use crate::constants::{
     EXEC_FAILED_EXIT_CODE,
     NOT_FOUND_EXIT_CODE,
+};
+/// Imports the reader that says which interpreter a program names that is not there,
+/// and its answers.
+use crate::named_interpreter::{
+    MissingInterpreter,
+    missing_interpreter,
 };
 /// Imports the shared words for a start refused because the program's file is being written.
 use crate::start_failure::being_written_cause_and_remedy;
@@ -187,6 +194,63 @@ fn say_why_the_lock_is_unreadable(lock_file: &Path) {
 }
 
 /// What:
+/// The two lines a launcher prints for a start the system answered `ENOENT` for:
+/// which file is missing,
+/// read from the program's own bytes where they say so,
+/// and what to do about it.
+/// Why:
+/// `execve` answers one error for a program that is gone and for the interpreter the program names,
+/// and the program has passed this launcher's own check a moment before,
+/// so the cause must say which of the two files it can name and claim neither when the program's
+/// bytes are gone too;
+/// the remedy names this tree's one command first,
+/// and the file that the program's own file says is missing after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function missingLines(record: LaunchRecord, program: string, error: Error): [string, string]
+/// ```
+fn missing_lines(
+    record: &LaunchRecord,
+    program: &Path,
+    error: &std::io::Error,
+) -> (String, String) {
+    let repair: String = repair_command(record.scope, &record.lock_file);
+    return match missing_interpreter(program) {
+        MissingInterpreter::Script {
+            interpreter,
+        } => (
+            format!(
+                "the interpreter its first line names (`{}`) is not there ({error}); the program itself was there when this launcher checked the path",
+                interpreter.display()
+            ),
+            format!(
+                "{repair}, and install the interpreter its first line names (`{}`) if that is the file that is missing",
+                interpreter.display()
+            ),
+        ),
+        MissingInterpreter::DynamicLinker {
+            linker,
+        } => (
+            format!(
+                "its dynamic linker (`{}`) is not there ({error}), and a compiled program cannot start without it; the program itself was there when this launcher checked the path",
+                linker.display()
+            ),
+            format!(
+                "{repair}, and install or upgrade the package that provides `{}` if that linker is the file that is missing",
+                linker.display()
+            ),
+        ),
+        MissingInterpreter::SaysNothing => (
+            format!(
+                "the program is gone, or the interpreter it names is ({error}); the interpreter a program names is the program after `#!` on a script's first line, or a compiled program's dynamic linker, and this launcher cannot say which of the two files is missing; the program itself was there when this launcher checked the path"
+            ),
+            format!("{repair}, and if that does not put the program back, install it again"),
+        ),
+    };
+}
+
+/// What:
 /// Runs a launcher:
 /// warns when the lock pins an older version than the one that runs,
 /// then becomes the real binary.
@@ -233,7 +297,7 @@ pub fn run_launcher(
     // Why:      `execve` cannot start a file that is being written either, and the bare operating-system text read
     //           as a permanent fault when the same command works a moment later.
     if error.kind() == std::io::ErrorKind::ExecutableFileBusy {
-        let (cause, remedy) = being_written_cause_and_remedy(&error);
+        let (cause, remedy) = being_written_cause_and_remedy(&launch.program, &error);
         eprintln!(
             "mpm-shadow: could not start {}: {cause}",
             launch.program.display()
@@ -242,18 +306,17 @@ pub fn run_launcher(
         return EXEC_FAILED_EXIT_CODE;
     }
     if error.kind() == std::io::ErrorKind::NotFound {
-        // What:     `execve` answers `ENOENT` both for a program that is gone and for the interpreter its first line
-        //           names, so the cause says both and the launcher says it cannot tell them apart.
+        // What:     `execve` answers `ENOENT` both for a program that is gone and for the interpreter its
+        //           first line or its own file names, so the cause names the file the program's bytes say is
+        //           missing, and both kinds when they say nothing.
         // Why:      The program passed the check a moment ago, so "no file exists there" would be false here,
-        //           and the advice's own sentence about no program being found would be false for a missing interpreter.
+        //           and a sentence about a first line would be false for a compiled program, which has none.
+        let (cause, remedy) = missing_lines(record, &launch.program, &error);
         eprintln!(
-            "mpm-shadow: could not start {}: the program is gone, or the interpreter named on its first line (`#!`) is ({error}); it was there when this launcher checked the path",
+            "mpm-shadow: could not start {}: {cause}",
             launch.program.display()
         );
-        eprintln!(
-            "mpm-shadow: what to do: {}, and install the interpreter its first line names if that is the file that is missing",
-            repair_command(record.scope, &record.lock_file)
-        );
+        eprintln!("mpm-shadow: what to do: {remedy}");
         return NOT_FOUND_EXIT_CODE;
     }
     eprintln!(
@@ -304,3 +367,12 @@ fn report_program_not_found(
     eprintln!("mpm-shadow: {}", advice_for(record, lock_text));
     return NOT_FOUND_EXIT_CODE;
 }
+
+/// What:
+/// The unit tests of the two lines a launcher prints for a start that found nothing.
+/// Why:
+/// The file those lines name is read from the program's own bytes,
+/// and the case where the program itself is gone has no process to start in a test.
+#[cfg(test)]
+#[path = "starting_it_tests.rs"]
+mod tests;

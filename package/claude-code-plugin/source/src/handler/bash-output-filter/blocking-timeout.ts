@@ -11,6 +11,8 @@
  @module
  */
 
+import { isDigit, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+
 //region Timeout and startup-warning policy
 // Owns environment switches, the fixed timeout, and the warning text.
 
@@ -115,24 +117,44 @@ function isTimeoutPolicyCall(
 }
 
 /**
+ Values Claude Code 2.1.332 reads as true for a boolean environment variable,
+ after lowercasing and trimming (its `De` function).
+ */
+const TRUE_ENVIRONMENT_VALUES: ReadonlySet<string> = new Set([
+  '1',
+  'true',
+  'yes',
+  'on',
+]);
+
+/**
  Whether Claude Code can move a timed-out command to the background in this session.
 
- With `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` a timeout stops the command instead,
+ When `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is true a timeout stops the command instead,
  so clamping a caller's timeout there would only stop it sooner.
- Bare mode has the same effect but sets no variable the hook can read.
+ The value is read the way Claude Code reads it.
+ Claude Code can also disable moves through settings or a remote constraint the hook cannot see;
+ bare mode needs no check because hooks from settings files never run there.
 
  @param env - process environment holding {@link DISABLE_BACKGROUND_TASKS_ENV}
 
- @returns `false` only when the variable is exactly `1`
+ @returns `false` when the variable holds a value Claude Code reads as true
 
  @example
  ```ts
  canMoveToBackground({}); // true
- canMoveToBackground({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1' }); // false
+ canMoveToBackground({ CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: 'True' }); // false
  ```
  */
 function canMoveToBackground(env: Readonly<NodeJS.ProcessEnv>,): boolean {
-  return env[DISABLE_BACKGROUND_TASKS_ENV] !== '1';
+  /**
+   Raw variable value, absent when unset.
+   */
+  const value = env[DISABLE_BACKGROUND_TASKS_ENV];
+  if (value === undefined)
+    return true;
+  return !TRUE_ENVIRONMENT_VALUES.has(value.trim()
+    .toLowerCase(),);
 }
 
 /**
@@ -193,10 +215,14 @@ const SLEEP_WORD = 'sleep' as const;
 /**
  No-op prefix that makes the first command `true`,
  so Claude Code moves the command to the background at its timeout.
- Each operator keeps its meaning:
+ Output,
+ exit status and working directory stay as without it:
  `true && a; b`,
- `true && a & b`,
- and `true && a | b` run as the unprefixed forms do.
+ `true && a | b`,
+ and `true && a & b` run `a` and `b` as the unprefixed forms do.
+ One difference remains:
+ after `true && sleep 3 & ...`,
+ `$!` names the background subshell rather than the `sleep` inside it.
  */
 const SLEEP_PREFIX = 'true && ' as const;
 
@@ -219,6 +245,14 @@ const WORD_END_CHARACTERS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ Characters that start a redirection at the front of a statement.
+ */
+const REDIRECTION_CHARACTERS: ReadonlySet<string> = new Set([
+  '<',
+  '>',
+]);
+
+/**
  Characters skipped before the first command word.
  */
 const LEADING_SPACE_CHARACTERS: ReadonlySet<string> = new Set([
@@ -229,10 +263,13 @@ const LEADING_SPACE_CHARACTERS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- Index of the first character after leading blanks and whole comment lines.
+ Index of the first character after leading blanks,
+ backslash-newline pairs,
+ and whole comment lines.
 
  Claude Code 2.1.332 stopped `# note\nsleep 5 && ...` at its timeout,
- so a comment line does not hide a leading `sleep` from it.
+ so a comment line does not hide a leading `sleep` from it;
+ its parser also skips a backslash-newline as blank.
 
  @param command - Bash command text as sent by the model
 
@@ -250,6 +287,10 @@ function firstCommandIndex(command: string,): number {
     const character = command.charAt(index,);
     if (LEADING_SPACE_CHARACTERS.has(character,)) {
       index += 1;
+      continue;
+    }
+    if ((character === '\\') && (command.charAt(index + 1,) === '\n')) {
+      index += 2;
       continue;
     }
     if (character !== '#')
@@ -310,7 +351,72 @@ function startsWithSleepWord(command: string,): boolean {
 }
 
 /**
- Command text with {@link SLEEP_PREFIX} added when Claude Code would see a leading `sleep`.
+ Index of the first character at or after `start` that is not a decimal digit.
+
+ @param command - Bash command text as sent by the model
+
+ @param start - index where a file-descriptor number may begin
+
+ @returns index after the digit run, or `start` when no digit is there
+ */
+function indexAfterDigits(
+  {
+    command,
+    start,
+  }: Readonly<{
+    command: string;
+    start: number;
+  }>,
+): number {
+  /**
+   Scan position; advances over digits only.
+   */
+  let index = start;
+  while (isDigit(command.charAt(index,),))
+    index += 1;
+  return index;
+}
+
+/**
+ Whether the first statement starts with a redirection,
+ such as `> log`,
+ `2> err`,
+ or `&> all`.
+
+ Claude Code 2.1.332 skips a statement made only of redirections
+ and checks the next one,
+ so `> log` on its own line can put a `sleep` first in Claude Code's view.
+ Telling a redirection-only statement from `2>/dev/null make` needs a shell parser,
+ so every redirection-led command counts;
+ prefixing one Claude Code would move anyway changes nothing.
+
+ @param command - Bash command text as sent by the model
+
+ @returns whether the first command character starts a redirection
+
+ @example
+ ```ts
+ startsWithRedirection('> log\nsleep 5'); // true
+ startsWithRedirection('make > log'); // false
+ ```
+ */
+function startsWithRedirection(command: string,): boolean {
+  /**
+   Index of the first command character.
+   */
+  const start = firstCommandIndex(command,);
+  if (command.charAt(start,) === '&')
+    return REDIRECTION_CHARACTERS.has(command.charAt(start + 1,),);
+  return REDIRECTION_CHARACTERS.has(
+    command.charAt(indexAfterDigits({
+      command,
+      start,
+    },),),
+  );
+}
+
+/**
+ Command text with {@link SLEEP_PREFIX} added when Claude Code could see a leading `sleep`.
 
  @param command - Bash command text that Claude Code will run as given
 
@@ -318,12 +424,14 @@ function startsWithSleepWord(command: string,): boolean {
 
  @example
  ```ts
- withSleepPrefix('sleep 300 && check > out'); // 'true && sleep 300 && check > out'
+ withSleepPrefix('sleep 20 && check > out'); // 'true && sleep 20 && check > out'
  withSleepPrefix('make test'); // 'make test'
  ```
  */
 function withSleepPrefix(command: string,): string {
-  return startsWithSleepWord(command,) ? `${SLEEP_PREFIX}${command}` : command;
+  return (startsWithSleepWord(command,) || startsWithRedirection(command,))
+    ? `${SLEEP_PREFIX}${command}`
+    : command;
 }
 
 //endregion
@@ -338,6 +446,7 @@ export {
   isBlockingTimeoutEnabled,
   isTimeoutPolicyCall,
   SLEEP_PREFIX,
+  startsWithRedirection,
   startsWithSleepWord,
   withSleepPrefix,
 };
