@@ -80,7 +80,8 @@ use crate::testing::mounted_dataset_table::{
 };
 use crate::worktree_clone_binding_record::binding_words::Phase;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::IntentReading;
-/// The move's refusal, which a control builds for the slot it means.
+/// The move's refusal,
+/// which a control builds for the slot it means.
 use crate::worktree_clone_move_refusal::refuse_move_of_a_bound_slot;
 use crate::worktree_clone_slot_state::slot_state_live_read::{
     CloneIntentReads,
@@ -2192,10 +2193,11 @@ fn a_command_below_the_top_is_refused_before_the_slot_reading() {
 /// ```
 #[derive(Clone, Copy, Debug)]
 enum PastTheRootRule {
-    /// `policies.require-root` reads `off`, so the engine never asks the rule.
+    /// `policies.require-root` reads `off`,
+    /// so the engine never asks the rule.
     Off,
-    /// `policies.require-root` reads `warn`, so the finding prints and the
-    /// command goes on to the slot refusal.
+    /// `policies.require-root` reads `warn`,
+    /// so the finding prints and the command goes on to the slot refusal.
     Warn,
     /// The caller writes `--no-enforce-require-root` before the command word.
     Flag,
@@ -2206,8 +2208,9 @@ impl PastTheRootRule {
     ///  The settings document that turns the rule down,
     ///  or nothing where the caller's own words do it.
     /// Why:
-    ///  Where the rule keeps the severity that refuses, the fixture's settings
-    ///  file stays as an ordinary repository's is.
+    ///  Where the rule keeps the severity that refuses,
+    ///  the fixture has no settings file,
+    ///  as an ordinary repository has none.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -2265,7 +2268,8 @@ fn a_bound_slot_watched_from_below(
 ///  directory),
 ///  so `-C <the directory below the top>` is the one spelling that puts the
 ///  whole planning in the fixture.
-///  The flag is a global option, so it stands before the alias word as the
+///  The flag is a global option,
+///  so it stands before the alias word as the
 ///  caller's own options do;
 ///  the settings ways write no word at all.
 fn typed_below_the_top(
@@ -2341,7 +2345,8 @@ fn the_root_rules_words(
 ///  which names the slot only from the top of the working tree,
 ///  where Git runs the alias's shell;
 ///  read from the directory the person typed it in it names
-///  `<repository>/one`, which is no worktree and holds no record,
+///  `<repository>/one`,
+///  which is no worktree and holds no record,
 ///  so a planning handed the typed directory settles no removal at all.
 fn a_removals_refusal_is_reached_below_the_top(
     name: &str,
@@ -2412,7 +2417,8 @@ fn below_the_top_behind_a_shell_alias_a_removal_is_refused_with_the_root_rule_at
 }
 
 /// A bound slot's removal below the top is refused behind the wrapper's own
-/// flag, which says nothing before the refusal.
+/// flag,
+/// which says nothing before the refusal.
 #[test]
 fn below_the_top_behind_a_shell_alias_a_removal_is_refused_behind_the_wrappers_flag() {
     a_removals_refusal_is_reached_below_the_top(
