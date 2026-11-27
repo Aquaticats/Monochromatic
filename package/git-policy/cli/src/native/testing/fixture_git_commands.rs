@@ -30,7 +30,8 @@ use std::io::{
 };
 /// `AsRawFd` is the descriptor number behind an open pipe end,
 /// `FromRawFd` is the one way to take ownership of a number the kernel handed back,
-/// and `OwnedFd` is that ownership: it closes the number when it goes out of scope.
+/// and `OwnedFd` is that ownership:
+/// it closes the number when it goes out of scope.
 use std::os::unix::io::{
     AsRawFd,
     FromRawFd,
@@ -99,7 +100,8 @@ pub(crate) const FIXTURE_GIT_BOUND: std::time::Duration = std::time::Duration::f
 ///  the query's own process is gone when this window opens,
 /// and the kernel reports a pipe's end the instant its last writing end closes,
 /// so this window is spent only by a holder that is not the query:
-/// a descendant that inherited the pipe, or a program that was forked with it open.
+/// a descendant that inherited the pipe,
+/// or a program that was forked with it open.
 ///  The window is asked of the pipe itself (`has_ended_within`) and not of a thread of this process,
 /// so a host that wakes such a thread late cannot spend it:
 /// measured 2026-11-27 on this host at a load average of 86.0 to 142.5,
@@ -113,10 +115,13 @@ pub(crate) const PIPE_GRACE: std::time::Duration = std::time::Duration::from_mil
 /// Why sixty seconds:
 ///  this bound only stops a hang:
 /// the kernel has already said that every byte the query wrote is in the pipe,
-/// so what is left is one thread's wakes, which no honest host holds for a minute.
+/// so what is left is one thread's wakes,
+/// which no honest host holds for a minute.
 ///  It is 543 times the worst hand-over measured on this host at a load average of 86.0 to 142.5
-/// (110.4 ms), and the same figure this crate's run watchdog allows a working run to show nothing at all
-/// (`STILL_WORKING_WINDOW`, which rests on a measured 8.0 s of silence).
+/// (110.4 ms),
+/// and the same figure this crate's run watchdog allows a working run to show nothing at all
+/// (`STILL_WORKING_WINDOW`,
+/// which rests on a measured 8.0 s of silence).
 pub(crate) const REPORTING_THE_END: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// How often the wait looks whether the query ended.
@@ -212,7 +217,8 @@ pub(crate) struct QueryAnswer {
     pub held_open: bool,
     /// Whether the input was still being written when the window passed,
     /// so a descendant of the query kept its read end open and the query never read all of it.
-    ///  No verdict rests on this figure, so the writer's own late waking can make it say so and mislead nothing.
+    ///  No verdict rests on this figure,
+    /// so the writer's own late waking can make it say so and mislead nothing.
     pub input_held: bool,
 }
 
@@ -229,7 +235,8 @@ pub(crate) struct QueryAnswer {
 /// kept there until someone asks for it,
 /// so a verdict about a pipe that something still holds is about the query and not about when this process's
 /// own threads ran.
-///  A second reading end never keeps a pipe from ending: only a writing end does.
+///  A second reading end never keeps a pipe from ending:
+/// only a writing end does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,11 +304,14 @@ fn draining<R: Read + Send + AsRawFd + 'static>(
 ///  Whether the kernel says one of the query's pipes has reached its end within `bound`:
 ///  no process is left that holds a writing end of it.
 /// Why:
-///  A pipe's end is the kernel's news: it arrives when the last writing end closes and stays there until
-///  someone asks, so a thread of this process that a loaded host wakes late still finds it instead of missing it.
+///  A pipe's end is the kernel's news:
+/// it arrives when the last writing end closes and stays there until
+///  someone asks,
+/// so a thread of this process that a loaded host wakes late still finds it instead of missing it.
 /// Asking the pipe is what makes this answer about the query and whatever it started,
 /// and not about when this process's own threads ran.
-///  A window that has run out still asks: a pipe whose end has come answers at once.
+///  A window that has run out still asks:
+/// a pipe whose end has come answers at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -356,11 +366,14 @@ fn has_ended_within(
 ///  Wait for the reader of one of the query's pipes to hand over what it read,
 ///  and answer whether that pipe reached its end at all.
 /// Why:
-///  Once the kernel says a pipe has no writing end left, every byte the query wrote is in the pipe,
+///  Once the kernel says a pipe has no writing end left,
+/// every byte the query wrote is in the pipe,
 /// so what is left is the reader's own wakes;
 /// the window that bounds them is long enough to stop a hang and nothing else,
-/// and a reader that misses it is a defect of this helper, said here with what was waited for and how long.
-/// A pipe that something outside the query still holds needs no wait: its reader ends when that holder lets go.
+/// and a reader that misses it is a defect of this helper,
+/// said here with what was waited for and how long.
+/// A pipe that something outside the query still holds needs no wait:
+/// its reader ends when that holder lets go.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
