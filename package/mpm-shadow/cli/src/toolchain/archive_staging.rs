@@ -143,6 +143,7 @@ pub(crate) use self::the_owner_of_a_hidden_sibling::{
     ReaderView,
     moment_in,
     read_as,
+    read_as_a_proc_that_hides_records,
     start_time_of_a_process,
 };
 /// Imports the owner of a hidden sibling,

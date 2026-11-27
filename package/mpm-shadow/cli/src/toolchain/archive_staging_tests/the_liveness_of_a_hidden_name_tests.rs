@@ -1,17 +1,19 @@
 //! What:
 //! The controls of what a hidden name's boot and its process record decide:
+//! a record `/proc` hides,
 //! a name written by a run that could not read its own boot,
 //! and a name of another boot that carries no start time.
 //! Why:
-//! Both decide whether a leftover is ever reclaimed,
-//! and neither was held:
-//! the first writes the shorter name an earlier build wrote,
-//! which no later run judges,
-//! and the second was read as "the system did not say" although no process survives a reboot.
+//! Each decides whether a leftover is ever reclaimed,
+//! and none was held:
+//! the first was answered by a forced "unreadable" that returns before the code asks the kernel at all,
+//! the second writes the shorter name an earlier build wrote, which no later run judges,
+//! and the third was read as "the system did not say" although no process survives a reboot.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // the-liveness-of-a-hidden-name-tests.ts
+//! test('a record a proc hides is never read as an installer that ended');
 //! test('a run that cannot read its boot writes a name no later run reclaims');
 //! test('a name of another boot is ended whatever its start time says');
 //! ```
@@ -37,16 +39,18 @@ use super::super::archive_staging::{
 use super::super::layout::tool_directory;
 /// Imports the text of a path's own last name.
 use super::super::util::file_name_text;
-/// Imports the reader facts a control forces, and the seam that forces them.
-use super::{
+/// Imports the reader facts a control forces, and the two seams that force them.
+use super::super::archive_staging::{
     ReaderView,
     read_as,
+    read_as_a_proc_that_hides_records,
+    start_time_of_a_process,
 };
-/// Imports the start time this system reports for a process.
-use super::start_time_of_a_process;
-/// Imports the rig, the names a tool directory holds, and the writer of an executable stand-in.
+/// Imports the rig, the names a tool directory holds, the writer of an executable stand-in,
+/// and a program a control keeps running while it judges which installer still runs.
 use super::{
     Rig,
+    RunningProgram,
     names_of,
     write_executable,
 };
@@ -75,6 +79,49 @@ use super::{
 /// const A_BOOT_THIS_MACHINE_NEVER_HAD = '11111111-1111-1111-1111-111111111111';
 /// ```
 const A_BOOT_THIS_MACHINE_NEVER_HAD: &str = "11111111-1111-1111-1111-111111111111";
+
+/// What:
+/// A live program whose record `/proc` reports, read through a `/proc` that holds no record at all.
+/// Why:
+/// A `hidepid` mount hides a live installer's record,
+/// and reading that as an ended installer removes the directory a running install is publishing from;
+/// the answer must come from the kernel's own question about the number,
+/// never from the absence of the record alone.
+/// The seam answers as such a mount does for every number,
+/// so the process the control keeps running is the one whose record is hidden,
+/// which is the state the machine cannot be put into without a mount.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a record a proc hides is never read as an installer that ended', () => {
+///   const running = RunningProgram.start();
+///   const live = running.owner();
+///   using hidden = readAsAProcThatHidesRecords();
+///   expect(live.liveness()).toBe('unknown');
+/// });
+/// ```
+#[test]
+fn a_record_a_proc_hides_is_never_read_as_an_installer_that_ended() {
+    // What: a program this test keeps running, and the owner whose name a hidden sibling would carry.
+    // Why: the answer depends on the number being held by a live process, so the process has to exist.
+    let running: RunningProgram = RunningProgram::start();
+    let live: Owner = running.owner();
+    assert_eq!(
+        live.liveness(),
+        Liveness::Running,
+        "the program this control keeps running is reported as running while its record is there"
+    );
+
+    // What: a `/proc` that holds no record for any number, as a `hidepid` mount leaves a live process's record.
+    // Why: the arm that answers "an unreadable record is not a dead process" is only reached when the read fails
+    //  without the number being free.
+    let _hidden = read_as_a_proc_that_hides_records();
+    assert_eq!(
+        live.liveness(),
+        Liveness::Unknown,
+        "a hidden record is not a dead process: the kernel holds the number, so nothing may be removed"
+    );
+}
 
 /// What:
 /// The name one run writes for its staging directory when it cannot read the boot's identifier,
