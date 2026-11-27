@@ -7678,7 +7678,7 @@ mise run //package/git-policy/cli:native:install -- --dry-run 0.6.1-alpha.10
   for a check that did not pass,
   a CPU quota its tasks waited more than twice as long for as they ran.
   Each line names the option that raises that bound and that the bound and not a test is what failed.
-  The counters are read every 100 ms while the check runs
+  The counters are read every 50 ms while the check runs
   (`bin/native-check-scope-accounting.ts`),
   because a scope takes its control group with it.
   The exit status is 0 when every check passed and 2 when one failed or ran past its deadline,

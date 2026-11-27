@@ -42,10 +42,12 @@ export const checkScopeSlice = 'app.slice';
 
  The figures a check is judged by are counters and peaks, which only rise, so the interval decides one thing: whether a
  reading is still there to be taken. A scope that ends takes its control group with it, and the caller keeps the last
- sample, so the interval is short enough to catch a check that ends quickly and long enough that the reads cost nothing
- beside the check running next to them.
+ sample, so the interval is short enough that a check which waits for something after its first refused fork is still
+ read, and fifty milliseconds of file reads cost nothing beside the check running next to them. The limit is a check
+ that ends within one interval of the event: measured on 2026-11-27, a unit suite narrowed to `--unit-tasks-max 64`
+ died inside that window and printed no bound line, and one narrowed to 120 printed its two refused forks.
  */
-export const checkScopePollMilliseconds = 100;
+export const checkScopePollMilliseconds = 50;
 
 /**
  A check scope whose counters were never read, which a scope that ended before the first read leaves.
@@ -334,6 +336,26 @@ async function cgroupIsThere(cgroupPath: string,): Promise<boolean> {
 }
 
 /**
+ Tells whether a counter file held any counter, which the kernel writes for a file that is there.
+
+ @param counters - what one counter file gave
+
+ @returns true when the file held at least one `name value` line
+
+ @example
+ ```ts
+ holdsACounter({ max: 0 });
+ ```
+ */
+function holdsACounter(counters: Readonly<Record<string, number>>,): boolean {
+  if (Object.keys(counters,)
+    .length
+    > 0)
+    return true;
+  return false;
+}
+
+/**
  Read one check scope's own accounting.
 
  @param cgroupPath - the scope's control group, from {@link checkScopeCgroupPath}
@@ -457,6 +479,32 @@ export async function readScopeAccounting({
     sample.cpuQuotaMicroseconds = cpuMax.quota;
   if (cpuMax.period !== undefined)
     sample.cpuPeriodMicroseconds = cpuMax.period;
+  /**
+   Whether the control group wrote any figure at all: a scope that is still there always writes one, and a directory
+   that is being removed writes none, which must not be read as a reading without figures.
+   */
+  const wroteAFigure = [
+    pidsCurrent,
+    pidsPeak,
+    pidsMax,
+    memoryCurrent,
+    memoryPeak,
+    memoryMax,
+    cpuMax.quota,
+    cpuMax.period,
+  ].some(function written(figure) {
+    return (figure !== undefined) && ((typeof figure) !== 'symbol');
+  });
+  /**
+   Whether the control group answered any counter at all.
+   */
+  const wroteACounter = [
+    pidsEvents,
+    memoryEvents,
+    cpuStat,
+  ].some(holdsACounter,);
+  if ((!wroteAFigure) && (!wroteACounter))
+    return SCOPE_NOT_READ;
   return sample;
 }
 

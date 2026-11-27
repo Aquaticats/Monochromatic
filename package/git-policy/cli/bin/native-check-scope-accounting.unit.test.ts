@@ -1,5 +1,6 @@
 import {
   mkdir,
+  rename,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -50,20 +51,27 @@ async function writeCgroup({
   readonly cgroupPath: string;
   readonly figures: Readonly<Record<string, string>>;
 }): Promise<void> {
+  // The kernel makes a control group with its files already there, so the fixture does too: a watch that read a half
+  // written fixture would read a control group no kernel ever made.
+  /**
+   The folder this fixture writes before its control group appears.
+   */
+  const written = `${cgroupPath}.written`;
   await mkdir(
-    cgroupPath,
+    written,
     { recursive: true, },
   );
   await Promise.all(Object.entries(figures,)
     .map(async function writeOne([name, text]) {
       await writeFile(
         join(
-          cgroupPath,
+          written,
           name
         ),
         `${text}\n`
       );
     },),);
+  await rename(written, cgroupPath,);
 }
 
 /**
@@ -196,6 +204,24 @@ await describe({
         expect(local.memoryEvents.oom_kill,).toBe(2,);
         expect(subtree.pidsEvents.max,).toBe(9,);
         expect(subtree.memoryEvents.oom_kill,).toBe(5,);
+      },
+    }),
+    it({
+      name: 'answers that a scope was never read when its control group is there but holds no figures',
+      fn: async () => {
+        await using scratch = await createGateScratchDirectory({ prefix: 'check-scope-accounting-', });
+        /**
+         A folder where a control group is being removed, which answers no file of its own any more.
+         */
+        const cgroupPath = join(
+          scratch.path,
+          'gpc-check-removed.scope',
+        );
+        await mkdir(
+          cgroupPath,
+          { recursive: true, },
+        );
+        expect(await readScopeAccounting({ cgroupPath, }),).toBe(SCOPE_NOT_READ,);
       },
     }),
     it({

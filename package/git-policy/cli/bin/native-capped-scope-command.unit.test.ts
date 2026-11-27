@@ -330,14 +330,18 @@ await describe({
             `const fs = require('node:fs');
 const path = require('node:path');
 const directory = process.env.CHECK_TEST_CGROUP_PATH;
-fs.mkdirSync(directory, { recursive: true });
-fs.writeFileSync(path.join(directory, 'pids.peak'), '434\\n');
-fs.writeFileSync(path.join(directory, 'pids.max'), '400\\n');
-fs.writeFileSync(path.join(directory, 'pids.events'), 'max 6\\n');
-fs.writeFileSync(path.join(directory, 'memory.peak'), '1953531904\\n');
-fs.writeFileSync(path.join(directory, 'memory.events'), 'oom_kill 2\\n');
-fs.writeFileSync(path.join(directory, 'cpu.max'), '200000 100000\\n');
-fs.writeFileSync(path.join(directory, 'cpu.stat'), 'nr_periods 557\\nnr_throttled 314\\nusage_usec 74283909\\n');
+// The kernel makes a control group with its files already there, so the fixture writes a folder and renames it into the
+// group's name: a watch never reads a control group no kernel ever made.
+const written = directory + '.written';
+fs.mkdirSync(written, { recursive: true });
+fs.writeFileSync(path.join(written, 'pids.peak'), '434\\n');
+fs.writeFileSync(path.join(written, 'pids.max'), '400\\n');
+fs.writeFileSync(path.join(written, 'pids.events'), 'max 6\\n');
+fs.writeFileSync(path.join(written, 'memory.peak'), '1953531904\\n');
+fs.writeFileSync(path.join(written, 'memory.events'), 'oom_kill 2\\n');
+fs.writeFileSync(path.join(written, 'cpu.max'), '200000 100000\\n');
+fs.writeFileSync(path.join(written, 'cpu.stat'), 'nr_periods 557\\nnr_throttled 314\\nusage_usec 74283909\\n');
+fs.renameSync(written, directory);
 setTimeout(function end() {
   fs.rmSync(directory, { recursive: true, force: true });
   process.exit(0);
