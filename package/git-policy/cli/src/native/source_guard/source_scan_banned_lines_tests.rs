@@ -1,7 +1,7 @@
 //! The scan a ban over part of the release tree reads.
 //! What:
 //!  Which release sources a ban covers,
-//!  which of their code lines hold the text it forbids,
+//!  which of their code lines hold the text it forbids or call the name it forbids,
 //!  which entries excuse one,
 //!  and the anchor that proves the scope is still the code the ban is about.
 //! Why:
@@ -10,10 +10,15 @@
 //!  (issue 6599),
 //!  so a ban states its scope as prefixes and reads the tree through the one walk,
 //!  and a file a later split makes inside the scope is covered without anyone remembering it.
+//!  A ban on a call reads the name at the boundary of the name,
+//!  because the name alone is the tail of longer names a file may use freely.
+//!  An excuse names how many uses of its text the one file may hold,
+//!  because an entry that named only the file and the text covered every later use of it too.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! expect(linesNoEntryExcuses(linesHoldingOneOf(releaseSourcesUnder(SCOPE), BANNED), MAY_HOLD)).toEqual([]);
+//! expect(linesNoEntryExcuses(linesCallingOneOf(releaseSourcesUnder(SCOPE), CALLS), MAY_HOLD)).toEqual([]);
 //! expect(anchorsTheScopeNoLongerHolds(releaseSourcesUnder(SCOPE), ANCHORS)).toEqual([]);
 //! ```
 
@@ -104,16 +109,26 @@ pub(crate) struct HoldingLine {
 
 /// What:
 ///  `MayHold` is one file a ban lets hold one of its texts anyway,
-///  with the reason it may.
+///  with how many uses of that text it holds and the reason it may.
 /// Why:
 ///  A ban holds over a part of the tree and still has places it does not reach,
 ///  so the exception is recorded where the ban is read,
 ///  and a ban whose exception matched nothing fails rather than outliving the code it excused.
+///  The count is what an exception names rather than the excused lines:
+///  a file that gains the text fails,
+///  and a file whose excused line is reflowed or moved to another line
+///  keeps the count it had and passes,
+///  which is the case a list of lines would fail for no reason.
+///  The count is of uses,
+///  so a second use written on the line that already holds one is a second use.
 pub(crate) struct MayHold {
     /// The file's `/`-separated identity under `src/native`.
     pub(crate) file: &'static str,
     /// The banned text that file may hold.
     pub(crate) text: &'static str,
+    /// How many uses of that text the file holds,
+    /// which is the most it may hold.
+    pub(crate) uses: usize,
     /// Why it may,
     /// and what removes the entry.
     pub(crate) why: &'static str,
@@ -127,6 +142,10 @@ pub(crate) struct MayHold {
 ///  A comment explains a ban as often as the code it rules on,
 ///  and a file whose doc names the forbidden text is no finding,
 ///  so a line that starts with `//` is not code.
+/// Gotcha:
+///  A text is matched wherever it occurs in a line,
+///  so a ban on a call that a longer name ends in (`link(` in `hard_link(`)
+///  is written through `lines_calling_one_of` instead.
 pub(crate) fn lines_holding_one_of(
     sources: &[(String, String)],
     banned: &[&'static str],
@@ -154,29 +173,135 @@ pub(crate) fn lines_holding_one_of(
 }
 
 /// What:
+///  `lines_calling_one_of(sources, calls)` is every code line of those sources that calls one of `calls`,
+///  once for each call it makes.
+///  A call is written as its name and its `(`,
+///  and it is read where the byte before the name cannot continue a name.
+/// Why:
+///  A ban on a call has to fail on every spelling of it (`fs::symlink(`,
+///  `libc::symlink(`,
+///  and an import's bare
+///  `symlink(`),
+///  and the name alone is the tail of names a file may use freely:
+///  `link(` ends `hard_link(`,
+///  `read_link(` and `unlink(`,
+///  and `symlink(` ends `is_symlink(`.
+///  Reading the byte before the name is what tells the call from the longer name,
+///  so one token bans the call without banning the names that end in it.
+/// Gotcha:
+///  A byte that is not ASCII counts as part of a name,
+///  so a name written in another script is never read as the start of a call.
+///  A call whose name and `(` are split across two lines is not read:
+///  the scan reads one line at a time.
+pub(crate) fn lines_calling_one_of(
+    sources: &[(String, String)],
+    calls: &[&'static str],
+) -> Vec<HoldingLine> {
+    let mut found: Vec<HoldingLine> = Vec::new();
+    for (file, text) in sources {
+        for (index, line) in text.lines().enumerate() {
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
+            for call in calls {
+                if !calls_at(line, call) {
+                    continue;
+                }
+                found.push(HoldingLine {
+                    file: file.clone(),
+                    text: call,
+                    number: index + 1,
+                    line: String::from(line.trim()),
+                });
+            }
+        }
+    }
+    return found;
+}
+
+/// What:
+///  `calls_at(line, call)` says whether that line calls `call`,
+///  which is the case wherever its text occurs with no byte of a name before it.
+/// Why:
+///  One rule answers for every spelling,
+///  so the ban lists the name and this function holds the one reading of what makes it a call.
+fn calls_at(
+    line: &str,
+    call: &str,
+) -> bool {
+    let bytes: &[u8] = line.as_bytes();
+    let mut from: usize = 0;
+    while let Some(at) = line[from..].find(call) {
+        let start: usize = from + at;
+        let before_is_a_name: bool = match start.checked_sub(1) {
+            None => false,
+            Some(index) => continues_a_name(bytes[index]),
+        };
+        if !before_is_a_name {
+            return true;
+        }
+        from = start + call.len();
+    }
+    return false;
+}
+
+/// What:
+///  `continues_a_name(byte)` says whether that byte could be the middle of a Rust name.
+/// Why:
+///  A call begins where a name begins,
+///  so a byte that could be inside a name means the text after it is the tail of a longer name.
+///  Every byte of a character outside ASCII is counted as inside a name:
+///  a name this scan cannot spell in ASCII is then read as a name and never as the start of a call,
+///  which keeps a ban on `link(` from reading a name in another script that merely ends in it.
+fn continues_a_name(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric() || byte == b'_' || !byte.is_ascii();
+}
+
+/// What:
 ///  `lines_no_entry_excuses(found, may_hold)` is every holding line no `may_hold` entry covers,
 ///  each as `file:line (banned text) the line`.
+///  An entry covers a line only where its file,
+///  its text and its count all hold:
+///  the file holds exactly as many uses of that text as the entry names,
+///  where a line that holds the text twice counts twice.
 /// Why:
 ///  This is the finding list a ban's control asserts empty,
 ///  and it names the line and the text so a reader opens the place rather than searching for it.
+///  An entry that named only the file and the text excused a second use of that text
+///  added beside the one it recorded,
+///  so the count is asked of both sides and a line whose count disagrees is a finding
+///  that says what the file holds and what the entry names.
+///  The uses are counted rather than the lines,
+///  because a second use written on the line that already holds one is a second use.
 pub(crate) fn lines_no_entry_excuses(
     found: &[HoldingLine],
     may_hold: &[MayHold],
 ) -> Vec<String> {
-    return found
-        .iter()
-        .filter(|holding| {
-            return !may_hold.iter().any(|entry| {
-                return entry.file == holding.file && entry.text == holding.text;
-            });
-        })
-        .map(|holding| {
-            return format!(
+    let mut findings: Vec<String> = Vec::new();
+    for holding in found {
+        let held: usize = found
+            .iter()
+            .filter(|other| {
+                return other.file == holding.file && other.text == holding.text;
+            })
+            .map(|other| return other.line.matches(holding.text).count())
+            .sum();
+        let entry: Option<&MayHold> = may_hold.iter().find(|entry| {
+            return entry.file == holding.file && entry.text == holding.text;
+        });
+        match entry {
+            Some(named) if named.uses == held => continue,
+            None => findings.push(format!(
                 "{}:{} ({}) {}",
                 holding.file, holding.number, holding.text, holding.line
-            );
-        })
-        .collect();
+            )),
+            Some(named) => findings.push(format!(
+                "{}:{} ({}) {} [the file holds {} use(s) of this text and the entry beside it names {}]",
+                holding.file, holding.number, holding.text, holding.line, held, named.uses
+            )),
+        }
+    }
+    return findings;
 }
 
 /// What:
@@ -185,6 +310,8 @@ pub(crate) fn lines_no_entry_excuses(
 /// Why:
 ///  An exception whose code went still excuses the whole file,
 ///  so the list may only shrink and a stale entry fails.
+///  An entry that names more uses than the file holds is caught by `lines_no_entry_excuses`,
+///  which asks both sides for the count.
 pub(crate) fn entries_that_match_nothing(
     found: &[HoldingLine],
     may_hold: &[MayHold],

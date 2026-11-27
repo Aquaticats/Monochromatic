@@ -18,6 +18,13 @@ use crate::process_use::{
     UseTarget,
     processes_using,
 };
+/// A name another program chose,
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_remove::remove_tree;
@@ -46,6 +53,34 @@ use std::path::{
 };
 
 /// What:
+///  One process whose working directory or open file is inside the directory a conversion destroys,
+///  as the line naming it:
+///  its number and the program it runs,
+///  the program shown so no byte of it can act on the line.
+/// Why:
+///   A program names itself to any bytes it likes (`/proc/<pid>/comm`),
+///  and this line is how the person finds what must be closed before the directory goes:
+///  an escape in the name would move the cursor or erase the line,
+///  and a `)` would end the parentheses that say whose name it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = (pid, command) => `process ${pid} (${shownSoItCannotRewriteTheLine(command ?? 'unknown', TheWrappingAroundTheName.Parentheses)})`;
+/// ```
+pub(crate) fn a_process_inside_the_directory_line(
+    pid: i64,
+    command: Option<&str>,
+) -> String {
+    return format!(
+        "process {pid} ({})",
+        shown_so_it_cannot_rewrite_the_line(
+            command.unwrap_or("unknown"),
+            TheWrappingAroundTheName::Parentheses
+        )
+    );
+}
+
+/// What:
 ///  The processes that may be working inside `directory`,
 /// as sentences.
 /// Why:
@@ -61,10 +96,9 @@ fn processes_inside(directory: &Path) -> Vec<String> {
     let scan = processes_using(&UseTarget::Inside(directory));
     let mut holders: Vec<String> = Vec::new();
     for user in &scan.users {
-        holders.push(format!(
-            "process {} ({})",
+        holders.push(a_process_inside_the_directory_line(
             user.pid,
-            user.command.as_deref().unwrap_or("unknown")
+            user.command.as_deref(),
         ));
     }
     if let Some(why) = scan.unavailable.as_ref() {

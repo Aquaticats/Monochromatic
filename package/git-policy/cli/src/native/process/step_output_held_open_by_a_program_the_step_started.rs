@@ -16,8 +16,12 @@
 
 use crate::process_use::ProcessUser;
 /// A name another program chose,
-/// shown so no byte of it can act on the line it lands in.
-use crate::shown_so_it_cannot_rewrite_the_line::shown_so_it_cannot_rewrite_the_line;
+/// shown so no byte of it can act on the line it lands in,
+/// and the parentheses that line puts around it.
+use crate::shown_so_it_cannot_rewrite_the_line::{
+    TheWrappingAroundTheName,
+    shown_so_it_cannot_rewrite_the_line,
+};
 use std::time::Duration;
 
 /// How long the read of a step's output may go on after the step itself has ended.
@@ -112,7 +116,10 @@ fn holder_named(holders: &[ProcessUser]) -> String {
                 return format!(
                     "process {} ({})",
                     holder.pid,
-                    shown_so_it_cannot_rewrite_the_line(command)
+                    shown_so_it_cannot_rewrite_the_line(
+                        command,
+                        TheWrappingAroundTheName::Parentheses
+                    )
                 );
             }
             None => return format!("process {}", holder.pid),
