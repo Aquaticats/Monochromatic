@@ -131,6 +131,11 @@ mod layout_allow_entries;
 /// The findings a layout rule tolerates today,
 ///  read from the file its `allow` option names.
 mod layout_allow_list;
+/// The findings for the allow-list entries that tolerate nothing.
+mod layout_allow_list_dead_entry_findings;
+/// Reading one allow-list file,
+///  under the byte cap its reader accepts.
+mod layout_allow_list_reading;
 /// Where a Cargo package's code starts:
 ///  its library root and executable roots.
 mod layout_crate_roots;
@@ -138,6 +143,15 @@ mod layout_crate_roots;
 ///  no loops between the files of a folder,
 ///  and a top doc that lists them in dependency order.
 mod layout_file_order;
+/// The uses between a folder's files,
+///  with the reference that proves each,
+///  and the loops those uses make.
+mod layout_file_order_file_loops;
+/// What the allow list tolerates of a folder's file uses,
+///  and the uses a tolerated loop holds.
+mod layout_file_order_tolerated_uses;
+/// The findings about how a folder's top doc lists its files.
+mod layout_file_order_top_doc_list;
 /// The shape of a finding of a layout rule.
 mod layout_finding;
 /// The files of each folder,
@@ -148,6 +162,19 @@ mod layout_folder_index_files;
 ///  `uses` links that match the folders the code uses,
 ///  and no loop between folders.
 mod layout_folder_links;
+/// The findings about the links of one folder,
+///  its glob re-exports,
+///  and the source folders below a `uses` folder.
+mod layout_folder_links_entries;
+/// The loops each source folder and each entry of a group sits in,
+///  and the searches over the uses that answer it.
+mod layout_folder_links_loops;
+/// The loop a group's own file closes,
+///  and the uses that sit inside it.
+mod layout_folder_links_own_file_loops;
+/// What the allow list tolerates of a package's folder uses,
+///  and the uses a tolerated loop holds.
+mod layout_folder_links_tolerated_uses;
 /// The folders each folder uses with a proving reference,
 ///  and loops among folders or entries.
 mod layout_folder_uses;
@@ -186,6 +213,16 @@ mod layout_reference_paths;
 mod layout_source_facts;
 /// The two layout rules as a step of a lint run.
 mod layout_step;
+/// The diagnostics and `--debug` notes a layout rule's findings become,
+///  and the failure a list that cannot be read turns into.
+mod layout_step_diagnostics;
+/// Which packages a layout run checks,
+///  the severity each rule was selected with,
+///  and the allow list each of them names.
+mod layout_step_packages;
+/// The names of a package that no allow-list line could hold,
+///  with the reason each cannot be written.
+mod layout_step_unlistable_names;
 /// The file list in a folder's top doc.
 mod layout_top_doc;
 /// Prose fix boundary that must not create new Markdown block syntax.

@@ -20,10 +20,8 @@ use crate::diagnostics::{
 };
 /// Where recovery runs,
 /// and the recovery of the records a dead process left.
-use crate::merge_isolation_recovery::{
-    RecoveryPlace,
-    recover_interrupted_merges,
-};
+use crate::merge_isolation_recovery::RecoveryPlace;
+use crate::merge_isolation_recovery_records::recover_interrupted_merges;
 /// The invocation the merge was asked for,
 /// and the ending an early stop of it takes.
 use crate::merge_isolation_run_types::{

@@ -26,10 +26,8 @@ use super::service_work_handlers_and_verdicts::{
     Verdict,
     WorkHandlers,
 };
-use crate::auto_push::{
-    AutoPushOutcome,
-    push_once_awaiting,
-};
+use crate::auto_push::AutoPushOutcome;
+use crate::auto_push_awaiting::push_once_awaiting;
 use crate::auto_push_single_flight::PushGit;
 use crate::push_retry_failure::{
     final_failure,

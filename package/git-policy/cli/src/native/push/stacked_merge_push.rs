@@ -158,7 +158,7 @@ fn run_planned(action: Action) -> i32 {
         } => {
             write_to_standard_error(stderr.as_str());
             forward.overlay.push(marker);
-            return run_stacked_push(&forward);
+            return run_stacked_push(&forward, &gated_merge_push);
         }
         Action::Exit {
             code,

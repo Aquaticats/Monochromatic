@@ -27,19 +27,19 @@ use crate::merge_isolation_recovery_cleanup::{
     a_landed_merge_in_another_branchs_worktree,
     a_worktree_that_switched,
     an_installed_merge_behind_a_held_index,
-    partly_installed,
 };
+use crate::merge_isolation_recovery_place::RecoveryPlace;
 use crate::merge_isolation_recovery_reads::{
     resolve_commit_awaiting,
     symbolic_ref_awaiting,
 };
-use crate::merge_isolation_recovery_steps::{
+use crate::merge_isolation_recovery_record::partly_installed;
+use crate::merge_isolation_recovery_record::{
     Installed,
-    Judged,
     MergeRefusal,
-    RecoveryPlace,
-    install_entries_awaiting,
 };
+use crate::merge_isolation_recovery_steps::install_entries_awaiting;
+use crate::merge_isolation_the_merges_paths_judged::Judged;
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::run_git_checked_awaiting;
