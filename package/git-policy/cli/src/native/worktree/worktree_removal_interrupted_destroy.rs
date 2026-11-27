@@ -50,17 +50,15 @@ use std::path::{
     PathBuf,
 };
 
-/// What:
-///  The function that finishes an interrupted removal,
-///  where every command of the repository reaches it.
+/// The record of a destroy this program started,
+/// the words for one it could not finish,
+/// and what a later command does about it.
 /// Why:
-///   What decides an unfinished removal lives in a file of its own
-/// (`worktree_removal_finishes_an_interrupted_destroy.rs`),
-/// and every caller names it by this module,
-/// so the subject moved and the name did not.
-pub use crate::worktree_removal_finishes_an_interrupted_destroy::finish_interrupted_destroys;
-
-/// Tag used for diagnostics from this module.
+///   A removal killed between its destroy and the removal of the registration leaves
+///   a state only a later command can finish,
+///   and the finish lives in a file of its own
+/// (`worktree_removal_finishes_an_interrupted_destroy.rs`):
+///   every caller names it there, so this module re-exports nothing of it.
 const TAG: &str = "worktreeRemovalInterruptedDestroy";
 
 /// The folder of the common Git directory that holds one record per destroy the wrapper started,

@@ -36,16 +36,50 @@ use crate::worktree_removal_goes_around_a_foreign_volume::{
     stopped_around_report,
     volumes_below,
 };
+use crate::worktree_removal_holds_the_worktree::Held;
 use crate::worktree_removal_interrupted_destroy::forget_destroy;
 use crate::worktree_removal_only_deletions::Reported;
-use crate::worktree_remove::{
-    Held,
-    RemoveOutcome,
+// What:     `use crate::worktree_remove_clears_the_registration::finish;` imports the
+//           step that clears a registration once the subvolume is gone.
+// Why:      A pass that emptied a tree around its volumes finishes the removal the same
+//           way a destroy does, so it names that step rather than the removal's file.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { finish } from './worktree_remove_clears_the_registration';
+// ```
+use crate::worktree_remove_clears_the_registration::finish;
+// What:     `use crate::worktree_remove_outcome::RemoveOutcome;` imports the endings a
+//           removal answers with.
+// Why:      This file answers an ending for each route it takes.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { RemoveOutcome } from './worktree_remove_outcome';
+// ```
+use crate::worktree_remove_outcome::RemoveOutcome;
+// What:     `use crate::worktree_remove_registry::Registration;` imports which worktree
+//           registration the removal acts on.
+// Why:      Every step here is about that one registration.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { Registration } from './worktree_remove_registry';
+// ```
+use crate::worktree_remove_registry::Registration;
+// What:     `use crate::worktree_remove_request_and_last_look::{RemoveRequest, TAG};`
+//           imports what the removal was asked and the tag its log lines carry.
+// Why:      The pass reads the plan and the repository from the request, and writes the
+//           one tag of the subject.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { TAG, type RemoveRequest } from './worktree_remove_request_and_last_look';
+// ```
+use crate::worktree_remove_request_and_last_look::{
     RemoveRequest,
     TAG,
-    finish,
 };
-use crate::worktree_remove_registry::Registration;
 use std::path::Path;
 
 /// What:

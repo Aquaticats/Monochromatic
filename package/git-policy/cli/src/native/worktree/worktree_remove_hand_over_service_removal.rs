@@ -10,6 +10,10 @@
 //!  The other kind of record names a subvolume a removal already renamed out of the way,
 //!  and that one is the kernel's delete,
 //!  so one place decides which of the two a record asks for.
+//!  A tree that holds a subvolume or a mount point this program did not make is never given to Git,
+//!  because Git's own removal deletes what is mounted at a mount point and unlinks the files of a nested worktree,
+//!  so this removal answers the removal made around such a volume as one of its own endings
+//! (`worktree_remove_hand_over_around_a_foreign_volume.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,7 +39,16 @@ use crate::worktree_removal_second_look::{
     SecondLook,
     why_the_worktree_stays,
 };
-use crate::worktree_remove_hand_over::remove_around_what_is_not_this_removals;
+// What:     `use crate::worktree_remove_hand_over_around_a_foreign_volume::remove_around_what_is_not_this_removals;`
+//           imports the removal made around a volume this removal did not make.
+// Why:      That answer needs the volume report and the record a person reads, which are
+//           its own file's subject, and this file only decides to ask for it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { removeAroundWhatIsNotThisRemovals } from './worktree_remove_hand_over_around_a_foreign_volume';
+// ```
+use crate::worktree_remove_hand_over_around_a_foreign_volume::remove_around_what_is_not_this_removals;
 use crate::worktree_remove_hand_over_begun_record::{
     begun_identity,
     forget_begun,
