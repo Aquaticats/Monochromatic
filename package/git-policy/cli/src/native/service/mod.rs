@@ -79,6 +79,19 @@
 //! - `service_protocol_decode_lines_to_messages.rs`:
 //!   reads one line of the protocol as a client message or a service message,
 //!   checking every field.
+//! - `service_protocol_encode_the_fields_of_a_message.rs`:
+//!   one field,
+//!   one changed path,
+//!   one sync,
+//!   and the one object every message is written as.
+//! - `service_protocol_encode_the_commit_line.rs`:
+//!   the line for one commit request,
+//!   and whether it fits.
+//! - `service_protocol_encode_client_messages.rs`:
+//!   a retire at a named version,
+//!   and every message a client writes.
+//! - `service_protocol_encode_service_messages.rs`:
+//!   every message a service writes.
 //! - `service_protocol_encode_messages_to_lines.rs`:
 //!   writes protocol messages as one JSON object per line.
 //! - `service_protocol.rs`:
@@ -361,6 +374,20 @@ pub mod service_protocol;
 /// The protocol messages as typed values,
 /// and the checks on the names they carry.
 pub mod service_protocol_messages_and_name_checks;
+
+/// The fields one protocol message is written from.
+pub mod service_protocol_encode_the_fields_of_a_message;
+
+/// The line for one commit request,
+/// and whether it fits.
+pub mod service_protocol_encode_the_commit_line;
+
+/// A retire at a named version,
+/// and every message a client writes.
+pub mod service_protocol_encode_client_messages;
+
+/// Every message a service writes.
+pub mod service_protocol_encode_service_messages;
 
 /// Writes protocol messages as one JSON object per line.
 pub mod service_protocol_encode_messages_to_lines;
