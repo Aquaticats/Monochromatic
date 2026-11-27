@@ -51,10 +51,15 @@
 //! - `handler_mode_argument_refusals.rs`:
 //!   why one invocation is not a mode,
 //!   and the words each cause answers.
-//! - `handler_mode_arguments.rs`:
+//! - `handler_mode_arguments_requests.rs`:
 //!   what one invocation asks for,
-//!   the adoption's three options and the replacement a record admits,
-//!   and the parse that reads them.
+//!   and the identities each mode that takes an argument is handed.
+//! - `handler_mode_arguments_option_reads.rs`:
+//!   each mode's options read,
+//!   one mode at a time.
+//! - `handler_mode_arguments.rs`:
+//!   the mode word's read,
+//!   and the words each mode takes.
 //! - `root_mode_caller.rs`:
 //!   the refusal a root mode answers a caller that is not root with.
 //! - `adopt_worktree_parent_mode.rs`:
@@ -165,7 +170,16 @@ pub mod handler_mode_words;
 /// and the words each cause answers.
 pub mod handler_mode_argument_refusals;
 
-/// The mode words, the adoption's options and the replacement a record admits.
+/// What one invocation asks for,
+/// and the identities each mode that takes an argument is handed.
+pub mod handler_mode_arguments_requests;
+
+/// Each mode's options read,
+/// one mode at a time.
+pub mod handler_mode_arguments_option_reads;
+
+/// The mode word's read,
+/// and the words each mode takes.
 pub mod handler_mode_arguments;
 
 /// The refusal of a mode whose step has not landed.
