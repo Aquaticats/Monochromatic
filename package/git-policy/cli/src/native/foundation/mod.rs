@@ -213,6 +213,14 @@
 //! - `earlier_name_moved_to_current_in_place.rs`:
 //!   where a kept file or folder is,
 //!   moved in place from its earlier name on the first need.
+//! - `what_a_fold_is_given_and_what_it_answers.rs`:
+//!   the kinds of name a fold works on,
+//!   what it reads of the process around it,
+//!   and how the fold of one name ended.
+//! - `what_a_fold_says_to_a_person.rs`:
+//!   the two lines a fold says,
+//!   one when it waits for an earlier program to stop and one when it could not finish,
+//!   each said once in a process.
 //! - `earlier_names_folded_into_current.rs`:
 //!   every kept name that exists under both spellings folded into the current one when no earlier program writes it.
 //! - `kept_names_in_the_git_directories.rs`:
@@ -406,6 +414,17 @@ pub mod rename_that_never_replaces;
 /// Where a kept file or folder is,
 ///  moved in place from its earlier name on the first need.
 pub mod earlier_name_moved_to_current_in_place;
+
+/// What a fold is given and what it answers:
+/// the kinds of name it folds,
+/// the surroundings it reads,
+/// how one name's fold ended,
+/// and one Git directory's report.
+pub mod what_a_fold_is_given_and_what_it_answers;
+
+/// The two lines a fold says to a person,
+/// one when it waits for an earlier program to stop and one when it could not finish.
+pub mod what_a_fold_says_to_a_person;
 
 /// Every kept name in a repository's Git directories settled to its current spelling,
 ///  and the finder for a reader that moves nothing.
