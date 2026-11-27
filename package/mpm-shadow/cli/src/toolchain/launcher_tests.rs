@@ -15,6 +15,7 @@ use super::cargo_installs::{
     older_lock_message_for,
 };
 use super::fakes::Rig;
+use super::fixture_programs::copy_program;
 use super::launcher::{
     LaunchRecord,
     ensure_launcher,
@@ -302,7 +303,8 @@ fn a_launcher_is_made_from_the_running_binary_after_its_file_was_deleted() {
     let rig = Rig::new();
     let own = std::env::current_exe().expect("the test binary");
     let copy = rig._directory.path().join("test-binary-copy");
-    fs::copy(&own, &copy).expect("copy the test binary");
+    // The copy is the program this test starts, so a child process makes it.
+    copy_program(&own, &copy);
     let report = rig._directory.path().join("child-report");
     let output = std::process::Command::new(&copy)
         .args([
@@ -434,7 +436,6 @@ fn repository_on_a_drive_that_is_gone(
     answer: &str,
     status: u32,
 ) {
-    use std::os::unix::fs::PermissionsExt;
     let identity: PathBuf = rig
         .scope
         .home
@@ -445,13 +446,13 @@ fn repository_on_a_drive_that_is_gone(
         .scope
         .home
         .join(".local/share/monochromatic-dev/repository-link/repository-link-check");
-    fs::create_dir_all(check.parent().expect("parent")).expect("install folder");
-    fs::write(
+    // What:     The check is a shell script this test starts through the launcher's own check.
+    // Why:      A test that opened it here would leave a write descriptor another thread's
+    //           forked child could inherit, and the start would be refused (issue 6527).
+    super::fixture_programs::write_program(
         &check,
-        format!("#!/bin/sh\necho '{answer}' >&2\nexit {status}\n"),
-    )
-    .expect("check program");
-    fs::set_permissions(&check, fs::Permissions::from_mode(0o755)).expect("chmod");
+        format!("#!/bin/sh\necho '{answer}' >&2\nexit {status}\n").as_bytes(),
+    );
 }
 
 /// Installing a launcher under a repository whose link to the drive does not resolve fails with the check's plain message,
@@ -578,13 +579,8 @@ fn install_shadow(
     content: &[u8],
 ) -> PathBuf {
     let program: PathBuf = shadow_install_program(toolchain_root, version);
-    fs::create_dir_all(program.parent().expect("a parent")).expect("make the install");
-    fs::write(&program, content).expect("write the program");
-    fs::set_permissions(
-        &program,
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .expect("make the program executable");
+    // The installed program is what the child's launcher starts, so a child process writes it.
+    super::fixture_programs::write_program(&program, content);
     // What the install leaves beside the folder: a link named after the program, which the search finds through `current`.
     let named: PathBuf = toolchain_root
         .join("mpm-shadow")
@@ -658,14 +654,11 @@ fn a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow() {
         let newest: PathBuf = install_shadow(newest_root, "0.2.1", NEWEST_SHADOW);
         // The running copy: this test binary, placed where an older install of the same tool lives.
         let running: PathBuf = shadow_install_program(&own_root, "0.2.0");
-        fs::create_dir_all(running.parent().expect("a parent")).expect("make the old install");
-        fs::copy(std::env::current_exe().expect("the test binary"), &running)
-            .expect("copy the test binary");
-        fs::set_permissions(
+        // The test starts it, so a child process copies it.
+        copy_program(
+            &std::env::current_exe().expect("the test binary"),
             &running,
-            std::os::unix::fs::PermissionsExt::from_mode(0o755),
-        )
-        .expect("make it executable");
+        );
         if newest_in_the_other_root {
             std::os::unix::fs::symlink("0.2.0", own_root.join("mpm-shadow").join("current"))
                 .expect("the running copy is what this root's current names");
