@@ -260,6 +260,10 @@
 //!   what it was,
 //!   where it went,
 //!   and what may still stand on disk.
+//! - `worktree_copy_records_that_name_a_worktree.rs`:
+//!   the records a copy leaves that name a worktree rather than a private stage:
+//!   the record of a worktree whose copy did not finish,
+//!   and the destination record of an add whose claim is gone.
 //! - `worktree_copy_unreadable_records.rs`:
 //!   the records of an interrupted copy that cannot be read:
 //!   each is moved aside with one line,
@@ -673,6 +677,12 @@ pub mod worktree_copy_recovery_destinations;
 /// and the pending check.
 #[cfg(unix)]
 pub mod worktree_copy_recovery;
+
+/// The records a copy leaves that name a worktree rather than a private stage:
+/// the record of a worktree whose copy did not finish,
+/// and the destination record of an add whose claim is gone.
+#[cfg(unix)]
+pub mod worktree_copy_records_that_name_a_worktree;
 
 /// The records of an interrupted copy that cannot be read:
 /// each is moved aside with one line,
