@@ -11,6 +11,12 @@
 //! - `lfs_command_line_configuration.rs`:
 //!   the configuration a push carries on its command line,
 //!   read by the upload child and by the switch that turns the upload off.
+//! - `lfs_output_mask_url_parts.rs`:
+//!   the parts of a URL,
+//!   read as bytes:
+//!   where its scheme,
+//!   its authority and the rest of it end,
+//!   and which host a destination or a text names.
 //! - `lfs_output_mask.rs`:
 //!   hides the credentials inside URLs in the text relayed from `git-lfs`.
 //! - `lfs_pointer.rs`:
@@ -114,6 +120,13 @@ pub mod lfs_upload_settings;
 /// Whether this clone's tracking refs for a remote describe the server a push goes to,
 /// asked of the destination itself.
 pub mod lfs_destination_confirms_tracking_refs;
+
+/// The parts of a URL,
+/// read as bytes:
+/// where its scheme,
+/// its authority and the rest of it end,
+/// and which host a destination or a text names.
+pub mod lfs_output_mask_url_parts;
 
 /// Hides the credentials inside URLs in the text relayed from `git-lfs`.
 pub mod lfs_output_mask;
