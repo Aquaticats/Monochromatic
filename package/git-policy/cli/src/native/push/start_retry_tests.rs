@@ -1,6 +1,16 @@
 //! Controls for the bounded retry of a child start that the operating system refused for lack of processes.
 
 use super::*;
+/// What:
+///  Reads the action this process has for a signal,
+///  and the word for it,
+///  so a control can say what a call left in place.
+/// Why:
+///  The action belongs to the whole process, and reading it changes nothing.
+use crate::signal_disposition_of_the_process::{
+    the_disposition_of,
+    the_word_for,
+};
 
 /// A function-like value with the right shape is a start in these controls:
 /// the shipped callers write a small struct that holds the state.
@@ -163,20 +173,48 @@ fn real_commands_start_through_the_retrying_calls() {
     assert_eq!(error.kind(), ErrorKind::NotFound);
 }
 
-/// A failed replacement of the process returns its error,
-/// and a missing program is not retried.
-/// The body runs in a child,
-/// because a replacement that cannot run its program leaves that process's `SIGPIPE` at its default,
-/// so a later write to a pipe nobody reads would end the whole run (issue 6604).
+/// What:
+///  A failed replacement of the process returns its error,
+///  and a missing program is not retried,
+///  and the action this process had for `SIGPIPE` is in place again afterwards.
+/// Why:
+///  `Command::exec` sets `SIGPIPE` to the kernel's default in the process that called it,
+///  and a start that cannot run its program returns and leaves it there (issue 6604).
+///  The wrapper goes on after such a start and writes its own words,
+///  which a pipe nobody reads would end by the signal instead (issue 6607).
+///  The body runs in a child,
+///  because the action belongs to the whole process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // in a child: expect(theWordFor(theDispositionOf(SIGPIPE))).toBe('SIG_IGN');
+/// // expect(execRetrying(Command('/nonexistent-cli-git-program')).kind).toBe('NotFound');
+/// // expect(theWordFor(theDispositionOf(SIGPIPE))).toBe('SIG_IGN');
+/// ```
 #[cfg(unix)]
 #[test]
-fn a_failed_exec_returns_its_error_at_once() {
+fn a_failed_exec_returns_its_error_and_puts_the_signal_action_back() {
     crate::process_wide_state_child_test_support::run_the_body_in_a_child_of_its_own(
         module_path!(),
-        "a_failed_exec_returns_its_error_at_once",
+        "a_failed_exec_returns_its_error_and_puts_the_signal_action_back",
         || {
+            // What: the action in place before the call, which a Rust program's start set.
+            // Why:  the control says the call gives back this action, so it states what it began with.
+            let before: libc::sigaction = the_disposition_of(libc::SIGPIPE);
+            assert_eq!(
+                the_word_for(&before),
+                "SIG_IGN",
+                "a test binary starts with SIGPIPE ignored"
+            );
             let error: Error = exec_retrying(&mut Command::new("/nonexistent-cli-git-program"));
             assert_eq!(error.kind(), ErrorKind::NotFound);
+            // What: the action the process goes on with, which its own words are written under.
+            // Why:  at the default, the first write to a pipe nobody reads ends the process by the signal.
+            assert_eq!(
+                the_word_for(&the_disposition_of(libc::SIGPIPE)),
+                "SIG_IGN",
+                "a failed exec puts back the action this process had for SIGPIPE"
+            );
         },
     );
 }

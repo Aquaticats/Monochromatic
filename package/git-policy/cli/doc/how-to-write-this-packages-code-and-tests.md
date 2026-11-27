@@ -71,7 +71,8 @@ and every later write to a broken pipe ends every thread of the run
 a threaded run of ten library modules ended with `signal: 13` after 2,985 of its 7,764 tests,
 and the two controls that ran such a start were
 `invocation/forwarding_tests.rs`'s `unstartable_program_is_an_error`
-and `push/start_retry_tests.rs`'s `a_failed_exec_returns_its_error_at_once`;
+and `push/start_retry_tests.rs`'s `a_failed_exec_returns_its_error_at_once`,
+which is `a_failed_exec_returns_its_error_and_puts_the_signal_action_back` since 2026-11-27;
 the measurement is in
 `doc/troubleshooting/rust-exec-leaves-sigpipe-at-its-default-in-the-calling-process.md`).
 So a control that runs one of those starts,
