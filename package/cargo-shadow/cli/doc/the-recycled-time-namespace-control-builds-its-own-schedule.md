@@ -18,13 +18,13 @@ and the control's job is to build the state in which a number that *was* the wri
 Four facts,
 in this order:
 
-1. A writer runs in a time namespace T0 with a boot-time offset of one hour,
+1.  A writer runs in a time namespace T0 with a boot-time offset of one hour,
    starts a launcher in another time namespace T1 with an offset of two hours,
    and reads the launcher's start time on T0's basis.
-2. T0 loses its last process while the launcher in T1 lives on.
-3. A time namespace T2 is made afterwards and is handed the number T0 had,
+2.  T0 loses its last process while the launcher in T1 lives on.
+3.  A time namespace T2 is made afterwards and is handed the number T0 had,
    so the same number names two different namespaces at two different times.
-4. The recovery runs in T2 and reads the live launcher's start time on T2's basis,
+4.  The recovery runs in T2 and reads the live launcher's start time on T2's basis,
    which differs from the recorded one,
    and answers "unknown",
    never "gone".
@@ -103,15 +103,15 @@ and the recovery's is Some("4026533637"); the planted other session took 4026533
 
 ## What it does now
 
-1. An armed reader joins the user namespace that owns T0 before T0's processes end,
+1.  An armed reader joins the user namespace that owns T0 before T0's processes end,
    and opens T0's `/proc/<thread>/ns/time` file.
    From that moment the number cannot be handed to anyone else.
    It checks the number it opened against the one the writer recorded.
-2. The test ends T0's processes,
+2.  The test ends T0's processes,
    plants the journal and only then releases the reader with one line on its standard input.
    An end of file instead of that line means the test ended first,
    and the reader says so rather than waiting for a test that is gone.
-3. The reader closes its descriptor,
+3.  The reader closes its descriptor,
    which is the kernel's last use of T0,
    and asks for a time namespace with `unshare(CLONE_NEWTIME)`.
    Each number it is handed that is not the writer's is held by a descriptor,
@@ -120,7 +120,7 @@ and the recovery's is Some("4026533637"); the planted other session took 4026533
    Its bound is `READER_ASSIGNMENTS`;
    a number it never gets is reported as a precondition this host did not give,
    never as the code under test being wrong.
-4. The fixture is a child of that thread,
+4.  The fixture is a child of that thread,
    so it is made in the namespace the reader was handed,
    whose offsets stay the kernel's default of zero against the writer's one hour.
    That is the differing basis the control needs,
