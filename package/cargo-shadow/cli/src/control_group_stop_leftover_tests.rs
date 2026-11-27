@@ -430,12 +430,11 @@ fn a_listing_cut_before_it_read_one_member_refuses_the_run_and_says_so() {
         "the stop never reached the listing this control cuts, so the refusal has another cause"
     );
     assert!(
-        refusal.contains("its members could not all be read within"),
+        refusal.contains("the listing of the scope's members stopped at its own bound of"),
         "the refusal does not open by saying that the listing was cut at its bound: {refusal}"
     );
     assert!(
-        refusal.contains("the listing of its members was cut at its own bound of")
-            && refusal.contains("before one was read"),
+        refusal.contains("no member was read"),
         "the refusal does not say the listing was cut before it read one member: {refusal}"
     );
     assert!(
@@ -533,7 +532,7 @@ fn a_group_below_the_scope_that_cannot_be_read_keeps_the_members_already_read() 
         member.pid()
     );
     assert!(
-        refusal.contains("its members could not all be read"),
+        refusal.contains("the read failed"),
         "the refusal does not say that the rest could not be read: {refusal}"
     );
     assert!(
@@ -617,7 +616,7 @@ fn a_listing_that_read_no_member_while_the_kernel_said_populated_refuses_the_run
         "the report was not read as a listing that found no member: {refusal}"
     );
     assert!(
-        refusal.contains("and it listed no member of the scope or of any group below it"),
+        refusal.contains("every group of the scope was read, and none of them listed a member"),
         "the refusal does not open by saying that it listed no member: {refusal}"
     );
     assert!(

@@ -783,12 +783,21 @@ fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
     let error: RunError = result.expect_err("a run whose scope vanished is not stopped");
     let said: String = error.to_string();
     assert!(
-        said.contains("its directory was gone when its members were read"),
+        said.contains("directory was gone when its members were read"),
         "the refusal does not say the scope was gone when its members were read: {said}"
     );
-    assert!(
-        said.contains("and its directory was gone when its members were read;"),
-        "the refusal still opens by claiming something about members it never read: {said}"
+    // What:     `.matches("directory was gone")` counts the times the message says the directory was gone.
+    // Why:      The opening clause and the sentence are one message a person reads, so the fact is said once (issue 6528's
+    //           second review, Low 1).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const said = said.matches('directory was gone').count();
+    // ```
+    let directory_gone: usize = said.matches("directory was gone").count();
+    assert_eq!(
+        directory_gone, 1,
+        "the refusal says the directory was gone {directory_gone} times: {said}"
     );
     assert!(
         !said.contains("can still write") && !said.contains("can write nothing"),
@@ -797,41 +806,25 @@ fn a_refusal_of_a_scope_that_was_gone_when_its_members_were_read_says_so() {
     // The listing checks that the directory is absent and not that this process still sees the parent the scope was
     // planned in, so the clause may not claim that no member is left to stop.
     assert!(
-        said.contains("so the absence is not shown to be the manager's"),
+        said.contains("a directory that is gone also matches a scope that was never made"),
         "the refusal does not say that the absence it read was not verified: {said}"
     );
     assert!(
         !said.contains("so no member of it is left to stop"),
         "the refusal claims no member is left on an absence it did not verify: {said}"
     );
+    // What:     `said.contains("journal")` is true when the stop's own words carry the kept journal.
+    // Why:      What becomes of a kept journal is said once, by the refusal that keeps it
+    //           (`journal_recover::KEPT_JOURNAL`), because a stop of a bare process group keeps one too and has no scope to name.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const speaksOfTheJournal = said.includes('journal');
+    // ```
+    let speaks_of_the_journal: bool = said.contains("journal");
     assert!(
-        said.contains("the journal of this run was kept"),
-        "the refusal does not say what became of the journal of this run: {said}"
-    );
-    assert!(
-        said.contains("settles it by itself once it reads the recorded scope gone"),
-        "the refusal does not say what the next run does with the kept journal: {said}"
-    );
-    // The sentence names the runs that settle the journal and the runs that leave it: a run that resolves dependencies and
-    // `cargo-shadow update` read a kept journal, and a command that resolves nothing and a frozen run never reach the step
-    // (`refusal_journal_next_runs_tests` holds each of the four at a real refusal).
-    assert!(
-        said.contains(
-            "a later run of this workspace that resolves dependencies or runs `cargo-shadow update` settles it"
-        ),
-        "the refusal does not name the runs that settle the kept journal: {said}"
-    );
-    assert!(
-        said.contains("a command that resolves nothing (`cargo fmt`, `cargo --version`)")
-            && said.contains("a frozen run (`--locked`, `--frozen`, or `CI`) leave it"),
-        "the refusal does not name the runs that leave the kept journal: {said}"
-    );
-    assert!(
-        said.contains("cargo-shadow acknowledge")
-            && said.contains(
-                "every process or worker of this run that can modify the workspace has stopped"
-            ),
-        "the refusal does not name the command a run that cannot show what this one left asks for: {said}"
+        !speaks_of_the_journal,
+        "the stop's own words say what became of the journal, so the refusal that keeps it would say it twice: {said}"
     );
     drop(transaction);
 }
@@ -1031,7 +1024,7 @@ fn a_refusal_whose_members_all_ended_says_no_member_it_listed_can_still_write() 
 
     assert_eq!(
         report.headline(),
-        "the scope did not read as empty, and no member it listed can still write"
+        "every group of the scope was read, and no member it listed can still write"
     );
     assert!(
         said.contains("it listed 2 members: 5001 (it has ended and been reaped, so it can write nothing), 5002"),
@@ -1050,11 +1043,23 @@ fn a_refusal_that_listed_no_member_says_so() {
 
     assert_eq!(
         report.headline(),
-        "the scope did not read as empty, and it listed no member of the scope or of any group below it"
+        "every group of the scope was read, and none of them listed a member"
+    );
+    // What:     `said` is the sentence that follows that opening clause, and it may not say the same thing again.
+    // Why:      The two clauses are one message, so the listing that found no member is said once (issue 6528's second review, Low 1).
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const saysItAgain = said.includes('listed no member');
+    // ```
+    let says_it_again: bool = said.contains("listed no member");
+    assert!(
+        !says_it_again,
+        "the sentence says again what the opening clause says, that no member was listed: {said}"
     );
     assert!(
-        said.contains("it listed no member of the scope or of any group below it"),
-        "the sentence does not say that no member was listed: {said}"
+        said.contains("the kernel last reported it populated"),
+        "the sentence does not say what the kernel last reported: {said}"
     );
     assert!(
         !said.contains("can still write") && !said.contains("can write nothing"),
@@ -1073,15 +1078,11 @@ fn a_refusal_whose_listing_was_cut_states_the_bound_it_hit() {
     let cut_said: String = cut.sentence(Path::new("/sys/fs/cgroup/d.scope"));
     assert_eq!(
         cut.headline(),
-        format!(
-            "the scope did not read as empty, and its members could not all be read within {LISTING_BOUND:?}"
-        )
+        format!("the listing of the scope's members stopped at its own bound of {LISTING_BOUND:?}")
     );
     assert!(
-        cut_said.contains(&format!(
-            "the listing of its members was cut at its own bound of {LISTING_BOUND:?} before one was read"
-        )),
-        "the sentence does not say the listing was cut before it read one: {cut_said}"
+        cut_said.contains("no member was read"),
+        "the sentence does not say the cut kept the listing from reading one member: {cut_said}"
     );
 
     // A listing cut after it read one member that had ended names it and still says the rest were not read.
@@ -1091,9 +1092,8 @@ fn a_refusal_whose_listing_was_cut_states_the_bound_it_hit() {
     );
     let partly_said: String = partly.sentence(Path::new("/sys/fs/cgroup/e.scope"));
     assert!(
-        partly_said.contains("after it listed 1 member: 6001")
-            && partly_said.contains("cut at its own bound"),
-        "the sentence does not name the member it read before the cut, or does not say the rest were not read: {partly_said}"
+        partly_said.contains("it listed 1 member: 6001"),
+        "the sentence does not name the member it read before the cut: {partly_said}"
     );
 }
 

@@ -687,7 +687,7 @@ fn staged_a_refusal(fixture: &Fixture) -> Ran {
         refused.stderr
     );
     assert!(
-        refused.prints("its directory was gone when its members were read"),
+        refused.prints("directory was gone when its members were read"),
         "the refusal did not come from the arm whose sentence names the journal, so this control shows nothing: {}",
         refused.stderr
     );
@@ -741,7 +741,7 @@ fn an_ordinary_run_after_a_refusal_settles_the_kept_journal_and_says_what_it_kep
         fixture.journals()
     );
     assert!(
-        next.prints("was left by a run that was killed"),
+        next.prints("was left by a run that did not finish"),
         "the next run did not say what became of the leftover lockfile: {}",
         next.stderr
     );
@@ -842,7 +842,7 @@ fn an_update_after_a_refusal_settles_the_kept_journal() {
         fixture.journals()
     );
     assert!(
-        next.prints("was left by a run that was killed"),
+        next.prints("was left by a run that did not finish"),
         "the update did not say what became of the leftover lockfile: {}",
         next.stderr
     );
@@ -984,7 +984,7 @@ fn an_install_after_a_refusal_settles_the_kept_journal() {
         fixture.journals()
     );
     assert!(
-        next.prints("was left by a run that was killed"),
+        next.prints("was left by a run that did not finish"),
         "the install did not say what became of the leftover lockfile: {}",
         next.stderr
     );
@@ -1013,7 +1013,7 @@ fn an_install_dry_run_after_a_refusal_settles_the_kept_journal_and_leaves_the_ke
         fixture.journals()
     );
     assert!(
-        next.prints("was left by a run that was killed"),
+        next.prints("was left by a run that did not finish"),
         "the install --dry-run did not say what became of the leftover lockfile: {}",
         next.stderr
     );
@@ -1052,7 +1052,7 @@ fn an_update_dry_run_after_a_refusal_settles_the_kept_journal() {
         fixture.journals()
     );
     assert!(
-        next.prints("was left by a run that was killed"),
+        next.prints("was left by a run that did not finish"),
         "the update --dry-run did not say what became of the leftover lockfile: {}",
         next.stderr
     );
@@ -1079,7 +1079,7 @@ fn a_cargo_metadata_run_after_a_refusal_settles_the_kept_journal() {
         fixture.journals()
     );
     assert!(
-        next.prints("was left by a run that was killed"),
+        next.prints("was left by a run that did not finish"),
         "the cargo metadata run did not say what became of the leftover lockfile: {}",
         next.stderr
     );
@@ -1106,7 +1106,7 @@ fn a_cargo_update_run_after_a_refusal_settles_the_kept_journal() {
         fixture.journals()
     );
     assert!(
-        next.prints("was left by a run that was killed"),
+        next.prints("was left by a run that did not finish"),
         "the cargo update run did not say what became of the leftover lockfile: {}",
         next.stderr
     );
@@ -1246,6 +1246,174 @@ fn a_run_on_the_fast_path_after_a_refusal_leaves_the_kept_journal_and_says_nothi
         !mentions_a_kept_journal(&next),
         "the run on the fast path said something about a journal it left: {}\n{}",
         next.stdout,
+        next.stderr
+    );
+}
+
+/// The control of the printed refusal itself:
+/// read whole from a run,
+/// it says each thing once.
+/// Why this is a control of its own:
+/// the tests of the sentence look for pieces of it,
+/// so a clause repeated or reordered passes every one of them (the read of alpha.15,
+/// Low 5).
+#[test]
+fn the_refusal_a_run_prints_says_each_thing_once() {
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let fixture = Fixture::made();
+    let refused: Ran = staged_a_refusal(&fixture);
+
+    // What:     `refused.stderr.lines().find(...)` is the one line the refusal was printed on.
+    // Why:      The lines around it are the run's own progress, and the clauses are one message.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const refusal = stderr.split('\n').find((line) => line.includes('could not be stopped, so it may still write'));
+    // ```
+    let refusal: &str = refused
+        .stderr
+        .lines()
+        .find(|line| {
+            return line.contains("could not be stopped, so it may still write");
+        })
+        .expect("the refusal is not on any line of the run's standard error");
+    // What:     `.split("; ")` breaks the message into its clauses and `.map(str::trim)` drops the spaces around each.
+    // Why:      Each clause is one fact, so a fact said twice is one clause equal to another.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const clauses = refusal.split('; ').map((clause) => clause.trim());
+    // ```
+    let clauses: Vec<&str> = refusal.split("; ").map(str::trim).collect();
+    for (index, clause) in clauses.iter().enumerate() {
+        for later in &clauses[index + 1..] {
+            assert_ne!(
+                clause, later,
+                "the printed refusal says {clause:?} twice: {refusal}"
+            );
+        }
+    }
+    // What:     each needle is one thing a person acts on, and `.matches(needle).count()` counts it across the whole standard error.
+    // Why:      A clause can be said twice in two wordings ("... settles it by itself" and "... settles it"), which the equal-clause
+    //           check above does not catch, and the shim prints a line after the refusal as well.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const needle of needles) expect(stderr.split(needle).length - 1, needle).toBe(1);
+    // ```
+    let needles: [&str; 6] = [
+        "could not be stopped",
+        "directory was gone when its members were read",
+        "the journal of this run was kept",
+        "settles it",
+        "cargo-shadow acknowledge",
+        "the command was not run",
+    ];
+    for needle in needles {
+        let found: usize = refused.stderr.matches(needle).count();
+        assert_eq!(
+            found, 1,
+            "the printed refusal says {needle:?} {found} times, and a person reads it once: {}",
+            refused.stderr
+        );
+    }
+}
+
+/// The control of the one sentence both refusals carry about a kept journal:
+/// it names the rule that covers every later run rather than a list of kinds,
+/// it names the kinds measured in this file as examples,
+/// it says when a later run settles the journal,
+/// and it names no scope,
+/// so the same sentence is true of a stop of a bare process group.
+#[test]
+fn the_journal_sentence_names_the_rule_and_every_kind_measured_here() {
+    // What:     `crate::journal_recover::KEPT_JOURNAL` is the sentence both refusals interpolate.
+    // Why:      Pinning it here ties the words to the runs measured in this file, and to the one noun a process-group refusal has not.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const sentence = KEPT_JOURNAL;
+    // ```
+    let sentence: &str = crate::journal_recover::KEPT_JOURNAL;
+
+    assert!(
+        sentence.contains("any later run of this catalog that checks or updates a lockfile"),
+        "the sentence names kinds without the rule that covers them, so a command added later is not covered: {sentence}"
+    );
+    assert!(
+        sentence
+            .contains("settles it once it can show that nothing this run started is still running"),
+        "the sentence does not say what shows a kept journal settled: {sentence}"
+    );
+    let settling: [&str; 7] = [
+        "`cargo check`",
+        "`cargo metadata`",
+        "`cargo update`",
+        "`cargo-shadow install`",
+        "`cargo-shadow update`",
+        "`--dry-run`",
+        "print nothing about it",
+    ];
+    for needle in settling {
+        assert!(
+            sentence.contains(needle),
+            "the sentence does not cover {needle:?}, which this file measures: {sentence}"
+        );
+    }
+    let leaving: [&str; 4] = [
+        "`--locked`, `--frozen`, or `CI`",
+        "the fast path",
+        "resolves nothing",
+        "outside this catalog repository",
+    ];
+    for needle in leaving {
+        assert!(
+            sentence.contains(needle),
+            "the sentence does not name {needle:?} among the runs that leave the journal: {sentence}"
+        );
+    }
+    assert!(
+        sentence.contains("cargo-shadow acknowledge"),
+        "the sentence does not name the command a run that cannot show what this run left asks for: {sentence}"
+    );
+    assert!(
+        !sentence.contains("scope"),
+        "the sentence names a scope, and a stop of a bare process group keeps the same journal: {sentence}"
+    );
+}
+
+/// The control of where the journal belongs:
+/// a plain run in another crate of the same catalog repository settles it,
+/// because the journal is the catalog root's and not the refused crate's.
+/// Why this is a control of its own:
+/// the refusal used to say "a later run of this workspace",
+/// which reads as the crate the run was made in.
+#[test]
+fn an_ordinary_run_in_another_crate_after_a_refusal_settles_the_kept_journal() {
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
+    let fixture = Fixture::made();
+    let _refused: Ran = staged_a_refusal(&fixture);
+
+    let next: Ran = run_one_in(
+        &fixture,
+        "ordinary",
+        &fixture.start_in(OTHER_CRATE_DIR),
+        false,
+    );
+
+    assert_eq!(
+        next.code, 0,
+        "the run in the other crate did not finish: {}\n{}",
+        next.stdout, next.stderr
+    );
+    assert!(
+        fixture.journals().is_empty(),
+        "a run in another crate of the same repository left the journal the catalog root holds: {:?}",
+        fixture.journals()
+    );
+    assert!(
+        next.prints("was left by a run that did not finish"),
+        "the run in the other crate did not say what became of the leftover lockfile: {}",
         next.stderr
     );
 }
