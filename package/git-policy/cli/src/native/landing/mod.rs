@@ -391,8 +391,17 @@
 //! - `service_index_prestage.rs`:
 //!   the marker of the next batch's index lock,
 //!   made and flushed while the service is idle.
+//! - `service_index_lock_without_a_wait.rs`:
+//!   the one attempt to take the lock that never waits,
+//!   and the stale lock it may remove before it tries again.
+//! - `service_index_lock_with_a_wait.rs`:
+//!   the attempt that waits for a foreign holder:
+//!   the watch set before the first placement,
+//!   the ceiling,
+//!   and what the wait was for.
 //! - `service_index_lock.rs`:
-//!   the commit service's hold on Git's index lock across a landing.
+//!   the faces the landing and the wrapper's own index writers call for the commit service's hold on Git's index lock,
+//!   re-exporting the files beside it under the names callers use.
 //! - `service_index_wait.rs`:
 //!   the wait of a wrapped index writer for the commit service's own hold on the index.
 //! - `service_hold_retry.rs`:
@@ -403,12 +412,29 @@
 //! - `service_land_requests_whose_client_is_gone.rs`:
 //!   which requests of a batch a landing still makes,
 //!   given which of their clients went away before their commits landed.
-//! - `service_land_side_reference_write.rs`:
-//!   the write of a landing's own side reference:
+//! - `the_answer_of_one_git_step_of_a_side_reference.rs`:
+//!   what became of one Git step of a landing's own side reference,
+//!   and the sentence a step that a stop or a ceiling ended keeps for the landing that answers.
+//! - `the_write_of_a_side_reference.rs`:
+//!   the write itself:
 //!   made once more only when the wait for it ended without an answer,
 //!   never replacing a reference another command wrote,
 //!   answered by the reference's own value,
-//!   and what the landing does with a commit whose reference it could not prove.
+//!   and the words a person reads when Git refused it.
+//! - `the_side_references_a_commit_is_kept_on.rs`:
+//!   the write named for each reference of the wrapper's own:
+//!   the one a commit that did not land is kept on,
+//!   the shared one of a batch,
+//!   and a named side reference.
+//! - `the_commit_a_side_reference_did_not_keep.rs`:
+//!   the commit a write did not prove:
+//!   the reference it is kept on,
+//!   the sentence the person reads,
+//!   letting go of the batch's own reference,
+//!   and the tip a batch built that its reference did not hold.
+//! - `service_land_side_reference_write.rs`:
+//!   the face a landing's code calls for its own side references,
+//!   re-exporting the four files beside it under the names callers use.
 //! - `service_land_git_steps_and_import_stream.rs`:
 //!   the Git steps of a landing,
 //!   the import stream of a batch and the overlap tests of its requests.
@@ -512,6 +538,23 @@
 //! - `service_land_finish_replay_gate.rs`:
 //!   whether a restart may replay an open batch's index update,
 //!   and the two words a settlement comes to.
+//! - `held_commit_settle_the_intent_of_a_batch.rs`:
+//!   the records a settlement reads before it decides anything:
+//!   the batch's intent,
+//!   the finished record of a batch whose intent is gone,
+//!   and whether the branch already holds the commit the batch made.
+//! - `held_commit_settle_what_stands_in_the_way.rs`:
+//!   the reference locks that can refuse the branch write,
+//!   the ones standing,
+//!   and whether a settlement may remove one at all.
+//! - `held_commit_settle_carrying_the_change.rs`:
+//!   the change of a held batch carried onto the branch as it is now.
+//! - `held_commit_settle_what_the_move_owes.rs`:
+//!   what a settlement owes after the move:
+//!   the index lock taken again,
+//!   the entries installed under it,
+//!   and the conclusion state,
+//!   the push and the owed record that follow.
 //! - `held_commit_settle.rs`:
 //!   moving the branch of a held commit once nothing stands in the way,
 //!   and finishing what the landing owes after the move.
@@ -724,6 +767,14 @@
 //!   what a commit does when the service answered without landing it:
 //!   the words for content a prune removed,
 //!   and the aftermath of a service that failed or went silent.
+//! - `service_commit_attempt_values.rs`:
+//!   the values one commit command carries from the first attempt of its loop to the last.
+//! - `service_commit_the_answers_of_the_service.rs`:
+//!   what one commit does with the answer the service gave:
+//!   a landed commit,
+//!   a commit held behind a reference lock,
+//!   an attempt to prepare again,
+//!   and the two ways the service says nothing landed.
 //! - `service_commit.rs`:
 //!   the commit command's path through the commit service.
 //! - `service_round.rs`:
@@ -1005,11 +1056,23 @@ pub mod service_land_branch_move_transaction;
 /// the import stream of a batch and the overlap tests of its requests.
 pub mod service_land_git_steps_and_import_stream;
 
-/// The write of a landing's own side reference:
-/// made once more only when the wait for it ended without an answer,
-/// never replacing a reference another command wrote,
-/// answered by the reference's own value,
-/// and what the landing does with a commit whose reference it could not prove.
+/// What became of one Git step of a landing's own side reference,
+/// and the sentence a step that a stop or a ceiling ended keeps.
+pub mod the_answer_of_one_git_step_of_a_side_reference;
+
+/// The write of one of a landing's own side references,
+/// and the words a person reads when Git refused it.
+pub mod the_write_of_a_side_reference;
+
+/// The write named for each reference of the wrapper's own.
+pub mod the_side_references_a_commit_is_kept_on;
+
+/// The commit a landing's own side reference did not prove,
+/// and the tip a batch built that it did not hold.
+pub mod the_commit_a_side_reference_did_not_keep;
+
+/// The face a landing's code calls for its own side references,
+/// re-exporting the four files beside it under the names callers use.
 pub mod service_land_side_reference_write;
 
 /// The batch whose own scratch reference the write did not prove:
@@ -1099,7 +1162,14 @@ pub mod the_names_of_the_index_lock;
 /// The attempts and the wait of an acquisition of the index lock.
 pub mod service_index_attempts;
 
-/// The commit service's hold on Git's index lock across a landing.
+/// The one attempt to take Git's index lock that never waits.
+pub mod service_index_lock_without_a_wait;
+
+/// The attempt that takes Git's index lock and waits for a foreign holder.
+pub mod service_index_lock_with_a_wait;
+
+/// The commit service's hold on Git's index lock across a landing:
+/// the faces the landing and the wrapper's own index writers call.
 pub mod service_index_lock;
 
 /// The service's warm of the compiled forbidden-strings rules,
@@ -1241,6 +1311,12 @@ pub mod service_index_wait;
 
 /// A forwarded index writer started again when the commit service took the index before its Git did.
 pub mod service_hold_retry;
+
+/// The values one commit command carries from the first attempt of its loop to the last.
+pub mod service_commit_attempt_values;
+
+/// What one commit does with the answer the service gave.
+pub mod service_commit_the_answers_of_the_service;
 
 /// The commit command's path through the commit service.
 pub mod service_commit;
@@ -1642,6 +1718,19 @@ pub mod held_commit_record;
 /// The change of a held commit put onto the branch as it is now,
 /// when that branch moved while the lock stood.
 pub mod held_commit_replay;
+
+/// The records a settlement reads before it decides anything about a held commit.
+pub mod held_commit_settle_the_intent_of_a_batch;
+
+/// The reference locks that can refuse a held commit's branch write,
+/// and whether a settlement may remove one at all.
+pub mod held_commit_settle_what_stands_in_the_way;
+
+/// The change of a held batch carried onto the branch as it is now.
+pub mod held_commit_settle_carrying_the_change;
+
+/// What a settlement owes after the branch of a held commit moved.
+pub mod held_commit_settle_what_the_move_owes;
 
 /// Moving the branch of a held commit once nothing stands in the way,
 /// and finishing what the landing owes after the move.
