@@ -710,8 +710,9 @@ A round that adds or renames a file naming `podman` or `docker` as a program als
 `mise run //package/container-limit/core:test:unit`,
 whose `src/container-start-sites.unit.test.ts` lists every such tracked file:
 it fails until the new path is listed with the role it plays,
-and the advisory `advisory-core` run that reaches it on `main` is admitted at most eight times a day,
-so a merge usually lands without it (issue 6588).
+and the `advisory-core` workflow that runs it does so only when its admission gate lets a push to `main`
+through,
+so a merge can land without it (issue 6588).
 
 A round that writes or moves a line behind a feature name runs that feature's
 `mise run //package/git-policy/cli:native:clippy:<feature>`
