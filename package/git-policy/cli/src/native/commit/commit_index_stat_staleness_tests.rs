@@ -6,12 +6,17 @@
 //! so a refresh can look at those and no others.
 
 use super::{
-    EntrySlice,
-    STAT_WALK_BREAK_EVEN_ENTRIES,
     StaleStatData,
     WorktreeStaging,
-    stale_paths_in_slice,
     stale_stat_data,
+};
+/// The walk,
+/// the slices it takes and the measurements its break-even rests on,
+///  which this file drives directly.
+use crate::commit_index_stat_staleness_walk::{
+    EntrySlice,
+    STAT_WALK_BREAK_EVEN_ENTRIES,
+    stale_paths_in_slice,
     walk_in_slices,
     workers_for,
 };

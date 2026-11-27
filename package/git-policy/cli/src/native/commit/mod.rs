@@ -100,8 +100,22 @@
 //! - `commit_form_refusal_from_git.rs`:
 //!   the refusal Git prints for such a form,
 //!   asked of Git itself.
+//! - `commit_index_stat_staleness_staging.rs`:
+//!   what a commit stages from the worktree,
+//!   as the stat-data question reads it.
+//! - `commit_index_stat_staleness_worktree_file.rs`:
+//!   one worktree file's stat data as an index entry records it,
+//!   and whether an entry's recorded data is still that file's.
+//! - `commit_index_stat_staleness_left_to_git.rs`:
+//!   the entries and the paths the stat-data question leaves to Git.
+//! - `commit_index_stat_staleness_walk.rs`:
+//!   the walk of an index's entries,
+//!   one slice at a time on several threads,
+//!   and the answer it gives.
+//! - `commit_index_stat_staleness_reading.rs`:
+//!   the one reading of an index file the stat-data question is answered from.
 //! - `commit_index_stat_staleness.rs`:
-//!   whether an index still records the stat data its worktree has,
+//!   the question whether an index still records the stat data its worktree has,
 //!   so the refresh runs only when it would change something.
 //! - `private_index_request.rs`:
 //!   the private index and object store a commit's preparation selects,
@@ -495,6 +509,25 @@ pub mod commit_index_stat_refresh;
 /// Whether an index still records the stat data its worktree has,
 /// so the refresh runs only when it would change something.
 pub mod commit_index_stat_staleness;
+
+/// What a commit stages from the worktree,
+/// as the stat-data question reads it.
+pub mod commit_index_stat_staleness_staging;
+
+/// One worktree file's stat data as an index entry records it,
+/// and whether an entry's recorded data is still that file's.
+pub mod commit_index_stat_staleness_worktree_file;
+
+/// The entries and the paths the stat-data question leaves to Git.
+pub mod commit_index_stat_staleness_left_to_git;
+
+/// The walk of an index's entries,
+/// one slice at a time on several threads,
+/// and the answer it gives.
+pub mod commit_index_stat_staleness_walk;
+
+/// The one reading of an index file the stat-data question is answered from.
+pub mod commit_index_stat_staleness_reading;
 
 /// The selection a commit names:
 /// the choices that shape its private index,
