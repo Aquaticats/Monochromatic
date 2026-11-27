@@ -74,7 +74,12 @@ use crate::shadow_identity::{
 /// On success the operating system swaps this process's code for the real tool,
 /// so there is no later line to run.
 /// If we ever get a return value,
-/// the swap failed and the error says why.
+/// either the start check refused the program
+/// (a shadow, or a file the system would not open)
+/// or the swap failed,
+/// and the error says which:
+/// a program that is gone keeps the system's `NotFound`,
+/// and a shadow's sentence travels as an error of the kind `Other`.
 /// Gotcha:
 /// A function whose success path never returns has no TypeScript analogue.
 /// Read the return value as "this is only what went wrong".
