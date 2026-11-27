@@ -122,6 +122,9 @@ On 2026-11-18 at about 22:20-05:00, Node v26.13.1 ran in a fresh user unit, whic
 The same write without `flush` ran.
 The script and its output are under
 `~/temp/agent/node-permission-audit-refusals-of-sync-calls-2026-11-18/keep/each-way-node-can-sync-a-file-in-a-fresh-user-unit.txt`.
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 The first program seen to meet the refusal was the agent-cap disk probe at 2026-11-18T21:18:17-05:00, which called
 `fsyncSync` and exited at its first reading.
 
@@ -161,6 +164,9 @@ default: `node:ffi` (added in v26.1.0, Stability 1, Experimental, with an `Exper
 `zil_commit_count` rose by 2. Its [docs](https://nodejs.org/docs/latest-v26.x/api/ffi.html#:~:text=When%20using%20the%20Permission%20Model)
 say FFI is restricted under the enforcing model unless `--allow-ffi` is given. The script is
 `~/temp/agent/node-permission-audit-refusals-of-sync-calls-2026-11-18/keep/fsync-through-node-ffi.mts`.
+(scratch,
+deleted on 2026-11-27;
+not kept).
 
 ### Directory sync for published claims
 

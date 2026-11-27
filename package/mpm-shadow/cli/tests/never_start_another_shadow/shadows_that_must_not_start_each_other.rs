@@ -16,7 +16,6 @@
 //! ```
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -195,14 +194,11 @@ fn a_script_that_starts_the_other_shadow_stops_on_arrival_with_a_message_and_a_n
     link_as_tool(&second);
     let link: PathBuf = link_as_tool(&first);
     // No test of the script's bytes can tell that it leads to a shadow: only the start itself shows it.
-    fs::create_dir_all(&scripts).expect("make the folder");
-    fs::write(
-        scripts.join(TOOL),
-        format!("#!/bin/sh\nexec '{}' \"$@\"\n", second.join(TOOL).display()),
-    )
-    .expect("write the script");
-    fs::set_permissions(scripts.join(TOOL), fs::Permissions::from_mode(0o755))
-        .expect("make it executable");
+    // The shadow starts this script as the real tool, so a child process writes it.
+    crate::through_a_child_process::write_program(
+        scripts.join(TOOL).as_path(),
+        format!("#!/bin/sh\nexec '{}' \"$@\"\n", second.join(TOOL).display()).as_bytes(),
+    );
 
     // The script comes after the first shadow on PATH, and the second shadow's link is not on PATH: the script is the real tool the first one finds.
     let output = finished(run_bounded(command_for(&link, &[&first, &scripts])));

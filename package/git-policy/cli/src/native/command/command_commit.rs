@@ -24,6 +24,7 @@
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// import { COMMIT_TABLE, ALL, ONLY /* ... */ } from './command_commit_table.ts';
+/// import { DEFAULT_MODE, Occurrence, OptionError, OptionValue, ParsedOptions } from './command_options_types.ts';
 /// import { parseOptions } from './command_options.ts';
 /// ```
 use crate::command_commit_table::{
@@ -44,14 +45,7 @@ use crate::command_commit_table::{
     PORCELAIN,
     SHORT,
 };
-use crate::command_options::{
-    DEFAULT_MODE,
-    Occurrence,
-    OptionError,
-    OptionValue,
-    ParsedOptions,
-    parse_options,
-};
+use crate::command_options::parse_options;
 use crate::command_options_query::{
     WrapperFlags,
     is_enabled,
@@ -59,6 +53,13 @@ use crate::command_options_query::{
     positional_tokens,
     split_wrapper_flags,
     value_bytes,
+};
+use crate::command_options_types::{
+    DEFAULT_MODE,
+    Occurrence,
+    OptionError,
+    OptionValue,
+    ParsedOptions,
 };
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;

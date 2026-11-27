@@ -34,6 +34,7 @@
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
+/// import { DEFAULT_MODE, OptionError, OptionSpec, ParsedOptions } from './command_options_types.ts';
 /// import { parseOptions } from './command_options.ts';
 /// ```
 use crate::command_branch_mode::branch_creates;
@@ -48,17 +49,17 @@ use crate::command_checkout_table::{
     CHECKOUT_TABLE,
     SWITCH_TABLE,
 };
-use crate::command_options::{
-    DEFAULT_MODE,
-    OptionError,
-    OptionSpec,
-    ParsedOptions,
-    parse_options,
-};
+use crate::command_options::parse_options;
 use crate::command_options_query::{
     WrapperFlags,
     positional_tokens,
     split_wrapper_flags,
+};
+use crate::command_options_types::{
+    DEFAULT_MODE,
+    OptionError,
+    OptionSpec,
+    ParsedOptions,
 };
 use crate::escape_hatch::BRANCH_WORKTREE_ESCAPE_HATCH;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
