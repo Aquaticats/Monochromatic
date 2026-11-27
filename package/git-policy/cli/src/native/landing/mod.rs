@@ -403,6 +403,12 @@
 //!   and the files they are declared beside.
 //! - `owed_index_update.rs`:
 //!   the record of an index update a landed batch owes.
+//! - `service_land_finish_after_the_move.rs`:
+//!   the conclusion state and the index update that follow a batch's branch move,
+//!   recorded so that a restart never replays the index over what another program staged.
+//! - `service_land_finish_replay_gate.rs`:
+//!   whether a restart may replay an open batch's index update,
+//!   and the two words a settlement comes to.
 //! - `held_commit_settle.rs`:
 //!   moving the branch of a held commit once nothing stands in the way,
 //!   and finishing what the landing owes after the move.
@@ -413,7 +419,8 @@
 //!   its driver for controls,
 //!   and its stop.
 //! - `service_land_finish.rs`:
-//!   the answers service land finish holds.
+//!   the batches a restart finishes or drops,
+//!   and what it reports about each.
 //! - `service_land_batch_body.rs`:
 //!   the landing itself:
 //!   one batch written,
@@ -1164,6 +1171,16 @@ pub mod service_durable;
 /// and the words its answer gives for them.
 pub mod service_durable_syncs;
 
+/// The conclusion state and the index update that follow a batch's branch move,
+/// recorded so that a restart never replays the index over what another program staged.
+pub mod service_land_finish_after_the_move;
+
+/// Whether a restart may replay an open batch's index update,
+/// and the two words a settlement comes to.
+pub mod service_land_finish_replay_gate;
+
+/// The batches a restart finishes or drops,
+/// and what it reports about each.
 pub mod service_land_finish;
 
 /// The removal of a stale index lock,
