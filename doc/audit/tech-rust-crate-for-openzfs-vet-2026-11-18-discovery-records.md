@@ -8,6 +8,9 @@ Status: discovery phase run, the coordinator folds this file into
 
 - Run folder: `~/temp/agent/pi-runs/rust-crate-for-openzfs-discovery-1`.
   Every raw provider body sits in `raw/`, `raw/expansion/` and `raw/repos/`.
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here).
 - Run window, measured from the saved raw files: 2026-11-18T17:26:59-05:00 to
   2026-11-18T17:38:00-05:00.
 - Provider of the run: Pi on DeepSeek V4.1 Flash, per the report's "Active audit owner".
