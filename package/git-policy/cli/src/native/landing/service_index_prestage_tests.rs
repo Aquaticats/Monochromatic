@@ -35,6 +35,29 @@ use std::time::{
 /// the counter is the process's.
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
+/// What:
+///  Takes the one lock the controls of this module hold in turn,
+///  even when the control that held it last panicked.
+/// Why:
+///  Rust marks a mutex whose holder panicked as poisoned,
+///  and `lock()` then answers an error to every later caller,
+///  so one control's real failure failed the twenty-one controls after it in a run of `landing::` with more threads
+///  than processors (issue 6565).
+///  Nothing this lock guards is left broken by a panicking holder:
+///  each control writes the counters beside it before that control reads them,
+///  so the guard is taken out of the poison error and the run goes on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theControlsLock() { return processWideMutex.lockEvenIfAPreviousHolderThrew(); }
+/// ```
+fn the_controls_lock() -> std::sync::MutexGuard<'static, ()> {
+    // `unwrap_or_else` hands the guard inside the poison error to this function, which is the guard itself.
+    return ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+}
+
 /// How many flushes `slow_flush` was asked for.
 static FLUSHES: AtomicUsize = AtomicUsize::new(0);
 
@@ -128,7 +151,7 @@ fn texts_of(index: &Path) -> Vec<String> {
 #[test]
 fn a_marker_made_ahead_is_placed_without_a_flush_at_the_commit() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-ready");
         FLUSHES.store(0, Ordering::SeqCst);
         start_with(slow_flush, &index, 7);
@@ -316,7 +339,7 @@ fn held_failing_flush(_: &std::fs::File) -> std::io::Result<()> {
 #[test]
 fn a_commit_that_comes_during_the_flush_takes_the_lock_without_waiting_for_it() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-flushing");
         FLUSHES.store(0, Ordering::SeqCst);
         COMMIT_WAITING.store(false, Ordering::SeqCst);
@@ -382,7 +405,7 @@ fn a_commit_that_comes_during_the_flush_takes_the_lock_without_waiting_for_it() 
 #[test]
 fn starting_again_for_the_same_batch_makes_no_second_file() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-same");
         FLUSHES.store(0, Ordering::SeqCst);
         start_with(slow_flush, &index, 9);
@@ -422,7 +445,7 @@ fn starting_again_for_the_same_batch_makes_no_second_file() {
 #[test]
 fn the_oldest_marker_goes_when_more_are_asked_for_than_the_service_keeps() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-oldest-goes");
         let kept: u64 = u64::try_from(MARKERS_MADE_AHEAD).expect("a count of files");
         let oldest: u64 = 17;
@@ -465,7 +488,7 @@ fn the_oldest_marker_goes_when_more_are_asked_for_than_the_service_keeps() {
 #[test]
 fn taking_this_batchs_marker_keeps_the_spare_of_the_next_one() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-spare-kept");
         let mine: u64 = 19;
         start_with(sync_file, &index, mine);
@@ -495,7 +518,7 @@ fn taking_this_batchs_marker_keeps_the_spare_of_the_next_one() {
 #[test]
 fn a_marker_for_another_batch_is_removed_and_the_commit_stages_its_own() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-other-batch");
         start_with(sync_file, &index, 10);
         until_made();
@@ -518,7 +541,7 @@ fn a_marker_for_another_batch_is_removed_and_the_commit_stages_its_own() {
 #[test]
 fn a_marker_for_another_index_is_removed() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-other-index");
         let other: PathBuf = root.join("other-git-dir");
         std::fs::create_dir(&other).expect("directory");
@@ -546,7 +569,7 @@ fn a_marker_for_another_index_is_removed() {
 #[test]
 fn a_marker_whose_file_is_gone_is_staged_again_cold() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-vanished");
         start_with(sync_file, &index, 13);
         until_made();
@@ -567,7 +590,7 @@ fn a_marker_whose_file_is_gone_is_staged_again_cold() {
 #[test]
 fn nothing_made_ahead_is_left_when_the_service_ends() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-guard");
         {
             let _guard = PrestageGuard;
@@ -584,7 +607,7 @@ fn nothing_made_ahead_is_left_when_the_service_ends() {
 /// so what a crash leaves is told from a live service's by the name (`remove_dead_staging`) and never read as a lock.
 #[test]
 fn the_marker_made_ahead_names_this_process_and_the_batch() {
-    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let _serial = the_controls_lock();
     let (root, index) = index_in("prestage-identity");
     start_with(sync_file, &index, 16);
     until_staged(&index);
@@ -633,7 +656,7 @@ fn the_staged_file(index: &Path) -> PathBuf {
 #[test]
 fn a_pathname_that_names_another_file_is_left_alone_by_the_commit() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-replaced");
         start_with(sync_file, &index, 20);
         until_made();
@@ -657,7 +680,7 @@ fn a_pathname_that_names_another_file_is_left_alone_by_the_commit() {
 #[test]
 fn discarding_leaves_a_file_that_took_the_name_alone() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-discard-replaced");
         start_with(sync_file, &index, 21);
         until_made();
@@ -681,7 +704,7 @@ fn discarding_leaves_a_file_that_took_the_name_alone() {
 #[test]
 fn a_link_in_the_place_of_the_flushed_file_is_not_placed() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-link");
         start_with(sync_file, &index, 23);
         until_made();
@@ -728,7 +751,7 @@ fn a_link_in_the_place_of_the_flushed_file_is_not_placed() {
 #[test]
 fn a_commit_that_comes_to_a_failing_flush_stages_its_own_without_joining_it() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-failing");
         FLUSHES.store(0, Ordering::SeqCst);
         COMMIT_WAITING.store(false, Ordering::SeqCst);
@@ -782,7 +805,7 @@ fn a_commit_that_comes_to_a_failing_flush_stages_its_own_without_joining_it() {
 #[test]
 fn a_marker_of_another_batch_that_is_still_flushing_is_left_to_finish() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-mismatch-wait");
         COMMIT_WAITING.store(false, Ordering::SeqCst);
         GATED_FLUSH_DONE.store(false, Ordering::SeqCst);
@@ -837,7 +860,7 @@ fn percentile(
 #[test]
 #[ignore = "a measurement for the handover, not a control"]
 fn measure_the_lock_path_with_and_without_the_marker_made_ahead() {
-    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let _serial = the_controls_lock();
     let (root, index) = index_in("prestage-measure");
     let rounds: usize = std::env::var("PRESTAGE_ROUNDS")
         .ok()
@@ -908,7 +931,7 @@ fn measure_the_lock_path_with_and_without_the_marker_made_ahead() {
 /// This is what keeps what a crash leaves from growing when process numbers come round.
 #[test]
 fn a_file_left_under_a_reused_process_number_is_removed_by_its_marker() {
-    let _serial = ONE_AT_A_TIME.lock().expect("serial");
+    let _serial = the_controls_lock();
     let (root, index) = index_in("prestage-reused-number");
     let lock_path: PathBuf = crate::service_index_lock::lock_path_of(&index);
     let alive: u32 = std::process::id();
@@ -978,7 +1001,7 @@ fn thread_names_of_this_process() -> Vec<String> {
 #[test]
 fn the_marker_made_ahead_is_made_without_a_thread_of_its_own() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-no-own-thread");
         FLUSHES.store(0, Ordering::SeqCst);
         start_with(slow_flush, &index, 11);
@@ -1014,7 +1037,7 @@ fn the_marker_made_ahead_is_made_without_a_thread_of_its_own() {
 #[test]
 fn a_start_that_evicts_a_marker_still_flushing_does_not_wait_for_it() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-evict-flushing");
         FLUSHES.store(0, Ordering::SeqCst);
         HELD_FLUSHES_ENDED.store(0, Ordering::SeqCst);
@@ -1054,7 +1077,7 @@ fn a_start_that_evicts_a_marker_still_flushing_does_not_wait_for_it() {
 #[test]
 fn a_start_for_this_index_does_not_wait_for_another_indexs_flush() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-other-index-making");
         let other: PathBuf = root.join("other-git-dir");
         std::fs::create_dir(&other).expect("directory");
@@ -1114,7 +1137,7 @@ static THE_OCCUPATION_IS_OVER: std::sync::atomic::AtomicBool =
 fn evicting_a_marker_that_never_got_a_thread_makes_no_file_and_waits_for_nothing() {
     crate::lazy_runtime::cap_workers(1);
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let (root, index) = index_in("prestage-evict-queued");
         FLUSHES.store(0, Ordering::SeqCst);
         THE_POOL_IS_OCCUPIED.store(false, Ordering::SeqCst);
@@ -1186,7 +1209,7 @@ impl Drop for MarkersAgainWhenDone {
 #[test]
 fn a_marker_the_service_has_stopped_keeping_is_not_made() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let _markers_again = MarkersAgainWhenDone;
         let (root, index) = index_in("prestage-service-ends");
         FLUSHES.store(0, Ordering::SeqCst);
@@ -1210,7 +1233,7 @@ fn a_marker_the_service_has_stopped_keeping_is_not_made() {
 #[test]
 fn the_last_sweep_removes_a_recorded_marker() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
-        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let _serial = the_controls_lock();
         let _markers_again = MarkersAgainWhenDone;
         let (root, index) = index_in("prestage-last-sweep");
         start_with(sync_file, &index, 35);
