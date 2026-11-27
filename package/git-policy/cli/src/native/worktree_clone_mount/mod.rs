@@ -80,6 +80,14 @@
 //!   whether the mount the attach made is the mount the canonical slot shows.
 //! - `misplaced_attach_rollback.rs`:
 //!   the plan that takes a misplaced mount down and the report it leaves.
+//! - `slot_identity_store_publication_staging_file.rs`:
+//!   the record's bytes and their bound,
+//!   the two staging names,
+//!   the staging file and the two ways it is taken away again.
+//! - `slot_identity_store_publication_one_winner.rs`:
+//!   the one call that gives a staging file its record's name,
+//!   the loser's answer when two recorders meet,
+//!   and the fallback for a folder that makes no hard links.
 //! - `slot_identity_store_publication.rs`:
 //!   the three writes:
 //!   a slot's first record,
@@ -130,6 +138,12 @@ pub mod slot_identity_store;
 /// The hook a control sets to catch any listing of the store folder.
 #[cfg(test)]
 pub(crate) use slot_identity_store_reading::WHEN_THE_STORE_IS_LISTED;
+
+/// The file a publication fills before its record has a name.
+pub mod slot_identity_store_publication_staging_file;
+
+/// The one call that gives a staging file its record's name.
+pub mod slot_identity_store_publication_one_winner;
 
 /// The three writes the store takes:
 /// a slot's first record,
