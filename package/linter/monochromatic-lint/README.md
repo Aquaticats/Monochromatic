@@ -1978,20 +1978,19 @@ and every other line stays as it is.
   and a folder outside the package keeps the spelling `../outside` its keys print.
 - A group whose own file closes a loop reads the reverse index of its graph once for the package
   and not once per group,
-  and its walk stops as soon as every use of that group has its route,
-  so an entry that reaches the group directly costs what it cost on alpha.16
-  however large the graph behind it is:
+  so a package of many such groups no longer clones the graph for each of them,
+  and no key changes.
+  Each group's walk still read every entry that reaches it:
   with 300 folders and 100 groups whose own files each close a loop,
-  the closing arm costs 0.98 to 1.36 times this branch's own open arm
-  where every folder uses a child of every group and each own file uses the first folder,
-  against alpha.18's 2.22 to 2.72 and alpha.16's 0.98 to 1.36,
-  and 0.86 to 1.00 where each own file uses a folder that uses a child of its group back,
-  against alpha.18's 1.01 to 1.35 and alpha.16's 1.03 to 1.20
+  every folder using a child of every group
+  and each own file using the first folder,
+  which reaches every folder,
+  the closing arm cost 2.22 to 2.72 times alpha.18's own open arm,
+  against alpha.16's 0.98 to 1.36
   (three interleaved rounds,
   each figure inside one binary and its control arm in the same round,
   on the run's own CPU time,
-  2026-11-27),
-  and no key changes.
+  2026-11-27).
 
 #### How a list written before alpha.19 maps
 
@@ -2000,7 +1999,7 @@ and no line a run printed reads back differently,
 so a list written for alpha.18 needs no new line from this release.
 A list that holds one use under two spellings needs one line fewer,
 and a `file-uses` line that climbs out with `..` and comes back in stops being dead.
-What else changes is which runs stop and what they say.
+What else changes is which runs stop, what they say and what a walk costs.
 
 - A `uses` line whose name before the arrow ends in whitespace is reported dead,
   naming the folder it read,
@@ -2036,6 +2035,25 @@ What else changes is which runs stop and what they say.
 - A `file-uses` line for a folder whose name holds a space is refused for that cause:
   the refusal names the folder and says that the five words of the shape cannot carry a name holding one,
   where alpha.18 spelled only the shape of the line.
+- A group whose own file closes a loop stops its walk as soon as every use of that group has its route,
+  so an entry that reaches the group directly costs what it cost on alpha.16
+  however large the graph behind it is.
+  With 300 folders and 100 groups whose own files each close a loop,
+  where every folder uses a child of every group and each own file uses the first folder,
+  which reaches every folder,
+  the closing arm costs 0.98 to 1.36 times this branch's own open arm,
+  where alpha.18's costs 2.22 to 2.72 and alpha.16's 0.98 to 1.36,
+  and this branch costs 0.92 to 1.13 times alpha.16's closing arm and 0.43 to 0.51 times alpha.18's;
+  on the shape where each own file uses a folder that uses a child of its group back,
+  it costs 0.86 to 1.00 times this branch's own open arm,
+  where alpha.18's costs 1.01 to 1.35 and alpha.16's 1.03 to 1.20,
+  and this branch costs 0.80 to 1.07 times alpha.16's closing arm and 0.72 to 1.04 times alpha.18's
+  (three interleaved rounds,
+  the three binaries rotated,
+  each figure inside one binary and its control arm in the same round,
+  on the run's own CPU time,
+  2026-11-27),
+  and no key changes.
 
 ### Known limits
 
