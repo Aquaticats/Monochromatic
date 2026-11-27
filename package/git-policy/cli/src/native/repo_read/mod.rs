@@ -17,6 +17,9 @@
 //! - `git_directory_roots.rs`:
 //!   the Git directories a command works in,
 //!   found without starting Git.
+//! - `git_system_config_asking.rs`:
+//!   the question one real Git executable is asked about a file it compiles in,
+//!   and the reason when it printed none.
 //! - `git_system_config.rs`:
 //!   the system configuration file a real Git executable reads,
 //!   learned once per executable identity.
@@ -257,6 +260,10 @@ pub mod sequencer_marker;
 /// The Git directories a command works in,
 /// found without starting Git.
 pub mod git_directory_roots;
+
+/// The question one real Git executable is asked about a file it compiles in,
+/// and the reason when it printed none.
+pub mod git_system_config_asking;
 
 /// The system configuration file a real Git executable reads,
 /// learned once per executable identity.

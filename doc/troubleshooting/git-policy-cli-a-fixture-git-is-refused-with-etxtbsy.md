@@ -275,33 +275,37 @@ The failure named what the control wanted and not why it got nothing.
 
 ### Why the answer was silent
 
-`repo_read/git_system_config.rs` ended the question with `.ok()?`:
+The question itself was already answered with a reason by `ask_git_var_explaining`
+(issue 6541's repair, `repo_read/git_system_config_asking.rs`),
+and the caller that turns it into an answer or nothing threw that reason away:
 
 ```rust
-let output = crate::captured_child_run_to_its_end::output_of_within_bound(
-    &mut command,
-    crate::wait_ceilings::PLUMBING_STEP_CEILING,
-)
-.ok()?;
+fn ask_git_var(real_git: &Path, variable: &str) -> Option<Vec<u8>> {
+    match ask_git_var_explaining(real_git, variable) {
+        Ok(stdout) => return Some(stdout),
+        Err(_) => return None,
+    }
+}
 ```
 
-A start the system refused and a wait the ceiling ended both became `None`,
-and `None` makes `ScopeEnvironment::from_variables` set `unresolvable` (`repo_read/repo_read_config_scan.rs`),
+`None` makes `ScopeEnvironment::from_variables` set `unresolvable` (`repo_read/repo_read_config_scan.rs`),
 which makes every in-process reader decline
 (`outer_scopes_avoid_keys` answers `None`),
 so `try_request` answered nothing and the control could say only what it wanted.
 
 ### The repair
 
-- `ask_git_var` warns with one line naming the executable, the question and what ended the wait:
-  the system's own refusal,
-  or the ceiling's sentence with the program and its length (`no_answer_text`).
+- `ask_git_var` says the reason in the wrapper's diagnostics before it answers `None`:
+  the executable, the question, and the start's refusal or the ceiling's sentence,
+  which names the program and its length.
 - the control reads the lines the wrapper wrote for its request (`diagnostic_log::take_lines_written`)
   and puts them into its own failure,
   so a later failure names the start error or the ceiling.
 - the control's body runs in a child of its own (`run_the_body_in_a_child_of_its_own`,
   `testing/process_wide_state_child_test_support.rs`),
   which is the workaround this file records in `Verified workarounds`.
+- the asking moved into `repo_read/git_system_config_asking.rs`,
+  because `repo_read/git_system_config.rs` sat at the linter's 300-line limit.
 
 The same planted change, after the repair, in the same run shape:
 
@@ -309,27 +313,26 @@ The same planted change, after the repair, in the same run shape:
 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 10769 filtered out; finished in 20.23s
 ```
 
-A control of the line itself,
+A control of the line,
 `repo_read::git_system_config::tests`,
-names a refused start and a reached ceiling:
+reads it from a question whose program cannot be started:
 
 ```text
-[monochromatic-git-policy-cli] [ask_git_var] the answer of /nonexistent-directory/git to `var GIT_CONFIG_SYSTEM` was not read, so the in-process readers leave this request to Git: No such file or directory (os error 2)
+[monochromatic-git-policy-cli] [ask_git_var] starting <fixture>/git for `git var GIT_CONFIG_SYSTEM` gave no answer: Exec format error (os error 8)
 ```
 
 ### What the repair does not cover
 
-- The ceiling's words are proved from a real start ended at a two-second ceiling (`git_system_config_tests.rs`),
-  not by shortening the release's own two-minute bound.
-- A Git that answers `var` with a non-zero status still declines silently,
-  and its standard error is discarded.
-- `repo_read/git_system_config_tests.rs`'s `copy_git` writes a fixture Git the same way;
-  that module is issue 6541's to repair,
-  and this round's run of it failed once for this refusal,
-  which the new line named:
-  `the answer of .../system-config-scope/git to `var GIT_CONFIG_SYSTEM` was not read ... Text file busy (os error 26)`.
+- The ceiling's sentence travels in the same `Err` the diagnostics print,
+  and no control waits two minutes to reach it:
+  the sentence itself is `ceiling_reached_text`'s, asserted by the controls of
+  `process/child_waited_for_within_a_ceiling_tests.rs`.
+- `repo_read/git_system_config_tests.rs`'s controls that copy or rewrite a fixture Git
+  were moved into children of their own by issue 6541's repair, before this round merged;
+  the module run of this round passed after that merge.
 - The ban in `source_guard/no_control_writes_a_fixture_git_in_the_run_tests.rs` still reads only
-  `invocation/git_version_cache_tests.rs`.
+  `invocation/git_version_cache_tests.rs`,
+  so neither the control in `repo_read/repo_read_hook_tests.rs` nor those two files is held to it.
 
 This record is unapproved and non-final.
 
