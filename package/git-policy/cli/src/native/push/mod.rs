@@ -205,9 +205,6 @@
 //! - `push_server_naming.rs`:
 //!   the server a push waits for,
 //!   named from the command's own destination.
-//! - `stacked_merge_push.rs`:
-//!   the push of a merge that integrated a lost race,
-//!   planned and run inside the running wrapper.
 //! - `manual_push_range.rs`:
 //!   published-set and range computation for manual-push scans:
 //!   which pushed commits a remote does not have.
@@ -303,6 +300,9 @@
 //!   with the one command that pushes the branch instead.
 //! - `push_failure_notice.rs`:
 //!   the record of a failed backup push and the rule for when a wrapper command shows it.
+//! - `stacked_merge_push.rs`:
+//!   the push of a merge that integrated a lost race,
+//!   planned and run inside the running wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
