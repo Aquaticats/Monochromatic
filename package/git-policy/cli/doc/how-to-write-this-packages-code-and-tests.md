@@ -178,11 +178,13 @@ names the instance it owns in the point itself:
 the directory whose instance is read,
 the plan the start reads,
 the request whose beat reads its note,
-or the repository a note is written about
+the repository a note is written about,
+or the record whose trash is emptied
 (`instance_read_point`,
 `note_read_point`,
 `read_at_a_start_point`,
-`next_service_note_point`).
+`next_service_note_point`,
+`inside_a_slow_step_point`).
 The holds are a list of the whole process,
 so one slot for a run held nothing of a second control,
 and the module of three heartbeat controls failed all three (issue 6497);
