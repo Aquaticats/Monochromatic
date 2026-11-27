@@ -28,12 +28,12 @@ use super::fixtures::{
     place,
     world,
 };
-use crate::merge_isolation_carry::another_record_still_needs_the_capture;
 use crate::merge_isolation_carry_landed::{
     landed_record_path,
     read_landed_record,
 };
 use crate::merge_isolation_carry_parts::Capture;
+use crate::merge_isolation_carry_ref::another_record_still_needs_the_capture;
 use crate::merge_isolation_journal::{
     intent_directory,
     intent_path,

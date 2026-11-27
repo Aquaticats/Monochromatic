@@ -14,6 +14,8 @@ use crate::test_support::{
     git,
     remove,
 };
+use crate::worktree_convert_arguments::RISK_NOTICE;
+use std::path::PathBuf;
 
 /// A checkout with two quiet linked worktrees,
 /// `wt` and `second`,

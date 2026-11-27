@@ -103,116 +103,154 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-26T20:11:42-05:00
+## The state at 2026-11-27T01:43:09-05:00
 
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
+Sixteen rounds merged on the evening of 2026-11-26 and forty-seven more by this time on 2026-11-27.
 
 ### Rounds running
 
-About 64 Pi rounds run at once,
-the owner's "Up to 64 rounds at once."
-(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
-Every one runs on Pi's virtual writer,
+Every round runs on Pi's virtual writer,
 pinned to no member
 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
-and each round's brief is `~/temp/agent/<round>-2026-11-26/prompt.md`.
+under the owner's "Up to 64 rounds at once."
+(`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
+Each round's brief is `~/temp/agent/<round>-2026-11-26/prompt.md`.
 
-- The crate split's file rounds,
-  after the owner's "Keep 300,
-  split everything"
-  (`doc/decision/rust-files-keep-the-300-line-budget-after-the-vertical-reformat.md`):
-  the wrapper's rounds (`split-wrapper-<folder>-files-over-the-line-budget-<n>`)
-  and the other crates' (`split-<package>-files-over-the-line-budget[-part-<n>-of-<m>]`),
-  on branches `refactor/<package>-split-files-over-the-line-budget[-part-<n>-of-<m>]`.
-  Each brief tells its round to leave a file another open branch changes,
-  so rounds in one folder may still meet at merge.
-- Issue 6521 (the service log-line controls share one queue).
-- The linter's alpha.16 release pass fixes
-  (`monochromatic-lint-alpha-16-release-pass-fixes`;
-  the pass found one Medium and six Lows).
-  The coordinator releases alpha.17 after it merges.
-- The driver round whose pool gate counts no virtual-writer run,
-  the owner's "No count (Recommended)" of 2026-11-26
-  (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`,
-  "The pool gate counts no virtual run").
-  Its folder keeps the name of the count it began with
-  (`subagent-driver-counts-a-virtual-writer-run-once-against-its-members-combined-room`).
-  After its merge the coordinator rebuilds the package's `dist` in the main checkout.
-- The six rounds that restate what repository documents use from scratch
-  (`restate-the-scratch-evidence-cited-by-<family>`),
-  all started by 2026-11-26T19:55-05:00;
-  the cleanup deletes what they read at 2026-11-27T15:26:37-05:00.
-- The driver's worktree launcher fix
-  (`subagent-driver-worktree-launcher-skips-pnpm-install-after-the-add`,
-  issue 6339).
-  After it merges,
-  rounds start through `start-pi-run-in-a-worktree`.
-- `slint-1-19-pin-and-locks-so-three-apps-resolve-again`,
-  which finishes the half-applied Slint update ("What the split rounds found").
-- Issue 6491 (`forbidden-strings`' embedding control fails on a `utf8only` home)
-  and issue 6398 (the daily update moves a catalog floor without the manifests and locks).
+- Six split rounds on a second run that only merges `origin/main` and resolves a conflict:
+  `split-wrapper-worktree-clone-removal-proof-and-plan-files-over-the-line-budget-1`,
+  `split-wrapper-merge-files-over-the-line-budget-1` and `-2`,
+  `split-wrapper-repo-read-files-over-the-line-budget-1`,
+  `split-wrapper-landing-files-over-the-line-budget-2`
+  and `split-wrapper-worktree-files-over-the-line-budget-2`.
+  The conflicts are in `layout-allow-list/file-rule.txt` and in a folder's `mod.rs`,
+  where two rounds of one folder each added their modules.
+- Eight rounds whose first start timed out under the load of 2026-11-26 and were started again on an idle host:
+  the scratch-evidence rounds for the troubleshooting records
+  and for the handover,
+  audit,
+  research and package documents;
+  the driver's worktree launcher fix (issue 6339);
+  issue 6491;
+  issue 6398;
+  `split-cargo-shadow-cli-files-over-the-line-budget-part-4-of-4`;
+  `split-mpm-shadow-cli-files-over-the-line-budget-part-3-of-3`;
+  and `split-wrapper-small-folders-files-over-the-line-budget-1`.
+- The music player's split rounds part 1 to 3 of 3,
+  started again after the Slint round merged.
+- `restate-the-scratch-evidence-in-the-five-documents-the-first-rounds-left`
+  (its folder is dated 2026-11-27).
 
-Nothing waits for a place under the 64.
 Waiting on a named merge:
 
-- The music player's split rounds part 1 and 2 of 3 (second runs) and part 3 of 3,
-  on the Slint round's merge.
 - Issues 6524,
   6525 and 6526 (three landing controls that fail only threaded),
-  on the merge of the landing split rounds 2 to 4,
-  which change the same folder.
+  on the merge of `split-wrapper-landing-files-over-the-line-budget-2`.
 - Issue 6527 (`mpm-shadow` and `search-shadow` tests that fail threaded with "Text file busy"),
-  on the merge of the `mpm-shadow` and `cargo-shadow` split rounds.
+  on the merge of the two shadow split rounds still running.
+- The two `truepeak` crates' one file each (`src/bones.rs`,
+  and the bench's `src/main.rs`),
+  on the branch `refactor/flac-profiler-keeps-the-rust-one`,
+  which changes both.
 
 Not yet briefed:
 issue 6513 (the linter reads a near-miss file-list marker as no list),
-and the linter's own files over the line budget,
-after alpha.17.
+the linter's own files over the line budget,
+and the files the split rounds left ("What the split rounds left").
 
 A round that has ended is found by listing the round folders whose latest `run-<n>/summary.json` exists
 while `.claude/worktrees/<round>` still does.
-The coordinator's watcher named only the first round to end after it was started,
-and nine ended rounds sat unmerged for up to three hours on 2026-11-26 because of it.
-A `git worktree add` through the session wrapper took from about 17 minutes to more than 30 that evening,
-with two to five adds copying at once beside about sixty running rounds
-(disk stall `some avg10` between 55 and 64).
+A round whose latest run folder holds no `summary.json` and has no process never started:
+read its `starter.log`.
 
-### What the split rounds found
+### The linter
 
-- `package/music-player/desktop-app` and `package/ide/app` resolve no dependency set on `main`:
-  the daily update raised the Slint floor to `>=1.19.0` (`aead90ed51`,
-  issue 6398),
-  `f4a30120e8` wrote the floor into four manifests,
-  and the pinned row `i-slint-backend-testing = "=1.18.1"` still stands,
-  which `rust-catalog.toml` says must equal the resolved Slint release.
-  The music player's split rounds part 1 and 2 of 3 stopped before their first edit;
-  their worktrees are kept for a second run,
-  and part 3 of 3 is not started,
-  until the round `slint-1-19-pin-and-locks-so-three-apps-resolve-again` has merged.
-  The IDE's rounds work around it with an uncommitted manifest edit.
-- The landing round 1 left three files over the budget,
-  each for a reason a move cannot fix:
-  `service_land_batch_body.rs` (one 387-line function around a retry loop that shares eight mutable values),
-  `held_commit_settle.rs` (in a tolerated loop with `held_commit_settle_move.rs` and `service_land_finish.rs`)
-  and `service_land_side_reference_write.rs`
-  (in a tolerated loop with `service_land_without_its_scratch_reference.rs`).
-  They wait,
-  with `worktree/worktree_remove.rs`,
-  for the split plan's round 3 loop breaks (`doc/planning/cli-git-source-layout-target-tree.md`,
-  "Next").
-- `monochromatic-lint.config.jsonc` turns `rust/max-lines` off for `**/tests/**/*.rs`,
-  so the linter never reported the integration test files the briefs named;
-  the rounds split them to the same budget anyway.
-- `forbidden-strings`' `embedding::public_embedding_runs_without_real_user_state` fails on `main`
-  on this machine's `utf8only` home (issue 6491).
-- Two rounds split the four byte-identical copies of `src/shadow_identity.rs` into different parts,
-  because each scanned the open branches before the other pushed.
-  The `pnpm-shadow` round's layout landed first (`0eac88f14d`),
-  the `search-shadow` branch took it in its merge (`f216e142a3`,
-  on `main` as `437293c4b0`),
-  and the two rounds still running with that file in their brief were told to leave it.
+`0.5.2-alpha.17` is released (`66569e28a0`,
+the alpha.16 release pass's fixes,
+merged as `4e258a388d`).
+`toolchain.lock.json` locks it (`d413a71714`),
+and the main checkout's tool link runs it.
+The alpha.17 release pass is owed.
+
+### What the split rounds left
+
+On `main` at `e671382e09`,
+the wrapper built and linted clean (`cargo check` and `cargo clippy --all-targets -- -D warnings` finished,
+`source_guard::` 173 passed,
+no `rust/folder-uses-links` and no `rust/file-order-in-folder` finding),
+and 93 of its files were still over the budget,
+down from 264.
+What is left falls in three classes.
+
+- Files in a tolerated loop,
+  where any part would need a new allow-list line.
+  They wait for the split plan's round 3 loop breaks
+  (`doc/planning/cli-git-source-layout-target-tree.md`,
+  "Next"),
+  as `worktree/worktree_remove.rs` does:
+  in `landing/`,
+  `service_land_batch_body.rs`,
+  `held_commit_settle.rs`,
+  `service_land_side_reference_write.rs`,
+  `service_index_lock.rs` and `service_commit.rs`;
+  in `worktree/`,
+  `worktree_trash.rs`;
+  in `repo_read/`,
+  `repo_read_pack.rs`,
+  `repo_read_tree.rs`,
+  `repo_read_query.rs` and `repo_read_query_refs.rs`;
+  in `merge/`,
+  five `merge_isolation_*` files;
+  in `worktree_copying/`,
+  five `worktree_copy_*` files;
+  and `push/manual_push_probe.rs`.
+- Files in a group folder (`invocation/`,
+  seven files;
+  `health/doctor.rs` and `health/doctor_filesystem.rs`),
+  where a new sibling file needs a `group-file` line.
+  They wait for the move of those files into child folders,
+  which the plan orders before a split
+  (the invocation round's note in the same planning document).
+- Files a round left because a remote branch changes them.
+  Most of those branches date from 2026-11-11 to 2026-11-16 and are thousands of commits behind `main`;
+  the rounds read "open branch" differently,
+  and some split such files while others left them.
+  The coordinator's reading,
+  not the owner's:
+  a branch is open when a round or a session works on it or this handover names it,
+  because the reformat (`448ed6b692`) already conflicts with every older branch in these files.
+  The next split briefs say so.
+
+Outside the wrapper:
+`package/cargo-shadow/cli/src/lib.rs` is at 307 code lines after three rounds each added module lines;
+`cargo-shadow`'s four `lean` files and `mpm-shadow`'s eleven wait on those crates' own fix branches.
+
+### What the rounds found
+
+- Threaded-only test failures,
+  the 60-second bound in `cargo-shadow` that ends builds under load,
+  the driver's start timeouts under load
+  and a wrapper notice that repeats for a removed worktree
+  are being filed as issues by one agent,
+  after a search for each.
+- The Slint round (`f1957916b0`,
+  the owner's "Finish the move (Recommended)",
+  `doc/decision/rust-dependency-catalog.md`) left three points open:
+  the IDE's two `wrap_keys` fixtures need re-measuring for parley 0.13.0 (issue 6523),
+  the IDE needs one container run before it is called green,
+  and the three regenerated locks were written by `cargo fetch`,
+  not through `cargo-shadow`'s trust policy.
+- The driver's pool gate counts no virtual run (`88a9363636`).
+  A member a caller closes with `PI_RUNS_POOL_LIMITS` therefore no longer stops a run on a virtual selection.
+- `source_guard/standards_review_boundary_tests.rs` now treats the declaration of a module
+  whose name begins with a service-only module's name as a declaration,
+  not a mention (`3fd13e17fe`);
+  the round marked it for the owner to weigh.
+- Two rounds split the four byte-identical copies of `src/shadow_identity.rs` in different ways.
   A file that several crates must keep identical belongs to one round.
+- `monochromatic-lint.config.jsonc` turns `rust/max-lines` off for `**/tests/**/*.rs`,
+  so the linter never reported the test files the briefs named.
 
 ### Next
 
@@ -226,9 +264,11 @@ with two to five adds copying at once beside about sixty running rounds
 - A new brief names `package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`
   and,
   for the wrapper,
-  its guide;
-  the coordinator's scratch rules files are not named again (`cf78109e15`,
-  `dfdf83a21f`).
+  its guide.
+- After the cleanup of 2026-11-27T15:26:37-05:00 the coordinator's scratch launcher and merge script are gone:
+  a round starts through the driver package's `start-pi-run-in-a-worktree` once its fix has merged,
+  and a merge is `git merge --no-ff <branch>` in the main checkout,
+  after `git merge-tree` shows no conflict.
 - Owner questions wait in `doc/handover/questions-for-the-owner.md`,
   among them the next step a typed network command names at a new host key
   (`doc/planning/cli-git-typed-network-command-next-step-at-a-new-host-key-design.md`).
@@ -272,6 +312,12 @@ removes them.
 The session link stays on the reviewed build:
 the AppArmor rules name that exact path,
 and pointing them at a newer build takes the fresh review that waits in `doc/handover/questions-for-the-owner.md`.
+`mise run toolchain:install <tool>` in the main checkout re-points that link at the toolchain's launcher,
+whichever tool it names:
+on 2026-11-27 at 01:47 an install of `cargo:monochromatic-lint` did,
+and the coordinator put the link back on the reviewed build about a minute later.
+After any toolchain install in the main checkout,
+read the link (`ls -l .cache/monochromatic-git-policy-cli-bin/`) and put it back if it moved.
 
 ### Threaded-only test failures
 
@@ -456,7 +502,7 @@ by the owner's answer "Everything now,
 untangle over time."
 (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`,
 "What the list holds").
-`toolchain.lock.json` locks `monochromatic-lint` `0.5.2-alpha.16` (`0fb64d8c9e`).
+`toolchain.lock.json` locks `monochromatic-lint` `0.5.2-alpha.17` (`d413a71714`).
 
 Every crate outside this one is formatted by the root `rustfmt.toml`,
 which the owner set on 2026-11-25.

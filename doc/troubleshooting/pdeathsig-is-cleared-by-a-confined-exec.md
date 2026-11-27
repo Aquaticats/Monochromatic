@@ -90,6 +90,9 @@ the probe below shows the host applies the rule.
 
 The release pass's probe printed "gone (signal held)" for `/usr/bin/git cat-file --batch`
 (`~/temp/agent/release-pass-wrapper-alpha-45-2026-11-23/clone-rung/keep/pdeathsig-probe4.log`).
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 That process was gone because `git cat-file --batch` exits by itself outside a repository,
 not because the signal reached it:
 the same probe's `/usr/bin/git hash-object --stdin`, which waits on its standard input, was alive under the `git`

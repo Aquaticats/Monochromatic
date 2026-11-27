@@ -149,6 +149,9 @@ readings of the same day moved the centre:
 - A read-only diagnosis of the six slowest commits of `0.6.1-alpha.15`
   (56 to 199 seconds, 12:35 to 13:23 local,
   `/var/home/user/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/report.md`)
+  (scratch,
+  deleted on 2026-11-27;
+  what this record uses from it is stated here)
   found no queue (`queued_behind=0` in all six) and almost no child `git` time.
   The seconds sat in the wrapper's own file work with no child running:
   in the service `index_update_ms` of 95 and 82 seconds and `ref_ms` of 22.8

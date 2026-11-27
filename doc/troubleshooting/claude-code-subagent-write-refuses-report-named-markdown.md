@@ -57,7 +57,10 @@ Claude Code `2.1.331` (`claude --version`).
 The harness:
 a subagent told to call Write once each,
 content `check`,
-in `~/temp/agent/claude-code-subagent-report-file-name-check-2026-11-24/keep/`,
+in `~/temp/agent/claude-code-subagent-report-file-name-check-2026-11-24/keep/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here),
 on 2026-11-24.
 
 Refused,

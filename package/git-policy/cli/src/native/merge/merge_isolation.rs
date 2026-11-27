@@ -66,11 +66,10 @@ use crate::merge_isolation_apply::{
 };
 /// The person's own work in the paths the merge changes,
 /// and the durable ref that keeps it.
-use crate::merge_isolation_carry::{
-    capture_work,
-    keep_capture,
-};
+use crate::merge_isolation_carry::capture_work;
 use crate::merge_isolation_carry_parts::Capture;
+/// The ref of its own that keeps the capture's objects from `git gc`.
+use crate::merge_isolation_carry_ref::keep_capture;
 /// The paths a merge that writes or deletes them would discard.
 use crate::merge_isolation_dirty_paths::dirty_paths;
 /// The editor a merge opens for its message when the checkout holds the person's own work.

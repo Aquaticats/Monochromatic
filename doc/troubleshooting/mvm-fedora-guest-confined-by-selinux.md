@@ -277,8 +277,10 @@ type=AVC msg=audit(1795502403.011:234): avc:  denied  { name_connect } for  pid=
 The full logs are `keep/audit-before-fix-1.log`,
 `keep/audit-before-fix-2.log` and
 `keep/audit-with-read-nonsecurity-boolean.log` in the round folder
-`/home/user/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`,
-which is scratch space and will be removed.
+`/home/user/temp/agent/mvm-fedora-guest-refuses-every-file-route-2026-11-24/`
+(scratch,
+deleted on 2026-11-27;
+what this record uses from it is stated here).
 
 ### The rules that decide it
 
