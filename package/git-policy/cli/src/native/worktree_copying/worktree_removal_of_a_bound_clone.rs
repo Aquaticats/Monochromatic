@@ -16,7 +16,11 @@
 //!  plan step 12).
 //!  Only the two states that prove a whole worktree refuse:
 //!  a pending add's removal is the add's own way forward,
-//!  and a slot nothing proves stays Git's.
+//!  and a slot nothing proves stays Git's unless the reading is the mount no
+//!  record names,
+//!  the record of another path,
+//!  or a mount table nobody could read,
+//!  which refuse as the owner answered on 2026-11-26.
 //!  A record filed under the slot's name that cannot be read refuses too,
 //!  as the move already refuses,
 //!  because nothing then proves the removal would not delete a managed clone's
@@ -59,7 +63,10 @@ use crate::worktree_clone_removal_proof_and_plan::removal_reads::{
     LiveRemovalReads,
     RemovalPoolReads,
 };
-use crate::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
+use crate::worktree_clone_slot_state::slot_state_classification::{
+    ProofStoppedBy,
+    SlotRouteState,
+};
 use crate::worktree_clone_slot_state::slot_state_live_read::{
     GatedCloneIntentReads,
     SlotReadingSources,
@@ -136,6 +143,45 @@ fn unreadable_record_sentence(
 ) -> String {
     return format!(
         "`git worktree remove` is refused: a record is filed under the slot name `{slot}` and cannot be read ({reason}), so nothing proves this removal would not delete a managed clone's slot. Nothing was removed and Git did not run. Read the record, restore it from a copy or settle it, then run the removal again."
+    );
+}
+
+/// What:
+///  The sentence one refusal of a removal prints where nothing proves what the
+///  slot holds:
+///  what could not be proved,
+///  the repair that ends it,
+///  and the promise that nothing was removed.
+/// Why:
+///  The owner's answer of 2026-11-26 refuses the removal in each of the three
+///  cases and names what could not be proved,
+///  and each case has its own repair,
+///  so the sentence is written once from the classification's own words
+///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sentence = unprovedSlotSentence('one', 'no record is filed ...', 'a-mount-no-record-names');
+/// ```
+fn unproved_slot_sentence(
+    slot: &str,
+    reason: &str,
+    stopped_by: ProofStoppedBy,
+) -> String {
+    let repair: &str = match stopped_by {
+        ProofStoppedBy::AMountNoRecordNames => {
+            "If the mount at the slot belongs to a managed clone, restore that clone's binding record; if a person mounted it, unmount it; then run the removal again."
+        }
+        ProofStoppedBy::ARecordOfAnotherPath => {
+            "The record belongs to another slot, so a record filed under this slot's name must be corrected or settled before this slot can be removed; then run the removal again."
+        }
+        ProofStoppedBy::AMountThatCannotBeRead => {
+            "Read this process's mount table again, and the mount at the slot, so the slot's state can be proved; then run the removal again."
+        }
+        ProofStoppedBy::AnotherReading => "Read what the reason names, then run the removal again.",
+    };
+    return format!(
+        "`git worktree remove` is refused: nothing proves what the slot `{slot}` holds ({reason}), so nothing proves this removal would not delete a managed clone's slot. Nothing was removed and Git did not run. {repair}"
     );
 }
 
@@ -225,10 +271,25 @@ pub fn refuse_the_removal_with(
         sources.mounts,
         sources.intents,
     );
-    if !matches!(
+    if let SlotRouteState::CannotProve {
+        reason,
+        stopped_by,
+    } = &at.state
+        && stopped_by.refuses_a_removal()
+    {
+        return Some(BoundSlotRemovalRefusal {
+            stderr: format!(
+                "{}\n",
+                unproved_slot_sentence(slot.as_str(), reason.as_str(), *stopped_by)
+            ),
+            code: REFUSED_EXIT_CODE,
+        });
+    }
+    let whole_clone: bool = matches!(
         at.state,
         SlotRouteState::MountedManagedClone { .. } | SlotRouteState::KnownUnmountedClone { .. }
-    ) {
+    );
+    if !whole_clone {
         return None;
     }
     let mut stderr: String = format!(

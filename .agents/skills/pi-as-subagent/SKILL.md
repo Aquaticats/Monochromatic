@@ -421,7 +421,7 @@ which `mise run toolchain:install` makes.
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
-      --provider=opencode-go --model=deepseek-v4.1-flash \
+      --provider=rate-limit-fallback --model=writer \
       --wall-seconds=2400 --turn-cap=<sized from past runs>
     ```
 
