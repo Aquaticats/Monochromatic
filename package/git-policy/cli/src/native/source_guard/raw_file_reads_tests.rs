@@ -237,12 +237,12 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
         "system",
     ),
     (
-        "worktree_clone_mount_handler/sweep_preconditions.rs",
+        "worktree_clone_mount_handler/sweep_probe_record.rs",
         1,
         "system",
     ),
     (
-        "worktree_clone_mount_handler/sweep_preconditions.rs",
+        "worktree_clone_mount_handler/sweep_probe_record.rs",
         1,
         "own-record",
     ),
