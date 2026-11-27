@@ -25,7 +25,7 @@ A later `git worktree remove` is refused by plain Git but goes through on the wr
 A test showed no uncommitted work lost.
 The reviewer read,
 from the proof's design and not by running it,
-that a real edit would still be seen by the repository's own store.
+that the proof of the repository's own store would still see a real edit.
 The branch's note wrongly says a named base "cannot change the answer".
 
 The question ranked the options A over B over C:
