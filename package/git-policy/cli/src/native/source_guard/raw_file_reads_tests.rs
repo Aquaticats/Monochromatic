@@ -96,7 +96,7 @@ const KEPT_SITES: &[(&str, usize, &str)] = &[
     ("commit/conclusion_cleanup.rs", 2, "own-record"),
     ("dependent_version/policy_added_path.rs", 1, "person-path"),
     (
-        "foundation/earlier_log_lines_added_to_current_log.rs",
+        "foundation/the_lines_of_a_log_compared_and_appended.rs",
         1,
         "own-record",
     ),
