@@ -45,9 +45,10 @@
 //!   the lock file's name and key,
 //!   the program and its own link,
 //!   the root variable,
-//!   the command a person runs,
 //!   the log tag,
 //!   the two byte bounds and the controls' slots.
+//! - `the_commands_a_repair_prints.rs`:
+//!   the command a person runs to finish the repair.
 //! - `package_repair_toolchain_object_identity.rs`:
 //!   the object a name holds,
 //!   and whether a record names another lock or another object.
@@ -91,8 +92,9 @@ pub use self::install::{
 /// The launcher records of a worktree that name another checkout's lock file.
 pub use self::launcher_records::stale_launch_records;
 /// The command a person runs to finish the repair,
-/// which is the repository's own task.
-pub use self::names_and_bounds::MANUAL_COMMAND;
+/// which is the repository's own task,
+/// and which this module names for the callers that already read it here.
+pub use crate::the_commands_a_repair_prints::MANUAL_COMMAND;
 
 // The slots this module's controls reach through `super::`,
 // re-exported so a control sees the whole module;

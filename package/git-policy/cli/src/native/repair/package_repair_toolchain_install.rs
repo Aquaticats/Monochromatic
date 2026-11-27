@@ -24,11 +24,8 @@ use super::launcher_records::{
     Launchers,
     launchers_of,
 };
-/// Import the command a person runs and the log tag.
-use super::names_and_bounds::{
-    MANUAL_COMMAND,
-    TAG,
-};
+/// Import the log tag.
+use super::names_and_bounds::TAG;
 /// Import the program and the variables it runs with.
 use super::names_and_bounds::{
     OWN_LINK,
@@ -67,6 +64,8 @@ use crate::package_repair_report::{
 };
 /// Import what the process offers a repair.
 use crate::package_repair_request::RepairEnvironment;
+/// Import the command a person runs.
+use crate::the_commands_a_repair_prints::MANUAL_COMMAND;
 /// Import the owned argument a command is started with.
 use std::ffi::OsString;
 /// Import native paths.
