@@ -81,10 +81,23 @@
 //!   who a grant names,
 //!   how widely it reaches,
 //!   and the dataset that carries it.
+//! - `delegation_checks_permissions.rs`:
+//!   the permissions the route's account needs,
+//!   where the design grants each of them,
+//!   and the permissions the route must not have.
+//! - `delegation_checks_grant_commands.rs`:
+//!   how a required permission was met,
+//!   and the `zfs allow` and `zfs unallow` commands that move a grant.
+//! - `delegation_checks_narrowing.rs`:
+//!   the wider grants a person narrows,
+//!   and the lines that name them.
+//! - `delegation_checks_forbidden_grants.rs`:
+//!   the lineage-changing grants the account holds or would come to hold.
 //! - `delegation_checks.rs`:
 //!   the required and forbidden permissions,
 //!   the effective delegation including ancestor grants,
-//!   and the commands that settle each finding.
+//!   and the commands that settle each finding,
+//!   judged here.
 //! - `handler_checks_paths_and_modes.rs`:
 //!   the paths,
 //!   owners and modes every handler check compares against,
@@ -188,6 +201,19 @@ pub mod identity_checks;
 
 /// The kernel's delegation reply and the grant model it becomes.
 pub mod delegation_reply;
+
+/// The permissions the design requires and forbids.
+pub mod delegation_checks_permissions;
+
+/// How a required permission was met,
+/// and the commands that move a grant.
+pub mod delegation_checks_grant_commands;
+
+/// The wider grants a person narrows.
+pub mod delegation_checks_narrowing;
+
+/// The lineage-changing grants the account holds or would come to hold.
+pub mod delegation_checks_forbidden_grants;
 
 /// The effective delegation and the lineage-changing grants' absence.
 pub mod delegation_checks;
