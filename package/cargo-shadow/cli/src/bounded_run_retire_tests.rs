@@ -504,7 +504,8 @@ fn an_ordinary_run_asks_the_manager_nothing() {
 /// and its unit is still asked for and freed.
 /// The stop is made to fail at once (a failpoint),
 /// because a real stop that cannot show a scope empty takes its whole bound and a member that cannot be killed;
-/// what this control reads is the retirement, which has to happen whatever the stop answered.
+/// what this control reads is the retirement,
+/// which has to happen whatever the stop answered.
 #[test]
 fn a_run_whose_stop_is_not_shown_empty_still_asks_for_its_unit() {
     let directory = scratch();
@@ -536,7 +537,8 @@ const WARNING_DIRECTORY: &str = "CARGO_SHADOW_RETIRE_WARNING_DIRECTORY";
 /// The warning this control reads is printed only when the manager refuses the stop,
 /// and the same program has to answer the route discovery's own questions from the real manager,
 /// or the run would make no scope to leave.
-/// It is a stand-in: no claim about a real manager rests on it.
+/// It is a stand-in:
+/// no claim about a real manager rests on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

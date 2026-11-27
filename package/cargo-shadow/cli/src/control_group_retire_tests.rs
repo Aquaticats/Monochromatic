@@ -849,7 +849,8 @@ fn a_recovery_reads_a_loaded_empty_scope_as_gone() {
 /// so a control that reads whether it was asked reads the log,
 /// and this stand-in answers like a manager that ran the stop job,
 /// which keeps the step's answer free of a warning.
-/// It is a stand-in: no claim about a real manager rests on it.
+/// It is a stand-in:
+/// no claim about a real manager rests on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -876,7 +877,10 @@ fn answering_systemctl(directory: &Path) -> (String, PathBuf) {
 /// Why:
 /// The gate is three reads of one directory,
 /// and a real scope always holds a process and always has a `pids.peak` on this host,
-/// so the states a kernel can present (a member, a group that held nothing, no `pids.peak` at all, a read that failed)
+/// so the states a kernel can present (a member,
+/// a group that held nothing,
+/// no `pids.peak` at all,
+/// a read that failed)
 /// are made where nothing can change them between the reads.
 ///
 /// In TS you'd write (pseudocode):
@@ -1029,7 +1033,8 @@ fn a_group_whose_directory_is_gone_is_not_asked_about() {
 /// and a directory that went away is a collected group,
 /// which needs none.
 /// The race the second case comes from (the manager removing the group between the two reads) cannot be staged from
-/// outside, so the decision is driven the way the refusal's decision is.
+/// outside,
+/// so the decision is driven the way the refusal's decision is.
 #[test]
 fn a_peak_read_failure_tells_a_missing_file_from_a_group_that_went_away() {
     let route: Route = delegated_route();
@@ -1088,8 +1093,10 @@ fn a_removed_group_reads_as_gone_with_either_error() {
     );
 }
 
-/// The bound the release promises a run spends on a manager that never answers, in seconds.
-/// The measurement beside `RETIRE_BOUND` rests on it: five seconds only ends a manager that does not answer,
+/// The bound the release promises a run spends on a manager that never answers,
+/// in seconds.
+/// The measurement beside `RETIRE_BOUND` rests on it:
+/// five seconds only ends a manager that does not answer,
 /// so a bound that grew past it would spend the run's time on a manager that is not answering.
 const PROMISED_BOUND: Duration = Duration::from_secs(5);
 

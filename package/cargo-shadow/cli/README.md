@@ -884,22 +884,25 @@ and an HTTP 429 is retried after its `Retry-After`.
   and only that run asks the manager,
   once:
   `systemctl --user --no-ask-password stop <name>.scope`.
-  `pids.peak` is a non-root group's file and exists only where the group's parent enables the pids controller.
-  It arrived in Linux 6.1:
-  `kernel/cgroup/pids.c` holds `pids_peak_read` and the `peak` file of the pids controller at v6.1,
-  and the same file has no mention of a peak at v6.0.
-  On an older kernel, or a group whose parent does not enable the pids controller,
-  the look cannot tell a group that never held a process from one it cannot see,
-  so every scoped run asks the manager once,
-  and a manager that hangs costs that run up to `RETIRE_BOUND`.
-  A `pids.peak` read that fails because the group's directory went away is not that case:
-  the directory is checked, the group is the manager's to free, and nothing is asked.
   The answer is the manager's exit status,
   and a stop of a unit it no longer loads answers 5 (`EXIT_NOTINSTALLED`),
   which is a collected unit and not a refusal,
   so the second question the alpha.12 release asked (`show <name>.scope --property=LoadState --value`) is gone.
   A stop the manager refuses for another reason is a warning that names the exact command that ran,
   because the run's own proof that no writer is left has already held.
+  `pids.peak` is a non-root group's file and exists only where the group's parent enables the pids controller.
+  It arrived in Linux 6.1:
+  `kernel/cgroup/pids.c` holds `pids_peak_read` and the `peak` file of the pids controller at v6.1,
+  and the same file has no mention of a peak at v6.0.
+  On an older kernel,
+  or a group whose parent does not enable the pids controller,
+  the look cannot tell a group that never held a process from one it cannot see,
+  so every scoped run asks the manager once,
+  and a manager that hangs costs that run up to `RETIRE_BOUND`.
+  A `pids.peak` read that fails because the group's directory went away is not that case:
+  the directory is checked,
+  the group is the manager's to free,
+  and nothing is asked.
   The question keeps one bound (`RETIRE_BOUND`,
   five seconds),
   and a request the bound kills is given a measured grace to be reaped before the warning is built.
@@ -909,7 +912,9 @@ and an HTTP 429 is retried after its `Retry-After`.
   after it,
   none,
   and the call cannot be told from alpha.11's release binary:
-  its ratio (0.874, 0.518 to 2.115) is inside the control's own spread (0.993, 0.916 to 1.271)
+  its ratio (0.874,
+  0.518 to 2.115) is inside the control's own spread (0.993,
+  0.916 to 1.271)
   in the table of the troubleshooting file.
   `systemd-run` reads the command it starts as a unit's command line (it turns two dollar signs into one and replaces a braced
   variable name),

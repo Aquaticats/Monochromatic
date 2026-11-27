@@ -252,7 +252,8 @@ fn is_the_group_being_gone(error: &io::Error) -> bool {
 /// which only a question to the manager settles;
 /// a directory that went away is a group the manager already collected,
 /// which no question settles better.
-/// A control drives both, because the race this comes from (the manager removing the group between the two reads) cannot be
+/// A control drives both,
+/// because the race this comes from (the manager removing the group between the two reads) cannot be
 /// staged from outside.
 ///
 /// In TS you'd write (pseudocode):

@@ -152,7 +152,8 @@ use std::time::{
 /// so an attempt made immediately after the kill races with the scheduler and mostly answers that the child is still
 /// running.
 /// What the value rests on:
-/// the wait is `reap_within`, which asks `try_wait` once every `DISCOVERY_POLL` (5 ms),
+/// the wait is `reap_within`,
+/// which asks `try_wait` once every `DISCOVERY_POLL` (5 ms),
 /// so a killed program is noticed at most one poll after it ends,
 /// and this grace is twenty of those polls.
 /// Measured 2026-11-28 on this host through that wait,

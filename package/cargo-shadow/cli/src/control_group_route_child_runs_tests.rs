@@ -56,7 +56,8 @@ use crate::control_group_route_discovery::DISCOVERY_POLL;
 use std::process::Command;
 /// What:
 /// `use std::time::{Duration, Instant};` imports a span of time and a point on the clock (its sibling `SystemTime` is the wall
-/// clock, which can jump).
+/// clock,
+/// which can jump).
 /// Why:
 /// Each wait is measured from the kill to the answer.
 ///
