@@ -177,7 +177,12 @@ fn play_with_nothing_selected_starts_the_first_track() {
     assert!(controller.playing, "Play starts something");
     assert_eq!(controller.queue.current_index(), Some(0));
     assert!(controller.source.is_some(), "the first track is loaded");
-    assert!(library.updates().iter().any(|update| return update == "now Some(0)"));
+    assert!(
+        library
+            .updates()
+            .iter()
+            .any(|update| return update == "now Some(0)")
+    );
 }
 
 #[test]
@@ -252,7 +257,12 @@ fn in_order_stops_at_the_end_of_the_folder_and_play_starts_the_folder_again() {
         controller.source.is_some(),
         "the first track is loaded and waiting"
     );
-    assert!(library.updates().iter().any(|update| return update == "playing false"));
+    assert!(
+        library
+            .updates()
+            .iter()
+            .any(|update| return update == "playing false")
+    );
     controller.handle_command(Command::Play);
     assert!(controller.playing, "Play starts the folder again");
     assert_eq!(controller.queue.current_index(), Some(0));
@@ -385,7 +395,12 @@ fn a_library_where_nothing_can_be_opened_reports_every_file_and_stays_paused() {
     open(&mut controller, &library);
     controller.handle_command(Command::Play);
     assert!(!controller.playing, "nothing loaded, so nothing plays");
-    assert!(library.updates().iter().any(|update| return update == "unplayable 2"));
+    assert!(
+        library
+            .updates()
+            .iter()
+            .any(|update| return update == "unplayable 2")
+    );
 }
 
 #[test]
@@ -538,7 +553,10 @@ fn selecting_a_row_that_cannot_be_opened_keeps_that_row_selected_and_paused() {
         library.updates()
     );
     assert!(
-        library.updates().iter().any(|update| return update == "now Some(1)"),
+        library
+            .updates()
+            .iter()
+            .any(|update| return update == "now Some(1)"),
         "and the window is told the row is current"
     );
 }
