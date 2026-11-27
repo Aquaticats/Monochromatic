@@ -52,8 +52,16 @@
 //! - `holder_scan_text.rs`:
 //!   the result's text,
 //!   its escaping and the bound its reader shares.
+//! - `holder_scan_parse_cursor.rs`:
+//!   the place the next line is expected at and the canonical decimal count a value carries.
+//! - `holder_scan_parse_line_fields.rs`:
+//!   the fields one mount line and one holder line carry.
+//! - `holder_scan_parse_incomplete_reads.rs`:
+//!   one incomplete read,
+//!   read by the cause its own word names.
 //! - `holder_scan_parse.rs`:
-//!   reading that text back.
+//!   reading that text back,
+//!   its sections and its whole result.
 //! - `holder_scan_acceptance.rs`:
 //!   whether a result answers the request at hand.
 //!
@@ -84,6 +92,16 @@ pub mod holder_scan_text;
 
 /// Reading that text back.
 pub mod holder_scan_parse;
+
+/// The place the next line is expected at.
+pub mod holder_scan_parse_cursor;
+
+/// One incomplete read,
+/// read by the cause its own word names.
+pub mod holder_scan_parse_incomplete_reads;
+
+/// The fields one mount line and one holder line carry.
+pub mod holder_scan_parse_line_fields;
 
 /// Whether a result answers the request at hand.
 pub mod holder_scan_acceptance;

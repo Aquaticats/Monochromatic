@@ -13,6 +13,18 @@
 //! so a control that holds that write kept the place of every other control of a threaded run,
 //! which never reached its own note (issue 6497).
 //!
+//! A window one of these controls times holds the wait for a note and the answer that follows it,
+//! and never a commit's landing:
+//! the release code grants a ceiling to the note's write (`LANDING_WATCH_NOTE_CEILING`)
+//! and none to a landing,
+//! so a wall-clock bound that covered a landing would fail on a host whose disk is busy
+//! (measured 2026-11-26 in a threaded `landing::` run:
+//! the nine landings that run logged took 140 ms to 22576 ms,
+//! and the child that failed here answered its second commit 3893 ms after that commit was submitted,
+//! of which 501 ms was the first commit's note ceiling and 3367 ms was that commit's own index update;
+//! issue 6525).
+//! What each bound rests on is written beside it.
+//!
 //! The service and its clients are the ones `service_land_hung_write_tests.rs` runs,
 //! and the fixtures are the ones the landing's controls make.
 
@@ -64,19 +76,20 @@ use std::time::{
 const NOTE_CEILING: Duration = Duration::from_millis(500);
 
 /// The ceiling the landing of a run whose store answers is granted in these controls:
-/// long,
-/// so a commit that waited for it would be seen waiting.
-const A_CEILING_NOBODY_WAITS_FOR: Duration = Duration::from_secs(30);
+/// long enough that no landing of this host reaches it,
+/// so a commit that waited for it would still be waiting when a control's patience ran out.
+/// A landing of this host costs seconds
+/// (measured 2026-11-26 in a threaded `landing::` run:
+/// the nine landings it logged took 140 ms to 22576 ms),
+/// and the release code grants no landing any ceiling.
+const A_CEILING_NOBODY_WAITS_FOR: Duration = Duration::from_secs(600);
 
 /// The most a commit may wait beside the ceiling for its own note:
 /// what the rest of the answer's path costs is a send on a channel,
 /// so anything past this is a wait that is not the ceiling's.
+/// The window it bounds starts once that commit has landed,
+/// because a landing is granted no ceiling of its own (see the module words).
 const BESIDE_THE_CEILING: Duration = Duration::from_millis(2500);
-
-/// The ceiling the clients of these controls give the service's answer:
-/// past the bound each control asserts,
-/// so an answer that comes is the bound's and never the client's ceiling.
-const ANSWER_CEILING: Duration = Duration::from_millis(6000);
 
 /// A service serving on a thread of its own,
 /// whose landings grant `ceiling` for a note.
@@ -174,6 +187,20 @@ fn subjects_since(
     );
 }
 
+/// Whether a watch of `store` names `git_dir`,
+/// which is what the service that starts next would look at.
+fn the_store_names(
+    store: &Path,
+    git_dir: &Path,
+) -> bool {
+    return ClaimWatch::restored(store, None)
+        .directories()
+        .iter()
+        .any(|named| {
+            return named == git_dir;
+        });
+}
+
 /// Waits,
 /// no longer than the longest a control waits,
 /// until a watch of `store` names `git_dir`,
@@ -184,13 +211,7 @@ fn wait_until_the_next_service_would_look(
 ) {
     let began: Instant = Instant::now();
     loop {
-        if ClaimWatch::restored(store, None)
-            .directories()
-            .iter()
-            .any(|named| {
-                return named == git_dir;
-            })
-        {
+        if the_store_names(store, git_dir) {
             return;
         }
         assert!(
@@ -259,7 +280,10 @@ fn after_the_gate(
     parent: &str,
 ) {
     let handoff: ServiceHandoff = ServiceHandoff {
-        config: client(serving, ANSWER_CEILING, PATIENCE),
+        // The wake and the promotion answer within the longest a control waits, and never within a shorter ceiling:
+        //  the wait for either holds the service's own work in the repository, and no ceiling of the release code
+        //  covers that work.
+        config: client(serving, PATIENCE, PATIENCE),
         repository: world.repo.clone(),
         git_dir: world.repo.join(".git"),
         reference: crate::ref_name::RefName::from_text("refs/heads/main"),
@@ -291,7 +315,10 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
             let serving: Serving = serving(&world, "note-held");
             let mut held: HeldNoteWrite = HeldNoteWrite::arm(world.repo.join(".git").as_path());
             let only: Submitting = submit_on_a_thread(
-                client(&serving, ANSWER_CEILING, PATIENCE),
+                // The client's wait holds this commit's landing, and the release code grants a landing no ceiling, so
+                //  only the longest a control waits bounds it; the window the control times starts once that landing
+                //  has ended.
+                client(&serving, PATIENCE, PATIENCE),
                 request(&world, "only", "only.txt", "only\n"),
             );
             held.wait_until_written();
@@ -326,8 +353,8 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
 }
 
 /// A commit submitted while another commit's note write is held is not queued behind it:
-/// both are answered,
-/// the second without waiting for a ceiling of its own,
+/// both are answered while the store has answered nothing,
+/// the commit whose note is held is answered inside that write's ceiling,
 /// and both stay on the branch in their order.
 /// The store is handed no second write while the first has not ended,
 /// so the note the first gave up on is written by the work loop's look instead,
@@ -342,28 +369,51 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
             let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
             let serving: Serving = serving(&world, "note-queued");
             let mut held: HeldNoteWrite = HeldNoteWrite::arm(world.repo.join(".git").as_path());
+            // The clients here give the service's answer the longest a control waits, and never a shorter ceiling:
+            //  a landing is granted no ceiling of its own, so a landing that takes seconds is a wait this control must
+            //  not read as a failure, and only a hang ends one of these waits.
             let first: Submitting = submit_on_a_thread(
-                client(&serving, ANSWER_CEILING, PATIENCE),
+                client(&serving, PATIENCE, PATIENCE),
                 request(&world, "first", "first.txt", "first\n"),
             );
             held.wait_until_written();
-            let second_began: Instant = Instant::now();
-            let second: Submitting = submit_on_a_thread(
-                client(&serving, ANSWER_CEILING, PATIENCE),
-                request(&world, "second", "second.txt", "second\n"),
-            );
+            // The second commit is prepared here and submitted after the moment below is taken, so the window the first
+            //  answer is timed in holds that commit's note wait and the answer that follows it, and nothing this
+            //  control's own thread does.
+            let second_request: CommitRequest = request(&world, "second", "second.txt", "second\n");
+            let note_began: Instant = Instant::now();
+            let second: Submitting =
+                submit_on_a_thread(client(&serving, PATIENCE, PATIENCE), second_request);
             let (first_answer, first_notices) = answered(first, "the client of the first commit");
+            let first_waited: Duration = note_began.elapsed();
+            let first_landed: String = landed_commit(first_answer, first_notices.as_str());
+            assert!(
+                first_waited < NOTE_CEILING + BESIDE_THE_CEILING,
+                "the commit whose note's write began was answered {first_waited:?} after that write began, and the write is granted {NOTE_CEILING:?}"
+            );
             let (second_answer, second_notices) =
                 answered(second, "the client of the second commit");
-            let second_waited: Duration = second_began.elapsed();
-            let first_landed: String = landed_commit(first_answer, first_notices.as_str());
             assert!(
                 matches!(second_answer, Ok(Submitted::Landed { .. })),
                 "{second_answer:?} {second_notices}"
             );
+            // What:
+            //  The store names no repository once both commits are answered,
+            //  so neither answer came from it.
+            // Why:
+            //   The second commit is answered while the store has answered nothing,
+            //  which is the whole of "not queued behind it":
+            //  an answer that had waited for the store would have come only after the held write is let go, below.
+            //  No wall-clock bound stands in for this,
+            //  because the window it would time holds the second commit's own landing,
+            //  which the release code grants no ceiling and this host does in seconds (see the module words).
             assert!(
-                second_waited < NOTE_CEILING + BESIDE_THE_CEILING,
-                "the commit behind the held note was answered after {second_waited:?}, and that note's write is granted {NOTE_CEILING:?}"
+                !the_store_names(
+                    store_of(&world).as_path(),
+                    world.repo.join(".git").as_path()
+                ),
+                "the store already names {}, so an answer here may have come from it",
+                world.repo.join(".git").display()
             );
             assert_eq!(
                 subjects_since(&world, base.as_str()),
@@ -386,7 +436,9 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
     );
 }
 
-/// A commit whose note the store answers never waits for that ceiling,
+/// A commit whose note the store answers never waits for that ceiling:
+/// it is answered within the longest a control waits,
+/// while that write is granted ten times that,
 /// so the bound costs a commit nothing where storage answers.
 #[test]
 fn a_commit_whose_note_the_store_answers_does_not_wait_for_that_ceiling() {
@@ -398,26 +450,32 @@ fn a_commit_whose_note_the_store_answers_does_not_wait_for_that_ceiling() {
             let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
             let serving: Serving =
                 serving_with_ceiling(&world, "note-answered", A_CEILING_NOBODY_WAITS_FOR);
-            let began: Instant = Instant::now();
+            // What:
+            //  The commit is answered, and the note the landing wrote names its repository,
+            //  while that write was granted `A_CEILING_NOBODY_WAITS_FOR`.
+            // Why:
+            //   That ceiling is what a commit which waited for the store would have spent,
+            //  and it is ten times the longest a control waits,
+            //  so an answer that arrives is one the ceiling did not hold.
+            //  No other bound is stated here:
+            //  the window one would time holds this commit's own landing,
+            //  which the release code grants no ceiling and this host does in seconds (see the module words).
             let only: Submitting = submit_on_a_thread(
-                client(&serving, ANSWER_CEILING, PATIENCE),
+                client(&serving, PATIENCE, PATIENCE),
                 request(&world, "only", "only.txt", "only\n"),
             );
             let (answer, notices) = answered(only, "the client of the answered note");
-            let waited: Duration = began.elapsed();
             assert!(
                 matches!(answer, Ok(Submitted::Landed { .. })),
                 "{answer:?} {notices}"
-            );
-            assert!(
-                waited < A_CEILING_NOBODY_WAITS_FOR / 4,
-                "the commit took {waited:?} where its note answered at once, and the landing grants that write {A_CEILING_NOBODY_WAITS_FOR:?}"
             );
             assert_eq!(
                 subjects_since(&world, base.as_str()),
                 "message of only",
                 "the commit is on the branch"
             );
+            // No wake is taken here, so the landing's own write is the only writer of this store: its note appearing is
+            //  that write having answered.
             let store: PathBuf = store_of(&world);
             wait_until_the_next_service_would_look(
                 store.as_path(),

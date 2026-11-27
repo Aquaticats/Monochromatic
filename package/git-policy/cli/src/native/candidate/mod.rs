@@ -48,6 +48,12 @@
 //! - `candidate_store.rs`:
 //!   per-invocation listing,
 //!   lazy bytes and invalidation of candidate versions.
+//! - `candidate_store_listings.rs`:
+//!   the listings a caller asks the store for and the Git commands behind them.
+//! - `candidate_prediction_listings.rs`:
+//!   the listings one prediction makes:
+//!   the changed paths `git add` would stage,
+//!   the selected worktree files and the staged index entries.
 //! - `candidate_prediction.rs`:
 //!   what `git add` would stage,
 //!   and the worktree files a direct command selects.
@@ -100,6 +106,9 @@ pub mod candidate_version;
 ///  lazy bytes and invalidation of candidate versions.
 pub mod candidate_store;
 
+/// The listings a caller asks the store for and the Git commands behind them.
+pub mod candidate_store_listings;
+
 /// The listings of one commit's tree,
 ///  of the parents of a set of commits and of a tree's blobs,
 ///  as a second block of operations of the candidate store.
@@ -131,6 +140,11 @@ pub mod candidate_prediction_git_runs;
 /// What `git add` would stage,
 ///  and the worktree files a direct command selects.
 pub mod candidate_prediction;
+
+/// The listings one prediction makes:
+///  the changed paths,
+///  the selected worktree files and the staged index entries.
+pub mod candidate_prediction_listings;
 
 /// Which candidates hold content that a parent commit's tree already holds,
 ///  found by exact object name.
