@@ -2827,20 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-
-
-- `mpm-shadow`,
-  `0.2.7-alpha.12` (`fea1c1768d`),
-  which intended no change of behaviour over alpha.11,
-  and then `0.2.7-alpha.13`:
-  release commit `2d255a625c`,
-  locked (`889d87bb83`) and installed.
-  alpha.13 holds issue 6585 (`c513ee060c`):
-  a start refused with "Text file busy" is explained and not repeated,
-  because every writer the tool starts publishes a program by renaming a finished file into place,
-  measured for five of them with no refusal in 2,396 probe starts that ran
-  (`doc/troubleshooting/mpm-shadow-a-start-refused-because-the-program-is-being-written.md`);
-  and the alpha.12 pass's narrowing of what the splits had made visible (`cc61079f82`).
 - The wrapper,
   `0.6.1-alpha.48`:
   release commit `e6cc06059d`,
