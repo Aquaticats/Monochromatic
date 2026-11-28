@@ -115,17 +115,17 @@ and each stays in force until the owner changes it.
   and a step waits only for an input it names or for a failure on record
   ("How work is run side by side").
 
-## The state at 2026-11-27T20:47:01-05:00
+## The state at 2026-11-27T20:55:03-05:00
 
-`main` was `5d91792960`.
+`main` was `570402952b`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 304 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 305 more by this time.
 
 ### Rounds running
 
-At 2026-11-27T20:47:01-05:00 these 13 rounds are live,
+At 2026-11-27T20:55:03-05:00 these 13 rounds are live,
 counted from the process list.
 Each runs on Pi's virtual writer,
 with its brief at `~/temp/agent/pi-runs/<round>-prompt.md`,
@@ -164,9 +164,6 @@ from the list `batch-of-2026-11-27-the-eight-rounds-after-the-alpha-51-and-alpha
   the no-change read's Low 1,
   Low 3,
   Low 5 and Low 6;
-- `wrapper-alpha-51-release-pass-check-outcome-has-no-lint-finding-and-its-doc-test-runs-in-the-gate`,
-  2026-11-27T20:34:12-05:00:
-  the package's three lint findings in `check_outcome.rs` and the no-change read's Low 4;
 
 For the linter,
 from the same list:
@@ -188,6 +185,13 @@ from the same list:
 - `issue-6640-the-forbidden-strings-workflow-scans-a-file-links-target-text-and-its-whole-tree-arm-inspects-links`,
   2026-11-27T20:35:11-05:00;
 
+For the closure rule the linter skips on this host (issue 6643),
+from a list of its own,
+a proposal with nothing built:
+
+- `issue-6643-proposal-who-provides-the-dylint-driver-and-what-a-skipped-rule-returns`,
+  2026-11-27T20:54:34-05:00;
+
 For what the read of `mpm-shadow`'s `0.2.7-alpha.18` found
 ("What `mpm-shadow`'s alpha.18 read found"),
 from the list `batch-of-2026-11-27-the-three-rounds-after-the-mpm-shadow-alpha-18-read`,
@@ -208,13 +212,22 @@ by area so that they run side by side:
   L-4,
   L-5 and the third control of L-6;
 
-Two Claude Sonnet agents of the coordinating session run beside them,
-each a same-vendor pass and neither independent:
+Six Claude Sonnet agents of the coordinating session run beside them,
+each a same-vendor pass and none independent:
 the second pass of `cargo-shadow` `0.1.5-alpha.17`
 (brief `~/temp/agent/briefs-for-release-reads-written-2026-11-27/cargo-shadow-alpha-17-read.md`,
 review to `~/temp/agent/cargo-shadow-alpha-17-release-review-2026-11-27/keep/review.md`),
 and a read-only digest of what is left of the ZFS route
 (`~/temp/agent/zfs-route-remaining-pieces-digest-2026-11-27/keep/digest.md`).
+The other four are sorters of this file,
+read-only:
+each classes one part of the landed sections as open,
+landed with every fact homed,
+or landed with a fact that has no home,
+and writes a ledger under `~/temp/agent/handover-prune-ledgers-2026-11-27/keep/`.
+From the ledgers the coordinator moves what has no home,
+deletes what is homed,
+and keeps every quotation of the owner.
 From that digest,
 once every record line it quotes is checked by `rg`,
 the ZFS rounds that need only work on `main` are briefed and started in one list.
@@ -260,6 +273,11 @@ each with the failure it prevents:
   its lock directories,
   and the path dependencies `cargo metadata` reports;
   the workflow's own first comment says so).
+  That is read from the workflow's comment and not from its step,
+  and `main` did not move during the one release dispatched since,
+  `cargo-shadow` `0.1.5-alpha.17`:
+  the first release during which `main` moves is its test,
+  and that run's log is read before the rule is leaned on again.
   So merges of other packages and commits of records go on while a release runs,
   and only a merge into the released crate's own paths waits for the bump commit.
   Before each commit or merge on `main` the session fetches,
@@ -288,7 +306,11 @@ each with the failure it prevents:
   briefs and record edits that do not move `main` go out in one message and run at once.
   Two commands that move `main` in the main checkout run one after the other:
   it has one `HEAD` and one index.
-- A lock branch is made with `--no-track`.
+- Every branch and worktree the coordinating session makes itself is made detached or with `--no-track`,
+  a lock branch and an integration worktree alike,
+  and `git rev-parse --abbrev-ref @{upstream}` has to fail there before the first commit.
+  A branch that tracks `origin/main` has its commits pushed to `main` by the commit service,
+  so an integration worktree made that way would put unchecked merges on `main`.
   The lock branch of `cargo-shadow` `0.1.5-alpha.17` was made with `git worktree add -b <branch> <path> origin/main`,
   which set its upstream to `origin/main`,
   and its commit (`7f21ae4ef9`) was on origin's `main` at 2026-11-27T20:30:27-05:00,
@@ -2402,6 +2424,17 @@ both older than the merge that brought the two High points.
   Its Low 7,
   the lone words the linter's fix left in doc comments,
   is the linter's and is issue 6642.
+- The first of the five rounds is merged (`570402952b`):
+  the three lint findings in `check_outcome.rs` are gone,
+  cleared by what each rule asks for and by no suppression,
+  and the package's findings on `main` are the thirteen files over the line budget and nothing else.
+  The crate's one doc test compiled and passed when run alone;
+  its assertion is a unit test the gate runs now,
+  shown red by a plant,
+  and the guide says a doc fence holds TypeScript pseudocode because no task runs doc tests.
+  The round found that `src/native/policy/policy_forbidden_strings.rs` opens a doc fence at line 23 that no line closes,
+  which no rule of the linter reports;
+  it is noted on issue 6642 for the round that puts the wrapper's doc comments right.
 
 #### What the linter's alpha.23 read found
 
@@ -2437,7 +2470,9 @@ with a comparison first shown able to see a move.
   so every count of findings taken on this machine leaves that rule out.
   Started through `mise run //:lint:monochromatic-lint` it is skipped the same way,
   measured on `package/mpm-shadow/cli` at 2026-11-27T20:15:12-05:00.
-  No issue is filed for it yet.
+  It is issue 6643,
+  whose round proposes who provides the driver and what a skipped rule returns,
+  and builds nothing ("Rounds running").
 
 #### What `mpm-shadow`'s alpha.18 read found
 
@@ -2497,7 +2532,8 @@ Ten controls were each shown red,
 and 48 calls begun inside 48 real reexecs of a container's manager all took the delegated route.
 The package's task passed 978 of 978 after the merge of `main`.
 `0.1.5-alpha.17` is release commit `2ff68958b1`
-(dispatched 2026-11-27 at about 20:21 -05:00 from `05e0758cb7`;
+(dispatched 2026-11-27T20:26:16-05:00 from `05e0758cb7`,
+release run 46093112468 and publish run 46093197842;
 the follower's log holds `PUBLISHED`),
 locked (`7f21ae4ef9`,
 which reached `main` without a merge commit:
@@ -3730,7 +3766,8 @@ The split rounds it was sequenced behind have merged
 (that sequencing was the coordinator's,
 not an owner decision),
 so it is ready,
-and it stood without a round until 2026-11-27T20:24 -05:00,
+and it stood without a round until 2026-11-27,
+between 20:21 and 20:26 -05:00,
 when a read-only digest of what is left of the route was started
 ("Rounds running").
 Its rounds,
