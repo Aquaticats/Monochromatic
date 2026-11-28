@@ -352,3 +352,68 @@ fn a_registered_last_component_names_the_worktree_for_the_refusal() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  Every spelling Git accepts counts the way Git counts it.
+/// Why:
+///  The measured gradation of Git 2.56.1 on this machine is:
+///  `-f`,
+///  `--force`,
+///  `--forc` and `--f` pass a dirty worktree and leave a
+///  locked one refused,
+///  while `-f -f`,
+///  `-ff` and `--force --force` pass both,
+///  and `--no-force` sets the count back to zero
+///  (`builtin/worktree.c:1450` and `:1464` at Git `v2.56.1`,
+///  and the transcript in this round's report).
+///  The fixture is a table of the words and the count Git reads from them.
+#[test]
+fn every_spelling_of_git_s_force_counts_the_way_git_counts_it() {
+    let cases: [(&[&str], usize); 14] = [
+        (&[], 0),
+        (&["one"], 0),
+        (&["-f", "one"], 1),
+        (&["--force", "one"], 1),
+        (&["--forc", "one"], 1),
+        (&["--f", "one"], 1),
+        (&["one", "-f"], 1),
+        (&["one", "-f", "-f"], 2),
+        (&["-ff", "one"], 2),
+        (&["--force", "--force", "one"], 2),
+        (&["--no-force", "one"], 0),
+        (&["--force", "--no-force", "one"], 0),
+        (&["-f", "-f", "--no-f", "one"], 0),
+        (&["-f", "--", "-f"], 1),
+    ];
+    for (words, wanted) in cases {
+        assert_eq!(
+            count_of_the_force(os_arguments(words).as_slice()),
+            wanted,
+            "{words:?}"
+        );
+    }
+}
+
+/// What:
+///  A command carrying an option word Git does not accept for this command
+///  counts no force at all.
+/// Why:
+///  Git answers such a word with its usage and no removal at all,
+///  and this wrapper answers the spelling before Git would,
+///  so no word of a refused command may pass a refusal it would not have passed
+///  (`parse-options.c:426` to `:440` at Git `v2.56.1`).
+#[test]
+fn a_command_carrying_an_option_git_refuses_counts_no_force() {
+    for words in [
+        vec!["-fq", "one"],
+        vec!["-qf", "one"],
+        vec!["-f", "-q"],
+        vec!["-x", "one"],
+    ] {
+        assert_eq!(
+            count_of_the_force(os_arguments(words.as_slice()).as_slice()),
+            0,
+            "{words:?}"
+        );
+    }
+}

@@ -39,15 +39,16 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_head_gone::
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_head_present::the_head_present_path;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone;
-use crate::worktree_clone_removal_proof_and_plan::removal_resume::{
-    TheStart,
-    start_the_removal,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_resume::start_the_removal_with_force;
 use crate::worktree_clone_removal_proof_and_plan::removal_self_cancelling_step::at_the_unmount;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{
     RemovalClaim,
     release_at_the_last_step,
     take_the_removals_claim,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_start_inputs::{
+    TheStart,
+    TheStartingRemoval,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 
@@ -72,17 +73,19 @@ pub fn complete_the_removal(input: &RemovalCompletion<'_>) -> Result<TheRemovalD
     // interleaving with this run's records.
     let mut claim: RemovalClaim =
         take_the_removals_claim(input.entry.common_dir, input.entry.slot)?;
-    let started: TheStart = start_the_removal(
-        input.entry,
-        input.reads,
-        input.unmount,
-        input.clock,
-        input.probe,
-    )
+    let started: TheStart = start_the_removal_with_force(&TheStartingRemoval {
+        entry: input.entry,
+        reads: input.reads,
+        unmount: input.unmount,
+        clock: input.clock,
+        probe: input.probe,
+        force: input.force,
+    })
     .map_err(|stop| return at_the_unmount(input, stop))?;
     let folder: PlanFolder =
         PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
             return RemovalStop::PlanUnreadable {
+                slot: String::from(input.entry.slot),
                 path: plans_folder(input.entry.common_dir),
                 refusal,
             };

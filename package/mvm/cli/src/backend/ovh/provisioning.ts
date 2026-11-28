@@ -18,14 +18,34 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 
 import { VM_PREFIX, } from '../../config.ts';
-import { createInstance, } from './api-resources.ts';
-import { DEFAULT_IMAGE, } from './config.ts';
+import {
+  describeSizeRequest,
+  isEmptySizeRequest,
+  type SizeRequest,
+  NoSizeFitsError
+} from '../size-request.ts';
+import { NO_PRICE, } from './catalog-prices.ts';
+import { readPriceChoice, } from './read-price-choice.ts';
+import {
+  createInstance,
+  listImages,
+} from './api-resources.ts';
+import {
+  DEFAULT_IMAGE,
+  requireCredentials,
+} from './config.ts';
 import { failedProvisionError, } from './discarding.ts';
 import {
+  hourlyPriceFor,
   NoFlavorInStockError,
   resolveFlavor,
+  resolveFlavorsThatFit,
+  type PriceChoice,
 } from './flavors.ts';
-import { resolveImage, } from './images.ts';
+import {
+  resolveImage,
+  selectImage,
+} from './images.ts';
 import {
   assertNameIsNotDeleting,
   instanceImageUser,
@@ -36,7 +56,11 @@ import {
 import { resolveRegions, } from './regions.ts';
 import { ensureSshKeyId, } from './ssh-key.ts';
 import { waitForSsh, } from './ssh.ts';
-import type { OvhInstance, } from './types.ts';
+import type {
+  OvhFlavor,
+  OvhImage,
+  OvhInstance,
+} from './types.ts';
 
 /**
  Logger root for mvm after removing the package log shim.
@@ -91,43 +115,185 @@ export type SshTarget = {
 async function provisionInRegion({
   image,
   name,
+  priceChoice,
   region,
+  request,
   rl,
   serverType,
   sshKeyId,
 }: {
   readonly image?: string;
   readonly name: string;
+  readonly priceChoice: PriceChoice;
   readonly region: string;
+  readonly request: SizeRequest;
   readonly rl: Logger;
   readonly serverType?: string;
   readonly sshKeyId: string;
 },): Promise<OvhInstance> {
   /**
-   Flavor to create with in this region, or a thrown {@link NoFlavorInStockError}.
+   Size and image this region gives the instance.
    */
-  const flavor = await resolveFlavor({
+  const chosen = await chooseFlavorAndImage({
+    priceChoice,
     region,
+    request,
+    rl,
+    ...((image === undefined) ? {} : { image, }),
     ...((serverType === undefined) ? {} : { override: serverType, }),
   },);
-  /**
-   Image to boot from in this region, matched against the region's own list.
-   */
-  const bootImage = await resolveImage({
-    flavor,
-    region,
-    shorthand: image ?? DEFAULT_IMAGE,
-  },);
   rl.info(
-    `creating ${name} (flavor ${flavor.name}, image ${bootImage.name}) in ${region}`,
+    `creating ${name} (flavor ${chosen.flavor
+      .name} with ${String(chosen.flavor
+        .vcpus,)} vCPUs, ${String(chosen.flavor
+          .ram,)} GiB of memory and ${String(chosen.flavor
+            .disk,)} GB of disk, image ${chosen.image
+              .name}) in ${region}`,
   );
   return createInstance({
-    flavorId: flavor.id,
-    imageId: bootImage.id,
+    flavorId: chosen.flavor
+      .id,
+    imageId: chosen.image
+      .id,
     name,
     region,
     sshKeyId,
   },);
+}
+
+/**
+ Chooses the size and the image to create with in one region.
+ 
+ Without a size request this is the walk mvm has always made: the smallest flavor
+ in stock, then the newest plain image that flavor can boot. With a request it is
+ the size walk: the kept families in stock that meet both floors, smallest first,
+ and the first of them that boots an image the region offers.
+ 
+ @param image - image shorthand such as `ubuntu`, or omitted for `ubuntu`
+ 
+ @param override - per-invocation flavor name or identifier, or omitted
+ 
+ @param region - region to create in
+ 
+ @param request - the floors the caller set
+ 
+ @param rl - logger for the image the size walk settled on
+ 
+ @returns the flavor and the image to create with
+ 
+ @throws {@link NoFlavorInStockError} when the region has nothing in stock
+ 
+ @throws {@link NoSizeFitsError} when no size the region may use meets the request
+ 
+ @throws Error when the image matches nothing, or no size that fits boots one
+ 
+ @example
+ ```ts
+ const chosen = await chooseFlavorAndImage({ region: 'bhs5', request: { vcpus: 2 }, rl });
+ ```
+ */
+async function chooseFlavorAndImage({
+  image,
+  override,
+  priceChoice,
+  region,
+  request,
+  rl,
+}: {
+  readonly image?: string;
+  readonly override?: string;
+  readonly priceChoice: PriceChoice;
+  readonly region: string;
+  readonly request: SizeRequest;
+  readonly rl: Logger;
+}): Promise<{
+  readonly flavor: OvhFlavor;
+  readonly image: OvhImage;
+  readonly priceChoice: PriceChoice;
+}> {
+  /**
+   Image shorthand this create asked for.
+   */
+  const shorthand = image ?? DEFAULT_IMAGE;
+  if (isEmptySizeRequest({ request, },)) {
+    /**
+     Smallest flavor in stock, unchanged from the walk before sizes existed.
+     */
+    const flavor = await resolveFlavor({
+      region,
+      ...((override === undefined) ? {} : { override, }),
+    },);
+    return {
+      flavor,
+      image: await resolveImage({
+        flavor,
+        region,
+        shorthand,
+      },),
+      priceChoice,
+    };
+  }
+  /**
+   Images this region offers, read once for every candidate the size walk tries.
+   */
+  const images = await listImages({ region, },);
+  /**
+   Sizes that meet the request, smallest first.
+   */
+  const fit = await resolveFlavorsThatFit({
+    priceChoice,
+    region,
+    request,
+    ...((override === undefined) ? {} : { override, }),
+  },);
+  /**
+   Refusals the image walk made, in candidate order; the first is reported when
+   no candidate could boot one.
+   */
+  const refusals: unknown[] = [];
+  for (const flavor of fit.flavors) {
+    try {
+      /**
+       Image this candidate would boot.
+       */
+      const imageForCandidate = selectImage({
+        flavor,
+        images,
+        region,
+        shorthand,
+      },);
+      /**
+       Hourly price of this candidate, or {@link NO_PRICE} when none could be read.
+       */
+      const price = hourlyPriceFor({
+        flavor,
+        priceChoice,
+      },);
+      rl.info(
+        `size ${describeSizeRequest({ request, },)} fits ${flavor.name} (${String(flavor.vcpus,)} vCPUs, ${String(flavor.ram,)} GiB of memory, ${String(flavor.disk,)} GB of disk)${
+          (price === NO_PRICE) ? ', no published hourly price could be read so the smallest numbers win' : `, ${String(price,)} ${(priceChoice.kind === 'priced') ? priceChoice.currency : ''} per hour${(fit.order === 'price') ? '' : ', read by size because no price was available'}`
+        }`,
+      );
+      return {
+        flavor,
+        image: imageForCandidate,
+        priceChoice,
+      };
+    }
+    catch (error: unknown) {
+      refusals.push(error,);
+    }
+  }
+  /**
+   Refusal the smallest candidate earned, which is the one a create would hit.
+   */
+  const [firstRefusal,] = refusals;
+  if (Error.isError(firstRefusal,)) {
+    throw firstRefusal;
+  }
+  throw new Error(
+    `no size in ${region} boots an image matching "${shorthand}": ${refusals.length === 0 ? 'no size that fits was in stock' : 'every candidate was refused'}`,
+  );
 }
 
 /**
@@ -157,6 +323,7 @@ export async function provisionInstance({
   image,
   location,
   name,
+  request,
   rl,
   serverType,
 }: {
@@ -164,6 +331,7 @@ export async function provisionInstance({
   readonly location?: string;
   readonly name: string;
   readonly rl: Logger;
+  readonly request: SizeRequest;
   readonly serverType?: string;
 },): Promise<OvhInstance> {
   /**
@@ -176,15 +344,26 @@ export async function provisionInstance({
    */
   const sshKeyId = await ensureSshKeyId();
   /**
-   Regions to try, in fallback order.
+   Regions to try, in fallback order, each with the same request.
    */
   const regions = await resolveRegions(location,);
+  /**
+   Hourly prices of this create, read once, or the record that they could not be.
+   */
+  const priceChoice = await readPriceChoice({ rl, },);
+  /**
+   One refusal per region that had nothing usable, reported together when no
+   region can give the machine.
+   */
+  const refusals: NoSizeFitsError[] = [];
   for (const region of regions) {
     try {
       // oxlint-disable-next-line no-await-in-loop -- sequential so a region with nothing in stock falls through to the next
       return await provisionInRegion({
         name: fullName,
+        priceChoice,
         region,
+        request,
         rl,
         sshKeyId,
         ...((image === undefined) ? {} : { image, }),
@@ -192,11 +371,26 @@ export async function provisionInstance({
       },);
     }
     catch (error: unknown) {
-      if (!(error instanceof NoFlavorInStockError)) {
-        throw error;
+      if (error instanceof NoFlavorInStockError) {
+        rl.info(`${region} has no flavor in stock, trying the next region`,);
+        continue;
       }
-      rl.info(`${region} has no flavor in stock, trying the next region`,);
+      if (error instanceof NoSizeFitsError) {
+        rl.info(`${region} has no size that fits, trying the next region`,);
+        refusals.push(error,);
+        continue;
+      }
+      throw error;
     }
+  }
+  if (refusals.length > 0) {
+    throw new Error(
+      `no region among ${regions.join(', ',)} can give ${describeSizeRequest({ request, },)}: ${
+        refusals.map(function oneRefusal(refusal: { readonly message: string; },) {
+          return refusal.message;
+        },)
+          .join(' | ')}`,
+    );
   }
   throw new Error(
     `no flavor is in stock in any of: ${regions.join(', ',)}`,
@@ -204,6 +398,8 @@ export async function provisionInstance({
 }
 
 //endregion Provisioning
+
+
 
 //region Reaching
 

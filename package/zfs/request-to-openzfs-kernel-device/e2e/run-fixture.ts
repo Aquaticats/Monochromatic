@@ -460,11 +460,11 @@ function create(options: Options): void {
       `guest '${options.name}' already exists; pass another --name so this run destroys only the guest it creates`,
     );
   /**
-   The image word the backend's own catalogue is asked for.
+   The image word `mvm create` is given: the run's own catalogue name, then its own template, then the backend's default.
    A libvirt guest's `--image` names a custom template, which `prepare` then only asserts; a cloud backend's names a
    catalogue image, which `prepare` still installs and builds against, so the two are separate options.
    */
-  const imageWord = (options.image === undefined) ? options.guestImage : options.image;
+  const imageWord = options.guestImage ?? options.image ?? options.backend.defaultGuestImage;
   host({
     options,
     command: 'mvm',

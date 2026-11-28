@@ -38,6 +38,14 @@ export const VMS_DIR: string = join(
 export const DEFAULT_MEMORY_MIB = 8_192;
 
 /**
+ Mebibytes in one gibibyte.
+
+ A create states memory in gibibytes, the unit the owner's sentence and every
+ provider's own size list use, and libvirt's domain XML states it in mebibytes.
+ */
+export const MEBIBYTES_PER_GIBIBYTE = 1_024;
+
+/**
  Default number of virtual CPUs.
  */
 export const DEFAULT_VCPUS = 4;

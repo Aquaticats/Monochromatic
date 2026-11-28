@@ -5061,3 +5061,36 @@ whose scratch expires a day after its last change:
   after the clone's own descriptor is dropped,
   which a guest run measured:
   with the clone's descriptor held the kernel answered that the mount was busy.
+
+## Veto open: what the cheapest size that fits comes to (recorded 2026-11-28T07:45:46-05:00)
+
+The owner decided on 2026-11-28 that among sizes that fit the cheapest is taken,
+and merge `b7f9f7ed2c` builds it.
+What that decision was not shown,
+from the build's report and the proposal's second gate read:
+
+- for small asks the cheapest size is a `d2` one,
+  which OVHcloud's own table calls Discovery:
+  shared resources,
+  for testing and proof of concept.
+  The billed run asked for two cores and 4 GiB and got `d2-4` at 0.033 CAD an hour;
+  `c3-4`,
+  with the same numbers and cores of its own,
+  is 0.0732;
+- the hourly figures the proposal lists leave out two billed lines the price page shows:
+  a public IPv4 address at 0.00432 CAD an hour,
+  and local storage on the `b3`,
+  `c3` and `r3` sizes at 0.011665 CAD an hour for each 50 GB.
+  Whether the build's price read counts them is not checked;
+- `--memory` is compared with the catalogue's own memory number with no unit change,
+  so `--memory 4` is met by a size listed with 4.
+  The repository's comment calls that number GiB and the proposal treated it as GB;
+  one create settles which;
+- the build leaves the storage family `i1` out,
+  where the proposal's allow-list kept it;
+- a clone that is given either number refuses,
+  where it used to ignore nothing because the numbers did not exist.
+
+Guest rounds meanwhile name a size outright,
+`b3-16`,
+which is the session's pick.

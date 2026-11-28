@@ -250,6 +250,7 @@ fn the_removal_finish_pass_guest_arms() {
         cancelling: None,
         budget: the_budget(&fixture),
         now: "2026-11-25T09:12:44-05:00",
+        force: crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce::none(),
     };
     println!("FINISH step=arm-1-enter");
     let stopped: Result<_, RemovalStop> = complete_the_removal(&completion);

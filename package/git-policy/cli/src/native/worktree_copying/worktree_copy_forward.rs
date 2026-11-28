@@ -18,6 +18,8 @@
 //! ```
 
 use crate::hooks_off::StartOwner;
+use crate::transaction_git::GitContext;
+use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
 use crate::worktree_command_facts::CopyFacts;
 /// The ending every run of this route reports,
 /// re-exported here so a caller keeps naming one module for the route's answers.
@@ -27,9 +29,13 @@ use crate::worktree_copy_forward_outcome::{
     run_plain_of,
 };
 use crate::worktree_copy_forward_settled_run::run_settled;
+use crate::worktree_copying::the_slots_cleanliness::TheLiveCleanliness;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
-use crate::worktree_removal_of_a_bound_clone::BoundSlotRemovalAnswer;
+use crate::worktree_removal_of_a_bound_clone::{
+    BoundSlotRemovalAnswer,
+    TheSlotRemoval,
+};
 use crate::worktree_removal_stops_units::{
     WorktreeAboutToGo,
     before_removal,
@@ -154,7 +160,7 @@ pub fn run_forwarded_git(
 pub struct TheRunsOwnSteps<'a> {
     /// What a removal of a slot a whole managed clone is bound to does,
     /// which answers nothing for every other removal.
-    pub the_bound_slots_removal: &'a dyn Fn(&Path, &Path) -> Option<BoundSlotRemovalAnswer>,
+    pub the_bound_slots_removal: &'a dyn Fn(&TheSlotRemoval<'_>) -> Option<BoundSlotRemovalAnswer>,
     /// The stop of a removed worktree's units,
     /// which is asked only after a removal ended well.
     pub stop_units: &'a dyn Fn(&WorktreeAboutToGo),
@@ -271,7 +277,7 @@ fn run_served(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
     facts: &CopyFacts,
-    the_bound_slots_removal: &dyn Fn(&Path, &Path) -> Option<BoundSlotRemovalAnswer>,
+    the_bound_slots_removal: &dyn Fn(&TheSlotRemoval<'_>) -> Option<BoundSlotRemovalAnswer>,
 ) -> ForwardedRun {
     // The ZFS clone route serves one `git worktree add` on the design's checkout
     // dataset, and answers nothing for every other command or checkout
@@ -290,12 +296,29 @@ fn run_served(
     #[cfg(target_os = "linux")]
     if let (Some(target), Some(common)) =
         (facts.removal_target.as_deref(), facts.common_dir.as_deref())
-        && let Some(answer) = the_bound_slots_removal(target, common)
     {
-        return ForwardedRun::Failed {
-            stderr: answer.stderr,
-            code: answer.code,
+        // Git reads the worktree's own files only while the command carries no force, and this route answers before Git
+        //  runs, so the same proof is made here through the Git this very command would have started.
+        let context: GitContext = GitContext {
+            real_git: real_git.to_path_buf(),
+            overlay: overlay.to_vec(),
+            global_prefix: Vec::new(),
+            common_dir: Some(common.to_path_buf()),
         };
+        let cleanliness: TheLiveCleanliness<'_> = TheLiveCleanliness {
+            context: &context,
+        };
+        if let Some(answer) = the_bound_slots_removal(&TheSlotRemoval {
+            target,
+            common_dir: common,
+            force: RemovalForce::of_count(facts.removal_force),
+            cleanliness: &cleanliness,
+        }) {
+            return ForwardedRun::Failed {
+                stderr: answer.stderr,
+                code: answer.code,
+            };
+        }
     }
     // A command that stands in no worktree has no ladder step and no ignored state to settle: the refusal above is the
     // whole of what this route owes it, and Git runs as it would have without the wrapper.
