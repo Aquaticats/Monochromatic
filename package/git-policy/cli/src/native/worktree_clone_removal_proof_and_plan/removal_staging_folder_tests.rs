@@ -23,6 +23,7 @@ use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
 use crate::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     ClearingDevice,
     EpochProbe,
@@ -34,11 +35,20 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     TheCompletion,
     a_clear_scan,
     a_fixture,
+    an_intent_property,
     complete_with,
     the_budget,
     the_checks_pool,
+    the_checks_pool_of,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::RemovalFixture;
+use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
+    CLONE,
+    CLONE_CREATETXG,
+    CLONE_GUID,
+    ORIGIN_SNAPSHOT,
+    RemovalFixture,
+    the_stats,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_staging_folder::RemovalStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
@@ -52,6 +62,9 @@ use crate::worktree_clone_unmount::user_cache_pin::{
     cache_mount_facts,
 };
 use crate::worktree_removal_deferred_origin_check::fixtures::Pool;
+use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
+use monochromatic_zfs_request_to_openzfs_kernel_device::DatasetIdentity;
+use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 use std::cell::{
     Cell,
     RefCell,
@@ -323,5 +336,190 @@ fn the_creation_makes_no_second_folder_and_makes_none_when_the_pin_refuses() {
     assert!(
         std::fs::metadata(folder.as_path()).is_ok(),
         "the folder the first call made still stands"
+    );
+}
+
+/// What:
+///  One whole arrival at the removal's step 2 over the fixture's own facts,
+///  which the controls below differ in one seam of.
+/// Why:
+///  The two controls that read the folder are about the order rather than the
+///  plan,
+///  so the arrangement is written once and each control states only what it is
+///  about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const removal = theRemovalOver(fixture, pool, check, device, head, holders, settle);
+/// ```
+fn the_removal_over<'a>(
+    fixture: &'a RemovalFixture,
+    pool: &'a LivePool,
+    probe: &'a EpochProbe,
+    device: &'a ClearingDevice,
+    head: &'a ScriptedHead,
+    holders: &'a ScriptedHolders,
+    settle: &'a ScriptedSettle,
+) -> TheCompletion<'a> {
+    return TheCompletion {
+        fixture,
+        pool,
+        check: probe,
+        probe,
+        device,
+        head,
+        holders,
+        settle,
+        cancelling: None,
+        budget: the_budget(),
+    };
+}
+
+/// What:
+///  A removal resumed over a plan that already stands makes the folder its
+///  unmount binds,
+///  at mode `0700`, before it asks for the unmount.
+/// Why:
+///  A second attempt is the case a retry takes,
+///  and the whole removal makes the folder on both ways in:
+///  a fresh entry and a plan it adopts.
+///  A resumed run whose folder is missing would ask the handler to bind nothing,
+///  which is the defect this seam exists to prevent.
+#[test]
+fn a_resumed_removal_makes_the_folder_its_unmount_binds() {
+    let fixture_at: RemovalFixture = a_fixture("staging-folder-on-a-resume");
+    let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    fixture_at.plant_a_plan(HeadWord::Present, Vec::new());
+    let check: Pool = the_checks_pool_of(MARK_OFF, an_intent_property("unmount"));
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe {
+        pool: check,
+        hidden: Rc::clone(&hidden),
+    };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    let clone_guid: DatasetGuid = fixture_at.recorded().clone_guid;
+    let head: ScriptedHead =
+        ScriptedHead::succeeding(fixture_at.plan_folder(), clone_guid, Rc::clone(&hidden));
+    let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+    let settle: ScriptedSettle = ScriptedSettle::succeeding();
+    let home: PathBuf = fixture("staging-folder-on-a-resume-home");
+    let cache_path: PathBuf = home.join(".cache");
+    std::fs::create_dir_all(cache_path.as_path()).expect("the fixture cache is made");
+    let cache: std::fs::File =
+        std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
+    let staging: AStagingFolderOfAFixtureCache = AStagingFolderOfAFixtureCache {
+        home: home.clone(),
+        pin: the_fixture_pins(&cache),
+        asked: Cell::new(0),
+    };
+    let unmount: AnUnmountThatReadsTheFolder = AnUnmountThatReadsTheFolder {
+        clone_guid,
+        home,
+        seen: RefCell::new(None),
+    };
+    complete_with(
+        &the_removal_over(
+            &fixture_at,
+            &pool,
+            &probe,
+            &device,
+            &head,
+            &holders,
+            &settle,
+        ),
+        crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::NOW,
+        &staging,
+        &unmount,
+    )
+    .expect("a resumed removal whose folder stands at its unmount finishes");
+    assert_eq!(
+        staging.asked.get(),
+        1,
+        "the resumed order asked for the folder once, before it asked for an unmount"
+    );
+    assert_eq!(
+        *unmount.seen.borrow(),
+        Some(0o700),
+        "the folder stood at mode 0700 when the resumed removal asked for its unmount"
+    );
+}
+
+/// What:
+///  A removal whose lineage proof refuses makes no folder at all.
+/// Why:
+///  The folder is written, and a removal that cannot prove the clone must not
+///  write anything before its refusal,
+///  so the creation belongs after the proof and not before it.
+#[test]
+fn a_refused_proof_makes_no_folder() {
+    let fixture_at: RemovalFixture = a_fixture("staging-folder-after-a-refusal");
+    let mut pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    for listed in pool.identities.iter_mut() {
+        if listed.0 == CLONE {
+            listed.1 = DatasetIdentity {
+                stats: the_stats(CLONE_GUID + 1, false, CLONE_CREATETXG, 0, ORIGIN_SNAPSHOT),
+                properties: NvList::new(),
+            };
+        }
+    }
+    let check: Pool = the_checks_pool();
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe {
+        pool: check,
+        hidden: Rc::clone(&hidden),
+    };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    let clone_guid: DatasetGuid = fixture_at.recorded().clone_guid;
+    let head: ScriptedHead =
+        ScriptedHead::succeeding(fixture_at.plan_folder(), clone_guid, Rc::clone(&hidden));
+    let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+    let settle: ScriptedSettle = ScriptedSettle::succeeding();
+    let home: PathBuf = fixture("staging-folder-after-a-refusal-home");
+    let cache_path: PathBuf = home.join(".cache");
+    std::fs::create_dir_all(cache_path.as_path()).expect("the fixture cache is made");
+    let cache: std::fs::File =
+        std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
+    let staging: AStagingFolderOfAFixtureCache = AStagingFolderOfAFixtureCache {
+        home: home.clone(),
+        pin: the_fixture_pins(&cache),
+        asked: Cell::new(0),
+    };
+    let unmount: AnUnmountThatReadsTheFolder = AnUnmountThatReadsTheFolder {
+        clone_guid,
+        home: home.clone(),
+        seen: RefCell::new(None),
+    };
+    let stop: RemovalStop = complete_with(
+        &the_removal_over(
+            &fixture_at,
+            &pool,
+            &probe,
+            &device,
+            &head,
+            &holders,
+            &settle,
+        ),
+        crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::NOW,
+        &staging,
+        &unmount,
+    )
+    .expect_err("a clone the pool answers with another GUID is refused");
+    assert!(
+        matches!(stop, RemovalStop::TheCloneCannotBeProved { .. }),
+        "the proof's own refusal, not {stop:?}"
+    );
+    assert_eq!(
+        staging.asked.get(),
+        0,
+        "the folder was never asked for, because the proof refused first"
+    );
+    assert_eq!(
+        *unmount.seen.borrow(),
+        None,
+        "nothing was unmounted, so no folder was read at a request"
+    );
+    assert!(
+        std::fs::metadata(cache_path.as_path()).is_ok(),
+        "the fixture cache stands"
     );
 }
