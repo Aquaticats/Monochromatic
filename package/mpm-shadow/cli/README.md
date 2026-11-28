@@ -1408,6 +1408,50 @@ A hidden copy that holds a finished install is published by the next install of 
 downloading nothing,
 unless that version's name holds a finished copy by then,
 which makes the hidden one a second one that install removes.
+That is an install in this process namespace,
+and an install after a reboot is the same,
+because a name from another boot belongs to an installer that reboot certainly ended.
+An install in another process namespace does not judge such a name at all:
+it publishes nothing from that copy and removes nothing,
+and `prune --toolchain` prints the name on standard error with what deleting it costs.
+A newer version of a tool this repository publishes, installed by then, leaves the hidden copy where it is,
+because an older repository tool is never kept.
+
+The sentence every failed publish ends with is that rule,
+written out,
+and it names the copy the failure kept:
+it is the last thing an ordinary install prints about the failure,
+because no install of that tool follows in the same run.
+An install reaches six of those failures,
+one for each way its publish can go wrong:
+
+- `cannot move the finished install to <version's name>: <error>`:
+  the version's name held nothing,
+  and the rename that would have given it the finished copy failed.
+- `cannot put the finished install in place of the copy at <version's name>: <error>; that copy is as it was`:
+  an unfinished copy stood at the version's name,
+  and the one exchange that would have replaced it failed with an answer that is not "this file system cannot exchange".
+- `cannot move the copy at <version's name> aside to install over it: <error>; that copy is as it was`:
+  the file system cannot exchange the two names and the rename that moves the copy aside failed.
+- `cannot put the finished install that was at <version's name> back from <aside name>: <error>`:
+  a second install published the version in the instant since this one read the name,
+  so the copy this one moved aside was a finished one,
+  and the rename that would have put it back failed.
+- `cannot move the finished install to <version's name>: <error>; the copy that was there is back at <version's name>`:
+  the second of the two renames failed after the copy that was there had been moved aside and put back.
+- `cannot move the finished install to <version's name>: <error>; the copy that was there could not be put back from <aside name>: <error>`:
+  both of those renames failed.
+
+Each of them ends with `the finished copy this run holds is still at <hidden name>`, following the words above,
+and that copy is the one the next install publishes:
+
+```text
+toolchain install: mpm-shadow failed: cannot move the finished install to <toolchain root>/mpm-shadow/0.2.7-alpha.13: Input/output error (os error 5); the finished copy this run holds is still at <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99.424242.22222222-2222-2222-2222-222222222222. A later install of that version publishes that copy without downloading when the version's name holds no finished copy by then, and removes it as a second finished copy when that name holds one; it acts on that name in this process namespace and after a reboot, but an install in another process namespace does not judge that name and leaves the copy where it is, and prune --toolchain prints that name and what deleting it costs; a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, because an older repository tool is never kept
+```
+
+A recovery's own failure carries the same words and no sentence of its own,
+because the install that follows it in the same run changes what is at the version's name;
+that report's warning ends with the sentence instead, and its own words say what this run then did.
 
 The finished copy is what a later install publishes rather than the copy that was there,
 because the marker is written after the archive's SHA-256 matched the lock and after the program was found,
@@ -1448,10 +1492,14 @@ the recovery's message is then a warning in the report,
 and when that install fails too the report names both causes in one failure.
 That warning ends with what this run then did.
 When the install that follows put the version at its name,
-the warning says that a later run publishes nothing from the copy and removes it,
-which is what that later run then does;
+the warning says `so the run does not fail for it`
+and then the sentence above,
+whose first half cannot apply because the version is at its name by then,
+so the removal it also names is what that later install does in this process namespace;
 when that install failed too,
 the copy stays where the run's own sentence put it.
+A put-back that fails names the copy that was there rather than a finished one,
+so its warning stops at what this run then did and says nothing about a later install.
 The one failure that names no copy is the tool's directory that could not be listed:
 its warning says what this run then did and that the run does not fail for it,
 and nothing about a copy it never read.
