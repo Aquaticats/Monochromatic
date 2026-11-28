@@ -2940,13 +2940,6 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- Three more controls that failed only in wide or loaded runs are fixed by what each owns,
-  none through a fault of release code:
-  issue 6599 (`0a2b5b0176`,
-  a recycled time-namespace number another process took first),
-  issue 6602 (the moved-log control met a journal lock a fork of another test's thread had copied)
-  and issue 6603 (`286f9d6dfc`,
-  a deadline control armed its hold after the read had started).
 - `native:ts-checks` now sizes its scope from a measurement (`71d9ce980d`,
   issue 6605):
   1,024 tasks against a measured peak of 463,
