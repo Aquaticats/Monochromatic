@@ -14,11 +14,11 @@
 
 import {
   awaitDetachedGuestScript,
+  startDetachedGuestScript,
 } from '../../bin/mvm-guest-detached-script.ts';
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
-import { startTheScript, } from './start-the-script.ts';
 import {
   finishMarginMilliseconds,
   toolsLog,
@@ -56,11 +56,12 @@ export async function installTheTools({
     '/usr/local/bin/pnpm --version',
     'tail --lines=5 /root/step21-tools.log',
   ].join('\n',);
-  await startTheScript({
+  await startDetachedGuestScript({
     chosen,
     script,
     log: toolsLog,
     timeoutMilliseconds: toolsTimeoutMilliseconds,
+    nameCheck: 'step',
   },);
   await awaitDetachedGuestScript({
     chosen,
