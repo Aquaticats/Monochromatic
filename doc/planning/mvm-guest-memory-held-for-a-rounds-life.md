@@ -1938,7 +1938,7 @@ the recipe's create step refused,
 and the round's own cleanup did not run.
 The machine stayed in the project's listing and this round destroyed it by its name
 (`gb-o2`,
-1 m 10 s after the create),
+91 s after the listing permitted the create),
 then read the listing again and found none of its own.
 No gb-o2 record or step table was written,
 so nothing of that attempt is a reading
