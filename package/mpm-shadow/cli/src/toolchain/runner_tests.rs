@@ -319,6 +319,9 @@ const THE_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME: &str =
 /// The line the wait prints goes to standard error of whichever process waits,
 /// and a test cannot read its own standard error,
 /// so the fixture runs in a child whose standard error the control reads.
+/// The child runs with `--nocapture`,
+/// because the test harness otherwise captures what the fixture's own thread writes
+/// and the control would read nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -350,6 +353,7 @@ fn the_shipped_runner_names_a_program_whose_answer_passes_the_bound() {
     .arg("--exact")
     .arg(THE_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME)
     .arg("--ignored")
+    .arg("--nocapture")
     .arg("--test-threads=1")
     .output()
     .expect("start the fixture the shipped runner waits for");
