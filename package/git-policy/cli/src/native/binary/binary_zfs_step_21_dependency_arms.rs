@@ -176,19 +176,50 @@ fn the_tools_credited(line: &str) -> Vec<TimedTool> {
     let Some((_before, rest)) = line.split_once("work at its new location: ") else {
         return credited;
     };
-    for chunk in rest.trim_end().trim_end_matches('.').split("; ") {
-        let Some((detail, time)) = chunk.rsplit_once(" in ") else {
-            continue;
-        };
-        let Some(number) = time.strip_suffix(" s") else {
-            continue;
-        };
-        credited.push(TimedTool {
-            detail: String::from(detail),
-            millis: seconds_to_millis(number),
-        });
+    // A detail may hold a semicolon of its own, which the Cargo repair's does when a clean displaced a lock, so the
+    // chunks are joined until one ends with a time.
+    let mut held: String = String::new();
+    for chunk in rest.split("; ") {
+        if !held.is_empty() {
+            held.push_str("; ");
+        }
+        held.push_str(chunk);
+        if let Some((detail, millis)) = the_time_at_the_end(held.as_str()) {
+            credited.push(TimedTool {
+                detail: String::from(detail),
+                millis,
+            });
+            held.clear();
+        }
     }
     return credited;
+}
+
+/// What:
+///  The detail one chunk of a repair line ends with a time in,
+///  and that time in milliseconds.
+/// Why:
+///  `render` appends ` in <seconds> s` to each tool's detail and joins the details with a semicolon,
+///  and a detail may hold a semicolon of its own,
+///  so a chunk is a tool's when and only when it ends with that form.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ended = (chunk) => { const match = / in ([0-9]+\.[0-9]) s\.?$/.exec(chunk); return match ? [chunk.slice(0, match.index), match[1]] : undefined; };
+/// ```
+fn the_time_at_the_end(text: &str) -> Option<(&str, u128)> {
+    let without_space: &str = text.trim_end();
+    let without_stop: &str = without_space.strip_suffix('.').unwrap_or(without_space);
+    let (detail, time) = without_stop.rsplit_once(" in ")?;
+    let number: &str = time.strip_suffix(" s")?;
+    if number.is_empty()
+        || !number
+            .chars()
+            .all(|character| return character.is_ascii_digit() || character == '.')
+    {
+        return None;
+    }
+    return Some((detail, seconds_to_millis(number)));
 }
 
 /// The milliseconds a `x.y` seconds reading names.
