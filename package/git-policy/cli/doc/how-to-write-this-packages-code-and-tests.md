@@ -1142,6 +1142,25 @@ On 2026-11-26 two merge checks named `worktree_landed_after_a_merge::` and `bina
 which match no test in the library target,
 and passed nothing until they were run again with filters that matched.
 
+## A doc fence holds TypeScript pseudocode, because no task runs doc tests
+
+A fenced block inside a Rust doc comment holds TypeScript pseudocode under
+`In TS you'd write (pseudocode):`,
+as every other doc fence in this crate does,
+and never a Rust example.
+The gate's test step runs `cargo nextest`
+(`bin/native-test-containerfile.ts`,
+`runArguments`),
+which runs no doc test,
+and no task in this package's `mise.toml` passes `--doc`,
+so a Rust example in a fence is compiled by nothing the gate runs.
+An assertion a doc example states belongs in a control beside the code,
+where the gate runs it.
+A fence written without a language label is read as Rust by the repository's linter,
+which then asks for rustdoc on the file and on each `use` in it
+(`package/linter/monochromatic-lint/src/processors_fences.rs`,
+`fences`).
+
 ## Search the open branches before deleting anything as unused
 
 Pieces of later steps are built ahead and live on branches until they merge,
