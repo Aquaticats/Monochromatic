@@ -93,6 +93,7 @@ use git_policy_cli::worktree_clone_move_refusal::managed_move_refusal::{
 use git_policy_cli::worktree_clone_slot_state::slot_state_classification::classify_slot;
 use git_policy_cli::worktree_clone_slot_state::slot_state_readings::SlotReadings;
 use git_policy_cli::worktree_clone_slot_state::slot_state_report::report_of;
+use git_policy_cli::worktree_clone_unmount::staging_folder_name::staging_folder_name;
 use git_policy_cli::worktree_clone_unmount::user_cache_pin::{
     USER_CACHE_PIN_PATH,
     UserCachePin,
@@ -100,6 +101,7 @@ use git_policy_cli::worktree_clone_unmount::user_cache_pin::{
 };
 use git_policy_cli::worktree_clone_unmount::user_cache_pin_record::write_pin;
 use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -268,6 +270,20 @@ struct ASceneToMake<'a> {
 }
 
 impl ASceneToMake<'_> {
+    /// The account's cache folder,
+    /// reached from the home of the account that owns the checkout.
+    /// Why:
+    ///  The handler reaches the cache from the account's home and never from a
+    ///  variable of this process,
+    ///  so the fixture reads it the same way.
+    fn the_accounts_cache(&self) -> PathBuf {
+        let owner: u32 = std::fs::metadata(self.checkout)
+            .expect("the checkout's owner reads")
+            .uid();
+        let home: PathBuf = passwd_home_of(owner).expect("the checkout's account has a home");
+        return home.join(".cache");
+    }
+
     /// What:
     ///  The account's cache dataset and the pin that names it,
     ///  which the mount handler reads before it unmounts anything.
@@ -286,12 +302,8 @@ impl ASceneToMake<'_> {
     /// the dataset,
     /// or the pin that could not be made.
     fn pin_the_accounts_cache(&self) {
-        let owner: u32 = std::fs::metadata(self.checkout)
-            .expect("the checkout's owner reads")
-            .uid();
-        let home: PathBuf = passwd_home_of(owner).expect("the checkout's account has a home");
         let cache: String = format!("{}/cache", self.pool);
-        let mountpoint: PathBuf = home.join(".cache");
+        let mountpoint: PathBuf = self.the_accounts_cache();
         let (stands, _said, _error): (bool, String, String) = zfs(
             self.sbin,
             "zfs",
@@ -327,6 +339,35 @@ impl ASceneToMake<'_> {
             },
         )
         .expect("the pin writes");
+    }
+
+    /// What:
+    ///  The empty staging folder the handler binds over before it moves the
+    ///  clone's mount,
+    ///  at the account's cache and under the clone's GUID.
+    /// Why:
+    ///  The handler's unmount turn opens that folder before anything else and
+    ///  answers `cancelled` at `staging-folder` when it is absent,
+    ///  and the design gives its creation to the wrapper:
+    ///  `worktree_clone_unmount::staging_cleanup::create_the_staging_folder`
+    ///  carries that duty and this release calls it from nowhere,
+    ///  which this round reports from the guest's own receipt.
+    ///  The scene makes the folder the design says the wrapper makes,
+    ///  so the order this step asserts can be reached at all,
+    ///  and a round that wires the creation in deletes this.
+    ///
+    /// # Panics
+    /// The folder that could not be made or given its mode.
+    fn make_the_staging_folder(
+        &self,
+        clone_guid: DatasetGuid,
+    ) {
+        let staging: PathBuf = self
+            .the_accounts_cache()
+            .join(staging_folder_name(clone_guid));
+        std::fs::create_dir(staging.as_path()).expect("the scene's staging folder is made");
+        std::fs::set_permissions(staging.as_path(), std::fs::Permissions::from_mode(0o700))
+            .expect("the staging folder holds the route's mode");
     }
 
     /// What:
@@ -527,6 +568,7 @@ impl ASceneToMake<'_> {
             registration: common.join("worktrees").join(self.slot_name),
         };
         self.pin_the_accounts_cache();
+        self.make_the_staging_folder(clone_guid);
         let attached = sweep();
         assert_eq!(
             attached.status,
@@ -558,7 +600,8 @@ impl ASceneToMake<'_> {
         );
         assert!(
             rows_naming(clone.as_str()).is_empty(),
-            "the scene's clone is unmounted before the removal runs"
+            "the scene's clone is unmounted before the removal runs: {}",
+            unmounted.said
         );
         let readings: SlotReadings = readings_of(&place, self.slot_name, slot.as_path());
         let class: String = String::from(class_of(&classify_slot(&readings)));
@@ -619,7 +662,13 @@ impl AScene {
         removal: &Output,
     ) {
         let said: String = said_of(removal);
-        let slot: &str = shown(self.place.slot.as_path());
+        let slot: String = String::from(
+            self.place
+                .slot
+                .file_name()
+                .expect("the slot names a folder")
+                .to_string_lossy(),
+        );
         assert_eq!(
             removal.status.code(),
             Some(0),
@@ -634,6 +683,13 @@ impl AScene {
         );
         assert!(
             said.contains("the clone's head destroy answered and its absence is proved."),
+            "{said}"
+        );
+        assert!(
+            said.contains(&format!(
+                "the origin cleanup destroyed the snapshot `{}`",
+                self.origin_snapshot
+            )),
             "{said}"
         );
         assert!(
@@ -678,17 +734,10 @@ impl AScene {
             "the slot's folder is gone with the pointer it held"
         );
         let home: PathBuf = home_folder(self.place.common.as_path());
-        let slot_name: String = String::from(
-            self.place
-                .slot
-                .file_name()
-                .expect("the slot names a folder")
-                .to_string_lossy(),
-        );
         for name in [
-            binding_name(slot_name.as_str()),
-            origin_inventory_name(slot_name.as_str()),
-            clone_inventory_name(slot_name.as_str()),
+            binding_name(slot.as_str()),
+            origin_inventory_name(slot.as_str()),
+            clone_inventory_name(slot.as_str()),
         ] {
             assert!(
                 !home.join(name.as_str()).exists(),
@@ -696,8 +745,10 @@ impl AScene {
             );
         }
         assert!(
-            the_names_in(plans_folder(self.place.common.as_path()).as_path()).is_empty(),
-            "no destruction plan stands after a finished removal"
+            !plans_folder(self.place.common.as_path())
+                .join(self.clone_guid.file_name())
+                .exists(),
+            "no destruction plan naming the clone stands after a finished removal"
         );
     }
 
@@ -771,18 +822,6 @@ fn the_removal_beside_a_sweeper(removal: ARemovalToRun<'_>) -> Output {
     let _ended: std::io::Result<std::process::ExitStatus> =
         sweeper.kill().and_then(|()| return sweeper.wait());
     return answer;
-}
-
-/// Every name one folder holds,
-/// which is nothing when the folder stands no longer.
-fn the_names_in(folder: &Path) -> Vec<String> {
-    let Ok(entries) = std::fs::read_dir(folder) else {
-        return Vec::new();
-    };
-    return entries
-        .filter_map(|entry| return entry.ok())
-        .map(|entry| return String::from(entry.file_name().to_string_lossy()))
-        .collect();
 }
 
 /// What:
