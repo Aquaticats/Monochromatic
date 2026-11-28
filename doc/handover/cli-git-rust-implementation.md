@@ -2960,27 +2960,9 @@ and the two `truepeak` files wait on their branch.
   "The harness after 2026-11-27").
   They are lint-clean and kept;
   whether they are removed is the owner's.
-- `cargo-shadow`'s tests left processes and units behind.
-  At 2026-11-27T07:05-05:00 the host held 25 orphaned shells,
-  each polling a release file every 50 ms for up to twelve hours,
-  left by the killed-wrapper control whenever it ended before its release line;
-  the coordinator ended them with `SIGTERM` after checking each one's command line,
-  parent and age,
-  and issue 6576's round gave every gate-waiting test program a count of its own
-  and the control a guard and a leak control (`cf98f01e22`).
-  That round also saw `cargo-shadow-<id>.scope` units that stay active with no member,
-  twelve of 11,360 started that morning.
-  Issue 6578's round found the cause,
-  which `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md` already held:
-  the manager attaches the `systemd-run` launcher to the scope,
-  and when the run kills that launcher while the start job runs,
-  the manager counts an exiting process as attached and never hears the group empty.
-  The runner now asks the manager to stop its unit when its run ends and the scope is empty (`5daa8810b9`;
-  300 starts at a 40 ms bound left 34 units before and none after,
-  and a stop of such a unit took 4 to 5 ms).
-  The issue is reopened for one unit the round's last whole-suite run left,
+- Issue 6578 is reopened for one `cargo-shadow-<id>.scope` unit that a round's last whole-suite run left,
   which no single module reproduced.
-  The coordinator stopped the twelve.
+  The coordinator stopped the twelve units of that shape that had been left.
 - Worktrees of ended,
   merged rounds are not all removed.
   A removal of eleven on 2026-11-27 removed none:
