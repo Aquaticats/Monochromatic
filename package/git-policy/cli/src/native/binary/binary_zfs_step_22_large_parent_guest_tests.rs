@@ -169,7 +169,8 @@ fn one_sweep(
     }
     assert_eq!(
         attached, count,
-        "the {count}-clone sweep attached every clone it was given"
+        "the {count}-clone sweep attached every clone it was given; the sweep said: {}",
+        run.said
     );
     return run.elapsed.as_millis();
 }
@@ -182,6 +183,9 @@ fn one_sweep(
 ///  mount,
 ///  so a count is measured by holding exactly that many clones rather than by
 ///  turning others' requests off.
+///  A clone is taken away with its slot folder left standing,
+///  because the sweep refuses a folder whose inode changed since it recorded the identity,
+///  and a later visit to the same count gives that folder its clone back.
 fn grow_to(
     fixture: &Fixture,
     present: &mut usize,
@@ -196,7 +200,7 @@ fn grow_to(
     }
     while *present > count {
         *present -= 1;
-        fixture.forget(
+        fixture.drop_the_clone(
             parent_name(*present).as_str(),
             parent_seed(*present).as_str(),
         );

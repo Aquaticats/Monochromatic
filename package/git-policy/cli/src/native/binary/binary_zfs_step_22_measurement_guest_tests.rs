@@ -685,6 +685,31 @@ impl Fixture {
         make_the_slot(self.root.as_path(), name);
     }
 
+    /// What:
+    ///  Take one of the arm's own clones away with the checkout snapshot it was cloned from,
+    ///  and leave its slot folder standing.
+    /// Why:
+    ///  The sweep records a slot folder's identity the first time it attaches a clone there and refuses a folder whose
+    ///  inode has changed since, so a parent that takes a clone away and later gives it one again has to keep the
+    ///  folder: a first run of the past-64 arm removed the folder with `forget` and the sweep then refused every
+    ///  slot it gave a clone back to.
+    pub(super) fn drop_the_clone(
+        &self,
+        name: &str,
+        seed: &str,
+    ) {
+        let clone: String = self.clone(name);
+        let snapshot: String = format!(
+            "{}@git-worktree-clone-origin-{}",
+            self.checkout,
+            nonce(seed)
+        );
+        let _destroyed: (bool, String, String) = self.zfs(&["destroy", "-r", "-f", clone.as_str()]);
+        let _snapshot: (bool, String, String) = self.zfs(&["destroy", "-f", snapshot.as_str()]);
+        let _inherited: (bool, String, String) =
+            self.zfs(&["inherit", DESIRED_STATE, self.container.as_str()]);
+    }
+
     /// Take one of the arm's own clones away,
     /// with the checkout snapshot it was
     /// cloned from,
