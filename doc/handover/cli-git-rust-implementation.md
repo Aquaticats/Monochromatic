@@ -1046,7 +1046,10 @@ Unapproved and non-final.
   go past a plan that cannot be read and destroy a clone the wrapper cannot prove;
   one force passes the plan and a clone at the staging folder;
   without force those two states now refuse.
-  It also closes a defect the released `0.6.1-alpha.53` carries:
+  By that round's reading of the source,
+  held by a control on the value layer
+  and never run against the released binary or a real pool,
+  it also closes a defect the released `0.6.1-alpha.53` carries:
   nothing read the files at a bound slot,
   so a slot whose worktree held modified or untracked files had its clone destroyed with no force.
   Its picks are in `doc/handover/questions-for-the-owner.md`.
@@ -1078,6 +1081,65 @@ Unapproved and non-final.
   6664,
   and one for a control that fails only in the threaded run of its module
   (`a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words`).
+
+#### Started and done between 08:02 and 08:16
+
+Unapproved and non-final.
+
+- Merge `034df18341` holds the whole of the guest drivers' round,
+  which has ended.
+  A wrapper driver's arm ran on OVHcloud:
+  two of the doctor driver's three guest tests passed there,
+  and the third failed on a difference `main` itself carries.
+  The times and the two things that do not run there are in
+  `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "The first arm of a wrapper driver on OVHcloud".
+- Merge `5cdc551979` joins the two `cargo-shadow` rounds on the alpha.18 read,
+  with no control's assertion changed.
+  The release of `0.1.5-alpha.19` is dispatched (run 46148606612) and followed;
+  its lock and its second pass follow.
+- The second pass on `mpm-shadow` `0.2.7-alpha.21` came back with no High,
+  one Medium and eight Low.
+  The Medium:
+  a report that cannot be written still ends an install between its plan and its sync.
+  The round `mpm-shadow-alpha-21-read-a-report-that-cannot-be-written-ends-no-install-between-its-plan-and-its-sync`
+  answers it.
+- The `mvm` package's unit task and the wrapper package's TypeScript unit task both passed on `main`
+  after the three merges taken ahead of the guest drivers' round.
+- Every line this morning's OVHcloud merges added was scanned for addresses,
+  identifiers,
+  machine names made by a run and key values,
+  and held none.
+- The sizes revision round was told to quote nothing from the session's probe log,
+  and the fix round on the alpha.53 read to merge `main` first.
+
+#### Started and done between 08:16 and 08:24
+
+Unapproved and non-final.
+
+- `cargo-shadow` `0.1.5-alpha.19` is published and locked (merge `5391c22a3c`),
+  and its second pass by Claude Sonnet runs.
+- Merge `95f65ed945` closes issue 6664:
+  the one-shot `run` hands the asked numbers to its create on every backend.
+  Its billed run read a guest's own memory total,
+  recorded in `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "What a size's memory number comes to inside the guest".
+- Four proposal revisions are merged,
+  each report read whole:
+  the development profile (`e74da32adf`),
+  the hosted runners (`59710d26b0`),
+  the line-break proposal (`4715cc382e`) and the sizes proposal (`60dc28feff`).
+  A gate read by Claude Sonnet runs on each;
+  the line-break one is narrowed to the four High findings of the read before it.
+- Issue 6666:
+  the built price read on OVHcloud prices the instance row
+  and leaves the public IPv4 and local storage out.
+- Corrective comments are posted on three pushed commits whose messages their rounds reported as inaccurate
+  (`934451eba0`,
+  `4484c1e095`,
+  `3316dea634`).
+- Ended and not yet read:
+  the Dylint proposal's third revision and the crate split proposal's second.
 
 #### The line-break proposal
 

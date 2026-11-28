@@ -1,0 +1,32 @@
+== clock 2026-11-28T13:05:19+00:00
+== image localhost/dylint-probe-2026-11-28c
+== rustup
+info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`
+== a toolchain installed with the minimal profile, and a file that declares components it lacks
+install minimal status 0
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager
+--- components before
+cargo-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+== arm A: the supported step, rustup toolchain install with no argument, in that directory
+a rustup toolchain install status 0
+info: using existing install for nightly-2026-11-19-x86_64-unknown-linux-gnu
+info: syncing channel updates for nightly-2026-11-19-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-19 for version 1.102.0-nightly (65ce8611f 2026-11-18)
+info: downloading 2 components
+info: the active toolchain `nightly-2026-11-19-x86_64-unknown-linux-gnu` has been installed
+info: it's active because: overridden by '/work/probe-e/rust-toolchain.toml'
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager
+--- components after
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== arm B: what a bare rustup show active-toolchain does in the same directory
+b show status 0
+nightly-2026-11-19-x86_64-unknown-linux-gnu (overridden by '/work/probe-e/rust-toolchain.toml')
+== done 2026-11-28T13:05:58+00:00

@@ -5084,8 +5084,10 @@ from the build's report and the proposal's second gate read:
   Whether the build's price read counts them is not checked;
 - `--memory` is compared with the catalogue's own memory number with no unit change,
   so `--memory 4` is met by a size listed with 4.
-  The repository's comment calls that number GiB and the proposal treated it as GB;
-  one create settles which;
+  A billed run has since read it:
+  the guest of such a size counts 3,906,272 kB,
+  about 3.73 GiB,
+  7.4 percent under the number asked for and printed (merge `95f65ed945`);
 - the build leaves the storage family `i1` out,
   where the proposal's allow-list kept it;
 - a clone that is given either number refuses,
@@ -5116,7 +5118,10 @@ whose scratch expires a day after its last change:
   so a person has no way out of that state in this build;
 - a worktree with modified or untracked files refuses without force and passes one force,
   which is Git's own gradation.
-  Before this merge the clone was destroyed with no force at all;
+  Before this merge,
+  by the round's reading of the source and its control on the value layer,
+  the clone was destroyed with no force at all;
+  no run against the released binary or a real pool shows it yet;
 - the bookmark rule is waived whenever a force was given,
   and the report names each bookmark that went;
 - a spelling Git itself refuses counts as no force;

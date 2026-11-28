@@ -186,23 +186,38 @@ export async function ovhPull({
  
  @param from - source VM to clone from (fresh VM when omitted)
  
+ @param memoryGiB - least memory the fresh machine may have, in gibibytes; a
+ clone keeps the source's size, so a floor beside `from` is refused
+ 
+ @param vcpus - fewest virtual CPUs the fresh machine may have; a clone keeps
+ the source's size, so a floor beside `from` is refused
+ 
  @returns captured stdout, stderr, and exit code
+ 
+ @throws Error when a floor is asked beside a source machine to clone
  
  @example
  ```ts
  const result = await ovhRun({ command: 'uname -a' });
+ const sized = await ovhRun({ command: 'nproc', memoryGiB: 4, vcpus: 2 });
  ```
  */
 export function ovhRun({
   command,
   from,
+  memoryGiB,
+  vcpus,
 }: {
   readonly command: string;
   readonly from?: string;
+  readonly memoryGiB?: number;
+  readonly vcpus?: number;
 },): Promise<ExecResult> {
   return ephemeralRun({
     command,
     ...(from !== undefined ? { from, } : {}),
+    ...((memoryGiB === undefined) ? {} : { memoryGiB, }),
+    ...((vcpus === undefined) ? {} : { vcpus, }),
     ops: {
       clone: ovhClone,
       create: ovhCreate,

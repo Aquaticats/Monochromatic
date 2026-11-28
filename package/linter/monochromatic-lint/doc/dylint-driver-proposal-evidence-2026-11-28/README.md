@@ -125,6 +125,17 @@ printed in each `run.txt`).
   the second same-vendor gate read,
   whole,
   with the probes it ran.
+- `gate-read-third-2026-11-28/`:
+  the third same-vendor gate read,
+  whole,
+  with the probes it ran,
+  and `findings-answered.md`,
+  which answers every finding of all three reads and carries the third revision's report.
+- `third-round-2026-11-28/`:
+  the third round's measurements and probes,
+  with a `README.md` saying which state each arm stands for,
+  the `Containerfile` and scripts that made them,
+  and the image's digest.
 
 ## The measurements
 
@@ -196,15 +207,24 @@ printed in each `run.txt`).
 
 `scripts/quotations.tsv` lists every quotation the proposal uses with the file it comes from,
 and `scripts/check-quotations.ts` checks each one after normalising whitespace.
-It was run on 2026-11-28 and reported `33 of 33 quotations matched`.
+It was last run on 2026-11-28 by the third revision and reported `92 of 92 quotations matched`.
+Two rows that quoted `doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md`
+were removed by that revision,
+because the sentences they quoted are no longer in that record and the
+revision's text does not quote it.
 The issue and the CI step are quoted from the captures in `issue/` and `ci/`.
 The upstream quotations come from the tag's tarball,
 whose excerpts are in `upstream/dylint-v6.4.0-excerpts.txt` with the tarball's sha256.
 
 ## The scripts
 
-`scripts/` holds the in-container script of each measurement.
+`scripts/` holds the in-container script of each measurement of the first two rounds.
 Each was copied into its container and run there;
 the host wrapper that started the container is described above and is not kept,
 because its paths
 name the run's scratch folder.
+
+The third round keeps its host scripts as well,
+in `third-round-2026-11-28/scripts/`,
+because they write the linter configuration and copy the toolchain file the K1 measurement needs,
+and a rerun needs those two files to be the same bytes.

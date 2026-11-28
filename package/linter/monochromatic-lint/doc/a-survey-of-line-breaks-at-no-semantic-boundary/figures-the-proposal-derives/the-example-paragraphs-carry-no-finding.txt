@@ -1,0 +1,43 @@
+# The example paragraphs, against a run of the installed binary
+
+The proposal says each quoted paragraph carries no finding of the shipped rule.
+That claim rests on this run: the linter the toolchain installs,
+`monochromatic-lint 0.5.2-alpha.25`, over copies of the files at the survey commit,
+in a scope, with a one-rule configuration.
+
+The run is alpha.25 and the text is the survey commit's,
+so the two differ where the emphasis climb of `fc679b9392` counts a break differently;
+no example's paragraph holds such a break.
+
+## the configuration
+
+```jsonc
+[
+  {
+    "files": ["**/*.md", "**/*.rs"],
+    "rules": {
+      "markdown/semantic-line-breaks": { "severity": "error" }
+    }
+  }
+]
+```
+
+## the command
+
+```text
+$ monochromatic-lint --config example-paragraphs-config.jsonc <copies of the files at the survey commit>
+```
+
+## what it reported, per quoted file
+
+- `doc/philosophy/agents.md`: the run reports on 3 lines (1065, 1069, 1079); in the quoted lines [(180, 181), (312, 314), (605, 607)]: none
+- `package/git-policy/cli/src/native/service/wait_ceilings.rs`: the run reports on 0 lines; in the quoted lines [(70, 72), (191, 193)]: none
+- `doc/audit/tech-mold-linker-vet-2026-10-05.md`: the run reports on 0 lines; in the quoted lines [(786, 787)]: none
+- `.agents/skills/choosing-technology/SKILL.md`: the run reports on 1 line (308); in the quoted lines [(151, 152), (688, 689)]: none
+- `.agents/skills/android-emulator/SKILL.md`: the run reports on 0 lines; in the quoted lines [(22, 23)]: none
+- `.agents/skills/css/SKILL.md`: the run reports on 0 lines; in the quoted lines [(54, 55), (170, 171)]: none
+- `.agents/skills/project-code-review/PHILOSOPHY.md`: the run reports on 0 lines; in the quoted lines [(24, 25)]: none
+
+Findings inside a quoted paragraph: 0.
+
+The whole run also covered the 163 `doc/audit` copies this round made, which are not quoted here.

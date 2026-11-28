@@ -387,6 +387,49 @@ export function scriptedStandIn(answers: readonly Response[],): StandIn {
 }
 
 /**
+ Answers requests from a table of planned answers, one queue per method and
+ path, so a test states only the answers it expects and a request it did not
+ plan fails loudly.
+ 
+ @param routes - queued answers keyed by `METHOD path`
+ 
+ @returns a handler for {@link installStandIn} that fails on an unplanned request
+ 
+ @example
+ ```ts
+ installStandIn(routedAnswers({ 'GET /v1/cloud/project/x/instance': [jsonAnswer([])] }));
+ ```
+ */
+export function routedAnswers(
+  routes: Readonly<Record<string, readonly Response[]>>,
+): Handler {
+  /**
+   Answers not yet handed out, per method and path.
+   */
+  const queues = new Map<string, Response[]>();
+  for (const [key, answers,] of Object.entries(routes,)) {
+    queues.set(
+      key,
+      [...answers,],
+    );
+  }
+  return function answer(call,) {
+    /**
+     Answers still queued for this request.
+     */
+    const queue = queues.get(`${call.method} ${call.path}`,);
+    /**
+     Next planned answer, if the test planned one.
+     */
+    const next = queue?.shift();
+    return next ?? failureAnswer({
+      message: `the stand-in planned no answer for ${call.method} ${call.path}`,
+      status: 500,
+    },);
+  };
+}
+
+/**
  The requests recorded so far, filtered to one method and path.
  
  @param calls - recorded calls

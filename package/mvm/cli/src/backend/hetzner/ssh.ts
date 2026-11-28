@@ -32,7 +32,7 @@ import {
   OPENSSH_REMEDY,
   SSH_USER,
 } from './config.ts';
-import { PRIVATE_KEY_PATH, } from './ssh-key.ts';
+import { privateKeyPath, } from './ssh-key.ts';
 
 import { scratchParent, } from '../../scratch-parent.ts';
 /**
@@ -86,7 +86,7 @@ const SSH_CONNECTION_FAILURE = 255;
 export function sshBaseOpts(): readonly string[] {
   return [
     '-i',
-    PRIVATE_KEY_PATH,
+    privateKeyPath(),
     '-o',
     'UserKnownHostsFile=/dev/null',
     '-o',

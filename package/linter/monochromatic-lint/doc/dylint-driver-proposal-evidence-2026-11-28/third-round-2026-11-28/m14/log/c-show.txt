@@ -1,0 +1,4 @@
+info: syncing channel updates for nightly-2026-11-17-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-17 for version 1.102.0-nightly (5df8c02af 2026-11-16)
+info: downloading 2 components
+nightly-2026-11-17-x86_64-unknown-linux-gnu (overridden by '/work/probe-c/rust-toolchain.toml')

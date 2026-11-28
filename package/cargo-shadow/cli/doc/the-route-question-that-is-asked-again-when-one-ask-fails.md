@@ -211,7 +211,10 @@ and what that ask answers decides the asking (`the_manager_answered_a_start`,
 
 - a path is the route and is used,
   whatever the start's words said,
-  because a start whose reply was lost leaves a slice that really was started;
+  because a start whose reply was lost leaves a slice that really was started
+  (what a job beside that path means is a separate question,
+  and after a start that spent its bound the path is refused:
+  "A start that spent the bound leaves no route" below);
 - an empty answer ends the asking where the start's own words are the manager's answer about the slice:
   they name the slice after `Failed to start <slice>: ` and carry none of the words a transport that went away prints.
   A masked slice's refusal does not change with a wait:
@@ -273,14 +276,25 @@ four more for the arms above:
 a path the ask after a failed start reports is the route,
 a start that never reached the manager is put again,
 a start that failed and the ask after it failing too is put again,
-and a stop job queued on the slice is asked through before the route is taken.
-Since 2026-11-28 the same file holds two more:
+and a stop job queued on the slice is asked through before the route is taken,
+and four more came with the second read of `0.1.5-alpha.18`,
+two from each of the two rounds that answered it (2026-11-28):
 a start that spent its bound leaves no route beside the job it left queued,
 and an answer about a group that is not the slice is no route
 (both under "What a start that met a moment does" below,
-with what each showed on the code before it).
-The last two are not made red by the change being taken out:
-the bound rule is a rule about one program,
+with what each showed on the code before it),
+a start that spent the bound the ask gave it is not put again,
+and a path beside a job that a successful start's last ask reports is the route.
+Those four tell the two states a start can leave:
+where the start spent its bound,
+the path beside the job it left queued is no route and the asking does not go on;
+where the start ended inside its bound,
+the same path beside a job is still the route.
+The reading of a failed start's words and the shape of the question are held by their own controls since 2026-11-28
+(`control_group_route_one_ask::one_ask_tests::the_manager_answered_a_start_tells_its_refusal_from_a_moment_and_from_other_words`,
+`...::the_question_asks_for_the_slice_s_control_group_and_the_job_queued_on_it`).
+The rounds that added those four recorded that taking that asking again out does not redden them:
+the bound rules are rules about one program,
 and the manager that answers nothing is asked once either way.
 The question that fails at once and the question that keeps failing are:
 with `ASKING_AGAIN_ATTEMPTS` at one they both fail,
@@ -386,9 +400,11 @@ the rest of a call.
 A reexec that begins after the discovery has answered fails everything after it,
 in both releases.
 A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
-0 to 110 ms after each of its 24 calls began,
-so every discovery was done before the window opened,
-and 11 of the 24 calls exited 1
+0 to 110 ms after each of its 24 calls began.
+In 12 of those 24 the window opened while the discovery was still asking,
+and every one of the twelve exited 0:
+the asking again rode through it.
+The 11 calls that exited 1 met the window after the discovery had answered
 (7 of `0.1.5-alpha.16`'s 12 and 4 of `0.1.5-alpha.17`'s 12,
 every one on the delegated route),
 with the scope launcher's
@@ -507,6 +523,28 @@ Its four gaps with the edit were 174.6 ms,
 so the edit showed in one gap of the four:
 this host's work around the sleep can be as long as the difference the control is about,
 and only the shortest gap speaks.
+
+### The control of the pause's other side
+
+`the_pauses_of_the_asking_again_are_no_longer_than_the_pause_the_call_site_sleeps`
+(`src/control_group_route_discovery_reexec_tests.rs`) is the control of the same gaps bounded from above,
+and it was added on 2026-11-28 because the control above holds only the lower bound:
+with `std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` at the call site its gaps were 406.5 ms to 407.5 ms and it stayed green,
+with a span of 1.6 s where these records name 0.800 s
+(a same-vendor second read of `0.1.5-alpha.18` named that edit).
+It requires the shortest of the four gaps to be no more than `ASKING_AGAIN_PAUSE` plus `THE_MOST_A_GAP_OUTLASTS_THE_PAUSE`
+(150 ms),
+which is the work of starting,
+reading and reaping two stand-ins as this host measures it:
+with the pause in place the four gaps were 208.0 ms,
+207.0 ms,
+206.2 ms and 207.9 ms in one run of 2026-11-28,
+so the work cost at most 8.0 ms there,
+and under the doubled sleep the same control failed with
+`the shortest pause between two asks was 404.084351ms, longer than the 200ms the call site sleeps plus the 150ms the work around it is measured to take, so the span is not the 800ms the records name`.
+It bounds the shortest gap and not the whole span,
+because one gap of four can carry hundreds of milliseconds of this host's work under load while the others do not,
+and it does not catch a pause that grew by less than its allowance.
 
 ### What a call costs where no manager answers, before and after issue 6629's change
 
@@ -968,7 +1006,9 @@ outside a container it prints what it did not do and ends.
 - `a_bus_address_naming_a_socket_keeps_the_asking_again_where_a_runtime_directory_is_set`;
 - `a_bus_socket_beside_a_bus_address_is_not_a_transport_the_ask_takes`;
 - `an_address_this_process_cannot_judge_keeps_the_asking_again`;
-- `the_manager_s_own_directory_keeps_the_asking_again`.
+- `the_manager_s_own_directory_keeps_the_asking_again`;
+- `a_plain_file_at_a_bus_address_is_not_a_transport_the_ask_takes`;
+- `a_directory_at_a_bus_address_is_not_a_transport_the_ask_takes`.
 
 The first two cover the two ways a host has no manager that a container,
 a CI job or a session without a manager gives,
@@ -996,6 +1036,13 @@ and under that edit it failed in 0.039 s with one ask where it requires five.
 an escaped byte,
 another transport),
 and `the_manager_s_own_directory_keeps_the_asking_again` the reexec tolerance the directory is for.
+The two that judge what kind of file an address names
+(`a_plain_file_at_a_bus_address_is_not_a_transport_the_ask_takes` and
+`a_directory_at_a_bus_address_is_not_a_transport_the_ask_takes`) were added on 2026-11-28:
+no control planted anything but a socket node at an address's path,
+so `is_a_socket` replaced by a check that the path exists left the whole suite green,
+and each of them requires one ask and fails in five under that edit
+(a same-vendor second read of `0.1.5-alpha.18` named it).
 
 The other probes of earlier rounds keep their answers:
 a runtime directory that does not exist and an address naming a socket that is not there end the asking at one ask,
@@ -1164,7 +1211,8 @@ a same-vendor second read of this release measured on 2026-11-27
 88 ms to 96 ms with 20,
 294 ms to 372 ms with 600),
 so the two can meet,
-and that read reached the state in 2 of its 24 calls whose reexec was aligned to the call's start.
+and that read reached the state in 2 of the 12 calls of `0.1.5-alpha.17` whose reexec was aligned to the call's start,
+and in none of the 12 of its byte-identical copy or of its 9 calls against a loaded manager.
 What it would print is a refusal of the shape of the three above,
 which names the unit and the verb and is a transport that died.
 That state is read the other way since 2026-11-27:
@@ -1467,8 +1515,9 @@ and the figure above is the run as it was measured then.
   and a window inside that one program start would make a transport failure read as the manager's answer,
   which would refuse the call.
   The three asks of the start-failure shape measured above are what it would look like.
-  A same-vendor second read of 2026-11-27 reached the state in 2 of its 24 calls
+  A same-vendor second read of 2026-11-27 reached the state in 2 of the 12 calls of `0.1.5-alpha.17`
   whose reexec was aligned to the call's start,
+  and in none of the 12 of its byte-identical copy or of its 9 calls against a loaded manager,
   and the window a connect is refused in was 65 ms to 372 ms long in its containers,
   against a gap of one program start.
   A host whose `app.slice` is inactive and whose manager reexecutes at that instant is the state,
@@ -1482,6 +1531,78 @@ and the figure above is the run as it was measured then.
   or the failure stays as it is,
   which costs a failed call inside that window.
   No measurement here says how often a call meets one.
+- Low 2 of the `0.1.5-alpha.18` read,
+  2026-11-28:
+  a refusal for good whose words do not name the slice after the verb.
+  Such a start is read as a moment,
+  so the whole question is put again,
+  and each attempt makes three asks:
+  15 asks where `0.1.5-alpha.17` made 3.
+  The manager's own words for a dependency job that failed,
+  for a cyclic transaction order,
+  for a masked dependency and for a missing one all name no slice after `Failed to start app.slice: `,
+  so none of them ends the asking.
+  Measured by that read,
+  six interleaved rounds per state,
+  a call's time as a ratio to `0.1.5-alpha.17` in the same round,
+  with a byte-identical copy of that release as the control:
+  8.47 (6.32 to 10.38) for a dependency that fails every time,
+  8.55 (6.32 to 10.93) for a cyclic order,
+  8.97 (7.60 to 11.69) for a masked dependency,
+  8.87 (5.28 to 9.99) for a missing one,
+  against 1.05 (0.98 to 1.15) for a masked slice,
+  whose words do name it.
+  A dependency that sleeps eight seconds and then fails:
+  15 asks and 41.9 s to 49.5 s a call,
+  against 8.3 s to 10.7 s (ratios 5.2 and 5.6,
+  then 4.1 and 5.0).
+  The worst case the loop allows is five attempts of up to three programs of up to ten seconds each,
+  which is 150 s and 0.8 s of pauses.
+  What is open is whether fifteen asks are worth refusing a person's broken unit configuration at once,
+  which means a rule about the manager's words beyond the four transport phrases,
+  and nothing here measures how often a person meets that state.
+- Low 3 of the `0.1.5-alpha.18` read,
+  2026-11-28:
+  the early ends that remain,
+  each measured by that read on 2026-11-28:
+
+  - a dependency of `app.slice` that starts slower than `DISCOVERY_BOUND`:
+    the weaker path in 9 of 9 calls of each of `0.1.5-alpha.16`,
+    `0.1.5-alpha.17` and this release,
+    after 10.4 s to 10.9 s,
+    with the slice active a few seconds later;
+  - a `show` that hangs on a busy host:
+    one call of 15 spent the bound in a state whose start job was already queued,
+    took 18.2 s and took the weaker path;
+  - a slice stopped between a successful start and the final ask:
+    the weaker path in 9 of 9 calls,
+    in 3 asks,
+    staged with a stand-in that stops the slice before returning;
+  - a stop job queued after a successful start:
+    the final ask answers a path beside a job,
+    the path is taken,
+    and the scope is refused as destructive,
+    so the call exits 1 in 9 of 9 calls of both releases.
+    The stop must land in the milliseconds between the start's return and the last ask.
+
+  What is open is whether any of them should be tried again,
+  and what a path beside a queued job should mean after a successful start,
+  which no control staged before 2026-11-28,
+  and which `asking_again_tests::a_path_beside_a_job_after_a_successful_start_is_taken_as_the_route`
+  now holds as it is.
+- Low 4 of the `0.1.5-alpha.18` read,
+  2026-11-28:
+  a call's start replaces a person's stop of `app.slice`.
+  Measured nine seconds after the call:
+  the slice was active under `0.1.5-alpha.18` where it was inactive under `0.1.5-alpha.17`,
+  two calls an arm,
+  with a service holding the slice for four seconds and the stop issued 0.7 s before the call.
+  `systemctl start` puts its job in `replace` mode,
+  so the discovery's start cancels the queued stop and the slice comes back active,
+  and a person who stopped the slice for a configuration change finds it running again.
+  The README says so where the queued stop is described.
+  What is open is whether that is what a call should do,
+  or whether a slice a person stopped should keep a call on the weaker path until the stop has finished.
 - Whether an empty `$XDG_RUNTIME_DIR` beside a live address should end the asking.
   systemd 262 treats an empty variable as a set one and refuses at once (`/systemd/private`),
   while the read names the address and keeps the asking,
