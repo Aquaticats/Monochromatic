@@ -1262,8 +1262,10 @@ and the linter applies a whitespace-class fix under plain `--fix`.
 and it is the only long corpus whose wrapping this round can read in a form that predates the class.
 It is not evidence of the owner's hand:
 `555` commits touch it,
-`100` of them carry a `Co-Authored-By` trailer naming Claude models or a bot,
+`102` of them carry a `Co-Authored-By` trailer naming a model or a bot,
 and rule GAP tells agents to edit it.
+The counts are in
+`figures-the-proposal-derives/the-sweeps-and-the-hold-in-the-records.txt`.
 So the wrapping below is the file's,
 written by whoever made those commits,
 and this proposal does not attribute it to the owner.

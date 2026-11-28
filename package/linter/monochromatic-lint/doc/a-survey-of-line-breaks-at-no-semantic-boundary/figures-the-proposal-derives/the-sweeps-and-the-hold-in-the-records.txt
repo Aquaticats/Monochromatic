@@ -106,3 +106,17 @@ $ git show c84e2f1dbf:doc/handover/old-git-wrapper-handover-being-sorted-into-re
 $ git log --format=%s --since=2026-11-05 bc5b4ca2ba | rg -c "line.?breaks?|semantic.?line"
 325
 ```
+
+## who wrote AGENTS.md, as far as the commits say (read-only)
+
+```
+$ git log --format=%H -- AGENTS.md | wc -l
+555
+
+$ git log --format=%B -- AGENTS.md | rg -c "^Co-Authored-By: .*(Claude|claude|bot)"; (commits carrying such a trailer)
+84
+
+$ git log --format=%H -- AGENTS.md | while read -r c; do git show --no-patch --format=%B "$c"; done | rg -c "^Co-Authored-By: .*(Claude|claude|bot)"  # commits, not trailer lines
+/bin/bash: line 1: warning: command substitution: ignored null byte in input
+commits touching the file: 555; commits carrying a Co-Authored-By trailer naming a model or a bot: 102
+```
