@@ -402,7 +402,7 @@ fn zfs_removal_force_guest_a_clone_the_wrapper_cannot_prove_arm() {
         );
         assert_eq!(arm.plan_entries(), 0, "no plan was written");
     }
-    let sweeper: Child = arm.start_the_sweeper();
+    let two_forces_sweeper: Child = arm.start_the_sweeper();
     let two: std::process::Output = arm.wrapper_git(&[
         "worktree",
         "remove",
@@ -410,7 +410,7 @@ fn zfs_removal_force_guest_a_clone_the_wrapper_cannot_prove_arm() {
         "--force",
         shown(arm.place.slot.as_path()),
     ]);
-    arm.stop_the_sweeper(sweeper);
+    arm.stop_the_sweeper(two_forces_sweeper);
     let said: String = Arm::said(&two);
     assert_eq!(
         two.status.code(),

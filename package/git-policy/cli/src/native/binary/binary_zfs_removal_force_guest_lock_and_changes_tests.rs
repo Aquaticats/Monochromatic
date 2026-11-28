@@ -104,9 +104,9 @@ fn zfs_removal_force_guest_a_persons_lock_arm() {
         "REMOVAL-FORCE arm=5 lock=git-wrote-it at={} mode=0644 words={THE_LOCK_REASON}",
         lock_path.display()
     );
-    for (count, words) in [("none", Vec::<&str>::new()), ("one", vec!["--force"])] {
+    for (count, force_words) in [("none", Vec::<&str>::new()), ("one", vec!["--force"])] {
         let mut arguments: Vec<&str> = vec!["worktree", "remove"];
-        arguments.extend(words);
+        arguments.extend(force_words);
         arguments.push(shown(arm.place.slot.as_path()));
         let answer: std::process::Output = arm.wrapper_git(arguments.as_slice());
         let said: String = Arm::said(&answer);
