@@ -1,10 +1,9 @@
 //! What:
 //!  The units' guest arm:
 //!  the plan a setup run writes is written at the paths systemd reads,
-//!  systemd parses every file,
+//!  every unit file is parsed by `systemd-analyze verify`,
 //!  and the loaded units report the ordering,
-//! the bounds and the drop-ins the
-//!  owner's answers fix.
+//! the bounds and the drop-ins the owner's answers fix.
 //! Why:
 //!  a unit's text can be right as a string and still be refused by systemd or
 //!  carry an order the manager derives differently,
@@ -12,11 +11,24 @@
 //!  (rule `MHX`:
 //! a service manager runs in a guest,
 //! never on this host).
+//!  Only unit files go to the verifier:
+//!  `systemd-analyze verify` refuses any drop-in path by name
+//!  (`Failed to prepare filename .../x.service.d/y.conf: Invalid argument`,
+//!  measured in the step 19 guest of 2026-11-27),
+//! so a drop-in is proved
+//!  through the manager's own view of the unit it belongs to.
+//!  A unit whose `BindsTo=` names the checkout's mount unit cannot be verified
+//!  offline either,
+//!  because the manager learns that unit from the mount table and writes no file
+//!  (measured the same day:
+//! `Failed to create checkout-propagation.service/start:
+//!  Unit home-....mount not found`),
+//!  so the pair is proved through the manager's `Upholds=` and `UpheldBy=`.
 //!  The gate is only loaded and read,
 //! never started:
 //!  starting it would run `boot-reconcile` against a machine's own store,
-//!  which is the step's own runbook arm and not this text's proof.
-//!  Every child runs as a process group of its own with a deadline,
+//!  which is the reboot arm's own work and not this text's proof.
+//!  Every child runs with a deadline,
 //!  and the files this arm writes are removed on its last line.
 //!  On any other machine the arm prints `SKIPPED` and returns,
 //!  which is the shape step 8's guest arms use:
@@ -44,7 +56,14 @@ use crate::checkout_boot_units::boot_unit_facts::{
     NestedDatasetMount,
 };
 use crate::checkout_boot_units::boot_unit_install_plan::install_plan;
-use crate::checkout_boot_units::boot_unit_names::BOOT_GATE_UNIT_NAME;
+use crate::checkout_boot_units::boot_unit_names::{
+    BOOT_GATE_UNIT_NAME,
+    PROPAGATION_SERVICE_NAME,
+    PROVIDER_UNIT_NAME,
+    mount_unit_name,
+    nested_unit_name,
+};
+use crate::checkout_boot_units::unit_text_sections::unit_files_of;
 use crate::test_support::spawn_owned;
 use std::path::PathBuf;
 use std::process::{
@@ -78,7 +97,7 @@ pub const SYSTEMD_ANALYZE: &str = "/usr/bin/systemd-analyze";
 /// The manager the guest's own service manager is reached through.
 pub const SYSTEMCTL: &str = "/usr/bin/systemctl";
 
-/// How long one child may take before the arm ends its group.
+/// How long one child may take before the arm ends it.
 /// Value:
 ///  120 s,
 /// because `systemd-analyze verify` of a handful of units answers in
@@ -86,21 +105,21 @@ pub const SYSTEMCTL: &str = "/usr/bin/systemctl";
 const COMMAND_DEADLINE: Duration = Duration::from_secs(120);
 
 /// The output one bounded child wrote.
-struct Answer {
+pub(crate) struct Answer {
     /// The bytes it wrote to standard output and error,
     /// joined.
-    said: String,
+    pub said: String,
     /// Whether it exited zero.
-    succeeded: bool,
+    pub succeeded: bool,
 }
 
-/// Run one command as a group of its own and wait for it at most `COMMAND_DEADLINE`.
+/// Run one command and wait for it at most `COMMAND_DEADLINE`.
 ///
 /// Why:
 ///  a hung `systemd-analyze` or manager call would hold the whole test run,
 /// so
-///  the wait ends and the group is ended with it.
-fn run_bounded(
+///  the wait ends and the child is ended with it.
+pub(crate) fn run_bounded(
     program: &str,
     arguments: &[&str],
 ) -> Answer {
@@ -187,7 +206,7 @@ fn write_plan_file(file: &InstalledUnitFile) {
     .unwrap_or_else(|error| panic!("{} takes its mode: {error}", file.path.display()));
 }
 
-/// Whether one loaded unit's property carries the wanted text.
+/// Ask the manager for one unit's property and require it to carry a text.
 fn property_holds(
     unit: &str,
     property: &str,
@@ -206,6 +225,88 @@ fn property_holds(
     );
 }
 
+/// What:
+///  Parse every unit file of the plan the way a machine's systemd parses it.
+/// Why:
+///  the verifier takes unit files and nothing else,
+///  so the plan's drop-ins are proved by the manager's own reading of the unit
+///  they belong to and never here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const path of unitFilesOf(plan)) expect(analyzeVerify(path).status).toBe(0);
+/// ```
+fn verify_the_unit_files(plan: &[InstalledUnitFile]) {
+    let checkout: PathBuf = guest_facts().checkout;
+    let mount_unit: String = mount_unit_name(checkout.as_path());
+    for path in unit_files_of(plan) {
+        let text: &str = path
+            .to_str()
+            .unwrap_or_else(|| panic!("a plan path is text"));
+        let answer: Answer = run_bounded(SYSTEMD_ANALYZE, &["verify", text]);
+        if path.ends_with(PROPAGATION_SERVICE_NAME) {
+            // The manager learns the checkout's mount unit from the mount table,
+            // and the offline verifier reads files alone, so its one line names
+            // the unit the running manager does resolve.
+            for line in answer.said.lines().filter(|line| return !line.is_empty()) {
+                assert!(
+                    line.contains(mount_unit.as_str()),
+                    "`systemd-analyze verify {text}` said `{line}`, which names no missing mount unit of the pair"
+                );
+            }
+            println!(
+                "STEP19-GUEST propagation-pair-offline-limit={}",
+                answer.said.trim()
+            );
+            continue;
+        }
+        assert!(
+            answer.succeeded,
+            "systemd refuses `{text}`: {}",
+            answer.said
+        );
+        println!("STEP19-GUEST verified={text}");
+    }
+}
+
+/// What:
+///  Read the drop-ins back through the manager,
+///  which is the only reader that resolves a unit it learned from the mount
+///  table.
+/// Why:
+///  the verifier refuses a drop-in path,
+///  so a drop-in proved nowhere would be a file nothing ever parsed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await show('DropInPaths', gate)).toContain('zz-checkout-stop-failure-mode.conf');
+/// ```
+fn read_the_drop_ins_back() {
+    let checkout: PathBuf = guest_facts().checkout;
+    let mount_unit: String = mount_unit_name(checkout.as_path());
+    property_holds(
+        BOOT_GATE_UNIT_NAME,
+        "DropInPaths",
+        "zz-checkout-stop-failure-mode.conf",
+    );
+    property_holds(
+        PROVIDER_UNIT_NAME,
+        "DropInPaths",
+        "reconcile-git-worktree-clone-mounts-after-checkout.conf",
+    );
+    property_holds(PROVIDER_UNIT_NAME, "ExecStartPost", "reload-or-restart");
+    property_holds(PROVIDER_UNIT_NAME, "ExecStartPost", BOOT_GATE_UNIT_NAME);
+    property_holds(
+        mount_unit.as_str(),
+        "DropInPaths",
+        "10-upholds-propagation.conf",
+    );
+    property_holds(mount_unit.as_str(), "Upholds", PROPAGATION_SERVICE_NAME);
+    property_holds(PROPAGATION_SERVICE_NAME, "UpheldBy", mount_unit.as_str());
+    property_holds(PROPAGATION_SERVICE_NAME, "BindsTo", mount_unit.as_str());
+    println!("STEP19-GUEST drop-ins-read");
+}
+
 #[test]
 fn the_plan_parses_and_reports_the_owner_s_order_in_a_guest() {
     if std::env::var_os(GUEST_VARIABLE).is_none() {
@@ -221,19 +322,7 @@ fn the_plan_parses_and_reports_the_owner_s_order_in_a_guest() {
     for file in &plan {
         write_plan_file(file);
     }
-    for file in &plan {
-        let path: &str = file
-            .path
-            .to_str()
-            .unwrap_or_else(|| panic!("a plan path is text"));
-        let answer: Answer = run_bounded(SYSTEMD_ANALYZE, &["verify", path]);
-        assert!(
-            answer.succeeded,
-            "systemd refuses `{path}`: {}\n{}",
-            answer.said, file.text
-        );
-        println!("STEP19-GUEST verified={path}");
-    }
+    verify_the_unit_files(&plan);
     let reload: Answer = run_bounded(SYSTEMCTL, &["daemon-reload"]);
     assert!(
         reload.succeeded,
@@ -243,8 +332,8 @@ fn the_plan_parses_and_reports_the_owner_s_order_in_a_guest() {
 
     property_holds(BOOT_GATE_UNIT_NAME, "TimeoutStartUSec", "5min");
     property_holds(BOOT_GATE_UNIT_NAME, "TimeoutStopUSec", "1min");
-    property_holds(BOOT_GATE_UNIT_NAME, "Wants", "zfs-mount.service");
-    property_holds(BOOT_GATE_UNIT_NAME, "After", "zfs-mount.service");
+    property_holds(BOOT_GATE_UNIT_NAME, "Wants", PROVIDER_UNIT_NAME);
+    property_holds(BOOT_GATE_UNIT_NAME, "After", PROVIDER_UNIT_NAME);
     property_holds(BOOT_GATE_UNIT_NAME, "After", "zfs-import.target");
     property_holds(BOOT_GATE_UNIT_NAME, "After", "-.mount");
     property_holds(BOOT_GATE_UNIT_NAME, "Before", "umount.target");
@@ -261,21 +350,12 @@ fn the_plan_parses_and_reports_the_owner_s_order_in_a_guest() {
         "no login waits for the gate (V8a): {}",
         before.said
     );
-    let drop_ins: Answer = run_bounded(
-        SYSTEMCTL,
-        &["show", "--property", "DropInPaths", BOOT_GATE_UNIT_NAME],
-    );
-    assert!(
-        drop_ins.said.contains("zz-checkout-stop-failure-mode.conf"),
-        "the stop-failure drop-in is read: {}",
-        drop_ins.said
-    );
     println!("STEP19-GUEST gate-orders-and-bounds-read");
+    read_the_drop_ins_back();
 
     let slug: String = std::env::var(NESTED_SLUG_VARIABLE)
         .unwrap_or_else(|_| panic!("{NESTED_SLUG_VARIABLE} names its unit's short word"));
-    let nested_unit: String =
-        crate::checkout_boot_units::boot_unit_names::nested_unit_name(slug.as_str());
+    let nested_unit: String = nested_unit_name(slug.as_str());
     property_holds(nested_unit.as_str(), "Requires", BOOT_GATE_UNIT_NAME);
     property_holds(nested_unit.as_str(), "After", BOOT_GATE_UNIT_NAME);
     let condition: Answer = run_bounded(
@@ -314,3 +394,13 @@ fn the_plan_parses_and_reports_the_owner_s_order_in_a_guest() {
     );
     println!("STEP19-GUEST plan-written-parsed-and-removed");
 }
+
+/// The boot arm:
+/// one plan written where systemd reads it,
+/// the guest's own
+/// reboot between two readings of it.
+/// It shares this file's bounded child and its variables,
+/// because a second copy of either drifts from the first.
+#[cfg(test)]
+#[path = "boot_unit_reboot_guest_tests.rs"]
+mod reboot_tests;
