@@ -130,7 +130,7 @@ pub fn dead_entry_findings(
         }
         // What: the text this line's edit leaves, by the removal of each such character first and by a space in its place second.
         // Why: the sentence names the edit a person would make first, and a mark where a separator belongs reads only once a space stands there.
-        let reading: Option<Reading> = what_the_line_would_read_as(
+        let edit: Option<Reading> = what_the_line_would_read_as(
             entry.text.as_str(),
             false,
             &package,
@@ -140,7 +140,7 @@ pub fn dead_entry_findings(
         .or_else(|| {
             return what_the_line_would_read_as(entry.text.as_str(), true, &package, list, index);
         });
-        let Some(reading) = reading else {
+        let Some(reading) = edit else {
             continue;
         };
         if let Some(identity) = &reading.identity {
