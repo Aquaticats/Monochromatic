@@ -182,6 +182,91 @@ impl WorktreesFolder for LiveWorktreesFolder {
 }
 
 /// What:
+///  The one call that takes a mount down:
+///  the mount standing at one slot,
+///  unmounted from a descriptor on the folder the slot hangs in.
+/// Why:
+///  A descriptor on the clone itself holds it busy,
+///  so the kernel answers `EBUSY` for the pass's own mount
+///  (the removal's unmount writes the same down and drops its descriptor for
+///  it:
+///  `worktree_clone_unmount/unmount_pair.rs`,
+///  "A descriptor on the clone would hold it busy").
+///  The folder the slot hangs in is on the checkout dataset,
+///  so a descriptor on it names the slot without keeping the clone busy,
+///  and the call is a `/proc/self/fd` string rather than a path of the
+///  account's tree,
+///  which the staging design allows and a bare path does not
+///  (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
+///  "The unmount call from staging").
+///  The errno is answered with the kernel's words so a busy mount is told from
+///  any other refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// interface SlotUnmounts { unmountTheSlot(checkout, slot): void } // throws [errno, detail]
+/// ```
+pub trait SlotUnmounts {
+    /// Unmount what stands at one slot,
+    /// naming it through a descriptor on the folder it hangs in.
+    ///
+    /// # Errors
+    /// The folder could not be held,
+    /// or the kernel refused the unmount,
+    /// with its errno and its words.
+    fn unmount_the_slot(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<(), (i32, String)>;
+}
+
+/// What:
+///  The release unmount:
+///  the folder the slot hangs in,
+///  held without crossing a mount,
+///  and `umount2` of the slot's own name inside it.
+/// Why:
+///  No force and no lazy detach,
+///  because the design forbids both:
+///  flags zero is the whole of the call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new LiveSlotUnmounts().unmountTheSlot('/home/user/Mono', 'one'); // umount2('/proc/self/fd/N/one', 0)
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct LiveSlotUnmounts;
+
+impl SlotUnmounts for LiveSlotUnmounts {
+    fn unmount_the_slot(
+        &self,
+        checkout: &Path,
+        slot: &str,
+    ) -> Result<(), (i32, String)> {
+        let held: crate::worktree_clone_mount::HeldWorktreesParent =
+            crate::worktree_clone_mount::hold_the_worktrees_parent(checkout)
+                .map_err(|refusal| return (0, refusal.message()))?;
+        let parent: std::fs::File = held.folder;
+        let named: std::ffi::CString = std::ffi::CString::new(format!(
+            "/proc/self/fd/{}/{}",
+            std::os::fd::AsRawFd::as_raw_fd(&parent),
+            slot
+        ))
+        .map_err(|_nul| return (libc::EINVAL, String::from("the slot's name holds a NUL")))?;
+        // SAFETY: `named` is NUL-terminated and outlives the call, and no flag asks
+        //  for force or lazy detach.
+        let taken: libc::c_int = unsafe { libc::umount2(named.as_ptr(), 0) };
+        return if taken == 0 {
+            Ok(())
+        } else {
+            let error: std::io::Error = std::io::Error::last_os_error();
+            Err((error.raw_os_error().unwrap_or(0), error.to_string()))
+        };
+    }
+}
+
+/// What:
 /// One clone's live GUID,
 ///  as the pool answers it now.
 /// Why:

@@ -22,6 +22,7 @@ use super::shutdown_unmount_places::ShutdownUnmountPlaces;
 use super::shutdown_unmount_sources::{
     HolderScanning,
     SlotLookups,
+    SlotUnmounts,
     WorktreesFolder,
 };
 use crate::worktree_clone_unmount::slot_walk_calls::{
@@ -58,6 +59,8 @@ pub struct ShutdownUnmountRequest<'a> {
     pub calls: &'a dyn StagingCalls,
     /// The descriptor walk to a slot.
     pub walk: &'a dyn SlotWalk,
+    /// The one call that takes a mount down.
+    pub unmounts: &'a dyn SlotUnmounts,
     /// The fresh capture of a slot.
     pub lookups: &'a dyn SlotLookups,
     /// The `.claude/worktrees` identity the route recorded.

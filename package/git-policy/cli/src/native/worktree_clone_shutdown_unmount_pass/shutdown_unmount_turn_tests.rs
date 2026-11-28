@@ -49,6 +49,7 @@ use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_doub
     StatedHolders,
     StatedLookups,
     StatedMounts,
+    StatedUnmounts,
     StatedWalk,
     StatedWorktrees,
 };
@@ -218,6 +219,10 @@ fn pass(world: &World) -> Result<PassOutcome, String> {
     let lookup: StatedLookups = StatedLookups {
         answer: Ok(Box::new(fresh_lookup_of(&world.slot, &world.recorded))),
     };
+    let unmounts: StatedUnmounts = StatedUnmounts {
+        answer: Ok(()),
+        asked: std::cell::RefCell::new(Vec::new()),
+    };
     let walk: StatedWalk = StatedWalk {
         underlay: None,
         slot: world
@@ -231,6 +236,7 @@ fn pass(world: &World) -> Result<PassOutcome, String> {
         mounts: &world.mounts,
         calls: &world.calls,
         walk: &walk,
+        unmounts: &unmounts,
         lookups: &lookup,
         worktrees: &world.worktrees,
         guids: &world.guids,

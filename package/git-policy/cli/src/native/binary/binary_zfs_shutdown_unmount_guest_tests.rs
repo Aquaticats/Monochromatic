@@ -59,6 +59,7 @@ use git_policy_cli::worktree_clone_shutdown_unmount_pass::shutdown_unmount_sourc
     LiveDatasetGuids,
     LiveHolderScans,
     LiveSlotLookups,
+    LiveSlotUnmounts,
     LiveWorktreesFolder,
 };
 use git_policy_cli::worktree_clone_shutdown_unmount_pass::shutdown_unmount_turn::run_the_pass;
@@ -320,6 +321,7 @@ fn the_shutdown_unmount_guest_arm() {
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let calls: LiveStagingCalls = LiveStagingCalls;
     let walk: LiveSlotWalk = LiveSlotWalk;
+    let unmounts: LiveSlotUnmounts = LiveSlotUnmounts;
     let lookups: LiveSlotLookups = LiveSlotLookups;
     let guids: LiveDatasetGuids<'_> = LiveDatasetGuids {
         reader: &reader,
@@ -333,6 +335,7 @@ fn the_shutdown_unmount_guest_arm() {
         mounts: &mounts,
         calls: &calls,
         walk: &walk,
+        unmounts: &unmounts,
         lookups: &lookups,
         worktrees: &worktrees,
         guids: &guids,

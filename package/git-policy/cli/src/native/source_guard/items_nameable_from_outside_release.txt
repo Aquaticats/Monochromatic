@@ -12664,3 +12664,14 @@ worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources field LiveHolderS
 #   b446bea7ab feat(git-policy-cli): build the shutdown pass's body, reached by no command
 #   publishes the own-task field that tells this process's namespace from another's
 worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources field LiveHolderScans::self_task
+
+# New code of commit 76fde92585, published because the commit's own code is, one reason per name:
+#   76fde92585 fix(git-policy-cli): name the shutdown unmount by the underlay folder's descriptor
+#   publishes the request's one writing call, which the wiring round hands the kernel's own
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_request field ShutdownUnmountRequest::unmounts
+#   76fde92585 fix(git-policy-cli): name the shutdown unmount by the underlay folder's descriptor
+#   publishes the seam a caller fills to take one slot's mount down
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources trait SlotUnmounts
+#   76fde92585 fix(git-policy-cli): name the shutdown unmount by the underlay folder's descriptor
+#   publishes the release unmount, which holds the folder the slot hangs in and calls `umount2` through it
+worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources struct LiveSlotUnmounts

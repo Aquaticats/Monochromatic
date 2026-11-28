@@ -30,6 +30,7 @@ use super::shutdown_unmount_pass_test_fixture_values::refusal;
 use super::shutdown_unmount_sources::{
     HolderScanning,
     SlotLookups,
+    SlotUnmounts,
     WorktreesFolder,
 };
 use crate::clone_holder_scan::holder_scan::HolderScan;
@@ -257,6 +258,42 @@ impl StagingCalls for StatedCalls {
 /// so a control that reached one would read which call it was.
 fn unused(call: StagingCall) -> StagingCallRefusal {
     return refusal(call, 0, "the shutdown pass makes no call of this kind");
+}
+
+/// What:
+///  The one unmount call a control states:
+///  what it answers,
+///  and every slot it was asked about.
+/// Why:
+///  A control cannot unmount,
+///  and it still has to prove the call the pass makes,
+///  which slot it named and how many times.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unmounts = new StatedUnmounts({ answer: { errno: 16, detail: 'busy' } });
+/// unmounts.asked; // ['one']
+/// ```
+pub(crate) struct StatedUnmounts {
+    /// What the call answers.
+    pub(crate) answer: Result<(), (i32, String)>,
+    /// Every slot the call was asked about,
+    ///  in the order the pass asked.
+    pub(crate) asked: std::cell::RefCell<Vec<String>>,
+}
+
+impl SlotUnmounts for StatedUnmounts {
+    fn unmount_the_slot(
+        &self,
+        _checkout: &Path,
+        slot: &str,
+    ) -> Result<(), (i32, String)> {
+        self.asked.borrow_mut().push(String::from(slot));
+        return match &self.answer {
+            Ok(()) => Ok(()),
+            Err((errno, detail)) => Err((*errno, detail.clone())),
+        };
+    }
 }
 
 /// The fresh lookup a control states.
