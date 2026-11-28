@@ -2473,6 +2473,26 @@ The grouped editor refuses a nonempty-to-empty file rewrite.
 Pipe-table conversion and semantic line breaks are implemented.
 Production Rust and Markdown commands have not been replaced.
 
+The semantic break fix also joins the fragment an old hard wrap cut off.
+When the rest of the author's line holds one or two words that do not end at a break-point
+character,
+is not the paragraph's last line,
+carries no hard break,
+and the following line carries no block marker,
+the fragment joins the line that continues its clause through one space,
+where the joined line stays under 120 characters.
+A fragment that ends at a break-point character stays alone,
+because the rule wants a line to end there and would break it again on the next pass,
+so `4,` and `held,` keep their lines.
+A line the fix writes takes the indent the paragraph's first continuation line carries,
+so the lines of one paragraph are written at one depth,
+which is what a Rust doc comment keeps when its old lines were written one space deeper.
+The fix never rewrites a line the author wrote.
+Removing the deepest indent of a rustdoc run re-projects every line of that run
+(`processors_docs.rs`,
+`run_margin`),
+so such an edit would be refused instead of applied.
+
 ## LFS image URLs
 
 `markdown/lfs-image-url` rewrites a relative image link to an LFS-tracked file
