@@ -50,8 +50,6 @@ import {
 
 import {
   guestBackend,
-  refuseAStepWhoseArmsCannotRun,
-  STEPS_THAT_RUN_NO_ARM,
 } from '../bin/mvm-guest-backend.ts';
 import { greenLog, } from './start-probe-arms/green-arm.ts';
 import { noConfigurationLog, } from './start-probe-arms/no-configuration-arm.ts';
@@ -247,11 +245,4 @@ const words: readonly string[] = process.argv
  The step and the values the command line gave it.
  */
 const chosen: Options = options({ argumentsRead: runArguments({ argv: words, },), },);
-// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
-// makes anything. The three that only make, prepare and take away a guest run on either backend.
-refuseAStepWhoseArmsCannotRun({
-  backend: guestBackend(),
-  step: chosen.step,
-  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
-});
 await runTheStep(chosen,);

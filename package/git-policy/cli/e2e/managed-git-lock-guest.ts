@@ -45,8 +45,6 @@ import {
 } from '../bin/mvm-guest-error.ts';
 import {
   guestBackend,
-  refuseAStepWhoseArmsCannotRun,
-  STEPS_THAT_RUN_NO_ARM,
 } from '../bin/mvm-guest-backend.ts';
 import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
@@ -65,6 +63,10 @@ import {
 import {
   runWholeGuestRun,
 } from '../bin/mvm-guest-whole-run.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -271,7 +273,7 @@ async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${POOL}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,
@@ -477,14 +479,6 @@ const step = steps.get(chosen.step,);
 if (step === undefined) {
   throw new GuestDriverError(`unknown step '${chosen.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }
-// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
-// makes anything. The three that only make, prepare and take away a guest run on either backend.
-refuseAStepWhoseArmsCannotRun({
-  backend: guestBackend(),
-  step: chosen.step,
-  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
-});
-
 await step(chosen,);
 console.log(`git-policy lock guest: step '${chosen.step}' finished; logs in ${chosen.logDir}`,);
 

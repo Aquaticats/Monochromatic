@@ -21,6 +21,7 @@ import {
 } from 'node:path';
 
 import { guestBackend, } from './mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from './mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from './native-wrapper-snapshot.ts';
 import {
   FOLDER_MODE,
