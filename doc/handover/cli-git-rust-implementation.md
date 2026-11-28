@@ -2830,22 +2830,6 @@ and it is put back on the build of 2026-11-22
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
 - Medium:
-  the extract-function refactors are unread but for ten commits.
-  A second read of the seven the pass named first,
-  all on the client's and the service's commit paths,
-  found each equivalent by reading
-  (`e90482f100`,
-  `dde5c4be3b`,
-  `bad45d0420`,
-  `01c2f32e2c`,
-  `6a24c6342b`,
-  `f4e8d2fb9b`,
-  `8af8f56255`),
-  with one guard that now covers less
-  (`source_guard/hook_self_invocation_tests.rs` reads 263 of the 699 code lines the commit preparation spans),
-  which the list-guards round takes first.
-  About three hundred refactor commits stay unread.
-- Medium:
   71 pairs of a source guard and a file it names,
   where code left the file in a split and the guard does not name where it went.
   Two were checked and neither was a hole.
