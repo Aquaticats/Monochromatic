@@ -26065,10 +26065,11 @@ A direct check reads worktree bytes a commit takes,
 so its hint names that commit's correction,
 which happens while the settings keep `final-newline` on,
 and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
-An `add` may be refused at `error` severity, which stages nothing,
+An `add` may be refused at `error` severity,
+which stages nothing,
 and an index keeps the bytes it already holds,
-so its hint leads with `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging
-after it,
+so its hint leads with `git monochromatic-git-policy-cli fix -- <path>`
+and the `git add -- <path>` staging after it,
 and names a commit's correction only for a commit that takes the whole file,
 because `-p`,
 `-i` and `--include` record the staged bytes as they are.

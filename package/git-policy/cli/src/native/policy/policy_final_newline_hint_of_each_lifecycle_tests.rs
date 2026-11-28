@@ -339,7 +339,8 @@ fn assert_the_finding_keeps_its_fields(
 ///  policies read-only,
 ///  read from the release code the commit path asks.
 /// Why:
-///  `-p`, `-i` and `--include` are the forms that record the bytes the index holds,
+///  `-p`,
+///  `-i` and `--include` are the forms that record the bytes the index holds,
 ///  and the answer must come from parsing those words and deciding the selection,
 ///  never from a flag a control wrote,
 ///  or the control would agree with whatever the release code happened to do.
@@ -381,7 +382,10 @@ fn the_config_with(severity: Severity) -> PolicyConfig {
 /// An `add` leads with the two steps that correct the file where it is refused,
 ///  says why staging follows the fix,
 ///  and names a plain commit's own correction with the read-only selection that records the bytes instead.
-///  The hint is the same at `warn`, where the add runs, and at `error`, where it stages nothing.
+///  The hint is the same at `warn`,
+///  where the add runs,
+///  and at `error`,
+///  where it stages nothing.
 #[test]
 fn an_add_says_the_fix_then_staging_and_what_a_plain_commit_takes() {
     let scene: Scene = a_scene("final-newline-hint-add");
@@ -438,7 +442,8 @@ fn a_direct_check_says_the_commit_that_takes_the_file_corrects_it() {
 /// A commit whose selection is read-only records the staged bytes as they are,
 ///  so its hint tells the person to edit the file and stage it again,
 ///  and never that a commit will correct it.
-///  The selection is the commit's own: each spelling is parsed and decided by the release code,
+///  The selection is the commit's own:
+///  each spelling is parsed and decided by the release code,
 ///  and the stage is handed the answer the commit path hands it.
 #[test]
 fn a_read_only_selection_of_the_commands_own_words_says_to_edit_and_stage() {
@@ -472,7 +477,8 @@ fn a_read_only_selection_of_the_commands_own_words_says_to_edit_and_stage() {
 ///  so its hint says so and offers no second correction,
 ///  whatever severity the repository sets and without a fix being applied by the person.
 ///  A commit that names no read-only selection is the positive case beside the three spellings above:
-///  the same decision answers `false` for it, and the stage then reports the correction as its own.
+///  the same decision answers `false` for it,
+///  and the stage then reports the correction as its own.
 #[test]
 fn a_commit_that_corrects_the_file_says_so_at_either_severity() {
     let scene: Scene = a_scene("final-newline-hint-commit");
