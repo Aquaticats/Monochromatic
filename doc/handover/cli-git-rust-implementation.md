@@ -2940,11 +2940,6 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- After a failed `exec` of the real Git the wrapper now puts the `SIGPIPE` action back
-  and ends by the status its exit contract gives a command that ran no Git (`65bffa15ec`,
-  issue 6607):
-  with standard error a pipe whose reader was gone,
-  the parent read `SIGPIPE` before and status 2 after.
 - The slot-state guest arm runs to its end again (`3823f2101a`,
   issue 6595):
   it plants its plan through the removal's own writer,
