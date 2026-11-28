@@ -737,13 +737,13 @@ llama-cpu-cli \
   and waits for each answer with no bound of its own,
   so a `rustup` that never answers makes it wait for ever.
   What that costs when `rustup` answers:
-  measured on 2026-11-27 with this account's own `rustup 1.29.3`
+  20 to 116 ms for the whole command with the row's components and targets declared,
+  against 6 to 15 ms for a row that declares none and so asks only which toolchain the channel is,
+  measured on 2026-11-27 in seven interleaved rounds run three times over,
+  with this account's own `rustup 1.29.3`
   and a hard-linked copy of this machine's pinned toolchain,
-  seven interleaved rounds,
-  `list` took 33.4 to 47.5 ms with the row's components and targets declared,
-  against 9.2 to 14.7 ms for a row that declares none and so asks only which toolchain the channel
-  is;
-  each question alone was 5.5 to 36.5 ms.
+  on a machine other sessions were loading;
+  one question alone cost 4 to 18 ms at the median of those rounds.
   No deadline is shipped for those waits:
   the measurement says what an answer costs,
   not what a late one should be cut off at,
