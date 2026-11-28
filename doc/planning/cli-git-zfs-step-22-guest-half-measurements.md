@@ -16,7 +16,12 @@ and the snapshot-destroy request budget
 (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 "Step 22:
 The measurements that size waits and retention").
-The storage half stays the owner's act on the owner's authorisation,
+The storage half is the agent's act on the owner's authorisation,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
 and it is not measured here.
 
 ## The fixture and the wrapper under test
