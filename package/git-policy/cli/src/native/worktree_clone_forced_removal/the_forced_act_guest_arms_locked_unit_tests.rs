@@ -274,9 +274,15 @@ fn the_way_answers(
     return match make_the_way_ready(route, copy) {
         Ok(ready) => match take_the_copy_out(&ready, copy) {
             Ok(_taken) => (String::from("accepted"), String::new()),
-            Err(refusal) => (String::from(refusal.word.word()), String::from(refusal.said)),
+            Err(refusal) => (
+                String::from(refusal.word.word()),
+                String::from(refusal.said),
+            ),
         },
-        Err(refusal) => (String::from(refusal.word.word()), String::from(refusal.said)),
+        Err(refusal) => (
+            String::from(refusal.word.word()),
+            String::from(refusal.said),
+        ),
     };
 }
 
@@ -460,6 +466,26 @@ pub(crate) fn the_locked_holders_unit_phase(fixture: &Fixture) -> String {
     let (destroyed, _destroy_said) =
         fixture.ask("zfs", &["destroy", "-r", fixture.clone().as_str()]);
     fields.push(("destroy-after", if destroyed { "gone" } else { "refused" }));
+    // What: the checkout unmounted in the root namespace too, which this phase mounted there for the unit to copy.
+    // Why:  a mount left there keeps the pool busy, so a second run in this guest could not build its own pool.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [unmounted] = inTheRootNamespace(fixture, 'umount', [checkout]);
+    // ```
+    let (checkout_unmounted, said_of_the_unmount) = in_the_root_namespace(
+        fixture,
+        "umount",
+        &[checkout.to_str().expect("the checkout path is text")],
+    );
+    fields.push((
+        "checkout-after",
+        if checkout_unmounted {
+            "unmounted"
+        } else {
+            said_of_the_unmount.as_str()
+        },
+    ));
     let alive: bool = caller_job.alive();
     fields.push(("caller-job", if alive { "alive" } else { "gone" }));
     caller_job.end();

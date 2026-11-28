@@ -170,6 +170,7 @@ process::a_locked_holders_own_unit fn the_unit_the_manager_holds
 process::a_locked_holders_own_unit struct ALockedHoldersUnit
 #   42f66aedfc feat(git-policy-cli): the forced arm stops a locked holder's own unit through the account's manager
 #   publishes the stop of that unit through the account's own manager, and the wait that follows it
+process::a_service_unit_stopped_through_the_accounts_manager const A_TASKS_CONTROL_GROUP_LIMIT
 process::a_service_unit_stopped_through_the_accounts_manager const HOLDER_LOCKED_WORD
 process::a_service_unit_stopped_through_the_accounts_manager const POLLS_IN_ONE_STOP_WAIT
 process::a_service_unit_stopped_through_the_accounts_manager enum UnitNotStopped

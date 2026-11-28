@@ -29,6 +29,7 @@
 //! const stopped = stopTheUnit('/run/user/0/bus', { unit, cgroup, tasksCgroup, namespace, identity }, stopWait);
 //! ```
 
+use crate::foundation::plain_file::read_plain_text_at;
 use crate::process::a_locked_holders_own_unit::ALockedHoldersUnit;
 use crate::service::systemd_dbus::{
     Bus,
@@ -68,6 +69,20 @@ pub const HOLDER_LOCKED_WORD: &str = "holder-locked";
 /// const POLLS_IN_ONE_STOP_WAIT = 20;
 /// ```
 pub const POLLS_IN_ONE_STOP_WAIT: u32 = 20;
+
+/// What:
+///  How many bytes of a task's control-group file the wait reads.
+/// Why:
+///  One line per attached hierarchy is what the kernel writes and the unified
+///  line is the longest of them,
+///  so this bound refuses a name another process swapped for a large file
+///  rather than reading it into this process's memory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_TASKS_CONTROL_GROUP_LIMIT = 64 * 1024;
+/// ```
+pub const A_TASKS_CONTROL_GROUP_LIMIT: u64 = 64 * 1024;
 
 /// What:
 ///  Everything the stop of one locked holder's unit names:
@@ -272,7 +287,7 @@ pub fn the_stops_verdict(
     // ```ts
     // const running = ['active', 'activating', 'reloading'];
     // ```
-    const RUNNING: [&str; 3] = ["active", "activating", "reloading"];
+    const RUNNING: &[&str] = &["active", "activating", "reloading"];
     if let Some(state) = left.state
         && RUNNING.contains(&state)
     {
@@ -414,16 +429,19 @@ pub fn stop_the_unit(
             }
         };
         // What: the task's whole control-group file, or nothing when the task has gone.
-        // Why:  the design's wait is for the unit's tasks to leave this file.
+        // Why:  the design's wait is for the unit's tasks to leave this file, and the read is the bounded one a path
+        //       another process controls is read through (`AGENTS.md`'s rule for a file a person or a program
+        //       controls: opened so it cannot block, with a size bound).
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const tasksCgroup = fs.readFileSync(the.tasksCgroup, 'utf8');  // ENOENT → undefined
+        // const tasksCgroup = readPlainTextAt(the.tasksCgroup, A_TASKS_CONTROL_GROUP_LIMIT);  // ENOENT → undefined
         // ```
-        let tasks_cgroup: Option<String> = match std::fs::read_to_string(the.tasks_cgroup) {
-            Ok(text) => Some(text),
-            Err(_gone) => None,
-        };
+        let tasks_cgroup: Option<String> =
+            match read_plain_text_at(the.tasks_cgroup, A_TASKS_CONTROL_GROUP_LIMIT) {
+                Ok(text) => Some(text),
+                Err(_gone) => None,
+            };
         // What: the three reads the verdict is made of.
         // Why:  one value keeps the verdict a plain function of what was found.
         //

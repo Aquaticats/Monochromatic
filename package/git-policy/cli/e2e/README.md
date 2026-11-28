@@ -1224,9 +1224,14 @@ The stop is a system call answer and not a program's phrasing of one:
 so the step calls `umount2` and `mount(MS_MOVE)` through `ctypes` and prints the
 errno each one answered.
 
+`arm` runs the arm alone behind a build that already ran in the same guest,
+which is what a second look at one phase costs instead of a whole build.
+
 ```sh
 # package/git-policy/cli: one guest, the measurement, then the arm
 node e2e/forced-act-guest.ts all --name <guest> --log-dir <dir>
+# the arm alone, after a `run` that built it
+node e2e/forced-act-guest.ts arm --name <guest> --log-dir <dir>
 ```
 
 ## Guest work that runs longer than the agent's safe length
@@ -1254,8 +1259,12 @@ and the removal-lineage and settling drivers start their build and their arm
 detached in the driver itself.
 So `mount-git-worktree-clone-datasets-guest.ts`,
 `removal-lineage-proof-guest.ts`,
-`settling-command-guest.ts` and
+`settling-command-guest.ts`,
+`forced-act-guest.ts` and
 `zfs-step-22-measurements-guest.ts` hold no plain long command at all.
+The forced act's driver started its build and its arm detached on 2026-11-28,
+after a plain `mvm exec` lost a build of 34 minutes to one unanswered status
+request while five other guests ran on this host.
 
 Every other plain `guest()` command in this package is listed here,
 with the bound it carries and the duration recorded for it.
@@ -1271,14 +1280,10 @@ where a step's duration is its whole step:
   with a bound of 900 s.
   Its whole `run` took 568 s at two jobs and 843 s at one,
   of which the build is 561 s and 839 s.
-- `e2e/forced-act-guest.ts:224` is the crate's test build,
-  with a bound of 2,400 s.
-  It took 8m 30s at two jobs,
-  then 14m 35s at one job.
-- `e2e/forced-act-guest.ts:256` is that driver's arm,
-  with a bound of 900 s.
-  Its whole `run` took 546 s at two jobs and 911 s at one,
-  of which the build is 510 s and 875 s.
+- `e2e/forced-act-guest.ts` was two of these, its crate test build and its arm,
+  and both started detached on 2026-11-28.
+  The build took 8m 30s at two jobs and 14m 35s at one job before that,
+  and 34m 55s on 2026-11-27 while five other guests ran on this host.
 - `e2e/managed-git-lock-guest.ts:200` is the guest's pool,
   with a bound of 1,800 s.
   It is not timed on its own.
