@@ -69,6 +69,11 @@ export const sbinVariable = 'CLI_GIT_ZFS_STEP21_SBIN';
 export const rootVariable = 'CLI_GIT_ZFS_STEP21_ROOT';
 
 /**
+ The stamp naming the archive a build unpacks, which the guest waits for before it copies anything.
+ */
+export const stampName = 'step-21-archive.sha256';
+
+/**
  The arm's log inside the guest's shared folder.
  */
 export const armLog = 'step-21-arms.log';
