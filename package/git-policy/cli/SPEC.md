@@ -8443,6 +8443,38 @@ The migration,
 the property changes and the install are the owner's act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
 
+The texts are read by a real manager only in a guest.
+`e2e/zfs-step-19-guest.ts` writes the plan at the paths systemd reads,
+has the guest's own `systemd-analyze verify` parse each unit file,
+reads each drop-in back from the guest's manager
+(`DropInPaths`,
+`ExecStartPost`,
+`Upholds` and `UpheldBy`),
+reboots the guest with the plan installed and enabled,
+and reads what the boot made of it:
+the gate's state,
+this boot's readiness record,
+the nested dataset's own unit,
+and one idle managed clone attached again,
+or,
+for a boot whose pool import,
+key load or checkout mount did not happen,
+nothing attached and no mountpoint folder in the home underlay.
+A drop-in is proved that way and never by the verifier:
+`systemd-analyze verify` refuses a drop-in path by name,
+and the propagation service's `BindsTo=` names a mount unit the manager learns from the mount table and writes no file for,
+so the pair is proved through that manager's own view too.
+The immutable covered entry's verdict is read the same way,
+against a real folder carrying the kernel's flag on a real dataset,
+with the account's own refused rename and removal beside it.
+What those arms still wait for:
+`zfs-root shutdown-unmount`,
+whose mode refuses in this build,
+so no shutdown pass is measured,
+and the propagation step,
+which no mode calls yet,
+so the pair's trigger is read but never fired.
+
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
 Plan step 20's checks live in `src/native/health/sanoid_coverage/`:

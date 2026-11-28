@@ -90,6 +90,11 @@ pub const NESTED_MOUNTPOINT_VARIABLE: &str = "CLI_GIT_ZFS_STEP19_NESTED_MOUNTPOI
 /// The short word that dataset's unit name carries.
 pub const NESTED_SLUG_VARIABLE: &str = "CLI_GIT_ZFS_STEP19_NESTED_SLUG";
 
+/// The key provider the machine has,
+/// where it has one,
+/// which the gate requires and orders after.
+pub const KEY_UNIT_VARIABLE: &str = "CLI_GIT_ZFS_STEP19_KEY_UNIT";
+
 /// The program the units' dependency lines name,
 /// which the guest's own packaging installs.
 pub const SYSTEMD_ANALYZE: &str = "/usr/bin/systemd-analyze";
@@ -170,7 +175,7 @@ fn guest_facts() -> CheckoutBootFacts {
         root_file: PathBuf::from(
             crate::worktree_clone_mount_handler::handler_install_paths::ROOT_MODE_INSTALL_PATH,
         ),
-        key_unit: None,
+        key_unit: std::env::var(KEY_UNIT_VARIABLE).ok(),
     };
 }
 
@@ -206,6 +211,22 @@ fn write_plan_file(file: &InstalledUnitFile) {
     .unwrap_or_else(|error| panic!("{} takes its mode: {error}", file.path.display()));
 }
 
+/// What:
+///  One property line the manager printed,
+///  with the quoting `systemctl show` adds undone.
+/// Why:
+///  a property value is printed with C-style escaping,
+///  so a unit name `systemd-escape`
+///  wrote with backslashes answers with each of them doubled:
+///  the step 19 guest of
+///  2026-11-27 read `UpheldBy="home-zfs\\x2dstep19\\x2dfixture..."` for the
+///  checkout's own mount unit,
+///  and a comparison against the escaped name would fail on the manager's
+///  spelling rather than on the dependency.
+fn unquoted(said: &str) -> String {
+    return said.replace("\\\\", "\\");
+}
+
 /// Ask the manager for one unit's property and require it to carry a text.
 fn property_holds(
     unit: &str,
@@ -219,7 +240,7 @@ fn property_holds(
         answer.said
     );
     assert!(
-        answer.said.contains(wanted),
+        unquoted(answer.said.as_str()).contains(wanted),
         "`{unit}` does not report `{wanted}` in `{property}`; the manager read: {}",
         answer.said
     );
@@ -358,25 +379,16 @@ fn the_plan_parses_and_reports_the_owner_s_order_in_a_guest() {
     let nested_unit: String = nested_unit_name(slug.as_str());
     property_holds(nested_unit.as_str(), "Requires", BOOT_GATE_UNIT_NAME);
     property_holds(nested_unit.as_str(), "After", BOOT_GATE_UNIT_NAME);
-    let condition: Answer = run_bounded(
-        SYSTEMCTL,
-        &[
-            "show",
-            "--property",
-            "ConditionPathIsMountPoint",
-            nested_unit.as_str(),
-        ],
-    );
-    assert!(
-        condition.succeeded,
-        "the nested unit's condition reads: {}",
-        condition.said
-    );
-    assert!(
-        condition.said.contains("ConditionPathIsMountPoint=!"),
-        "the condition skips an already-mounted dataset: {}",
-        condition.said
-    );
+    // The manager prints neither `ConditionPathIsMountPoint=` nor `Conditions=`:
+    // `systemctl show --property Conditions` answers `Conditions=[unprintable]` on
+    // this guest's systemd 255,
+    // measured 2026-11-27,
+    // and the verifier has already parsed the line that holds the condition.
+    // What the manager can prove here is that it loaded the unit at all;
+    // the condition's own effect is the boot arm's,
+    // where the nested dataset is mounted only after the gate and never on a
+    // boot whose checkout did not come up.
+    property_holds(nested_unit.as_str(), "LoadState", "loaded");
     println!("STEP19-GUEST nested-unit-orders-after-the-gate");
 
     for file in plan.iter().rev() {

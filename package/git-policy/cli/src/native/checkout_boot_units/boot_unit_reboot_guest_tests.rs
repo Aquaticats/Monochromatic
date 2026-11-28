@@ -125,7 +125,7 @@ fn facts() -> CheckoutBootFacts {
         root_file: PathBuf::from(
             crate::worktree_clone_mount_handler::handler_install_paths::ROOT_MODE_INSTALL_PATH,
         ),
-        key_unit: None,
+        key_unit: std::env::var(super::KEY_UNIT_VARIABLE).ok(),
     };
 }
 
@@ -259,7 +259,7 @@ fn read() {
     let state: String = settled_gate_state();
     let result: String = property_of(BOOT_GATE_UNIT_NAME, "Result");
     let boot: String = this_boot();
-    let record: Option<String> = readiness_record();
+    let published: Option<String> = readiness_record();
     let nested_mountpoint: PathBuf = nested().mountpoint;
     let nested_mounted: bool = is_mounted(nested_mountpoint.as_path());
     let slug: String = std::env::var(NESTED_SLUG_VARIABLE)
@@ -279,7 +279,8 @@ fn read() {
     );
     if expectation == "healthy" {
         assert_eq!(state, "active", "the gate ran and stayed up: {result}");
-        let record: String = record
+        let record: String = published
+            .clone()
             .unwrap_or_else(|| panic!("a healthy boot publishes this boot's readiness record"));
         assert!(
             record.contains(format!("boot {boot}").as_str()) || record.contains(boot.as_str()),
@@ -327,7 +328,7 @@ fn read() {
         "no unit made the nested mountpoint in the home underlay: {}",
         underlay_nested.display()
     );
-    match record {
+    match published {
         Some(record) => {
             assert!(
                 !record.contains(boot.as_str()),
@@ -401,6 +402,66 @@ fn zfs(arguments: &[&str]) -> String {
 ///  and the clone itself with `zfs clone` of the checkout dataset's snapshot
 ///  under the add route's own origin prefix.
 ///  Everything the boot then does is the gate's own work.
+/// What:
+///  This boot's start-probe record,
+///  left as the gate's own probe wrote it where it passed.
+/// Why:
+///  the gate's `ExecStartPre` runs the start probe,
+///  and a record the sweep cannot read refuses the reconciliation before it attaches
+///  anything,
+///  so a clone arm with no readable record would prove nothing about the boot.
+///  The probe writes its own record on a machine whose module and userspace it
+///  checks,
+///  and where this guest's own probe could not,
+///  the record is written here in the mode's own shape from the live
+///  fingerprint,
+///  which is the fixture plan step 8's guest arm writes for the same
+///  reason.
+fn ensure_a_passing_probe_record() {
+    let path: PathBuf =
+        crate::worktree_clone_mount_handler::sweep_probe_record::probe_record_path();
+    let standing = crate::worktree_clone_mount_handler::sweep_probe_record::read_probe_standing(
+        path.as_path(),
+    );
+    match standing {
+        Ok(crate::worktree_clone_mount_handler::sweep_probe_record::ProbeStanding::Passed) => {
+            println!("STEP19-BOOT probe-record=passed");
+        }
+        other => {
+            let live: crate::start_probe::probe_fingerprint::ProbeFingerprint =
+                crate::start_probe::probe_fingerprint::ProbeFingerprint::read(
+                    &crate::start_probe::probe_fingerprint::FingerprintPaths::live(),
+                )
+                .unwrap_or_else(|refusal| {
+                    panic!("this guest's fingerprint reads: {}", refusal.message())
+                });
+            let absent: &str = crate::start_probe::probe_record::ABSENT;
+            let text: String = format!(
+                "{version}\nkind {kind}\nstate finished\nboot {boot}\nkernel {kernel}\nmodule {module}\nsrcversion {srcversion}\nbuild-id {build}\nhandler {handler}\ntime {time}\nverdict passed\nverdict-step none\nskip-reason none\n",
+                version = crate::start_probe::probe_record::RECORD_VERSION,
+                kind = crate::start_probe::probe_record::RECORD_KIND,
+                boot = live.boot_id,
+                kernel = live.kernel_release,
+                module = live.module_version.as_deref().unwrap_or(absent),
+                srcversion = live.module_srcversion.as_deref().unwrap_or(absent),
+                build = live.module_build_id.as_deref().unwrap_or(absent),
+                handler = live.handler.as_deref().unwrap_or(absent),
+                time = crate::iso_time::now_iso()
+            );
+            if let Some(folder) = path.parent() {
+                std::fs::create_dir_all(folder).expect("the probe record's folder is made");
+            }
+            std::fs::write(path.as_path(), text.as_bytes()).expect("the probe record is written");
+            std::fs::set_permissions(
+                path.as_path(),
+                std::os::unix::fs::PermissionsExt::from_mode(0o644),
+            )
+            .expect("the probe record holds its mode");
+            println!("STEP19-BOOT probe-record=written standing={other:?}");
+        }
+    }
+}
+
 fn clone_one() {
     let slot: String = std::env::var(SLOT_VARIABLE)
         .unwrap_or_else(|_| panic!("{SLOT_VARIABLE} names the clone's slot"));
@@ -409,6 +470,7 @@ fn clone_one() {
         .unwrap_or_else(|_| panic!("{CHECKOUT_DATASET_VARIABLE} names the checkout dataset"));
     let container: String = std::env::var(CONTAINER_VARIABLE)
         .unwrap_or_else(|_| panic!("{CONTAINER_VARIABLE} names the container"));
+    ensure_a_passing_probe_record();
     let worktrees: PathBuf = checkout.join(".claude").join("worktrees");
     std::fs::create_dir_all(worktrees.as_path()).expect("the worktrees parent is made");
     let parent: std::fs::File = std::fs::File::open(worktrees.as_path())

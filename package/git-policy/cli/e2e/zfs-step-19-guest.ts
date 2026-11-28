@@ -1,23 +1,24 @@
 #!/usr/bin/env node
 /**
  Drive plan step 19's guest arms in one throwaway `mvm` guest: the boot units and their drop-ins parsed by a real manager,
- the immutable covered entry's verdict against a real immutable folder, `snapdir=disabled` set and inherited, the
- plan's boot arms across the guest's own reboots, and the runbook's migration and rollback on a layout the guest can throw
- away.
+ the immutable covered entry's verdict against a real immutable folder, `snapdir=disabled` set and inherited, the plan's
+ boot arms across the guest's own reboots, and the runbook's migration and rollback on a layout the guest can throw away.
 
- The arms write `/etc/systemd/system`, `/usr/libexec` and a store under `/var/lib`, and they reboot the machine they run
- in, so they run in a guest and nowhere else: the guest-name check is in the launcher every detached script carries, and
- every arm reads `CLI_GIT_ZFS_STEP19_GUEST` before it does anything.
+ The arms write `/etc/systemd/system`, `/usr/libexec` and a store under `/var/lib`, and they reboot the machine they run in,
+ so they run in a guest and nowhere else: every detached script's launcher checks the guest's name, and every arm reads
+ `CLI_GIT_ZFS_STEP19_GUEST` before it does anything.
 
- The guest's own recipe is the ZFS binding's
- (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts` through `bin/mvm-guest-host-command.ts`): it creates the
- Ubuntu 24.04 guest and installs OpenZFS 2.4.4 and the Rust toolchain, and it owns the destruction too.
+ The guest's recipe is the ZFS binding's (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts` through
+ `bin/mvm-guest-host-command.ts`): it creates the Ubuntu 24.04 guest, installs OpenZFS 2.4.4 and the Rust toolchain, and
+ it owns the destruction too.
 
- Usage: node e2e/zfs-step-19-guest.ts <create|prepare|layout|build|units|refusals|underlay|snapdir|boot|migration|remove|destroy|all>
-          [--name <guest>] [--log-dir <dir>] [--keep-guest] [--image <template>] [--kernel-release <release>]
- `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
+ Usage: node e2e/zfs-step-19-guest.ts <step> [--name <guest>] [--log-dir <dir>] [--keep-guest]
+          [--image <template>] [--kernel-release <release>]
+   `layout`, `build`, `rebuild`, `harness`, `record`, `units`, `refusals`, `underlay`, `snapdir`, `boot`, `migration`,
+   `remove`, `all` are the arms; `create`, `prepare` and `destroy` are the recipe's own steps.
+   `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
- The evidence of one run is one log per step in the log folder, and a run passes only when the arm's own log carries every
+ The evidence of one run is one log per step in the log folder, and a run passes only when an arm's own log carries every
  line the driver expects: an arm that returned without running prints `SKIPPED` and exits zero, which is why a green exit
  status alone proves nothing (`AGENTS.md` rule `TRV`).
 
@@ -34,9 +35,6 @@ import type {
   GuestFacts,
 } from '../bin/mvm-guest-guest-facts.ts';
 import {
-  recipe,
-} from '../bin/mvm-guest-host-command.ts';
-import {
   runArguments,
   type RunArguments,
 } from '../bin/mvm-guest-options.ts';
@@ -44,32 +42,9 @@ import {
   runWholeGuestRun,
 } from '../bin/mvm-guest-whole-run.ts';
 
-import {
-  theImmutableEntry,
-  theRefusals,
-  theSnapdirInheritance,
-  theUnitsReadBack,
-} from './step-19-guest-arms/arms.ts';
-import {
-  installThePlan,
-  makeTheClone,
-  readTheBoot,
-  rebootTheGuest,
-  removeThePlan,
-  theFailingBoots,
-} from './step-19-guest-arms/boot.ts';
-import { buildInGuest, } from './step-19-guest-arms/build.ts';
-import {
-  releaseBinary,
-} from './step-19-guest-arms/fixture.ts';
-import {
-  guestLayout,
-  installTheProgram,
-  recordTheCheckout,
-} from './step-19-guest-arms/layout.ts';
-import {
-  migrateAndRollBack,
-} from './step-19-guest-arms/migration.ts';
+import { guestLayout, } from './step-19-guest-arms/layout.ts';
+import { everyArm, } from './step-19-guest-arms/run-every-arm.ts';
+import { theSteps, } from './step-19-guest-arms/steps.ts';
 
 /**
  The guest name a run uses when the command line names none.
@@ -126,7 +101,7 @@ type Options = {
 
  @example
  ```ts
- options({ argumentsRead: runArguments({ argv: ['run', '--name', 'guest-one'] }) });
+ options({ argumentsRead: runArguments({ argv: ['layout', '--name', 'guest-one'] }) });
  ```
  */
 function options({
@@ -212,93 +187,6 @@ function imageArguments(chosen: Options,): readonly string[] {
 }
 
 /**
- Run one step of the guest recipe.
-
- @param chosen - the run's options
-
- @param step - the recipe's own step
-
- @throws Error naming the recipe step and its status
-
- @example
- ```ts
- await recipeStep(chosen, 'create');
- ```
- */
-async function recipeStep({
-  chosen,
-  step,
-}: {
-  readonly chosen: GuestFacts & Options;
-  readonly step: string;
-},): Promise<void> {
-  await recipe({
-    chosen,
-    step,
-    extraArgumentWords: imageArguments(chosen,),
-  },);
-}
-
-/**
- Build the crate in the guest, then install the release program and record the checkout, which the arms need.
-
- @param chosen - the run's guest and log folder
-
- @throws GuestDriverError naming the step that refused
-
- @example
- ```ts
- await buildAndInstall(chosen);
- ```
- */
-async function buildAndInstall(chosen: GuestFacts,): Promise<void> {
-  await buildInGuest({ chosen, },);
-  await installTheProgram({
-    chosen,
-    releaseBinary,
-  },);
-  await recordTheCheckout({ chosen, },);
-}
-
-/**
- The arms the plan asks for, each in the guest, in the order a boot would meet them.
-
- The order is the plan's: the texts are parsed and read back first, then the immutable entry and the `snapdir` value the
- setup sets, then the boots themselves, and the migration last, because it writes a checkout record for a checkout of its
- own.
-
- @param chosen - the run's guest and log folder
-
- @throws GuestDriverError naming the step that refused, or the marker a pulled log lacks
-
- @example
- ```ts
- await everyArm({ chosen });
- ```
- */
-async function everyArm({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
-  await theUnitsReadBack({ chosen, },);
-  await theRefusals({ chosen, },);
-  await theImmutableEntry({ chosen, },);
-  await theSnapdirInheritance({ chosen, },);
-  await installThePlan({ chosen, },);
-  await rebootTheGuest({ chosen, },);
-  await readTheBoot({
-    chosen,
-    expect: 'healthy',
-  },);
-  await makeTheClone({ chosen, },);
-  await rebootTheGuest({ chosen, },);
-  await readTheBoot({
-    chosen,
-    expect: 'healthy',
-  },);
-  await theFailingBoots({ chosen, },);
-  await migrateAndRollBack({ chosen, },);
-  await removeThePlan({ chosen, },);
-}
-
-/**
  Run one named step of the driver.
 
  @param chosen - the run's options
@@ -312,103 +200,12 @@ async function everyArm({ chosen }: { readonly chosen: GuestFacts },): Promise<v
  */
 async function runTheStep(chosen: GuestFacts & Options,): Promise<void> {
   /**
-   The steps this driver knows, and nothing else.
+   Every step this driver answers, the recipe's own three included.
    */
-  const steps: ReadonlyMap<string, () => Promise<void>> = new Map([
-    [
-      'create',
-      async function create() {
-        await recipeStep({
-          chosen,
-          step: 'create',
-        },);
-      },
-    ],
-    [
-      'prepare',
-      async function prepare() {
-        await recipeStep({
-          chosen,
-          step: 'prepare',
-        },);
-      },
-    ],
-    [
-      'layout',
-      async function layout() {
-        await guestLayout({ chosen, },);
-      },
-    ],
-    [
-      'build',
-      async function build() {
-        await buildAndInstall(chosen,);
-      },
-    ],
-    [
-      'units',
-      async function units() {
-        await theUnitsReadBack({ chosen, },);
-      },
-    ],
-    [
-      'underlay',
-      async function underlay() {
-        await theImmutableEntry({ chosen, },);
-      },
-    ],
-    [
-      'snapdir',
-      async function snapdir() {
-        await theSnapdirInheritance({ chosen, },);
-      },
-    ],
-    [
-      'boot',
-      async function boot() {
-        await installThePlan({ chosen, },);
-        await rebootTheGuest({ chosen, },);
-        await readTheBoot({
-          chosen,
-          expect: 'healthy',
-        },);
-        await makeTheClone({ chosen, },);
-        await rebootTheGuest({ chosen, },);
-        await readTheBoot({
-          chosen,
-          expect: 'healthy',
-        },);
-        await theFailingBoots({ chosen, },);
-      },
-    ],
-    [
-      'migration',
-      async function migration() {
-        await migrateAndRollBack({ chosen, },);
-      },
-    ],
-    [
-      'remove',
-      async function remove() {
-        await removeThePlan({ chosen, },);
-      },
-    ],
-    [
-      'destroy',
-      async function destroy() {
-        await recipeStep({
-          chosen,
-          step: 'destroy',
-        },);
-      },
-    ],
-    [
-      'all',
-      async function allEveryArm() {
-        await all(chosen,);
-      },
-    ],
-  ],);
+  const steps = theSteps({
+    chosen,
+    extraArgumentWords: imageArguments(chosen,),
+  },);
   /**
    The step the command line named.
    */
@@ -440,7 +237,6 @@ async function runTheStep(chosen: GuestFacts & Options,): Promise<void> {
  */
 async function theWholeRun({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
   await guestLayout({ chosen, },);
-  await buildAndInstall(chosen,);
   await everyArm({ chosen, },);
 }
 
@@ -457,29 +253,30 @@ async function theWholeRun({ chosen }: { readonly chosen: GuestFacts },): Promis
  ```
  */
 async function all(chosen: GuestFacts & Options,): Promise<void> {
+  /**
+   The three steps of the recipe's own run, with this run's template words.
+   */
+  const recipeSteps = theSteps({
+    chosen,
+    extraArgumentWords: imageArguments(chosen,),
+  },);
   await runWholeGuestRun({
     label: 'zfs step 19 guest',
     chosen,
     keepGuest: chosen.keepGuest,
     steps: {
       create: async function createTheGuest() {
-        await recipeStep({
-          chosen,
-          step: 'create',
-        },);
+        await recipeSteps.get('create',)
+          ?.call(undefined,);
       },
       prepare: async function prepareTheGuest() {
-        await recipeStep({
-          chosen,
-          step: 'prepare',
-        },);
+        await recipeSteps.get('prepare',)
+          ?.call(undefined,);
       },
       work: theWholeRun,
       destroy: async function destroyTheGuest() {
-        await recipeStep({
-          chosen,
-          step: 'destroy',
-        },);
+        await recipeSteps.get('destroy',)
+          ?.call(undefined,);
       },
     },
   },);
@@ -494,4 +291,8 @@ const words: readonly string[] = process.argv
  The step and the values the command line gave it.
  */
 const chosen: Options = options({ argumentsRead: runArguments({ argv: words, },), },);
-await runTheStep(chosen,);
+/**
+ The run this command line asks for: the whole guest run for `all`, and one step for every other word.
+ */
+const chosenStep: (steps: GuestFacts & Options,) => Promise<void> = chosen.step === 'all' ? all : runTheStep;
+await chosenStep(chosen,);

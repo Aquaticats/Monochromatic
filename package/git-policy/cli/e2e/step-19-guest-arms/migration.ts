@@ -114,7 +114,9 @@ const steps: readonly MigrationStep[] = [
     section: 'Before anything',
     commands: [
       'apt-get --option Acquire::Retries=2 --yes install lsof rsync > /root/step19-migration-packages.log 2>&1',
-      'lsof +D /home/zfs-step19-migration/Monochromatic > /dev/null && echo "a process holds the checkout" || echo "STEP19-MIGRATION no-holder"',
+      // The page's step 1: a holder is a session to end first, so a holder stops the page rather than being forced.
+      'if lsof +D /home/zfs-step19-migration/Monochromatic > /dev/null 2>&1; then echo "a process holds the checkout"; exit 1; fi',
+      'echo "STEP19-MIGRATION no-holder"',
       'git -C /home/zfs-step19-migration/Monochromatic worktree list --porcelain',
       'findmnt --list --output TARGET,SOURCE,FSTYPE --submounts /home/zfs-step19-migration/Monochromatic',
       `zfs list -H -o name,mountpoint,used,avail -r ${migrationHomeDataset}`,

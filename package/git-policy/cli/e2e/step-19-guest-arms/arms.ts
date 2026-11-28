@@ -41,14 +41,15 @@ import {
   expectedUnderlayMarkers,
   expectedUnitMarkers,
   fixtureRoot,
+  keyUnit,
   nestedDataset,
   nestedMountpoint,
   nestedSlug,
   openZfsLibrary,
   openZfsPath,
   pool,
+  underlayEntryFolder,
   underlayTest,
-  underlay,
   bootTest,
 } from './fixture.ts';
 
@@ -83,6 +84,7 @@ export async function theUnitsReadBack({
       `export CLI_GIT_ZFS_STEP19_NESTED=${nestedDataset}`,
       `export CLI_GIT_ZFS_STEP19_NESTED_MOUNTPOINT=${nestedMountpoint}`,
       `export CLI_GIT_ZFS_STEP19_NESTED_SLUG=${nestedSlug}`,
+      `export CLI_GIT_ZFS_STEP19_KEY_UNIT=${keyUnit}`,
     ],
     log: 'guest-step19-units.log',
   },);
@@ -115,6 +117,22 @@ export async function theImmutableEntry({
 }: {
   readonly chosen: GuestFacts;
 },): Promise<string> {
+  // The arm's own fixture, left as the last run left it: a run that stopped before its last line keeps the flag on the
+  // entry, so the next reading would start from a protected folder.
+  await guest({
+    chosen,
+    script: [
+      'set -eu',
+      `mkdir --parents ${underlayEntryFolder}`,
+      `umount ${underlayEntryFolder}/monochromatic-git-checkout 2>/dev/null || true`,
+      `chattr -i ${underlayEntryFolder}/monochromatic-git-checkout 2>/dev/null || true`,
+      `chmod 0755 ${underlayEntryFolder}/monochromatic-git-checkout 2>/dev/null || true`,
+      `rm --recursive --force ${underlayEntryFolder}/monochromatic-git-checkout`,
+      'echo "STEP19-UNDERLAY-PRELUDE clean"',
+    ].join('\n',),
+    log: 'guest-step19-underlay-prelude.log',
+    timeoutMilliseconds: 300_000,
+  },);
   /**
    The arm's own log, which the markers are read from.
    */
@@ -122,8 +140,7 @@ export async function theImmutableEntry({
     chosen,
     test: underlayTest,
     environment: [
-      `export CLI_GIT_ZFS_STEP19_UNDERLAY=${underlay}`,
-      `export CLI_GIT_ZFS_STEP19_UNDERLAY_DATASET=${nestedDataset}`,
+      `export CLI_GIT_ZFS_STEP19_UNDERLAY=${underlayEntryFolder}`,
     ],
     log: 'guest-step19-underlay.log',
   },);
@@ -182,6 +199,10 @@ export async function theSnapdirInheritance({
     'echo "SNAPDIR-INHERITANCE container=$container_value $container_source"',
     // A clone of the checkout's snapshot, made in the container, answers the container's value and names the container
     // as where it came from.
+    // A run that stopped inside this arm leaves the clone and its snapshot behind, and a second snapshot of one name is
+    // a refusal.
+    `zfs destroy -r -f ${containerDataset}/snapdir-arm || true`,
+    `zfs destroy ${pool}/ROOT/home/monochromatic-git-checkout@snapdir-arm || true`,
     `zfs snapshot ${pool}/ROOT/home/monochromatic-git-checkout@snapdir-arm`,
     `zfs clone ${pool}/ROOT/home/monochromatic-git-checkout@snapdir-arm ${containerDataset}/snapdir-arm`,
     `zfs set mountpoint=${fixtureRoot}/snapdir-clone ${containerDataset}/snapdir-arm`,
@@ -191,7 +212,7 @@ export async function theSnapdirInheritance({
     // The value's own meaning, read the way step 8's snapdir arm reads it: `disabled` refuses the directory's name,
     // from a fresh mount, because a dentry the kernel already resolved stays reachable.
     `mountpoint=$(zfs get -H -o value mountpoint ${containerDataset}/snapdir-arm)`,
-    `zfs mount ${containerDataset}/snapdir-arm`,
+    // `zfs set mountpoint` already mounted it, so the listing starts from the mount the value is in force on.
     `mount --make-private "$mountpoint"`,
     `zfs snapshot ${containerDataset}/snapdir-arm@snapdir-arm`,
     `if ls -a "$mountpoint" | grep --quiet --extended-regexp "^[.]zfs$"; then listed=true; else listed=false; fi`,

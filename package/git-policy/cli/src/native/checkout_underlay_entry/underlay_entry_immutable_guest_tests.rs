@@ -17,6 +17,11 @@
 //!  answers,
 //! and nowhere else (`MHX`).
 //!  On any other machine it prints `SKIPPED` and returns.
+//!  Its fixture folder is made clean before it runs:
+//!  a run that stopped before its last line keeps the flag on the entry,
+//!  and the driver that starts this arm clears it and takes down whatever mount
+//!  was left,
+//!  so the first reading is always a plain folder.
 //!
 //! The driver sets:
 //!  `CLI_GIT_ZFS_STEP19_GUEST` to the guest's name,
@@ -61,9 +66,6 @@ pub const GUEST_VARIABLE: &str = "CLI_GIT_ZFS_STEP19_GUEST";
 
 /// The folder that stands for the home underlay.
 pub const UNDERLAY_VARIABLE: &str = "CLI_GIT_ZFS_STEP19_UNDERLAY";
-
-/// The dataset the arm mounts at the checkout path and unmounts again.
-pub const DATASET_VARIABLE: &str = "CLI_GIT_ZFS_STEP19_UNDERLAY_DATASET";
 
 /// The program that sets and clears the kernel's immutable flag.
 pub const CHATTR: &str = "/usr/bin/chattr";
@@ -146,12 +148,6 @@ fn covered_entry() -> PathBuf {
     let underlay: String = std::env::var(UNDERLAY_VARIABLE)
         .unwrap_or_else(|_| panic!("{UNDERLAY_VARIABLE} names the guest's home underlay"));
     return Path::new(underlay.as_str()).join("monochromatic-git-checkout");
-}
-
-/// The dataset the arm mounts at the covered entry.
-fn underlay_dataset() -> String {
-    return std::env::var(DATASET_VARIABLE)
-        .unwrap_or_else(|_| panic!("{DATASET_VARIABLE} names a dataset to mount"));
 }
 
 /// Read the entry and judge it for this test's own account.
@@ -252,8 +248,7 @@ fn the_verdict_reads_a_real_immutable_folder_in_a_guest() {
 
     // A mount at the path is another device, and the verdict names that rather
     // than believing the underlay's flag off the dataset.
-    let dataset: String = underlay_dataset();
-    must(MOUNT, &["-t", "zfs", dataset.as_str(), entry_text.as_str()]);
+    must(MOUNT, &["-t", "tmpfs", "tmpfs", entry_text.as_str()]);
     let mounted: (CoveredEntryFacts, UnderlayVerdict) = read_verdict();
     expect_verdict(
         &mounted.1,
@@ -271,6 +266,9 @@ fn the_verdict_reads_a_real_immutable_folder_in_a_guest() {
     );
 
     // The owner the route requires, and an entry that answers another one.
+    // The flag is cleared first, because the kernel refuses `chown` on an
+    // immutable entry with the same `EPERM` it refused the removal with.
+    must(CHATTR, &["-i", entry_text.as_str()]);
     let wanted: u32 = rustix::process::geteuid().as_raw();
     let other: String = if wanted == 65534 {
         String::from("0")
@@ -278,6 +276,10 @@ fn the_verdict_reads_a_real_immutable_folder_in_a_guest() {
         String::from("65534")
     };
     must(CHOWN, &["--recursive", other.as_str(), entry_text.as_str()]);
+    // The flag is set again, because the verdict answers a cleared flag before it
+    // answers an owner,
+    // and this case is about the owner alone.
+    must(CHATTR, &["+i", entry_text.as_str()]);
     let owned: (CoveredEntryFacts, UnderlayVerdict) = read_verdict();
     expect_verdict(
         &owned.1,

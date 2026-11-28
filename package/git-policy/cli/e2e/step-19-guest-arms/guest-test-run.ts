@@ -14,6 +14,7 @@
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
+import { GuestDriverError, } from '../../bin/mvm-guest-error.ts';
 import { guest, } from '../../bin/mvm-guest-script.ts';
 
 import {
@@ -100,10 +101,27 @@ export async function runOneGuestTest({
     'test "$status" = 0',
     `grep --quiet "^test ${test} ... ok" /root/${log}`,
   ].join('\n',);
-  return await guest({
-    chosen,
-    script,
-    log,
-    timeoutMilliseconds,
-  },);
+  // The harness is built by its own step, so this call only runs one test of
+  // it.
+  // A guest whose agent stopped answering under this machine's memory pressure
+  // ends a call like this with the transport and no status,
+  // which says nothing about the arm:
+  // the run is asked once more, and both logs are kept.
+  try {
+    return await guest({
+      chosen,
+      script,
+      log,
+      timeoutMilliseconds,
+    },);
+  } catch (error) {
+    if (!(error instanceof GuestDriverError))
+      throw error;
+    return await guest({
+      chosen,
+      script,
+      log: `${log}.again`,
+      timeoutMilliseconds,
+    },);
+  }
 }

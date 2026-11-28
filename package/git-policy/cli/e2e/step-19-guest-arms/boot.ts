@@ -36,6 +36,7 @@ import {
   expectedFailedBootMarkers,
   expectedHealthyBootMarkers,
   fixtureRoot,
+  keyUnit,
   nestedDataset,
   nestedMountpoint,
   nestedSlug,
@@ -45,7 +46,7 @@ import {
   rebootTest,
   rebootTimeoutMilliseconds,
   slot,
-  underlay,
+  underlayEntryFolder,
 } from './fixture.ts';
 import {
   runOneGuestTest,
@@ -80,7 +81,8 @@ function bootEnvironment({
     `export CLI_GIT_ZFS_STEP19_NESTED=${nestedDataset}`,
     `export CLI_GIT_ZFS_STEP19_NESTED_MOUNTPOINT=${nestedMountpoint}`,
     `export CLI_GIT_ZFS_STEP19_NESTED_SLUG=${nestedSlug}`,
-    `export CLI_GIT_ZFS_STEP19_UNDERLAY=${underlay}`,
+    `export CLI_GIT_ZFS_STEP19_KEY_UNIT=${keyUnit}`,
+    `export CLI_GIT_ZFS_STEP19_UNDERLAY=${underlayEntryFolder}`,
     `export CLI_GIT_ZFS_STEP19_SLOT=${slot}`,
     `export CLI_GIT_ZFS_STEP19_SBIN=${openZfsSbin}`,
     `export CLI_GIT_ZFS_STEP19_CHECKOUT_DATASET=${checkoutDataset}`,

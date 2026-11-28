@@ -18,10 +18,13 @@
 import type { GuestFacts, } from '../../bin/mvm-guest-guest-facts.ts';
 import { guest, } from '../../bin/mvm-guest-script.ts';
 
+import { buildInGuest, } from './build.ts';
 import {
+  releaseBinary as theReleaseBinary,
   checkoutDataset,
   checkoutPath,
   containerDataset,
+  keyUnit,
   fixtureRoot,
   nestedDataset,
   nestedMountpoint,
@@ -29,8 +32,9 @@ import {
   openZfsPath,
   openZfsSource,
   pool,
-  slot,
+  slot
 } from './fixture.ts';
+
 
 /**
  The folder the store's slots recorded inside the guest, which the add route writes.
@@ -94,6 +98,12 @@ export async function guestLayout({
     // `canmount=noauto` already kept it unmounted, and an unmount of a dataset that is not mounted is a refusal.
     `zfs unmount ${nestedDataset} || true`,
     `zfs create -o mountpoint=/var/lib/monochromatic-git-policy-cli ${pool}/store`,
+    // The start probe's own source, which the probe refuses the whole route without: it answers `blocked` and names this
+    // dataset when the pool holds none (`this release carries no setup that creates it`), and a blocked record refuses
+    // every managed attach.
+    `zfs create -o mountpoint=legacy -o canmount=off ${pool}/nosnap`,
+    `zfs create -o mountpoint=legacy -o canmount=off ${pool}/nosnap/git-worktree-probe`,
+    `zfs snapshot ${pool}/nosnap/git-worktree-probe@ready`,
     `git -C ${checkoutPath} init --quiet --initial-branch=main`,
     `git -C ${checkoutPath} -c user.name=step19 -c user.email=step19@example.invalid commit --quiet --allow-empty -m 'the step 19 guest layout'`,
     `mkdir --parents ${checkoutPath}/.claude/worktrees`,
@@ -122,8 +132,13 @@ export async function guestLayout({
     `install --mode=0644 ${openZfsSource}/etc/systemd/system/zfs-import.target /etc/systemd/system/zfs-import.target`,
     `install --mode=0644 ${openZfsSource}/etc/systemd/system/zfs.target /etc/systemd/system/zfs.target`,
     String.raw`printf "zfs\n" > /etc/modules-load.d/zfs.conf`,
+    // A stand-in for the key provider a packaged OpenZFS ships (`zfs-load-key.service` on Debian and Ubuntu), under a
+    // name this guest's own systemd does not mask. It is a stand-in, and no claim about a packaged unit's text rests on
+    // it.
+    String.raw`printf '%s\n' '# The key provider this guest has, standing in for the packaged zfs-load-key.service.' '[Unit]' 'Description=Load the ZFS keys this boot can load (stand-in for the packaged unit)' 'DefaultDependencies=no' 'After=zfs-import.target' 'Before=zfs-mount.service' 'ConditionPathIsDirectory=/sys/module/zfs' '' '[Service]' 'Type=oneshot' 'RemainAfterExit=yes' 'ExecStart=/opt/openzfs-2.4.4/sbin/zfs load-key -a' '' '[Install]' 'WantedBy=zfs.target' > /etc/systemd/system/${keyUnit}`,
+    `chmod 0644 /etc/systemd/system/${keyUnit}`,
     'systemctl daemon-reload',
-    'systemctl enable zfs.target zfs-import-cache.service zfs-mount.service',
+    `systemctl enable zfs.target zfs-import-cache.service ${keyUnit} zfs-mount.service`,
     `test -s ${openZfsSource}/etc/zfs/zpool.cache`,
     `zfs list -H -o name,mountpoint,mounted,canmount -r ${pool}`,
     `zfs get -H -o property,value,source snapdir ${containerDataset} ${checkoutDataset}`,
@@ -207,6 +222,12 @@ export async function recordTheCheckout({
    */
   const script = [
     'set -eu',
+    `export PATH=${openZfsPath}`,
+    `export LD_LIBRARY_PATH=${openZfsLibrary}`,
+    // The checkout path must be the dataset's own mountpoint when the mode proves it: a path that fell through to the
+    // home tree answers `checkout-not-on-zfs` and records nothing.
+    `if test "$(zfs get -H -o value keystatus ${checkoutDataset})" = unavailable; then zfs load-key ${checkoutDataset}; fi`,
+    `if ! findmnt --target ${checkoutPath} --noheadings --output SOURCE | grep --quiet --fixed-strings "${checkoutDataset}"; then zfs mount ${checkoutDataset}; mount --make-rprivate ${checkoutPath}; fi`,
     `/usr/libexec/monochromatic-git-policy-cli/history_event-mount_git_worktree_clone_datasets monochromatic-git-policy-cli zfs-root record-checkout --checkout ${checkoutPath}`,
     `cat ${checkoutRecord}`,
     `ls -la ${storeFolder} 2>/dev/null || true`,
@@ -217,4 +238,29 @@ export async function recordTheCheckout({
     log: 'guest-step19-record-checkout.log',
     timeoutMilliseconds: 300_000,
   },);
+}
+
+/**
+ Build the crate in the guest, then install the release program and record the checkout, which every arm after it needs.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError naming the step that refused
+
+ @example
+ ```ts
+ await buildAndInstall({ chosen });
+ ```
+ */
+export async function buildAndInstall({
+  chosen,
+}: {
+  readonly chosen: GuestFacts;
+},): Promise<void> {
+  await buildInGuest({ chosen, },);
+  await installTheProgram({
+    chosen,
+    releaseBinary: theReleaseBinary,
+  },);
+  await recordTheCheckout({ chosen, },);
 }

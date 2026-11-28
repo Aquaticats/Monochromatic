@@ -47,6 +47,8 @@ const buildLog = 'guest-step19-build.log';
 
  @param chosen - the run's guest and log folder
 
+ @param fresh - whether the crate's folder is removed first, which a rebuild does not do
+
  @returns the pulled build log
 
  @throws GuestDriverError naming the step that refused
@@ -58,8 +60,10 @@ const buildLog = 'guest-step19-build.log';
  */
 export async function buildInGuest({
   chosen,
+  fresh = true,
 }: {
   readonly chosen: GuestFacts;
+  readonly fresh?: boolean;
 },): Promise<string> {
   await pushWorktreeSnapshot({ chosen, },);
   /**
@@ -68,7 +72,9 @@ export async function buildInGuest({
   const script = [
     'set -eu',
     'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
-    `rm --recursive --force ${crateDirectory}`,
+    // A rebuild unpacks the new sources over the tree the last build left, so cargo reuses
+    // every dependency artifact it already made and compiles this crate alone.
+    ...(fresh ? [`rm --recursive --force ${crateDirectory}`] : []),
     `mkdir --parents ${crateDirectory}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${crateDirectory}`,
     `cd ${cratePackage}`,
@@ -78,7 +84,13 @@ export async function buildInGuest({
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'CARGO_BUILD_JOBS=1 cargo build --release --locked --bins > /root/step19-release-build.log 2>&1',
     'tail --lines=3 /root/step19-release-build.log',
-    'CARGO_BUILD_JOBS=1 cargo build --release --locked --lib --tests --features test-only-switches > /root/step19-test-build.log 2>&1',
+    // The library test target alone: every arm of this driver is a library test, and the binary test
+    // targets this crate also holds are not run here. Measured 2026-11-27: `--lib --tests` at one job
+    // outlasted the guest's own 45-minute bound on a cold dependency tree.
+    // `cargo build --lib` leaves the library's test harness unlinked, so the harness is built here with
+    // `cargo test --no-run`: every arm of this driver runs one test of it by name, and a harness built inside an arm's
+    // own bound would spend that bound compiling.
+    'CARGO_BUILD_JOBS=1 cargo test --release --locked --lib --features test-only-switches --no-run > /root/step19-test-build.log 2>&1',
     'tail --lines=3 /root/step19-test-build.log',
     `test -x ${cratePackage}/target/release/monochromatic-git-policy-cli`,
   ].join('\n',);
@@ -86,6 +98,54 @@ export async function buildInGuest({
     chosen,
     script,
     log: buildLog,
+    timeoutMilliseconds: crateBuildTimeoutMilliseconds,
+    finishTimeoutMilliseconds: crateBuildTimeoutMilliseconds + finishMarginMilliseconds,
+  },);
+}
+
+/**
+ What:
+  The library test harness alone, over the tree the last build left.
+ Why:
+  `cargo build --lib` leaves the harness unlinked and every arm runs one test of it by name,
+  so a harness built inside an arm's own bound would spend that bound compiling.
+  This step exists because the first run of the units' arm was that: the arm's own fifteen minutes went on compiling,
+  and its log came back empty.
+
+ @param chosen - the run's guest and log folder
+
+ @returns the pulled build log
+
+ @throws GuestDriverError naming the status the script ended with
+
+ @example
+ ```ts
+ await harnessInGuest({ chosen });
+ ```
+ */
+export async function harnessInGuest({
+  chosen,
+}: {
+  readonly chosen: GuestFacts;
+},): Promise<string> {
+  await pushWorktreeSnapshot({ chosen, },);
+  /**
+   The sources just pushed, unpacked over the tree the last build left, and the harness built from them.
+   */
+  const script = [
+    'set -eu',
+    'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
+    `tar --extract --gzip --file /root/subject.tar.gz --directory ${crateDirectory}`,
+    `cd ${cratePackage}`,
+    'export PATH=/root/.cargo/bin:$PATH',
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
+    'CARGO_BUILD_JOBS=1 cargo test --release --locked --lib --features test-only-switches --no-run > /root/step19-test-build.log 2>&1',
+    'tail --lines=3 /root/step19-test-build.log',
+  ].join('\n',);
+  return await detachedStep({
+    chosen,
+    script,
+    log: 'guest-step19-harness.log',
     timeoutMilliseconds: crateBuildTimeoutMilliseconds,
     finishTimeoutMilliseconds: crateBuildTimeoutMilliseconds + finishMarginMilliseconds,
   },);

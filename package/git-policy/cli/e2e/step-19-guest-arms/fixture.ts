@@ -83,6 +83,12 @@ export const checkoutPath: string = `${fixtureRoot}/home/monochromatic-git-check
 export const underlay: string = `${fixtureRoot}/home`;
 
 /**
+ The folder the immutable entry's arm protects: a folder of the store's own dataset, which is the shape the home
+ underlay has (a folder of a dataset, no mount of its own).
+ */
+export const underlayEntryFolder: string = '/var/lib/covered-entry-arm';
+
+/**
  The nested dataset's mountpoint, inside the checkout.
  */
 export const nestedMountpoint: string = `${checkoutPath}/nested-output`;
@@ -91,6 +97,15 @@ export const nestedMountpoint: string = `${checkoutPath}/nested-output`;
  The short word the nested dataset's unit name carries.
  */
 export const nestedSlug: string = 'output';
+
+/**
+ The key provider the guest's boot arm requires and orders after.
+
+ The recipe builds OpenZFS from the upstream tree, which ships no key-loading unit, and a packaged OpenZFS ships one
+ (`zfs-load-key.service` on Debian and Ubuntu, which this guest's own systemd masks). So the layout writes a stand-in
+ under a name no mask shadows, and the arm's facts carry it the way a machine that has one does.
+ */
+export const keyUnit: string = 'zfs-key-provider-stand-in.service';
 
 /**
  The slot one managed clone stands at.
@@ -142,7 +157,6 @@ export const underlayTest: string =
 export const expectedUnitMarkers: readonly string[] = [
   'STEP19-GUEST verified=/etc/systemd/system/reconcile-git-worktree-clone-mounts.service',
   'STEP19-GUEST propagation-pair-offline-limit=',
-  'STEP19-GUEST verified=/etc/systemd/system/checkout-propagation.service',
   'STEP19-GUEST verified=/etc/systemd/system/git-worktree-nested-output-mount.service',
   'STEP19-GUEST gate-orders-and-bounds-read',
   'STEP19-GUEST drop-ins-read',
@@ -189,8 +203,12 @@ export const expectedFailedBootMarkers: readonly string[] = ['STEP19-BOOT failed
 
 /**
  Milliseconds the guest's build of the test target and the release binary may take.
+
+ Value: 90 minutes, measured on 2026-11-28: this machine's memory pressure left the guest's own one-job build of the
+ library's test harness unfinished at 60 minutes (the guest's `timeout` ended it with status 124), where the same build
+ took 4m 41s and 12m 48s in the runs beside it.
  */
-export const crateBuildTimeoutMilliseconds: number = 2_700_000;
+export const crateBuildTimeoutMilliseconds: number = 5_400_000;
 
 /**
  Milliseconds one guest arm may take.
