@@ -65,12 +65,14 @@ fn every_finding_code_has_a_hint_or_its_own() {
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // for (const correction of [undefined, 'corrects', 'records']) { /* ... */ }
+            // for (const correction of [undefined, 'corrects', 'corrects-unless-the-selection-is-read-only', 'nothing-corrects-what-the-index-holds', 'nothing-corrects-what-a-commit-holds']) { /* ... */ }
             // ```
             for commit_correction in [
                 None,
                 Some(CommitCorrection::Corrects),
-                Some(CommitCorrection::Records),
+                Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
+                Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds),
+                Some(CommitCorrection::NothingCorrectsWhatACommitHolds),
             ] {
                 let hint: &str = finding_hint(policy, code, fix_available, commit_correction)
                     .unwrap_or_else(|| {
@@ -92,8 +94,8 @@ fn every_finding_code_has_a_hint_or_its_own() {
     assert_eq!(finding_hint("final-newline", "unknown", false, None), None);
 }
 
-/// The three cases of the final-newline finding say what corrects the file there,
-///  and only the case nothing corrects tells the person to edit it.
+/// Every place of the final-newline finding says what changes the bytes there,
+///  and each says a step that works where it is printed.
 #[test]
 fn the_final_newline_hint_says_what_corrects_the_file() {
     let here: &str = finding_hint(
@@ -103,29 +105,47 @@ fn the_final_newline_hint_says_what_corrects_the_file() {
         Some(CommitCorrection::Corrects),
     )
     .expect("hint");
-    let by_the_commit: &str = finding_hint(
+    let by_the_commit_that_takes_the_file: &str = finding_hint(
         "final-newline",
         FINAL_NEWLINE_CODE,
         false,
         Some(CommitCorrection::Corrects),
     )
     .expect("hint");
-    let nothing: &str = finding_hint(
+    let unless_the_selection_is_read_only: &str = finding_hint(
         "final-newline",
         FINAL_NEWLINE_CODE,
         false,
-        Some(CommitCorrection::Records),
+        Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
     )
     .expect("hint");
-    // What: a lifecycle that corrects the bytes itself, and one whose bytes a commit corrects, both name the fix.
-    // Why:  those two cases share the promise that a commit fixes the ending, and the second adds the condition
-    //       under which it does.
+    let when_the_index_holds_them: &str = finding_hint(
+        "final-newline",
+        FINAL_NEWLINE_CODE,
+        false,
+        Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds),
+    )
+    .expect("hint");
+    let when_a_commit_holds_them: &str = finding_hint(
+        "final-newline",
+        FINAL_NEWLINE_CODE,
+        false,
+        Some(CommitCorrection::NothingCorrectsWhatACommitHolds),
+    )
+    .expect("hint");
+    // What: the three places the correction is still ahead of the person name the fix.
+    // Why:  those three cases share the promise that a command corrects the bytes, and two add the
+    //       condition under which it does.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // for (const hint of [here, byTheCommit]) expect(hint).toContain('git monochromatic-git-policy-cli fix');
+    // for (const hint of [here, byTheFileTaker, unlessReadOnly]) expect(hint).toContain('git monochromatic-git-policy-cli fix');
     // ```
-    for hint in [here, by_the_commit] {
+    for hint in [
+        here,
+        by_the_commit_that_takes_the_file,
+        unless_the_selection_is_read_only,
+    ] {
         assert!(
             hint.contains("git monochromatic-git-policy-cli fix -- <path>"),
             "{hint}"
@@ -134,20 +154,70 @@ fn the_final_newline_hint_says_what_corrects_the_file() {
     }
     assert!(here.contains("a commit corrects the ending"), "{here}");
     assert!(
-        by_the_commit.contains("a commit that takes it corrects the ending"),
-        "{by_the_commit}"
+        by_the_commit_that_takes_the_file.contains("a commit that takes it corrects the ending"),
+        "{by_the_commit_that_takes_the_file}"
     );
-    // What: the case nothing corrects is the only one that tells the person to edit the file.
-    // Why:  an `add` was told exactly that about a file the next commit corrected, which is issue 6627.
-    assert!(nothing.contains("edit it"), "{nothing}");
-    assert!(!nothing.contains("corrects the ending"), "{nothing}");
-    // What: the three cases are three different sentences, so nothing printed reads as another case's promise.
+    // What: an `add` leads with the fix and the staging after it, because an `add` may be refused.
+    // Why:  a person whose add was refused can stage nothing until the file is corrected, and an index that
+    //       already holds the bytes keeps them until it is staged once more (issue 6627's read, Low 3).
+    assert!(
+        unless_the_selection_is_read_only.starts_with(
+            "Hint: to correct the ending now, run `git monochromatic-git-policy-cli fix -- <path>`"
+        ),
+        "{unless_the_selection_is_read_only}"
+    );
+    assert!(
+        unless_the_selection_is_read_only
+            .contains("then stage the file again with `git add -- <path>`"),
+        "{unless_the_selection_is_read_only}"
+    );
+    assert!(
+        unless_the_selection_is_read_only
+            .contains("a commit whose selection is read-only (`-p`, `-i` or `--include`) records"),
+        "{unless_the_selection_is_read_only}"
+    );
+    // What: a lifecycle whose bytes nothing corrects tells the person to edit the file, and names the step after it.
+    // Why:  an `add` was told to edit a file the next commit corrected, which is issue 6627, and a push was told
+    //       to stage bytes it had already recorded.
+    assert!(
+        when_the_index_holds_them
+            .contains("edit it so it ends with exactly one newline, then stage it again"),
+        "{when_the_index_holds_them}"
+    );
+    assert!(
+        !when_the_index_holds_them.contains("corrects the ending"),
+        "{when_the_index_holds_them}"
+    );
+    assert!(
+        when_a_commit_holds_them.contains(
+            "edit the file so it ends with exactly one newline, then commit the correction"
+        ),
+        "{when_a_commit_holds_them}"
+    );
+    assert!(
+        !when_a_commit_holds_them.contains("corrects the ending"),
+        "{when_a_commit_holds_them}"
+    );
+    assert!(
+        !when_a_commit_holds_them.contains("stage it again"),
+        "{when_a_commit_holds_them}"
+    );
+    // What: the five answers are five different sentences, so nothing printed reads as another place's promise.
     // Why:  one text reused would tell a person the wrong thing at one of the lifecycles.
-    assert_ne!(here, by_the_commit);
-    assert_ne!(by_the_commit, nothing);
-    assert_ne!(here, nothing);
+    let distinct: [&str; 5] = [
+        here,
+        by_the_commit_that_takes_the_file,
+        unless_the_selection_is_read_only,
+        when_the_index_holds_them,
+        when_a_commit_holds_them,
+    ];
+    for (position, hint) in distinct.iter().enumerate() {
+        for other in distinct.iter().skip(position + 1) {
+            assert_ne!(hint, other);
+        }
+    }
     assert_eq!(
-        nothing,
+        when_the_index_holds_them,
         finding_hint("final-newline", FINAL_NEWLINE_CODE, false, None).expect("hint")
     );
 }
