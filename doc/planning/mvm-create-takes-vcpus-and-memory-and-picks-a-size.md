@@ -371,7 +371,7 @@ Nothing changed that has to change:
 the smallest in stock is no longer what a create takes,
 so this command answers a different question than a create does.
 
-### The four departures from this file's own choices, and what happens to each
+### The departures from this file's own choices, and what happens to each
 
 1.  **The family rule reads the name and leaves `i1` out.**
     The build keeps a flavour whose family token,
@@ -396,7 +396,17 @@ so this command answers a different question than a create does.
     Built at `flavors.ts` (`flavor.ram >= request.memoryGiB`) and at `server-types.ts` (`type.memory >= request.memoryGiB`).
     Taken into Decision 6,
     whose options say which unit each number carries and where a conversion lands.
-4.  **One price read for each create.**
+4.  **A flavour named in the environment is refused beside either number.**
+    Built at `package/mvm/cli/src/backend/size-request.ts`:
+    the two sources are refused rather than resolved,
+    so `MVM_OVH_FLAVOR` beside `--vcpus` ends a create that the earlier draft
+    would have run on the named flavour.
+    Taken into
+    "What is built today",
+    and marked open to the owner's veto here:
+    the alternative is that the command line wins and the create logs the
+    variable it ignored.
+5.  **One price read for each create.**
     Taken into Decision 4 and into "What an hour of a machine costs",
     with what the read does not include,
     which is filed as issue 6666.
