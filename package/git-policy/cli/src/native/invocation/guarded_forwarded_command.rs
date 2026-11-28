@@ -36,7 +36,6 @@
 /// import { resolveForwardedCommand, Route } from './forwarded_command.ts';
 /// import { decideGuardedWord } from '../command/rule_linked_worktree.ts';
 /// ```
-use crate::child_environment::environment_value;
 /// The Git directory Git gives the Git inside a `!` alias's shell.
 use crate::external_git_command_the_git_dir_the_shell_reads::the_git_dir_the_alias_shell_reads;
 use crate::forwarded_command::{
@@ -205,8 +204,7 @@ pub fn decide_guarded_forwarded(
         // Git names the repository of the shell's Git only when something named one, so that is the one question the
         //  reading asks about it; a command whose own words name no place keeps the caller's options, which reach the
         //  same worktree.
-        let place_named_by_the_callers_words: bool =
-            the_place_was_named(callers_globals, environment);
+        let place_named_by_the_callers_words: bool = the_place_was_named(callers_globals);
         let inherited_git_dir: Option<OsString> = if shell_directory.is_some()
             && own
                 .iter()
@@ -307,27 +305,31 @@ pub(crate) fn globals_that_place_the_command(
 }
 
 /// What:
-///  Whether the caller's own words or environment named the repository the Git inside a `!` alias's shell reads:
-/// a Git directory,
-///  or a work tree.
+///  Whether the caller's own words before the alias name named the repository the Git inside a `!` alias's shell
+///  reads: a Git directory, or a work tree.
 /// Why:
-///  Git exports `GIT_DIR` to such a shell whenever either was named (`setup.c:1657` to `:1662`),
-///  because both make it take the explicit path through `setup_explicit_git_dir`,
-///  which stores the Git directory it found.
-///  The value is read from Git rather than rebuilt from these words,
+///  Git gives such a shell a `GIT_DIR` whenever either was named
+///  (`setup.c:1247` to `:1254` of Git 2.56.1, through the explicit path that stores the Git directory it found),
+///  and the value is read from Git rather than rebuilt from these words,
 ///  so a relative spelling stays relative as Git stored it.
 ///  A `-C` is not one of these:
 ///  Git changes into that directory and finds the repository from there,
 ///  which is the discovery that exports nothing in a plain main checkout.
-fn the_place_was_named(
-    callers_globals: &[OsString],
-    environment: &[(OsString, OsString)],
-) -> bool {
-    for name in ["GIT_DIR", "GIT_WORK_TREE"] {
-        if environment_value(environment, name).is_some() {
-            return true;
-        }
-    }
+///  A `GIT_DIR` or `GIT_WORK_TREE` in the caller's environment is not read here,
+///  because the facts' own Git inherits that environment:
+///  measured on 2026-11-28, an absolute `GIT_DIR` names the same state whether the reading pins it with
+///  `--git-dir` or the facts inherit it, a relative one is rebased by the command's own `-C` either way,
+///  and a `GIT_WORK_TREE` makes `--show-toplevel` differ from the Git directory, which the comparison already reads.
+///  Gotcha:
+///  this rests on every fact request inheriting the caller's environment;
+///  a request that unset `GIT_DIR` or `GIT_WORK_TREE` would make the reading name no state where Git's nested
+///  command has one, so such a request belongs beside this sentence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePlaceWasNamed = (callersGlobals) => callersGlobals.some((word) => /^--(git-dir|work-tree)(=|$)/.test(word));
+/// ```
+fn the_place_was_named(callers_globals: &[OsString]) -> bool {
     /// The globals that store a Git directory or a work tree,
     ///  in both spellings Git accepts.
     const NAMED: &[&[u8]] = &[b"--git-dir", b"--git-dir=", b"--work-tree", b"--work-tree="];

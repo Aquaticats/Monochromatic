@@ -1005,47 +1005,48 @@ fn a_refusal_of_a_state_that_is_two_worktrees_names_both_of_them() {
 }
 
 /// What:
-///  A fixture whose caller worktree holds one staged entry and whose target worktree holds nothing,
-///  so the caller's index over the target's files is uncommitted while the target alone is clean.
+///  A fixture whose caller stands at the top of a plain main checkout and whose words name a linked worktree,
+///  so the caller's index over that worktree's files is uncommitted while the worktree alone is clean.
 /// Why:
-///  The environment half of `the_place_was_named` can only be seen where the two answers differ:
-///  the state a caller's own `GIT_DIR` makes is dirty while the worktree its `-C` names is clean,
-///  and a guard that forgot the variable would judge the clean one and let the command run.
+///  The environment half of `the_place_was_named` can only be seen where the two answers differ,
+///  and a linked worktree's alias shell is given a `GIT_DIR` whether the variable is exported or not.
+///  A plain main checkout is the shape the reading counts as one Git gives nothing to,
+///  so a `GIT_DIR` in its shell's environment is the only thing that makes it export:
+///  its own index, holding one staged entry, read over the clean worktree's files is then not clean,
+///  while that worktree alone is.
 struct ACallerHoldingAStagedEntry {
     /// The fixture folder.
     root: PathBuf,
-    /// The worktree the caller stands in,
+    /// The main checkout the caller stands at the top of,
     ///  whose index holds the staged entry.
     caller: PathBuf,
-    /// The worktree the caller's words name,
+    /// The linked worktree the caller's words name,
     ///  which holds nothing uncommitted.
     target: PathBuf,
 }
 
 /// What:
-///  That fixture, with the caller's Git directory named for the control that hands it over.
+///  That fixture, and the Git directory Git gives its shell when `GIT_DIR` is exported to it.
 /// Why:
 ///  The variable is the one Git exports to a `!` alias's shell,
 ///  and its value is read from Git rather than assembled here.
 fn a_caller_holding_a_staged_entry(name: &str) -> ACallerHoldingAStagedEntry {
     let root: PathBuf = fixture(name);
-    let main: PathBuf = repository(root.as_path(), "main");
-    std::fs::write(main.join("tracked.txt"), "one\n").expect("the tracked file");
-    git(main.as_path(), &["add", "tracked.txt"]);
-    git(main.as_path(), &["commit", "--quiet", "--message=content"]);
+    let caller: PathBuf = repository(root.as_path(), "main");
+    std::fs::write(caller.join("tracked.txt"), "one\n").expect("the tracked file");
+    git(caller.as_path(), &["add", "tracked.txt"]);
     git(
-        main.as_path(),
+        caller.as_path(),
+        &["commit", "--quiet", "--message=content"],
+    );
+    git(
+        caller.as_path(),
         &["config", "alias.printgitdir", "!printf %s \"$GIT_DIR\""],
     );
     git(
-        main.as_path(),
-        &["worktree", "add", "--quiet", "-b", "caller", "../caller"],
-    );
-    git(
-        main.as_path(),
+        caller.as_path(),
         &["worktree", "add", "--quiet", "-b", "target", "../target"],
     );
-    let caller: PathBuf = root.join("caller");
     std::fs::write(caller.join("staged.txt"), "staged\n").expect("the staged new file");
     git(caller.as_path(), &["add", "staged.txt"]);
     return ACallerHoldingAStagedEntry {
@@ -1073,11 +1074,22 @@ fn a_caller_holding_a_staged_entry(name: &str) -> ACallerHoldingAStagedEntry {
 fn an_alias_row_is_judged_with_the_git_dir_its_callers_environment_names() {
     let fixture_worktrees: ACallerHoldingAStagedEntry =
         a_caller_holding_a_staged_entry("guard-alias-git-dir-in-the-environment");
-    let caller_git_directory: String =
-        the_git_dir_git_gives_a_shell_in(fixture_worktrees.caller.as_path());
+    // What: the caller's own Git directory, which is the value the variable names.
+    // Why: a plain main checkout's shell is given none unless `GIT_DIR` says so, so `printgitdir` there prints
+    //  nothing; the value a shell that exported the variable would name is the one Git resolves for that place.
+    let caller_git_directory: String = {
+        let output: std::process::Output = git(
+            fixture_worktrees.caller.as_path(),
+            &["rev-parse", "--path-format=absolute", "--git-dir"],
+        );
+        assert!(output.status.success(), "the caller's Git directory reads");
+        String::from_utf8_lossy(output.stdout.as_slice())
+            .trim_end_matches('\n')
+            .to_owned()
+    };
     assert!(
         !caller_git_directory.is_empty(),
-        "the caller's shell is given a Git directory, which is the value this control hands over"
+        "the caller's Git directory is the value this control hands over"
     );
     let root: PathBuf = fixture_worktrees.root.clone();
     run_the_body_with_an_environment_of_its_own(
@@ -1092,7 +1104,7 @@ fn an_alias_row_is_judged_with_the_git_dir_its_callers_environment_names() {
             let root: PathBuf = PathBuf::from(
                 std::env::var_os("FIXTURE_ROOT").expect("the child is told its fixture"),
             );
-            let caller: PathBuf = root.join("caller");
+            let caller: PathBuf = root.join("main");
             let target: PathBuf = root.join("target");
             let git_directory: OsString =
                 std::env::var_os("GIT_DIR").expect("the child is told the Git directory");

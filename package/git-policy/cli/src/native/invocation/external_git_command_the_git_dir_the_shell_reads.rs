@@ -48,12 +48,12 @@ use std::path::{
 ///  `&[OsString]` borrows the globals of the Git process that reached the alias;
 ///  `Option<&Path>` is the directory that process was started in,
 ///  the caller's `-C` options not yet applied;
-///  `bool` says whether the caller's own options or environment named a Git directory or a work tree.
+///  `bool` says whether the caller's own options before the alias name named a Git directory or a work tree.
 /// Why:
 ///  Git runs one export block for every repository it finds,
 ///  and leaves the Git directory out of the shell's environment only on one path through it
 ///  (`setup.c:2063` to `:2076` of Git 2.56.1):
-///  `discovery.gitdir` is set for a place the caller named,
+///  `discovery.gitdir` is set for a place the caller named on its command line,
 ///  for a bare repository,
 ///  for a place inside a Git directory,
 ///  for a working tree whose `.git` is a file that points elsewhere,
