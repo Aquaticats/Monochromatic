@@ -12682,3 +12682,8 @@ worktree_clone_mount_sweep_merge::run_claim struct HeldRunClaim
 worktree_clone_mount_sweep_merge::merge_pass const MOST_PASSES
 worktree_clone_mount_sweep_merge::merge_pass fn run_a_merge_pass
 worktree_clone_mount_sweep_merge::merge_pass fn run_a_merge_pass_seamed
+# The check a forwarded command makes in its repository's folder of unanswered requests: step 10 of the ZFS route builds
+# it ahead of its call site, because a use of the protocol folder by `invocation/` is a new use inside a loop the layout
+# allow list tolerates and no line may record it; the forwarded path's one line lands with that untangling
+# (doc/planning/cli-git-zfs-lost-last-event-triggers-design.md, "Which commands, and where").
+worktree_clone_mount_protocol::unanswered_requests_before_a_command fn check_before_a_command
