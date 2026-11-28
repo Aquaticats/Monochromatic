@@ -51,9 +51,14 @@ use std::time::{
     Instant,
 };
 
-/// The name the arm writes through the slot,
+/// The name the arm writes through the slot before its covered watch is read,
 /// so an event for it is the event the arm looks for.
 const WRITTEN: &str = "written-through-the-slot";
+
+/// The name the arm writes through the slot for the watch it set afterwards.
+/// A second write to one name is a modification and no creation,
+/// so the fresh watch needs a file of its own to prove it can see anything.
+const WRITTEN_AFTER: &str = "written-through-the-slot-afterwards";
 
 /// How long the arm waits for one event before it calls the wait a silence.
 /// Why:
@@ -105,8 +110,11 @@ impl Probe {
         return probe;
     }
 
-    /// Whether an event naming the arm's file arrives inside `PATIENCE`.
-    fn sees(&self) -> bool {
+    /// Whether an event naming `wanted` arrives inside `PATIENCE`.
+    fn sees(
+        &self,
+        wanted: &str,
+    ) -> bool {
         let deadline: Instant = Instant::now() + PATIENCE;
         loop {
             let left: Duration = deadline.saturating_duration_since(Instant::now());
@@ -135,7 +143,7 @@ impl Probe {
             if count == 0 {
                 return false;
             }
-            if names_the_file(&buffer[..count], OsStr::new(WRITTEN).as_bytes()) {
+            if names_the_file(&buffer[..count], OsStr::new(wanted).as_bytes()) {
                 return true;
             }
         }
@@ -182,8 +190,11 @@ fn names_the_file(
 }
 
 /// The write the arm makes through the slot's path.
-fn write_through_the_slot(slot: &Path) {
-    std::fs::write(slot.join(WRITTEN), b"a write in the tree the path names\n").expect("the write");
+fn write_through_the_slot(
+    slot: &Path,
+    name: &str,
+) {
+    std::fs::write(slot.join(name), b"a write in the tree the path names\n").expect("the write");
 }
 
 /// What:
@@ -226,12 +237,12 @@ pub(super) fn the_watch_arm(fixture: &Fixture) {
     let the_covered: Probe = covered.expect("the watch the arm set before the mount");
     let the_recorded: ObjectId = recorded.expect("the object the slot showed before the mount");
     let before: AfterTheMount = before_the_mount.expect("the comparison before the mount");
-    write_through_the_slot(slot.as_path());
-    let covered_sees: bool = the_covered.sees();
+    write_through_the_slot(slot.as_path(), WRITTEN);
+    let covered_sees: bool = the_covered.sees(WRITTEN);
     drop(the_covered);
     let fresh: Probe = Probe::on(slot.as_path());
-    write_through_the_slot(slot.as_path());
-    let fresh_sees: bool = fresh.sees();
+    write_through_the_slot(slot.as_path(), WRITTEN_AFTER);
+    let fresh_sees: bool = fresh.sees(WRITTEN_AFTER);
     drop(fresh);
     let after: AfterTheMount =
         after_the_mount(slot.as_path(), the_recorded).expect("the comparison after the mount");
