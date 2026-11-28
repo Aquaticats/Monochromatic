@@ -329,10 +329,7 @@ fn queued_after_an_add(
     let slot: PathBuf = fixture.slot(name.as_str());
     let resolved: std::process::Output = fixture.run(
         Path::new("/usr/bin/node"),
-        &[
-            "--print",
-            format!("require.resolve('{RESOLVED}')").as_str(),
-        ],
+        &["--print", format!("require.resolve('{RESOLVED}')").as_str()],
         slot.as_path(),
     );
     let answer: String = String::from_utf8_lossy(resolved.stdout.as_slice())
@@ -412,10 +409,7 @@ fn inline_after_an_add(
     let slot: PathBuf = fixture.slot(name.as_str());
     let resolved: std::process::Output = fixture.run(
         Path::new("/usr/bin/node"),
-        &[
-            "--print",
-            format!("require.resolve('{RESOLVED}')").as_str(),
-        ],
+        &["--print", format!("require.resolve('{RESOLVED}')").as_str()],
         slot.as_path(),
     );
     let answer: String = String::from_utf8_lossy(resolved.stdout.as_slice())
