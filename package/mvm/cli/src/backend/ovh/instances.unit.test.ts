@@ -1,6 +1,7 @@
 /**
  Unit tests for reading the project's instances: only names carrying the tool's
- prefix are mvm's, a name is matched exactly, the public IPv4 is picked out of the
+ prefix are mvm's, an instance the project lists as deleted is nobody's,
+ a name is matched exactly, the public IPv4 is picked out of the
  address list, and an instance that reaches a failed status stops the wait.
 
  Instance bodies here are stand-ins written by hand from OVHcloud's schema
@@ -79,6 +80,35 @@ await describe({
             return instance.name;
           },),
         ).toEqual(['mvm-dev', 'mvm-build',],);
+      },
+    },),
+    it({
+      name: 'mvmInstances drops an owned instance the project lists as deleted',
+      fn: async () => {
+        expect(
+          mvmInstances({
+            instances: [
+              ...PROJECT_INSTANCES,
+              instanceAnswer({ id: 'instance-gone', name: 'mvm-gone', status: 'DELETED', },),
+            ],
+          },)
+            .map(function instanceName(instance,) {
+              return instance.name;
+            },),
+        ).toEqual(['mvm-dev', 'mvm-build',],);
+      },
+    },),
+    it({
+      name: 'findMvmInstance resolves the live instance when a deleted one still carries its name',
+      fn: async () => {
+        await using _env = await installEnv();
+        using _standIn = installStandIn(() =>
+          jsonAnswer([
+            instanceAnswer({ id: 'instance-dev-gone', name: 'mvm-dev', status: 'DELETED', },),
+            ...PROJECT_INSTANCES,
+          ],)
+        );
+        expect((await findMvmInstance({ name: 'dev', },)).id,).toBe('instance-dev',);
       },
     },),
 
