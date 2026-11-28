@@ -1961,9 +1961,8 @@ no argument at all is the clone-mount sweep ZED's own start runs,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and,
-when it is run,
-names the unit that runs it,
+whose pass is built and whose mode refuses,
+naming the unit that runs it,
 and `holder-scan` is the all-namespace holder scan of one dataset under a nonce
 of its own,
 which reads and changes nothing.

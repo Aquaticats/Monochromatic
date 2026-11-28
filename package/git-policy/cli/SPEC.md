@@ -287,7 +287,7 @@ The default invocation,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and names the unit that runs it,
+whose pass is built and whose mode refuses and names the unit that runs it,
 `holder-scan` is the all-namespace holder scan of one dataset under a nonce of
 its own,
 which reads and changes nothing,
