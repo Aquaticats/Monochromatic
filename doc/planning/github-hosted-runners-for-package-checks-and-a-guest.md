@@ -9,9 +9,9 @@ no required check changes,
 and no review from a vendor other than its writers' has read it.
 
 Gate reads of this proposal:
-two,
-both same-vendor second passes by the vendor of its writers,
-neither an independent review.
+three,
+all same-vendor second passes by the vendor of its writers,
+none an independent review.
 The first,
 on 2026-11-28,
 returned five High,
@@ -19,29 +19,37 @@ nine Medium and seven Low findings;
 the second,
 later the same day,
 four High,
-ten Medium and nine Low.
+ten Medium and nine Low;
+the third,
+also on 2026-11-28,
+two High,
+ten Medium and ten Low,
+and found the file not ready to put to the owner.
 Those counts are the reads' own.
-The second found the file not ready to put to the owner,
-and this revision answers it finding by finding;
+This revision answers the third read finding by finding;
 the answers are in the report of the run that made this revision,
 with the command or the line each one rests on,
-because both reads are kept outside the repository and expire a day after their last change.
+because all three reads are kept outside the repository and expire a day after their last change.
 
 Written by Pi runs on 2026-11-28.
-This revision was made in the worktree `.claude/worktrees/pi-github-hosted-runners-proposal-revised-against-its-second-gate-read-with-a-trial-that-can-start`,
-on the branch `docs/planning-github-hosted-runners-proposal-revised-against-its-second-gate-read-with-a-trial-that-can-start`,
-from `main` at `0d03853329`.
+This revision was made in the worktree `.claude/worktrees/pi-github-hosted-runners-proposal-third-revision-the-guest-arms-moved-and-what-every-run-returns`,
+on the branch `docs/planning-github-hosted-runners-proposal-third-revision-the-guest-arms-moved-and-what-every-run-returns`,
+from `main` at `b6d8e0020c`.
 
 Every figure states how it was measured and when,
 or which record it is read from.
 A claim that rests on reading code,
 a record or a vendor page says so in the sentence that makes it;
 one that is an inference says whose it is.
+The arithmetic behind the admission figures is committed beside this file,
+with the arrival times it reads,
+so that every figure it prints can be rerun after the round's own scratch expires:
+see `github-hosted-runners-for-package-checks-and-a-guest-evidence/` at the end of this file.
 
 ## What the owner is asked
 
 The aim this proposal is written against is **inferred**:
-this round's reading of two records,
+this round's reading of three records,
 not a decision of the owner's.
 It is that the work worth moving off this machine is work that competes for its memory.
 The machine ran out of memory on the night of 2026-11-27,
@@ -50,37 +58,65 @@ with nineteen rounds and ten guests alive ([the owner's answers of 2026-11-28][o
 and what bounds a later batch";
 [the troubleshooting record][oomd record]),
 and the owner then bounded a later batch by the guests alive at once.
+
+What that memory is spent by has changed since the night.
+The owner's rule of 2026-11-28 puts every guest on OVHcloud from 2026-11-28T08:00-05:00,
+so no guest of a round holds this machine's memory any more:
+"from 2026-11-28T08:00-05:00 no guest work runs on this machine:
+no round makes a local guest or starts a command in one,
+and no brief names one" ([the OVHcloud record][ovh record],
+"All guest work runs on OVHcloud,
+2026-11-28").
+So the largest block this proposal can still move is the container gate's:
+about 6.6 GiB of container memory and four CPUs per batch,
+inside a unit capped at ten CPUs and 20 GiB.
+Decision 2 carries that aim alone,
+and no option here moves a guest back onto this machine.
+
 The way to reject that aim is to choose,
-in every decision,
+in every question,
 the option that moves least:
 decision 1 option 1,
-decision 2 option 1,
-decision 3 option 3,
+decision 2 option 3,
+decision 3 option 1,
 decision 4 option 1,
-decision 5 option 1,
-decision 6 option 1.
+decision 5 option 1.
 
-Six questions,
+Five questions,
 each answerable alone.
 The recommended option is named with what its recommendation rests on.
 
-1.  **What should the advisory window count?**
+1.  **What should the advisory window count,
+    and what is it for?**
     What the window is for is the second half of the same question.
     Recommended:
     remove the window and keep the workflow's existing concurrency group (option 4 of 4).
-    **Measured**:
-    at the pushes' present rate that ends 152 runs a day,
-    where the window as it stands ends none (this round's arithmetic on 400 pushes,
-    "What a push does today").
-2.  **Should a newer push cancel a running advisory run?**
-    Recommended:
-    no,
-    keep `cancel-in-progress: false` (option 1 of 2).
-    **Measured**:
-    keeping it ends a check on about 152 pushes a day;
-    cancelling ends a check on about 46,
-    and cancels 88 percent of the runs it starts.
-3.  **Where should the wrapper's container gate run?**
+    **Arithmetic on measured arrival times**:
+    at the pushes' present rate that starts runs on 152 pushes a day,
+    where the window as it stands starts none after its first two hours (the arithmetic and its input are in
+    `github-hosted-runners-for-package-checks-and-a-guest-evidence/`).
+    Every one of those runs ends red until `cargo nextest` and `monochromatic-lint` are installed in the job
+    (see "What the advisory profile needs before it can be green,
+    measured").
+    That is the profile's state and not the window's,
+    so it is true under every option of this question:
+    a yes here buys 152 red runs a day,
+    and 239 of the sample's 400 pushes show `cancelled`,
+    because a newer push replaced the run that was waiting.
+    Whether a red then notifies anyone is not this repository's setting:
+    GitHub notifies the account that triggered a run when it completes,
+    "if you enable email or web notifications for GitHub Actions",
+    and that account may "choose to receive a notification only when a workflow run has failed"
+    ([the notifications page][notifications page]).
+    Every push here is the owner's account's,
+    and that account's setting is not readable from this repository.
+    The recommendation moved between revisions:
+    an earlier revision of this file ranked keeping the window first,
+    by how often the profile ran and how much of a day that covered against the hosted minutes spent;
+    ranking by finished checks alone,
+    because the minutes are free,
+    puts the window last.
+2.  **Where should the wrapper's container gate run?**
     Recommended:
     on a hosted runner per batch,
     with a red re-run locally (option 2 of 3),
@@ -89,64 +125,121 @@ The recommended option is named with what its recommendation rests on.
     no gate has run on a runner,
     so a green batch's verdict would rest on an unmeasured image and kernel for the first time;
     the local re-run is what keeps a red explainable.
-4.  **Where should the wrapper's TypeScript unit tests and lint run (issue 6584)?**
+    A yes puts a workflow file on `main`,
+    dispatched by the session once per batch;
+    it does not change what a release waits for,
+    which decision 2 states.
+3.  **Should the wrapper's ZFS guest arms gain a hosted second path?**
     Recommended:
-    no new workflow;
-    keep answering that question in its own proposal (option 1 of 3).
-    **Read**:
-    the placement record puts a hosted workflow fourth of its seven placements,
-    and records that nothing on this project's loop reads a push's CI result.
-5.  **Should the wrapper's ZFS guest arms move to a hosted runner?**
+    no;
+    the arms run on OVHcloud,
+    where the owner's rule of 2026-11-28 put every guest (option 1 of 2).
+    **Read and measured**:
+    one arm of one driver has run there,
+    on a four-core 16 GiB machine,
+    and GitHub documents nested virtualization on a runner as unsupported;
+    no arm's recipe has run on a runner.
+    The session runs a trial of one arm on a runner either way,
+    as its own step and not as part of this question,
+    and records what it prints under "The guest arms".
+4.  **Should any check become required?**
     Recommended:
-    keep them on this machine,
-    and on the OVHcloud backend the owner already chose (option 1 of 3).
-    **Read**:
-    the owner chose "Guests on OVHcloud" alone,
-    so a guest uses none of this machine's memory;
-    and GitHub documents nested virtualization as unsupported.
-6.  **Should any check become required?**
-    Who reads a hosted red is asked with it.
-    Recommended:
-    nothing becomes required,
-    and a named routine plus the owner's own notification setting carry a red to a person (option 1 of 3).
+    nothing becomes required (option 1 of 3).
     **Read**:
     `main` protects nothing required today,
     and the owner's own pushes bypass branch protection by GitHub's default,
-    so a required check would not hold them.
+    so a required check would not hold them;
+    it would refuse the release's bump push,
+    whose commit starts no run that could satisfy it.
+    Who reads a red is a separate question,
+    question 5,
+    answerable either way beside this one.
+5.  **Who reads a hosted red?**
+    Recommended:
+    the session names each red at the batch check it already runs (option 2 of 3).
+    **Read**:
+    nothing on this project's loop reads a push's CI result today,
+    and the account that pushes is the owner's,
+    whose own notification setting may or may not be on.
+    This question and question 4 can both be answered;
+    neither depends on the other,
+    and the recommended option of each can be taken with or without the other.
 
 Which of these wait for a trial:
 
-- decision 3 waits:
+- decision 2 waits:
   both hosted options follow one trial run of the gate on a runner,
   and the trial is the session's own step (see "The trial of the container gate").
+  It is a workflow file on a branch of this repository,
+  started by a push to that branch:
+  it spends free hosted minutes,
+  adds no required check and no trigger on `main`,
+  and the session reads its log and records its figures here before any option of decision 2 is chosen.
 - all the others can be answered now.
+
+Two things this file settles itself,
+and does not ask:
+
+- whether a newer push cancels a running advisory run:
+  it keeps `cancel-in-progress: false`,
+  which the arithmetic settles (see "Two settings this file adopts unasked");
+- where the wrapper's TypeScript unit tests and lint run:
+  that is issue 6584's question,
+  answered there (the same section).
 
 Three questions a record or a setting half-answers,
 shown beside the question where they belong:
 
 - what the advisory window was for:
-  the owner's own words in the Depot-era interview (decision 1);
+  an agent's note of a Depot-era interview,
+  in the third person,
+  whose Depot adoption was withdrawn on 2026-11-01 (decision 1);
 - where a guest's memory comes from:
-  the owner's choice of OVHcloud,
-  made the same night (decision 5);
+  the owner's rule of 2026-11-28,
+  which puts every guest on OVHcloud (decision 3);
 - whether a session may run a trial workflow itself:
-  the project's rule that a session acts unasked on current-repository GitHub mutations (decisions 3 and 5).
+  the project's rule that a session acts unasked on current-repository GitHub mutations (decisions 2 and 3).
 
 What a yes to each recommendation leaves undecided,
 in one clause each:
 
 1.  whether the profile should exist at all,
     and whether its drift gates should report to a person;
-2.  what an advisory verdict is worth when no check is required (decision 6);
-3.  the memory and CPU bounds the hosted gate gets,
-    and what a red on it means;
-4.  issue 6584's own placement question;
-5.  whether the OVHcloud sizes design passes its own gate read and is built;
-6.  who acts on a red between batches.
+2.  the memory and CPU bounds the hosted gate gets,
+    what a red on it means,
+    and whether the gate's evidence manifest stays on this machine;
+3.  whether one arm's recipe completes in a nested guest on a runner,
+    and what to do when GitHub changes the device again;
+4.  how a release's bump push is dispatched without a check that never runs on it;
+5.  who acts on a red raised between batches.
 
-Four combinations that cannot be built,
-each with its reason,
-are listed under "Combinations that cannot be built".
+Seven combinations,
+each labelled cannot be built,
+can be built or an unmeasured tight fit,
+are listed under "Combinations that cannot be built,
+and ones that can".
+
+Words this file uses,
+each defined once here rather than at each use:
+
+- the **advisory window**:
+  the 2-per-minute,
+  4-per-hour and 8-per-day budget in `advisory-core.yml`'s gate job,
+  which decides whether a push's advisory run starts at all;
+- the **profile**:
+  what `advisory-core.yml`'s `core` job runs,
+  the five drift gates,
+  a static check of the changed files,
+  five builds and six unit tasks;
+- a **drift gate**:
+  a check that a generated file matches what generates it;
+- an **advisory verdict**:
+  the result of an advisory run,
+  which nothing requires and no merge waits for;
+- the **batch gate**:
+  one run of the wrapper's container gate on `main` per batch of merges;
+- a **red**:
+  a failed run.
 
 The sections between here and there carry the evidence:
 what a push does today (measured),
@@ -155,7 +248,8 @@ what a hosted runner is and is not (read from GitHub's pages and this repository
 what the checks need (measured),
 what the container gate needs (read from its source,
 measured on this host),
-what a guest arm asks for (read from its bounds),
+what a guest arm asks for (read from its bounds,
+and one arm's run on OVHcloud),
 and the unknowns a hosted gate would carry.
 
 ## What a push does today, measured
@@ -201,21 +295,30 @@ The gate job counts the newest 100 runs of the workflow and refuses when any win
 the `Count recent admitted runs` step):
 
 ```text
-# .github/workflows/advisory-core.yml, lines 46 to 63
-runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow advisory-core.yml --limit 100 --json databaseId,createdAt --jq '.' 2>/dev/null || echo '[]')
-...
-- budgets: 2 per minute, 4 per hour, 8 per day
-if [ "$minute" -ge 2 ] || [ "$hour" -ge 4 ] || [ "$day" -ge 8 ]; then
+# .github/workflows/advisory-core.yml, line 46, as written
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow advisory-core.yml --limit 100 --json databaseId,createdAt --jq '.' 2>/dev/null || echo '[]')
+
+# the same file, lines 61 and 63, as written
+            echo "- budgets: 2 per minute, 4 per hour, 8 per day"
+          if [ "$minute" -ge 2 ] || [ "$hour" -ge 4 ] || [ "$day" -ge 8 ]; then
 ```
 
 It reads `databaseId` and `createdAt` only,
 so a run whose `core` job was skipped counts against the windows that skipped it.
-At 379 pushes a day the day window of 8 is full within the first hour of every day and never empties.
+At 379 pushes a day the day window of 8 is full within the first two hours of every day and never empties.
 Arithmetic on the same 400 arrival times,
 with today's rule,
-admits 3 runs in the 25.34 hours,
+admits 4 runs in the 25.34 hours,
 all of them before the day window filled;
-the other 397 pushes are refused by the count.
+the other 396 pushes are refused by the count.
+The step drops the current run by `databaseId` before counting,
+which is why the rule admits 4;
+the committed script counts the arriving push as well and admits 3,
+and both numbers are in its header.
+Neither is what the record shows:
+the `core` job is `skipped` on every one of the newest hundred runs,
+so in the measured stretch the count admitted nothing,
+and the arithmetic starts from the empty history only the first hours of a day have.
 
 Two event paths skip the count altogether,
 and the same step says so:
@@ -277,7 +380,15 @@ read from its log:
 `Build fast subset` 352 seconds and success,
 `Unit fast subset` 19 seconds and failure.
 The unit step stops at its first failing task,
-and the task it stops at cannot start on a runner at all:
+which is the fifth of the six tasks that step runs;
+the sixth,
+`//package/linter/monochromatic-lint:test`,
+never starts,
+and neither unit task can start on a runner as things stand:
+the two crates' builds took 121 and 230 seconds in that log,
+and the tests behind them ran nowhere.
+So a green run is longer than 476 seconds by an unmeasured amount,
+and every "finished checks a day" figure in this file is an upper bound.
 
 ```text
 # the log of run 45531170934, the `Unit fast subset` step
@@ -361,7 +472,7 @@ and from this repository's own settings.
 - A Linux job may land on AWS or Azure:
   "These jobs can run on either Amazon Web Services (AWS) or Microsoft Azure" and "Jobs are automatically scheduled across available cloud providers" (the concepts page,
   "Cloud hosts used by GitHub-hosted runners"),
-  which is why the three trial runs landed in three regions on two processor vendors.
+  which is why the trial runs landed in four regions on three processor models.
 - The 45-minute sentence is about GitHub Actions services being unavailable:
   "if the workflow run has been successfully queued,
   but has not been processed by a GitHub-hosted runner within 45 minutes,
@@ -439,8 +550,16 @@ and of the pushes that land work:
   whose permission on the repository is `admin` (`gh api .../actions/workflows/advisory-core.yml/runs`,
   read 2026-11-28T08:04-05:00,
   and `gh api .../collaborators/Aquaticat/permission`);
-- 99 of the newest 100 commits on `main` were committed by `Aquaticat` and one by `web-flow`,
-  GitHub's own web-interface committer (`gh api repos/.../commits?sha=main&per_page=100`);
+- 98 of the newest 100 commits on `main` were committed by `Aquaticat`
+  and two by `web-flow`,
+  GitHub's own web-interface committer
+  (`gh api repos/.../commits?sha=main&per_page=100`,
+  read at 2026-11-28T08:2x-05:00;
+  a read of the same window hours before had 99 and 1,
+  which is the window moving);
+  the two are the release bumps of 2026-11-28T12:15:25Z and 13:15:10Z,
+  both `github-actions[bot]` commits that landed on protected `main`,
+  so today's protection does not stop a bump from landing;
 - the repository has no deploy keys,
   so the workflow run's actor is the pushing account (the events reference:
   a deploy-key push would show the repository admin who verified the key).
@@ -496,7 +615,7 @@ which this is.
 ### The wrapper's three TypeScript checks
 
 Measured in the placement record for issue 6584,
-at `1c8acd5bfb`,
+at `1c8acd5bfb` on 2026-11-27,
 each in its own capped scope on this host ([where the TypeScript checks run][placement record],
 "What was measured"):
 
@@ -512,9 +631,9 @@ each in its own capped scope on this host ([where the TypeScript checks run][pla
 Those are that record's figures and its date,
 not this round's.
 For a hosted step they bound the memory such a step needs:
-4.5 GB at that commit,
-and 1.8 GB after issue 6580's fix (the same record,
-"What this does not settle",
+4.5 GB at `1c8acd5bfb`,
+and 1.8 GB once issue 6580's fix is in the tree,
+which the same record gives at `64e3eb1a55` ("What this does not settle",
 question 5).
 
 ### The three package unit tasks, and the wrapper's placement record
@@ -573,8 +692,9 @@ not the gate's total:
 build alone is about 5.2 GiB,
 and Clippy beside the suite is 5,278.7 + 1,486.0 = 6,764.7 MiB,
 about 6.6 GiB.
-The three trial runs measured `MemAvailable` of 15,159,
-15,170 and 15,104 MiB at job start,
+The four trial runs measured `MemAvailable` of 15,159,
+15,170,
+15,104 and 14,922 MiB at job start,
 so 6.6 GiB of container peak fits a 16 GB runner with about 8 GiB to spare,
 provided nothing else in the job holds that much,
 which is not measured.
@@ -684,6 +804,8 @@ No record shows any of the following working on a fresh runner,
 and this round measured none of them because none can be measured without a hosted run:
 
 - the `docker.io` pull of the CachyOS base image,
+  and its anonymous pull is counted per address,
+  whose limit no record here reads,
   then a `pacman` transaction with network access;
 - `cargo-shadow lean records target/verification` inside the worktree;
 - the cgroup read at `/sys/fs/cgroup/.../libpod-<id>.scope` on a runner whose user manager differs;
@@ -692,6 +814,9 @@ and this round measured none of them because none can be measured without a host
   and the runner's kernel version,
   which the trial never printed (this host runs `7.3.5-2-cachyos`,
   and its podman is 6.2.1 against the runner's 5.7.0);
+- which CPU level the base image resolves to there,
+  because `-v4` needs AVX-512 and `-v3` AVX2,
+  and the trial's three processor models were not read for either;
 - the gate's disk footprint.
 
 ## The trial of the container gate
@@ -714,9 +839,17 @@ This repository's own release record says the same of its own workflow:
 "Limits").
 So a trial that must not land on `main` is started by a push to its own branch,
 which is what the first trial did:
-its three runs are `push` events on the trial branch.
+its four runs are `push` events on the trial branch.
 
-The trial the decision-3 options rest on:
+A hosted gate dispatched afterwards needs its own file on `main`,
+because a dispatch of a file that exists only on a branch cannot start
+(the same page;
+releases run in CI,
+"Limits").
+The trial's own push also starts every other workflow of this repository whose filters match that branch,
+which the trial's record did not check.
+
+The trial the decision-2 options rest on:
 
 - one workflow file on a branch,
   triggered by a push to that branch alone,
@@ -731,9 +864,43 @@ The trial the decision-3 options rest on:
   and both containers' `memory.peak`;
 - read once,
   against the figures in this file,
-  and recorded before any option of decision 3 is chosen.
+  and recorded before any option of decision 2 is chosen.
 
 ## The guest arms
+
+Guests left this machine by the owner's rule:
+"from 2026-11-28T08:00-05:00 no guest work runs on this machine" ([the OVHcloud record][ovh record],
+"All guest work runs on OVHcloud,
+2026-11-28"),
+and a driver takes its backend from the environment variable `MVM_BACKEND`,
+so an arm's guest is an OVHcloud machine unless a caller says otherwise (merge `832b3e25c2`,
+the same record).
+
+One arm of one driver has run there,
+recorded at 2026-11-28T08:16:54-05:00 from the report of the round that moved the guest drivers
+(merge `034df18341`,
+the same record):
+the driver `e2e:doctor-zfs-route` ran on one OVHcloud machine of four cores and 16 GiB,
+through the shared guest steps and with no arm script changed,
+and its steps took create 75 s,
+prepare 7 min 5 s,
+the crate's build in the guest 9 min 40 s,
+the arm 2 min 3 s,
+and destroy 35 s.
+Two of the driver's three guest tests passed;
+the third differs from what the arm expects,
+which the record words as the arm expecting the cancel command's check to answer `unknown`
+while two steps' facts are unread,
+where the product answers `pass`,
+and no local control was run for it.
+
+What does not run there:
+the recipe's steps whose subject is a reboot or a power cut,
+because `mvm` never stops or resumes an OVHcloud machine,
+and the step 22 measurement driver,
+whose wait reads the host's own side of the folder a local guest shares.
+Under the owner's rule both of those run nowhere,
+and a nested guest on a runner is the only path left that could give them a home.
 
 Each ZFS arm runs only inside a throwaway guest,
 and the guest's bounds are recorded
@@ -759,15 +926,19 @@ and the guest's bounds are recorded
 So a guest arm asks a runner for 8,192 MiB of guest RAM plus QEMU's own overhead,
 and for the guest's disk on top of the image.
 One measured arm's charge on this host peaked at 7.98 GiB,
-of which 7.71 GiB was resident (the same record,
-"What that costs per guest").
-Against the trial's 15,104 MiB of `MemAvailable`,
-7.98 GiB leaves about 6.8 GiB,
-which is just over the gate's 6.6 GiB peak of container memory:
-one arm alone fits,
-and an arm beside the gate's containers leaves a few hundred MiB for the shell steps,
-the page cache and QEMU's overhead,
-which is measured nowhere.
+of which 7.71 GiB was resident.
+That figure is from `doc/planning/mvm-guest-memory-held-for-a-rounds-life.md` ("What that costs per guest"),
+which the owner shelved on 2026-11-26 until the crate split,
+so it measures a guest building today's single crate and not what an arm would take on a runner.
+Against the trial's `MemAvailable`,
+15,104.6 MiB (14.75 GiB) at its third run and 14,921.7 MiB (14.57 GiB) at its fourth,
+7.98 GiB leaves about 6.8 and 6.6 GiB:
+one arm alone fits.
+An arm beside the gate's containers does not:
+the two come to 14.59 GiB,
+which leaves 0.16 GiB at the third run's figure and nothing at the fourth's,
+for QEMU's overhead,
+the shell steps and the page cache.
 
 The October record on `ubuntu-24.04` says what the device does ([the platform comparison][platform comparison],
 "Standard GitHub KVM access disappears after successful QEMU controls" and the section after it):
@@ -792,7 +963,7 @@ The first trial was a workflow file on a trial branch,
 triggered by a push to that branch alone,
 installing nothing that needs a secret,
 using no larger runner and registering no self-hosted runner.
-It ran three times,
+It ran four times,
 each run teaching the next what to ask.
 Every job concluded `success`,
 which proves less than it looks:
@@ -834,10 +1005,26 @@ and the second run did exactly that.
   `KVM_GET_API_VERSION answered 12`,
   `qemu pid 2600, answered=true, seconds to login prompt 44`,
   and the guest's own line `=== cirros: current=0.6.2 uptime=42.98 ===`.
+- Run `46124148349`,
+  a `push` to the same branch at 2026-11-28T08:05:10Z,
+  concluded `success`:
+  `Region: us-west-2`,
+  `Image: ubuntu-26.04`,
+  `Model name: Intel(R) Xeon(R) 6975P-C`,
+  `Virtualization: VT-x`,
+  `MemTotal: 16077512 kB`,
+  `MemAvailable: 15279824 kB`,
+  `after the grant: opened, KVM_GET_API_VERSION answered 12`,
+  `qemu pid 2741, answered=true, seconds to login prompt 45`,
+  and `=== cirros: current=0.6.2 uptime=42.86 ===`.
 
 So two vendors opened the device,
-and one of them booted a 512 MiB CirrOS image in 44 seconds;
-the AMD runs skipped the boot step once and failed on the QEMU option once.
+and two Intel runs booted a 512 MiB CirrOS image,
+in 44 and 45 seconds,
+while the AMD runs skipped the boot step once and failed on the QEMU option once:
+no AMD run has booted a guest.
+The fourth run printed the lowest `MemAvailable` of the four and a third processor model,
+so the runner's CPU is not limited to the two models the first runs saw.
 The trial's workflow file was removed from the branch after the runs,
 and until this section nothing durable in this repository held their logs.
 
@@ -846,7 +1033,32 @@ a standard public runner gives a working `/dev/kvm` after a named ACL grant;
 the runner image carries podman 5.7.0,
 Docker 29.4.2 and 87 GB of free disk;
 and the device and the grant are documented as unsupported for general use,
-so a check built on them is one GitHub may change without notice.
+so anything built on them is what GitHub may change without notice.
+
+## The session's trial of one guest arm
+
+This is the session's own step and not a question,
+the same act as the gate's trial:
+a workflow file on a branch of this repository,
+started by a push to that branch,
+spending free hosted minutes and adding no trigger or required check on `main`.
+It runs whatever the owner answers to decision 3,
+because the answer applies to what its log shows,
+and its figures are recorded here before that answer is read as settled.
+
+- one job,
+  with `setfacl --modify "u:$(id --user):rw" /dev/kvm` before the QEMU invocation,
+  a guest of 8,192 MiB under `qemu-system-x86_64 --accel kvm`,
+  the OpenZFS recipe inside the guest,
+  and then the arm's own steps;
+- steps printing `uname --kernel-release`,
+  `free --mebi`,
+  `df --human-readable /` before and after,
+  the QEMU process's resident size while the guest runs,
+  and the device's ACL before and after;
+- read once,
+  against the figures in this file,
+  and recorded before any option of decision 3 is chosen.
 
 ## Unknowns a hosted gate carries
 
@@ -864,10 +1076,13 @@ and so nothing in the decisions rests on them:
   and the owner called paid expansion "prohibitively expensive" (the Depot-era interview).
 - **the runner label.**
   `advisory-core.yml` names `ubuntu-latest`;
-  `ide-release.yml` names `ubuntu-24.04` because "GitHub moves that label to Ubuntu 26.04 (glibc 2.43) in November 2026",
-  and the trial's log printed `Image: ubuntu-26.04`.
-  Which image `ubuntu-latest` resolves to on the day of a run is not knowable from a pin,
-  and the images are updated weekly.
+  `ide-release.yml` names `ubuntu-24.04` because "GitHub moves that label to Ubuntu 26.04 (glibc 2.43) in November 2026".
+  What the label resolved to is in this repository's own records:
+  the dispatch log of 2026-11-25 prints `Image: ubuntu-26.04` for both of its jobs (run `45531170934`,
+  `Set up job`),
+  and all four trial runs printed the same.
+  What a pin cannot say is which image a later run resolves to,
+  because the images are updated weekly.
 - **the pull-request path.**
   `advisory-core.yml` admits every `pull_request` and every `workflow_dispatch` without counting,
   so the window removal of decision 1 changes pushes only,
@@ -875,21 +1090,37 @@ and so nothing in the decisions rests on them:
 - **memory beside the guests.**
   The gate's 6.6 GiB of container peak,
   plus one measured arm's 7.98 GiB of guest charge,
-  is 14.6 GiB against the 15.1 GiB of `MemAvailable` the trial printed,
-  which leaves about 0.5 GiB for QEMU's overhead,
+  is 14.59 GiB against the 14.75 GiB of `MemAvailable` the trial's third run printed
+  and the 14.57 GiB of its fourth,
+  which leaves 0.16 GiB at best and nothing at the lowest figure,
+  for QEMU's overhead,
   the page cache and the shell steps.
   Two arms in one job do not fit;
-  one arm beside the gate's containers is unmeasured.
+  one arm beside the gate's containers fits at no figure the trial printed.
+- **the CPU level the gate's image needs.**
+  The gate's base image is `docker.io/cachyos/cachyos-v4:latest` on a CPU with AVX-512
+  and `cachyos-v3` otherwise ([the base distro record][base distro record]),
+  and the resolver picks on the host that builds and runs it.
+  The four trial runs saw three processor models and no AVX-512 reading,
+  so which level a runner's CPU can run,
+  and whether a `-v4` image starts there at all,
+  is what the trial's `--help` reading of `/lib64/ld-linux-x86-64.so.2` would print.
+- **the anonymous pull of the base image.**
+  `native-test-base.ts` pulls `docker.io/cachyos/cachyos-v4:latest` on every run,
+  and Docker Hub counts anonymous pulls per address,
+  so a runner starting many gate jobs at once may meet a limit this file did not read.
+  A trial that prints the pull's answer would settle it.
 - **the gate's share of the night's memory pressure.**
   This proposal moves,
   at most,
   one block of about 6.6 GiB and four CPUs per batch.
   How much of the 2026-11-27 out-of-memory came from gates rather than guests is not measured here,
-  and the guests are the larger part.
+  and since 2026-11-28T08:00-05:00 no guest of a round holds this machine's memory,
+  so the gate's block is what is left to move.
 
 ## Decisions for the owner
 
-Six decisions,
+Five questions,
 each answerable alone.
 Each option says what it runs,
 what it takes off this machine,
@@ -897,20 +1128,45 @@ what it cannot do,
 what it costs,
 an example with its visible result,
 and what a yes still leaves undecided.
+Two further settings this file adopts itself,
+with the owner's veto open,
+are stated after them,
+with what settles each.
 
 Every figure about the advisory profile's four admission rules,
 and about its group,
-comes from one arithmetic this round ran on the 400 push arrival times read from GitHub,
-at the 476-second length of the newest executed job;
-the scripts and their outputs are in the report of the round,
-and the model is stated there:
+comes from one arithmetic run on the 400 push arrival times read from GitHub,
+at the 476-second length of the newest executed job.
+It is committed beside this file,
+as `github-hosted-runners-for-package-checks-and-a-guest-evidence/admission-arithmetic-over-those-arrivals.ts`
+with the arrival times it reads and the output it prints,
+so a reader can rerun every figure here after this round's scratch expires:
+
+```sh
+# in this folder, with node on the path
+node admission-arithmetic-over-those-arrivals.ts advisory-core-newest-400-push-arrivals-2026-11-28.json
+```
+
+Its model is stated in the script's own header:
 one run executing and one waiting per ref,
 a cap checked against the runs that started executing in its window,
 and no attempt to say how GitHub schedules.
 The same arithmetic at the other two measured lengths,
 401 s and 557 s,
-is in the report;
-at 557 s the counts differ by about a tenth and no ranking changes.
+is in its output.
+At 401 s the counts move further apart (option 3's 162 against option 4's 187);
+at 557 s options 3 and 4 both start and finish 142 runs,
+so that pair is a tie and only their costs separate them.
+An independent simulation of the same arrivals also ties them at 557 s and at every longer length,
+which is where the hour cap stops binding:
+it can only refuse while eight back-to-back starts fit inside one rolling hour,
+that is while a job is shorter than about 514 seconds (3,600 divided by 7),
+and a green run is longer than the red run that stopped at its fifth of six tasks.
+Another script of the earlier round ordered the same group differently and gave 120 starts at 476 s;
+its branch for a run that finished while a push was waiting started the waiting push at the wrong time
+and dropped the arriving one,
+so the figure that holds is this script's 160,
+and the other went with that round's scratch.
 
 ### 1. What should the advisory window count, and what is it for?
 
@@ -924,9 +1180,11 @@ which lets at most one run execute and one wait per ref.
 
 Why it is asked:
 the window counts arrivals,
-and at 379 pushes a day it admits nothing after its first hour.
+and at 379 pushes a day it admits nothing after its first two hours.
 What it was for is not in any record.
-The nearest record is the owner's own words in the Depot-era interview:
+The nearest record is an agent's note of a Depot-era interview,
+written in the third person,
+and the Depot adoption the interview served was withdrawn on 2026-11-01:
 "The user wants sliding-window rate limits,
 or an inexpensive way to express them without GitHub's overhead.
 They rejected hypothetical burst/debounce questions and requested inspection of actual GitHub CI history",
@@ -946,17 +1204,19 @@ so where the window came from is read,
 and what it was for is still the owner's to say.
 
 What each option delivers,
-measured,
+in arithmetic on the measured arrivals,
 at the present 379 pushes a day:
 
 - the window as it stands,
   which option 1 keeps:
-  3 runs in 25.34 hours,
-  none after the day budget filled;
+  4 runs in 25.34 hours by the workflow's own rule (the committed script counts the arriving push and gives 3),
+  none after the day budget filled,
+  and none at all in the measured stretch,
+  where the `core` job is `skipped` on 100 of the newest 100 runs;
 - option 2:
   8 runs a day at most by its own numbers,
   and 13 in the sample's 25.34 hours,
-  because its first 8 start before any day's history exists;
+  because its first 8 start before any day's history exists and five more start as those age out;
 - option 3:
   156 runs in 25.34 hours,
   148 a day;
@@ -975,26 +1235,30 @@ The group stays as it is.
 
 What it takes off this machine:
 nothing;
-it is the state that admits 3 runs in a day.
+it is the state that admits 4 runs in a day by its own rule,
+and admitted none in the measured stretch.
 
 What it cannot do:
 it cannot admit a run after the day budget has filled,
-which takes under an hour at this rate,
+which takes two hours at this rate,
 so it examines 8 of 379 pushes at best,
 in the first hours of a day;
 and it counts the runs it refused as reasons to refuse the next.
 
 Cost:
 at most 8 runs of 6 minutes 41 seconds to 9 minutes 17 seconds,
-about 1.1 to 1.3 hosted job-hours a day,
+about 0.9 to 1.2 hosted job-hours a day,
 free,
 and no code to change.
 
 Example:
-the first push after midnight starts a run;
-the eighth fills the day budget;
-the next 371 pushes of that day read `- skipped: newest tip <sha> marked pending` in the gate job's summary,
-and their `advisory core` job reads `skipped`.
+the first push after midnight starts a run,
+and by the end of the second hour eight have started,
+four in the first hour and four in the second;
+every push after that,
+371 of the day's 379,
+reads `- skipped: newest tip <sha> marked pending` in the gate job's summary,
+and its `advisory core` job reads `skipped`.
 
 What a yes leaves undecided:
 what an admitted run is for,
@@ -1017,16 +1281,21 @@ still red for the two missing installs until they are added.
 
 What it takes off this machine:
 nothing directly;
-it lets the profile run at all,
-13 times in 25.34 hours in this round's arithmetic (12 a day),
-because the 2-per-minute and 4-per-hour windows bind before the day's 8.
+it lets the profile run at all.
+Its sample count is 13 in 25.34 hours,
+which is the sample's own edge:
+the first 8 start before any day's history exists,
+and 5 more start as those age out of the day window in its last 1.3 hours.
+In steady state the rule admits 8 a day,
+which is 1.06 job-hours at 476 seconds;
+the sample's 13 runs are 1.6.
 
 What it cannot do:
 it cannot admit more than 8 executions a day,
 and the counting query can refuse runs the group would have coalesced.
 
 Cost:
-about 1.6 hosted job-hours a day,
+about 1.6 hosted job-hours in the sample and 1.06 in steady state,
 free;
 a paginated query,
 a cursor and a page bound to keep,
@@ -1126,33 +1395,41 @@ by how many of the day's pushes end with a finished check:
 4 > 3 > 2 > 1.
 
 - 4 over 3:
-  option 4 ends 152 checks a day where option 3 ends 148,
-  and its mechanism is the deletion of a step,
-  rather than a paginated query that refuses 63 of the sample's 400 pushes and delivers four fewer checks.
+  option 4 ends 152 checks a day where option 3 ends 148 at the 476-second length,
+  and at 557 s the two tie at 142 each;
+  what separates them in delivered terms is that option 3's hourly counter refuses 63 of the sample's 400 pushes
+  while the cap binds,
+  which it does only at job lengths under about 514 seconds.
 - 3 over 2:
   option 3 ends 148 checks a day where option 2 ends 8,
   and examines 39 percent of pushes against 2 percent.
 - 2 over 1:
-  option 2 ends 8 checks a day where option 1 ends 3 and,
-  after its first hour,
+  option 2 ends 8 checks a day where option 1 ends 4 by its own rule and,
+  after its first hours,
   none;
   the two differ only in whether the refused runs count as reasons to refuse.
 
 Costs,
 stated and not ranked:
 option 3 and option 4 spend about 19.5 and 20 hosted job-hours a day,
-option 2 about 1.6,
-and option 1 about 1.1 to 1.3.
+option 2 about 1.6 in the sample and 1.06 in steady state,
+and option 1 about 0.9 to 1.2.
 The minutes are free;
 what they hold is,
 on average,
 about 0.8 concurrent jobs of the twenty allowed for options 3 and 4,
 and less than 0.1 for options 1 and 2.
+Option 4's mechanism is the deletion of a step where option 3 keeps a paginated query,
+a cursor and a page bound,
+and that is a cost beside the coverage,
+not a reason to rank it above option 3.
 If the owner wants a ceiling on hosted job-hours rather than coverage,
 only options 1 and 2 stay under two job-hours a day,
 and between them option 2 ends 8 checks a day,
-against option 1's 3 in the whole sample and none after the day budget fills.
-This file ranks coverage because the minutes are free.
+against option 1's 4 in the whole sample and none after the day budget fills.
+This file ranks coverage because the minutes are free,
+and an earlier revision of this file ranked keeping the window first instead,
+by how often the profile ran and how much of a day that covered against the minutes spent.
 
 What every option leaves undecided:
 whether `advisory-core` should exist at all.
@@ -1160,93 +1437,7 @@ The linter's own record ranks repairing this workflow last of its options,
 which is worth reading beside this question ([keeping the repository linter at zero][linter record],
 "Ranking").
 
-### 2. When a push arrives while an advisory run is executing, should it be cancelled?
-
-Terms:
-`cancel-in-progress` is the workflow group's setting;
-`true` means a new push cancels the executing run and takes its place,
-`false` means the executing run finishes and the new push waits.
-
-Why it is asked:
-decision 1 does not decide this,
-and the two settings differ by a factor of three in finished checks.
-The revision before this one folded `cancel-in-progress: true` into one of decision 1's own options and asked nothing.
-
-#### Option 1: keep `cancel-in-progress: false`
-
-Mechanism:
-the executing run finishes;
-the newest waiting push takes the slot when it frees.
-This is today's setting.
-
-What it runs:
-whatever decision 1 admits,
-each run to completion.
-
-What it takes off this machine:
-nothing.
-
-What it cannot do:
-it cannot examine pushes that arrive while a run executes;
-they are replaced by later ones.
-
-Cost:
-the job-hours decision 1 names;
-nothing extra.
-
-Example:
-at 09:00:00Z a run starts;
-at 09:07:56 it finishes and the push that arrived at 09:04 starts;
-the pushes of 09:05 and 09:06 replaced each other while it waited.
-
-What a yes leaves undecided:
-how stale an examined commit may be,
-which the push rate decides.
-
-#### Option 2: `cancel-in-progress: true`
-
-Mechanism:
-each admitted push cancels the executing run and starts its own.
-
-What it runs:
-one run per admitted push,
-most of which are cancelled before they finish.
-
-What it takes off this machine:
-nothing.
-
-What it cannot do:
-it cannot finish a run whose successor arrives within the job's length,
-which is 88 percent of the sample's gaps at 476 seconds:
-of 400 pushes it starts 400 runs,
-finishes 49 and cancels 351.
-
-Cost:
-about 50 hosted job-hours a day,
-free,
-about 2 concurrent jobs of the twenty allowed,
-for 46 finished checks a day against option 1's 152.
-
-Example:
-a push at 09:00 starts a run,
-one at 09:02 cancels it and starts its own,
-one at 09:04 cancels that,
-so the first run's page reads `cancelled` and its log stops after whichever step was running,
-with no `gate-exit-status` line.
-
-What a yes leaves undecided:
-whether a cancelled run's partial steps are worth their minutes.
-
-Ranking,
-by how many of the day's pushes end with a finished check:
-1 > 2.
-
-- 1 over 2:
-  option 1 ends 152 checks a day at about 20 job-hours;
-  option 2 ends 46 at about 50,
-  so it spends two and a half times the minutes for less than a third of the checks.
-
-### 3. Where should the wrapper's container gate run?
+### 2. Where should the wrapper's container gate run?
 
 Terms:
 the gate is `native:test:container`,
@@ -1272,6 +1463,23 @@ with "A round runs no whole gate of its own" (the same record).
 
 The two hosted options follow the trial in "The trial of the container gate",
 and neither is available until it has run.
+Both put a workflow file on `main`,
+which the session adds and dispatches once per batch:
+its actions are pinned by full SHA from this repository's allow-list,
+its token is the default read-only one,
+and its steps have to be kept in step with the gate's own tasks.
+Neither changes what a release waits for.
+What a real release of the wrapper waits for is `native:release:host-controls` on this host
+(`package/crate-release/cli/releasable-crates.json`,
+the `dispatchGate` entry,
+and that package's README,
+"The dispatch gate of a crate"),
+which a runner cannot run;
+and the gate's container is what the release path sizes,
+in its own source's words:
+"A release waits for the gate" (`package/git-policy/cli/bin/native-gate-container-limits.ts`,
+its header).
+So a hosted gate moves the batch gate and leaves the release path where it is.
 
 #### Option 1: the batch gate runs on a hosted runner and the local one does not run
 
@@ -1309,12 +1517,16 @@ and the trial run before it can be trusted.
 Example:
 a batch of six merges ends at 11:20;
 the session dispatches the gate at 11:21;
-the log's last lines are `Summary [<n>s] <n> tests run: <n> passed` and `gate-exit-status=0`.
-No run has printed those lines on a runner;
-that is what the trial asks for.
+the log's last two lines have to be this host's own,
+`Summary [1104.852s] 12517 tests run: 12517 passed (6 slow), 51 skipped` and `gate-exit-status=0`.
+No run has printed them on a runner;
+that is what the trial asks for,
+and a runner's suite may take longer than these 1,104.9 seconds.
 
 What a yes leaves undecided:
-whether the gate's unit-level replay and evidence manifest stay on this machine,
+whether the gate's evidence manifest (`native-gate-manifest.ts`,
+written into `target/verification/<run-id>/`)
+and its verdict reader `native:gate:verdict` stay on this machine,
 and what a red on an image nobody has run means.
 
 #### Option 2: both run, the hosted one first and the local one on a red
@@ -1373,161 +1585,26 @@ the session starts `native:gate:main-tip`,
 and its log ends `gate-exit-status=0` after about 21 to 42 minutes.
 
 What a yes leaves undecided:
-whether the machine's out-of-memory night comes again with the guests it already bounds.
+whether the machine's out-of-memory night comes again with the gate as the largest block it still holds.
 
 Ranking,
-by how much of a batch's gate work leaves this machine while a red still gets a verdict this repository has measured:
+by how much of a batch's gate work leaves this machine,
+counting a red only where its verdict is one this repository has measured:
 
 2 > 1 > 3.
 
 - 2 over 1:
   both move a green batch's gate off the machine;
-  option 2 also reproduces a red on the path that has measured the gate (1,104.9 s of suite,
-  12,517 tests) instead of acting on a red from an image and kernel nobody here has run.
+  on a red,
+  option 2 delivers a verdict from the path that has measured this gate (1,104.9 s of suite,
+  12,517 tests),
+  where option 1 delivers one from an image and kernel nobody here has run.
 - 1 over 3:
-  option 1 moves the whole gate off the machine on every batch,
+  option 1 moves the whole gate off the machine on every green batch,
   which option 3 never does,
-  and option 3 keeps the 6.6 GiB and four CPUs where the night's memory ran out.
+  and option 3 keeps the 6.6 GiB and four CPUs here on every batch.
 
-### 4. Where should the wrapper's TypeScript unit tests and lint run?
-
-Terms:
-issue 6584 asks for a proposal on where `//package/git-policy/cli`'s `test:unit`,
-`lint:types` and `lint:oxlint` run,
-"so that a red one is seen within a batch of merges".
-The proposal exists and ranks seven placements:
-A inside the release gate,
-C at the coordinator's batch tip check,
-B in a unit beside the gate,
-E in a CI workflow of its own,
-D in the advisory fast subset,
-F in every round,
-G what comparable repositories do,
-"A > C > B > E > D > F > G" ([where the TypeScript checks run][placement record],
-"Ranking").
-
-Why it is asked:
-a hosted workflow is that proposal's E,
-ranked fourth,
-and choosing it here would answer issue 6584 somewhere other than where it is asked.
-The placement record also says what this decision must weigh:
-"Nothing on this project's loop reads a push's CI result,
-which the three red `forbidden-strings` runs on `main` show" (the same record,
-option E's cons),
-and this round's own counts agree:
-the newest 300 runs of `forbidden-strings.yml` are 92 failures,
-85 cancelled and 123 successes,
-read at 2026-11-28T08:00-05:00.
-
-#### Option 1: no new workflow; the question stays in its own proposal
-
-Mechanism:
-the placement question stays where it is asked,
-and decision 6 decides whether any answer becomes a required check.
-Until then the coordinator runs the three checks with each batch,
-which is what issue 6584's last sentence already does.
-
-What it takes off this machine:
-nothing;
-the checks are 37.8 seconds of wall time and a 4.5 GB peak in the wrapper's own scopes today.
-
-What it cannot do:
-it cannot make the three reds visible to anyone who is not at the batch check.
-
-Cost:
-none here.
-
-Example:
-the batch check runs `mise run //package/git-policy/cli:test:unit` at `main`'s tip and prints `the gate's checks failed: the TypeScript checks printed Found 1856 warnings and 850 errors.`,
-which is the placement record's own form of the refusal.
-
-What a yes leaves undecided:
-issue 6584's own question,
-which the owner answers there.
-
-#### Option 2: one path-filtered workflow for the wrapper package
-
-Mechanism:
-a workflow filtered on `package/git-policy/cli/**` running `lint:types`,
-`lint:oxlint` and `test:unit`,
-with a memory bound of 4.5 GB and no required check.
-This is placement E.
-
-What it takes off this machine:
-2.8 s,
-12.8 s and 22.2 s of the coordinator's batch check,
-and their 0.45,
-0.99 and 4.5 GB peaks.
-
-What it cannot do:
-it cannot make anyone read the result;
-it prints 850 errors today,
-so it is red from its first run until issue 6581 is fixed;
-and it adds a second place that claims to say whether the package is well.
-
-Cost:
-a runner's own setup,
-measured on another workflow at about 15 s of install beside 26 s of checkout (run `45754658990`),
-plus the checks;
-one path filter and a task list to keep.
-The minutes are free.
-
-Example:
-a push touching `package/git-policy/cli/bin/native-gate-verdict.ts` starts the job,
-and its log ends with the line this host's own run printed,
-`Found 1856 warnings and 850 errors.`,
-so the run is red.
-
-What a yes leaves undecided:
-who reads it,
-and whether it becomes required.
-
-#### Option 3: one reusable, path-filtered workflow for every package with a unit task
-
-Mechanism:
-one reusable workflow,
-called by per-package path filters,
-running each package's `build`,
-`test:unit` and the checks its `mise.toml` names.
-
-What it takes off this machine:
-every package's unit tasks,
-which today run only when a person or a round starts one.
-
-What it cannot do:
-it cannot run the whole-tree lint or the Rust closure check;
-it would be red on at least three packages today;
-and it needs a list of packages kept current.
-
-Cost:
-one entry per package,
-which is 276 `mise.toml` files under `package/<category>/<name>/` counted this round;
-the minutes are free,
-and the runner's fixed cost is paid per job.
-
-Example:
-a push touching `package/logger/core/src/sink/` runs that package's unit task,
-which fails five test files today and names them in the log.
-
-What a yes leaves undecided:
-whether 276 unread reds are better than one.
-
-Ranking,
-by how surely a red on these checks reaches someone who acts on it:
-
-1 > 2 > 3.
-
-- 1 over 2:
-  option 1's reds reach the session at the batch check,
-  where a person acts;
-  option 2's reds reach the Actions tab,
-  where this repository's own record says "nothing on this project's loop" looks,
-  and its first run is red for 850 errors nobody reads.
-- 2 over 3:
-  option 2 covers the package whose reds are recorded and dated,
-  and option 3 multiplies that unread red across 276 packages with one entry each to keep.
-
-### 5. Should the wrapper's ZFS guest arms move to a hosted runner?
+### 3. Should the wrapper's ZFS guest arms gain a hosted second path?
 
 Terms:
 an "arm" is one `e2e:` task of the wrapper that boots a guest and drives a ZFS pool inside it;
@@ -1539,149 +1616,139 @@ an owner-chosen `ovhcloud` backend ([that decision][ovh record],
 "Decision").
 
 Why it is asked:
-the guests are the resource the owner bounded at once,
-and they are the largest thing this proposal could move.
-The record already says where a guest's memory comes from,
-and the owner chose it:
-"Guests on OVHcloud" alone,
-"so a guest uses none of this machine's memory" ([the owner's answers of 2026-11-28][owner answers],
-"Where more memory comes from").
-That path is decided and not working yet:
-"neither billed run produced a machine that answered,
-the sizes design came back from its gate read not ready (five High points),
-and a third run needs your yes" (`doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`).
-What a hosted runner would add is a second way to move a guest,
-needing no billed machine.
+the guests were the resource the owner bounded at once,
+and the owner's rule of 2026-11-28 put every one of them on OVHcloud,
+so no answer here can move a guest back onto this machine.
+That rule is decided:
+"from 2026-11-28T08:00-05:00 no guest work runs on this machine" ([the OVHcloud record][ovh record],
+"All guest work runs on OVHcloud,
+2026-11-28"),
+and it ended the option of keeping the arms local.
+What a hosted runner could add is a free second path that needs no billed machine,
+and the question is whether to keep it after the session's trial has shown what it prints.
+Two facts bound that:
+GitHub documents nested virtualization on a runner as unsupported,
+and no arm's recipe has run on a runner;
+while one arm of one driver has run on OVHcloud,
+with its times under "The guest arms".
 
-#### Option 1: keep the arms on this machine, and on the OVHcloud backend when it works
-
-Mechanism:
-nothing changes here;
-the arms keep booting `mvm` guests locally,
-and the OVHcloud backend is finished by its own round and its own questions.
-
-What it takes off this machine:
-nothing until that backend lands;
-afterwards,
-whole guests.
-
-What it cannot do:
-it cannot answer whether a runner can run an arm at all.
-
-Cost:
-this machine's memory for each guest while the backend is unbuilt,
-8 GiB of RAM plus 6 GiB of the guest's own disk for its swap file;
-the OVHcloud work is another round's.
-
-Example:
-today,
-unchanged:
-an arm boots a guest,
-runs its recipe and prints the arm's own arbitration lines,
-and the machine holds 8 GiB for it.
-
-What a yes leaves undecided:
-whether the OVHcloud sizes design passes and is built,
-and what a runner would have cost instead.
-
-#### Option 2: prove one arm in a nested guest on a runner, then decide
+#### Option 1: no hosted arm path; the arms run on OVHcloud
 
 Mechanism:
-a trial workflow that boots one guest under QEMU with `--accel kvm`,
-grants the device with `setfacl` before the invocation,
-runs the OpenZFS recipe inside the guest and the arm's own steps,
-and fails loudly when `/dev/kvm` cannot be opened.
-
-What it takes off this machine:
-nothing;
-it measures whether one arm can leave.
-
-What it cannot do:
-it cannot promise that `mvm`'s `libvirt` backend works as it stands,
-because the ACL entry disappears after a QEMU run,
-and the record says that grant "does not protect a libvirt operation that opens the device repeatedly";
-it rests on a device GitHub documents as unsupported;
-and it fits one arm per job and nothing beside it.
-
-Cost:
-the recipe's own step bound is two hours,
-which bounds the job and is not its length;
-the guest wants 8 GiB of a runner's 15.1 GiB available,
-and the job's disk must hold the guest's image and its 6 GiB swap file.
-The minutes are free;
-the upkeep is a second way of booting.
-
-Example:
-a dispatch runs one arm and its log prints the KVM open,
-the recipe's steps,
-the pool's creation and the arm's arbitration lines.
-No run has printed them;
-this is what the trial would ask for.
-
-What a yes leaves undecided:
-whether the other arms follow,
-and whether `mvm` gains a runner backend at all.
-
-#### Option 3: move the arms to a hosted runner now
-
-Mechanism:
-one job per arm,
-as option 2 but for every arm.
+nothing is added.
+A round starts an arm through `mvm`'s `ovhcloud` backend,
+which creates one billed machine of the size asked,
+runs the recipe and the arm inside it,
+and deletes the machine when the round ends.
 
 What it takes off this machine:
 whole guests,
-on every arm.
+on every arm,
+which is where they already are since 2026-11-28T08:00-05:00.
 
 What it cannot do:
-the same as option 2,
-and it multiplies an unmeasured path by the number of arms.
+it cannot run the recipe's reboot and power-cut steps,
+because `mvm` never stops or resumes an OVHcloud machine,
+nor the step 22 measurement driver,
+whose wait reads the host's own side of the folder a local guest shares;
+both run nowhere under this option.
+It cannot give an arm a machine for nothing:
+every arm-run is billed.
 
 Cost:
-one job of up to two hours and 8 GiB per arm,
-free at the point of use,
-with a workflow to keep in step.
+the machine is billed by the second,
+and the one measured arm-run took about twenty minutes of a four-core 16 GiB machine
+(create 75 s,
+prepare 7 min 5 s,
+the crate's build in the guest 9 min 40 s,
+the arm 2 min 3 s,
+destroy 35 s);
+it depends on the owner's OVHcloud project and its keys.
 
 Example:
-the first arm round after it lands boots its guest on a runner,
-and its log is the first evidence;
-if the device's grant has gone,
-the job fails at the QEMU open and the arm's red says nothing about the product.
+with this option,
+the driver `e2e:doctor-zfs-route` runs on an OVHcloud machine and reports its three guest tests:
+two pass,
+and the third reports the product answering `pass` where the arm expected `unknown`,
+which is the record's own account of that run.
 
 What a yes leaves undecided:
-what to do with the arms when GitHub changes the device again.
+whether the two recipe steps and the step 22 driver are worth a path of their own,
+and what an arm-run's price is at the sizes a larger recipe asks for.
+
+#### Option 2: a hosted arm job per arm, after the session's trial
+
+Mechanism:
+after the trial under "The session's guest trial" prints its figures,
+the session adds a workflow file on `main` with one job per arm:
+a fresh `setfacl` grant on `/dev/kvm`,
+then `qemu-system-x86_64 --accel kvm` with the guest's 8 GiB,
+the OpenZFS recipe inside the guest,
+then the arm's own steps,
+and a loud failure when the device cannot be opened.
+The OVHcloud path stays,
+because the owner's rule put the guests there and this question does not undo that.
+
+What it takes off this machine:
+whole guests,
+on every arm,
+without a billed machine.
+
+What it cannot do:
+it cannot promise the device:
+GitHub documents nested virtualization as unsupported,
+and the ACL grant "disappears after successful QEMU execution",
+so each job must grant it again before its QEMU invocation.
+It fits one arm per job and nothing beside it,
+because one arm's charge and the gate's containers come to 14.59 GiB against the trial's 14.57 to 14.80 GiB of `MemAvailable`.
+It is unmeasured for an arm:
+two Intel runs booted a CirrOS guest and no AMD run has,
+and no arm's recipe has run there.
+
+Cost:
+one job of up to two hours and 8 GiB of guest RAM per arm,
+free at the point of use,
+a workflow file to keep in step,
+and the guest's disk on the runner's image.
+
+Example:
+the trial's fourth run is what a first job prints:
+`MemAvailable: 15279824 kB`,
+`after the grant: opened, KVM_GET_API_VERSION answered 12`,
+`qemu pid 2741, answered=true, seconds to login prompt 45`,
+and `=== cirros: current=0.6.2 uptime=42.86 ===`;
+what it has not printed is any arm's own lines.
+
+What a yes leaves undecided:
+whether the arms' own recipes complete there,
+and what to do when GitHub changes the device again.
 
 Ranking,
-by what each delivers toward arms that no longer use this machine's memory,
-on a path this repository can keep:
+by what each delivers toward arms that no longer use this machine's memory on a path this repository can keep:
 
-1 > 2 > 3.
+1 > 2.
 
 - 1 over 2:
-  option 1's delivery is a decided backend that rents a real machine by the second;
-  option 2 moves no arm off this machine,
-  and its answer may be no whatever it measures,
-  because GitHub guarantees nothing about the device.
-- 2 over 3:
-  option 3 commits every arm to a path whose grant disappears after each QEMU run,
-  so its arms fail unpredictably where option 2 would have measured that first.
+  option 1 delivers arms on a path with a measured end-to-end run,
+  its times and its one known failing test,
+  on a machine the owner already pays for and whose lifecycle `mvm` owns;
+  option 2 delivers nothing measured yet,
+  and the evidence it would rest on is four trial runs of a CirrOS boot,
+  two of them on Intel,
+  none on AMD,
+  with GitHub documenting the device as unsupported.
 
-The memory aim is served by the OVHcloud record either way,
-which is why the arms rank below the gate:
-a gate on this machine holds about 6.6 GiB,
-and one measured guest's charge was 7.98 GiB.
-
-### 6. Who reads a hosted red, and should any check become required?
+### 4. Should any check become required?
 
 Terms:
-a "red" is a failed hosted run;
 "required" means a required status check on `main` in branch protection,
-which only the owner can set.
+which only the owner can set;
+and a "red" is a failed run.
 
 Why it is asked:
 today nothing is required on `main`,
-and nothing on this project's loop reads a push's CI result,
-so a hosted red arrives where nobody looks.
-The repository's own numbers show what that costs:
+so nothing holds a push for a check.
+The repository's own numbers show what a push's CI result is worth now:
 of the newest 300 runs of each per-push workflow,
 read at 2026-11-28T08:00-05:00,
 
@@ -1711,22 +1778,190 @@ the second gate read had 100,
 136 and 38 for the second,
 so read them as a shape and not a total.
 
-There is one setting this question half-answers and this proposal never looked at:
-GitHub notifies the account that triggered a run when it completes,
-if that account has Actions notifications on,
-and "You can also choose to receive a notification only when a workflow run has failed" ([the notifications page][notifications page]).
-Every push is `Aquaticat`'s,
-so that account's own setting may already send a failed run's red to the owner.
-Whether it is on is the owner's setting,
-not readable here.
+#### Option 1: nothing becomes required
 
-#### Option 1: nothing becomes required, and a red reaches a person by a named routine
+Mechanism:
+nothing changes.
+`main`'s protection keeps its empty required-status list
+(`required_status_checks.contexts: []` and `checks: []`,
+read this round with `gh api`),
+and every push lands as it does today.
+
+What it takes off this machine:
+nothing.
+
+What it cannot do:
+it cannot hold any push for a check,
+so a red never stops a landing;
+that is why a red needs a reader from question 5.
+
+Cost:
+none.
+
+Example:
+today's own record:
+the release's bump of 2026-11-28T13:15:10Z landed `main` with no check required of it,
+and nothing was refused.
+
+What a yes leaves undecided:
+who reads a red,
+which is question 5.
+
+#### Option 2: a required check on `main`, once a check is green on `main`
+
+Mechanism:
+the owner sets one required status check in branch protection after the chosen check has run green for a while.
+The check required is one a workflow here already produces on every `push` to `main` without path filtering:
+`catalog-specifiers`'s `check` job is the nearest,
+run by `.github/workflows/catalog-specifiers.yml` on `pull_request`,
+`merge_group` and `push` to `main`,
+green on 16 of the newest 20 pushes and `cancelled` on the other four
+(`gh run list --workflow catalog-specifiers.yml --limit 20`,
+read this round).
+
+What it takes off this machine:
+nothing.
+
+What it cannot do:
+it cannot hold the owner's own pushes while `enforce_admins` is off,
+which is today's state:
+GitHub's rule exempts admins by default,
+and the account that made all 400 of the newest pushes is one.
+It would refuse the release bot's bump,
+whose commit starts no run to satisfy the check (inferred from the release record and two GitHub pages;
+not exercised).
+A check cancelled by its own `cancel-in-progress` satisfies nothing either,
+which the four cancelled runs above show the chosen check doing.
+And it is unusable while the chosen check is red:
+the wrapper's lint is red with 850 errors,
+and the three package unit tasks measured on 2026-11-28 are red.
+
+Cost:
+the owner's setting,
+a change to how the release dispatches its bump,
+and a fix round first.
+
+Example:
+the owner requires `catalog-specifiers`'s `check` after its job has run green for a week;
+a non-admin actor's push whose check is missing,
+cancelled or failed is then refused with a protected-branch error rather than made to wait,
+and the owner's own push to `main` still lands.
+
+What a yes leaves undecided:
+how a release dispatches its bump without a check that never runs,
+whether a cancelled run should count as a failure,
+and whether the owner also turns on "Do not allow bypassing the above settings".
+
+#### Option 3: a required check on pull requests only
+
+Mechanism:
+the owner requires a check in the ruleset or protection for `pull_request` runs.
+
+What it takes off this machine:
+nothing.
+
+What it cannot do:
+it gates no merge here,
+because merges are local:
+the newest merged pull request is #1776 of 2026-10-19 (`gh pr list --state merged --limit 3`),
+and every newer one is an outside account's closed one (#6113,
+#3472,
+#3471).
+It also cannot be built from a path-filtered workflow:
+a workflow skipped by path filtering leaves its check "in a 'Pending' state",
+as GitHub's page puts it,
+and a pull request that requires it is blocked from merging.
+The page states that of pull requests;
+that a push is blocked by the same mechanism is inferred here,
+not exercised.
+
+Cost:
+the owner's setting and a check that runs almost never.
+
+Example:
+an outside contributor's pull request waits for a check that no merge here was ever going to wait for,
+and its check reads `Pending` until someone bypasses it.
+
+What a yes leaves undecided:
+what the setting was for.
+
+Options 2 and 3 can both be chosen,
+in either order:
+the same check can be required on `main` and for pull requests,
+and neither setting cancels the other.
+
+Ranking,
+by whether a red on a required check reaches a person who lands work here,
+counting a refusal of a push that cannot carry the check as worse than no hold at all:
+
+1 > 2 > 3.
+
+- 1 over 2:
+  option 2's hold lands on the release's bump push,
+  whose commit starts no run that could satisfy the check,
+  and it does not hold the owner's own pushes,
+  which are the pushes that land work;
+  option 1 holds nothing and refuses nothing.
+- 2 over 3:
+  option 2 covers pushes,
+  which is how work lands here;
+  option 3 covers pull requests,
+  and the newest merged one is #1776 of 2026-10-19,
+  so it would hold almost nothing.
+
+### 5. Who reads a hosted red?
+
+Terms:
+a "red" is a failed run;
+the "Actions tab" is GitHub's own run list for this repository.
+
+Why it is asked:
+nothing on this project's loop reads a push's CI result today,
+and the shipped workflows are mostly red or cancelled:
+of the newest 300 runs of each per-push workflow,
+`forbidden-strings.yml` is 92 failures and 85 cancelled of 300,
+and `git-policy-cli-fuzz.yml` 127 and 135 of 300 (the counts above).
+So a hosted red arrives where nobody looks,
+unless something reads it.
+
+One setting half-answers it and this proposal cannot read it:
+GitHub notifies the account that triggered a run when that run completes,
+"if you enable email or web notifications for GitHub Actions",
+and "You can also choose to receive a notification only when a workflow run has failed" ([the notifications page][notifications page]).
+Every push here is the owner's account's,
+so that account's own setting may already send a failed run's red to the owner.
+
+#### Option 1: nothing new reads it; the Actions tab is the record
+
+Mechanism:
+nothing changes.
+A red stands in the Actions tab until someone opens it,
+and the owner's notification setting stays as it is.
+
+What it takes off this machine:
+nothing.
+
+What it cannot do:
+it cannot put a red in front of anyone;
+that is the state this round measured as 92 failures and 85 cancelled runs in one workflow's newest 300.
+
+Cost:
+none.
+
+Example:
+a `git-policy-cli-fuzz` run fails on a commit in a batch,
+and the next batch check starts and ends without naming it.
+
+What a yes leaves undecided:
+who ever reads it.
+
+#### Option 2: the session names each red at its batch check
 
 Mechanism:
 the coordinating session reads the hosted runs of the checks it dispatches at the batch check it already runs,
-and names a red in its report to the owner;
-no branch protection changes.
-The owner's own notification setting stays as it is.
+and names a red in its report to the owner,
+with the commit and the failing step;
+no branch protection changes and no account setting changes.
 
 What it takes off this machine:
 nothing;
@@ -1749,144 +1984,225 @@ and names it in the report with the commit and the failing step.
 What a yes leaves undecided:
 who reads a red raised between batches.
 
-#### Option 2: a required check on `main`, once a check is green on `main`
+#### Option 3: the owner's own Actions notifications carry a red
 
 Mechanism:
-the owner sets one required status check in branch protection after the chosen check has run green for a while,
-and that check's workflow runs on `push` to `main`.
+the owner turns on Actions notifications for the account in GitHub's notification settings,
+choosing "only when a workflow run has failed",
+so GitHub emails or notifies the account that triggered each failed run.
+No workflow and no branch protection changes.
 
 What it takes off this machine:
 nothing.
 
 What it cannot do:
-it cannot hold the owner's own pushes while `enforce_admins` is off,
-which is today's state:
-GitHub's rule exempts admins by default,
-and the account that made all 400 of the newest pushes is one.
-It would refuse the release bot's bump,
-whose commit starts no run to satisfy the check (inferred from the release record and two GitHub pages;
-not exercised).
-It is also unusable while the chosen check is red:
-the wrapper's lint is red with 850 errors,
-and the three package unit tasks measured on 2026-11-28 are red.
+it cannot make a red stand out once there are many:
+under decision 1's option 4 every advisory run is red until two tools are installed,
+which is 152 notifications a day;
+it depends on an account setting this repository cannot see or set;
+and it tells only the account that triggered the run,
+which is always the same one here.
 
 Cost:
-the owner's setting,
-a change to how the release dispatches its bump,
-and a fix round first.
+the owner's account setting,
+and the notifications themselves.
 
 Example:
-after the lint is fixed the owner requires the whole-tree lint check;
-any non-admin actor's push that lacks the check is then refused with a protected-branch error rather than made to wait,
-and the owner's own push to `main` still lands.
+the owner's push at 13:15:10Z starts no run;
+the next push starts an advisory run that fails at `//package/forbidden-strings/cli:test`,
+and the account receives one failed-run notification naming that run.
 
 What a yes leaves undecided:
-how a release dispatches its bump without a check that never runs,
-and whether the owner also turns on "Do not allow bypassing the above settings".
+whether 152 reds a day stay readable,
+and what happens to a red on a run the owner did not trigger.
 
-#### Option 3: a required check on pull requests only
-
-Mechanism:
-the owner requires a check in the ruleset or protection for `pull_request` runs.
-
-What it takes off this machine:
-nothing.
-
-What it cannot do:
-it gates no merge here,
-because merges are local:
-the newest merged pull request is #1776 of 2026-10-19 (`gh pr list --state merged --limit 3`),
-and every newer one is an outside account's closed one (#6113,
-#3472,
-#3471).
-It also cannot be built from a path-filtered workflow:
-a workflow skipped by path filtering leaves its check "in a 'Pending' state",
-as GitHub's page puts it,
-and a pull request that requires it is blocked from merging.
-
-Cost:
-the owner's setting and a check that runs almost never.
-
-Example:
-an outside contributor's pull request waits for a check that no merge here was ever going to wait for,
-and its check reads `Pending` until someone bypasses it.
-
-What a yes leaves undecided:
-what the setting was for.
+Options 2 and 3 can both be chosen:
+the routine does not depend on the notification setting,
+and the setting does not depend on the routine.
 
 Ranking,
-by whether a red reaches someone without breaking how work lands here:
+by how surely a red reaches a person who acts on it:
 
-1 > 2 > 3.
+2 > 3 > 1.
 
-- 1 over 2:
-  option 2 refuses pushes for a check that cannot run on the bump,
-  and it does not hold the pushes that actually land work;
-  option 1 reaches a person through a routine that exists.
 - 2 over 3:
-  option 2 at least refuses the bot's bump and a fork's merge,
-  both of which are non-admin actors,
-  where option 3 refuses a path this repository does not merge through.
+  option 2 names each red once,
+  with the commit and the failing step,
+  at a moment someone reads reports;
+  option 3 sends one notification per failed run,
+  which under decision 1 option 4 is 152 a day until the two installs exist,
+  so a red stops standing out.
+- 3 over 1:
+  option 3 reaches the owner for a red raised by a push no batch covers,
+  which option 1 leaves in the Actions tab.
 
 What a yes to any option leaves undecided:
 how long a red may stand,
 and whether a round or a person acts on it.
 
-## Combinations that cannot be built
+## Two settings this file adopts unasked
 
-Each with the reason that holds,
-and the label of what the reason rests on.
+Neither of these is a question for the owner:
+a measurement or a record settles each,
+so this file takes the answer and records it here with the owner's veto open.
+
+### The advisory group keeps `cancel-in-progress: false`
+
+The arithmetic settles it.
+With the window gone,
+keeping the setting starts 160 runs in 25.34 hours and finishes 160,
+at about 20 job-hours a day;
+cancelling starts 400,
+finishes 49 and spends about 50 job-hours for 46 finished checks a day,
+so it spends two and a half times the minutes for less than a third of the checks.
+Decision 1's option 4 therefore goes with `cancel-in-progress: false`,
+which is what the workflow carries today.
+
+One visible result of keeping it:
+a run that starts at 09:00:00Z ends at 09:07:56,
+and the push that starts then is the newest one waiting,
+say the push of 09:06;
+the push of 09:05 was replaced while it waited,
+so its commit is examined only by a later run whose range happens to include it.
+
+GitHub documents one more setting this file examined and did not adopt:
+`queue: max`,
+where "Up to 100 jobs or workflow runs can be pending in the concurrency group",
+and which cannot be combined with `cancel-in-progress: true` ([the concurrency page][concurrency page]).
+It examines pushes in order rather than replacing them,
+at the price of staleness:
+379 pushes a day against the 160 runs in 25.34 hours the group can finish leaves about 229 pushes a day queueing,
+so a queue of 100 would be full within hours and the run that starts would examine a commit that waited the whole queue
+(this last step is inferred from the page's bound and this round's counts,
+and nothing here models it).
+
+What stays open,
+for the owner's word or veto:
+how stale an examined commit may be.
+The push rate decides that,
+and the setting itself is unchanged by any answer to decision 1.
+
+### The wrapper's TypeScript checks stay where issue 6584 asks
+
+Issue 6584 is where the owner answers where `//package/git-policy/cli`'s `test:unit`,
+`lint:types` and `lint:oxlint` run.
+The proposal it asks for exists and ranks seven placements,
+A > C > B > E > D > F > G ([where the TypeScript checks run][placement record],
+"Ranking"),
+in which a hosted workflow of its own is E,
+fourth.
+What the issue's own last sentence settles until then is who runs them:
+"Until then the coordinating session runs `test:unit`,
+`lint:types` and `lint:oxlint` on `main` with each batch check and names what is red" (issue 6584).
+So this file does not ask that question here,
+and a yes to decision 4 does not answer it.
+
+What the checks cost where they run now,
+for whoever answers there:
+37.8 seconds of wall time and peaks of 0.45,
+0.99 and 4.5 GB at `1c8acd5bfb`,
+the last of which the record puts at 1.8 GB at `64e3eb1a55`.
+A per-package workflow would need one entry per manifest:
+276 `mise.toml` files under `package/<category>/<name>/`,
+counted this round with
+`git ls-tree --name-only -r HEAD package/ | rg -c '^package/[^/]+/[^/]+/mise\.toml$'`,
+of which 206 name a `test:unit` task (`git grep -l 'test:unit' -- 'package/*/*/mise.toml' | wc --lines`).
+276 is a count of manifests,
+not of packages whose unit task is red;
+the three red package unit tasks this file measured are three packages.
+
+## Combinations that cannot be built, and ones that can
+
+Seven combinations,
+each labelled for what it is:
+cannot be built,
+can be built,
+or an unmeasured tight fit.
+Three cannot be built,
+three can be built,
+and one is a tight fit no measurement here settles.
+
+Cannot be built:
 
 - **A required check on `main` satisfied by the release's current bump push.**
   The bump commit starts no workflow (read:
   the release record's "Consequences",
   and GitHub's sentence about `GITHUB_TOKEN`),
   so the check can never pass,
-  and the push is refused rather than delayed.
-  Buildable only by changing how the release dispatches its publish,
+  and the push is refused rather than delayed (inferred,
+  not exercised).
+  It becomes buildable only by changing how the release dispatches its publish,
   or by adding the bot to a bypass list,
   which is not checked.
 - **A required check produced by a path-filtered workflow.**
   A skipped workflow leaves its check `Pending` (read:
   the triggering page),
-  and a required check that never resolves blocks the push or the pull request forever.
-  This binds decision 6 option 2 or 3 paired with decision 4 option 2 or 3.
+  and a required check that never resolves blocks the pull request forever.
+  This binds question 4 option 2 or 3 paired with decision 1's option 2 or 3.
+- **A required check produced by an advisory run the group replaced.**
+  With decision 1's option 2,
+  3 or 4,
+  a push whose waiting run is replaced starts no run,
+  so no check is produced for that commit;
+  at 476 s that is 180 pushes of 400 under option 3 and 239 under option 4,
+  and the required context would stay unsatisfied for each of them
+  (inferred from the concurrency page and this round's arithmetic;
+  not exercised).
+
+Can be built:
+
+- **A required check that a skipped `advisory core` job satisfies.**
+  A required check passes on "a successful,
+  skipped,
+  or neutral status" (read:
+  the protected-branches page),
+  `advisory core` is `skipped` on 100 of the newest 100 pushes,
+  so requiring it would pass every push without examining anything.
+  It can be built,
+  and it delivers nothing.
+- **A hosted gate for every wrapper-touching push under the one-gate rule.**
+  About 105 wrapper-touching pushes a day (measured:
+  111 of 399 push ranges) at 20 to 42 minutes each is 35 to 73 job-hours a day,
+  one to four of the twenty slots.
+  It can be built,
+  and the owner's rule does not want it:
+  the rule asks for one gate per batch and says a merge needs no gate,
+  and a gate on a push holds no merge.
+- **A finished check on most pushes with `cancel-in-progress: true`.**
+  The setting is one line and can be built;
+  at 476 seconds of job and the sample's gaps it starts 400 runs,
+  cancels 351 and finishes 49 (this round's arithmetic),
+  so it delivers a verdict on 49 pushes of 400.
+
+An unmeasured tight fit:
+
 - **A guest arm beside the gate's containers in one 16 GB job.**
   One measured arm's guest charge,
   7.98 GiB,
-  plus 6.6 GiB of container peak is 14.6 GiB against the trial's 15.1 GiB of `MemAvailable`,
-  which leaves about 0.5 GiB for QEMU's overhead,
+  plus 6.6 GiB of container peak is 14.59 GiB against the trial's 14.57 to 14.80 GiB of `MemAvailable`,
+  which leaves nothing at the fourth run's figure and 0.16 GiB at the third's,
+  for QEMU's overhead,
   the shell steps and the page cache (measured:
   the trial's `MemAvailable`,
   the gate's peaks and the guest's charge;
   inferred:
   the sum is too close).
-- **A hosted gate for every wrapper-touching push under the one-gate rule.**
-  Not impossible:
-  about 105 wrapper-touching pushes a day (measured:
-  111 of 399 push ranges) at 20 to 42 minutes each is 35 to 73 job-hours a day,
-  which is one to four of the twenty slots.
-  It is unwanted by the owner's rule,
-  which asks for one gate per batch and says a merge needs no gate,
-  and a gate on a push holds no merge.
-- **A finished check on most pushes with `cancel-in-progress: true`.**
-  At 476 seconds of job and the sample's gaps,
-  351 of 400 started runs are cancelled and 49 finish (this round's arithmetic),
-  so the setting cannot deliver a verdict on most pushes.
+  No measurement here settles it either way.
 
 Combinations that look sealed and are not:
 
-- decision 1 option 4 with decision 2 option 2:
-  cancelling is reachable with the window gone,
-  and the arithmetic for that pair is in the report (400 starts,
-  49 finishes,
-  50 job-hours).
-- decision 1 option 1 with decision 2 option 2:
+- decision 1's option 4 with `cancel-in-progress: true`:
+  reachable,
+  and its arithmetic is 400 starts,
+  49 finishes and 50 job-hours,
+  which is why the setting is not adopted (see "Two settings this file adopts unasked").
+- decision 1's option 1 with `cancel-in-progress: true`:
   also reachable,
   and there the cancel almost never fires,
-  because 8 runs a day rarely overlap.
-- decision 3 option 2 with decision 4 option 2:
-  a hosted batch gate and a hosted per-package workflow are separate files and can both exist.
+  because 4 runs a day rarely overlap.
+- question 4's option 2 with a hosted gate:
+  a required check and a hosted batch gate are separate settings on separate files,
+  and both can exist.
 
 ## What this round did not measure
 
@@ -1909,8 +2225,8 @@ Combinations that look sealed and are not:
 
 ## Gate reads of this proposal
 
-Two,
-both same-vendor second passes,
+Three,
+all same-vendor second passes,
 as the status says.
 Their findings and this revision's answer to each are in the report of the run that made this revision,
 finding by finding,
@@ -1918,6 +2234,18 @@ with the command or the line each answer rests on.
 What this revision changed is in that report,
 which names the file's lines and the commands;
 an earlier revision's changelog does not belong in a proposal the owner reads to decide.
+
+The arithmetic behind every admission figure is in this folder,
+and reruns with `node` and no other input:
+
+- `github-hosted-runners-for-package-checks-and-a-guest-evidence/advisory-core-newest-400-push-arrivals-2026-11-28.json`,
+  the 400 runs read from GitHub at 2026-11-28T07:51-05:00;
+- `github-hosted-runners-for-package-checks-and-a-guest-evidence/admission-arithmetic-over-those-arrivals.ts`,
+  the rules and the group,
+  with its model in its header;
+- `github-hosted-runners-for-package-checks-and-a-guest-evidence/admission-arithmetic-output-at-401-476-and-557-seconds.json`,
+  what it printed,
+  which is what this file quotes.
 
 [owner answers]: ../decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md
 [oomd record]: ../troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md
@@ -1937,3 +2265,4 @@ an earlier revision's changelog does not belong in a proposal the owner reads to
 [limits page]: https://docs.github.com/en/actions/reference/limits
 [ci caching record]: ../decision/ci-caching.md
 [depot adoption record]: ../decision/depot-ci-adoption.md
+[base distro record]: ../decision/container-base-distro.md
