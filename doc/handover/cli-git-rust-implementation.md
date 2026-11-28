@@ -1604,37 +1604,7 @@ if a real reexec shows no such answer inside its window;
 the records name every state in which the span is spent;
 and each of the three edits gets a control shown red by it.
 
-What `cargo-shadow`'s alpha.14 read found
-(`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
-no High finding,
-two Medium and ten Low,
-and no decision or output that differs from alpha.13 beyond what the merges name.
-The manager is asked two questions a call in alpha.11,
-alpha.13 and alpha.14 alike,
-over 260 timed calls;
-the cost of a call against alpha.11 had a median ratio of 1.021 for alpha.14
-(0.409 to 2.072 over 20 rounds),
-with a byte-identical copy of alpha.11 as the control at 0.907
-(0.457 to 2.019),
-so the harness tells alpha.14 from neither alpha.13 nor alpha.11.
-Its Medium findings,
-each with a round:
-the refusal says the next run settles the kept journal by itself,
-while a pass-through run such as `cargo fmt --check` and a frozen run under `CI=true` leave it and print nothing
-(shown with a journal a killed run left,
-not with a real refusal);
-and the release's one new decision,
-a `pids.peak` read that fails because the group's directory went away,
-is held only at its helper,
-so putting alpha.13's behaviour back would pass every test
-(argued from the test files;
-the round applies the edit once to settle it).
-Its Low findings are sentences that say more than was read
-(two warnings of the retire gate,
-four sentences of the README,
-one of which gives a ratio outside its own control's range),
-two controls that stay green under named edits,
-and a state outside these merges:
+A state outside the `cargo-shadow` alpha.14 read's merges stays open:
 a scope that does not exist yet may be read as collected and its unit left loaded in silence.
 
 What `mpm-shadow`'s alpha.17 read found
