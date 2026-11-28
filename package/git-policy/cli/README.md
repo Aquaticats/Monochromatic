@@ -2536,7 +2536,8 @@ The removal's whole order is
 `worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
 and `git worktree remove` runs it over the live seams
 (`worktree_clone_removal_proof_and_plan::removal_command_path::complete_the_bound_clones_removal`).
-What it does, step by step:
+What it does,
+step by step:
 
 - the slot's per-slot claim,
   taken before the first read and released after the plan is proved gone,
@@ -2601,7 +2602,8 @@ The forced arm is built beside the cancel command and reached by no command.
 With `--force`,
 a removal may end the holders other than the caller and its session,
 once the owed measurement shows it works,
-and that is not this release: its waits ship with no value.
+and that is not this release:
+its waits ship with no value.
 What it never ends is the caller's session and every ancestor of the command up to the first process:
 a holder there refuses the removal in both arms,
 and with `--force` the word it answers is `caller-protected-holds`.
