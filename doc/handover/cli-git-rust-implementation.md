@@ -1229,309 +1229,33 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and the ranking stays as it was,
   with its first pair closer;
 - a follow-up round for `mpm-shadow`:
-  every round of its `0.2.7-alpha.14` pass is merged,
-  and `0.2.7-alpha.15` is released
-  (release commit `9480230fea`),
-  locked (`481a09a3ae`) and installed,
-  with the session's `git` link put back at 2026-11-27T13:29:21-05:00.
-  Its Claude Sonnet read returned at 2026-11-27T14:35:51-05:00
-  (`~/temp/agent/mpm-shadow-alpha-15-release-review-2026-11-27/keep/review.md`;
-  "What `mpm-shadow`'s alpha.15 read found"),
-  and rounds started from it at 2026-11-27T14:54:37-05:00,
-  each named `mpm-shadow-alpha-15-release-pass-` and then its subject.
-  All are merged
-  (`cda9f0c7b3`,
-  `2c6513069b`,
-  `7a216deafc`),
-  and so is the follow-up round on the report's sentences (`a49bf155cd`).
-  `0.2.7-alpha.16` is released
-  (release commit `5db66260eb`,
-  published 2026-11-27T16:24:48-05:00 by the follower's log),
-  locked (`b2afb5b775`) and installed,
-  with the session's `git` link put back at 2026-11-27T16:26:38-05:00;
-  the install named `rustup` as an unresolved bin,
-  which the lock's Rust toolchain row declares and no entry of the exposure folder holds.
-  The line is older than this release:
-  four installs of 2026-11-27 before it printed the same,
-  one of 2026-11-19 named three bins,
-  and every install through 2026-11-11 whose kept output shows its last lines printed none.
-  Issue 6626 holds that evidence,
-  and its round is merged (`7aa3e5e61f`).
-  No commit began the line:
-  on 2026-11-17 this machine's `rustup` became the system's package,
-  and the proxies in the cargo home that had resolved every bin of the row went with the old one.
-  The row stops declaring `rustup`,
-  which is the manager and no program of the toolchain,
-  and nothing in the repository reaches it through the exposure folder.
-  The lock followed through `mpm-shadow install --lockfile-only --offline`;
-  the branch's lock met the linter's lock row at the merge,
-  so the coordinator regenerated it the same way in a worktree,
-  and against `main`'s lock it differed in the row's `bins` and the digest alone.
-  The install after the merge reported nothing installed,
-  nothing failed and no unresolved bin.
-  The row's `cargo-fmt` and `rustfmt` resolve here only because the `rustfmt` component was added by hand on 2026-11-25,
-  which no component the plan declares installs:
-  issue 6630,
-  with the pick in `doc/handover/questions-for-the-owner.md`,
-  and its round is merged (`b7414d5939`).
-  The row declares the `rustfmt` component,
-  the only one that installs those two programs,
-  as the installed toolchain's own component manifests show.
-  A control builds a toolchain from exactly what the row declares and the profile installs,
-  and names no unresolved bin;
-  it named the two before the change.
-  Two more hold that an install asks the manager for a declared component the toolchain lacks,
-  and for nothing where the toolchain holds them all.
-  The lock followed through the offline rewrite,
-  with the row's components and the digest as its whole diff.
-  Its whole test task passed 910 of 910 on its merged tree.
-  The two rounds of the alpha.16 read got a note in their inbox at 2026-11-27T17:31:52-05:00,
-  saying what issue 6626's merge changed and which files that round has.
-  Its Claude Sonnet read returned,
-  a same-vendor second pass,
-  and was read whole
-  ("What `mpm-shadow`'s alpha.16 read found").
-  Two rounds started from it at 2026-11-27T17:10:06-05:00,
-  each named `mpm-shadow-alpha-16-release-pass-` and then:
-  `each-sentence-a-person-acts-on-says-what-the-run-read`
-  and `a-link-move-that-fails-once-and-what-a-put-back-does-to-current`.
-  The round of issue 6626 got a note in its inbox at 2026-11-27T17:10:09-05:00,
-  naming the files those two have.
-  The first of the two,
-  on the sentences,
-  is merged (`21c91bc9fd`):
-  each of its seven points held on `main` and was shown red there by a test that reads the sentence from a run.
-  A failed listing names the hidden names an earlier install left;
-  the second-copy clause says the version holds its completion marker and its program at its name,
-  where it said nothing was lost;
-  the step by hand is a copy of the copy's contents,
-  printed as a command,
-  where a move nested the copy inside a directory already at the version's name;
-  the failed download's clause names a download that matches the lock's digest and that the install can keep;
-  and `prune --toolchain` says one of five things it read.
-  The README says which sentences its list holds.
-  Its whole test task passed 901 of 901 on its merged tree.
-  It left the rule behind the second-copy clause alone,
-  as its brief said,
-  and priced it:
-  keeping a second copy whose program differs means reading both programs on every recovery,
-  and still cannot tell a program cut short from one rebuilt at the same size.
-  The second,
-  on the move of `current`,
-  is merged (`d46572181c`).
-  A test can now make that move fail,
-  through a seam compiled out of a shipped build,
-  and two controls hold that nothing is removed when the link cannot be moved;
-  both fail with the `return` after the failed move taken out.
-  A control holds a hidden name whose boot and namespace both differ as ended,
-  and fails with the two comparisons swapped.
-  The warning after a failed listing no longer speaks of a copy,
-  because none was read.
+  The pick is that the row declares the `rustfmt` component;
+  it waits in `doc/handover/questions-for-the-owner.md` with the veto open (issue 6630).
   Two behaviours stay as they are,
   each held by a control and said in the README,
   and each waits for the owner:
   a move of `current` that fails once ends the run 1 and leaves the older version until `prune --toolchain`,
   and a recovery that puts an unfinished copy back points `current` at the newest finished version.
-  Its whole test task passed 906 of 906 on its merged tree.
-  Every round of the package has merged,
-  and `0.2.7-alpha.17` is released
-  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46079725275>,
-  release commit `04d5150e0b`),
-  locked (`50e4b07543`) and installed here:
-  the install named no unresolved bin,
-  and the session's `git` link is back.
-  What backs the claim that an install adds a declared component a toolchain lacks:
-  the round's controls,
-  whose manager is a stand-in.
-  This machine's toolchain already holds `rustfmt`,
-  so its install is the arm that asks for nothing.
-  No workflow that runs on a push installs the Rust row
-  (the release workflows install a toolchain with `rustup` themselves,
-  and `music-player-release.yml` alone runs the toolchain install);
-  the drift gate in `advisory-core.yml` passed on the merge and after it.
-  The real arm passed,
-  in the release's Claude Sonnet second pass
-  ("What `mpm-shadow`'s alpha.17 read found"):
-  with a real `rustup` and the pinned toolchain at the `minimal` profile holding no `rustfmt`,
-  `0.2.7-alpha.17` asked `rustup component add rustfmt --toolchain nightly-2026-11-16`,
-  the two programs were in the toolchain's `bin` afterwards and ran,
-  and the report named no unresolved bin;
-  `0.2.7-alpha.16` in the same state asked nothing and named three.
-  Two rounds took that read's findings,
-  with files of their own.
-  `mpm-shadow-alpha-17-release-pass-a-warning-promises-only-what-the-next-run-does-and-each-prune-line-has-a-test`
-  is merged (`f4d888d5a1`).
-  Each of the five warnings of a recovery whose publish failed now ends at what the run read,
-  and where the install that followed put the version at its name,
-  it says that a later run publishes nothing from the copy and removes it,
-  which the second run of each control then did,
-  with no second download.
-  The two sentences about a second copy end at the read
-  ("because <version> holds its completion marker and its program at its name"),
-  since a program cut short under its marker reads as finished too.
-  Two `prune` lines and the cleanup after a real failed rename have a test each,
-  shown red by the read's own edits;
-  the real rename is made to fail by a destination that is a directory.
-  The package's task ran 918 and passed 918.
-  What it chose beyond its brief waits in `doc/handover/questions-for-the-owner.md`.
-  `mpm-shadow-alpha-17-release-pass-the-exposure-folder-links-the-pinned-toolchain-and-only-what-the-plan-declares`
-  is merged (`d557ebbe20`) and issue 6634 is closed.
-  The two branches met in three files,
-  so the second was merged with `main` in a worktree of its own and checked there first:
-  format,
-  check,
-  Clippy and the package's task,
-  which ran 927 and passed 927.
-  A `rustup-toolchain` row now searches the `bin` of the toolchain its channel names and of no other,
-  by the directory's name;
-  the way not taken,
-  asking `rustup which` for each program,
-  costs a process per program and is priced in the package's README and the round's commits.
-  A real `rustup` in a container,
-  holding the pin and an older toolchain that sorts first,
-  put every link of the row into the pin.
-  The rebuild removes a symbolic link for a name no row declares and names it in the report,
-  and `list` reports a declared component or target the toolchain lacks as drift,
-  at the cost of three `rustup` calls where it made one.
-  This machine's exposure folder holds exactly the names the plan declares
-  (174 entries,
-  read 2026-11-27T18:57:36-05:00 with no run against the folder),
-  so the rebuild removes nothing here;
-  an install of the new release that names a removed link is a surprise to read before going on.
-  The second round's choices wait in `doc/handover/questions-for-the-owner.md` too.
-  The release run of `0.2.7-alpha.18` was started at 2026-11-27T19:31:24-05:00
-  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46088339190>);
-  its release commit is `39e60f48cc`,
-  which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
-  and `main` is fast-forwarded to it.
-  It is published
-  (publish run 46088436580;
-  the follower's log holds `PUBLISHED monochromatic-mpm-shadow-v0.2.7-alpha.18`),
-  locked (`e7bf60a263`) and installed here.
-  The install ran twice,
-  so that the second run was the new release's own:
-  each said `0 installed, 67 unchanged, 0 failed`,
-  and named no unresolved bin and no removed link;
-  the exposure folder held the same 174 names before and after,
-  with no link that does not resolve,
-  and `rustc` through it is the pin's (`5f4effd57 2026-11-13`).
-  The session's `git` link was put back at 2026-11-27T19:42:39-05:00.
-  Its Claude Sonnet second pass,
-  a same-vendor read that ran a real `rustup` in a container and tried the removal as an adversary,
-  returned and was read whole
-  ("What `mpm-shadow`'s alpha.18 read found").
-  That round made a removed hidden directory that held a finished copy say which of two things happened:
-  a second copy went and nothing was lost,
-  or the one copy the version had here went,
-  with the reason this run did not publish it.
-  The sentences that said "a killed install" say "an earlier install",
-  or "an install that has ended" where the system answered that;
-  each is read from a run by a test that was red on `main`'s code;
-  the README's list was checked against the code's own literals;
-  and the suite passed 888 of 888 on its merged tree.
-  Its two wording choices wait in `doc/handover/questions-for-the-owner.md`,
-  and the package's other files held 76 line-break findings of the linter,
-  none on a line that round wrote;
-  the linter's own `--fix` took them out (`ee8871b190`),
-  as "The Markdown the line-break sweep left out" says.
-  The rounds merged with no textual conflict and met in meaning:
-  one made the list of removed leftovers carry whether each held a finished copy,
-  and reworded the sentence for a publish a recovery finished,
-  while controls of the other rounds compared an entry with a path and asserted the earlier words.
-  The merged tree did not compile,
-  and then two controls failed on the reworded sentences.
-  The coordinator changed those test lines on the branch (`af35ea923d`),
-  no release code,
-  and the suite passed 884 of 884 on the merged tree.
-  The merge exposed one sentence the follow-up round corrects before the release:
-  after a recovery that failed and that the same run repaired by installing,
-  the next run says a finished copy "could not" be published and "is gone",
-  while the version is installed and nothing is lost.
-  The same round takes the sentences that say "a killed install" after an install that failed without being killed,
-  none of which a test read.
-  The coordinator read both sides of that merge in the Rust files each side touched
-  (`archive_staging.rs`,
-  `archive_staging_tests.rs`,
-  `toolchain/mod.rs`,
-  `sync/what_the_sync_did.rs`;
-  `git diff 468c2450a7 b5034231f0` and `git diff 2c6513069b b5034231f0`):
-  each side's changes stand in places of their own and nothing of either was lost.
-  The README section "What a kill leaves and what the next install does about it" was read whole on the merged tree,
-  and the locked linter finds nothing in the package's README on `main`.
-  The round on a raced publish is merged (`2c6513069b`):
-  a publish that finds a copy at the version's name between its own check and its rename replaces it,
-  in the step it uses for a copy that was there all along;
-  a name of another boot is ended whatever its start time says,
+  What the sentences round chose beyond its brief waits in `doc/handover/questions-for-the-owner.md`.
+  The choices of the round on the Rust row wait in `doc/handover/questions-for-the-owner.md` too.
+  The follow-up round on the report's sentences left two wording choices for the owner,
+  and they wait in `doc/handover/questions-for-the-owner.md`.
+  A name of another boot is ended whatever its start time says,
   which is a changed decision with the owner's veto open
-  (`doc/handover/questions-for-the-owner.md`);
-  and the suite passed 878 of 878 on its merged tree.
-  The round on a hidden name nobody can judge is merged (`7a216deafc`),
-  with messages and the README changed and no rule:
-  a wait for such a name prints which hidden name holds it and whether that name holds a finished copy;
-  `prune --toolchain` says what deleting such a directory costs;
-  and an install that cannot download says where a finished copy it cannot judge sits.
-  Its proposals and its wording pick wait in `doc/handover/questions-for-the-owner.md`.
-  The round on the recovery's order is merged (`cda9f0c7b3`):
-  a recovery points `current` at the newest finished version before it removes an older one,
-  and removes nothing when the link cannot be moved;
-  one control starts the tool between the two steps and another kills the run there,
-  and both failed on the earlier order and again with the steps swapped back.
-  The sentence after a removal says of each version whether this run recovered it or it was installed before;
-  the warning of a recovery that failed ends with what the run then did;
-  and the README says when such a run ends 0.
+  (`doc/handover/questions-for-the-owner.md`).
+  The round on a hidden name nobody can judge left proposals and a wording pick,
+  which wait in `doc/handover/questions-for-the-owner.md`.
   The warning's wording for a lock that is satisfied already has no test:
-  the round could not build that state,
+  the recovery round could not build that state,
   and worded it to promise nothing about the copy.
-  The suite passed 871 of 871 on the merged tree against 866 of 866 on `main`'s code.
-  The two rounds that changed one module are joined (`d3f0628c0b`),
-  with both rounds' rules kept,
-  and the package's suite passed 866 of 866 on the joined tree against 857 of 857 on `main`.
-  A hidden name carries the process id,
-  its start time,
-  its process namespace and the boot's identifier
-  (`/proc/sys/kernel/random/boot_id`,
-  the target of `/proc/self/ns/pid`);
-  a name from another boot is an installer that ended,
-  one from another namespace or in an earlier build's shape is never judged;
-  the completion marker carries the archive's SHA-256 and a copy is published only when the lock's row matches;
-  and `prune --toolchain` removes hidden directories whose owner provably ended and names what it cannot judge.
-  Where the two rounds' words could not both hold,
-  the joining round chose,
+  Where the words of two `mpm-shadow` rounds could not both hold,
+  the round that joined them chose,
   and both choices wait in `doc/handover/questions-for-the-owner.md` with veto open:
   a finished copy of an older version stays hidden only when the lock vouches for it,
   and one no lock vouches for is removed;
   the copy a kill moved aside waits while a name of this boot whose installer cannot be judged may hold the version,
   and does not wait for a name in an earlier build's shape,
   which nothing ever removes.
-  A run that holds no row for an archive removes no finished copy it could not judge.
-  A failed or raced publish no longer costs the finished copy (`1add32a8fb`):
-  a claimed copy that could not be published stays at the claim for the next install,
-  which publishes it with no download;
-  the copy a kill moved aside is not put back while a live installer holds a claim or a staging name for that version,
-  and a publish that finds a copy put back meanwhile replaces it;
-  a recovery never publishes an older version beside a newer installed one;
-  a run whose recovery failed still installs what it can;
-  and every message on those paths says what is on disk afterwards.
-  Its controls stop at a planted step or a real live process,
-  never by timing,
-  and were shown red by putting the release's decisions back,
-  twelve of them at once.
-  The record of a start refused because the program is being written says what the code and the trace show
-  (`9e13d87bbd`):
-  it names no usual cause,
-  quotes a test that exists,
-  and gives the publish's absence as measured in the installer's own process:
-  none where the file system can exchange,
-  and 24 to 48 microseconds over twelve publishes on the two-rename fallback,
-  where the record had said 5.025 ms from two separate `mv` commands.
-  Four start messages name the file and the remedy that fit (`2ff1248256`):
-  a compiled program's dynamic linker is named as such,
-  the last arm offers no step that cannot show the error,
-  the shadow prints the `mpm` candidates it saw with the reason it took or skipped each
-  (where the message had named `command -v -a mpm`,
-  which bash and zsh reject),
-  and an `mpm` without its execute bit is named with its remedy;
-  17 scenarios kept their exit status and standard output.
 
 What the `cargo-shadow` alpha.13 pass found
 (a Claude Sonnet read,
