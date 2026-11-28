@@ -108,6 +108,56 @@ the old NVMe's Btrfs file system is shrunk by 128 GiB for a plain swap partition
 then its data is moved to the 860 drive,
 and no partition of the old NVMe is formatted before the owner is asked again.
 
+### How the swap partition is encrypted, and what a yes covers
+
+The option the owner chose said "an encrypted swap partition" and nothing about how.
+The session then built it as plain dm-crypt,
+`aes-xts-plain64`,
+with a 512-bit key read from `/dev/urandom` each time the mapping opens,
+the setup the zram writeback partition on the same drive already has,
+and switched it on at 2026-11-28T03:40:32-05:00.
+The owner,
+seeing it reported:
+
+> Holdup,
+> encrypted swap?
+> Encrypted with what?
+
+Told how it works,
+and asked whether it stays a random key each boot,
+becomes a stored key,
+or loses its encryption,
+the owner answered:
+
+> Yes,
+> random key each boot.
+> My objection was not encryption itself - my objection was you didn't confirm how exactly the
+> encryption would work with me before doing it.
+> Now that you've made it clear,
+> I approve.
+
+So the partition stays as built.
+
+Offered a rule about encryption,
+keys and credentials,
+the owner answered:
+
+> Too narrow.
+> This pattern isn't about enc/key/cred/whatever..
+
+Offered the general reading
+(an option named a mechanism by a label only,
+the yes covered the label,
+and the session then picked the mechanism itself),
+the owner chose "A yes covers what was written (Recommended)".
+Two rules went into `AGENTS.md` for it,
+`OHW` under "Present options with pros,
+cons,
+and a personal ranking"
+and `YSC` under "Match action scope to the request verb".
+Not chosen:
+the same two with a third rule that stops the session before every lasting change to the machine.
+
 ## The 860 drive
 
 > In fact,

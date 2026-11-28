@@ -606,6 +606,16 @@ ODM:
  abstract labels aren't examples.
  Demonstrate every concept being compared.
 
+OHW:
+ Each option says how it works,
+ not only what it is called:
+ the mechanism,
+ what it stores or changes for good,
+ and what it gives up.
+ A label ("encrypted",
+ "atomic") is a name,
+ not a description.
+
 ### Exhaust evidence layers when assessing system usage
 
 EVL:
@@ -1145,6 +1155,13 @@ IWT:
 AUT:
  Auto mode's "prefer action over planning" covers executing the requested action,
  never expanding scope or acting on adjacent undecided choices.
+
+YSC:
+ An owner's yes covers only what the option's text stated.
+ Whatever the option named by a label alone ("encrypted",
+ "cached") is undecided:
+ say how it works,
+ then get a yes before building it.
 
 VR2:
  Request or answer with one clear reading:

@@ -287,6 +287,11 @@ fn lists_component(
 /// Why:
 /// Both rows add a part the same way,
 /// and the sentence has to name the part and the listing that missed it.
+/// Every part is judged against the one listing an install asks for,
+/// `rustup component list --installed`,
+/// so the sentence names that listing for a component and the `rust-std-<triple>` line of it for a target:
+/// naming `rustup target list --installed` would send a person to a command this run never made,
+/// whose own answer then differs from what the sentence says about it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -305,15 +310,29 @@ fn add_part(
     );
     let what: String = format!("rustup {listing} add ({name})");
     run_checked(ctx, &request, &what, &tool.declaration.id)?;
-    // What: `format!` builds the sentence the report prints in place of counting the tool unchanged.
-    // Why: the reader has to learn which part was added to a toolchain that was already at its version.
+    // What:
+    // the listing the part was looked for in and found missing,
+    // which is the component listing for both kinds of part, and for a target its `rust-std-<triple>` line.
+    // Why:
+    // The reader has to learn which part was added to a toolchain that was already at its version,
+    // and which question said it was absent,
+    // so the sentence names the command this run asked and, for a target, the line of the answer it read.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // added.push(`${id}: ${version} was already installed; added the declared ${listing} ${name}`);
+    // const looked = listing === 'target'
+    //   ? `the \`rust-std-${name}\` line of \`rustup component list --installed\``
+    //   : '`rustup component list --installed`';
+    // added.push(`${id}: ${version} was already installed; added the declared ${listing} ${name}, which ${looked} did not show`);
     // ```
+    let looked: String = match listing {
+        "target" => format!(
+            "the `rust-std-{name}` line of `rustup component list --installed`"
+        ),
+        _ => "`rustup component list --installed`".to_string(),
+    };
     added.push(format!(
-        "{}: {} was already installed; added the declared {listing} {name}, which `rustup {listing} list --installed` did not show",
+        "{}: {} was already installed; added the declared {listing} {name}, which {looked} did not show",
         tool.declaration.id, tool.version
     ));
     return Ok(());

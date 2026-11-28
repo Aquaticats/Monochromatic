@@ -108,8 +108,11 @@ pub struct ManagedMoveRefusal {
 ///  It says the slot is fixed,
 ///  why renaming the folder does not move the clone,
 ///  and what moving the work would need,
-///  including that this release has no removal for a clone,
-///  so a person is not left with a refusal and a command that does not exist.
+///  and it names the removal only where the removal's command path takes the
+///  slot:
+///  a record at `mounted` or `filled` is a whole clone,
+///  and a record short of those is an add that has not finished,
+///  whose slot `git worktree remove` leaves to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -120,10 +123,19 @@ fn bound_sentence(
     clone_dataset: &str,
     phase: Phase,
 ) -> String {
+    let way_out: String = match phase {
+        Phase::Mounted | Phase::Filled => format!(
+            "Moving the work means removing the clone first and adding the worktree where you want it, and {}.",
+            crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
+        ),
+        _ => format!(
+            "Moving the work means removing the clone first, and the add that made this one has not finished at `phase={}`: its own recovery is what names the way out, and a `git worktree remove` of this slot at that phase is Git's own removal, which drops the registration and the slot folder.",
+            phase.word()
+        ),
+    };
     return format!(
-        "`git worktree move` is refused: the slot `{slot}` is fixed because a managed clone is bound to it at `phase={}`. The clone's dataset is `{clone_dataset}`, and this route derives a clone's slot from that dataset's own name, so renaming the folder does not move the clone and leaves the binding record and the Git registration naming different paths. Nothing was moved. Moving the work means removing the clone and settling its registration first, then adding the worktree where you want it; {}.",
-        phase.word(),
-        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+        "`git worktree move` is refused: the slot `{slot}` is fixed because a managed clone is bound to it at `phase={}`. The clone's dataset is `{clone_dataset}`, and this route derives a clone's slot from that dataset's own name, so renaming the folder does not move the clone and leaves the binding record and the Git registration naming different paths. Nothing was moved. {way_out}",
+        phase.word()
     );
 }
 

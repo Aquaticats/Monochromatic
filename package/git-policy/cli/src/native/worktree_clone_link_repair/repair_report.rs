@@ -298,8 +298,8 @@ fn kept_and_restorable(
                 "restorable: nothing needs restoring, and `git worktree prune` keeps this registration because the pointer stands",
             ),
             format!(
-                "next safe command: nothing here; run Git in the worktree while the clone is mounted, and to be rid of it, {}",
-                crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+                "next safe command: nothing here; run Git in the worktree while the clone is mounted, and to be rid of it: {}",
+                crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
             ),
         ],
         LinkRepair::Damaged => vec![
