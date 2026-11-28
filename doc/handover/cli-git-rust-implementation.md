@@ -2913,28 +2913,6 @@ and the two `truepeak` files wait on their branch.
   and what refused under heavy disk load on 2026-11-26 is not known.
   Issue 6523 (`package/ide/app` does not compile on `main`) has its compile fix on `main` since `4df352241d`,
   and what is left of it is the owner's (a comment on the issue).
-- Fixes that changed release code,
-  each with a control that fails without it,
-  which the next release pass of its tool reads:
-  issue 6544 (`b5696a3eb0`),
-  where the discarded prune removed a directory whose change time had not moved
-  although a file had been added inside the tick of its listing,
-  and now reads what the directory holds on every removal;
-  issue 6529 (`5914dd3810`),
-  where the word-level merge pass wrote back lines one side had deleted;
-  issue 6547 (`ccea7826d5`),
-  where the wrapper's self-check now compares two files a chunk at a time instead of reading both whole;
-  issue 6571 (`c1a3b33db5`),
-  where the conversion environment of a landing,
-  an add,
-  a ladder snapshot and a removal's clean check now lets a variable its caller named win over the process's own
-  (the caller's entries were appended and the first match won),
-  and the clean check reads that environment where it read the bare process's;
-  and,
-  in `cargo-shadow`,
-  issue 6528 (`41b9597adf`),
-  the stop's report,
-  whose new test-only switch sits behind `cfg(test)` at its call site in `control_group_stop.rs`.
 - The wrapper package's TypeScript side was red on `main` and nothing ran it.
   Issue 6562's round reported it,
   and at `1c8acd5bfb` `test:unit` exits 1 on two files:
