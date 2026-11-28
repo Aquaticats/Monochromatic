@@ -505,6 +505,12 @@ rewrote the module as it loaded:
 the shipped default was never edited,
 and no call was cut short.
 Every call inside both runs recorded its own wall-clock duration.
+The other-run counts come from
+`ps -eo args | grep 'drive-pi-subagent.ts --run-folder='`,
+which matches its own `grep` process
+(a probe at 2026-11-27T19:33:31-05:00 counted 31 that way and 30 with
+`[d]rive-pi-subagent`),
+so the figures below already have that one taken off.
 
 - At `CPUQuota=400%`,
   between 2026-11-27T19:16:30-05:00 and 2026-11-27T19:19:03-05:00:
@@ -516,7 +522,7 @@ Every call inside both runs recorded its own wall-clock duration.
   18 `sops --encrypt` calls had a median of 392.8 ms
   and 18 `age-keygen` calls a median of 99.7 ms.
   Load average was 23.23 when the run started and 33.56 when it ended,
-  with 11 and then 13 other Pi runs and two Claude runs in the process list.
+  with 10 and then 12 other Pi runs and two Claude runs in the process list.
   The suite passed,
   228 `[PASS]` lines.
 - At `CPUQuota=1000%`,
@@ -527,8 +533,8 @@ Every call inside both runs recorded its own wall-clock duration.
   slowest 513.7 ms,
   and no call came near the old bound.
   Load average was 12.94,
-  with 29 other Pi runs and two Claude runs in the process list at the start
-  and 13 other Pi runs at the end.
+  with 28 other Pi runs and two Claude runs in the process list at the start
+  and 12 other Pi runs at the end.
   The suite passed,
   228 `[PASS]` lines.
 
@@ -555,7 +561,7 @@ The whole suite was then run once more at `CPUQuota=400%` with the shipped
 default in place and no loader:
 between 2026-11-27T19:27:05-05:00 and 2026-11-27T19:29:37-05:00,
 load average 6.76 rising to 9.19,
-with 11 other Pi runs and two Claude runs in the process list,
+with 10 other Pi runs and two Claude runs in the process list,
 it passed every file,
 228 `[PASS]` lines,
 and no call met the deadline.
