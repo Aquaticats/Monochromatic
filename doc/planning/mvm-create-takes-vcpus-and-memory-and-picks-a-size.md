@@ -358,9 +358,10 @@ Since 2026-11-28,
 and unapproved,
 an OVHcloud clone refuses a region whose in-stock flavours all belong to
 families the size rule leaves out,
-rather than taking one of them (issue 6670,
-commit `2a8945e99b`;
-`package/mvm/cli/README.md`, "On the ovh backend").
+rather than taking one of them.
+Issue 6670 holds it,
+and commit `2a8945e99b` builds it,
+recorded under "On the ovh backend" in `package/mvm/cli/README.md`.
 
 ### `mvm list`
 
