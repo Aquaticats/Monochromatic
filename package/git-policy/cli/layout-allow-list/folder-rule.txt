@@ -85,6 +85,7 @@ group-file src/native/invocation entry_zfs_slot_commands_the_unread_place.rs
 group-file src/native/invocation escape_hatch.rs
 group-file src/native/invocation exit_report_written.rs
 group-file src/native/invocation external_git_command.rs
+group-file src/native/invocation external_git_command_the_git_dir_the_shell_reads.rs
 group-file src/native/invocation forwarded_command.rs
 group-file src/native/invocation forwarding.rs
 group-file src/native/invocation git_builtins.rs

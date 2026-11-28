@@ -5389,7 +5389,8 @@ What this release does not yet do:
 - The warning above the measured count of changed paths is not printed:
   the count is measurement M4's,
   which has not been run,
-  and a shipped bound cites a measurement (rule `LQM`).- A record that says an add is settling,
+  and a shipped bound cites a measurement (rule `LQM`).
+- A record that says an add is settling,
   the lost-lock installer,
   removal and the settling command are plan steps 11,
   13 and 16.
@@ -5543,12 +5544,23 @@ A slot command behind a `!` alias whose shell's directory Git could not be asked
 for is one nothing placed,
 so it is refused with words saying what could not be read,
 and never forwarded in silence.
+A plain `git worktree prune` behind such an alias is the one slot command that is not
+refused there,
+because it reads no operand and so no directory changes what its pass reads;
+a prune behind such an alias that names a place of its own,
+with `-C`,
+`--git-dir` or `--work-tree`,
+is refused as a removal and a move are.
 When the rule is off or escaped it says nothing about the command;
 at `warn` its finding and the line saying the policy is warn-unsafe are printed
 before a refusal of any of the three slot commands,
 a removal's,
 a move's and a prune's alike,
 in the order a removal prints them.
+The lines the stage printed lead two failures as well,
+not only those three refusals:
+a repository location that cannot be read,
+and a configuration the command needs and cannot use.
 The spellings that reach that reading are the guard's own,
 stated in the passage "git by the word Git will run":
 a value whose bytes are letters,
@@ -8440,8 +8452,14 @@ No command installs any of it:
 no release writes a unit file,
 and `zfs-root shutdown-unmount` answers with the refusal that names plan step 19.
 The migration,
-the property changes and the install are the owner's act,
-written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+the property changes and the install are the agent's act,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
+written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`;
+the owner chooses the moment of the migration and of any reboot.
 
 #### The event filter and the merge device, built and reached by no command
 
@@ -8543,7 +8561,12 @@ so the wording and the decision are tested on built facts and no control opens t
 No command reaches the folder in this release:
 `doctor` prints none of these lines,
 nothing writes `sanoid.conf` or sets the marker,
-and a property on an existing dataset is the owner's act,
+and a property on an existing dataset is the agent's act,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
 written up in `doc/runbook/zfs-sanoid-coverage-and-the-space-guard.md`.
 
 #### The wrapper's side and its deadline
@@ -24499,12 +24522,40 @@ a value of exactly `!git` starts that command with the caller's first word,
 and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
 Those caller's words may begin with a global option,
 because that same Git reads them there and the reading keeps them,
-and the worktree or repository such an option names is the one the guard
-judges:
-`-C`,
-`--git-dir` and `--work-tree` are read from the directory Git runs the shell in,
-and every repository fact the decision reads is asked through them,
-so the worktree a command changes is the one measured and the one refused;
+and every place such an option moves is a place the command changes:
+`-C` moves the shell's own directory,
+and `--git-dir`,
+`--work-tree` and `-c` are stored in the environment Git starts that shell with,
+which the nested Git reads too
+(`git.c:215` to `:250`,
+`config.c:469` to `config.c:504`).
+Git stores the Git directory it found in that environment as well,
+and gives it to the shell whenever the caller named a repository or a work tree,
+the repository is bare,
+the shell's directory stands inside a Git directory,
+or the working tree's `.git` is a file that points elsewhere
+(`setup.c:1126` to `:1129`,
+`setup.c:1657` to `:1662`);
+a plain main checkout gives it nothing,
+where the nested Git finds that repository by itself.
+So every repository fact the decision reads is asked in the state the nested Git acts in:
+from the directory Git runs the shell in,
+with the Git directory Git gives that shell,
+the caller's own options,
+and then the words Git appends to the value,
+and the place a command changes is the one measured and the one refused.
+That state can be made of two places:
+from a linked worktree Git gives the shell that worktree's Git directory,
+so `git g -C <another worktree> reset --hard` writes that worktree's files with the caller's index and
+`HEAD` under that directory.
+The refusal is then the one that state answers,
+which is the main-worktree refusal where the repository it holds is the main one,
+and that repository's own status where it is not;
+Git is given no substitute argument list to make the two places one,
+because the shell's environment is what Git gave it.
+A `-C` typed before the alias name therefore moves the shell,
+and a `--git-dir`,
+`--work-tree` or `-c` typed there reaches the facts exactly as it reaches Git;
 a global option among the value's own words is left unread,
 as the boundary below says.
 A value whose own words name a `!` alias starts a second shell,

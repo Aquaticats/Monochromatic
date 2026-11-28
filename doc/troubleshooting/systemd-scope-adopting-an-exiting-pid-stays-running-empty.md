@@ -892,6 +892,7 @@ at 15 ms and below it left 0 of 300,
 because the kill lands before the launcher has asked the manager for the scope,
 and at 120 seconds it left 0 of 2000,
 because the launcher is then never killed.
+A stop of one unit that stayed loaded and empty like that took 4 to 5 ms.
 
 #### What cargo-shadow does now
 
