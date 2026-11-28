@@ -1623,19 +1623,8 @@ a record and a record being written;
 the two reads of `0.6.1-alpha.49` say a folder that holds only an add's claim also counts as holding no record,
 and no control shows that case.
 
-The coordinator corrected four of the six briefs by a note to each round at 2026-11-27T13:11:19-05:00,
-because each stated the coordinator's own design as the requirement:
-the shell-alias round adds no refusal for an alias the wrapper cannot follow,
-which is the open choice of `doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`;
-the four-points round writes the control for a failed memory reading and leaves what the code does with one;
-the surface round lists the items its control newly sees and narrows only one a split widened;
-and the list-guards round is held to the outcome,
-a use added to an excused file fails,
-and not to the coordinator's shape for it.
-Each report is read against its brief and its note.
-After each of the two structure branches merges,
-`native:check` runs on the pinned tree before the next merge:
-a narrowed item or a changed excuse can break a build through a merge with no textual conflict.
+The shell-alias round adds no refusal for an alias the wrapper cannot follow,
+which is the open choice of `doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`.
 
 The whole gate on `main` at `97d9afb21c` passed
 (unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
