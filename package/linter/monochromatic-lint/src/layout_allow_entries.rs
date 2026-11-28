@@ -562,10 +562,9 @@ fn first_reading_a_folder_holds<'text>(
     // What: where the text's first folder name ends, or nothing when the text is one folder name.
     // Why: a leading run is added to that first folder, so its length is what a name the package folder holds bounds.
     let first_folder_end: Option<usize> = without_trailing.find('/');
-    // What: how many bytes of the leading run have been taken off.
-    // Why: each step removes one character, so the next name begins where this one's first character ends.
-    // What: the first offset whose name the package folder could hold.
-    // Why: every offset before it names a first folder longer than the longest name the folder holds,
+    // What: how many bytes of the leading run have been taken off, which is where the walk starts.
+    // Why: each step removes one character, so the next name begins where this one's first character ends,
+    // and every offset before the first name the folder could hold names a first folder longer than any name it holds,
     // so offering each of them would build the gap's worth of names and ask about none of them.
     // Gotcha: the offset must stand on a character boundary, because the name offered is a slice of the text.
     let mut offset: usize = 0;
