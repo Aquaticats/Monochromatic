@@ -2381,7 +2381,7 @@ and said so where it is used:
   and how many of those no answer to decision 2 clears.
   `doc/audit`'s `163` files hold `21` and `1`.
 - The per-kind file counts,
-  so a predicate's file count under any answer to decision 2 but "no" to all five.
+  and so a predicate's file count under any answer to decision 2 but "no" to all five.
 - The joinable split of `F1`'s and `F2`'s findings among the classes,
   so their cleared counts under the recommended set are bounds.
 - Whether the sweeps the records name were within the hold.
