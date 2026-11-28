@@ -2865,10 +2865,7 @@ and nine files of `invocation/`.
   where a new sibling file needs a `group-file` line,
   and `worktree/mod.rs` (339 lines of module declarations).
 
-A brief names a file over the budget only from the linter's listing of `main` taken when the brief is written:
-the round for `command/rule_linked_worktree.rs` was briefed from an earlier count,
-found the loop break had already brought the file to 298 lines,
-and split nothing (`bb5d25980b`).
+A brief names a file over the budget only from the linter's listing of `main` taken when the brief is written.
 
 The coordinator's reading,
 not the owner's:
