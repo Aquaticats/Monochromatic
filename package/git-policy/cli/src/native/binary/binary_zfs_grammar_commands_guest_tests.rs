@@ -51,7 +51,6 @@ use super::zfs_sweep_guest::{
 };
 use git_policy_cli::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use git_policy_cli::worktree_clone_binding_record::binding_words::Phase;
-use git_policy_cli::worktree_clone_binding_record::registration_home::plans_folder;
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_intent::{
     MountIntent,
     intent_text,
@@ -59,6 +58,7 @@ use git_policy_cli::worktree_clone_mount_protocol::clone_mount_intent::{
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use git_policy_cli::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use git_policy_cli::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
 use git_policy_cli::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use git_policy_cli::worktree_clone_removal_proof_and_plan::removal_clock::TheLiveClock;
 use git_policy_cli::worktree_clone_removal_proof_and_plan::removal_entry::{
@@ -420,12 +420,13 @@ fn the_state_a_kill_leaves(fixture: &TheFixture) {
         .expect("the entry's plan reads")
         .expect("the entry wrote a plan");
     plan.facts.owner = format!("{A_PID_NO_PROCESS_CAN_HAVE}:linux:0");
-    let folder: PathBuf = plans_folder(fixture.place.common.as_path());
-    std::fs::write(
-        folder.join(guid.file_name()),
-        plan.encode().expect("the plan encodes"),
-    )
-    .expect("the plan file");
+    // The plan goes back through the writer's own publication, which reads it back through the grammar's parser, so the
+    //  fixture cannot plant a record the reader would refuse for a reason other than the owner it replaced.
+    let folder: PlanFolder =
+        PlanFolder::open_or_create(fixture.place.common.as_path()).expect("the plan folder opens");
+    folder
+        .publish(&plan)
+        .expect("the plan publishes with its owner dead");
     // The kill left the clone unmounted, because the entry's request was the last thing it wrote.
     unmount_at(fixture.place.slot.as_path());
     zfs_ok(
