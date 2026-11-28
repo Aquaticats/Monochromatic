@@ -1403,11 +1403,26 @@ mod zfs_grammar_commands_guest;
 mod zfs_removal_refusal_guest;
 
 /// The forced removal's guest arms' own fixture:
-/// one pool, one real registration and one real clone,
+/// one pool,
+/// one real registration and one real clone,
 /// the records an add writes,
 /// and the two children an arm drives.
 #[path = "binary_zfs_removal_force_guest_fixture.rs"]
 mod zfs_removal_force_guest_fixture;
+
+/// What the forced removal's arms' own pool and handler answer,
+/// and the sweeper a forced removal waits beside.
+#[path = "binary_zfs_removal_force_guest_pool.rs"]
+mod zfs_removal_force_guest_pool;
+
+/// The built wrapper started the way a person's shell starts it.
+#[path = "binary_zfs_removal_force_guest_wrapper.rs"]
+mod zfs_removal_force_guest_wrapper;
+
+/// The records an add leaves beside one slot,
+/// and the two records an arm plants.
+#[path = "binary_zfs_removal_force_guest_records.rs"]
+mod zfs_removal_force_guest_records;
 
 /// The forced removal's arms on a real pool and a real mount:
 /// a clone an interrupted removal left on the staging folder,
@@ -1418,7 +1433,8 @@ mod zfs_removal_force_guest_arms;
 
 /// The forced removal's arms whose subject is a destruction plan that cannot be
 /// read:
-/// the settling command beside the removal with no force, one force and two.
+/// the settling command beside the removal with no force,
+/// one force and two.
 #[path = "binary_zfs_removal_force_guest_plan_tests.rs"]
 mod zfs_removal_force_guest_plan;
 

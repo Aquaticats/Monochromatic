@@ -1644,7 +1644,9 @@ node e2e/forced-act-guest.ts arm --name <guest> --log-dir <dir>
 
 `removal-force-guest.ts` runs the force gradation the owner answered on 2026-11-28
 (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
-"What force does on a ZFS removal, two refusals without it, and the foundation pick")
+"What force does on a ZFS removal,
+two refusals without it,
+and the foundation pick")
 against a real pool in a guest of the same recipe,
 where every one of these steps is a mount,
 a destroy or a `/dev/zfs` request
@@ -1673,9 +1675,12 @@ because the name the add's record holds answers another GUID:
 no force and one force refuse it,
 two forces destroy it,
 and the report names the record's GUID and the pool's;
-- `4a`, `4b`, `4c`,
+- `4a`,
+  `4b`,
+  `4c`,
 a destruction plan whose file cannot be read:
-the settling command beside the removal with no force, with one force and with two,
+the settling command beside the removal with no force,
+  with one force and with two,
 each read against the plan's bytes and the pool's lists;
 - `4d`,
 the state the building round chose to refuse,
@@ -1685,11 +1690,15 @@ and the settling command refuses the same plan,
 so a person has no route through this release;
 - `5`,
 a person's lock,
-which the arm lets Git write so the file, the words and the mode `0644` are Git's own:
+which the arm lets Git write so the file,
+  the words and the mode `0644` are Git's own:
 no force and one force refuse it naming `git worktree unlock` and two forces,
 and two forces delete the lock and remove the worktree;
-- `6a`, `6b`, `6c`,
-a worktree at the bound slot holding a modified file, an untracked file and a staged
+- `6a`,
+  `6b`,
+  `6c`,
+a worktree at the bound slot holding a modified file,
+  an untracked file and a staged
 change,
 which is the building round's own reading of Git's cleanliness rule with the owner's veto
 open:

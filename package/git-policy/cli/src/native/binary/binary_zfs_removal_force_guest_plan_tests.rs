@@ -34,9 +34,9 @@ use super::zfs_removal_force_guest_fixture::{
     OWN_SNAPSHOT_PREFIX,
     SLOT,
     in_the_guest,
-    plant_an_unreadable_plan,
     shown,
 };
+use super::zfs_removal_force_guest_records::plant_an_unreadable_plan;
 use std::path::PathBuf;
 
 /// What:
@@ -202,7 +202,9 @@ fn zfs_removal_force_guest_a_plan_that_cannot_be_read_with_one_force_arm() {
 
 /// What:
 ///  Arm 4's two-force half:
-///  the same state, the same promise, and the strongest count the grammar takes.
+///  the same state,
+///  the same promise,
+///  and the strongest count the grammar takes.
 /// Why:
 ///  The project's answer makes two forces pass every refusal the removal has,
 ///  so a state two forces cannot pass is a sentence that does not hold.

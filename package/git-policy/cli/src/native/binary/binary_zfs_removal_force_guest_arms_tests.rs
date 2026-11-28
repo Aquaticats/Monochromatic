@@ -28,8 +28,10 @@ use super::zfs_removal_force_guest_fixture::{
     OWN_SNAPSHOT_PREFIX,
     SLOT,
     in_the_guest,
-    plant_an_unreadable_plan,
     shown,
+};
+use super::zfs_removal_force_guest_records::{
+    plant_an_unreadable_plan,
     the_record_home,
 };
 use super::zfs_sweep_guest::{
@@ -230,7 +232,9 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
 ///  The owner's answer makes a forced run destroy what the pool lists for its
 ///  clone,
 ///  so the arm reads the pool's own snapshot list before the command and
-///  compares it, in the pool's order, with the names the report records as
+///  compares it,
+///  in the pool's order,
+///  with the names the report records as
 ///  destroyed,
 ///  and then reads the pool after the head went.
 ///
@@ -445,7 +449,8 @@ fn zfs_removal_force_guest_a_clone_the_wrapper_cannot_prove_arm() {
 }
 
 /// What:
-///  A dataset mounted at the account's cache, pinned as the route pins it,
+///  A dataset mounted at the account's cache,
+///  pinned as the route pins it,
 ///  and the empty staging folder the removal derives under it.
 /// Why:
 ///  The handler's staged unmount checks the cache's mount against the pin
@@ -502,7 +507,8 @@ fn mount_of_folder(folder: &Path) -> Option<String> {
     return super::zfs_sweep_guest::mount_row(folder);
 }
 
-/// Every snapshot name a removal's report records as destroyed, in its order.
+/// Every snapshot name a removal's report records as destroyed,
+/// in its order.
 fn destroyed_in(said: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for line in said.lines() {
