@@ -256,7 +256,7 @@ fn following_word_for_host_width(
 fn a_joined_doc_line_stays_under_the_limit_in_its_host_file() {
     // A one-word fragment of a doc comment, whose join writes one space and the following word.
     let fragment: &str = "the";
-    for host_prefix in ["//! ", "    //! ", "            //! "] {
+    for host_prefix in ["//! ", "/// ", "    //! ", "    /// ", "            //! "] {
         let under: String =
             following_word_for_host_width(JOINED_LINE_LIMIT - 1, host_prefix, fragment);
         let source: String = format!(
@@ -313,6 +313,71 @@ fn a_fragment_ending_inside_closing_emphasis_keeps_its_line() {
         fix_file("a.md", fixed.as_str(), EVERY_FIXABLE_RULE);
     assert_eq!(again, fixed);
     assert!(remaining_second.is_empty(), "{remaining_second:?}");
+}
+
+/// Which prefix of a comment run a join counts:
+///  the run's widest, so a run whose lines sit at two depths declines a join its own line could take.
+#[test]
+fn the_widest_prefix_of_a_comment_run_bounds_the_join() {
+    // A doc comment line at column zero, whose host writes four characters before the text.
+    let narrow: &str = "/// ";
+    // The same marker four spaces deeper, which the host writes eight characters before the text.
+    let wide: &str = "    /// ";
+    // The fragment the join would move, and the one space the join writes beside it.
+    let fragment: &str = "the";
+    // A word that fills the joined line to one character under the limit counted at the wider prefix.
+    let under: String = following_word_for_host_width(JOINED_LINE_LIMIT - 1, wide, fragment);
+    // The same word one character longer, which puts the joined line at the limit counted at the wider prefix.
+    let at_limit: String = following_word_for_host_width(JOINED_LINE_LIMIT, wide, fragment);
+    // A middle line of the run written four spaces deeper, holding no break point of its own.
+    let deep_line: String = format!("{wide}Middle words here\n");
+    // The run as written: the widest prefix stands on the middle line, and neither the first nor the last line is wide.
+    let mixed_under: String = format!(
+        "{narrow}What:\n{deep_line}{narrow}Line one, {fragment}\n{narrow}{under}\npub struct A;\n"
+    );
+    // The same run and the same word at the limit counted at the widest prefix.
+    let mixed_at_limit: String = format!(
+        "{narrow}What:\n{deep_line}{narrow}Line one, {fragment}\n{narrow}{at_limit}\npub struct A;\n"
+    );
+    // The same text with every line at the narrow prefix, which is the control of the widest-prefix question.
+    let flat_at_limit: String = format!(
+        "{narrow}What:\n{narrow}Middle words here\n{narrow}Line one, {fragment}\n{narrow}{at_limit}\npub struct A;\n"
+    );
+
+    // One character under the limit counted at the widest prefix: the join is written.
+    let (joined_under, remaining_under): (String, Vec<String>) =
+        fix_file("a.rs", mixed_under.as_str(), EVERY_FIXABLE_RULE);
+    assert!(remaining_under.is_empty(), "{remaining_under:?}");
+    assert!(
+        joined_under.contains(&format!("{narrow}{fragment} {under}")),
+        "{joined_under}"
+    );
+    assert!(
+        joined_under
+            .lines()
+            .all(|line| return line.chars().count() <= JOINED_LINE_LIMIT),
+        "{joined_under}"
+    );
+    // At the limit counted at the widest prefix the join is declined,
+    //  although the fragment's own line carries four characters fewer.
+    let (kept, remaining_at_limit): (String, Vec<String>) =
+        fix_file("a.rs", mixed_at_limit.as_str(), EVERY_FIXABLE_RULE);
+    assert!(remaining_at_limit.is_empty(), "{remaining_at_limit:?}");
+    assert!(kept.contains(&format!("{narrow}{fragment}\n")), "{kept}");
+    assert!(
+        kept.lines()
+            .all(|line| return line.chars().count() <= JOINED_LINE_LIMIT),
+        "{kept}"
+    );
+    // The same text without the wide line joins at that length,
+    //  so the decline above is the widest prefix and not the word's length.
+    let (joined_flat, remaining_flat): (String, Vec<String>) =
+        fix_file("a.rs", flat_at_limit.as_str(), EVERY_FIXABLE_RULE);
+    assert!(remaining_flat.is_empty(), "{remaining_flat:?}");
+    assert!(
+        joined_flat.contains(&format!("{narrow}{fragment} {at_limit}")),
+        "{joined_flat}"
+    );
 }
 
 /// Every fixture keeps its token sequence under plain `--fix` with every fixable Markdown rule enabled,

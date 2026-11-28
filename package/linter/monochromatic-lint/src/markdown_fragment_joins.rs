@@ -20,13 +20,15 @@ use crate::markdown_block_start::starts_block_construct;
 use crate::markdown_break_points::ends_at_break_point;
 /// Import the paragraph line-ending lookup every fragment starts from.
 use crate::markdown_prose_context::line_ending;
+/// Import the parsed document that answers where the rule's own break lands.
+use crate::markdown_source::MarkdownSource;
 /// Import the ordered set that keeps one join per line ending.
 use std::collections::BTreeSet;
 
 /// What:
 ///  The most characters a joined line may hold,
 ///  counted as the host file writes that line:
-///  the characters the host puts before the line's text,
+///  the widest prefix the host writes before the lines of this source,
 ///  the indent the fix writes,
 ///  and the joined text itself.
 /// Why:
@@ -108,11 +110,11 @@ fn holds_own_break(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function fragmentJoins(source, paragraphEnd, fragments, indentWidth, hostPrefixChars): (FragmentJoin | undefined)[] {
+/// function fragmentJoins(context: MarkdownSource, paragraph: number, paragraphEnd: number, fragments: number[], indentWidth: number): (FragmentJoin | undefined)[] {
 ///   const answers = [];
 ///   const given = new Set();
 ///   for (const fragment of fragments) {
-///     const join = fragmentJoin(source, paragraphEnd, fragment, indentWidth, hostPrefixChars);
+///     const join = fragmentJoin(context, paragraph, paragraphEnd, fragment, indentWidth);
 ///     if (join === undefined || given.has(`${join.start}:${join.end}`)) { answers.push(undefined); continue; }
 ///     given.add(`${join.start}:${join.end}`);
 ///     answers.push(join);
@@ -121,23 +123,18 @@ fn holds_own_break(
 /// }
 /// ```
 pub(crate) fn fragment_joins(
-    source: &str,
+    context: &MarkdownSource,
+    paragraph: u32,
     paragraph_end: usize,
     fragments: &[usize],
     indent_width: usize,
-    host_prefix_chars: usize,
 ) -> Vec<Option<FragmentJoin>> {
     let mut answers: Vec<Option<FragmentJoin>> = Vec::<Option<FragmentJoin>>::new();
     // One half-open byte range per answer given, so two fragments cannot claim the same line ending.
     let mut given: BTreeSet<(usize, usize)> = BTreeSet::<(usize, usize)>::new();
     for fragment in fragments {
-        let answer: Option<FragmentJoin> = fragment_join(
-            source,
-            paragraph_end,
-            *fragment,
-            indent_width,
-            host_prefix_chars,
-        );
+        let answer: Option<FragmentJoin> =
+            fragment_join(context, paragraph, paragraph_end, *fragment, indent_width);
         // A declined answer, or a range another fragment already claimed, gives this break no join.
         let Some(join) = answer else {
             answers.push(None);
@@ -164,15 +161,16 @@ pub(crate) fn fragment_joins(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function fragmentJoin(source, paragraphEnd, fragment, indentWidth, hostPrefixChars): FragmentJoin | undefined;
+/// function fragmentJoin(context: MarkdownSource, paragraph: number, paragraphEnd: number, fragment: number, indentWidth: number): FragmentJoin | undefined;
 /// ```
 fn fragment_join(
-    source: &str,
+    context: &MarkdownSource,
+    paragraph: u32,
     paragraph_end: usize,
     fragment: usize,
     indent_width: usize,
-    host_prefix_chars: usize,
 ) -> Option<FragmentJoin> {
+    let source: &str = context.source.as_str();
     if fragment >= paragraph_end {
         return None;
     }
@@ -185,11 +183,16 @@ fn fragment_join(
     let start: usize = fragment + written.len();
     // The same fragment without its own leading spacing, which is the text the rule reads.
     let text: &str = written.trim_start_matches([' ', '\t']);
+    // The text's own byte range, which the rule's answer is measured against.
+    let text_start: usize = fragment + (written.len() - text.len());
+    let text_end: usize = fragment + written.len();
     if text.split_whitespace().count() > FRAGMENT_WORDS {
         return None;
     }
-    // A fragment ending at a break point is where the rule puts a line break, so joining it would break it again.
-    if ends_at_break_point(text) {
+    // A fragment the rule's own break lands at is where that break wants the line to end,
+    //  so joining it would have the rule break the line again on the next pass;
+    //  the parsed tree, not a run of delimiters that look like closers, answers whether it does.
+    if ends_at_break_point(context, paragraph, text_start, text_end) {
         return None;
     }
     let next: usize = ending + ending_length;
@@ -212,9 +215,12 @@ fn fragment_join(
         None => paragraph_end,
     };
     let following: &str = source[text_start..following_end].trim_end_matches([' ', '\t']);
-    // The host counts the characters it writes before this line's text, so a Rust doc comment's marker and indent are part of the width.
-    let width: usize =
-        host_prefix_chars + indent_width + text.chars().count() + 1 + following.chars().count();
+    // The host counts the widest characters it writes before the lines of this source, so a Rust doc comment's marker and indent are part of the width.
+    let width: usize = context.host_prefix_chars
+        + indent_width
+        + text.chars().count()
+        + 1
+        + following.chars().count();
     if width >= JOINED_LINE_LIMIT {
         return None;
     }
