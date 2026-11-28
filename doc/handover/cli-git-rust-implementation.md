@@ -1533,32 +1533,6 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and an `mpm` without its execute bit is named with its remedy;
   17 scenarios kept their exit status and standard output.
 
-Released again on 2026-11-27:
-`cargo-shadow` `0.1.5-alpha.13`
-(release commit `c53db2c4d1`,
-locked `428fc984a9`,
-installed),
-`mpm-shadow` `0.2.7-alpha.14`
-(release commit `bf8adbb8e3`,
-locked `bf626a6017`,
-installed)
-and the wrapper's `0.6.1-alpha.49`
-(release commit `dcb2bcd6a5`,
-unpacked at `.cache/wrapper-release-0.6.1-alpha.49/`,
-never locked or installed).
-`cargo-shadow` alpha.13 holds the retire that asks the manager nothing on an ordinary run (`d0b821414c`)
-and the refusal's branches held by controls (`9c4c5aac42`).
-`mpm-shadow` alpha.14 holds the record that claims only what was traced (`45cac92526`),
-a refused or vanished start that says only what is known (`c388b2b725`),
-a refused shadow's own words (`cf1c46518d`)
-and a republish that replaces a version in one exchange and repairs what a killed install left (`08ae962d40`).
-The wrapper's alpha.49 holds every fix the two alpha.48 passes earned,
-issue 6586 and issue 6607.
-The install proof of alpha.49 over alpha.48 passed in a disposable container:
-no start failed at its `EXEC` step,
-no unit reached the start limit,
-and the pair of commits made at once each landed once.
-
 What the `cargo-shadow` alpha.13 pass found
 (a Claude Sonnet read,
 same vendor,
