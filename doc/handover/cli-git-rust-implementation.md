@@ -998,28 +998,6 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   because it starts each check in a scope of its own:
   with a fixture runtime directory both checks ended `exit 1` before running anything.
   The whole gate named under the behaviour pass covers these too;
-- no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
-  Every finding of the two passes that earned a fix is merged:
-  the guards that named a file code had left now read the folders the splits made,
-  ten pairs in eight files,
-  and no plant found a violation in release code (`97d9afb21c`);
-  the slot refusals read every shell alias the guard can follow (`cd62517318`);
-  the merge pass reaches a last line with no line end (`f583a0d9bf`),
-  where a generated control also found and fixed a correct merge that was refused;
-  a notice's record stays until its line is known written (`be93c14734`),
-  kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
-  the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
-  the items a split had made bare `pub` are narrowed,
-  seven platform gates are back over the 35 items they reached before the splits,
-  the seven platform gates the splits dropped are back,
-  and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
-  a merge record that cannot be read says which file to remove,
-  each batch of the service's work reads the room it has when it starts
-  (its width is decided once,
-  so every wave of that batch runs on the room of its start),
-  and a holder's name cannot rewrite the line that prints it (`14e54207de`).
-  The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
-  both reads of it have returned.
 - rounds for `cargo-shadow`:
   both rounds of its `0.1.5-alpha.14` read are merged,
   and `0.1.5-alpha.15` is released
