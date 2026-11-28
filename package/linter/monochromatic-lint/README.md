@@ -1959,6 +1959,15 @@ and every other line stays as it is.
   and 71 file findings over it,
   which those lists tolerate
   (measured on 2026-11-27 with the release build of this branch on the tree of its last merge from `main`).
+  The search for a near miss costs 0.93 to 1.07 times `0.5.2-alpha.17`'s on the same tree,
+  where alpha.18's cost 69 times as much (measured on 2026-11-27,
+  the two binaries and their control arms rotated through three interleaved rounds).
+  The same pass measured the layout gate over `package/git-policy/cli` and over the ZFS binding
+  reporting nothing,
+  and its control,
+  which removes the crate's two lists,
+  reports 558 folder findings
+  and 16 file findings under the alpha.19 build.
 - A folder name that begins with `-> `,
   ends with ` ->`,
   or is `->`
@@ -2383,6 +2392,16 @@ and what the messages say.
   `Cc` and `Default_Ignorable_Code_Point`,
   and no one of them names U+2800,
   so the quote keeps it and no sentence calls it unseen.
+- A constructed walk shape costs 1.64 times `0.5.2-alpha.16`'s time on it
+  (measured by the `0.5.2-alpha.19` release pass on 2026-11-27),
+  and no package of this repository has that shape,
+  so no tree here measures it.
+- Two costs of the `0.5.2-alpha.19` release are unmeasured:
+  the walk's peak memory,
+  and a file-rule list that holds tens of thousands of keys once its key index is built.
+  The index is built from the entries once,
+  so one question never walks a list that holds tens of thousands of lines,
+  and what building it costs in memory and in time is not measured.
 
 ### Links and other tools
 
