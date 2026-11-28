@@ -3095,6 +3095,22 @@ and it proposes each value with its citation without setting one.
 No shipped constant changed in that round,
 and the storage half remains the owner's act.
 
+A later round,
+on 2026-11-27,
+measured the two gaps that record's last section named,
+in a guest of the same recipe:
+the sweep's cost at 16,
+64,
+128,
+256 and 512 clones,
+each beside the record's own largest count in the same round and after the run-to-run spread on unchanged input,
+and what a snapshot pins of incompressible output,
+what a clone's removal frees and what the snapshot's expiry frees,
+read from ZFS's own accounting once the transaction group settled.
+The same record holds both,
+with what they still do not show,
+and no constant changed there either.
+
 #### Open items
 
 Proceeds without "Which triggers a lost last event waits for" and measures before any rate rule ships.

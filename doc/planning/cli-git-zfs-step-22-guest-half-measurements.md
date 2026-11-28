@@ -1,8 +1,8 @@
-# Step 22's guest half, measured on 2026-11-25
+# Step 22's guest half, measured on 2026-11-25 and 2026-11-27
 
 **Non-final draft by an agent,
 unapproved.**
-It records one round's guest measurements with their controls and spread,
+It records two rounds' guest measurements with their controls and spread,
 and the values each would support.
 Only the owner declares a value settled,
 and no shipped constant changed in the round that wrote this.
@@ -19,6 +19,14 @@ The measurements that size waits and retention").
 The storage half stays the owner's act on the owner's authorisation,
 and it is not measured here.
 
+A second round,
+on 2026-11-27 and 2026-11-28,
+measured the two gaps that the first round's last section named:
+the sweep's cost at a parent above 64 clones,
+and what a snapshot pins of incompressible output and what a removal and an expiry free.
+Its two arms are files of the `native_binary` test target beside the first arm,
+and they run in the same detached arm the driver starts.
+
 ## The fixture and the wrapper under test
 
 One disposable `mvm` libvirt guest,
@@ -28,6 +36,17 @@ four vCPUs,
 7.75 GiB of memory and a six-gibibyte swap file.
 The guest was destroyed through `mvm` when the arm ended,
 and its logs are kept in the round's `keep/guest/` folder.
+
+The second round ran in one throwaway `mvm` guest of the same recipe:
+Ubuntu 24.04.5,
+kernel `6.8.0-147-generic`,
+OpenZFS `2.4.4-1` built from source in the guest,
+four vCPUs,
+8 GiB of memory and a six-gibibyte swap file,
+with the pool `zfsstep22` on the same two-gibibyte file.
+The guest `zfs-r14-pinned-output-and-512-clones` was destroyed through `mvm` when the work ended.
+Its arm's own line reads `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1369 filtered out; finished in
+603.42s`.
 
 The pool is `zfsstep22` on a two-gibibyte file.
 Every number here is the guest's semantics on a file-backed pool,
@@ -241,6 +260,128 @@ A bound of one sweep per period at a parent holding 64 clones would cost the han
 period.
 That is the number a rate rule would be written against.
 
+## The sweep's cost past 64 clones
+
+The second round swept a parent past 64 clones at 16,
+64,
+128,
+256 and 512 clones,
+every clone asking for its mount and every mount taken down before each sweep,
+so every reading has the same shape:
+the sweep walks the parent and mounts every clone it was given.
+Sixty-four is each round's control because it is this document's own largest count,
+and three rounds visit every count,
+ascending,
+descending and ascending again,
+so a cost that drifts with the arm's own age shows as a difference between two rounds at one count rather than as the
+curve.
+
+The run-to-run spread on unchanged input came first (rule `QNB`):
+the same 64 clones,
+unmounted again before each sweep,
+five times.
+On 2026-11-27,
+in milliseconds:
+1,979,
+1,128,
+964,
+922 and 1,073.
+The first is the cold one,
+and the four after it span 922 to 1,128,
+a spread of 1.22 times.
+The same probe on 2026-11-28,
+while this host ran at a load average above 80 with MemAvailable at 0 kB for part of the
+night,
+answered 5,260,
+8,263,
+4,837,
+2,417 and 2,995:
+a spread of 3.42 times,
+which is what that run's own noise was.
+
+The rounds of 2026-11-27,
+in milliseconds:
+
+- round 0,
+  ascending:
+  16 was 867,
+  64 was 1,069,
+  128 was 2,016,
+  256 was 5,939,
+  512 was 31,627;
+- round 1,
+  descending:
+  512 was 9,967,
+  256 was 4,885,
+  128 was 2,254,
+  64 was 1,149,
+  16 was 649;
+- round 2,
+  ascending:
+  16 was 306,
+  64 was 1,073,
+  128 was 1,681,
+  256 was 3,877,
+  512 was 8,167.
+
+Each count's ratio to the 64-clone sweep of its own round (rule `TVC`),
+over the three rounds:
+16 was 0.29 to 0.81
+times,
+128 was 1.57 to 1.96,
+256 was 3.61 to 5.56,
+and 512 was 7.61 to 8.67 in the two warm rounds and 29.59 in the first.
+A clone costs about 19 milliseconds beyond the base:
+the medians are 649,
+1,073,
+2,016,
+4,885 and 9,967 milliseconds for 16,
+64,
+128,
+256 and 512 clones,
+which is 16.8,
+15.8,
+19.1 and 19.5 milliseconds per clone from 64 up.
+The first 512-clone sweep of a run is the exception in both runs:
+31,627 milliseconds on 2026-11-27 and 43,492 on 2026-11-28,
+against 8,167 and 9,967 in the next round of the first run and 8,608 and 12,374 in the second.
+That is the arm's first pass over 512 clones it has just made,
+and no other round repeats it,
+so the warm rounds are what the curve is read from.
+
+The rounds of 2026-11-28,
+in milliseconds:
+
+- round 0,
+  ascending:
+  16 was 393,
+  64 was 1,226,
+  128 was 2,825,
+  256 was 16,572,
+  512 was 43,492;
+- round 1,
+  descending:
+  512 was 12,374,
+  256 was 13,918,
+  128 was 8,673,
+  64 was 1,332,
+  16 was 682;
+- round 2,
+  ascending:
+  16 was 374,
+  64 was 1,838,
+  128 was 2,600,
+  256 was 3,752,
+  512 was 8,608.
+
+That run's own spread was 3.42 times at one count,
+so its 256 and 512 readings cannot be told from its own noise,
+and they are quoted as the repeat and not as the curve.
+What both runs agree on is the shape:
+a warm 512-clone sweep costs 8.2 to 12.4 seconds,
+a warm 256-clone sweep 3.8 to 5.9 seconds in the quiet run,
+and the first 512-clone sweep of a run costs about four times a warm one.
+
 ## What expiration, removal and the guard free
 
 The arm read ZFS's own accounting on the design's datasets,
@@ -255,14 +396,99 @@ The clone's own `used` was 1,024 bytes.
 The `used` readings taken after the clone's destroy and after the hourly's destroy printed the same number as before
 them,
 because each frees asynchronously and the arm did not wait for the transaction group to settle.
-So the freed bytes this arm reports are ZFS's own accounting figures for the clone and the snapshot,
+So the freed bytes that arm reports are ZFS's own accounting figures for the clone and the snapshot,
 not a measured drop in the dataset's `used`.
 
 A compressible fixture therefore shows what a snapshot's own accounting costs,
 and nothing about retained build output.
-This round did not obtain the pinned-output number it set out to read.
-A probe that writes incompressible bytes and overwrites them after the snapshot was prepared,
-and the guest's agent stopped answering before it could run.
+The second round's pinned-output case is the correcting probe,
+and what follows is its measurement.
+
+The case states its own counts before it runs:
+64 mebibytes of incompressible bytes in 8 files of 8 mebibytes,
+written by a seeded xorshift64* stream,
+because a stream's bytes are what the pool's compressor cannot shrink;
+one hourly snapshot,
+taken after the write and before the overwrite;
+one clone of that snapshot in the route's container,
+holding 64 mebibytes of its own incompressible output,
+removed once;
+then the snapshot's expiry;
+then the live copy's own removal.
+The same counts over one repeated byte are the positive control:
+the same probe has to report a large pinned figure for bytes that do not compress and a small one for bytes that do.
+
+Every stage was read from `zfs get -H -p` on the checkout dataset and `zpool list -H -p -o allocated` on the pool,
+after `zpool sync` closed a transaction group and two readings taken after their own group agreed.
+Every stage settled within one transaction group but one,
+the control's removal,
+which took two.
+On 2026-11-28,
+in bytes:
+
+- before the write,
+  `used` was 46,217,728 with no snapshots,
+  and the pool held 56,534,528;
+- after the write,
+  `used` was 113,385,984,
+  a rise of 67,168,256 for 67,108,864 logical bytes,
+  with `compressratio` moved from 1.71 to 1.28 and the dataset's `compression` at `on`,
+  that is lz4;
+- after the snapshot,
+  `used` was 113,385,984 and `usedbysnapshots` was still 0,
+  because a snapshot owns only what its dataset has replaced;
+- after the overwrite,
+  `used` was 180,571,648 with `usedbysnapshots` at 67,185,664 and `usedbydataset` at 113,385,984,
+  so the overwritten output is what the snapshot pins;
+- after the clone wrote its own 64 mebibytes,
+  the clone's `used` was 67,219,456,
+  `usedbysnapshots` was 67,228,672 and the pool held 258,198,016;
+- after the clone's removal,
+  `used` was 180,615,680 and `usedbysnapshots` was 67,228,672,
+  unchanged,
+  while the pool held 190,970,880;
+- after the snapshot's expiry,
+  `used` was 113,385,984 and `usedbysnapshots` was 0,
+  and the pool held 123,725,824;
+- after the live copy's removal,
+  `used` was 46,217,728,
+  where the case started.
+
+So,
+read as differences of settled readings:
+
+- the removal of the clone freed 67,227,136 bytes of the pool,
+  which is the clone's own 67,219,456 `used`,
+  and freed none of the checkout's pinned output:
+  the checkout's `used` and `usedbysnapshots` were 180,615,680 and 67,228,672 on both sides of that removal;
+- the expiry of the snapshot freed 67,229,696 bytes of the checkout's `used`,
+  which is exactly what its `usedbysnapshots` held,
+  and 67,245,056 bytes of the pool;
+- the live copy's own removal freed 67,168,256 more of the dataset and 67,163,648 of the pool.
+
+The control over one repeated byte ran the same sequence through the same code:
+
+- after its write,
+  `used` was 46,761,472,
+  a rise of 543,744 for the same 67,108,864 logical bytes,
+  and `compressratio` moved from 1.71 to 3.18;
+- the overwrite left `usedbysnapshots` at 558,080;
+- the clone's own `used` was 594,944;
+- the removal freed 634,880 bytes of the pool,
+  the expiry freed 603,136 of the dataset,
+  and the live copy's removal freed 543,744.
+
+The probe therefore reports 67,185,664 bytes pinned where the bytes do not compress and 558,080 where they do,
+a difference of about 120 times,
+so a reading of zero from this probe would be a reading about the bytes and not about the probe.
+
+The first run of the same case,
+on 2026-11-27,
+agrees with the second at every stage within 30 kilobytes:
+67,184,640 pinned against 67,185,664,
+67,219,456 of clone against 67,219,456,
+67,228,672 freed by the expiry against 67,229,696,
+and 560,128 pinned in the control against 558,080.
 
 The guard's current scope is a code fact rather than a measurement.
 `zfs-space-guard` prunes only `<dataset>@autosnap_*` of its configured dataset,
@@ -322,11 +548,19 @@ and the constant in code stays as it is until the owner accepts one.
 `package/git-policy/cli/src/native/worktree_clone_mount_protocol/mount_request_wait.rs`
 is 30,000 milliseconds now.
 The proposal is 5,000 milliseconds.
-The largest handler path measured is a 64-clone sweep at 853 plus a mount call at 13.
 The add's own wait was 42 to 219 milliseconds,
 and the event's share from the receipt-path record is 11 to 12.
-So 5,000 is about 5.7 times the largest measured path,
-and about 23 times the largest wait the add paid.
+The largest handler path is now a sweep of a parent past 64 clones:
+8,167 to 12,374 milliseconds warm at 512 clones,
+3,877 to 5,939 at 256,
+and 31,627 on a run's first 512-clone sweep.
+At about 19 milliseconds a clone,
+5,000 milliseconds covers a parent of about 260 clones and no more,
+so a request that arrives while a larger parent's sweep runs waits past this deadline,
+and 5,000 is no longer a ceiling over the route's largest parent.
+This measurement supports 5,000 for a parent of about 256 clones or fewer,
+and it contradicts the sentence that made 5,000 a multiple of the largest measured path,
+which at 512 clones it is not.
 
 Step 9's unmount deadline has no constant yet.
 The proposal is 5,000 milliseconds.
@@ -335,6 +569,9 @@ the unmount at 6 to 9,
 and the read-back.
 A handler busy with a 64-clone sweep at 853 delays the request before any of them,
 so the same 5,000 covers both halves with the same margin.
+The same arithmetic fails past 256 clones for the same reason as the mount request's:
+a 512-clone sweep is 8,167 to 12,374 milliseconds warm,
+and a request that meets one waits past 5,000 before any of its own parts begin.
 
 `TERMINATION_WAIT` in
 `package/git-policy/cli/src/native/worktree_clone_forced_removal/forced_arm_numbers.rs`
@@ -350,10 +587,17 @@ and a fifth of the harness's 10 seconds.
 The proposal is 1,000 milliseconds and 4,000,
 which keeps the harness's provisional pair.
 A 64-clone sweep is 853 milliseconds,
-so the four-period window is 4.7 times the largest sweep this round measured.
+so the four-period window is 4.7 times the largest sweep the first round measured.
 The handler still writes within a period while it works.
-A parent that holds more clones than 64 would need the period raised with the sweep's measured curve,
-and nothing measured a larger parent.
+A parent past 64 clones is now measured:
+a 256-clone sweep is 3,877 to 5,939 milliseconds warm and a 512-clone sweep 8,167 to 12,374,
+so a window of four periods at 1,000 milliseconds,
+that is 4,000,
+is shorter than one sweep at 256 clones in two rounds of three and two to three times shorter than one at 512.
+This measurement contradicts the proposal at any parent above about 205 clones,
+and the curve it leaves is what sizes a period that holds:
+the period a parent needs is its clone count times about 19 milliseconds,
+and the four-period window is four times that.
 
 `STOP_WAIT` in the same module has no value.
 The proposal is 2,000 milliseconds.
@@ -389,11 +633,17 @@ well inside the binding's ceiling.
 - A holder that flushes state before leaving,
   such as an editor or a package manager.
   The measured holders were sleeping processes and a shell that ignored the signal.
-- A parent with more than 64 clones,
-  and a sweep of the whole reconciliation rather than one parent's clones.
-- Pinned incompressible output,
-  because the arm's output was one repeated byte,
-  and the correcting probe did not run because the guest's agent stopped answering.
+- A parent larger than 512 clones:
+  the arm stopped there,
+  and the handler's own listing stops at 4,096 children
+  (`sweep_dataset_reader.rs`,
+  `MAXIMUM_CHILDREN`),
+  so a parent that size is an extrapolation of the 19 milliseconds a clone costs.
+- A sweep of the whole reconciliation rather than one parent's clones.
+- Pinned output larger than 64 mebibytes,
+  and a pool whose compression,
+  recordsize or vdev kind differs from this fixture's:
+  `compression=on` (lz4) on a file-backed single vdev.
 - A lost event's real delay,
   because the 5,000-millisecond window is an observation and no trigger's loss was induced.
 - This host's load,
@@ -411,6 +661,12 @@ well inside the binding's ceiling.
   and the product defect it then found is fixed by
   `fix(git-policy-cli): a capture longer than its prefix reads back` (`302ecbcc9a`).
 - `package/git-policy/cli/src/native/binary/binary_zfs_step_22_measurement_guest_tests.rs` is the arm.
+- `package/git-policy/cli/src/native/binary/binary_zfs_step_22_large_parent_guest_tests.rs` is the second round's
+  past-64 sweep arm.
+- `package/git-policy/cli/src/native/binary/binary_zfs_step_22_pinned_output_guest_tests.rs` is the second round's
+  pinned-output case and its repeated-byte control.
 - `package/git-policy/cli/e2e/zfs-step-22-measurements-guest.ts` is the driver.
+  Its build bound is two hours,
+  sized by two runs of the second round that built the target in 53 and 67 minutes.
 - The guest `zfs-step-22-measurements` was destroyed through `mvm` when the arm ended,
   and `mvm --backend libvirt list` no longer names it.
