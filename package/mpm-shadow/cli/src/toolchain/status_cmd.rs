@@ -28,8 +28,12 @@ use super::error::ToolchainError;
 use super::http::NoNetwork;
 /// Imports `load_agreeing` from `super::load`.
 use super::load::load_agreeing;
+/// Imports the question that says which declared Rust parts a toolchain lacks.
+use super::install_rust_android::missing_rust_parts;
 /// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
+/// Imports the route a row installs by, so the Rust question is asked of the rows it applies to.
+use super::model::Route;
 /// Imports what this module uses from `super::observe`.
 use super::observe::{
     format_status,
@@ -86,6 +90,56 @@ pub fn run_status(
         tools: &lock.tools,
     };
     let observations = observe_all(&context, &lock.tools);
+    // What:
+    // the same observations, with each `rustup-toolchain` row that is otherwise at its version asked
+    // which declared components and targets its toolchain lacks.
+    // Why:
+    // `install` adds a declared part the toolchain does not have, so a toolchain without one is drift;
+    // `list` said `ok` and `1 tools in sync` while the declared `rustfmt` component was missing
+    // (issue 6634, Low point 5).
+    // A row whose toolchain is absent or at another version is already drift, so it is not asked.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const observations = observeAll(context, lock.tools).map((observation) => {
+    //   const tool = lock.tools.find((candidate) => candidate.declaration.id === observation.id);
+    //   if (!observation.inSync || tool?.declaration.route !== 'rustup-toolchain') return observation;
+    //   const parts = missingRustParts(context, tool);
+    //   return { ...observation, missingParts: parts, inSync: parts.length === 0 };
+    // });
+    // ```
+    let mut observations = observations;
+    for observation in observations.iter_mut() {
+        if !observation.in_sync {
+            continue;
+        }
+        let Some(tool) = lock
+            .tools
+            .iter()
+            .find(|tool| return tool.declaration.id == observation.id)
+        else {
+            continue;
+        };
+        if tool.declaration.route != Route::RustupToolchain {
+            continue;
+        }
+        match missing_rust_parts(&context, tool) {
+            Ok(parts) if !parts.is_empty() => {
+                observation.in_sync = false;
+                observation.missing_parts = parts;
+            }
+            Ok(_) => {}
+            // A listing that fails is not a clean pass: the tool's state could not be read, and the line
+            // says so with the failure's own words.
+            Err(error) => {
+                observation.in_sync = false;
+                observation.missing_parts = vec![format!(
+                    "its components and targets could not be read: {}",
+                    error.message
+                )];
+            }
+        }
+    }
     let mut drifted: bool = false;
     for observation in &observations {
         if !observation.in_sync {

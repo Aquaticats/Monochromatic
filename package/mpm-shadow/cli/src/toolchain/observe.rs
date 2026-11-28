@@ -185,7 +185,9 @@ pub fn satisfies_lock(
 /// One line of the status report:
 /// the tool,
 /// the locked version,
-/// the installed version (if any) and whether they match.
+/// the installed version (if any),
+/// whether they match,
+/// and the declared Rust parts a toolchain that is otherwise at its version lacks.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Observation {
     /// Tool id.
@@ -197,6 +199,12 @@ pub struct Observation {
     pub observed: Option<String>,
     /// Whether the installed version matches the locked one.
     pub in_sync: bool,
+    /// What `install` would change although the version matches:
+    /// one sentence per declared Rust component or target the toolchain lacks,
+    /// or the failure that stopped `list` reading them.
+    /// Empty for every other route,
+    /// and for a toolchain that holds every declared part.
+    pub missing_parts: Vec<String>,
 }
 
 /// What:
@@ -228,6 +236,7 @@ pub fn observe_all(
             locked: tool.version.clone(),
             observed,
             in_sync,
+            missing_parts: Vec::new(),
         });
     }
     return observations;
@@ -252,12 +261,29 @@ pub fn format_status(observations: &[Observation]) -> String {
                 "ok      {}  {}\n",
                 observation.id, observation.locked
             ));
-        } else {
+        } else if observation.missing_parts.is_empty() {
             text.push_str(&format!(
                 "drift   {}  locked={}  observed={}\n",
                 observation.id,
                 observation.locked,
                 observation.observed.as_deref().unwrap_or("(absent)")
+            ));
+        } else {
+            // What: a drift line for a toolchain that is at its version and lacks a declared part,
+            // naming each part `install` would add.
+            // Why: the version alone said `ok` while the toolchain was missing what the lock asks for,
+            // and a person needs the names, not only the fact.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // text += `drift   ${id}  locked=${locked}  observed=${observed}  (${missingParts.join(', ')})\n`;
+            // ```
+            text.push_str(&format!(
+                "drift   {}  locked={}  observed={}  ({})\n",
+                observation.id,
+                observation.locked,
+                observation.observed.as_deref().unwrap_or("(absent)"),
+                observation.missing_parts.join(", ")
             ));
         }
     }
