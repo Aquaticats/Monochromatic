@@ -268,6 +268,12 @@ because the gate's verdict is unchanged and a false failure costs more than a sl
 
 ## Open: does the crate split's step 4 run now? (recorded 2026-11-27T06:40:00-05:00)
 
+
+Answered on 2026-11-28:
+"Read the signatures first (Recommended)"
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
+
 The plan's rounds 1 to 3 are done or nearly done
 (`doc/planning/cli-git-source-layout-target-tree.md`,
 "Next"):
@@ -4629,6 +4635,13 @@ and each can be undone.
 ## For the owner, and veto open: what the night of 2026-11-27 left after 22:15 (recorded 2026-11-27T23:01:36-05:00)
 
 ### A question that waits: what bounds the guests and the builds that run at once?
+
+
+Answered on 2026-11-28:
+the rounds of that night ride,
+and a later batch is bounded by guests alive
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
 
 The machine ran out of memory three times on the night of 2026-11-27,
 the second and third time for about twenty minutes each
