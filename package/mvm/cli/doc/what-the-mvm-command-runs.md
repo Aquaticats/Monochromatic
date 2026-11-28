@@ -1,6 +1,7 @@
 # What the `mvm` command runs
 
-Status: unapproved and non-final.
+Status:
+unapproved and non-final.
 A Pi round wrote this on 2026-11-28
 and the owner declares completion.
 What is done:
@@ -21,7 +22,8 @@ whether a `mvm` that is ever published should run a built copy again
 ## The defect this records
 
 Free page reporting landed in `src/domain-xml-builders.ts` on 2026-11-25
-(commit `269b812807`, `doc/decision/mvm-guests-report-free-pages.md`).
+(commit `269b812807`,
+`doc/decision/mvm-guests-report-free-pages.md`).
 Six guests made between 2026-11-27T21:25 and 2026-11-28T01:08
 were defined with `<memballoon model='virtio'>` alone,
 while two made at 04:53 and 05:16 carried `freePageReporting='on'`
@@ -53,11 +55,14 @@ The package is `private: true`,
 so no registry install ever carries this manifest.
 
 No build output sits between the command and its code,
-so there is nothing to compare, nothing to refuse, and no window
+so there is nothing to compare,
+nothing to refuse,
+and no window
 in which a merge can leave a run on older code.
 It also needs no new code path.
 
-Cost, measured on 2026-11-28 with both arms alternated in the same rounds
+Cost,
+measured on 2026-11-28 with both arms alternated in the same rounds
 (fifteen rounds of `mvm --help`,
 the shim reaching the built bundle against `node src/cli.ts`):
 the bundle's median was 135.5 ms (125.2 to 178.4),
@@ -86,7 +91,8 @@ so it is silent exactly when it matters and refuses when nothing is wrong.
 
 By content:
 the build would record a digest of its inputs and the command would compare it at start.
-That needs a new writer in the build, an input list that names what the bundler really read,
+That needs a new writer in the build,
+an input list that names what the bundler really read,
 a digest of the source tree at every command start,
 and a refusal for every build that predates the receipt.
 It also cannot answer the case it was written for:
@@ -107,7 +113,8 @@ This is what makes the change reach existing worktrees:
 pnpm rewrites a shim only on install,
 so without the launcher every worktree made before that install
 would keep running its old bundle.
-With it, `mise run //package/mvm/cli:build` in a worktree is enough,
+With it,
+`mise run //package/mvm/cli:build` in a worktree is enough,
 and that is the command every round touching this package already runs.
 
 ### The worktree launcher builds `mvm` when it makes a worktree: rejected alone
@@ -121,18 +128,24 @@ on a machine where many rounds start at once.
 ## What the repository does now
 
 - `package/mvm/cli/package.json` names `src/cli.ts` in `bin`.
-- The build keeps both entries, so `cli.d.mts` is still emitted,
+- The build keeps both entries,
+  so `cli.d.mts` is still emitted,
   and replaces the CLI entry chunk's code with the launcher
-  (`rolldown.node.config.ts`, `theCommandRunsTheSourceBesideItPlugin`).
+  (`rolldown.node.config.ts`,
+  `theCommandRunsTheSourceBesideItPlugin`).
 - `pnpm install` in a checkout writes a shim that names `src/cli.ts` directly.
-  Until it runs, `node_modules/.bin/mvm` reaches the launcher, which runs the same source.
-- A published `mvm` would be the exception, below.
+  Until it runs,
+  `node_modules/.bin/mvm` reaches the launcher,
+  which runs the same source.
+- A published `mvm` would be the exception,
+  below.
 
 ## What holds it
 
 `src/the-mvm-command-runs-the-source-beside-it.unit.test.ts` has three cases:
 
-- the manifest's `bin` names `src/cli.ts`, so no build output stands between the command
+- the manifest's `bin` names `src/cli.ts`,
+  so no build output stands between the command
   and its code;
 - that file starts and answers `--help` when it is run;
 - the built entry a shim an older install wrote names imports exactly that file,
@@ -151,22 +164,48 @@ each command run once from the worktree's root:
 - `mise run //package/mvm/cli:lint:types`
 - `mise run //package/mvm/cli:lint:oxlint`
 - `node src/the-mvm-command-runs-the-source-beside-it.unit.test.ts`
-  from the package folder, after the build
-- `mise run //package/mvm/cli:test:unit`
+  from the package folder,
+  after the build
+- `mise run //package/mvm/cli:test:unit`,
+  three times over the round
 
-and the real command, from the worktree's root:
+and the real command,
+from the worktree's root:
 `./node_modules/.bin/mvm --help` and `./node_modules/.bin/mvm --backend libvirt list`
 both answered.
+
+The unit suite's first run ended red in one file this change does not touch:
+`src/cli-session-daemon.unit.test.ts` failed
+"starts one unit when two processes find no daemon at the same time"
+with `expected [] to have a length of 1 but got +0`.
+The second run of the same code passed in 27.40 s,
+the run after the merge into `main` passed in 27.06 s,
+and that file passes alone in 6.6 s.
+The case starts two CLIs at once and expects exactly one of them to lose the unit name;
+the stand-in `systemd-run` settles the claim with an exclusive create,
+`{ flag: \'wx\' }` in the program text it writes
+(`src/fixture.fake-systemd-run.ts`),
+so a run in which the first CLI has finished before the second reaches the start
+has no loser to find,
+and how many files run beside it decides how often that happens.
+Whether this change makes it more likely is not measured:
+separating the two arms needs a campaign of repeated suite runs,
+which this round's rules ban,
+so a later round should measure it or make the case start its two CLIs in a way that
+cannot serialize.
 
 ## What a published `mvm` would need
 
 Node refuses TypeScript under `node_modules`,
 so a `bin` naming `src/cli.ts` works only where the package is never installed from a
-registry, which is what `private: true` states
-(`doc/decision/npm-publishing.md`, "Published surface is the built artifact;
+registry,
+which is what `private: true` states
+(`doc/decision/npm-publishing.md`,
+"Published surface is the built artifact;
 `./ts` is stripped at publish").
 Were `mvm` to be published,
 its `bin` would have to name a built copy again,
-and the comparison above (a receipt the build writes and the command checks, refusing when
-it does not match) would become the only guard that can run there.
-That choice is the owner's, and nothing here makes it.
+and the comparison above (a receipt the build writes and the command checks,
+refusing when it does not match) would become the only guard that can run there.
+That choice is the owner's,
+and nothing here makes it.
