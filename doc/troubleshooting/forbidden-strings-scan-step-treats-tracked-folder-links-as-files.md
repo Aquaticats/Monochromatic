@@ -1074,12 +1074,53 @@ and what this round did not run:
   stock Git;
   no scanner was built from this branch.
 
+Merged and re-checked.
+`origin/main` moved twice while this round ran,
+so it was merged twice:
+`e032823a1e` (2026-11-27T18:49:55-05:00) in the merge commit
+`02e9db640f` (2026-11-27T18:57:44-05:00),
+and then `25dec7b462` (2026-11-27T18:58:21-05:00) in
+`e76afec9a2` (2026-11-27T18:58:42-05:00).
+Neither merge touched the workflow file or any test file this round changes.
+
+After the second merge every check above ran again,
+in `package/forbidden-strings/cli`,
+and each printed the same result:
+`cargo fmt --check` exit 0,
+`cargo check --locked --offline --all-targets` exit 0,
+`cargo clippy --locked --offline --all-targets -- -D warnings` exit 0,
+`cargo nextest run --locked --offline --test ci_scan_scope`
+with `Summary [   1.079s] 22 tests run: 22 passed, 0 skipped`,
+and `mise run //package/forbidden-strings/cli:test`
+with `Summary [  26.566s] 381 tests run: 381 passed, 0 skipped`.
+`monochromatic-lint` again reported no finding on any changed file,
+the workflow file and this record among them.
+
+The delta measurement was run again on `82d6a89596..e032823a1e`,
+the tip this branch merged first,
+with the same rules,
+stand-in and binary:
+
+```text
+Left out 139 of 8159 changed entries the scanner cannot open as a file: folder links 139, submodule gitlinks 0. The next step scans their own names and, for each link, its stored target text. A link to a file, a broken link and an unreadable file stay in the scan.
+Scanning 8020 changed file(s) from 82d6a8959655c863e4a28579139456f609d5d615..e032823a1ed89c182d7895688186051728483ed5:
+Scanning 139 left-out entries: each one by its own name, and each link by its stored target text:
+```
+
+All four steps exited 0,
+neither stream held a line with `rule=` or `read error`,
+and the left-out step left 140 files in its target-text folder again.
+Those figures differ from the earlier run's only by the one entry and the one
+file `main` gained between the two tips.
+
+The coordinating session merges this branch,
+and issue #6633 closes on a green push run on `main` that prints the new
+left-out line,
+which no run can show before that merge.
+No workflow was dispatched.
+
 Open:
 
-- The merge of `origin/main` into this branch and the re-run of the checks
-  after it are recorded at the end of this section once they happen;
-  the coordinating session merges the branch,
-  and issue #6633's closing depends on the push run that follows.
 - The two owner questions in "What is left for the owner" item 2 stay
   open:
   whether a link to a file should also have its stored target text scanned,
