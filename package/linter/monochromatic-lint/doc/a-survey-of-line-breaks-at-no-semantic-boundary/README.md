@@ -174,10 +174,18 @@ and the population after a full fix run is at most `220,235`.
 
 The reported breaks that remain are the post-fix count of each file
 less the breaks that were already quiet in it.
-That subtraction is sound because a join is attached to a break one pass plans,
+That subtraction is sound in one direction only:
+a join is attached to a break one pass plans,
 so a fix never removes a break outside a paragraph the rule reports,
-and an inserted break always falls after a break-point character,
-so a fix never creates a break at no boundary.
+and that makes the remainders a true count of what the fix left;
+but an inserted break falls after a break-point character,
+and at this commit `ends_at_break_point` strips only the closing brackets and quotes,
+so a break the fix inserts after an emphasis delimiter,
+as `word.**` gets,
+is counted at no boundary here even though the rule wrote it on purpose.
+So the `10,028` is an upper bound on what a full fix run leaves,
+and the `1,524` is a floor on what it joins.
+`figures-the-survey-does-not-count/emphasis-boundary-reproduced.txt` is that shape.
 
 ## What is kept here
 
@@ -224,11 +232,24 @@ in the worktree the round was started in,
 of the repository,
 and its `SURVEY_COMMIT` line names the same commit.
 The join and the boundary test changed after it
-(`fc679b9392` at 2026-11-28T03:02:49-05:00):
+(`fc679b9392`,
+committed 2026-11-28T03:02:49-05:00 and merged after the survey commit):
 the join counts the host line,
 and the boundary test climbs `*` `_` and `~`.
-The harness in this folder is the later form and needs that source,
-so a rerun at the recorded commit needs this folder as that commit holds it.
+The harness in this folder is the later form,
+and it differs from the harness the recorded run used in five hunks:
+three for the after-the-fix control
+(the control text,
+the count it expects,
+and passing the control copy through the same fix run as the copies)
+and two for the host prefix
+(the join is asked with the host's own prefix,
+and a Rust doc comment carries it).
+The recorded run used this file as `bc5b4ca2ba` holds it,
+which is what `git show bc5b4ca2ba:package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/survey_line_breaks_at_no_semantic_boundary_tests.rs.keep` prints,
+and a rerun at the recorded commit needs that form,
+not the kept one,
+which needs this branch's source to compile.
 The survey was not rerun,
 and every count here is the commit's it names.
 Its list is `files.txt` at that commit.
@@ -242,11 +263,12 @@ none of these three changes is committed.
 The run below was made in the worktree this round was started in,
 at the commit above;
 a rerun needs a worktree at the same commit,
-and this line makes one:
+and this line makes one,
+under `.claude/worktrees/` as `AGENTS.md` rule WTU requires of every worktree of this repository:
 
 ```sh
 # from the repository root
-git worktree add /home/user/temp/agent/line-break-survey-rerun bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c
+git worktree add .claude/worktrees/line-break-survey-rerun bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c
 ```
 
 1.
@@ -288,15 +310,23 @@ git worktree add /home/user/temp/agent/line-break-survey-rerun bc5b4ca2bae7fc5bb
    Run the survey from the package folder,
    with the list,
    the worktree root,
-   the copies folder and the installed binary named:
+   the copies folder and the installed binary named,
+   inside a scope with the limits `command.txt` records.
+   The run took `1,297.955` seconds and peaked under the limits below;
+   a rerun that has a whole host to itself may raise the memory and process caps,
+   never the slice:
 
    ```sh
    # from package/linter/monochromatic-lint
-   SURVEY_LIST="$PWD/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt" \
-     SURVEY_ROOT="<the worktree the list came from>" \
-     SURVEY_M13_DIR="<a folder outside the repository for the fix copies>" \
-     SURVEY_LINT_BIN=/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint \
-     cargo nextest run --locked --lib --no-capture survey_
+   systemd-run --user --scope --slice=agent-work.slice \
+     --property=MemoryMax=8G --property=CPUQuota=400% --property=TasksMax=256 \
+     --property=IOWeight=1 --property=RuntimeMaxSec=3600 \
+     env \
+       SURVEY_LIST="$PWD/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt" \
+       SURVEY_ROOT="<the worktree the list came from>" \
+       SURVEY_M13_DIR="<a folder outside the repository for the fix copies>" \
+       SURVEY_LINT_BIN=/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint \
+       cargo nextest run --locked --lib --no-capture survey_
    ```
 
    Every test whose name starts with `survey_` runs.

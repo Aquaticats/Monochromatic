@@ -1,0 +1,309 @@
+# Records that bear on the pin, the toolchain and the skip, quoted at commit 8638a53928 (cat -n line numbers)
+
+## doc/decision/rust-closure-lint-dylint.md 44-71 and 177-185
+    44	## Root toolchain change approved on 2026-10-18
+    45	
+    46	Stage 1 kept the lint's toolchain package-local (a dated nightly in the package) because the root toolchain was not
+    47	approved to change.
+    48	On 2026-10-18 the owner answered three questions through the question tool,
+    49	and stage 2a carries them out:
+    50	
+    51	- Add `rustc-dev` to the shared floating nightly.
+    52	  `mise.no-env.toml` lists the component and the tools `cargo-dylint` and `dylint-link`,
+    53	  `mise.toml` is regenerated from it with file-enforcer,
+    54	  and `mise.lock` records the tools and the new component list.
+    55	  Changing the component list changes the locked options of the `rust` entry,
+    56	  so refreshing the lock also moved the floating nightly from `nightly-2026-10-17` to `nightly-2026-10-18`.
+    57	- Exempt `**/tests/ui/**` from `rust/no-anonymous-functions` in `monochromatic-lint.config.jsonc`,
+    58	  because the lint's fixtures contain closures on purpose
+    59	  (the exemption was removed together with the rule,
+    60	  see the section "Removal of `rust/no-anonymous-functions`").
+    61	- The two stray mise symlinks under `~/.local/share/mise/installs` were repaired by the coordinator.
+    62	
+    63	The package therefore has no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override;
+    64	it uses the root toolchain and its aggregate tasks are named `build` and `lint` again,
+    65	so the root fan-out reaches them.
+    66	Still not approved:
+    67	any other change to the root toolchain declaration,
+    68	a pin of the nightly,
+    69	an edit to the IDE package,
+    70	a push,
+    71	or a publish.
+   177	- A package whose prerequisites are missing on the machine is skipped,
+   178	  and the linter says so.
+   179	
+   180	Adopted as defaults without asking,
+   181	open to veto:
+   182	the floating nightly stays (no pin),
+   183	only rustc's `expect` suppresses the Dylint lint (no comment directives),
+   184	generated code is skipped by the lint itself (spans outside the package's own source),
+   185	and the IDE keeps error severity because it has no findings.
+
+## doc/planning/rust-nightly-always-latest.md 3-25
+     3	Status:
+     4	the lock moved to the newest nightly and was verified (2026-11-07T05:22:22-05:00);
+     5	the proposal for keeping it latest was answered by the owner (move anyway,
+     6	fix forward;
+     7	update everything daily)
+     8	and is carried out in [`toolchain-always-latest.md`](toolchain-always-latest.md),
+     9	which supersedes the proposal and the open question in the `Proposal: keeping the nightly latest` section.
+    10	The failure branch of "move anyway" (a fix-forward issue per newly failing package,
+    11	found by checking every package
+    12	before and after the update) is built and described in that note,
+    13	section "Checking every package after the update".
+    14	
+    15	## Owner's rule
+    16	
+    17	Recorded 2026-11-07 (owner,
+    18	verbatim):
+    19	"Rust nightly should always be latest."
+    20	
+    21	This note takes the rule at its plain meaning:
+    22	the `rust` row of `toolchain.lock.json` follows the newest published nightly,
+    23	and a person or a job moves it without being asked.
+    24	Whether "latest" tolerates a short lag when the newest nightly breaks a package is the one open question
+    25	in the `Proposal: keeping the nightly latest` section.
+
+## doc/planning/toolchain-always-latest.md 13-42
+    13	## Owner's words
+    14	
+    15	Recorded 2026-11-07,
+    16	verbatim,
+    17	in the order given:
+    18	
+    19	- "Rust nightly should always be latest."
+    20	- "Move anyway,
+    21	  fix forward" (when a new nightly breaks a package).
+    22	- "Make the plan file always track latest and set up a systemd cronjob to update EVERYTHING (not just rust) daily."
+    23	- "Wait for Dylint" (the closure lint plugin `package/linter/monochromatic-lint-closure` stays as it is).
+    24	- "Everything also covers the pnpm and cargo dep locks,
+    25	  and the global toolchains too."
+    26	- Standing rules the update keeps:
+    27	  "nothing should ever wait forever or indefinitely";
+    28	  "never discard user data";
+    29	  "Commits should never fail.";
+    30	  the wrapper never starts itself at system startup or login (systemd units are fine);
+    31	  "Ignore Win and mac until I say so.";
+    32	  and the ban on synthetic host load.
+    33	
+    34	This note follows
+    35	[`doc/planning/rust-nightly-always-latest.md`](rust-nightly-always-latest.md),
+    36	which moved the Rust row to the newest nightly and proposed how to keep it there.
+    37	The owner's answers replace its open question:
+    38	move anyway,
+    39	fix forward,
+    40	and update everything,
+    41	daily,
+    42	on this machine.
+
+## doc/planning/toolchain-always-latest.md 436-452 and 1005-1010
+   445	4.  For each check the two results are compared:
+   446	    passed then failed is newly red;
+   447	    failed then failed is already red and is never reported again (`package/linter/monochromatic-lint-closure` is red
+   448	    today and the owner said "Wait for Dylint");
+   449	    failed then passed is recovered;
+  1005	- A compiler update breaks crates that read compiler internals:
+  1006	  `package/linter/monochromatic-lint-closure`
+  1007	  (already red,
+  1008	  "Wait for Dylint";
+  1009	  `dylint_linting` and `dylint_testing` moved to 6.3.2 and it still stops at E0277 and E0797).
+  1010	- A new `typescript` or `oxlint` plugin API breaks lint rules;
+
+## doc/planning/monochromatic-lint-skip-warning-and-fence-marker.md 9-32
+     9	## Closure-check skips are warnings
+    10	
+    11	The owner's answer,
+    12	in their own words:
+    13	"Fetch then warn."
+    14	The amendment is in `doc/decision/rust-closure-lint-dylint.md`,
+    15	section "Amendment of 2026-11-07T22:19:43-05:00".
+    16	
+    17	- `lint:monochromatic-lint` in the root `mise.toml` has `depends = ["fetch:rust-dependencies"]`.
+    18	  `mise run --dry-run` showed the fetch first and the post-`--` paths reaching only the linter.
+    19	  One run of the fetch task took 15.7 s on a warm cache.
+    20	- A package that is not checked is one warning finding of `rust/avoidable-closure` at its `Cargo.toml`,
+    21	  one per package,
+    22	  also for a machine-wide gap and a missing driver.
+    23	  `ClosureOutcome.messages` and `with_messages` are replaced by `ClosureOutcome.skips`.
+    24	- Red test:
+    25	  `a_cold_cache_is_a_warning_finding_and_exit_zero` failed with 0 records against 1 before the change.
+    26	  Verified with the installed alpha.7 on a throwaway package with an uncached dependency:
+    27	  one `warn` record naming `pkg` and `cargo fetch --locked`,
+    28	  exit 0,
+    29	  and exit 1 under `--max-warnings 0`.
+    30	- A consequence the owner has not been asked about:
+    31	  `--quiet` and `--silent` now hide a skip with the other warnings,
+    32	  where the message on standard error was kept by `--silent`.
+
+## package/linter/monochromatic-lint-closure/README.md 183-213
+   183	### Toolchain
+   184	
+   185	The package uses the repository's shared floating nightly,
+   186	declared in the root `mise.toml` with the `rustc-dev` component
+   187	(a Dylint library links rustc's own crates)
+   188	and the tools `cargo-dylint` and `dylint-link` (the owner approved this on 2026-10-18).
+   189	`mise install` provisions all three;
+   190	nothing else is needed,
+   191	and the package has no `rust-toolchain.toml` and no toolchain override of its own.
+   192	The exact nightly is whatever `mise.lock` resolves for the `rust` entry.
+   193	Dylint builds a library and every package it lints with that nightly,
+   194	and `cargo dylint` caches its driver in `~/.dylint_drivers` (the optional `DYLINT_DRIVER_PATH` moves it).
+   195	
+   196	A floating-nightly upgrade can break the lint source:
+   197	rustc's internal API moves between nightlies,
+   198	so after `mise.lock` moves the nightly,
+   199	build the library and run the tests before relying on the lint,
+   200	and fix the source if the compiler's API changed.
+   201	The `dylint_linting` and `dylint_testing` crates and the two tools must stay on the same Dylint release.
+   202	
+   203	#### What a nightly bump has needed so far
+   204	
+   205	Measured on `nightly-2026-11-16`:
+   206	
+   207	- No Dylint release had to change.
+   208	  Dylint publishes when a nightly breaks its crates;
+   209	  the newest `dylint_linting`,
+   210	  6.4.0 (published 2026-11-10),
+   211	  compiles against this nightly,
+   212	  its own lint template pins `nightly-2026-08-20`,
+   213	  and the crates and tools were already on 6.4.0.
+
+## doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md 186-197, 260-285, 335-358, 485-492
+sed: -e expression #1, char 5: unknown command: '1'
+...
+sed: -e expression #1, char 5: unknown command: '2'
+...
+sed: -e expression #1, char 5: unknown command: '3'
+...
+sed: -e expression #1, char 5: unknown command: '4'
+...
+
+## .github/workflows/advisory-core.yml 71-76, 215-232, 239-242
+    71	  core:
+    72	    name: advisory core
+    73	    needs: gate
+    74	    if: needs.gate.outputs.allowed == 'true'
+    75	    runs-on: ubuntu-latest
+    76	    timeout-minutes: 45
+   215	      - name: Build fast subset
+   216	        id: build
+   217	        continue-on-error: true
+   218	        run: |
+   219	          task-run //package/logger/core:build
+   220	          task-run //package/upstream-fork/p-map:build
+   221	          task-run //package/toml-edit/core:build
+   222	          task-run //package/forbidden-strings/cli:build
+   223	          task-run //package/linter/monochromatic-lint:build
+   224	      - name: Unit fast subset
+   225	        id: unit
+   226	        run: |
+   227	          task-run //package/logger/core:test:unit
+   228	          task-run //package/upstream-fork/p-map:test:unit
+   229	          task-run //package/toml-edit/core:test:unit
+   230	          task-run //package/container-limit/core:test:unit
+   231	          task-run //package/forbidden-strings/cli:test
+   232	          task-run //package/linter/monochromatic-lint:test
+   239	            echo "- provider: GitHub-hosted Linux"
+   240	            echo "- fast subset: logger/core, upstream-fork/p-map, toml-edit/core, container-limit/core, forbidden-strings/cli, linter/monochromatic-lint"
+   241	            echo "- results are advisory: no required checks and no branch-protection change; a failed profile or drift check still fails the run"
+   242	          } >> "$GITHUB_STEP_SUMMARY"
+
+## doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md 570-576 (uncited related proposal)
+   570	What it would run:
+   571	the `core` job as written,
+   572	which is the changed-path `monochromatic-lint` step,
+   573	the five-owner build subset and the five-owner unit subset,
+   574	on every push that the window admits,
+   575	plus `monochromatic-lint` and its Dylint driver installed the way `repo-tools-setup` installs the
+   576	other tools.
+
+## package/cargo-shadow/cli/README.md 576-592 (the first cargo on this host's PATH)
+   576	## Toolchain and registry settings
+   577	
+   578	The step's own cargo calls run the first `cargo` on PATH that is not the shadow,
+   579	under the toolchain `toolchain.lock.json` pins (`.tools.rust.version`).
+   580	The pin wins over an inherited `RUSTUP_TOOLCHAIN` (a warning says so),
+   581	so every lockfile the step writes has one format.
+   582	The user's own cargo command is not changed:
+   583	the shadow starts the PATH candidate under its own name,
+   584	so rustup's `+toolchain`,
+   585	`RUSTUP_TOOLCHAIN` and `rust-toolchain` files select the toolchain as before.
+   586	The search skips every candidate that resolves to the shadow,
+   587	and every candidate that is a toolchain launcher whose record (`<launcher>.launch`,
+   588	its `real` binary)
+   589	names the shadow,
+   590	directly or through further launchers,
+   591	before it is run:
+   592	the shadow does not start itself a second time.
+
+## package/linter/monochromatic-lint/src/closure_cargo.rs 276-305 (rustc-dev probe: rustc on PATH, process cwd and env)
+   276	/// What:
+   277	///  Explain a missing `rustc-dev` component in the active compiler,
+   278	///  unless a replacement `cargo` is in use.
+   279	/// Why:
+   280	///  The active compiler is the one `rustc --print sysroot` names.
+   281	///  A replacement `cargo` (anything but the bare program name) stands for the whole toolchain,
+   282	/// so it is not inspected;
+   283	///  the decision follows the program the step was given,
+   284	///  not the process environment,
+   285	///  so a test that passes a stub is independent of the machine's compiler.
+   286	///
+   287	/// In TS you'd write (pseudocode):
+   288	/// ```ts
+   289	/// function rustcDevMissing(cargo: Path): string | undefined;
+   290	/// ```
+   291	pub fn rustc_dev_missing(cargo: &Path) -> Option<String> {
+   292	    if cargo != Path::new("cargo") {
+   293	        return None;
+   294	    }
+   295	    let output = match Command::new("rustc")
+   296	        .args(["--print", "sysroot"])
+   297	        .stdin(Stdio::null())
+   298	        .output()
+   299	    {
+   300	        Ok(done) => done,
+   301	        Err(error) => return Some(format!("rustc does not run ({error})")),
+   302	    };
+   303	    let sysroot: String = String::from_utf8_lossy(&output.stdout).trim().to_string();
+   304	    return rustc_dev_missing_in(Path::new(&sysroot));
+   305	}
+
+## package/linter/monochromatic-lint/src/closure_step.rs 191-213
+   191	    let probe: Result<String, ProbeFailure> = dylint_probe(cargo);
+   192	    if let Err(ProbeFailure::Broken(reason)) = &probe {
+   193	        outcome.findings.push(processing_failure(
+   194	            grouping.packages[0].configuration.as_str(),
+   195	            file_start(),
+   196	            format!(
+   197	                "{RULE} could not check any package, and fails instead of skipping because nothing was checked: {reason}"
+   198	            ),
+   199	        ));
+   200	        return outcome;
+   201	    }
+   202	    let machine_gap: Option<String> = match &probe {
+   203	        Err(failure) => Some(failure.reason().to_string()),
+   204	        Ok(_) => rustc_dev_missing(cargo),
+   205	    };
+   206	    if let Some(reason) = machine_gap {
+   207	        let everything: Vec<&ClosurePackage> =
+   208	            grouping.packages.iter().collect::<Vec<&ClosurePackage>>();
+   209	        outcome
+   210	            .skips
+   211	            .extend(skip_packages(everything.as_slice(), reason.as_str(), cwd));
+   212	        return outcome;
+   213	    }
+
+## machine state 2026-11-28 from the evidence folder: type -a cargo and readlink
+$ type -a cargo
+cargo is /home/user/Monochromatic/.cache/cargo-shadow-bin/cargo
+cargo is /home/user/Monochromatic/.cache/toolchain-bin/cargo
+cargo is /usr/bin/cargo
+$ readlink -f /usr/bin/cargo
+/usr/bin/rustup
+$ readlink -f /home/user/Monochromatic/.cache/toolchain-bin/cargo
+/home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/cargo
+$ readlink -f /home/user/Monochromatic/.cache/toolchain-bin/rustc
+/home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc
+$ readlink -f /home/user/Monochromatic/.cache/cargo-shadow-bin/cargo
+/home/user/Monochromatic/.cache/toolchain-launchers/cargo-shadow
+$ ls -d /home/user/.dylint_drivers

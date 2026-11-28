@@ -1,0 +1,36 @@
+== host clock 2026-11-28T06:50:35-05:00
+ef4b21122733339551211e799aa9ddc1d2dccf980d961fa995ec3a497d96d725
+== run status 0
+== clock 2026-11-28T11:50:36+00:00
+== cargo /usr/bin/cargo -> /usr/bin/rustup
+== rustc /usr/bin/rustc -> /usr/bin/rustup
+== floating components
+cargo-x86_64-unknown-linux-gnu
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+== no driver
+find: '/root/.dylint_drivers': No such file or directory
+== arm A: the machine-wide rustc-dev skip, RUSTUP_TOOLCHAIN unset
+a-default status 0
+a-max-warnings status 1
+a-quiet status 0
+439 /work/log/a-default.jsonl
+439 /work/log/a-max-warnings.jsonl
+  0 /work/log/a-quiet.jsonl
+878 total
+{"message":"rust/avoidable-closure skipped pkg: the active compiler lacks the rustc-dev component; add it with `rustup component add rustc-dev` or mise install. Nothing in this package was checked by this rule, so a run without findings says nothing about its closures.","code":"rust/avoidable-closur
+== arm B: the driver-gap skip, RUSTUP_TOOLCHAIN set to the dated name
+b-default status 0
+b-max-warnings status 1
+b-quiet status 0
+ 962 /work/log/b-default.jsonl
+ 962 /work/log/b-max-warnings.jsonl
+   0 /work/log/b-quiet.jsonl
+1924 total
+{"message":"rust/avoidable-closure skipped pkg: the Dylint driver for toolchain `nightly-x86_64-unknown-linux-gnu` at /root/.dylint_drivers/nightly-x86_64-unknown-linux-gnu/dylint-driver is absent (cargo-dylint is 6.4.0), and `dylint_driver` 6.4.0 with its dependencies is not in the cargo cache, so 
+== done 2026-11-28T11:50:37+00:00
+== container run finished with 0
+time="2026-11-28T06:50:48-05:00" level=warning msg="StopSignal SIGTERM failed to stop container dylint-m10-2026-11-28b in 10 seconds, resorting to SIGKILL"
+dylint-m10-2026-11-28b
+== container removed
+== host clock 2026-11-28T06:50:48-05:00

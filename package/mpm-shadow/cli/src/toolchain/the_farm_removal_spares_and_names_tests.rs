@@ -642,6 +642,122 @@ fn a_sync_keeps_and_names_the_earlier_builds_temporary_link_while_its_number_is_
 }
 
 // What:
+// `#[test] fn a_sync_names_each_kept_temporary_link_once_in_name_order_after_the_removals_it_made()`
+// plants two names no run can judge and two orphans a run removes,
+// runs the whole sync,
+// and reads the lines.
+// Why:
+// The release left these names silent,
+// and a report that printed one of them twice,
+// or printed the kept names before the removals and in the directory's own order,
+// would read differently on two runs of the same folder:
+// the count, the name order and the place of the kept lines are what make the report
+// the same text every time.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a sync names each kept temporary link once in name order after the removals it made', () => { ... });
+// ```
+#[test]
+fn a_sync_names_each_kept_temporary_link_once_in_name_order_after_the_removals_it_made() {
+    let rig: Rig = a_rig_with_no_tools();
+    std::fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    let target: PathBuf = a_program_beside_the_farm(&rig, A_DECLARED_BIN);
+    // What: the two link names an earlier build's temporary name is built on, so that the name order of the
+    //  kept lines is not the order they are planted in.
+    // Why: the control has to name an order the report can disagree with.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const keptNames = ['zzz-earlier', 'aaa-earlier'];
+    // ```
+    let kept_link_names: [&str; 2] = ["zzz-earlier", "aaa-earlier"];
+    let ended: u32 = pid_of_a_process_that_ended();
+    let mut kept_names: Vec<String> = Vec::new();
+    for link_name in kept_link_names {
+        let name: String = the_name_the_earlier_build_wrote(link_name, ended);
+        symlink(&target, rig.scope.exposure_dir.join(&name))
+            .expect("stand in for a link a killed install of the release left");
+        kept_names.push(name);
+    }
+    for orphan in [AN_ORPHAN, A_SECOND_ORPHAN] {
+        symlink(&target, rig.scope.exposure_dir.join(orphan)).expect("leave an orphan");
+    }
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    // What: the report's kept lines, in the order the report holds them.
+    // Why: a count and an order are read from the lines themselves, not from the report's fields.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const keptLines = text.split('\n').filter((line) => line.startsWith('toolchain install: left the temporary link '));
+    // ```
+    let kept_lines: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            return line.starts_with("toolchain install: left the temporary link ");
+        })
+        .collect();
+    assert_eq!(
+        kept_lines.len(),
+        kept_names.len(),
+        "one line for each name kept, and no name twice: {text}"
+    );
+    // What: the name each kept line carries, read out of the sentence's own prefix and separator.
+    // Why: a line naming one name twice would keep the count right and the report wrong.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const said = keptLines.map((line) => line.slice('toolchain install: left the temporary link '.length).split(': this run')[0]);
+    // ```
+    let said_names: Vec<String> = kept_lines
+        .iter()
+        .map(|line| {
+            let rest: &str = line
+                .strip_prefix("toolchain install: left the temporary link ")
+                .expect("the line is the kept sentence");
+            return rest
+                .split_once(": this run")
+                .expect("the sentence names the name and then why it stays")
+                .0
+                .to_string();
+        })
+        .collect();
+    let mut kept_names_in_name_order: Vec<String> = kept_names.clone();
+    kept_names_in_name_order.sort();
+    assert_eq!(
+        said_names, kept_names_in_name_order,
+        "the kept lines come in name order, whichever order the directory listed the names in: {text}"
+    );
+    // What: where the last removal line sits and where the first kept line sits.
+    // Why: the report's own order is what a person reads, so a kept line printed before the removals
+    //  would move on every run of the same folder.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const lastRemoval = lines.findLastIndex((line) => line.startsWith('toolchain install: removed the exposure link '));
+    // const firstKept = lines.findIndex((line) => line.startsWith('toolchain install: left the temporary link '));
+    // ```
+    let lines: Vec<&str> = text.lines().collect();
+    let last_removal: usize = lines
+        .iter()
+        .rposition(|line| {
+            return line.starts_with("toolchain install: removed the exposure link ");
+        })
+        .expect("the two orphans were removed and named");
+    let first_kept: usize = lines
+        .iter()
+        .position(|line| {
+            return line.starts_with("toolchain install: left the temporary link ");
+        })
+        .expect("the two kept names were named");
+    assert!(
+        last_removal < first_kept,
+        "the kept lines follow every removal line, at {first_kept} after the last removal at {last_removal}: {text}"
+    );
+}
+
+// What:
 // `#[test] fn a_sync_removes_a_dotted_name_that_is_no_temporary_link()`
 // plants a dotted link whose name is not one a temporary link carries,
 // runs the whole sync,
