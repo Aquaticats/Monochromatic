@@ -810,3 +810,111 @@ fn git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository() 
     }
     remove(shapes.root.as_path());
 }
+
+/// What:
+///  The `-c` value whose shell prints the `GIT_DIR` Git gives it.
+/// Why:
+///  The reading of issue 6641 answers what Git exports to the shell of a `!` alias,
+///  and only Git's own answer can hold it:
+///  the value prints the variable the shell really received,
+///  and its space keeps Git running it through a shell
+///  (`run-command.c:293` to `run-command.c:305`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ALIAS_PRINTS_ITS_GIT_DIR = 'alias.printgitdir=!printf %s "$GIT_DIR"';
+/// ```
+const ALIAS_PRINTS_ITS_GIT_DIR: &str = "alias.printgitdir=!printf %s \"$GIT_DIR\"";
+
+/// What:
+///  The Git directory Git gives the shell of a `!` alias typed at `place`,
+///  as the shell itself printed it,
+///  and nothing when Git gives it none.
+///  `&Path` borrows the place the command would be typed in.
+/// Why:
+///  The control compares the reading with the variable a real shell received,
+///  never with another reading of Git's rules.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theGitDirTheShellWasGiven = (place) => git(place, ['-c', ALIAS_PRINTS_ITS_GIT_DIR, 'printgitdir']).stdout.replace(/\n$/, '');
+/// ```
+fn the_git_dir_the_shell_was_given(place: &Path) -> String {
+    let output: Output =
+        crate::test_support::git(place, &["-c", ALIAS_PRINTS_ITS_GIT_DIR, "printgitdir"]);
+    assert!(
+        output.status.success(),
+        "the fixture's alias prints at {}: {}",
+        place.display(),
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+    let printed: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    return printed.trim_end_matches('\n').to_owned();
+}
+
+/// What:
+///  The reading of the Git directory a `!` alias's shell is given answers what Git gives it,
+///  in every shape a command can be typed in:
+///  at the top of a worktree,
+///  below that top,
+///  and inside a Git directory,
+///  a folder of it and a bare repository, where Git names no top at all.
+/// Why:
+///  Issue 6641's second class:
+///  from a linked worktree Git exports `GIT_DIR`, so the nested `git -C <elsewhere>` writes the caller's index over
+///  another directory's files,
+///  while in a plain main checkout it exports nothing and the nested Git finds the repository itself.
+///  A reading that exported the directory in the main checkout too would judge a nested `-C` into a subdirectory
+///  with the wrong worktree,
+///  and one that exported it nowhere would judge the linked worktree's command as its files alone.
+///  The seven shapes stand beside one another so both mistakes have a row.
+///  Measured with Git 2.56.1 on this machine.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const place of theSevenPlaces)
+///   expect(gitDirTheAliasShellReads(context(), [], Some(place), false) !== undefined).toBe(theGitDirTheShellWasGiven(place) !== '');
+/// ```
+#[test]
+fn the_git_dir_the_alias_shell_reads_is_the_one_git_gives_it() {
+    let shapes: ShapesAPlaceCanBeTyped = shapes_a_place_can_be_typed("external-alias-git-dir");
+    let places: Vec<PathBuf> = vec![
+        shapes.repository.clone(),
+        shapes.below_the_top.clone(),
+        shapes.git_directory.clone(),
+        shapes.inside_the_git_directory.clone(),
+        shapes.bare.clone(),
+        shapes.inside_the_bare.clone(),
+        shapes.root.clone(),
+    ];
+    for place in &places {
+        let git_gives_it: String = the_git_dir_the_shell_was_given(place);
+        let read: Option<OsString> = the_git_dir_the_alias_shell_reads(
+            &context(),
+            &globals(&[]),
+            Some(place.as_path()),
+            false,
+        );
+        assert_eq!(
+            read.is_some(),
+            !git_gives_it.is_empty(),
+            "the reading says whether Git gives an alias's shell a Git directory at {}",
+            place.display()
+        );
+        let Some(read) = read else {
+            continue;
+        };
+        // Both answers are read from the place the command was typed in, as Git reads one.
+        let read_path: PathBuf = std::fs::canonicalize(place.join(read.as_os_str()))
+            .expect("the Git directory the reading names reads");
+        let git_path: PathBuf = std::fs::canonicalize(place.join(git_gives_it.as_str()))
+            .expect("the Git directory Git named reads");
+        assert_eq!(
+            read_path,
+            git_path,
+            "the reading names the Git directory Git gives an alias's shell at {}",
+            place.display()
+        );
+    }
+    remove(shapes.root.as_path());
+}
