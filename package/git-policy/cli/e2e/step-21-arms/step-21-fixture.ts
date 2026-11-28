@@ -117,8 +117,11 @@ export const expectedMarkers: readonly string[] = [
 
 /**
  Milliseconds the guest's build of the test target may take.
+ One `rustc` of this crate's test target took 3m 16s on an idle machine and 89 minutes on this host at 2026-11-28's load,
+ where several rounds compile the same crate at once, so the bound is three hours and a build that reaches it is the
+ machine's answer rather than the arm's.
  */
-export const crateBuildTimeoutMilliseconds = 5_400_000;
+export const crateBuildTimeoutMilliseconds = 10_800_000;
 
 /**
  Milliseconds the guest's own tool install may take.
