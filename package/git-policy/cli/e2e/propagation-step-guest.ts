@@ -41,12 +41,16 @@ import {
   guestDriverOptions,
   type GuestDriverOptions,
 } from '../bin/mvm-guest-options.ts';
-import { FOLDER_MODE, } from '../bin/mvm-guest-bounds.ts';
+import {
+  FOLDER_MODE,
+  HOST_COMMAND_TIMEOUT_MS,
+} from '../bin/mvm-guest-bounds.ts';
 import {
   pushWorktreeSnapshot,
   recipe,
 } from '../bin/mvm-guest-host-command.ts';
 import { pullGuestLog, } from '../bin/mvm-guest-detached-script.ts';
+import { runQuietStepCommand, } from '../bin/mvm-guest-step-command.ts';
 import { runWholeGuestRun, } from '../bin/mvm-guest-whole-run.ts';
 
 /**
@@ -77,6 +81,59 @@ const OPENZFS_PREFIX = '/opt/openzfs-2.4.4';
  The name of the arm's own log inside the guest's shared folder.
  */
 const ARM_LOG = 'propagation-arm.log';
+
+/**
+ Remove one log an earlier run left in the guest's shared folder.
+
+ A detached script writes its status line into a log that outlives it, and the host reads the last line to learn that
+ the script ended: a stale line from an earlier attempt ends the wait for a run that has just started, which happened in
+ this round on a guest kept across four build attempts.
+
+ @param chosen - the run's guest
+
+ @param log - the log's name inside the guest's shared folder
+
+ @example
+ ```ts
+ await clearTheOldLog({ chosen, log: 'guest-crate-build.log' });
+ ```
+ */
+async function clearTheOldLog({
+  chosen,
+  log,
+}: {
+  readonly chosen: GuestFacts;
+  readonly log: string;
+},): Promise<void> {
+  await runQuietStepCommand({
+    program: 'mvm',
+    argumentWords: [
+      '--backend',
+      'libvirt',
+      'exec',
+      chosen.name,
+      '--',
+      'rm',
+      '--force',
+      `/mnt/shared/${log}`,
+    ],
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
+  },);
+}
+
+/**
+ How many times the package's own build bound this driver's build gets.
+
+ A fresh extract changes every path dependency's timestamp, so cargo recompiles the workspace crates too: one build took
+ 40m21s in a guest on a host running ten guests, and this round's third attempt was still compiling when the doubled
+ bound ended it.
+
+ @example
+ ```ts
+ const bound = crateBuildTimeoutMilliseconds * BUILD_BOUNDS;
+ ```
+ */
+const BUILD_BOUNDS = 3;
 
 /**
  The lines a run must find in the guest's arm log, one per phase it performed.
@@ -150,6 +207,10 @@ async function build(chosen: GuestFacts,): Promise<void> {
     'CARGO_BUILD_JOBS=2 cargo build --release --tests --locked --features test-only-switches > /root/propagation-build.log 2>&1',
     'tail --lines=3 /root/propagation-build.log',
   ].join('\n',);
+  await clearTheOldLog({
+    chosen,
+    log: 'guest-crate-build.log',
+  },);
   await detachedStep({
     chosen,
     script,
@@ -157,8 +218,8 @@ async function build(chosen: GuestFacts,): Promise<void> {
     // Three times the bound the package's other drivers give a build: measured in this round, a fresh extract changes
     // every path-dependency's timestamp, so cargo recompiles the workspace crates too, and one build took 40m21s in a
     // guest on a host running ten guests.
-    timeoutMilliseconds: crateBuildTimeoutMilliseconds * 3,
-    finishTimeoutMilliseconds: (crateBuildTimeoutMilliseconds * 3) + buildFinishMarginMilliseconds,
+    timeoutMilliseconds: crateBuildTimeoutMilliseconds * BUILD_BOUNDS,
+    finishTimeoutMilliseconds: (crateBuildTimeoutMilliseconds * BUILD_BOUNDS) + buildFinishMarginMilliseconds,
   },);
 }
 
@@ -192,6 +253,10 @@ async function run(chosen: GuestFacts,): Promise<void> {
     `cp /root/${ARM_LOG} /mnt/shared/${ARM_LOG}`,
     'cp /root/propagation-gate.log /mnt/shared/propagation-gate.log 2>/dev/null || true',
   ].join('\n',);
+  await clearTheOldLog({
+    chosen,
+    log: 'guest-propagation-arm.log',
+  },);
   await detachedStep({
     chosen,
     script,
