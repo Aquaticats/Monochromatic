@@ -45,7 +45,7 @@ in
 `package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/gate-read-third-2026-11-28/findings-answered.md`,
 together with the reports of the revisions that answered them.
 That file also says which findings a revision found wrong;
-this one found none of the fourth read's wrong,
+this one found none of the fourth read's findings wrong,
 and changed what each of them names.
 None of those answers is needed to answer the questions in "The questions for the owner".
 This fourth revision changed text and records only:
