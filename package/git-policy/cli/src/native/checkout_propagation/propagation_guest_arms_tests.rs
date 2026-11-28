@@ -408,19 +408,22 @@ fn a_checkout_delivered_into_a_slave_namespace(fixture: &Fixture) -> String {
 /// ```
 fn one_delivered_copy(fixture: &Fixture) -> String {
     let checkout: &Path = fixture.checkout.as_path();
+    let dataset: String = format!("{}/{CHECKOUT_DATASET_LEAF}", fixture.pool);
     let began: std::time::Instant = std::time::Instant::now();
     loop {
+        // The wait is for the checkout's own mount, not for the propagation the folder's parent reports: a plain
+        // folder under the root answers with the root's set, which is what an earlier attempt took for the copy.
         let (read, read_said) = fixture.ask(
             "findmnt",
             &[
                 "--noheadings",
                 "--output",
-                "PROPAGATION",
+                "SOURCE",
                 "--target",
                 checkout.to_str().expect("a text path"),
             ],
         );
-        if read && !read_said.trim().is_empty() {
+        if read && read_said.trim() == dataset {
             break;
         }
         assert!(
