@@ -774,6 +774,78 @@ Unapproved and non-final.
   - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`
   - `zfs-two-forces-pass-holders-and-the-2026-11-23-limits-designed-and-measured`
 
+#### Started and done between 06:14 and 06:58
+
+Unapproved and non-final.
+
+- The owner asked why local guests were still being started three hours after pointing at OVHcloud.
+  The session had put a proposal and its reviews in front of the third billed run.
+  The owner then gave a standing yes for billed runs by the session and by its rounds,
+  inside bounds (`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "A standing yes for billed runs,
+  2026-11-28"),
+  and chose a new wording of rule `URF` in `AGENTS.md` (commit `2b222d450b`).
+  Before it ends a turn the session lists the project's machines and deletes leftovers named `mvm-*`.
+- No name resolved on this machine from 06:21:08 until the owner reconnected IVPN at 06:36:00
+  (`doc/troubleshooting/ivpn-3-15-inverse-split-tunnel-overrides-wireguard.md`,
+  "Name lookups ride the tunnel for every program").
+  Ordinary traffic was outside the tunnel when measured after recovery,
+  and neither OpenSnitch nor AppArmor was involved.
+- An OVHcloud machine answered:
+  a `d2-2` from the image `Ubuntu 26.04` in `BHS5`,
+  running 134 s after the create call in one run and 57 s in the next,
+  with a command,
+  a push and a pull passing in both.
+  Merge `dcbb146340` makes `mvm`'s listing leave out an instance the project lists as `DELETED`.
+  Still open:
+  `destroy` returns while the machine is listed as `DELETING` (read 16 s after the delete call),
+  so the billed test's last check fails;
+  the round `mvm-cli-ovh-destroy-returns-when-the-instance-is-gone` started at 06:54:55.
+  The project listed no machine at 06:56:43.
+- Two rounds toward guests on OVHcloud run since 06:24:
+  `mvm-cli-create-and-run-take-vcpus-and-memory-and-pick-the-smallest-size-that-fits`
+  (the owner's sizing sentence,
+  built without waiting for the proposal)
+  and `guest-drivers-take-the-mvm-backend-from-one-place-and-one-arm-runs-on-an-ovhcloud-machine`.
+  Each has an inbox note that `main` holds `dcbb146340` and `9afd7194ab`.
+  The session starts no new round on a local guest once both are merged.
+- Merge `9afd7194ab` (issue 6655) makes the `mvm` command run the source beside it,
+  and the main checkout was built so that worktrees inherit the launcher.
+  Its report leaves for issues:
+  `mvm-mcp` and twenty other commands still run a build that can be older than their source,
+  and one case of `cli-session-daemon.unit.test.ts` failed in one of three suite runs.
+  Its question on what a published `mvm` runs is the owner's and off the stated priority.
+- Merge `5a84e361c0` puts the guests' unit at three quarters of memory in `mvm`'s code;
+  the main checkout's build computes `47364M`.
+- The gate on `d4faaf0807` was green
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`),
+  and the wrapper's `0.6.1-alpha.53` was published at 2026-11-28T06:49:18-05:00
+  and unpacked under `.cache/wrapper-release-0.6.1-alpha.53/`.
+  It does not hold the owner's force answers of 06:01 to 06:05.
+  Two second passes by Claude Sonnet started at about 06:57;
+  their reviews go to
+  `~/temp/agent/git-policy-cli-alpha-53-release-review-behaviour-2026-11-28/keep/review.md` and
+  `~/temp/agent/git-policy-cli-alpha-53-release-review-no-change-merges-2026-11-28/keep/review.md`.
+- Merge `471d462ccf` holds the development-profile proposal's revision;
+  its second gate read started at about 06:57 and writes to
+  `~/temp/agent/second-gate-review-of-the-development-profile-proposal-2026-11-28/keep/review.md`.
+- Three rounds ended at 06:35:31 with `model-error`:
+  their providers could not be reached while names did not resolve,
+  and the last one in the writer's list answered that its usage limit was reached.
+  They are the line-break revision,
+  the measurement of guest test binaries built outside the guest,
+  and the design of what two forces do at a holder.
+  Each was resumed from its own session at 06:47.
+  A resume names the run by its folder's name:
+  a whole path in `sessionOf` ends the start with a stack trace,
+  which is owed an issue.
+  A round that falls through to the provider at its limit ends the same way again.
+- The linter's `0.5.2-alpha.25` second pass found no High,
+  no Medium and eight Low;
+  its fix round is not started.
+- At 06:49:21 a round read 106 MiB available on the host with the guests' unit under its raised cap,
+  which is the state the move to OVHcloud is for.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
