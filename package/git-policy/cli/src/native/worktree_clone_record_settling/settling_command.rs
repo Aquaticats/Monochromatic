@@ -20,9 +20,8 @@
 //!  the slot,
 //!  the origin cleanup record,
 //!  and the plan folder.
-//!  It is built ahead of the plan's order and no command reaches it:
-//!  the round that switches removal on adds it to the management grammar and
-//!  names it in every sentence that names this command.
+//!  This release's management grammar admits the command,
+//!  and the sentences that name this command send a person to it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

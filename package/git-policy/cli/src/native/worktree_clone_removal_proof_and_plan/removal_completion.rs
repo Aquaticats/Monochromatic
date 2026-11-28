@@ -4,9 +4,9 @@
 //!  the two paths a removal starts from,
 //!  and the claim released as the order's last step.
 //! Why:
-//!  This is the writing path plan step 16 builds behind the removal's cut:
-//!  nothing in the release's command path calls it,
-//!  and the step that switches the command over is a later round's
+//!  This is the whole order,
+//!  and the removal a person's `git worktree remove` runs is this function
+//!  over the live seams `removal_command_path.rs` chooses
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 16).
 //!  The order is the origin cleanup design's fourteen steps,
