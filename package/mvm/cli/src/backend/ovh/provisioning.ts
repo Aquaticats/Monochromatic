@@ -3,11 +3,12 @@
  choice inside each region, and the wait until SSH answers as the account the
  image itself names.
 
- A create walks the region fallback list and creates in the first region whose
- flavor list has something in stock; a region that offers nothing is skipped
- before any request that would create something. Everything after the create
- runs under one guard: if it fails, the instance is deleted before the failure is
- reported.
+ A create walks the region fallback list and creates in the first region that
+ can give the size asked for, which without a number is the smallest in-stock size
+ of a family mvm picks without being told one; a region that offers none is
+ skipped before any request that would create something. Everything after the
+ create runs under one guard: if it fails, the instance is deleted before the
+ failure is reported.
 
  @module
  */
@@ -164,10 +165,11 @@ async function provisionInRegion({
 /**
  Chooses the size and the image to create with in one region.
  
- Without a size request this is the walk mvm has always made: the smallest flavor
- in stock, then the newest plain image that flavor can boot. With a request it is
- the size walk: the kept families in stock that meet both floors, smallest first,
- and the first of them that boots an image the region offers.
+ Without a size request this takes the smallest in-stock size of a family mvm
+ picks without being told one, then the newest plain image it can boot; a region
+ with no such size in stock refuses. With a request it is the size walk: the kept
+ families in stock that meet both floors, smallest first, and the first of them
+ that boots an image the region offers.
  
  @param image - image shorthand such as `ubuntu`, or omitted for `ubuntu`
  
@@ -183,7 +185,7 @@ async function provisionInRegion({
  
  @throws {@link NoFlavorInStockError} when the region has nothing in stock
  
- @throws {@link NoSizeFitsError} when no size the region may use meets the request
+ @throws {@link NoSizeFitsError} when no size the region may use meets the request, or when every size it has in stock belongs to a family it does not pick without being told one
  
  @throws Error when the image matches nothing, or no size that fits boots one
  
@@ -298,8 +300,9 @@ async function chooseFlavorAndImage({
 }
 
 /**
- Creates an instance in the first region of the fallback list that has a flavor
- in stock.
+ Creates an instance in the first region of the fallback list that can give the
+ size asked for, which without a number is the smallest in-stock size of a family
+ mvm picks without being told one.
  
  @param image - image shorthand such as `ubuntu`, or omitted for `ubuntu`
  
@@ -313,7 +316,7 @@ async function chooseFlavorAndImage({
  
  @returns the instance as OVHcloud answers the create
  
- @throws Error when no region has a flavor in stock, or the image matches nothing
+ @throws Error when no region has a flavor in stock, no region can give the size asked for, or the image matches nothing
  
  @example
  ```ts

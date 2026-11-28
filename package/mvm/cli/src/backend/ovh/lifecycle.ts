@@ -117,8 +117,8 @@ export async function ovhCreate({
     l,
   },);
   /**
-   The floors this create set; empty when it set none, which keeps the smallest
-   size in stock the walk it has always been.
+   The floors this create set; empty when it set none, which asks for the smallest
+   in-stock size of a family mvm picks without being told one.
    */
   const request: SizeRequest = sizeRequest({
     memoryGiB: memoryGiBArgument(memoryGiB,),

@@ -348,11 +348,19 @@ A clone beside either number is refused:
 
 That reason is not yet true of the clone itself.
 The libvirt clone writes a fresh domain with the default 4 vCPUs and 8,192 MiB,
-the OVHcloud clone resolves the region's smallest in-stock flavour (`package/mvm/cli/src/backend/ovh/lifecycle.ts`,
+the OVHcloud clone resolves the smallest in-stock flavour of a family mvm picks
+without being told one (`package/mvm/cli/src/backend/ovh/lifecycle.ts`,
 `ovhClone`),
 and the Hetzner clone takes the cheapest type of the source's architecture.
 So a clone is not the source's size on any of the three today,
 and nobody has run a clone of a larger source onto a smaller size.
+Since 2026-11-28,
+and unapproved,
+an OVHcloud clone refuses a region whose in-stock flavours all belong to
+families the size rule leaves out,
+rather than taking one of them (issue 6670,
+commit `2a8945e99b`;
+`package/mvm/cli/README.md`, "On the ovh backend").
 
 ### `mvm list`
 
