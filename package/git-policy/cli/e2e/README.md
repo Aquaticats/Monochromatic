@@ -1295,10 +1295,12 @@ where a step's duration is its whole step:
   with a bound of 900 s.
   Its whole `run` took 568 s at two jobs and 843 s at one,
   of which the build is 561 s and 839 s.
-- `e2e/forced-act-guest.ts` was two of these, its crate test build and its arm,
+- `e2e/forced-act-guest.ts` was two of these,
+  its crate test build and its arm,
   and both started detached on 2026-11-28.
   The build took 8m 30s at two jobs and 14m 35s at one job before that,
-  and 34m 55s on 2026-11-27 while five other guests ran on this host.
+  then 34m 55s and 39m 22s on 2026-11-27 and 2026-11-28 while five or more
+  other guests ran on this host.
 - `e2e/managed-git-lock-guest.ts:200` is the guest's pool,
   with a bound of 1,800 s.
   It is not timed on its own.
