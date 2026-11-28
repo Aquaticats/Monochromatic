@@ -14,7 +14,11 @@
 //! a removal that Git refused leaves the worktree and its units alone.
 //! Both removals the wrapper serves (the subvolume destroy and Git's own removal run as a child)
 //! end in `ForwardedRun::Ran(0)`,
-//! so one hook covers both;
+//! and a bound slot's removal answers in Git's place with the status a finished
+//! removal ends in (`REMOVED_EXIT_CODE`),
+//! so one hook covers all three,
+//! and `worktree_copy_forward`'s own reading of a removal that ended well decides
+//! when it runs;
 //! a removal handed to Git with the process replaced (`--force`,
 //! `prune`) cannot be looked at afterwards,
 //! and `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those units.

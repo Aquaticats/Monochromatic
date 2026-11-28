@@ -721,3 +721,97 @@ fn a_host_whose_runtime_directory_holds_no_manager_socket_is_asked_once() {
         "the refusal does not say what this process read: {refused}"
     );
 }
+
+/// The control of what kind of file a bus address names:
+/// an address naming a plain file is no transport an ask can be carried over,
+/// so the discovery ends at its first ask rather than spending the span of the asking again.
+/// Why it is a control and not a comment:
+/// no control planted anything but a socket node at an address's path before 2026-11-28,
+/// so `is_a_socket` replaced by a check that the path exists left the whole suite green
+/// on a host where a file sits at a socket's name
+/// (a same-vendor second read of `0.1.5-alpha.18`).
+#[test]
+fn a_plain_file_at_a_bus_address_is_not_a_transport_the_ask_takes() {
+    this_test_needs_a_delegated_scope();
+    // The fixture directory of this control.
+    let directory = scratch();
+    // Where the stand-in writes down each ask.
+    let log: PathBuf = directory.path().join("calls");
+    // What:     `named` is the path the bus address names: a plain file, which carries no ask.
+    // Why:      A read that counted it would keep the asking again on a host where nothing can be reached.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const named = path.join(dir, 'a-bus-address-that-is-a-plain-file')
+    // ```
+    let named: PathBuf = directory.path().join("a-bus-address-that-is-a-plain-file");
+    fs::write(&named, "a plain file where a driver would find a socket").expect("write the plain file");
+    // The settings of this control: the stand-in for `systemctl`, no runtime directory, and the address above.
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (RUNTIME_DIRECTORY_VARIABLE.to_string(), None),
+            (
+                SESSION_BUS_VARIABLE.to_string(),
+                Some(format!("unix:path={}", named.display())),
+            ),
+        ],
+        ..RouteSettings::default()
+    };
+
+    // The words of the refusal, which a host with no transport must give after one ask.
+    let refused: String = asked_once_and_not_waited_for(&settings, &log);
+
+    assert!(
+        refused.contains("nothing an ask could be carried over is there:")
+            && refused.contains(&named.display().to_string()),
+        "the refusal does not say that the plain file at the address's path is no transport: {refused}"
+    );
+}
+
+/// The control of the other kind of file a socket's name can hold:
+/// a directory at a bus address's path is no transport either,
+/// so the discovery ends at its first ask.
+/// Why it is a control and not a comment:
+/// the same read that judged a socket node by its kind is the one that tells a directory from a transport,
+/// and until 2026-11-28 no control planted a directory at an address's path
+/// (a same-vendor second read of `0.1.5-alpha.18`).
+#[test]
+fn a_directory_at_a_bus_address_is_not_a_transport_the_ask_takes() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    // What:     `named` is the path the bus address names: a directory, which carries no ask.
+    // Why:      A directory's mode is not a socket's, so a read that judges the file's kind counts nothing here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const named = path.join(dir, 'a-bus-address-that-is-a-directory')
+    // ```
+    let named: PathBuf = directory.path().join("a-bus-address-that-is-a-directory");
+    fs::create_dir(&named).expect("make the directory");
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (RUNTIME_DIRECTORY_VARIABLE.to_string(), None),
+            (
+                SESSION_BUS_VARIABLE.to_string(),
+                Some(format!("unix:path={}", named.display())),
+            ),
+        ],
+        ..RouteSettings::default()
+    };
+
+    // The words of the refusal, which a host with no transport must give after one ask.
+    let refused: String = asked_once_and_not_waited_for(&settings, &log);
+
+    assert!(
+        refused.contains("nothing an ask could be carried over is there:")
+            && refused.contains(&named.display().to_string()),
+        "the refusal does not say that the directory at the address's path is no transport: {refused}"
+    );
+}

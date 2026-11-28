@@ -29,9 +29,9 @@
 //!  re-proving it and carrying its loss forward is
 //!  `removal_resume::adopt_the_removal`'s own path.
 //!  A lock on the registration whose words are not this add's refuses here too,
-//!  before the first write:
-//!  the Git settle is the one step of the removal's order that reads `locked`,
-//!  and it comes after every destroy,
+//!  before the unmount and the plan this entry writes:
+//!  the Git settle reads `locked` after the unmount,
+//!  the plan and every destroy,
 //!  so a person's lock met only there would be met too late
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 //!  "How doctor and removal tell the states apart").
@@ -317,7 +317,7 @@ pub fn enter_the_removal_with_force(
 /// Why:
 ///  The read-only reading and the writing entry take these steps in one order,
 ///  so a refusal cannot name one check here and another there,
-///  and everything a removal decides before its first write is decided in one place.
+///  and everything a removal decides before the plan it writes is decided in one place.
 ///
 /// # Throws
 /// The check that refused,

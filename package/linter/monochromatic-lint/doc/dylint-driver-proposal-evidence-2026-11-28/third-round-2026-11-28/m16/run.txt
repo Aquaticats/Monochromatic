@@ -1,0 +1,47 @@
+== clock 2026-11-28T13:06:07+00:00
+== image localhost/dylint-probe-2026-11-28c
+== installing nightly-2026-11-28 with the components the lock's row names
+install status 0 after 16s
+
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager
+== its components
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-src
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== its rustc
+rustc 1.102.0-nightly (c82ce1563 2026-11-27)
+== the library's file
+[toolchain]
+channel = "nightly-2026-11-28"
+components = ["llvm-tools-preview", "rustc-dev"]
+== the toolchain name Dylint computes
+nightly-2026-11-28-x86_64-unknown-linux-gnu (overridden by '/work/repo-b/lint-closure/rust-toolchain.toml')
+== the two sysroot answers, from the linter's own working directory
+/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+/root/.rustup/toolchains/nightly-2026-11-28-x86_64-unknown-linux-gnu
+== no driver
+find: '/root/.dylint_drivers': No such file or directory
+== filling the caches (network)
+pkg fetch status 0
+library fetch status 0
+driver fetch status 0
+== arm A: the warm command with the variable set, on the new lock's compiler
+arm A status 1 after 23s
+58:error[E0603]: enum `ErrorOutputType` is private
+794 +         rustc_session::EarlyDiagCtxt::new(rustc_session::output::ErrorOutputType::default());
+    |
+
+For more information about this error, try `rustc --explain E0603`.
+error: could not compile `dylint_linting` (lib) due to 1 previous error
+Error: Error: `cargo` command failed; the full command can be found in `/work/tmp/.tmpv9tObY`
+== driver directory after arm A
+find: '/root/.dylint_drivers': No such file or directory
+== arm B: the linter with the variable set, the caches filled, no driver
+arm B status 2 after 1s
+{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\n    |\n 44 | use crate::output::{ErrorOutputType, OutputType, OutputTypes, ResolveDocLinks};\n    |                     ^^^^^^^^^^^^^^^\nhelp: consider importing this enum instead\n    |\n794 -         rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());\n794 +         rustc_session::EarlyDiagCtxt::new(rustc_session::output::ErrorOutputType::default());\n    |\n\nFor more information about this error, try `rustc --explain E0603`.\nerror: could not compile `dylint_linting` (lib) due to 1 previous error\nError: \rError: `cargo` command failed; the full command can be found in `/work/tmp/.tmpmsDsWd`","code":"core/processing-failure","severity":"error","causes":[],
+--- stderr
+== done 2026-11-28T13:06:54+00:00

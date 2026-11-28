@@ -1058,7 +1058,12 @@ and an HTTP 429 is retried after its `Retry-After`.
   One answer is not on that list and stops the call instead:
   a path the manager reports beside a job a start could not wait out within `DISCOVERY_BOUND`,
   which is a stop that outlasts this tool's bound and would hold the scope launcher with no bound of its own (`RunError::RouteRefused`).
-  A program that outlives its run is killed on the scope path and left alive on that process-group fallback.
+  A program that outlives its run is killed on the scope path.
+  On that process-group fallback,
+  one that stays in the group is killed with the run,
+  and one that leaves the group is left alive.
+  A program that carries a `setsid` of its own leaves the group;
+  what a process group holds is what the kill reaches.
   Its journal holds `pgroup starting` before the child starts and the process group after,
   and every recovery and every new
   transaction refuses such a journal,
@@ -1997,9 +2002,11 @@ and not the call's:
 a reexec that begins after the discovery has answered fails everything after it,
 and no wait in this package covers that.
 A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
-0 to 110 ms after each of its 24 calls began,
-so every discovery was done before the window opened,
-and 11 of the 24 calls exited 1
+0 to 110 ms after each of its 24 calls began.
+In 12 of those 24 the window opened while the discovery was still asking,
+and every one of the twelve exited 0:
+the asking again rode through it.
+The 11 calls that exited 1 met the window after the discovery had answered
 (7 of `0.1.5-alpha.16`'s 12 and 4 of this release's 12,
 every one on the delegated route),
 with the scope launcher's
@@ -2088,6 +2095,13 @@ measured 2026-11-27 in a container),
 so the discovery starts the slice,
 which returned 0 after 3.68 s to 3.78 s behind a planted four-second stop and left
 nothing queued on the slice.
+The slice is active afterwards:
+the start's job replaces the person's stop (`replace` is the job mode `systemctl start` uses),
+so a person who stopped the slice for a configuration change finds it running again.
+Measured 2026-11-28 by a same-vendor second read of this release,
+nine seconds after two such calls an arm:
+the slice was active where `0.1.5-alpha.17` left it inactive.
+Whether a call should do that is in the package document's Open list.
 Measured 2026-11-27 in that container's own manager with a service that ignores SIGTERM holding the stop open,
 three rounds of each arm,
 one call each:

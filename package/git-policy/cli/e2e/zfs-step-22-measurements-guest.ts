@@ -354,7 +354,10 @@ async function runTheStep(chosen: Options,): Promise<void> {
   if (step === undefined)
     throw new Error(`unknown step '${chosen.step}'; use create, prepare, run, destroy or all`);
   // Said before this run makes anything: every step of this driver waits by reading the host's side of the share.
-  refuseAHostSideRead({ backend: guestBackend(), step: chosen.step, });
+  refuseAHostSideRead({
+    backend: guestBackend(),
+    step: chosen.step,
+  },);
   await mkdir(
     chosen.logDir,
     {

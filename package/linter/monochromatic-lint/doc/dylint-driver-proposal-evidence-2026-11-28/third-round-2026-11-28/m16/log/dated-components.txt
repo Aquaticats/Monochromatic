@@ -1,0 +1,6 @@
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-src
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu

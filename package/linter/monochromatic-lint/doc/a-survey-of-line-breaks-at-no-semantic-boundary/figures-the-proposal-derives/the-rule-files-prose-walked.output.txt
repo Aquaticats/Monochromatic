@@ -1,0 +1,37 @@
+Running as unit: run-p4154501-i104701894.scope; invocation ID: 5ac69780b62c439aa430f45251bdeff8
+file: /home/user/temp/agent/line-break-proposal-revised-against-its-fourth-gate-read-with-one-decision-for-each-kind-and-a-first-screen-scratch/copies-at-the-survey-commit/AGENTS.md
+breaks inside paragraphs: 1030
+breaks at no boundary: 21
+  block-marker: 0
+  conjunction: 13
+  dash: 0
+  inline-span: 0
+  ordinary: 1
+  parenthesis: 7
+lines ending in a dash: 0
+
+each break at no boundary, with the line it ends:
+  line 83 [conjunction] "once X ends") names the test that ends it
+  line 131 [conjunction] cite web sources with `#:~:text=` text fragments
+  line 400 [conjunction] owner questions off its path wait in `doc/handover/questions-for-the-owner.md`
+  line 408 [conjunction] tools)
+  line 416 [parenthesis] have a cross-vendor reviewer re-review the current design
+  line 456 [conjunction] raw system calls
+  line 518 [conjunction] read the resolver implementation and its stores
+  line 683 [conjunction] never by name (`pgrep --full` matches its own shell)
+  line 730 [parenthesis] never `/tmp` or the harness scratchpad
+  line 733 [parenthesis] then `chmod 700`
+  line 850 [conjunction] Never start a service manager (`systemd --user`) on the host
+  line 993 [parenthesis] Install tools only via `mise run toolchain:install`
+  line 998 [conjunction] mpm-shadow can still compile a third-party one
+  line 1458 [parenthesis] Code consuming unbounded input
+  line 1459 [ordinary] (regex replacement included)
+  line 1674 [conjunction] CI scripts
+  line 1676 [conjunction] take it from a real invocation
+  line 1703 [conjunction] Numerals only where the exact value is the claim
+  line 1704 [parenthesis] or the reader acts on it
+  line 1713 [parenthesis] section or record by what it covers plus a second-precise ISO 8601 timestamp with offset
+  line 1733 [conjunction] name) in a historical record keeps its original text
+
+a break before a conjunction or a parenthesis is not a break the rule's fixer writes: it writes only
+after one of its six characters, so those two kinds cannot be its output in this file

@@ -121,18 +121,23 @@ pub(super) fn createtxg_of(
 
 /// One binding record of one phase,
 /// with every field that phase proves,
-/// read from the guest's own pool.
+/// read from the guest's own pool,
+/// naming the checkout snapshot its suffix names.
 fn record_at(
     phase: Phase,
     place: &Place,
     sbin: &str,
+    snapshot_suffix: &str,
 ) -> BindingRecord {
     let common_identity: FolderIdentity = FolderIdentity::of_folder(place.common.as_path())
         .expect("the common directory's identity reads");
     let registration_identity: FolderIdentity =
         FolderIdentity::of_folder(place.registration.as_path())
             .expect("the registration's identity reads");
-    let snapshot: String = format!("{}@{ORIGIN_PREFIX}{NONCE}", place.checkout_dataset);
+    let snapshot: String = format!(
+        "{0}@{ORIGIN_PREFIX}{snapshot_suffix}",
+        place.checkout_dataset
+    );
     let pointer: Vec<u8> = place.pointer.clone();
     let with_clone: bool = matches!(
         phase,
@@ -182,9 +187,32 @@ pub(super) fn publish(
     sbin: &str,
     slot: &str,
 ) {
+    publish_for_the_snapshot(place, phase, sbin, slot, NONCE);
+}
+
+/// What:
+///  Publish one record whose origin is the checkout snapshot one suffix names.
+/// Why:
+///  A scene a removal runs on takes a snapshot of its own,
+///  because that removal destroys the snapshot its clone was made from,
+///  so the record a scene publishes must name the snapshot that scene holds
+///  rather than the arm's first one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// publishForTheSnapshot(place, Phase.Filled, sbin, 'removal', '1a2b...');
+/// ```
+pub(super) fn publish_for_the_snapshot(
+    place: &Place,
+    phase: Phase,
+    sbin: &str,
+    slot: &str,
+    snapshot_suffix: &str,
+) {
     let home: std::fs::File =
         open_or_create_home(place.common.as_path()).expect("the record home opens");
-    write_binding(&home, slot, &record_at(phase, place, sbin)).expect("the record writes");
+    write_binding(&home, slot, &record_at(phase, place, sbin, snapshot_suffix))
+        .expect("the record writes");
 }
 
 /// The facts one slot's state is read from,

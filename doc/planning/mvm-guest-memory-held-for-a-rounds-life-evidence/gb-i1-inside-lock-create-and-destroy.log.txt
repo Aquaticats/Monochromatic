@@ -1,0 +1,9 @@
+[info] [2026-11-28T12:15:41.388Z] [mvm] [create] creating VM gb-i1 (image: ubuntu)
+[info] [2026-11-28T12:15:41.389Z] [mvm] [ensureTemplate] using cached template /home/user/.local/share/mvm/images/template-ubuntu.qcow2
+[info] [2026-11-28T12:15:41.390Z] [mvm] [create] creating disk from template image...
+[info] [2026-11-28T12:15:41.467Z] [mvm] [createSeedIso] created seed ISO at /home/user/.local/share/mvm/vms/gb-i1/seed.iso
+[info] [2026-11-28T12:15:41.652Z] [mvm] [waitForGuestAgent] waiting for guest agent on gb-i1...
+[info] [2026-11-28T12:15:50.880Z] [mvm] [waitForGuestAgent] guest agent on gb-i1 is ready
+[info] [2026-11-28T12:15:50.880Z] [mvm] [create] VM gb-i1 is ready. Connect with: mvm shell gb-i1
+[info] [2026-11-28T12:34:22.275Z] [mvm] [destroy] destroying VM gb-i1
+[info] [2026-11-28T12:34:23.843Z] [mvm] [destroy] VM gb-i1 destroyed

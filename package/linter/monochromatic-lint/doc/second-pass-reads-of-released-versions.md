@@ -339,8 +339,8 @@ so this round took the brief's pick:
 the width is the host line's.
 The veto stays open.
 `doc/planning/monochromatic-lint-a-line-break-at-no-semantic-boundary-is-or-is-not-a-finding.md`,
-question 4,
-records that an earlier round refused a host-aware bound and asks the owner which bound to use;
+decision 3,
+records that an earlier round refused a host-aware bound and asks the owner for a veto;
 that note now says what the shipped code does and that the owner has not been asked since.
 
 #### The quote marker the README said was not written (Low 8)
@@ -544,9 +544,389 @@ in its own capped scope:
   The shipped code now counts the host line,
   including the marker and the host indent.
   An earlier round refused that bound,
-  and the proposal's question 4 asks for the choice.
+  and the proposal's decision 3 asks for the veto.
   The way not taken is the projection's width with a corrected README,
   which costs a rule that writes lines over the limit it enforces.
 - Whether the join should reach a line the author wrote alone.
   Today it reaches only a fragment a break of the same pass cut,
   which is why the wrapper's lone `the` stays.
+
+## 0.5.2-alpha.25, read on 2026-11-28
+
+The read covered release commit `6f52a414fc`
+with the released binaries and fixture trees only:
+nothing was built,
+no test suite was run,
+and no file of this repository was written.
+Its counts were no High finding,
+no Medium finding,
+and eight Low ones.
+Three of those findings and one change the read found no claim for belong to this round;
+the other five findings and two controls belong to the round that answers the allow-list reader,
+and the closure rule of issue 6667 belongs to neither.
+
+The read was written at `2026-11-28T06:22:20-05:00`
+in a scratch folder that expires a day after its last change,
+so what this section uses from it is restated here
+from the release's own source and from runs of both released binaries.
+
+Its binary,
+by sha256 of the x86_64 Linux archive's program,
+so a later round can tell whether it measured the same code:
+
+- `0.5.2-alpha.25`:
+  `34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a`.
+- `0.5.2-alpha.24`,
+  the comparison arm every reproduction below was run against:
+  `0903b914f51cb9ebe68cd8ac2fca53868f9008213f27cc768a1b406f77860994`.
+
+### What the round changed
+
+#### A delimiter that closes nothing is not the rule's line end (the read's Low 3)
+
+The read's finding,
+quoted:
+
+> The test for a fragment that "ends at a break point" trims characters of a text
+> (`*`,
+> `_`,
+> `~`,
+> brackets,
+> quotes) and not delimiters of a tree,
+> so it declines seven joins that `0.5.2-alpha.24` made and that nothing would break again.
+
+Reproduced on both released binaries,
+one file per shape,
+each `One two, <fragment>` followed by `four five.`:
+
+- `(*held,*)`,
+  `"*held,*"`,
+  `held,*`,
+  `held,__`,
+  `snake_case,_`,
+  `x*,*` and `**held**,**`:
+  `0.5.2-alpha.24` wrote the fragment onto the following line in one changing pass,
+  and `0.5.2-alpha.25` kept the author's line ending,
+  also in one pass.
+- `*held,*`,
+  `**held,**`,
+  `_held,_`,
+  `~~held,~~`,
+  `***held,***`,
+  `**_held,_**`,
+  `*held;*`,
+  `*held.*` and `~held,~`:
+  both releases wrote the same text,
+  `0.5.2-alpha.24` in two changing passes and `0.5.2-alpha.25` in one.
+- A second `--fix` changed no byte in any of the sixteen shapes on either release.
+
+Two mechanisms in the source,
+read at `6f52a414fc`:
+
+- `src/markdown_break_points.rs`,
+  `ends_at_break_point`,
+  trimmed `*`,
+  `_`,
+  `~`,
+  the brackets and the quotes from the end of a fragment
+  and called the fragment an ending whatever stood there,
+  so a star that closes nothing read as an emphasis closer.
+- `src/markdown_break_points.rs`,
+  `break_offsets`,
+  and `src/markdown_prose_context.rs`,
+  `delimiter_tail`,
+  decide that question with the parsed tree:
+  the break moves past the brackets and quotes its own text node ends at
+  and past an emphasis,
+  a strong emphasis or a strikethrough that ends there,
+  and then needs a space or a tab at that position.
+
+Changed,
+in the code:
+
+- `ends_at_break_point` takes the parsed source,
+  the paragraph and the fragment's byte range,
+  finds the last break point of that range
+  and asks `break_position` where the rule's own break lands:
+  the text node's trailing bracket and quote run,
+  then the delimiter chain that ends there.
+  It answers yes only when that position reaches the fragment's end.
+- `fragment_joins` and `fragment_join` take the parsed source and the paragraph
+  instead of raw text and a host-prefix number,
+  because the tree answers where the rule breaks
+  and the width is the source's own prefix.
+- The `*`,
+  `_` and `~` trim disappears with no replacement character list:
+  a delimiter counts only where the tree closes a node.
+
+The two lists are held at both levels:
+
+- `src/markdown_fragment_joins_tests.rs`,
+  `an_emphasis_closed_break_point_ends_its_line` holds the nine shapes that stay,
+  and `a_delimiter_that_closes_nothing_leaves_the_fragment_joinable` holds the seven that join.
+  The fixtures are parsed now,
+  so the answer under test is the rule's own tree answer.
+- `src/markdown_semantic_breaks_tests.rs`,
+  `a_fragment_ending_inside_closing_emphasis_stays_and_the_fix_settles` holds the nine
+  with one pass and no finding left,
+  and `a_delimiter_that_closes_nothing_joins_in_one_pass` requires exactly one changing pass
+  and no finding left on each of the seven.
+
+Each control was shown able to fail by putting the old code back:
+
+- The `0.5.2-alpha.25` character trim makes both join-list controls fail on `(*held,*)`:
+  `"One two, (*held,*)\nfour five.\n"` against `"One two, (*held,*) four five.\n"`,
+  and `"One two,\n(*held,*)\nfour five.\n"` against `"One two,\n(*held,*) four five.\n"`.
+- A body answering `false` for every fragment drops the keep list:
+  `an_emphasis_closed_break_point_ends_its_line` fails on `*held,*`,
+  and `a_fragment_ending_inside_closing_emphasis_stays_and_the_fix_settles` fails at its own check.
+
+After the change a joined fragment keeps the author's line ending
+until the join removes it,
+and the rule reports nothing on the joined line,
+which is why one pass settles.
+
+#### The line limit bounds joins, and a break may write a longer line (the read's Low 4)
+
+The read's finding,
+quoted:
+
+> A break the fix writes inside a deep quote or list can be 120 characters or more,
+> because the continuation prefix is written before a tail that was a lazy line;
+> only a join bounds a width,
+> and the release note says the fix keeps the line limit.
+
+Reproduced on both released binaries,
+which write the same bytes in all three shapes,
+each in one changing pass with a second `--fix` changing nothing:
+
+- `> > > Start of it` followed by `c,` and 116 characters:
+  the fix writes `> > > ` before that tail,
+  a line of **122** characters.
+- a list three levels deep,
+  `- a`,
+  `  - b`,
+  `    - c start`,
+  then `d,` and 116 characters:
+  the fix writes six spaces before the tail,
+  a line of **122**.
+- an ordered item numbered `100.`,
+  `100. start` then `c,` and 115 characters:
+  the fix writes five spaces,
+  a line of **120**.
+
+The code is right and the release note was the sentence that overreached:
+`src/markdown_semantic_breaks.rs` writes the paragraph's continuation prefix before the rest of
+the author's line,
+and only `src/markdown_fragment_joins.rs`,
+`fragment_join`,
+compares a width with the limit.
+Changed,
+in `README.md`:
+
+- The join paragraph says the limit bounds joins,
+  and says what a break may write,
+  with these three shapes as its example:
+  a third-level quote writes `> > > ` before a tail of 119 characters,
+  a list item two levels deep writes six spaces before that tail,
+  and an item numbered `100.` writes five spaces before a tail of 118.
+- It says the tail is the author's own clause,
+  so no count shortens it,
+  and the rule reports nothing on the line it wrote.
+
+Whether such a tail could be written as a lazy line,
+with no prefix at all,
+was measured rather than argued:
+`pandoc --from gfm --to html` renders each marked output of the three shapes and its lazy variant
+to byte-identical HTML,
+and each marked output renders like its input,
+so laziness changes nothing a reader sees today.
+What it would take is a `continuation_prefix` that writes nothing for a break whose tail was the
+author's own lazy line,
+and it would cost the raw structure:
+a blank line planted before the tail stays inside the quotation and the list item in the marked
+form,
+and moves the tail to a top-level paragraph in the lazy one.
+That fragility is what `src/markdown_prose_context.rs`,
+`continuation_prefix`,
+and the README's own paragraph about laziness already name,
+so this is a suggestion to weigh and no change of this round.
+
+#### Which prefix of a comment run a join counts (a change no claim accounted for)
+
+The read's section "Changes that no claim accounts for",
+quoted:
+
+> The width of a join counts the widest prefix of the doc comment run (`processors.rs` lines 96 to 102),
+> so a run that holds lines of different indent declines joins the line's own prefix would allow.
+> The README says only that the marker and indentation count.
+
+Reproduced on both released binaries with a rustdoc run of four lines:
+`/// One two, so we`,
+then `/// ` and 109 characters,
+then `    /// Third four, so we`,
+then `    /// ` and 87 characters,
+then `pub struct A;`.
+A break is planned after `two,`,
+and the fragment's own line carries four characters of prefix
+while another line of the same run carries seven:
+
+- `0.5.2-alpha.24` joins the column-zero fragment,
+  and the joined line is **119** characters.
+- `0.5.2-alpha.25` declines it,
+  leaving `/// so we` alone,
+  and joins the deeper fragment instead,
+  whose joined line is 101 characters.
+
+So the shipped code counts the widest prefix of the run,
+which is a deliberate bound:
+`src/processors.rs`,
+`host_prefix_chars`,
+whose doc comment says the widest prefix is a bound no written line can pass.
+The README was the record that was incomplete.
+Changed,
+in `README.md`:
+
+- The width counts the widest prefix the host writes before the lines of the comment run,
+  not the joined line's own.
+- A run whose lines sit at two depths declines a join its own line's prefix would allow,
+  and the line that absorbs a fragment keeps the prefix it was written with.
+
+What counting the joined line's own prefix would take,
+and what it would cost:
+`MarkdownSource` carries one number,
+so it would have to carry the projection's per-line prefix widths,
+which `src/processors_docs.rs`,
+`line_doc`,
+already keeps as the line's `prefix`,
+and answer them by line offset.
+It cannot write a joined line over the limit,
+because the sum counted is the host line's own width:
+the run's margin only decides how much of a line's indent sits in the prefix and how much in the
+text,
+so prefix plus text is the same number either way,
+and the absorbing line keeps its own prefix.
+Its cost is a bound that differs between lines of one run,
+so the same words join or stay depending on which line of the run absorbs them.
+The widest prefix was kept because one number per projected source is what the round before this
+one built,
+and no record asks for a per-line bound.
+
+#### The host-width controls hold a mixed run and a `///` marker (the third control of the read's Low 5)
+
+The read's third control,
+quoted:
+
+> every fixture line has the same prefix and the marker is `//!` only,
+> so `VirtualSource::host_prefix_chars` written as the first line's prefix,
+> the last line's,
+> or the shortest stays green.
+
+That was true of the tests this round started from:
+`src/run_command_whitespace_fix_tests.rs`,
+`a_joined_doc_line_stays_under_the_limit_in_its_host_file`,
+ran one prefix per fixture,
+`//! ` at three depths,
+and the read's own plant showed such a fixture stays green under a first-line prefix.
+Changed:
+
+- That test now runs `/// ` and `    /// ` as well as `//! ` and the deeper `//! `,
+  so both markers stand at the binary's surface.
+- `the_widest_prefix_of_a_comment_run_bounds_the_join` is new
+  and runs through the same entry point.
+  Its run holds two lines at column zero,
+  a middle line four spaces deeper,
+  and the word line at column zero,
+  so the widest prefix stands neither first nor last
+  and the shortest reading gives four characters.
+  A word that fills the joined line to 119 characters counted at the widest prefix is written,
+  the same word at 120 is declined,
+  and the same text with the middle line at column zero joins at that length,
+  so the decline is the widest prefix and not the word's length.
+
+Shown able to fail:
+`VirtualSource::host_prefix_chars` written as the first line's prefix makes
+`the_widest_prefix_of_a_comment_run_bounds_the_join` fail,
+while `a_joined_doc_line_stays_under_the_limit_in_its_host_file` stays green,
+which is the gap the read named.
+
+### What this round did not do
+
+- The read's Lows 1,
+  2,
+  6,
+  7 and 8,
+  and the first two controls of its Low 5,
+  are the allow-list reader's and belong to the round
+  `monochromatic-lint-alpha-25-read-a-spaced-folder-is-listed-once-and-each-unseen-character-gets-its-own-advice`.
+- Issue 6667 and the closure rule belong to the round
+  `monochromatic-lint-a-package-the-closure-rule-did-not-check-never-ends-as-clean`.
+- No option of the line-break proposal was decided,
+  and no mutation campaign was run:
+  the mutants this round's lines would draw are named under "Checks run".
+- A fragment ending in an abbreviation (`e.g.`) still keeps its line,
+  although the rule does not break there.
+  That predates this round and no finding names it.
+
+### Checks run
+
+Each once,
+in this branch's worktree,
+in its own capped scope:
+
+- `mise run //package/linter/monochromatic-lint:lint:rustfmt`:
+  `cargo fmt --check` printed its own command and nothing else.
+- `mise run //package/linter/monochromatic-lint:test`:
+  exit `0` with `1219 tests run: 1219 passed, 3 skipped` at commit `69bc666b56`,
+  and the output names every test this round added.
+- `mise run //package/linter/monochromatic-lint:lint:types`:
+  exit `0`,
+  both `cargo check --locked` and `cargo clippy --locked --all-targets -- -D warnings`.
+  The first run was red on `clippy::shadow_unrelated`,
+  for a second `text_start` this round had put beside the existing one in `fragment_join`;
+  the binding is now `text_from`,
+  and the task is green.
+- `mise run //package/linter/monochromatic-lint:test:host`:
+  exit `100`.
+  The package defines that task as the closure check's host-only run
+  (`cargo nextest run --test closure_binary --run-ignored only`),
+  so it names one test,
+  `host_real_run_over_wg_quicker_exempt`,
+  and no test of this round.
+  It fails because the Dylint driver for the active toolchain and `dylint_driver` 6.4.0
+  are not on this machine:
+  "the Dylint driver for toolchain `nightly-x86_64-unknown-linux-gnu` ... is absent
+  (cargo-dylint is 6.4.0),
+  and `dylint_driver` 6.4.0 with its dependencies is not in the cargo cache,
+  so `cargo dylint` would have to download it,
+  which this linter does not do".
+  The message names the one command that fills those caches,
+  and it needs network access this round does not have.
+  The closure check reads no line this round changed.
+- The installed `monochromatic-lint 0.5.2-alpha.25` over this README and this file:
+  exit `0`,
+  no finding.
+  Its first run over the same two files was red:
+  the join paragraph had commas inside a line,
+  and the new section had commas and a colon inside a line,
+  which `markdown/semantic-line-breaks` reports at three lines of the README and at 14 lines of
+  the section,
+  and every one of those lines was rewritten to end at its clause.
+- A render of every Markdown passage the round changed,
+  through `pandoc --from gfm --to html`,
+  read by eye.
+- The two released binaries for every reproduction above,
+  each in its own capped scope,
+  over fixture files in a scratch folder only.
+
+No mutation run was made.
+A run of the package's Markdown and processors scopes would be expected to report,
+among the lines this round changed:
+`break_position` returning the text node's own end instead of the delimiter chain's end,
+which the keep list catches on `*held,*`,
+`ends_at_break_point` replaced by `true` or by `false`,
+which the two lists catch between them,
+the `>=` in `position >= end` written `>`,
+which the keep list catches on the same shape,
+and the `context.host_prefix_chars` term of the width dropped,
+which `a_joined_doc_line_stays_under_the_limit_in_its_host_file` catches.

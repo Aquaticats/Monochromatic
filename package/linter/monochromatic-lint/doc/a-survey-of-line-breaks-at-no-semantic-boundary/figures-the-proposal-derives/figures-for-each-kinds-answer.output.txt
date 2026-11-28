@@ -1,0 +1,70 @@
+Running as unit: run-p4122333-i104656885.scope; invocation ID: bea4ba321336400db14cd5563ca41078
+## the sums that must hold
+A every break: per-class rows sum to 210,207, the predicate's own row says 210,207
+B every joinable break: per-class rows sum to 162,707, the predicate's own row says 162,707
+D unforced clause: per-class rows sum to 144,863, the predicate's own row says 144,863
+F1 short next line: per-class rows sum to 73,414, the predicate's own row says 73,414
+F2 short line: per-class rows sum to 39,485, the predicate's own row says 39,485
+block-marker + conjunction + dash + inline-span + ordinary + parenthesis = 210,207; A's row says 210,207
+the dash row is subtracted once under an answer that permits it, and it is counted in no other row: 20
+
+## each kind alone: the breaks it removes from each predicate's findings
+kind           A           B           D          F1          F2
+block-marker                  65          38          37          39          13
+conjunction               19,749      12,392      10,537       1,703       2,706
+dash                          20          17          14           6           2
+inline-span               25,355      17,512      14,769      12,829       5,137
+ordinary                 127,985     106,692      96,637      39,464      28,731
+parenthesis               37,033      26,056      22,869      19,373       2,896
+TOTAL of the six         210,207     162,707     144,863      73,414      39,485
+
+## under: permit none of the six kinds
+the kinds permitted: none
+A every break: findings 210,207 (was 210,207), files 8,721 at permit none, ordinary findings 127,985, ordinary share 60.89 percent, ordinary breaks covered 127,985, cleared by the modeled join 162,707 (77.40 percent)
+B every joinable break: findings 162,707 (was 162,707), files 8,185 at permit none, ordinary findings 106,692, ordinary share 65.57 percent, ordinary breaks covered 106,692, cleared by the modeled join 162,707 (100.00 percent)
+D unforced clause: findings 144,863 (was 144,863), files 8,085 at permit none, ordinary findings 96,637, ordinary share 66.71 percent, ordinary breaks covered 98,708, no command clears a finding of it
+F1 short next line: findings 73,414 (was 73,414), files 7,072 at permit none, ordinary findings 39,464, ordinary share 53.76 percent, ordinary breaks covered 39,464, cleared by the modeled join 62,521 of 73,414, which is counted at permit none only
+F2 short line: findings 39,485 (was 39,485), files 4,728 at permit none, ordinary findings 28,731, ordinary share 72.76 percent, ordinary breaks covered 28,731, cleared by the modeled join 36,540 of 39,485, which is counted at permit none only
+
+## under: permit the conjunction and parenthesis kinds
+the kinds permitted: ['conjunction', 'parenthesis']
+A every break: findings 153,425 (was 210,207), files 8,721 at permit none, ordinary findings 127,985, ordinary share 83.42 percent, ordinary breaks covered 127,985, cleared by the modeled join 124,259 (80.99 percent)
+B every joinable break: findings 124,259 (was 162,707), files 8,185 at permit none, ordinary findings 106,692, ordinary share 85.86 percent, ordinary breaks covered 106,692, cleared by the modeled join 124,259 (100.00 percent)
+D unforced clause: findings 111,457 (was 144,863), files 8,085 at permit none, ordinary findings 96,637, ordinary share 86.70 percent, ordinary breaks covered 98,708, no command clears a finding of it
+F1 short next line: findings 52,338 (was 73,414), files 7,072 at permit none, ordinary findings 39,464, ordinary share 75.40 percent, ordinary breaks covered 39,464, cleared by the modeled join 62,521 of 73,414, which is counted at permit none only
+F2 short line: findings 33,883 (was 39,485), files 4,728 at permit none, ordinary findings 28,731, ordinary share 84.79 percent, ordinary breaks covered 28,731, cleared by the modeled join 36,540 of 39,485, which is counted at permit none only
+
+## the order by ordinary share, under each answer
+permit none of the six kinds
+  72.76 percent  F2 short line  = 28,731 / 39,485
+  66.71 percent  D unforced clause  = 96,637 / 144,863
+  65.57 percent  B every joinable break  = 106,692 / 162,707
+  60.89 percent  A every break  = 127,985 / 210,207
+  53.76 percent  F1 short next line  = 39,464 / 73,414
+
+permit the conjunction and parenthesis kinds
+  86.70 percent  D unforced clause  = 96,637 / 111,457
+  85.86 percent  B every joinable break  = 106,692 / 124,259
+  84.79 percent  F2 short line  = 28,731 / 33,883
+  83.42 percent  A every break  = 127,985 / 153,425
+  75.40 percent  F1 short next line  = 39,464 / 52,338
+
+## what the emphasis climb at the tree's tip can move
+quiet emphasis endings in the population: 3,383
+emphasis endings the short-line predicate counts: 1,163
+A every break: with the emphasis endings out, at most 61.88 percent (127,985 / 206,824)
+B every joinable break: with the emphasis endings out, at most 66.80 percent (106,692 / 159,710)
+F2 short line: with the emphasis endings out, at most 74.97 percent (28,731 / 38,322)
+D and F1 have no durable row, so neither of their shares can be moved here
+
+## each scope's count, in each predicate's unit, at permit none
+families read: 21 (doc families: 18)
+A: doc/ 140,090, package/ 69,575 (Markdown 29,259, Rust doc 40,316), the rest 542, whole tree 210,207
+B: doc/ 106,496, package/ 55,740 (Markdown 21,200, Rust doc 34,540), the rest 471, whole tree 162,707
+D: doc/ 93,494, package/ 50,956 (Markdown 18,335, Rust doc 32,621), the rest 413, whole tree 144,863
+F1: doc/ 50,836, package/ 22,427 (Markdown 9,025, Rust doc 13,402), the rest 151, whole tree 73,414
+F2: doc/ 29,489, package/ 9,894 (Markdown 4,050, Rust doc 5,844), the rest 102, whole tree 39,485
+
+## the short-line predicate in the one package a repair route has run over
+G findings (F2 inside package/git-policy/cli): 4,010 in 1,481 files
+no row of output.txt counts another predicate inside one package

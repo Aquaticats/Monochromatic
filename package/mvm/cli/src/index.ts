@@ -38,6 +38,8 @@ export {
  @internal
  */
 export {
+  DATA_DIR_ENV,
+  hetznerDataDir,
   requireToken,
   resolveLocations,
   serverTypeOverride,
@@ -227,7 +229,10 @@ export {
 
  @internal
  */
-export { ovhExec, } from './backend/ovh/exec.ts';
+export {
+  ovhExec,
+  ovhRun,
+} from './backend/ovh/exec.ts';
 /**
  OVHcloud region selection, exposed for built-artifact verification.
 
@@ -275,6 +280,22 @@ export {
 } from './backend/ovh/ssh.ts';
 export * from './backend/registry.ts';
 export * from './backend/size-request.ts';
+/**
+ The backend-neutral ephemeral run helper, exposed for built-artifact
+ verification with a recording stand-in for its backend operations.
+
+ @internal
+ */
+export {
+  ephemeralRun,
+  type EphemeralOps,
+} from './backend/ephemeral-run.ts';
+/**
+ Hetzner exec and ephemeral run, exposed for built-artifact verification.
+
+ @internal
+ */
+export { hetznerRun, } from './backend/hetzner/exec.ts';
 export type {
   Backend,
   BackendKind,
