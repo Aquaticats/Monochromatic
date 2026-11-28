@@ -627,6 +627,9 @@ and the incident in `doc/troubleshooting/search-shadow-copies-start-each-other-w
 
 The vetting of the chosen program (`vet` in `src/real_binary.rs`) refuses a program that is a shadow while the file is open,
 and the program is started through that open file.
+The start's own check is this crate's and not the other shadow crates' shared refusal:
+it has two outcomes that refusal has no word for,
+so a refused start here keeps its own line.
 The real cargo that the install step starts inside its contained runner (`src/cargo_run.rs`) sets no arrival marker:
 it is chosen by the same lookup that skips shadows by identity,
 and it keeps `vet` and the repeated check before its start.
@@ -1052,6 +1055,7 @@ and an HTTP 429 is retried after its `Retry-After`.
   an unknown slice,
   a kernel before 5.14),
   the run goes on in a process group of its own and prints one line naming the missing capability.
+  A program that outlives its run is killed on the scope path and left alive on that process-group fallback.
   Its journal holds `pgroup starting` before the child starts and the process group after,
   and every recovery and every new
   transaction refuses such a journal,
@@ -1985,6 +1989,23 @@ Linux 7.3.5 and 6.8,
 systemd 262 and 255),
 not the second after one,
 where no ask failed and the ten of that run did.
+The span is the discovery's,
+and not the call's:
+a reexec that begins after the discovery has answered fails everything after it,
+and no wait in this package covers that.
+A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
+0 to 110 ms after each of its 24 calls began,
+so every discovery was done before the window opened,
+and 11 of the 24 calls exited 1
+(7 of `0.1.5-alpha.16`'s 12 and 4 of this release's 12,
+every one on the delegated route),
+with the scope launcher's
+`Failed to connect to user scope bus via local transport: Connection refused`
+and `cargo update --workspace --offline failed` in the output of the calls whose standard error that read kept.
+The two releases differ only in where the reexec fell inside each call,
+and the code that makes the scopes is the same,
+so neither release tried a scope's creation again.
+Whether a scope's creation that meets a reexec is tried again is not decided.
 Where a manager answers,
 the asking again costs nothing:
 the first ask answers and no wait is spent.
