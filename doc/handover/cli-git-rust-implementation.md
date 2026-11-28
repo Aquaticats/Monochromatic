@@ -2829,11 +2829,6 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-
-- Medium:
-  at least 31 definitions became nameable from outside the crate,
-  seven of them private helpers a split made bare `pub`
-  (one removes directories).
 - Medium:
   the extract-function refactors are unread but for ten commits.
   A second read of the seven the pass named first,
