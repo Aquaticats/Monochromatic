@@ -145,22 +145,6 @@ and the finding stays reported:
   `markdown/no-pipe-tables` has no fix.
 - A bare URL whose link text contains a backtick is reported without a fix,
   because the parser read a code span delimiter into the URL.
-- A line break inside a blockquote carries no `>`,
-  also when the quote sits in a list item or holds a list.
-  A `>` is a token,
-  and a fix that only changes whitespace never adds one.
-  The new line is a lazy continuation:
-  CommonMark 0.31.2,
-  section 5.1 "Block quotes",
-  rule 2 "Laziness",
-  keeps a line without `>` in the paragraph of the
-  quote it continues,
-  at any depth,
-  and the rule never breaks where the next line would start another block,
-  the one case laziness excludes.
-  A quote whose lines all carry `>` therefore gets a line without it where a break is added;
-  it renders the same,
-  and an author who wants `>` on every line adds it by hand.
 
 ## Fix classes
 
@@ -173,8 +157,12 @@ or `null` for a rule that has no fix.
 - A `whitespace` fix changes line breaks and the spaces around them,
   and no token of the text.
   `markdown/semantic-line-breaks` is the only rule of this class.
-  In a Rust file the continuation line of a broken doc comment also gains the comment marker,
-  which is comment syntax and not part of the text.
+  A line the fix writes also takes the syntax of the container it continues,
+  which is not a token of the text and which a renderer does not show:
+  in a Rust file the line of a broken doc comment gains the comment marker,
+  and a line broken inside a block quote gains the quote markers of the paragraph's own line.
+  Every other kind of block marker becomes a space instead,
+  because writing a list marker there would open a new item rather than continue this one.
 - A `content` fix adds,
   removes or rewrites a token.
   These are `markdown/commands-show-output`,
@@ -2682,12 +2670,13 @@ for a comma inside an inline code span,
 beside two findings for a plain sentence on the next line,
 so a report that the rule broke an inline code span was not reproduced.
 
-The semantic break fix also joins the fragment an old hard wrap cut off.
-Only a fragment a break of the same pass cut joins:
+The semantic break fix also joins the fragment an old hard wrap cut off,
+and only a fragment a break of the same pass cut:
 the joins hang on the breaks one pass plans
 (`markdown_semantic_breaks.rs`,
 the `breaks` list that feeds `fragment_joins`),
-so a line already alone in the input is never joined by itself,
+so a break of this pass gives one fragment one join.
+A line already alone in the input is never joined by itself,
 and a fragment an earlier sweep left stays where it is until a break above it is planned again.
 When the rest of the author's line holds one or two words that do not end at a break-point
 character,
@@ -2695,14 +2684,37 @@ is not the paragraph's last line,
 carries no hard break,
 and the following line carries no block marker,
 the fragment joins the line that continues its clause through one space,
-where the joined line stays under 120 characters.
+where the line the host file shows stays under 120 characters.
+That width counts the characters the host writes before the text,
+so a Rust doc comment's marker and indentation are part of it,
+and a comment inside a module joins a line shorter than a comment at column zero.
 A fragment that ends at a break-point character stays alone,
 because the rule wants a line to end there and would break it again on the next pass,
-so `4,` and `held,` keep their lines.
+and that test skips the closing delimiters the rule's own break skips:
+the brackets and quotes the rule's own break passes,
+and the `*`,
+`_` and `~` that close an emphasis,
+a strong emphasis or a strikethrough,
+so `4,`,
+`held,` and `*held,*` keep their lines.
+One line ending takes one join,
+so two breaks on one line leave one fragment joined and the other alone on its line.
 A line the fix writes takes the indent the paragraph's first continuation line carries,
 so the lines of one paragraph are written at one depth,
 which is what a Rust doc comment keeps when its old lines were written one space deeper.
-The fix never rewrites a line the author wrote.
+A break inside a block quote is written with the quote markers of the paragraph's own first line,
+so the new line stays in the quotation in the raw text and not only through the laziness
+CommonMark 0.31.2,
+section 5.1,
+rule 2 allows:
+a line without its marker is a lazy continuation that a later edit can move out of the quote,
+and a reader sees nothing of the marker a renderer does not show.
+One pass writes every break it plans and every join it allows,
+so a second `--fix` changes nothing.
+The fix leaves every word where it is,
+but no line it passes is rewritten only in its whitespace:
+the line a fragment joins to gains that fragment at its start,
+and the fragment's own line ending becomes the one space between them.
 Removing the deepest indent of a rustdoc run re-projects every line of that run
 (`processors_docs.rs`,
 `run_margin`),
