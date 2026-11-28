@@ -2827,13 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- Medium,
-  a regression:
-  since `6ea539bc91` a notice is handed to the stream that writes off the command's thread,
-  which answers success before anything is written,
-  so the record of a failed push or a kept worktree is removed although its line never reached anyone.
-  With standard error a pipe whose reader is gone,
-  alpha.47 keeps the record and alpha.48 does not.
 - Low:
   three sentences of the slot refusals
   (one fires for an empty record folder,
