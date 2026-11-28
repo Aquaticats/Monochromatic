@@ -25,7 +25,8 @@
 /// the owned handle a pipe's end becomes,
 /// so the crate's own `Write` implementation writes into it.
 /// Why:
-/// The controls write into a real pipe, which is the stream the finding was measured on,
+/// The controls write into a real pipe,
+/// which is the stream the finding was measured on,
 /// and `File` is how a pair of descriptors from `rustix` becomes a stream Rust can write to.
 ///
 /// In TS you'd write (pseudocode):
@@ -33,9 +34,11 @@
 /// // No import: `fs.write(fd, bytes)` takes the number directly.
 /// ```
 use std::fs::File;
-/// Imports `ErrorKind`, `Read` and `Write` from `std::io`.
+/// Imports `ErrorKind`,
+/// `Read` and `Write` from `std::io`.
 /// Why:
-/// The reader threads read the pipe, and the arms of the controls tell a refusal that a wait cures
+/// The reader threads read the pipe,
+/// and the arms of the controls tell a refusal that a wait cures
 /// from one that it does not.
 ///
 /// In TS you'd write (pseudocode):
@@ -115,7 +118,8 @@ use rustix::pipe::pipe;
 /// Imports the bound under test,
 /// and the one function every notice and every report line is written through.
 /// Why:
-/// The controls hold what the shipped code does, so they call it and read its own constant.
+/// The controls hold what the shipped code does,
+/// so they call it and read its own constant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,7 +158,8 @@ const A_PAUSE_BETWEEN_TWO_READS: Duration = Duration::from_millis(1);
 const A_READERS_DEADLINE: Duration = Duration::from_secs(5);
 
 /// What:
-/// The size the line-and-its-line-end control gives its pipe: one page,
+/// The size the line-and-its-line-end control gives its pipe:
+/// one page,
 /// which is the smallest a pipe may be set to.
 /// Why:
 /// With one page the room a reader makes at the tail is room in the same page a write merges into,
@@ -279,8 +284,10 @@ fn a_pipe_with_both_ends_non_blocking() -> (File, File) {
 /// pipe answers "not now",
 /// and answers the filler it took.
 /// Why:
-/// The control needs the pipe at its capacity, and how many bytes that is belongs to the kernel
-/// (64 KiB on this machine), so the filler's length is the measurement rather than a number written
+/// The control needs the pipe at its capacity,
+/// and how many bytes that is belongs to the kernel
+/// (64 KiB on this machine),
+/// so the filler's length is the measurement rather than a number written
 /// here.
 ///
 /// In TS you'd write (pseudocode):
@@ -601,7 +608,8 @@ fn read_until(
 /// The second-pass read of `0.2.7-alpha.21` measured exactly this state on a real pipe:
 /// the notice never arrived and the command exited 0,
 /// because the writer dropped the `EAGAIN` a reader would have cured 100 ms later.
-/// `EAGAIN` says "not now" and not "never", so the writer waits for room within its bound.
+/// `EAGAIN` says "not now" and not "never",
+/// so the writer waits for room within its bound.
 #[test]
 fn a_write_a_full_non_blocking_stream_refuses_is_made_when_the_reader_drains() {
     // What: the pipe, full to its capacity.
@@ -677,9 +685,11 @@ fn a_write_a_full_non_blocking_stream_refuses_is_made_when_the_reader_drains() {
 /// and the newline was dropped:
 /// the next line written then joined the line whose end was lost,
 /// which corrupts two lines where one was refused.
-/// One write carries both, so a stream that cannot take the line with its end takes neither,
+/// One write carries both,
+/// so a stream that cannot take the line with its end takes neither,
 /// and what a person reads is never a line without its end.
-/// The two arms below are one pipe state apart, by one byte of room:
+/// The two arms below are one pipe state apart,
+/// by one byte of room:
 /// the room for the line alone shows that neither the line nor its end goes in,
 /// and the room for both shows that this writer does deliver them together,
 /// so the first arm cannot be passed by a writer that writes nothing at all.
@@ -827,7 +837,8 @@ fn a_write_no_reader_takes_gives_up_within_the_bound() {
 }
 
 /// What:
-/// A stream that refuses with one chosen error, which is what a stand-in for a real stream gives.
+/// A stream that refuses with one chosen error,
+/// which is what a stand-in for a real stream gives.
 /// Why:
 /// A control cannot make a real stream answer `EIO` or a quota error on demand,
 /// and what the writer does with each answer is the rule under test;
@@ -838,8 +849,10 @@ fn a_write_no_reader_takes_gives_up_within_the_bound() {
 /// class AStreamThatRefuses { write() { throw Object.assign(new Error('planted'), { errno: this.code }); } }
 /// ```
 struct AStreamThatRefuses {
-    /// What: the operating system's number for the error this stream answers with.
-    /// Why: each kind is one arm of the writer's rule.
+    /// What:
+    /// the operating system's number for the error this stream answers with.
+    /// Why:
+    /// each kind is one arm of the writer's rule.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -848,10 +861,13 @@ struct AStreamThatRefuses {
     code: i32,
 }
 
-/// The stream's own `Write` implementation: every write answers the chosen error.
+/// The stream's own `Write` implementation:
+/// every write answers the chosen error.
 impl Write for AStreamThatRefuses {
-    /// What: answers the chosen error and takes no bytes.
-    /// Why: this is a stream that refuses for good.
+    /// What:
+    /// answers the chosen error and takes no bytes.
+    /// Why:
+    /// this is a stream that refuses for good.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -864,8 +880,12 @@ impl Write for AStreamThatRefuses {
         return Err(std::io::Error::from_raw_os_error(self.code));
     }
 
-    /// What: the required `flush`, which has nothing buffered to push out.
-    /// Why: `Write` needs it, and this stand-in keeps no buffer.
+    /// What:
+    /// the required `flush`,
+    /// which has nothing buffered to push out.
+    /// Why:
+    /// `Write` needs it,
+    /// and this stand-in keeps no buffer.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -881,8 +901,10 @@ impl Write for AStreamThatRefuses {
 /// Why:
 /// `0.2.7-alpha.21`'s controls covered `ENOSPC` and `EPIPE` alone,
 /// so a writer that aborted on any other kind kept them green and brought the defect back for a full
-/// quota, an `EIO` or a closed descriptor.
-/// The writer drops all of them, which is the rule this holds.
+/// quota,
+/// an `EIO` or a closed descriptor.
+/// The writer drops all of them,
+/// which is the rule this holds.
 #[test]
 fn every_error_kind_a_stream_answers_returns_without_ending_the_process() {
     // What: the error numbers a stream this program writes to can answer with, one per line.
@@ -918,7 +940,8 @@ fn every_error_kind_a_stream_answers_returns_without_ending_the_process() {
 }
 
 /// What:
-/// A stream that answers "not now" twice and then takes the bytes, and one that takes them a few at a
+/// A stream that answers "not now" twice and then takes the bytes,
+/// and one that takes them a few at a
 /// time.
 /// Why:
 /// These are the two answers that are not refusals,
@@ -931,16 +954,21 @@ fn every_error_kind_a_stream_answers_returns_without_ending_the_process() {
 /// class AStreamThatTakesBytesSlowly { write(b) { return Math.min(b.length, this.atATime); } }
 /// ```
 struct AStreamThatWaitsTwice {
-    /// What: how many more writes answer "not now".
-    /// Why: the writer has to make a third attempt and take the bytes.
+    /// What:
+    /// how many more writes answer "not now".
+    /// Why:
+    /// the writer has to make a third attempt and take the bytes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// refusals: number;
     /// ```
     refusals: u32,
-    /// What: the words the stream took, in the order it took them.
-    /// Why: the control reads them back to see the whole line arrived.
+    /// What:
+    /// the words the stream took,
+    /// in the order it took them.
+    /// Why:
+    /// the control reads them back to see the whole line arrived.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -951,8 +979,10 @@ struct AStreamThatWaitsTwice {
 
 /// The waiting stream's own `Write` implementation.
 impl Write for AStreamThatWaitsTwice {
-    /// What: answers "not now" while it has refusals left and takes the rest after that.
-    /// Why: the state a slow reader's pipe is in.
+    /// What:
+    /// answers "not now" while it has refusals left and takes the rest after that.
+    /// Why:
+    /// the state a slow reader's pipe is in.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -970,8 +1000,11 @@ impl Write for AStreamThatWaitsTwice {
         return Ok(words.len());
     }
 
-    /// What: the required `flush`, which has nothing buffered.
-    /// Why: `Write` needs it.
+    /// What:
+    /// the required `flush`,
+    /// which has nothing buffered.
+    /// Why:
+    /// `Write` needs it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -983,17 +1016,23 @@ impl Write for AStreamThatWaitsTwice {
 }
 
 /// What:
-/// A stream that takes a few bytes per write, and one that takes everything.
+/// A stream that takes a few bytes per write,
+/// and one that takes everything.
 /// Why:
-/// A short write is a prefix taken, not a refusal, so the rest has to follow.
+/// A short write is a prefix taken,
+/// not a refusal,
+/// so the rest has to follow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class AStreamThatTakesABitAtATime { write(b) { const n = Math.max(1, Math.floor(b.length / 4)); this.taken.push(...b.slice(0, n)); return n; } }
 /// ```
 struct AStreamThatTakesABitAtATime {
-    /// What: the words the stream took, in the order it took them.
-    /// Why: the control reads them back to see the whole line arrived.
+    /// What:
+    /// the words the stream took,
+    /// in the order it took them.
+    /// Why:
+    /// the control reads them back to see the whole line arrived.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1004,8 +1043,12 @@ struct AStreamThatTakesABitAtATime {
 
 /// The slow stream's own `Write` implementation.
 impl Write for AStreamThatTakesABitAtATime {
-    /// What: takes a quarter of the bytes, and never fewer than one.
-    /// Why: a short answer is what a partial write looks like, and the writer has to carry the rest.
+    /// What:
+    /// takes a quarter of the bytes,
+    /// and never fewer than one.
+    /// Why:
+    /// a short answer is what a partial write looks like,
+    /// and the writer has to carry the rest.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1020,8 +1063,11 @@ impl Write for AStreamThatTakesABitAtATime {
         return Ok(count);
     }
 
-    /// What: the required `flush`, which has nothing buffered.
-    /// Why: `Write` needs it.
+    /// What:
+    /// the required `flush`,
+    /// which has nothing buffered.
+    /// Why:
+    /// `Write` needs it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1035,7 +1081,8 @@ impl Write for AStreamThatTakesABitAtATime {
 /// What:
 /// A stream whose first write is interrupted and whose later writes take the bytes.
 /// Why:
-/// `EINTR` says nothing about the bytes, so the attempt is made again;
+/// `EINTR` says nothing about the bytes,
+/// so the attempt is made again;
 /// a writer that dropped it would lose the line to a signal it can see.
 ///
 /// In TS you'd write (pseudocode):
@@ -1043,16 +1090,21 @@ impl Write for AStreamThatTakesABitAtATime {
 /// class AStreamThatIsInterruptedOnce { write(b) { if (!this.interrupted) { this.interrupted = true; throw interrupted(); } this.taken.push(...b); return b.length; } }
 /// ```
 struct AStreamThatIsInterruptedOnce {
-    /// What: whether the one interrupt has already been answered.
-    /// Why: only the first write is refused, so the retry is what the control sees.
+    /// What:
+    /// whether the one interrupt has already been answered.
+    /// Why:
+    /// only the first write is refused,
+    /// so the retry is what the control sees.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// interrupted: boolean;
     /// ```
     interrupted: bool,
-    /// What: the words the stream took.
-    /// Why: the control reads them back to see the whole line arrived.
+    /// What:
+    /// the words the stream took.
+    /// Why:
+    /// the control reads them back to see the whole line arrived.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1063,8 +1115,11 @@ struct AStreamThatIsInterruptedOnce {
 
 /// The interrupted stream's own `Write` implementation.
 impl Write for AStreamThatIsInterruptedOnce {
-    /// What: refuses the first write with an interrupt and takes every later one.
-    /// Why: this is a signal arriving between the bytes and the stream, not a refusal.
+    /// What:
+    /// refuses the first write with an interrupt and takes every later one.
+    /// Why:
+    /// this is a signal arriving between the bytes and the stream,
+    /// not a refusal.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1082,8 +1137,11 @@ impl Write for AStreamThatIsInterruptedOnce {
         return Ok(words.len());
     }
 
-    /// What: the required `flush`, which has nothing buffered.
-    /// Why: `Write` needs it.
+    /// What:
+    /// the required `flush`,
+    /// which has nothing buffered.
+    /// Why:
+    /// `Write` needs it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -1095,7 +1153,9 @@ impl Write for AStreamThatIsInterruptedOnce {
 }
 
 /// What:
-/// The two answers that are not refusals carry the whole line: a wait for room, and a short write.
+/// The two answers that are not refusals carry the whole line:
+/// a wait for room,
+/// and a short write.
 /// Why:
 /// The read measured `0.2.7-alpha.21` dropping only the answers a retry cures,
 /// so the retries are what this control holds;
@@ -1245,15 +1305,22 @@ fn source_files_under(
 }
 
 /// What:
-/// Every word this crate says leaves through `notices`, so no source file calls one of the print macros.
+/// Every word this crate says leaves through `notices`,
+/// so no source file calls one of the print macros.
 /// Why:
 /// The second-pass read of `0.2.7-alpha.21` found that ten of the eleven notice sites had no control at
-/// all: putting one back to `eprintln!` left every test green, and the defect of `0.2.7-alpha.20`
+/// all:
+/// putting one back to `eprintln!` left every test green,
+/// and the defect of `0.2.7-alpha.20`
 /// would come back site by site.
-/// This one control covers every site of the crate, present and future:
-/// any `print!`, `println!`, `eprint!` or `eprintln!` in a source file that is not a test file fails it,
+/// This one control covers every site of the crate,
+/// present and future:
+/// any `print!`,
+/// `println!`,
+/// `eprint!` or `eprintln!` in a source file that is not a test file fails it,
 /// because the writer in `notices` is the only place that may write and it writes through `Write`.
-/// A mention in a comment is not a call, so the control reads each line up to its own `//`.
+/// A mention in a comment is not a call,
+/// so the control reads each line up to its own `//`.
 #[test]
 fn every_word_this_crate_says_leaves_through_this_module() {
     // What: the crate's own folder, which cargo pasted in at compile time.

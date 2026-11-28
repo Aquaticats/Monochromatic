@@ -36,8 +36,10 @@
 //! ```
 
 /// Imports what this module uses from `std::io`:
-/// `Write`, the trait that gives a stream its `write` method,
-/// and `ErrorKind`, the enum that says why a write was refused.
+/// `Write`,
+/// the trait that gives a stream its `write` method,
+/// and `ErrorKind`,
+/// the enum that says why a write was refused.
 /// Why:
 /// The writer below is one loop over `Write::write`,
 /// so a stream that answers "not now" can be told from one that refuses for good.
@@ -53,7 +55,8 @@ use std::io::{
 /// Imports `Duration` and `Instant` from `std::time`,
 /// the two types that bound how long a refused write is retried.
 /// Why:
-/// A non-blocking stream that is full answers `EAGAIN` ("not now"), which is a refusal a wait cures,
+/// A non-blocking stream that is full answers `EAGAIN` ("not now"),
+/// which is a refusal a wait cures,
 /// so the writer has to know how long it may wait before it gives up.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,19 +72,25 @@ use std::time::{
 /// The longest this writer waits for a non-blocking stream to take the bytes it refused.
 /// Why:
 /// A stream left non-blocking by another process answers `EAGAIN` while it is full,
-/// and that answer means "not now", not "never":
+/// and that answer means "not now",
+/// not "never":
 /// dropping the notice there loses a warning a retry would have delivered
-/// (`0.2.7-alpha.21` did that, and the second-pass read of it named the loss).
+/// (`0.2.7-alpha.21` did that,
+/// and the second-pass read of it named the loss).
 /// The wait is bounded because the reader may be a process that stopped reading:
 /// an unbounded wait would hold a command that had finished its work.
 /// 1 s is far above the time a reader needs to make room for the bytes of one line and far below
 /// the wait a blocking stream already imposes,
-/// measured on 2026-11-28T08:32:28-05:00 in twenty interleaved rounds of two arms, one write of a
+/// measured on 2026-11-28T08:32:28-05:00 in twenty interleaved rounds of two arms,
+/// one write of a
 /// 400-byte line each,
 /// on this machine:
-/// a pipe filled to its capacity, whose writer waits for a reader that drains whole pages, took
-/// 0.029 ms at the median and 0.082 ms at its slowest,
-/// and the control arm, the same write with the room already there, took 0.024 ms at the median and
+/// a pipe filled to its capacity,
+/// whose writer waits for a reader that drains whole pages,
+/// took 0.029 ms at the median and 0.082 ms at its slowest,
+/// and the control arm,
+/// the same write with the room already there,
+/// took 0.024 ms at the median and
 /// 0.037 ms at its slowest,
 /// so this bound is about twelve thousand times the slowest wait measured and about forty times the
 /// control arm's own spread (its slowest sample was 1.6 times its median);
@@ -183,8 +192,10 @@ pub(crate) fn say_on(
 /// (its own line ends included)
 /// and drops whatever that write answered.
 /// Why:
-/// A command's report is the toolchain lock's text, the lock check's own words or the IDE launcher's
-/// JSON document, all of which already carry their line ends;
+/// A command's report is the toolchain lock's text,
+/// the lock check's own words or the IDE launcher's
+/// JSON document,
+/// all of which already carry their line ends;
 /// writing the text as it is keeps one line's bytes in one write
 /// (`say` is for a single line),
 /// and a stream that refuses it must not end the command,
@@ -249,7 +260,8 @@ pub fn report_line(line: &str) {
 /// `stream`
 /// and drops whatever that write answered.
 /// Why:
-/// This is where the line end is added to the line in one text, which is what keeps a stream from taking
+/// This is where the line end is added to the line in one text,
+/// which is what keeps a stream from taking
 /// the line and refusing its end under a control.
 ///
 /// In TS you'd write (pseudocode):
@@ -286,9 +298,11 @@ pub(crate) fn report_line_on(
 /// Why:
 /// One loop covers the three answers a stream gives:
 /// a short write (take the rest next time),
-/// `EINTR` (the write was not made, so make it again),
+/// `EINTR` (the write was not made,
+/// so make it again),
 /// and `EAGAIN` on a stream another process left non-blocking (wait for room),
-/// while every other error is a stream that refuses for good, which is dropped.
+/// while every other error is a stream that refuses for good,
+/// which is dropped.
 /// `&mut dyn Write` rather than a concrete stream because the controls pass a stand-in that answers
 /// a chosen error,
 /// and the two real streams are `Stderr` and `Stdout`.

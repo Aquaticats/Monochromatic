@@ -435,7 +435,8 @@ fn the_fixture_with_standard_error_on(standard_error: std::process::Stdio) -> st
 /// The script the second fixture below runs:
 /// it answers inside the shipped bound.
 /// Why:
-/// The bound is a time, and only a program whose answer takes longer or shorter than it can show which
+/// The bound is a time,
+/// and only a program whose answer takes longer or shorter than it can show which
 /// one the shipped call passes:
 /// a control of the constant alone stayed green while `ProcessRunner::run` passed 600 ms.
 ///

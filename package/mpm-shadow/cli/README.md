@@ -1237,7 +1237,10 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   every link is written as `.{bin}.tmp.{process id}.{start time}.{namespace}.{boot}` and then renamed over
   the link's name,
   which adds at most 95 bytes to the bin name,
-  so the check is made where the plan is read,
+  so the check is made where the plan is read through the reader that carries it
+  (`bin --json` opens the plan through a reader without it,
+  so `bin` still prints its document for such
+  a plan),
   against the longest name the file system itself reports for that folder,
   and the refusal names the row,
   the bin,
@@ -2015,8 +2018,9 @@ and it holds one link per declared bin
     ```
 
     The pass reads the folder's entries in the order the directory lists them,
-    and a removal that fails stops it,
-    so a rebuild that stops at a failing removal names the names it reached before that removal
+    and a failing read or removal stops it,
+    so a rebuild that stops at a failing read or removal names the names it reached before that
+    failure
     and the next install names the ones after it.
 
     A name an earlier build wrote carries the process id alone,
@@ -2888,6 +2892,37 @@ but an offline build of that project fails until then.
 The artifact is deliberately not named `mpm`,
 so a `target/*/mpm` or a tool `bin/mpm` never shadows mpm by accident.
 The toolchain plan links it as `mpm` into a gitignored directory that comes first on `PATH`.
+
+## When a stream refuses a write
+
+Every word this program says of its own goes through one writer in `src/notices.rs`:
+the report on standard output,
+the lines about its own work on standard error,
+and the sentence that ends a command that failed.
+A write the stream refuses is dropped,
+and the command ends with the status its own work gave it,
+so a full disk or a pipeline that stopped reading changes what a caller reads and never what happened.
+
+- A report is written between two of a command's own steps in one case:
+  `install <tool>` names the entries it added to the plan after that write and before the sync.
+  A refused report there leaves the plan changed and the sync still runs,
+  so the command ends on what the sync did rather than on the stream.
+- The same holds for a notice:
+  a warning,
+  a line naming what a run left,
+  and the line a wait past 2 s prints are all courtesy lines,
+  and none of them ends a command.
+- A stream another process left non-blocking that answers "not now" is waited out for up to 1 s
+  (measured against a reader that drains a full pipe:
+  0.082 ms at its slowest in twenty interleaved rounds on 2026-11-28),
+  and what does not fit after that is dropped.
+  A line and its line end are written in one piece,
+  so a line is never left without its end.
+- The cost:
+  a caller cannot tell that a report was refused.
+  The stream is the only place a program says so,
+  and it is the stream that refused.
+  The statuses below are the work's own in every state.
 
 ## Exit codes
 

@@ -143,7 +143,9 @@ pub mod load;
 mod the_bin_names_the_exposure_folder_can_hold;
 
 /// What:
-/// The answer to that check's one question, the folder's name limit, which a build made for controls can
+/// The answer to that check's one question,
+/// the folder's name limit,
+/// which a build made for controls can
 /// plant.
 /// Why:
 /// The check's claim is that the limit is the file system's,

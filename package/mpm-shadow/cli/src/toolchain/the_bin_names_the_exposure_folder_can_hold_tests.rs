@@ -369,10 +369,12 @@ fn reading_the_plan_refuses_a_bin_the_exposure_folder_cannot_hold() {
 }
 
 /// What:
-/// The reserve is the widest temporary name a run can write, not merely a number above this machine's own
+/// The reserve is the widest temporary name a run can write,
+/// not merely a number above this machine's own
 /// suffix.
 /// Why:
-/// `README.md` promises 95 bytes, a file system of 255 bytes 160 bytes of bin name and 161 as the first refused
+/// `README.md` promises 95 bytes,
+/// a file system of 255 bytes 160 bytes of bin name and 161 as the first refused
 /// length,
 /// and the control above holds none of those numbers:
 /// any reserve from this machine's 70 bytes up to more than 95 passed it.
@@ -426,12 +428,14 @@ fn the_reserve_is_the_widest_temporary_name_a_run_can_write() {
 }
 
 /// What:
-/// The name limit the check refuses against is the file system's answer, not a number written in the code.
+/// The name limit the check refuses against is the file system's answer,
+/// not a number written in the code.
 /// Why:
 /// A folder on eCryptfs holds 143 bytes where this machine's holds 255,
 /// so a hard-coded 255 would accept a bin that file system cannot hold and would name the wrong limit in its
 /// refusal;
-/// no mount-free file system here holds anything but 255, so the control plants the answer the check asks for.
+/// no mount-free file system here holds anything but 255,
+/// so the control plants the answer the check asks for.
 /// The planted number is the 143 bytes `README.md` names for eCryptfs;
 /// it stands in for a file system this control cannot mount,
 /// and no claim about a real eCryptfs rests on it.

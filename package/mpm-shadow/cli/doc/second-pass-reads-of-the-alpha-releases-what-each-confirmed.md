@@ -559,7 +559,7 @@ mpm-shadow: the toolchain plan <plan file> declares the bin "<bin>" of rust, 186
 
 The command exits 2,
 the code for a plan that cannot be used.
-The name is refused wherever the plan is read,
+The name is refused wherever the plan is read through the reader that carries the check,
 which was measured on 2026-11-28T06:46:53-05:00 with the released
 `0.2.7-alpha.20` against a plan declaring a 161-byte bin:
 `install`,
@@ -573,8 +573,17 @@ and `bin` (plain and `--json`),
 `prune --toolchain`,
 `--version` and `--help`
 run as before.
-`bin` and `prune --toolchain` never read the plan,
+`bin` and `prune --toolchain` never read the plan through that reader,
 so a person whose plan holds such a bin can still print the exposure folder and the IDE file;
+`bin --json` does open the plan,
+through the plain reader that does not carry the check,
+which the alpha.21 read measured and this round corrected
+(its L6,
+and the entry for it in the section below):
+`bin` opened the plan no time,
+`bin --json` once,
+and `install --lockfile-only --frozen-lockfile` once,
+under a tracer that also saw that command open the lock twice.
 the commands that cannot run are the ones that read the plan,
 which is the cost of putting the check there;
 the way not taken is a shorter temporary name,
@@ -804,23 +813,31 @@ failure report rather than a courtesy:
 `:497`,
 `:504`,
 `:536` and `:542` (the shadow's start
-refusals and failures,
-which end 126 or 127),
+refusals and failures),
 `src/toolchain/launcher/starting_it.rs:294`,
 `:312`,
 `:316`,
 `:326`,
 `:330`,
 `:333`,
-`:374` and `:378` (a launcher's refusals and missing program,
-which end
-126 or 127),
+`:374` and `:378` (a launcher's refusals and missing program),
 and `src/toolchain/prune_cargo/the_prune_command.rs:53` and `:80`.
+The statuses those lines end with differ:
+`src/shim.rs:476` is the arrival stop and ends 2,
+not 126 or 127,
+which the alpha.21 read corrected
+(its L5,
+and the entry for it in the section below);
+the other four shadow lines end 127,
+126,
+126 and 126,
+and the ten launcher lines end 126 or 127.
 In those states a stream that refuses the line turns a documented failure into
 `SIGABRT`,
 which is a change of the reported status and not of the outcome;
-no record promises otherwise,
-and this round changed none of them.
+the alpha.21 round brought all seventeen through the one writer,
+so the status is the failure's own however the stream answers
+(its L1).
 
 ### F-L2: the refused bin names and the commands that refuse them
 
@@ -858,7 +875,7 @@ The record's L-4 section said `list`,
 `bin` refuse,
 and left out `outdated` and `verify-archive`;
 it now names the measured set and says that `bin` and `prune --toolchain` never
-read the plan.
+read the plan through the reader that carries the check.
 The same section said the pass measured the edge at 185 bytes linked and 186
 failed without saying that 186 is the failure the check replaces rather than the
 length the check refuses;
@@ -883,6 +900,20 @@ So the sentence "every rebuild names it once" was the side that was wrong.
 `src/toolchain/exposure/the_links_no_row_declares.rs` now say that a rebuild
 names the names it reached before that removal and that the next install names
 the ones after it.
+The pass stops at a failing read as well:
+a removal is one of four calls that end it
+(the directory's own entry,
+the entry's metadata,
+the link's target,
+the removal),
+which the alpha.21 read measured and this round corrected
+(its L7,
+and the entry for it in the section below):
+with the orphan's `readlink` answering `EIO`,
+`install --frozen-lockfile` exited 1 with
+`exposure directory failed: cannot read the link <farm>/aaa-orphan: Input/output error (os error 5)`
+and left both planted names in the folder.
+`README.md` and that module doc now say "a failing read or removal" here.
 
 The kept names a rebuild did reach survive a later failure:
 `report.exposure_links_left` is assigned before the failure is recorded,
@@ -911,7 +942,10 @@ and one
 onto a `.staging` copy inside the program's own install directory) are still
 kept,
 and no test holds either;
-that is in "What stays open".
+that is in "What stays open" as the item
+"The farm link's two kept states no test holds",
+which this round added because the alpha.21 read could not find the item this
+sentence pointed at (its L8).
 
 ### F-L10: "every program a command starts" is wider than the code
 
@@ -1177,6 +1211,48 @@ Ranking:
 the sentences above are unasked for by the read;
 the round left `println!` alone and put the choice here.
 
+Closed by the alpha.21 round,
+which took the first answer:
+that round's M1 measured what this item's reasoning missed:
+`install <tool>` writes the lines naming what it added to the plan after that
+write and before the sync,
+so the abort ended the command between two of its own steps,
+with the plan changed and the lock and the tool folders untouched.
+Every report now goes through the one writer in `src/notices.rs`,
+which drops a write a stream refuses,
+so the command ends with the status its work gave it;
+what each report does when its write is refused is in the section below,
+and `README.md` says it where a caller meets it.
+The cost is the one named above:
+a caller cannot tell a report was refused.
+
+### The farm link's two kept states no test holds
+
+Evidence:
+a link onto an older version directory,
+and one onto a `.staging` copy inside the program's own install directory,
+are both kept,
+which the alpha.20 read measured and the doc comment of `the_link_the_farm_keeps`
+says;
+no test holds either,
+and the alpha.20 section's F-L5 pointed at an item here that did not exist
+(the alpha.21 read's L8).
+
+Two answers:
+one control per state,
+writing the link by hand below the toolchain root the way `the_farm_shadow_link`
+writes an installed copy,
+at the cost of two more fixtures in a file that already builds several;
+or the doc comment alone,
+at the cost of a claim no run holds.
+Ranking:
+the two controls > the comment alone,
+because the states are one `fs::canonicalize` and one directory comparison
+apart,
+and a control is what tells a later edit of either.
+Either is the owner's to choose;
+this round added the item and no control.
+
 ## What this round did not run
 
 - The six open items above were not re-reproduced:
@@ -1196,4 +1272,397 @@ the round left `println!` alone and put the choice here.
 - The three quarters of the notice sites checked only by reading and by the
   shared writer's two controls:
   the older-lock warning was run at the user boundary,
-  and the other seven sites were not.
+  and the other nine sites were not
+  (eleven sites in all;
+  the alpha.21 read counted them and this figure corrected
+  the seven the sentence first said,
+  its L8).
+
+## The alpha.21 read: the report that could not be written, the lines left on the aborting macro, and four controls (read begun 2026-11-28T08:07:35-05:00)
+
+Status:
+**unapproved and non-final**.
+Written by the round that answered the read,
+not by the read itself.
+The read was a second pass by Claude Sonnet,
+the same vendor as some of this package's authors,
+so it is not an independent review;
+its report and transcripts lived in a scratch folder that expires a day after its last change,
+so every figure taken from it is restated here as a fact,
+and this section is what a later reader has.
+
+The read compared the released `0.2.7-alpha.21` with `0.2.7-alpha.20`.
+This round downloaded the alpha.21 archive from the release and checked its SHA-256
+(`255b0d58cf25c05888d22921e550db1c0ac7638c40f66592ba4c870d3fbc18af`,
+the value the alpha.21 read recorded) before running it.
+Every run of the released binary,
+and of this branch's build,
+went through `systemd-run --user --scope --slice=agent-work.slice` with
+`MemoryMax`,
+`CPUQuota`,
+`TasksMax`,
+`IOWeight=1` and
+`RuntimeMaxSec`,
+with a throwaway `HOME`,
+`XDG_DATA_HOME`,
+`XDG_CACHE_HOME`,
+`XDG_RUNTIME_DIR` and
+`PATH`,
+and every run expected to abort went through `prlimit --core=0`,
+so no core file was stored.
+No network was reached and no real `rustup`,
+`cargo`,
+`pnpm` or `go` was started:
+the fixtures hold a stand-in for each,
+and no claim below about a real program rests on one.
+
+### M1: a refused standard output ended every command, and `install <tool>` between the plan write and the sync
+
+Reproduced with the released `0.2.7-alpha.21`
+on 2026-11-28T08:13:04-05:00,
+on a fixture whose plan declares one `go` row and whose lock holds a digest:
+
+```text
+mpm-shadow install go:example.com/cmd/fixgo@v1.0.0 > /dev/full
+status=134
+stderr: thread 'main' (108961) panicked at ...: failed printing to stdout: No space left on device (os error 28)
+plan diff: the entry go:example.com/cmd/fixgo was appended
+lock diff: none
+```
+
+With a file as standard output the same command exits 1 with the plan and lock
+disagreement on standard error,
+which is the state this round's build now reaches with the stream refusing:
+
+```text
+status=1
+stderr: mpm-shadow: the toolchain plan and lock disagree:
+  toolchain.lock.json does not match its digest (...); it was edited by hand or by another tool
+  go is in the plan but not in the lock
+  go:example.com/cmd/fixgo is in the plan but not in the lock
+restore toolchain.lock.json from version control, or delete it and run `mpm-shadow update`
+plan diff: the entry go:example.com/cmd/fixgo was appended
+lock diff: none
+```
+
+The sync ran,
+which is what the status and that text say,
+and the two lines naming the added entry were dropped.
+With this branch's build and `/dev/full` the command exits 1 with the same
+disagreement,
+the same plan and the same lock.
+
+Every other report of the release was measured the same day on a fixture of the
+repository's own plan and lock,
+with standard output `/dev/full` and with a file as the control arm:
+
+  `bin`:
+  134 on the release,
+  0 on this build;
+  a file:
+  0 on both.
+  `bin --json`:
+  134 on the release,
+  0 on this build;
+  a file:
+  0 on both.
+  `list` with drift:
+  134 on the release,
+  1 on this build;
+  a file:
+  1 on both,
+  so the drift verdict is the command's own again.
+  `prune`:
+  134 on the release,
+  0 on this build;
+  a file:
+  0 on both.
+  `--version`:
+  0 on both,
+  because clap's writer already dropped the answer.
+
+Changed:
+`src/notices.rs` is the one writer of a report,
+`report` for text as given and `report_line` for one sentence,
+and every `print!` and `println!` in the crate's source now goes through it
+(seventeen lines across
+`the_install_verb.rs`,
+`the_bin_verb.rs`,
+`the_list_verb.rs`,
+`the_update_and_outdated_verbs.rs`,
+`the_prune_command.rs`,
+`what_every_verb_prints.rs`,
+`cli.rs` and
+`shim.rs`).
+`README.md` has a section,
+"When a stream refuses a write",
+saying for each kind of word what happens and that the status stays the work's own;
+the cost is named there and here:
+a caller cannot tell that a report was refused.
+Left:
+`update` and `outdated` were not run in that state (they need the network),
+and the same code path writes them;
+`prune --toolchain` was not run in the state where it deletes and then prints,
+which the read measured on the release.
+
+### L1: the remaining failure lines on the aborting macro
+
+The read reached sixteen of the seventeen `eprintln!` lines on both releases
+and measured each ending its command with a documented status when standard error
+is healthy and with `SIGABRT` when it refuses.
+Changed,
+for all seventeen:
+`what_every_verb_prints.rs:68` (`report`),
+`cli.rs:256`,
+the five in `shim.rs` (the arrival stop,
+no real `mpm`,
+the nesting refusal,
+the start failure and the failed wait),
+the eight in `launcher/starting_it.rs`,
+and the two in `the_prune_command.rs`
+now go through `notices::say`.
+The status is the failure's own whatever the stream answers,
+which is the same change the notices got:
+none of these lines is reachable by a command that otherwise succeeds,
+as the read showed,
+so the status and not the outcome is what the stream used to
+change.
+The module doc of `src/notices.rs` says that the writer carries a failure's
+sentence as well as a courtesy line,
+and `README.md` lists the three kinds of word it writes.
+Controls:
+`every_error_kind_a_stream_answers_returns_without_ending_the_process` answers
+seven error numbers from a stand-in,
+including `EIO`,
+a quota error and a closed descriptor,
+so a writer that panicked on any kind but `ENOSPC` and `EPIPE` fails it;
+that stand-in is not a real stream and no claim about one rests on it.
+
+### L2: the writer dropped a notice, or only its line end, on a healthy non-blocking stream
+
+The read measured two losses on real pipes:
+a notice lost where a non-blocking pipe was full and its reader drained later,
+and a line whose end was lost where the pipe had room for the line alone.
+Changed,
+both:
+`write_the_words` treats `EAGAIN` as "not now" and retries for at most
+`A_WAIT_FOR_A_STREAM_TO_TAKE_THE_BYTES`,
+which is 1 s,
+and a line and its line end are one write,
+so a stream that cannot take the line with its end takes neither.
+The bound's measurement,
+in that constant's own comment:
+twenty interleaved rounds of two arms on 2026-11-28T08:32:28-05:00,
+one write of a 400-byte line each,
+a full pipe whose writer waits for a reader that drains whole pages took 0.029 ms at
+the median and 0.082 ms at its slowest,
+and the control arm,
+the same write with the room already there,
+took 0.024 ms at
+the median and 0.037 ms at its slowest,
+so 1 s is about twelve thousand times the slowest wait measured and about forty
+times the control arm's own spread,
+whose slowest sample was 1.6 times its median.
+Controls,
+all on real pipes of this crate's own:
+`a_write_a_full_non_blocking_stream_refuses_is_made_when_the_reader_drains`,
+`a_line_is_never_written_without_its_line_end` (two arms one byte apart:
+the line alone,
+and the line with its end),
+`a_write_no_reader_takes_gives_up_within_the_bound` (which also holds the
+constant at 1 s),
+`a_wait_for_room_and_a_short_write_both_carry_the_whole_line` (a stand-in that
+refuses twice,
+takes a few bytes at a time,
+and is interrupted once),
+and the seven error numbers above.
+Proved to fail by planting the old behaviour back:
+with the first refusal dropped the first two fail,
+the first with `left: 65536` against `right: 65596` (the notice lost) and the
+second with the line arriving without its end;
+with `writeln!` in place of the one write the line-end control fails with the
+line's bytes at the end of the pipe and no `10` after them;
+with the bound at 6 s the third fails with `left: 6s` against `right: 1s`.
+Left:
+a stream that is blocking and full still holds the command until its reader reads,
+which neither release changed;
+the interleaving of a second writer between a notice and its line end is gone with
+the one write,
+and no control holds it.
+
+### L3: no test reached ten of the eleven writer sites
+
+Changed:
+one control reaches all of them and every future one:
+`every_word_this_crate_says_leaves_through_this_module` walks the crate's own
+`src` folder,
+skips the test files,
+and fails on any `print!`,
+`println!`,
+`eprint!` or
+`eprintln!` outside a comment.
+It reads the 248 `.rs` files under `src`,
+skips the 66 whose names end in `_tests.rs`,
+and found no site after the change above.
+Proved to fail by putting one site back:
+with `eprintln!` in `what_every_verb_prints.rs` again it fails with
+`these do: <path>/what_every_verb_prints.rs:68: eprintln!`.
+Left:
+the control reads source,
+so it holds that no macro call is there and not what a call would do;
+the behaviour of the writer is held by the controls of L2.
+
+### L4: the controls the earlier round added, and the edits that passed them
+
+The read named four edits that stayed green under the three controls this record's earlier
+section describes,
+and one more that no control covered.
+Each now has a control that goes red under it,
+and each red was run:
+
+  a deleted `left.sort()`:
+the rebuild now reads the folder's entries through
+`in_the_order_it_is_read`,
+which a test build can set to name order or its reverse,
+and `a_sync_names_each_kept_temporary_link_once_in_name_order_after_the_removals_it_made`
+plants the reverse.
+With the sort deleted it fails:
+`the kept lines come in name order, whichever order the directory listed the names in`.
+  a reserve narrowed to this machine's 70-byte suffix:
+`the_reserve_is_the_widest_temporary_name_a_run_can_write` derives the widest
+name from each field's type and from the kernel's own boot identifier.
+With the reserve at 70 it fails with `left: 70` against `right: 95`.
+  a name limit of 255 bytes written in place of `statvfs`:
+`the_name_limit_comes_from_the_file_system_and_not_from_a_number_written_here`
+plants 143 bytes (the limit `README.md` names for eCryptfs)
+and refuses one byte past it.
+With 255 written in place of the file system's answer it fails with
+`one byte past the planted limit is refused`.
+The plant had to move behind the question first:
+its first shape answered before `statvfs` was asked,
+  and the hard-coded 255 passed.
+  a bound of 600 ms passed at `ProcessRunner::run`:
+`the_shipped_runner_is_silent_for_a_program_that_answers_inside_the_bound`
+starts the shipped runner on a fixture whose answer takes about a second,
+and reads its standard error.
+With `Duration::from_millis(600)` at that call it fails with
+`an answer inside the bound prints no line about waiting: ... 0.6 s after this command started it`,
+while `the_shipped_runner_names_a_program_whose_answer_passes_the_bound` stays
+green,
+which is the read's point.
+  a `say` that panicked on every kind but `ENOSPC` and `EPIPE`:
+the seven error numbers above.
+  a failed rebuild that dropped the kept names it reached:
+`a_run_that_fails_a_removal_still_names_the_temporary_link_it_kept` plants a kept
+name and an orphan whose removal the kernel refuses,
+with the folder in name order so the kept name is judged first.
+With `report.exposure_links_left` emptied on the failure it fails with
+`the run names the temporary link it kept although a later removal failed`.
+
+Left:
+the reverse-name-order plant is a test build's own reading of the folder,
+so the shipped order is still the directory's;
+no control holds a file system that lists names in another order.
+
+### L5: the arrival stop ended 2, not 126 or 127
+
+The earlier section's list said the five shadow lines end 126 or 127.
+Measured on 2026-11-28T09:02:24-05:00 with the released `0.2.7-alpha.21`,
+started under the name `mpm` by a parent that wrote the arrival marker for itself:
+
+```text
+status 2
+stderr: monochromatic-mpm-shadow 0.2.7-alpha.21: stopped at once, before doing anything, because it was started by a shadow this control stood in for (process 821385) as the real `mpm`; a shadow never starts a shadow. ... Exit status 2 means this stop.
+```
+
+`ARRIVAL_EXIT_CODE` is 2 (`src/shadow_identity/arrival_marker.rs:27`).
+Changed:
+the record's sentence,
+which now gives each of the five its own status.
+
+### L6: `bin --json` does read the plan
+
+The earlier section said `bin` and `prune --toolchain` never read the plan.
+That is true of the reader that carries the check and false of `bin --json`,
+which opens the plan through `read_plan`.
+Measured on 2026-11-28T09:02:31-05:00 with the released `0.2.7-alpha.21`
+under `strace --trace=openat`,
+on the repository's own plan and lock,
+counting the opens of `toolchain.plan.jsonc`:
+`bin` opened it no time
+(it opened the lock once),
+`bin --json` opened it once,
+and `install --lockfile-only --frozen-lockfile` opened it once and the lock twice,
+which is the control that shows the tracer sees an open.
+Changed:
+the record's two sentences,
+and one `README.md` sentence that now says the check is made where the plan is read
+through the reader that carries it,
+and that `bin --json` opens the plan through one without it.
+The conclusion the earlier section drew holds:
+a person whose plan declares such a bin can still print the exposure folder and the
+IDE file.
+
+### L7: a failing read stops the rebuild too
+
+The earlier section's sentences said a removal that fails stops the rebuild's pass.
+So does a failing read:
+the pass ends at the directory's own entry,
+the entry's metadata,
+the link's target or the removal (`the_links_no_row_declares.rs`,
+four `break`s).
+Measured on 2026-11-28T09:03:01-05:00 with the released `0.2.7-alpha.21`,
+with the orphan's `readlink` answering `EIO` by `strace` injection:
+
+```text
+status=1
+toolchain install: 0 installed, 0 unchanged, 1 failed
+toolchain install: exposure directory failed: cannot read the link <farm>/aaa-orphan: Input/output error (os error 5)
+```
+
+and both planted orphan links were still in the folder afterwards,
+neither removed nor named,
+which is what a pass that stopped shows.
+Changed:
+`README.md` and the module doc of that file now say "a failing read or removal".
+Left:
+the other two stops (the directory's entry and the entry's metadata) are read from
+the source and not run;
+the read measured only the link's target.
+
+### L8: two pointers that led nowhere
+
+The earlier section's `What stays open` held seven items
+(the `###` headings from "A temporary link an earlier build wrote" to "The report on
+standard output aborts when that stream refuses it"),
+and none named the farm link's two kept states that the section on F-L5 pointed at,
+nor were eleven notice sites "the other seven".
+Changed:
+an item,
+"The farm link's two kept states no test holds",
+is now in that list,
+the F-L5 sentence points at it by name,
+and the count is nine of eleven.
+The report item itself is marked closed by M1 above rather than removed,
+because the rounds after this one read what it measured.
+
+### What this round did not run
+
+- The alpha.21 read's own fixtures were not re-run:
+  its six open items stayed open and recorded,
+  and their states need a real second process namespace,
+  a reboot,
+  a deep checkout or two released binaries held at a call.
+- `prune --toolchain` in the state where it deletes and then prints,
+  and `update` and `outdated` behind a refused stream:
+  the first needs a fixture with a version to delete and a `.git`,
+  the other two need the network.
+- A real `rustup`,
+  `cargo binstall`,
+  `pnpm add`,
+  `uv tool install`,
+  `go install` or `mpm`:
+  every program this round started was a stand-in.
+- A file system whose name limit is not 255 bytes:
+  the control plants the answer instead,
+  and says so.

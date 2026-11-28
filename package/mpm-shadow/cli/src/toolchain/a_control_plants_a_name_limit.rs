@@ -1,5 +1,6 @@
 //! What:
-//! The longest name the exposure folder's file system holds, which a build made for controls can answer with
+//! The longest name the exposure folder's file system holds,
+//! which a build made for controls can answer with
 //! a number of its own.
 //! Why:
 //! The bin-name check asks the file system,
@@ -29,7 +30,8 @@ use std::cell::Cell;
 
 #[cfg(test)]
 thread_local! {
-    /// The name limit this thread's check answers with, in bytes.
+    /// The name limit this thread's check answers with,
+    /// in bytes.
     static THE_PLANTED_NAME_LIMIT: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
@@ -108,7 +110,8 @@ pub(crate) fn planting_the_folders_name_limit(limit: u64) -> NameLimitPlantGuard
 }
 
 /// What:
-/// The limit a control planted for this thread, or nothing when this is a real question for a file system.
+/// The limit a control planted for this thread,
+/// or nothing when this is a real question for a file system.
 /// Why:
 /// The check returns the planted answer in place of the one `statvfs` gives,
 /// and every other build answers nothing so the file system is asked.

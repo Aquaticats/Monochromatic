@@ -32,7 +32,8 @@
 /// Imports `DirEntry` from `std::fs`,
 /// the entry type a directory listing yields.
 /// Why:
-/// The pass gives each entry its own arms, and the plant's ordering sorts the same type.
+/// The pass gives each entry its own arms,
+/// and the plant's ordering sorts the same type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,7 +78,8 @@ pub(crate) enum TheFoldersOrder {
 
 #[cfg(test)]
 thread_local! {
-    /// The order this thread's rebuild reads the folder in, when a control has chosen one.
+    /// The order this thread's rebuild reads the folder in,
+    /// when a control has chosen one.
     static THE_ORDER: Cell<Option<TheFoldersOrder>> = const { Cell::new(None) };
 }
 
@@ -133,7 +135,9 @@ impl Drop for FolderOrderPlantGuard {
 }
 
 /// What:
-/// Plants, for this thread's next rebuild, a folder whose entries come in `order`,
+/// Plants,
+/// for this thread's next rebuild,
+/// a folder whose entries come in `order`,
 /// and answers the guard that forgets it when the control's body leaves,
 /// however it leaves.
 /// Why:
@@ -160,7 +164,8 @@ pub(crate) fn reading_the_folder_in(order: TheFoldersOrder) -> FolderOrderPlantG
 /// The name an entry carries,
 /// for the plant's ordering.
 /// Why:
-/// The order is by name, so the key is the entry's own name.
+/// The order is by name,
+/// so the key is the entry's own name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

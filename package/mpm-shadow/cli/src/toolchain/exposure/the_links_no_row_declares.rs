@@ -36,7 +36,9 @@
 //! so the report says which name stayed and what deleting it by hand would cost,
 //! as `prune --toolchain` says of a hidden copy it cannot judge.
 //! A removal that fails stops the pass,
-//! so a rebuild that stops there names the names it reached before that removal
+//! and so does a read of an entry,
+//! its metadata or its target,
+//! so a rebuild that stops there names the names it reached before that failure
 //! and the next install names the ones after it.
 //!
 //! In TS you'd write (pseudocode):
