@@ -729,9 +729,8 @@ fn git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository() 
             "the top of the worktree is named at {}",
             place.display()
         );
-        assert_eq!(
+        assert!(
             answers.the_question_the_reader_asks.0,
-            true,
             "both questions answer at {}",
             place.display()
         );
@@ -755,9 +754,8 @@ fn git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository() 
             "Git names no top at {}",
             place.display()
         );
-        assert_eq!(
-            answers.the_question_the_reader_asks.0,
-            false,
+        assert!(
+            !answers.the_question_the_reader_asks.0,
             "the question the reading asks fails at {}",
             place.display()
         );
