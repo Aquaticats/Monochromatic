@@ -2885,11 +2885,8 @@ and the two `truepeak` files wait on their branch.
 
 ### What the rounds found
 
-- What the rounds reported as failing or misbehaving is on GitHub:
-  issues 6524 to 6617,
-  each filed after a search.
-  Closed by a merged round:
-  all of them except those with a round ("Rounds that ended,
+- Closed by a merged round:
+  every issue these rounds filed, except those with a round ("Rounds that ended,
   and what each left") and these,
   which stay open on purpose and wait in `doc/handover/questions-for-the-owner.md`.
   Issues 6555,
@@ -2916,7 +2913,6 @@ and the two `truepeak` files wait on their branch.
   and what refused under heavy disk load on 2026-11-26 is not known.
   Issue 6523 (`package/ide/app` does not compile on `main`) has its compile fix on `main` since `4df352241d`,
   and what is left of it is the owner's (a comment on the issue).
-  Issue 6560 is closed as a duplicate of 6543.
 - Fixes that changed release code,
   each with a control that fails without it,
   which the next release pass of its tool reads:
