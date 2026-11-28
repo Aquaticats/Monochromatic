@@ -22,6 +22,11 @@ use crate::edits::{
     FixClass,
     apply_fixes,
 };
+/// Import the native parse,
+///  because the join reads the rule's own tree to answer where a break lands.
+use crate::markdown_source::MarkdownSource;
+/// Import the node kind the paragraph lookup branches on.
+use satteri_ast::mdast::MdastNodeType;
 
 /// The offset a fragment starts at,
 ///  taken from the source the test writes rather than counted by hand.
@@ -30,6 +35,32 @@ fn fragment_at(
     written: &str,
 ) -> usize {
     return source.find(written).expect("the test writes this fragment");
+}
+
+/// Parse a fixture the way the rule parses a document,
+///  so every join answer comes from the tree the rule itself reads.
+fn parse(source: &str) -> MarkdownSource {
+    return MarkdownSource::new(String::from("joins.md"), String::from(source), false)
+        .expect("the fixture parses");
+}
+
+/// The paragraph a fragment stands in,
+///  which is the unit the rule plans its breaks and joins for.
+fn paragraph_holding(
+    context: &MarkdownSource,
+    at: usize,
+) -> u32 {
+    for id in context.visible_nodes() {
+        if context.kind(*id) != MdastNodeType::Paragraph {
+            continue;
+        }
+        let (start, end): (usize, usize) = context.offsets(*id);
+        if start <= at && at < end {
+            return *id;
+        }
+    }
+    // `panic!` here reports a fixture that holds no paragraph where the test put its fragment.
+    panic!("the fixture holds a paragraph at {at}");
 }
 
 /// Apply the answers exactly as the rule's fix does,
@@ -49,13 +80,11 @@ fn joined_under_host(
     indent_width: usize,
     host_prefix_chars: usize,
 ) -> String {
-    let answers: Vec<Option<FragmentJoin>> = fragment_joins(
-        source,
-        source.len(),
-        fragments,
-        indent_width,
-        host_prefix_chars,
-    );
+    let context: MarkdownSource = parse(source).with_host_prefix_chars(host_prefix_chars);
+    // Every fixture here holds one paragraph, and the first fragment names it.
+    let paragraph: u32 = paragraph_holding(&context, fragments[0]);
+    let answers: Vec<Option<FragmentJoin>> =
+        fragment_joins(&context, paragraph, source.len(), fragments, indent_width);
     let mut edits: Vec<Edit> = Vec::<Edit>::new();
     for answer in answers.into_iter().flatten() {
         edits.push(Edit {
@@ -256,7 +285,10 @@ fn the_host_prefix_is_part_of_the_width() {
 fn two_fragments_ending_at_one_line_ending_give_one_join() {
     let source: &str = "clause one, x, y\nnext line here.\n";
     let fragments: [usize; 2] = [fragment_at(source, "x, y\n"), fragment_at(source, "y\n")];
-    let answers: Vec<Option<FragmentJoin>> = fragment_joins(source, source.len(), &fragments, 0, 0);
+    let context: MarkdownSource = parse(source);
+    let paragraph: u32 = paragraph_holding(&context, fragments[0]);
+    let answers: Vec<Option<FragmentJoin>> =
+        fragment_joins(&context, paragraph, source.len(), &fragments, 0);
     assert_eq!(answers.len(), 2);
     let first: &FragmentJoin = answers[0].as_ref().expect("the first fragment joins");
     assert!(answers[1].is_none(), "one line ending takes one join");
@@ -277,6 +309,11 @@ fn an_emphasis_closed_break_point_ends_its_line() {
         "_held,_\n",
         "~~held,~~\n",
         "*a b,*\n",
+        "***held,***\n",
+        "**_held,_**\n",
+        "*held;*\n",
+        "*held.*\n",
+        "~held,~\n",
     ] {
         let source: String = format!("One two, {written}four five.\n");
         let fragment: usize = fragment_at(source.as_str(), written);
@@ -319,8 +356,10 @@ fn each_answer_belongs_to_its_fragment_and_crlf_is_removed_whole() {
         "One clause, the\r\nnext clause here\r\nand the rest, the\r\nlast clause.\r\n";
     let first: usize = fragment_at(source, "the\r");
     let second: usize = fragment_at(&source[first + 1..], "the\r") + first + 1;
+    let context: MarkdownSource = parse(source);
+    let paragraph: u32 = paragraph_holding(&context, first);
     let answers: Vec<Option<FragmentJoin>> =
-        fragment_joins(source, source.len(), &[first, second], 0, 0);
+        fragment_joins(&context, paragraph, source.len(), &[first, second], 0);
     assert_eq!(answers.len(), 2);
     let joined_first: &FragmentJoin = answers[0].as_ref().expect("the first fragment joins");
     assert_eq!(&source[joined_first.start..joined_first.end], "\r\n");
@@ -328,4 +367,27 @@ fn each_answer_belongs_to_its_fragment_and_crlf_is_removed_whole() {
         joined(source, &[first, second], 0),
         "One clause, the next clause here\r\nand the rest, the last clause.\r\n"
     );
+}
+
+/// A star, an underscore or a bracket that closes nothing is not where the rule breaks,
+///  so the fragment joins the line that continues its clause,
+///  which is what a run of delimiter characters alone cannot tell.
+#[test]
+fn a_delimiter_that_closes_nothing_leaves_the_fragment_joinable() {
+    for written in [
+        "(*held,*)",
+        "\"*held,*\"",
+        "held,*",
+        "held,__",
+        "snake_case,_",
+        "x*,*",
+        "**held**,**",
+    ] {
+        let source: String = format!("One two, {written}\nfour five.\n");
+        assert_eq!(
+            joined(source.as_str(), &[fragment_at(source.as_str(), written)], 0),
+            format!("One two, {written} four five.\n"),
+            "{written}"
+        );
+    }
 }

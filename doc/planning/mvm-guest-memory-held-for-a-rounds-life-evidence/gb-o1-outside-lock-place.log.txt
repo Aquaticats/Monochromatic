@@ -1,0 +1,11 @@
+== what the guest received
+total 31800
+drwxr-xr-x 3 root root     4096 Nov 28 13:26 .
+drwxr-xr-x 3 root root     4096 Nov 28 13:26 ..
+drwxr-xr-x 3 root root     4096 Nov 28 13:26 build
+-rwxr-xr-x 1 root root 32547448 Nov 28 12:01 monochromatic-git-policy-cli
+== the wrapper the test binary starts
+git version 2.43.0
+monochromatic-git-policy-cli 0.6.1-alpha.52, shadowing git at /usr/bin/git
+== the compiler this guest runs
+cargo is not on PATH in this guest

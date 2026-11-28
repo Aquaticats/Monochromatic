@@ -1,0 +1,1 @@
+2026-11-28T12:15:41.047Z slot free with 5 guests alive: zfs-r13-step21-arms      running; zfs-r6-propagation       running; zfs-f1-removal-and-slot-state running; ss-g-slot-state-1        running; rm-g-holders             running
