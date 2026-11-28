@@ -907,8 +907,10 @@ in its own capped scope:
   exit `0`,
   no finding.
   Its first run over the same two files was red:
-  the join paragraph and this section had commas and a colon inside a line,
-  which `markdown/semantic-line-breaks` reports,
+  the join paragraph had commas inside a line,
+  and the new section had commas and a colon inside a line,
+  which `markdown/semantic-line-breaks` reports at three lines of the README and at 14 lines of
+  the section,
   and every one of those lines was rewritten to end at its clause.
 - A render of every Markdown passage the round changed,
   through `pandoc --from gfm --to html`,
