@@ -297,6 +297,14 @@ hold(
   'the recipe refuses a power-cycle step through the module rather than itself',
   RECIPE_TEXT.includes('refuseAStepThatNeedsAPowerCycle(',),
 );
+hold(
+  'every guest variable the arms read carries the guest hostname, which is what they compare `gethostname()` with',
+  !/[*_]GUEST=\${options\.name}/.test(RECIPE_TEXT,),
+);
+hold(
+  'the recipe hands the arms that hostname through the backend',
+  RECIPE_TEXT.includes('_GUEST=${options.backend.hostnameOf(options.name)}',),
+);
 
 //endregion The recipe's own text
 
