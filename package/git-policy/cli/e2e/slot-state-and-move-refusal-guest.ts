@@ -45,7 +45,13 @@ import {
 import {
   guest,
 } from '../bin/mvm-guest-script.ts';
-import { buildDetached, } from './slot-state-guest-build.ts';
+import {
+  buildDetached,
+  CHECKOUT,
+  CRATE_DIR,
+  POOL,
+  SBIN,
+} from './slot-state-guest-build.ts';
 import {
   guestDriverOptions,
   type GuestDriverOptions,
@@ -64,14 +70,6 @@ import {
 const backend = guestBackend();
 
 /**
- Where the crate is unpacked and built inside the guest, which every account may traverse.
- */
-const CRATE_DIR = '/opt/git-policy-cli-slot-state';
-/**
- Milliseconds the guest's build of the test target may take.
- */
-const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
-/**
  Milliseconds the guest arm may take.
  */
 const ARM_TIMEOUT_MS = 900_000;
@@ -80,33 +78,6 @@ const ARM_TIMEOUT_MS = 900_000;
  The environment variable the arm reads, so it never writes a guest fixture on a machine somebody uses.
  */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_SLOT_STATE_GUEST';
-/**
- The checkout the arm registers, clones and moves, under the guest's own root.
- */
-const CHECKOUT = '/root/slot-state-checkout';
-/**
- The OpenZFS userspace the guest built, which every `zfs` the arm runs comes from.
- */
-const SBIN = '/opt/openzfs-2.4.4/sbin';
-/**
- The pool this driver makes for the arm, and the file-backed vdev it stands on.
- */
-const POOL = 'git-policy-cli-slot-state';
-/**
- The file-backed vdev the pool stands on.
- */
-const POOL_IMAGE = '/home/git-policy-cli-slot-state-fixture/pool.img';
-
-/**
- The folder the pool's vdev stands in, which the guest makes before it truncates the vdev.
- */
-const POOL_IMAGE_FOLDER = POOL_IMAGE
-  .slice(
-  0,
-  POOL_IMAGE
-    .lastIndexOf('/',),
-  );
-
 /**
  The lines a run must find in the guest's arm log, one per class and per move arm plan step 12 runs.
  */
@@ -246,41 +217,7 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'guest-push.log',
   },);
-  /**
-   The guest's own script: unpack the archive, make the pool, and build the test target.
-   */
-  const prepareBuild = [
-    'set -eu',
-    // `mvm push` lands the tarball in the guest's shared folder, not at the path it was given.
-    'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
-    `rm --recursive --force ${CRATE_DIR}`,
-    `mkdir --parents ${CRATE_DIR}`,
-    `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
-    // The arm needs a pool of its own; the checkout dataset and its clone are made on it by the arm.
-    `mkdir --parents ${POOL_IMAGE_FOLDER}`,
-    `if ! ${SBIN}/zpool list -H -o name ${POOL} > /dev/null 2>&1; then`,
-    `  truncate --size 1G ${POOL_IMAGE}`,
-    `  ${SBIN}/zpool create -f -O mountpoint=none ${POOL} ${POOL_IMAGE}`,
-    'fi',
-    `mkdir --parents ${CHECKOUT}`,
-    `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'export PATH=/root/.cargo/bin:$PATH',
-    // The one target the arm starts, two jobs at a time: a release rustc of this crate's tests took 6.9 GiB of this
-    // guest's 8 GiB, and the kernel killed it at four jobs on 2026-11-27 (issue 6581; cargo exited 101). The lib test
-    // harness the arm never runs is not built here.
-    'cargo build --release --test native_binary --locked --features test-only-switches -j 2 > /root/slot-state-build.log 2>&1',
-    'tail --lines=3 /root/slot-state-build.log',
-  ]
-    .join('\n',);
-  // The build takes minutes (6m 07s on 2026-11-27), and a guest agent can lose a long command's result
-  // (`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`), so it runs detached and writes the line
-  // that says how it ended into its own log, which the host waits for and pulls.
-  await buildDetached({
-    chosen,
-    script: prepareBuild,
-    log: 'slot-state-crate-build.log',
-    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
-  },);
+  await buildDetached({ chosen, },);
   /**
    The guest's own script: run the arm, refuse a returned one, and copy its log to the shared folder.
    */
