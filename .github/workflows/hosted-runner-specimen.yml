@@ -99,8 +99,8 @@ jobs:
           sudo setfacl --modify "u:$(id --user):rw" /dev/kvm
           started=$(date +%s)
           qemu-system-x86_64 \
-            --machine q35 --accel kvm --cpu host --smp 2 --memory 512 \
-            --drive file=cirros.img,format=raw,if=virtio \
+            --machine q35 --accel kvm --cpu host --smp 2 -m 512 \
+            --drive file=cirros.img,format=qcow2,if=virtio \
             --netdev user,id=net0 --device virtio-net-pci,netdev=net0 \
             --display none --serial file:console.log --no-reboot &
           pid=$!
