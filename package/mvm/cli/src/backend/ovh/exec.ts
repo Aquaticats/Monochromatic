@@ -13,6 +13,7 @@ import { ephemeralRun, } from '../ephemeral-run.ts';
 import type { ExecResult, } from '../../exec.ts';
 import { validateOvhName, } from './config.ts';
 import {
+  assertNotDeleting,
   findMvmInstance,
   instanceLoginUser,
   publicIpv4,
@@ -38,7 +39,8 @@ import {
  
  @returns public IPv4 and the login account its image names
  
- @throws Error when the name is invalid, no single owned instance matches, or it has no public address
+ @throws Error when the name is invalid, no single owned instance matches, the
+ project is still deleting that instance, or it has no public address
  
  @example
  ```ts
@@ -58,6 +60,10 @@ async function resolveTarget({
    The one instance mvm owns under that name.
    */
   const instance = await findMvmInstance({ name, },);
+  assertNotDeleting({
+    instance,
+    name,
+  },);
   return {
     ip: publicIpv4({ instance, },),
     user: await instanceLoginUser({ instance, },),

@@ -1,8 +1,11 @@
 /**
  Unit tests for reading the project's instances: only names carrying the tool's
- prefix are mvm's, an instance the project lists as deleted is nobody's,
- a name is matched exactly, the public IPv4 is picked out of the
- address list, and an instance that reaches a failed status stops the wait.
+ prefix are mvm's, an instance the project lists as deleted is nobody's while
+ one it lists as deleting stays mvm's, a name is matched exactly, the public
+ IPv4 is picked out of the address list, an instance that reaches a failed
+ status stops the wait, and a wait for accepted deletes ends on a status of
+ deleted or on absence, says each status once, and names what is left at its
+ bound.
 
  Instance bodies here are stand-ins written by hand from OVHcloud's schema
  (`cloud.instance.Instance`, `cloud.instance.IpAddress`), never a recording, so
@@ -12,6 +15,7 @@
  */
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
@@ -24,6 +28,7 @@ import {
   mvmInstances,
   publicIpv4,
   runningTimeoutMessage,
+  waitUntilDeleted,
   waitUntilRunning,
   type OvhInstance,
 } from '../../../dist/final/node/index.mjs';
@@ -52,6 +57,49 @@ const PROJECT_INSTANCES = [
 ] as const satisfies readonly OvhInstance[];
 
 //endregion Fixtures
+
+//region Recording logger
+
+/**
+ A logger that keeps every message it is given, so a test can read what a wait said.
+ 
+ @param said - list the messages are appended to, in order
+ 
+ @returns a {@link Logger} whose level methods append and whose flush resolves
+ 
+ @example
+ ```ts
+ const said: string[] = [];
+ waitUntilDeleted({ instances, rl: recordingLogger(said) });
+ ```
+ */
+function recordingLogger(said: string[],): Logger {
+  return {
+    debug: function record(message: string,): void {
+      said.push(message,);
+    },
+    error: function record(message: string,): void {
+      said.push(message,);
+    },
+    fatal: function record(message: string,): void {
+      said.push(message,);
+    },
+    flush: function flushed(): Promise<void> {
+      return Promise.resolve();
+    },
+    info: function record(message: string,): void {
+      said.push(message,);
+    },
+    trace: function record(message: string,): void {
+      said.push(message,);
+    },
+    warn: function record(message: string,): void {
+      said.push(message,);
+    },
+  };
+}
+
+//endregion Recording logger
 
 await describe({
   name: 'ovh instances',
@@ -280,5 +328,120 @@ await describe({
     },),
 
     //endregion Waiting
+
+    //region Waiting for a delete
+
+    it({
+      name: 'waitUntilDeleted says each status once and stops when the project lists the machine as deleted',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = scriptedStandIn([
+          jsonAnswer([instanceAnswer({
+            id: 'instance-1',
+            name: 'mvm-dev',
+            status: 'DELETING',
+          },),],),
+          jsonAnswer([instanceAnswer({
+            id: 'instance-1',
+            name: 'mvm-dev',
+            status: 'DELETING',
+          },),],),
+          jsonAnswer([instanceAnswer({
+            id: 'instance-1',
+            name: 'mvm-dev',
+            status: 'DELETED',
+          },),],),
+        ],);
+        /**
+         What the wait said, in order, through the logger it was given.
+         */
+        const said: string[] = [];
+        await waitUntilDeleted({
+          instances: [{ id: 'instance-1', name: 'dev', },],
+          pollIntervalMs: 1,
+          rl: recordingLogger(said,),
+        },);
+        expect(standIn.calls,).toHaveLength(3,);
+        expect(said,).toEqual(['instance dev is DELETING',],);
+      },
+    },),
+    it({
+      name: 'waitUntilDeleted stops when the project no longer lists the machine',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = scriptedStandIn([
+          jsonAnswer([instanceAnswer({
+            id: 'instance-1',
+            name: 'mvm-dev',
+            status: 'DELETING',
+          },),],),
+          jsonAnswer([],),
+        ],);
+        /**
+         What the wait said, in order.
+         */
+        const said: string[] = [];
+        await waitUntilDeleted({
+          instances: [{ id: 'instance-1', name: 'dev', },],
+          pollIntervalMs: 1,
+          rl: recordingLogger(said,),
+        },);
+        expect(standIn.calls,).toHaveLength(2,);
+        expect(said,).toEqual(['instance dev is DELETING',],);
+      },
+    },),
+    it({
+      name: 'waitUntilDeleted returns at once when the project has already stopped listing the machine',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(() => jsonAnswer([],),);
+        /**
+         What the wait said, in order.
+         */
+        const said: string[] = [];
+        await waitUntilDeleted({
+          instances: [{ id: 'instance-1', name: 'dev', },],
+          pollIntervalMs: 1,
+          rl: recordingLogger(said,),
+        },);
+        expect(standIn.calls,).toHaveLength(1,);
+        expect(said,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'waitUntilDeleted throws at its bound, naming the machine, its last status, the bill and both commands',
+      fn: async () => {
+        await using _env = await installEnv();
+        using _standIn = installStandIn(() => jsonAnswer([instanceAnswer({
+          id: 'instance-1',
+          name: 'mvm-dev',
+          status: 'DELETING',
+        },),],),);
+        /**
+         What the wait said before its bound passed, which must hold the status once.
+         */
+        const said: string[] = [];
+        const error = await errorFrom({
+          run: () => waitUntilDeleted({
+            instances: [{ id: 'instance-1', name: 'dev', },],
+            pollIntervalMs: 1,
+            rl: recordingLogger(said,),
+            timeoutMs: 20,
+          },),
+        },);
+        /**
+         The message the bound's passing throws.
+         */
+        const message = caughtValueText(error,);
+        expect(message,).toContain('dev',);
+        expect(message,).toContain('DELETING',);
+        expect(message,).toContain('bills an instance until it is deleted',);
+        expect(message,).toContain('mvm --backend ovh list',);
+        expect(message,).toContain('mvm --backend ovh destroy dev',);
+        expect(said,).toEqual(['instance dev is DELETING',],);
+      },
+    },),
+
+    //endregion Waiting for a delete
   ],
 },);
