@@ -18,6 +18,7 @@ import {
   holdsLineStartingWith,
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   awaitDetachedGuestScript,
   pullGuestLog,
@@ -239,10 +240,17 @@ export async function runTheArms({
    The arms themselves: the built test target's step 21 arms, run where the guest's own pool is and never on a machine
    somebody uses.
    */
+  /**
+   The backend this run drives, which decides the hostname the guest answers on.
+   */
+  const backend = guestBackend();
+  /**
+   The arms themselves, which run in the guest's own folders and copy their log into its shared folder.
+   */
   const script = [
     'set -eu',
     `export PATH=${openZfsPathWithTools}`,
-    `export ${guestVariable}=${chosen.name}`,
+    `export ${guestVariable}=${backend.hostnameOf(chosen.name)}`,
     `export ${poolVariable}=${pool}`,
     `export ${sbinVariable}=${openZfsSbin}`,
     `export ${rootVariable}=${checkout}`,
