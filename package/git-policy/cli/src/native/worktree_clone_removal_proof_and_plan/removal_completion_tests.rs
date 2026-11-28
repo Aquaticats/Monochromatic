@@ -954,7 +954,8 @@ fn claim_files_of(
 ///  (`SPEC.md`,
 ///  "Removal of a ZFS worktree clone"),
 ///  and the release's own sentence about it.
-///  The control plants the plan a killed removal leaves, a cleanup record an earlier run left
+///  The control plants the plan a killed removal leaves,
+///  a cleanup record an earlier run left
 ///  so a removal that ran would destroy the origin snapshot,
 ///  a clone the pool proves gone,
 ///  and a person's lock on the registration,

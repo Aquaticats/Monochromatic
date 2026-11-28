@@ -247,8 +247,8 @@ pub fn run_wrapper_own_git(
 ///  Whether the removal a served run answered took the worktree,
 /// so the steps after a removal belong to it.
 /// Why:
-///   Two of this run's steps remove what a removed worktree leaves, the units
-///   it ran and the pool it filled,
+///   Two of this run's steps remove what a removed worktree leaves,
+///  the units it ran and the pool it filled,
 ///   and they run only when the removal ended well:
 ///   a removal Git refused leaves the worktree and its units alone.
 ///   A removal Git runs answers `Ran(0)`,

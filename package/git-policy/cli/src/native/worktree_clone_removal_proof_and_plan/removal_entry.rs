@@ -30,7 +30,8 @@
 //!  `removal_resume::adopt_the_removal`'s own path.
 //!  A lock on the registration whose words are not this add's refuses here too,
 //!  before the unmount and the plan this entry writes:
-//!  the Git settle reads `locked` after the unmount, the plan and every destroy,
+//!  the Git settle reads `locked` after the unmount,
+//!  the plan and every destroy,
 //!  so a person's lock met only there would be met too late
 //!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 //!  "How doctor and removal tell the states apart").

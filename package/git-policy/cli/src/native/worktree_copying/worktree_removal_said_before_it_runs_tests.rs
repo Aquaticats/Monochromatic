@@ -15,8 +15,11 @@
 //! ```
 
 use super::{
+    TheOpeningLinesArm,
     TheRemovalSaidBeforeItRuns,
+    TheRemovalsOpeningLine,
     say_then_run_the_removal,
+    the_opening_line,
 };
 use crate::test_support::AStreamThatRefusesEveryByte;
 use crate::test_support::SharedSink;
@@ -25,6 +28,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_command_path::{
     TheRemovalAnswer,
 };
 use std::cell::RefCell;
+use std::path::Path;
 
 /// The line a control says,
 /// which is the release's own opening words,
@@ -102,4 +106,66 @@ fn a_terminal_that_refuses_the_line_still_lets_the_removal_run() {
         "the removal runs although the terminal refused the line"
     );
     assert_eq!(answer.lines, THE_REPORT, "the removal's own report travels");
+}
+
+/// What:
+///  The live line says that the removal runs,
+///  that Git does not,
+///  that it ends no holder,
+///  and how many forces this command carried,
+///  and the refused line says the pool is the caller's own answer and removes nothing.
+/// Why:
+///  The line is what tells a person which of the two arms they met,
+///  and it is the only place the force count a person typed is said back to
+///  them,
+///  so a control holds what each arm says rather than the code holding it alone.
+#[test]
+fn each_arm_says_what_it_promises() {
+    let target: &Path = Path::new("/repo/.claude/worktrees/fix-flaky-test");
+    let live: String = the_opening_line(&TheRemovalsOpeningLine {
+        target,
+        plan: None,
+        forces: 2,
+        arm: TheOpeningLinesArm::Live,
+    });
+    for said in [
+        "runs here: a whole managed clone is bound to this slot",
+        "Git does not run",
+        "ends no holder and forces nothing beyond what the command's own force count passes",
+        "`2` force(s) were counted in the words, where two pass every refusal the removal has",
+    ] {
+        assert!(live.contains(said), "the live line says {said}: {live}");
+    }
+    let plan: &Path =
+        Path::new("/repo/.git/monochromatic-git-policy-cli/clone-destruction-plans/1234");
+    let live_again: String = the_opening_line(&TheRemovalsOpeningLine {
+        target,
+        plan: Some(plan),
+        forces: 0,
+        arm: TheOpeningLinesArm::Live,
+    });
+    assert!(
+        live_again.contains(plan.display().to_string().as_str()),
+        "the live line names the plan this run resumes: {live_again}"
+    );
+    assert!(
+        live_again.contains("so this run resumes it"),
+        "the live line says the run resumes that plan: {live_again}"
+    );
+    let refused: String = the_opening_line(&TheRemovalsOpeningLine {
+        target,
+        plan: None,
+        forces: 0,
+        arm: TheOpeningLinesArm::Refused,
+    });
+    for said in [
+        "is refused: a whole managed clone is bound to this slot",
+        "The pool here is the caller's own answer and not this machine's device",
+        "nothing was removed and Git did not run",
+    ] {
+        assert!(
+            refused.contains(said),
+            "the refused line says {said}: {refused}"
+        );
+    }
 }

@@ -3032,7 +3032,8 @@ and its sentence names the same command,
 so nothing of the clone is unmounted or destroyed while a person's lock stands.
 The removal's first write is the slot's claim file,
 which stopping gives back;
-the lock is read before the unmount, the plan and every destroy on every path,
+the lock is read before the unmount,
+the plan and every destroy on every path,
 the resumed one whose clone is already gone included.
 The lock is released only by the removal's registration-cleanup step,
 after the clone's destruction is proven.

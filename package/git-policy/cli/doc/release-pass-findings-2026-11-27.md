@@ -1237,3 +1237,248 @@ which is the fact that took it out.
 - The final-newline hints (the read's L3 to L6) belong to another round and were not touched,
   including the sentence the read says no run prints and the carve-out the direct-check hint leaves out.
 - No whole container gate and no independent review ran.
+
+## The alpha.53 second pass: the removal's resumed lock and what follows a finished one
+
+Round of 2026-11-28,
+unapproved and non-final.
+Only the owner declares it complete.
+
+A second pass by another agent of the same vendor as some of the authors read
+`0.6.1-alpha.53` (`f81526484e`) against `0.6.1-alpha.52` (`bf46e60f6d`)
+and reported its findings against those two released binaries.
+This round took four of them,
+reproduced each on the tree the force merge `7c4962988d` left,
+and changed what the records and the runs support.
+Everything below is this round's own measurement unless it names the pass,
+and no guest ran:
+every claim rests on the value layer and the package's own fixtures.
+A quoted line of a program's output is wrapped for this page and keeps its
+words.
+
+### M1: a resumed removal whose clone is gone read the lock after it wrote
+
+What the pass said:
+a removal resumed from a plan whose head word is `requested`,
+`unknown` or `gone`,
+with the clone already gone,
+took the head-gone path,
+and that path answered `TheStart::Gone` without reading a person's lock.
+The path then published the plan's own lines and sent the origin snapshot's
+destroy,
+and only the Git settle read `locked` afterward.
+
+What was there,
+on the merged tree:
+`removal_resume.rs`'s `start_the_removal_with_force` returned `TheStart::Gone`
+from the `CloneAbsence::Gone` arm and called nothing that reads a lock,
+while every other path reads it in
+`removal_entry.rs`'s `prepare_the_removal_over_a_plan`.
+`removal_completion_head_gone.rs` then ran `publish_the_plan` and
+`attempt_the_origin_cleanup` before `settle_the_registration`.
+
+The control that showed it,
+`removal_completion::tests::a_persons_lock_refuses_a_resumed_removal_whose_clone_is_gone_before_any_write`:
+it plants the plan a killed removal leaves with each of the three head words,
+plants the origin cleanup record an earlier run left so a removal that ran would
+destroy the origin snapshot,
+gives the pool a clone that does not answer,
+writes a person's lock on the registration,
+and reads what the run left.
+Red on that tree,
+for the `requested` plan:
+
+```text
+a person's lock refuses the resumed removal of a requested plan, so nothing finishes:
+the ZFS worktree clone at `fix-flaky-test` (dataset `tank/wt/fix-flaky-test`) is destroyed,
+with 2 of the snapshot(s) this removal recorded.
+  destroyed snapshot tank/wt/fix-flaky-test@sanoid-hourly
+  ...
+  the origin cleanup destroyed the snapshot
+  `tank/mono-checkout@git-worktree-clone-origin-445566778899aabbccddeeff00112233`
+```
+
+The order before and after,
+in the file and the lines that hold it:
+
+- before:
+  `removal_resume.rs`'s `start_the_removal_with_force` builds
+  `TheStart::Gone` from the plan and returns it;
+  `removal_completion_head_gone.rs` proves the clone's absence,
+  pushes a `destroyed` line for each name the plan still records,
+  sets `head = HeadWord::Gone`,
+  `publish_the_plan(&folder, &plan)`,
+  `attempt_the_origin_cleanup(input, &plan)`,
+  and only then `settle_the_registration`.
+- after:
+  `removal_completion_head_gone.rs` reads the lock first,
+  through `the_lock_a_removal_refuses::the_locks_answer` with the run's own force
+  count,
+  before it proves anything and before `publish_the_plan`;
+  a person's lock refuses the run there,
+  and a two-force run deletes the lock as every other path does,
+  with its line carried into the report's forced acts.
+
+A second control holds the same order from the other side:
+`removal_completion::tests::a_persons_lock_refuses_the_removal_before_any_request`
+still refuses on the fresh path,
+and both are green on the tree this round commits.
+
+### L1: the sentence promised a removal that wrote nothing
+
+What the pass said:
+the sentence a person's lock is refused with said the removal "stops before its
+first write",
+and the order's first write is the slot's claim file,
+which the removal takes before it reads anything.
+
+What was there:
+`removal_force_refusal_sentences.rs` printed that sentence,
+and `README.md`,
+`SPEC.md`,
+`the_lock_a_removal_refuses.rs` and `removal_entry.rs` repeated the claim.
+
+The sentence before,
+with its middle elided:
+
+```text
+..., so a person's lock may stand there and this removal stops before its first write with no force or one. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. ...
+```
+
+The sentence after,
+with the same elision:
+
+```text
+..., so a person's lock may stand there and this removal stops before it unmounts or destroys anything, with no force or one. The slot's claim file is the only record this run wrote, and stopping gives the slot back. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. ...
+```
+
+The control reads the claim rather than assuming it:
+it lists the record folder's `<slot>.claim.<generation>` files,
+requires exactly one,
+and reads it through `single_owner_claim::decode` as a released claim,
+which is what the drop a refusal takes writes.
+Red on that tree at the first assertion of the new words:
+
+```text
+the sentence says before it unmounts or destroys anything: the Git registration of the slot `fix-flaky-test` holds a lock this add cannot attribute to itself (its words are `ZFS test underlay`), so a person's lock may stand there and this removal stops before its first write with no force or one. ...
+```
+
+The records were changed to say what the code does,
+because the code and the tests are what the claim is about and the words were
+wrong:
+`SPEC.md` ("Removal of a ZFS worktree clone",
+and the lock's paragraph in
+the typed-network section),
+`README.md`,
+`the_lock_a_removal_refuses.rs` and `removal_entry.rs`.
+
+### L3: a finished ZFS removal left its units and its shadow pool
+
+What the pass said:
+the two steps that follow a removal were keyed to `ForwardedRun::Ran(0)`,
+and a bound slot's removal answers `ForwardedRun::Failed` with
+`REMOVED_EXIT_CODE`,
+so a finished ZFS removal stopped no unit and cleared no pool.
+
+What was there,
+at `worktree_copy_forward.rs`:
+
+```text
+if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
+```
+
+The control that showed it,
+`worktree_copy_forward::tests::a_finished_bound_slots_removal_stops_its_units_and_takes_its_shadow_pool`:
+its removal step takes a real worktree the way a finished removal does and answers
+`BoundSlotRemovalAnswer { code: REMOVED_EXIT_CODE }`,
+and the control reads the stop's question and the pool's folder.
+Red on that tree:
+
+```text
+assertion `left == right` failed: one removal, one stop
+  left: 0
+ right: 1
+```
+
+The change:
+one reading of the run's ending now decides both steps,
+`the_removal_ended_well`,
+which answers a `Ran(0)` and a `Failed` whose code is `REMOVED_EXIT_CODE`.
+Both steps keep their own proof that the worktree is gone
+(`worktree_is_gone` over the registration the removal deletes),
+so a removal that answered `0` without taking the worktree still stops nothing,
+and a `Killed` or refused removal reaches neither.
+The module documents of `worktree_copy_forward` and
+`worktree_removal_stops_units` name the third removal,
+and `README.md`'s passage about the units names it beside the subvolume destroy
+and Git's own removal.
+
+### L4: the line saying the removal runs was printed after it ran
+
+What the pass said:
+`worktree_removal_of_a_bound_clone.rs` built the line
+"the removal of `<slot>` runs here:
+a whole managed clone is bound to this slot,
+and ... Git does not run"
+into the answer's standard error before running the removal,
+and returned it after the removal ended.
+
+What was there:
+the text and the slot's report were collected into a `String`,
+`complete_the_bound_clones_removal` ran,
+and the whole string was returned to be written by `finish_forwarded`.
+
+The change:
+`worktree_removal_said_before_it_runs.rs` holds one call,
+`say_then_run_the_removal`,
+which writes the line and the slot's report to the stream it is given and flushes,
+then runs the removal it is given and answers what that answered;
+a stream that refuses the line is dropped and the removal runs all the same.
+The live arm of `the_removal_with` hands it standard error and
+`complete_the_bound_clones_removal`,
+and returns only the removal's own report,
+so the person reads the line before the work starts and the report after it.
+`SPEC.md` and `README.md` say so.
+
+Three controls hold it.
+`worktree_removal_said_before_it_runs::tests::the_line_is_out_before_the_removal_runs`
+reads the stream's text at the moment the removal is entered,
+so it fails when the two are swapped;
+`::a_terminal_that_refuses_the_line_still_lets_the_removal_run`
+is the closed terminal;
+and `::each_arm_says_what_it_promises` holds what the live line and the refused
+line say,
+which no host control could read from the live arm before.
+The order control's own guard was shown failing:
+with the two statements of `say_then_run_the_removal` swapped by hand and run,
+it failed with an empty text at the removal,
+and the two statements were restored.
+
+The opening lines themselves moved out of
+`worktree_removal_of_a_bound_clone.rs` into the same file,
+because that file's code lines passed the linter's limit of 300 with the live
+line,
+its force count and the resume sentence inside it,
+and the linter's `rust/max-lines` finding was the one finding this round would
+otherwise have added.
+The words are unchanged by the move,
+except that the live line's force count is now said from the struct's field.
+The live arm itself is what no host control can run,
+because `complete_the_bound_clones_removal` opens this machine's ZFS device,
+which the pass's M2 says,
+and the guest arm is where that half of the claim belongs.
+
+### What this round did not do
+
+- The pass's M2 (no guest arm plants a person's lock for a removal),
+  L2 (a registered slot whose folder is gone is left to Git),
+  L5 (the direct check's hint carries an index reason a check does not have)
+  and L6 (a guest arm's stale comment) are other rounds' or nobody's yet;
+  nothing here changed them.
+- No guest ran,
+  and no command opened `/dev/zfs`,
+  changed ZFS,
+  mounted anything or started a service manager.
+- No whole container gate and no independent review ran.
+  The two vendor-mates make this a second pass,
+  not an independent review.

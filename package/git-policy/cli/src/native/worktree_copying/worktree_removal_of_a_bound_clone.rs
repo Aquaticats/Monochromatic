@@ -97,6 +97,13 @@ use crate::worktree_clone_slot_state::slot_state_readings::{
     read_binding_reading,
 };
 use crate::worktree_copying::the_slots_cleanliness::TheSlotsCleanliness;
+use crate::worktree_copying::worktree_removal_said_before_it_runs::{
+    TheOpeningLinesArm,
+    TheRemovalSaidBeforeItRuns,
+    TheRemovalsOpeningLine,
+    say_then_run_the_removal,
+    the_opening_line,
+};
 use crate::zfs_compatibility_gate::gate_verdict::LiveGate;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::LiveMountedDatasets;
 use std::path::{
@@ -463,15 +470,12 @@ pub fn the_removal_with(
     }
     // A standing plan is the record of what an earlier run destroyed, so the removal this spelling runs is the one
     //  that resumes it rather than a fresh one that would write a second plan beside it.
-    let resuming: String = match &at.state {
+    let plan: Option<&std::path::Path> = match &at.state {
         SlotRouteState::PendingRemoval {
             plan,
             ..
-        } => format!(
-            " A removal's destruction plan at {} stands, so this run resumes it: it reads the plan, proves every name the plan records again, sends no request for a name the plan records as destroyed, carries the loss forward and ends the plan with the removal's own records.",
-            plan.display()
-        ),
-        _ => String::new(),
+        } => Some(plan.as_path()),
+        _ => None,
     };
     // The slot holds a whole managed clone, so the wrapper removes it rather than Git. The slot's own report is said
     //  first either way, because it is what proves the step is about this clone; the removal's report or the control's
@@ -479,40 +483,33 @@ pub fn the_removal_with(
     //  A live removal says its lines to the terminal before the removal starts, so a person waiting can tell a removal
     //  that runs from one that hung and a kill leaves a line saying one was running; a control's reading is returned
     //  whole, because nothing runs there to announce.
-    let said: String = match &readings.reads {
-        RemovalReads::Live => format!(
-            "the removal of `{}` runs here: a whole managed clone is bound to this slot, and {}.{resuming} Git does not run. This removal ends no holder and forces nothing beyond what the command's own force count passes: `{}` force(s) were counted in the words, where two pass every refusal the removal has.\n",
-            request.target.display(),
-            crate::worktree_clone_binding_record::THE_REMOVALS_WORDS,
-            request.force.count()
-        ),
-        _ => format!(
-            "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}.{resuming} The pool here is the caller's own answer and not this machine's device, which the whole removal needs, so nothing was removed and Git did not run; the lines after this one say what a removal would prove and lose.\n",
-            request.target.display(),
-            crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
-        ),
-    };
-    let mut stderr: String = said;
+    let mut stderr: String = the_opening_line(&TheRemovalsOpeningLine {
+        target: request.target,
+        plan,
+        forces: request.force.count(),
+        arm: match &readings.reads {
+            RemovalReads::Live => TheOpeningLinesArm::Live,
+            _ => TheOpeningLinesArm::Refused,
+        },
+    });
     for line in at.lines() {
         stderr.push_str(line.as_str());
         stderr.push('\n');
     }
     return match &readings.reads {
         RemovalReads::Live => {
-            let answer: TheRemovalAnswer = crate::worktree_copying::worktree_removal_said_before_it_runs::say_then_run_the_removal(
-                crate::worktree_copying::worktree_removal_said_before_it_runs::TheRemovalSaidBeforeItRuns {
-                    said: stderr.as_str(),
-                    said_to: &mut std::io::stderr(),
-                    the_removal: &|| {
-                        return complete_the_bound_clones_removal(
-                            request.common_dir,
-                            slot.as_str(),
-                            crate::worktree_clone_add_route::the_removals_cancelling(),
-                            request.force,
-                        );
-                    },
+            let answer: TheRemovalAnswer = say_then_run_the_removal(TheRemovalSaidBeforeItRuns {
+                said: stderr.as_str(),
+                said_to: &mut std::io::stderr(),
+                the_removal: &|| {
+                    return complete_the_bound_clones_removal(
+                        request.common_dir,
+                        slot.as_str(),
+                        crate::worktree_clone_add_route::the_removals_cancelling(),
+                        request.force,
+                    );
                 },
-            );
+            });
             Some(BoundSlotRemovalAnswer {
                 stderr: format!("{}\n", answer.lines),
                 code: answer.code,

@@ -19,7 +19,8 @@
 //!  the origin snapshot and the head,
 //!  and only then refused.
 //!  The entry therefore reads the lock under the slot's claim,
-//!  before the unmount, the plan and every destroy,
+//!  before the unmount,
+//!  the plan and every destroy,
 //!  and words this add did not write refuse the removal as the add's own resume
 //!  refuses them.
 //!  The order's first write is the slot's claim file,

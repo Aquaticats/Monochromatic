@@ -6165,7 +6165,8 @@ A lock on the registration whose words are not the add's own refuses the removal
 with no force and with one,
 before it unmounts or destroys anything,
 in the same words the add's own resume uses,
-because the Git settle reads `locked` after the unmount, the plan and every
+because the Git settle reads `locked` after the unmount,
+the plan and every
 destroy,
 so a lock met only there would be met after the clone's history went.
 The slot's claim file is the only record the run writes,
