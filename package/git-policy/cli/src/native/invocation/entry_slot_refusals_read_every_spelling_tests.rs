@@ -496,6 +496,103 @@ fn a_bound_slots_removal_is_refused_behind_every_global_option() {
     remove(bound.root.as_path());
 }
 
+/// What:
+///  A registered slot whose folder a person moved aside reaches the step that
+///  answers for a bound slot,
+///  in every spelling the command may carry,
+///  and Git does not run.
+/// Why:
+///  Git's own removal deletes the registration,
+///  and the clone and the binding record that name it would then stand behind
+///  nothing;
+///  Git's list holds the registration's path whether or not a folder stands
+///  there,
+///  so the removal Git would run is that slot's removal
+///  (`SPEC.md`,
+///  "Removal of a ZFS worktree clone" and
+///  "Unmounted,
+/// pruned and moved ZFS worktree clones").
+///  The record proves a whole worktree,
+///  so the slot's state is the known unmounted clone and the wrapper's own
+///  removal is what answers;
+///  the pool is a control's own,
+///  so the answer says what the removal would have proved rather than removing
+///  anything.
+#[test]
+fn a_bound_slots_removal_whose_folder_is_gone_reaches_the_step_that_answers_for_it() {
+    let bound: RegisteredSlot = a_registered_slot("entry-slot-removal-folder-gone");
+    publish_under(
+        bound.common.as_path(),
+        &record_naming(
+            Phase::Filled,
+            bound.slot.as_path(),
+            bound.registration.as_path(),
+            Some(bound.pointer.clone()),
+        ),
+        "one",
+    );
+    let aside: PathBuf = bound.root.join("one-moved-aside");
+    std::fs::rename(bound.slot.as_path(), aside.as_path())
+        .expect("the slot's folder moves aside");
+    let absolute: OsString = bound.slot.as_os_str().to_os_string();
+    let bindings: PathBuf = crate::worktree_clone_binding_record::registration_home::binding_path(
+        bound.common.as_path(),
+        "one",
+    );
+    let spellings: Vec<Vec<OsString>> = vec![
+        started_in(bound.repository.as_path(), &["worktree", "remove", "one"]),
+        started_in(
+            bound.repository.as_path(),
+            &["worktree", "remove", "--force", "one"],
+        ),
+        started_in(
+            bound.repository.as_path(),
+            &["worktree", "remove", "../one"],
+        ),
+        {
+            let mut words: Vec<OsString> =
+                started_in(bound.repository.as_path(), &["worktree", "remove", "-f", "-f"]);
+            words.push(absolute);
+            words
+        },
+    ];
+    for words in &spellings {
+        let facts: CopyFacts = settled_facts(plan_invocation(
+            words.as_slice(),
+            &[],
+            &inputs(bound.root.as_path()),
+        ));
+        assert_eq!(
+            facts.removal_target.as_deref(),
+            Some(bound.slot.as_path()),
+            "the command names the slot Git's list holds, for {words:?}"
+        );
+        let stderr: String = the_refusals_report(run_the_removal(&facts, words.as_slice()));
+        assert!(
+            stderr.contains("a whole managed clone is bound to this slot"),
+            "{words:?}: {stderr}"
+        );
+        assert!(
+            stderr.contains("state: known unmounted clone"),
+            "{words:?}: {stderr}"
+        );
+        assert!(
+            stderr.contains("the removal's lineage proof could not run"),
+            "the wrapper's own removal is the step that answered, for {words:?}: {stderr}"
+        );
+        assert!(
+            !bound.slot.exists(),
+            "Git removed nothing, because Git never ran, for {words:?}"
+        );
+        assert!(
+            bound.registration.is_dir(),
+            "the registration stands, for {words:?}"
+        );
+        assert!(bindings.is_file(), "the record stands, for {words:?}");
+    }
+    remove(bound.root.as_path());
+}
+
 /// The global option no build of this wrapper reads,
 /// which is the shape of an option a newer Git adds.
 const A_GLOBAL_OPTION_THIS_BUILD_DOES_NOT_READ: &str = "--no-such-global-option-yet";

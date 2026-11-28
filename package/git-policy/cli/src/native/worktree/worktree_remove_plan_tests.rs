@@ -354,6 +354,87 @@ fn a_registered_last_component_names_the_worktree_for_the_refusal() {
 }
 
 /// What:
+///  A registered worktree whose folder is gone is still the worktree
+///  `git worktree remove` names,
+///  by its last component,
+///  by its path,
+///  and by a path that reaches it through `..`.
+/// Why:
+///  Git removes only a worktree its own list holds,
+///  and that list holds the registration's path whether or not a folder stands
+///  there:
+///  a slot whose folder a person moved aside or deleted keeps its registration
+///  and its binding record,
+///  and a reading that answered nothing for it would leave the whole command to
+///  Git,
+///  whose removal deletes the registration while the clone and its record stand
+///  (`SPEC.md`,
+///  "Removal of a ZFS worktree clone").
+///  A name no registration holds stays Git's own answer even when no folder
+///  stands under it,
+///  so a mistyped name and a case variant reach no refusal.
+#[test]
+fn a_registered_worktree_whose_folder_is_gone_is_still_the_one_the_command_names() {
+    let root: PathBuf = fixture("removal-target-gone");
+    let repo: PathBuf = root.join("repo");
+    let common: PathBuf = repo.join(".git");
+    let topic: PathBuf = root.join("topic");
+    std::fs::create_dir_all(common.join("worktrees/topic")).expect("registration");
+    std::fs::create_dir_all(topic.as_path()).expect("worktree");
+    std::fs::write(
+        common.join("worktrees/topic/gitdir"),
+        format!("{}/.git\n", topic.display()),
+    )
+    .expect("gitdir");
+    // What: The path Git's list holds, resolved as the folder standing there resolved it.
+    // Why:  A registration's path is bytes Git wrote, and the reading answers the same path either way.
+    let canonical: PathBuf = std::fs::canonicalize(root.as_path())
+        .expect("the fixture root resolves")
+        .join("topic");
+    std::fs::rename(topic.as_path(), root.join("moved-aside"))
+        .expect("the slot's folder moves aside");
+    let absolute: String = topic.to_str().expect("a utf-8 fixture path").to_string();
+    for values in [
+        vec!["worktree", "remove", "topic"],
+        vec!["worktree", "remove", "-f", "-f", "topic"],
+        vec!["worktree", "remove", absolute.as_str()],
+        vec!["worktree", "remove", "--", absolute.as_str()],
+        // A path that reaches the registration without ending in it, which Git resolves and its suffix match does not.
+        vec!["worktree", "remove", "../topic"],
+    ] {
+        assert_eq!(
+            parse_removal_target(
+                os_arguments(values.as_slice()).as_slice(),
+                0,
+                Some(repo.as_path()),
+                Some(common.as_path())
+            ),
+            Some(canonical.clone()),
+            "{values:?}"
+        );
+    }
+    // What: A name and a path no registration holds are Git's own answers.
+    // Why:  Nothing proves a managed clone stands behind them, and a refusal here would answer a command Git refuses itself.
+    for values in [
+        vec!["worktree", "remove", "absent"],
+        vec!["worktree", "remove", "TOPIC"],
+        vec!["worktree", "remove", "../absent"],
+    ] {
+        assert_eq!(
+            parse_removal_target(
+                os_arguments(values.as_slice()).as_slice(),
+                0,
+                Some(repo.as_path()),
+                Some(common.as_path())
+            ),
+            None,
+            "{values:?}"
+        );
+    }
+    remove(root.as_path());
+}
+
+/// What:
 ///  Every spelling Git accepts counts the way Git counts it.
 /// Why:
 ///  The measured gradation of Git 2.56.1 on this machine is:
