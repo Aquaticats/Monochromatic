@@ -2829,12 +2829,6 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-- "Every writer this tool starts publishes by rename" is false for `go install` across file systems
-  (the pass traced it writing the published path in place for about 4 ms),
-  though neither the shadow nor the launcher starts that path;
-  `uv tool upgrade`,
-  which the self-upgrade runs,
-  was read and not traced.
 - "No measured window" leaves out windows this repository measured,
   0.5 to 3 ms while a forked child holds a copied write descriptor.
   So the pick not to repeat such a start is before the owner again
