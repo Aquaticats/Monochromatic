@@ -4070,17 +4070,15 @@ what of it must last is written here.
 
 The switch itself is one of those rounds,
 `zfs-removal-command-path-runs-the-whole-removal-with-force-still-refused`.
-It merges after the management grammar's round,
-and after the request budget's value is settled:
-its brief takes 65,536 bytes of packed request input from the measurement in
+It merges after the management grammar's round.
+Its brief takes 65,536 bytes of packed request input from the measurement in
 `doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`,
-an agent's draft which says of its own proposals
-"Each proposed value carries its citation.
-None is set,
-and the constant in code stays as it is until the owner accepts one."
-So the value is a question for the owner (`doc/handover/questions-for-the-owner.md`),
-asked in a dialog when the round's report is read,
-and that record's sentence is corrected at the merge.
+an agent's draft that left each of its values to the owner.
+The owner accepted that one on 2026-11-27,
+through the question tool
+(`doc/decision/cli-git-zfs-removal-batch-request-budget-is-65536-bytes.md`),
+so the round's branch merges with it;
+the draft's other values stay unset.
 `--force` stays refused in that round:
 the forced arm's waits are unset,
 and the owner's decision is that it does not ship before they are measured.

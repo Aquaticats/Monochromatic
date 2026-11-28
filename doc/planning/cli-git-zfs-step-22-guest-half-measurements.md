@@ -317,6 +317,10 @@ which 2,048 names fit in easily.
 Each proposed value carries its citation.
 None is set,
 and the constant in code stays as it is until the owner accepts one.
+Since 2026-11-27 one is accepted:
+the owner took the request budget of 65,536 bytes
+(`doc/decision/cli-git-zfs-removal-batch-request-budget-is-65536-bytes.md`).
+The other values stay as that sentence says.
 
 `PROVISIONAL_MOUNT_REQUEST_DEADLINE` in
 `package/git-policy/cli/src/native/worktree_clone_mount_protocol/mount_request_wait.rs`
