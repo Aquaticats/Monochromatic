@@ -1619,3 +1619,468 @@ own>`.
   used `sudo` or started a service manager.
 - No whole container gate,
   no mutation campaign and no independent review.
+
+## The alpha.53 second pass: a registered slot whose folder is gone
+
+Round of 2026-11-28,
+unapproved and non-final.
+Only the owner declares it complete.
+
+The same second pass over `0.6.1-alpha.53` (`f81526484e`) against
+`0.6.1-alpha.52` (`bf46e60f6d`) reported this finding as its L2.
+This round took that one,
+reproduced it on the tree the merges of 2026-11-28 left,
+and changed what the records and the runs support.
+Everything below is this round's own measurement unless it names the pass,
+and no guest ran:
+every claim rests on the value layer,
+the package's own fixtures,
+and two built wrapper executables.
+
+### L2: a registered slot whose folder is gone was read as no removal target at all
+
+What the pass said,
+quoted from its report:
+
+> with the slot folder moved aside and its registration standing,
+> a `wt1.binding`
+> file under the record folder,
+> alpha.52 and alpha.53 both hand the command to
+> Git,
+> which removes the registration;
+> real Git does the same.
+> ... `parse_removal_target` returns nothing when `canonicalize(start.join(operand))`
+> fails (`worktree_remove_plan.rs:170`),
+> and `path_git_picks_for_operand` ends in
+> `canonicalize(...).ok()?` (`worktree_remove_registry.rs:282`),
+> so a vanished
+> folder reaches neither the removal-target route nor the registry fallback,
+> and `the_removal_with` is never called;
+> `the_slot_endings` handles `move`,
+> `prune` and `repair`,
+> not `remove`.
+
+That was true of this tree as the pass found it.
+`SPEC.md` promised the opposite,
+in "Unmounted,
+pruned and moved ZFS worktree clones":
+
+> every spelling Git accepts is read for the worktree it names,
+> `-f -f` included,
+
+and in "Removal of a ZFS worktree clone":
+
+> Every spelling of `git worktree remove` takes this path,
+> `-f -f` included,
+
+while `README.md` said the same:
+`git worktree remove` of a slot the binding record proves is a whole worktree
+removes that clone,
+whatever options the command carries.
+A slot whose folder a person moved aside or deleted keeps its registration and
+its binding record,
+so a command Git does read as that worktree was the one command the records
+promised and the code left to Git,
+whose removal deletes the registration while the clone and its record stand.
+That is the loss `worktree_removal_of_a_bound_clone.rs` names,
+and the decision of 2026-11-12 is the one it breaks:
+"I do want to say "never discard user data" means to block potentially
+destructive commands with a --no-enforce-* opt-out,
+not that we save everything myself"
+(`doc/decision/cli-git-never-discarding-a-persons-data-means-refusing-with-an-opt-out-owner-answers-2026-11-12.md`).
+
+Which of the two the package's other records support:
+the code was the wrong one.
+The states section of `SPEC.md` already calls the record's proof,
+not the folder's contents,
+what decides a slot's state
+("the wrapper reads which of them a slot is in from its own records rather than
+from the folder's contents"),
+the design proposal asks for a refusal instead of falling through to Git's
+removal "for a managed slot" wherever an inspection cannot prove its result
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Unmounted,
+pruned or moved worktrees"),
+and the slot-state and removal controls all run over a record.
+
+### The control that shows it, red before the fix
+
+Two controls,
+at commit `069283a9a0`,
+each failing on the tree before the fix for the reason the finding gives.
+
+`worktree::worktree_remove_plan::tests::a_registered_worktree_whose_folder_is_gone_is_still_the_one_the_command_names`
+builds one registration whose folder is then moved aside and asks the removal's
+reader what the command names:
+
+```text
+assertion `left == right` failed: ["worktree", "remove", "topic"]
+  left: None
+ right: Some(".../native-unit-<pid>-0-removal-target-gone/topic")
+test result: FAILED. 8 passed; 1 failed
+```
+
+`invocation::entry::slot_refusal_spellings::a_bound_slots_removal_whose_folder_is_gone_reaches_the_step_that_answers_for_it`
+publishes a `phase=filled` record beside a slot whose folder is moved aside and
+plans the command the way the executable does:
+
+```text
+expected a settled forward, got Forward { real_git: "/usr/bin/git",
+  arguments: ["-C", ".../entry-slot-removal-folder-gone/repository", "worktree", "remove", "one"], ... }
+test result: FAILED. 50 passed; 1 failed
+```
+
+`Action::Forward` is the whole command going to Git,
+which is the finding:
+Git then deletes the registration.
+
+### What the reader does now
+
+The worktree a removal names is read the way Git reads it,
+in `worktree_remove_registry::the_worktree_path_git_would_remove`:
+
+- Git's suffix match over its own list of registered paths first,
+  which holds a registration's path whether or not a folder stands there
+  (`find_worktree_by_suffix` in Git's `worktree.c`);
+- the operand as a path second,
+  resolved by Git's own reading (`find_worktree` calls `real_pathdup`):
+  a missing component allowed only when it is the last,
+  every symbolic link followed with Git's own count of them,
+  and `..` resolved against what a link resolved to
+  (`strbuf_realpath` in Git's `abspath.c` at `v2.56.1`);
+- and a path whose folder is gone answers only when Git's own list holds it,
+  so a mistyped name,
+  a case variant and a path Git's list does not hold stay Git's own answer.
+
+`path_git_picks_for_operand` keeps the meaning the other callers need,
+a registered worktree only while a folder stands there,
+so the ladder's own subvolume-destroy plan,
+the move refusal and the repair report are unchanged:
+a removal whose folder is gone reaches no subvolume destroy.
+
+### The routing, before and after, for every spelling the pass tried
+
+Sixty rows of the pass's own table,
+run against four arms in one round:
+real Git (`git`),
+the released `0.6.1-alpha.53` (`a53`),
+this tree before the
+fix (`before`),
+and this tree after it (`after`).
+The two states of one slot are measured:
+its folder standing,
+and its folder moved aside while its registration and its binding record stand.
+The oracle is the pass's own:
+a `wt1.binding` file that is no record,
+which a wrapper that reads the command as that slot's removal refuses with
+"a record is filed under the slot name `wt1` and cannot be read" before it reads
+the mount table or opens any ZFS device,
+and which a wrapper that does not read it that way hands to Git.
+Every row is one fixture,
+made by real Git only.
+
+With the slot's folder standing,
+every row answers the same on all four arms:
+fifty-five routes to the bound-slot step,
+`r16` refuses with the root rule,
+and `r51`,
+`r52` and `r53` are Git's own answers.
+Nothing this round changed touches a slot whose folder stands.
+
+With the slot's folder gone:
+
+- Fifty-one rows ran Git before and reach the bound-slot step after.
+  Each of these named the registration,
+  and before the fix each one let Git delete it:
+  `r01` relative path from the main checkout,
+  `r02` the bare name,
+  `r03` absolute path,
+  `r04` `--force --force`,
+  `r05` `-f -f`,
+  `r06` `-ff`,
+  `r07` `--forc --forc`,
+  `r08` `--fo --fo`,
+  `r13` a path through a symbolic link to the worktrees folder,
+  `r14` a path with `..` components,
+  `r15` `-C main` with a relative operand,
+  `r17` `-C main` with the bare name,
+  `r18` `-C . -C main`,
+  `r19` typed in the sibling worktree with `../wt1`,
+  `r20` typed in the sibling with `-C main`,
+  `r21` `--git-dir` from outside,
+  `r22` `--git-dir` and `--work-tree` from outside,
+  `r23` `--git-dir` relative from outside,
+  `r24` `--work-tree` alone,
+  `r25` `-c`,
+  `r26` `--no-optional-locks`,
+  `r27` `--no-pager -P`,
+  `r28` `--literal-pathspecs --no-replace-objects`,
+  `r29` `--namespace`,
+  `r30` `--config-env`,
+  `r31` `--exec-path`,
+  `r32` `GIT_DIR` in the environment,
+  `r33` `GIT_DIR` and `GIT_WORK_TREE`,
+  `r34` a relative `GIT_DIR` with a relative operand,
+  `r35` `GIT_COMMON_DIR`,
+  `r36` `--`,
+  `r37` `--end-of-options`,
+  `r38` options after the operand,
+  `r39` `--force` on both sides,
+  `r40` `--no-force --force`,
+  `r41` a plain alias,
+  `r42` a shell alias,
+  `r43` an alias given by `-c`,
+  `r44` a shell alias given by `-c`,
+  `r45` an alias of an alias,
+  `r46` absolute with `-f -f`,
+  `r47` the bare name with `-f -f`,
+  `r48` one force at a locked registration,
+  `r49` two forces at a locked registration,
+  `r50` the relative operand with `-ff` at a locked registration,
+  `r54` `./.claude/worktrees/wt1`,
+  `r57` no force,
+  `r58` one `--force`,
+  `r59` the relative operand with one `--force`.
+  Real Git removed the registration in every one of them,
+  and `a53` and `before` removed it,
+  while `after` reached the bound-slot step and left it standing.
+- Two rows reached the bound-slot step only after the second fix below
+  (`r11` a symbolic link to the slot,
+  `r12` the same link typed inside the main checkout):
+  before,
+  the first fix and `a53` each ran Git and lost the registration;
+  after,
+  they reach the bound-slot step.
+- Two rows refused before and are refused after,
+  with a different sentence:
+  `r09` and `r10` name the slot with a trailing separator,
+  which Git's own component reader refuses
+  (`fatal: '...' is not a working tree`,
+  exit 128) and which the wrapper now answers with the bound slot's refusal,
+  because a folder that stands answers that spelling through
+  `canonicalize`,
+  and the reading keeps that answer when the folder is gone.
+  Nothing is removed either way.
+- One row is unchanged and refused earlier by the root rule:
+  `r16`,
+  `-C main/.claude`,
+  which no release reads as a slot removal.
+- Three rows are unchanged and Git's own:
+  `r51` a slot with no record is Git's,
+  `r52` two operands are Git's usage,
+  `r53` a case variant is Git's "not a working tree".
+- Two rows were not run with the folder gone:
+  `r55` and `r56` are typed inside the slot itself,
+  and nothing runs in a folder that is gone.
+
+The two binaries are the tree before the fix
+(`package/git-policy/cli/target/debug/monochromatic-git-policy-cli`,
+sha256 `44d32b18f79d101e1c28f649a950c24447fbe3c253dccc83a62974bd074b23b5`)
+and after it
+(sha256 `3b1ed25bd4a51234d59d611fbfe77cf57b6456a1d3f4a134de9b3a7cfdc1cd44`),
+each run under its own capped scope and under
+`env --ignore-environment` with a runtime directory of the round's own and no
+session bus at all.
+Real Git is `/usr/bin/git` at `2.56.1`;
+the `git` on this session's search path is an older wrapper build and was never
+run.
+
+### The step the operand now reaches, and what the records say it does
+
+The step is `worktree_copying::worktree_removal_of_a_bound_clone::the_removal_with`,
+which is the step every spelling of a standing folder reaches.
+What it does with a slot whose folder is gone is what the records say of a
+removal of an unmounted or pruned slot,
+because the state is read from the record and the mount table and not from the
+folder:
+
+`SPEC.md`,
+"Unmounted,
+pruned and moved ZFS worktree clones":
+
+> The answers are `not a managed clone`,
+> `pending add`,
+> `pending removal`,
+> `known unmounted clone`,
+> `mounted managed clone`,
+> and `cannot be proved`.
+> The order is the order of proof:
+> an unreadable record or plan proves nothing,
+> a plan that names the clone is a removal in flight,
+> the phase says how far the add got,
+> and only the mount table says whether a clone the record calls mounted is mounted here,
+> elsewhere or nowhere.
+
+`SPEC.md`,
+the same section:
+
+> `git worktree remove` is refused for a slot whose record proves a whole worktree,
+> which is the two states `mounted managed clone` and `known unmounted clone`,
+> whatever options the command carries
+
+`SPEC.md`,
+"Removal of a ZFS worktree clone":
+
+> `git worktree remove` of a slot a whole managed clone is bound to runs this order,
+> so the slot's whole clone and the snapshots it made are destroyed by that one command,
+> and its report is printed in the same invocation
+
+`SPEC.md`,
+the same section,
+step 13 of the order:
+
+> The Git settle,
+> with the destruction proof in hand:
+> the managed lock written again when it is gone and released,
+> the matching registration and the slot's pointer removed,
+> and the leftover underlay folder removed only when it has the recorded identity and holds
+> nothing.
+
+So the record's `phase=filled`,
+the clone mounted nowhere and nothing standing at
+the slot answer `known unmounted clone`,
+which is one of the two states whose removal is the wrapper's own;
+the routine a person whose clone is unmounted meets is the removal's.
+That is what the control of this round reads:
+`state: known unmounted clone`,
+the wrapper's words for the removal,
+and the pool answer the control hands in,
+rather than Git's removal of the registration.
+
+The pick,
+and the way not taken.
+Where no record said what a slot whose folder is gone should do,
+the coordinating session picked the wrapper's own removal,
+because the binding record names the clone and Git's removal would orphan it.
+The way not taken is a refusal that names `git worktree repair` instead of
+running:
+a person would read that their slot's folder is gone,
+that the clone's record and registration still name it,
+that nothing was removed,
+and that `git worktree repair <slot>` rebuilds the pointer while the record
+stands,
+after which the removal could be run again.
+That way changes nothing and needs no pool,
+so it is cheaper for a host whose pool cannot be read,
+and it destroys nothing when the folder's absence was never a person's doing;
+it costs the person a second command and leaves the clone standing,
+and it would print a sentence no record of this route owns today.
+The removal's own report already names a slot whose clone cannot be proved,
+so a repair sentence would have to be written beside the removal's refusals and
+pinned by its own control.
+
+### The sentences a person now reads
+
+A removal of a slot whose folder is gone reads exactly what the removal of a
+folder that stands reads,
+and this round adds no sentence:
+
+- the opening line,
+  written before the order's first step:
+  "the removal of `<slot>` runs here:
+  a whole managed clone is bound to this slot,
+  and `<THE_REMOVALS_WORDS>`.
+  Git does not run.
+  ..."
+  (`worktree_removal_said_before_it_runs::the_opening_line`);
+- the slot's own report,
+  with `state: known unmounted clone`,
+  the dataset and the next safe action
+  (`worktree_clone_slot_state::slot_state_report`);
+- then the order's own report of what was destroyed,
+  what the head took with it,
+  what the origin cleanup did,
+  what the settle removed and what a person still has to do,
+  or the refusal that stopped it.
+
+On this host the live arm of that step was not run,
+because it opens `/dev/zfs`,
+which no round may do here;
+the controls read the same sentences from the caller's own pool answer,
+whose arm says
+"the pool here is the caller's own answer and not this machine's device".
+
+Two sentences keep a caveat this round does not decide:
+
+- `THE_REMOVALS_WORDS` and the force sentences are the round
+  `wrapper-alpha-53-reads-two-guards-one-hint-and-the-sentences-that-say-more-than-the-code`'s,
+  and are untouched here.
+- The removal of a real clone on a pool still does not finish (issue 6669,
+  the round `zfs-removal-of-a-real-clone-finishes-its-moment-is-accepted-and-its-staging-folder-is-made`),
+  so a person who runs this on a real pool meets that defect before the report.
+
+### The records changed, and why those
+
+`SPEC.md` and `README.md` gained what makes their own promise true,
+because the code was what disagreed with them and with the rest of the records:
+
+- `SPEC.md`,
+  "Unmounted,
+  pruned and moved ZFS worktree clones":
+  the worktree a spelling names is the one Git's own list holds,
+  read the way Git reads an operand,
+  and a slot whose folder is gone is read too,
+  while a path whose folder is gone answers only when Git's list holds it.
+- `SPEC.md`,
+  "Removal of a ZFS worktree clone":
+  every spelling takes this path "whether the slot's folder stands or a person
+  moved it aside or deleted it,
+  because Git's own list still holds the registration that names it".
+- `README.md`,
+  the removal passage:
+  the same,
+  in the page's own words.
+
+The module docs of the two readers say what they read and why:
+`worktree_remove_plan::parse_removal_target` and
+`worktree_remove_registry::the_worktree_path_git_would_remove`.
+
+### What this round did not do
+
+- The pass's other findings are other rounds':
+  M1 (a resumed removal whose clone is gone read a person's lock after it wrote)
+  and L3 (the steps after a finished removal) are the round
+  "the removal's resumed lock and what follows a finished one";
+  L1 (the claim written before the lock is read) and the sentences belong to the
+  rounds named above;
+  M2 (no record of a green guest arm) is a guest round's.
+- The removal's live arm was not run on a real pool,
+  because no guest ran and no command here may open `/dev/zfs`.
+- The one spelling where a symbolic link's own chain is longer than Git follows
+  is Git's own refusal,
+  as Git refuses it.
+- No whole container gate and no independent review ran.
+
+### The checks this round ran
+
+- `cargo fmt --check`:
+  no output.
+- `cargo check --locked --offline --all-targets`:
+  `Finished`.
+- `cargo clippy --locked --offline --all-targets -- -D warnings`:
+  no finding.
+- `cargo clippy --locked --offline --all-targets --features test-only-switches -- -D warnings`:
+  no finding.
+- The modules this round changed,
+  threaded,
+  with the guide's flags:
+  `worktree::path_git_resolves_an_operand_to::tests`
+  (`3 passed; 0 failed`),
+  `worktree::worktree_remove_plan::tests`
+  (`9 passed; 0 failed`),
+  `worktree::worktree_remove_registry::tests`
+  (`9 passed; 0 failed`),
+  `invocation::entry::slot_refusal_spellings`
+  (`51 passed; 0 failed`).
+- The whole `source_guard` module:
+  `236 passed; 0 failed`.
+- The repository's linter over `package/git-policy/cli`:
+  twelve `rust/folder-uses-links` findings,
+  thirteen `rust/max-lines` findings,
+  and the `rust/avoidable-closure` line saying the rule was skipped on this host
+  for want of its Dylint driver,
+  which is the same set the tree held before this round.
+  `worktree/mod.rs` already stood over the line limit and this round adds the
+  two code lines of its new module's declaration and gate to that file;
+  no finding is on a line this round wrote,
+  and no file this round created has one.
