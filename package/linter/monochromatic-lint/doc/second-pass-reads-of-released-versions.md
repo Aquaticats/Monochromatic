@@ -868,9 +868,12 @@ and `holds_a_module_file` counts its listings,
 which is the question the second control now asks of a folder that holds files.
 With the release's scan put back,
 the first control read
-`200 dead key lines read 40600 entries of the list, where the reporting hands out at most 3 lists`:
+`200 dead key lines read 40600 entries of the list, where the reporting hands out 3 lists`:
 40,000 for the walk (200 entries per line over 200 lines)
 and 600 for the three times the reporting asks for the entries (its length and its two passes).
+With the counter handed no entries it read
+`200 dead key lines read 0 entries of the list, where the reporting hands out 3 lists`,
+so a counter that counts nothing fails the control as a scan does.
 With the release's per-line call put back,
 the second read 100 listings for 50 lines.
 
