@@ -40,6 +40,11 @@
 #       below take their lines. No release code changed with them, so nothing here was published that a build of
 #       0.6.1-alpha.51 did not already publish.
 #
+# What changed on 2026-11-28, in the round for the alpha.52 read's L2: one name left this list and none joined
+#       it. The dirty refusal of the linked-worktree policy takes the two places it judged, so it takes one
+#       destructured reading and is built by the checks that read them; nothing outside this crate called it, and
+#       `command::rule_linked_worktree_messages fn dirty_worktree_message` no longer names it from outside.
+#
 # Named by another crate of this package, which is what needs the reach: the fuzz sidecar
 # (`package/git-policy/cli.fuzz`), the executable target (`src/native/main.rs`) and the two integration test
 # targets name these by a `git_policy_cli::…` path. A `git grep 'git_policy_cli::'` over those three on
@@ -1057,7 +1062,6 @@ command::rule_linked_worktree fn resolve_linked_worktree
 command::rule_linked_worktree fn target_tree
 command::rule_linked_worktree struct TargetTree
 command::rule_linked_worktree_messages fn conflicted_files_message
-command::rule_linked_worktree_messages fn dirty_worktree_message
 command::rule_linked_worktree_messages fn exemption_notice
 command::rule_linked_worktree_messages fn ignored_file_message
 command::rule_linked_worktree_messages fn main_worktree_message

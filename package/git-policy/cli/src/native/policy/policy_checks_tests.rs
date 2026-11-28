@@ -34,6 +34,7 @@ use crate::policy_engine::{
     PolicyFinding,
     PolicyOutcome,
 };
+use crate::policy_linked_worktree::dirty_worktree;
 use crate::policy_registry::PolicyId;
 use crate::policy_test_support::{
     ScriptedFacts,
@@ -43,6 +44,7 @@ use crate::policy_test_support::{
     scripted_facts,
 };
 use crate::policy_trigger::Trigger;
+use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_linked_worktree::{
     GuardedCommand,
@@ -58,6 +60,26 @@ use crate::rule_shared_remote::{
     SHARED_REMOTE_SETTINGS_CODE,
     SharedRemoteWrite,
 };
+
+/// What:
+///  The dirty refusal of one scripted location,
+///  built the way the check builds it.
+/// Why:
+///  The text names the Git directory and the worktree the refusal judged,
+///  so an expectation written with fixed paths would stop agreeing with the location a row scripts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dirtyRefusalAt = (command, location) => dirtyWorktreeMessage(dirtyWorktree(command, location));
+/// ```
+fn dirty_refusal_at(
+    command: GuardedCommand,
+    location: &RepositoryLocation,
+) -> String {
+    return dirty_worktree_message(
+        dirty_worktree(command, location).expect("a scripted worktree names both of its places"),
+    );
+}
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 use crate::test_support::{
     fixture,
@@ -425,7 +447,7 @@ fn linked_worktree_exempts_a_cargo_build_script_output_directory() {
         guarded.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
         one(
             "linked-worktree-required",
-            &dirty_worktree_message(GuardedCommand::CheckoutMove)
+            &dirty_refusal_at(GuardedCommand::CheckoutMove, &main_worktree(worktree, ""))
         )
     );
     remove(root.as_path());
@@ -480,7 +502,7 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
         unset.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
         one(
             "linked-worktree-required",
-            &dirty_worktree_message(GuardedCommand::CheckoutMove)
+            &dirty_refusal_at(GuardedCommand::CheckoutMove, &main_worktree(worktree, ""))
         )
     );
     // A directory beside the build directory is not exempt.
@@ -501,7 +523,7 @@ fn linked_worktree_exempts_a_cargo_build_directory() {
         beside.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward),
         one(
             "linked-worktree-required",
-            &dirty_worktree_message(GuardedCommand::CheckoutMove)
+            &dirty_refusal_at(GuardedCommand::CheckoutMove, &main_worktree(worktree, ""))
         )
     );
     remove(root.as_path());
@@ -866,7 +888,10 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                 dirty_in(linked_worktree("/r", "/w"), true)
             ),
             (
-                one("linked-worktree-required", &dirty_worktree_message(command)),
+                one(
+                    "linked-worktree-required",
+                    &dirty_refusal_at(command, &linked_worktree("/r", "/w"))
+                ),
                 asked(&["location", scope_asked.as_str()])
             ),
             "{values:?} linked dirty"
@@ -1005,6 +1030,7 @@ fn head_moves_are_rejected_only_while_dirty() {
                 (clean(), asked(&["location", "dirty:Tracked"])),
                 "{values:?} clean"
             );
+            let refusal: String = dirty_refusal_at(command, &location);
             assert_eq!(
                 pre_forward(
                     PolicyId::LinkedWorktreeOnly,
@@ -1012,7 +1038,7 @@ fn head_moves_are_rejected_only_while_dirty() {
                     dirty_in(location, true)
                 ),
                 (
-                    one("linked-worktree-required", &dirty_worktree_message(command)),
+                    one("linked-worktree-required", &refusal),
                     asked(&["location", "dirty:Tracked"])
                 ),
                 "{values:?} dirty"
@@ -1146,7 +1172,10 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), deleting);
         assert_eq!(
             outcome,
-            one("linked-worktree-required", &dirty_worktree_message(command)),
+            one(
+                "linked-worktree-required",
+                &dirty_refusal_at(command, &linked_worktree("/r", "/w"))
+            ),
             "{values:?}"
         );
         let question: &String = questions.last().expect("a last question");

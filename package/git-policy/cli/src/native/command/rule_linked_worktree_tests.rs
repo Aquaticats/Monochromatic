@@ -15,6 +15,7 @@
 ///  its texts and the argument builder.
 use super::{
     DirtyQuestion,
+    DirtyWorktree,
     GuardedCommand,
     LINKED_WORKTREE_REQUIRED_CODE,
     LinkedWorktreeDecision,
@@ -333,6 +334,29 @@ fn only_main_and_absent_worktrees_are_rejected() {
     }
 }
 
+/// What:
+///  The dirty refusal of one form,
+///  read as the ordinary shape:
+///  one worktree whose `.git` is the Git directory the facts were asked with.
+/// Why:
+///  Every assertion here is about the sentences a form gets,
+///  and the two places a real refusal names are read from a repository these controls never build.
+///  The shape with two places has its own control, which builds the state a `!` alias hands a nested Git
+///  (`entry_shell_alias_judged_where_its_words_point_tests.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const dirtyMessage = (command) => dirtyWorktreeMessage({ command, gitDirectory: '/w/.git', worktreeRoot: '/w', oneWorktree: true });
+/// ```
+fn dirty_message(command: GuardedCommand) -> String {
+    return dirty_worktree_message(DirtyWorktree {
+        command,
+        git_directory: Path::new("/w/.git"),
+        worktree_root: Path::new("/w"),
+        one_worktree: true,
+    });
+}
+
 /// Every text names the form,
 /// what it destroys,
 /// a sanctioned alternative,
@@ -341,7 +365,7 @@ fn only_main_and_absent_worktrees_are_rejected() {
 fn every_text_names_the_loss_an_alternative_and_the_hatch() {
     for &command in GuardedCommand::ALL {
         let main = main_worktree_message(command);
-        let dirty = dirty_worktree_message(command);
+        let dirty = dirty_message(command);
         let outside = outside_worktree_message(command);
         assert!(
             main.starts_with("monochromatic-git-policy-cli: git "),
@@ -408,22 +432,19 @@ fn each_intent_gets_its_own_alternative() {
     // An ignored file is not what a linked worktree's clean is refused over, so the sentence that reads after
     //  "has uncommitted" names only the work such a clean still loses.
     assert!(
-        dirty_worktree_message(GuardedCommand::CleanIgnored)
+        dirty_message(GuardedCommand::CleanIgnored)
             .contains("has uncommitted changes to tracked files or untracked files")
     );
-    assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("--exclude"));
-    assert!(dirty_worktree_message(GuardedCommand::Clean).contains("untracked files"));
-    assert!(!dirty_worktree_message(GuardedCommand::RestoreWorktree).contains("untracked"));
+    assert!(dirty_message(GuardedCommand::CleanIgnoredOnly).contains("--exclude"));
+    assert!(dirty_message(GuardedCommand::Clean).contains("untracked files"));
+    assert!(!dirty_message(GuardedCommand::RestoreWorktree).contains("untracked"));
     assert!(main_worktree_message(GuardedCommand::AbortMerge).contains("git merge --quit"));
     assert!(main_worktree_message(GuardedCommand::AbortRebase).contains("git rebase --quit"));
     assert!(main_worktree_message(GuardedCommand::AbortPick).contains("--quit"));
     assert!(main_worktree_message(GuardedCommand::AbortAm).contains("git am --quit"));
     assert!(main_worktree_message(GuardedCommand::CheckoutIndex).contains("--prefix=<directory>/"));
     assert!(main_worktree_message(GuardedCommand::Remove).contains("git rm --cached <path>"));
-    assert!(
-        dirty_worktree_message(GuardedCommand::SwitchMove)
-            .contains("git worktree add <path> <branch>")
-    );
+    assert!(dirty_message(GuardedCommand::SwitchMove).contains("git worktree add <path> <branch>"));
 }
 
 /// The README documents the alternative that each rejection text names,
@@ -781,4 +802,43 @@ fn every_read_tree_form_is_decided_the_way_real_git_acts() {
         }
     }
     remove(directory.as_path());
+}
+
+/// What:
+///  A dirty refusal names each place it judged:
+///  the worktree whose files the form writes and the Git directory whose index and `HEAD` it rewrites,
+///  and it says which of the two shapes it read.
+/// Why:
+///  The alpha.52 read's L2:
+///  `git g -C <another worktree> reset --hard` typed in a dirty linked worktree was refused with
+///  "this worktree has uncommitted changes to tracked files" and no place named,
+///  though the dirty state is the caller's index read over the other worktree's files,
+///  so a person could not tell which worktree to clean.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(dirtyWorktreeMessage(oneWorktree)).toContain('/w/.git');
+/// expect(dirtyWorktreeMessage(twoWorktrees)).toContain('/main/.git/worktrees/caller');
+/// ```
+#[test]
+fn a_dirty_refusal_names_each_place_it_judged() {
+    let one: String = dirty_message(GuardedCommand::ResetHard);
+    assert!(one.contains("the worktree `/w` has uncommitted"), "{one}");
+    assert!(
+        one.contains("index and HEAD are the ones in `/w/.git`"),
+        "{one}"
+    );
+    let two: String = dirty_worktree_message(DirtyWorktree {
+        command: GuardedCommand::ResetHard,
+        git_directory: Path::new("/main/.git/worktrees/caller"),
+        worktree_root: Path::new("/other"),
+        one_worktree: false,
+    });
+    assert!(two.contains("the files of the worktree `/other`"), "{two}");
+    assert!(
+        two.contains("index and HEAD in `/main/.git/worktrees/caller`"),
+        "{two}"
+    );
+    assert!(two.contains("That place is two:"), "{two}");
+    assert_ne!(one, two, "the two shapes read the same");
 }

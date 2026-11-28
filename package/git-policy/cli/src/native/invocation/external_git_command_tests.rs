@@ -880,9 +880,82 @@ fn the_git_dir_the_shell_was_given(place: &Path) -> String {
 /// for (const place of theSevenPlaces)
 ///   expect(gitDirTheAliasShellReads(context(), [], Some(place), false) !== undefined).toBe(theGitDirTheShellWasGiven(place) !== '');
 /// ```
+/// What:
+///  A main checkout whose own configuration names the work tree it uses,
+///  which Git 2.56.1 takes the explicit path for (`setup.c` `repo_discover_implicit_gitdir`).
+/// Why:
+///  The alpha.52 read's finding M1:
+///  with `core.worktree` set, Git stores the Git directory it found and exports it to a `!` alias's shell
+///  in a plain main checkout too,
+///  from a subdirectory as an absolute path that a nested `-C` cannot move,
+///  so the nested Git writes this checkout's index and `HEAD` over another directory's files.
+///  The reading decided by comparing `<top>/.git` with `--absolute-git-dir`,
+///  and with `core.worktree` set to the checkout itself those two are the same directory,
+///  so the shape stood outside the seven places the control held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const root = aMainCheckoutNamingItsOwnWorkTree('core-worktree'); // git config core.worktree <repository>
+/// ```
+fn a_main_checkout_naming_its_own_work_tree(name: &str) -> PathBuf {
+    let root: PathBuf = scratch(name);
+    let repository: PathBuf = repository(root.as_path(), "repository");
+    std::fs::create_dir_all(repository.join("sub").as_path())
+        .expect("the subdirectory below the top");
+    let work_tree: &str = repository.to_str().expect("the fixture's path is UTF-8");
+    // The spelling a person uses, through real Git, so the file is the one Git writes.
+    crate::test_support::git(
+        repository.as_path(),
+        &["config", "core.worktree", work_tree],
+    );
+    return root;
+}
+
+/// What:
+///  The reading of the Git directory a `!` alias's shell is given agrees with what Git gives it
+///  at one place,
+///  both on whether it gives one at all and on which directory it names.
+/// Why:
+///  One comparison serves every shape the control holds,
+///  so a shape added to either fixture is compared the same way,
+///  and a reading that guessed either way fails at the place it guessed wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(theGitDirTheAliasShellReads(context(), [], place, false)).toEqual(theGitDirTheShellWasGiven(place));
+/// ```
+fn the_reading_agrees_with_git_at(place: &Path) {
+    let git_gives_it: String = the_git_dir_the_shell_was_given(place);
+    let read: Option<OsString> =
+        the_git_dir_the_alias_shell_reads(&context(), &globals(&[]), Some(place), false);
+    assert_eq!(
+        read.is_some(),
+        !git_gives_it.is_empty(),
+        "the reading says whether Git gives an alias's shell a Git directory at {}",
+        place.display()
+    );
+    let Some(read_by_the_guard) = read else {
+        return;
+    };
+    // Both answers are read from the place the command was typed in, as Git reads one.
+    let read_path: PathBuf = std::fs::canonicalize(place.join(read_by_the_guard.as_os_str()))
+        .expect("the Git directory the reading names reads");
+    let git_path: PathBuf = std::fs::canonicalize(place.join(git_gives_it.as_str()))
+        .expect("the Git directory Git named reads");
+    assert_eq!(
+        read_path,
+        git_path,
+        "the reading names the Git directory Git gives an alias's shell at {}",
+        place.display()
+    );
+}
+
 #[test]
 fn the_git_dir_the_alias_shell_reads_is_the_one_git_gives_it() {
     let shapes: ShapesAPlaceCanBeTyped = shapes_a_place_can_be_typed("external-alias-git-dir");
+    let naming_its_own_work_tree: PathBuf =
+        a_main_checkout_naming_its_own_work_tree("external-alias-git-dir-with-core-worktree");
+    let checkout: PathBuf = naming_its_own_work_tree.join("repository");
     let places: Vec<PathBuf> = vec![
         shapes.repository.clone(),
         shapes.below_the_top.clone(),
@@ -891,35 +964,14 @@ fn the_git_dir_the_alias_shell_reads_is_the_one_git_gives_it() {
         shapes.bare.clone(),
         shapes.inside_the_bare.clone(),
         shapes.root.clone(),
+        // The eighth and ninth places: a main checkout whose configuration names its own work tree,
+        // at its top and in a subdirectory, where Git exports an absolute Git directory.
+        checkout.clone(),
+        checkout.join("sub"),
     ];
     for place in &places {
-        let git_gives_it: String = the_git_dir_the_shell_was_given(place);
-        let read: Option<OsString> = the_git_dir_the_alias_shell_reads(
-            &context(),
-            &globals(&[]),
-            Some(place.as_path()),
-            false,
-        );
-        assert_eq!(
-            read.is_some(),
-            !git_gives_it.is_empty(),
-            "the reading says whether Git gives an alias's shell a Git directory at {}",
-            place.display()
-        );
-        let Some(read_by_the_guard) = read else {
-            continue;
-        };
-        // Both answers are read from the place the command was typed in, as Git reads one.
-        let read_path: PathBuf = std::fs::canonicalize(place.join(read_by_the_guard.as_os_str()))
-            .expect("the Git directory the reading names reads");
-        let git_path: PathBuf = std::fs::canonicalize(place.join(git_gives_it.as_str()))
-            .expect("the Git directory Git named reads");
-        assert_eq!(
-            read_path,
-            git_path,
-            "the reading names the Git directory Git gives an alias's shell at {}",
-            place.display()
-        );
+        the_reading_agrees_with_git_at(place.as_path());
     }
     remove(shapes.root.as_path());
+    remove(naming_its_own_work_tree.as_path());
 }
