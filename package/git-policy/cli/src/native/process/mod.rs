@@ -146,6 +146,14 @@
 //! - `signal_relay_relayed_child.rs`:
 //!   a child started by this process and published to the relay,
 //!   so a caller's own bounded wait still relays the process's signals.
+//! - `a_locked_holders_own_unit.rs`:
+//!   the reads that tell whether a locked holder runs in a service unit of this
+//!   account's own user manager,
+//!   and so whether a stop of that unit may end it.
+//! - `a_service_unit_stopped_through_the_accounts_manager.rs`:
+//!   the stop of that unit through the account's own manager,
+//!   the wait that follows it,
+//!   and the verdict each read after that wait gives.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -328,3 +336,12 @@ pub mod child_awaited_until_it_exits_the_stop_or_the_ceiling;
 /// the reap of that step,
 /// and the line that says it for as long as the wait lasts.
 pub mod wait_after_the_stop_saying_the_kernel_holds_it;
+
+/// The reads that tell whether a locked holder runs in a service unit of this
+/// account's own user manager,
+/// and so whether a stop of that unit may end it.
+pub mod a_locked_holders_own_unit;
+
+/// The stop of that unit through the account's own manager,
+/// and the wait that follows it.
+pub mod a_service_unit_stopped_through_the_accounts_manager;

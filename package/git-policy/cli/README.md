@@ -2630,6 +2630,17 @@ Every ending is gated by the evidence the probe rounds recorded and by waits tha
 so a kind of holder the evidence does not show is identified and refused,
 never ended.
 No sentence of this release offers `--force`.
+A locked holder,
+a copy inside a mount namespace owned by a user namespace of its own,
+is stopped through the account's own user manager when it is a service unit of that manager,
+and refuses `holder-locked` when it is not.
+The stop is built and was measured in a guest on 2026-11-27
+(`src/native/process/a_service_unit_stopped_through_the_accounts_manager.rs`,
+`e2e/forced-act-guest.ts`),
+but nothing stops anything yet:
+the wait a stop is given ships with no value,
+so a locked holder still refuses.
+
 
 Before a `git worktree prune` the wrapper compares each managed clone's pointer with the bytes the add recorded,
 which is the underlay's copy while the clone is unmounted and the clone's own while it is mounted.

@@ -6222,6 +6222,64 @@ by the evidence the probe rounds recorded for that kind of holder
 and by the waits and the heartbeat the arm would need,
 which ship with no value
 (`src/native/worktree_clone_forced_removal/forced_arm_numbers.rs`).
+
+A locked holder,
+a copy inside a mount namespace owned by a user namespace of its own,
+takes one of two routes on its kind of holder:
+
+- A locked holder that is a service unit of the account's own user manager is
+  stopped through that manager,
+  and the removal then goes on.
+  The four reads that tell it apart are the namespace's owner by `NS_GET_USERNS`,
+  the unit's name in the task's unified control-group line,
+  the manager's own answer for that name,
+  and the caller's protected set,
+  which the preflight reads first
+  (`src/native/process/a_locked_holders_own_unit.rs`).
+  The stop is the manager's `StopUnit`,
+  a wait for the task to leave that control group and for the namespace to go,
+  and the three answers that still refuse:
+  a stop the manager refused,
+  a task still there when the wait ends,
+  and a unit that is active again
+  (`src/native/process/a_service_unit_stopped_through_the_accounts_manager.rs`).
+  Those two files sit in `process/` because the reads ask the account's user
+  manager over the session bus,
+  which the `service` folder owns,
+  and the pair of folders `process` and `service` is one the layout allow list
+  already tolerates while the forced removal's folder is not
+  (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+- Every other locked holder,
+  a bubblewrap sandbox or a rootless container started by hand,
+  has no manager to stop it through and refuses `holder-locked`.
+
+Measured on 2026-11-27 in a throwaway Ubuntu 24.04 guest of systemd 255 and kernel
+`6.8.0-147-generic`,
+by the forced act's driver
+(`e2e/forced-act-guest.ts`,
+its `user-manager` step):
+`loginctl enable-linger root` starts the account's own user manager,
+a transient unit started with `systemd-run --user --property=PrivateMounts=yes`
+has a mount namespace `mnt:[4026532398]` whose owner `NS_GET_USERNS` reads as
+inode `4026532396` while the guest's own user namespace is
+`user:[4026531837]`,
+and inside that namespace `umount2` and `mount(MS_MOVE)` of the slot's copy both
+answered `EINVAL`,
+which `umount` alone reports as "not mounted".
+`systemctl --user stop` of the unit then left it `inactive`,
+with the task's `/proc/<pid>/cgroup` and `/proc/<pid>/ns/mnt` gone,
+and the guest's own unmount of the slot answered `accepted`.
+The same four answers held with `PrivateUsers=yes` as well.
+The arm's own phase,
+`locked-holder-stopped-through-its-unit`,
+makes that state a third time and runs the route's own reads,
+both stages of the act and the stop against it.
+
+Nothing stops anything in this release:
+the wait a stop is given has no value
+(`the_stop_wait` in `forced_arm_numbers.rs` refuses),
+so the stop is built and measured ahead of the value that would let it run.
+
 A kind the evidence does not show is identified and refused,
 never ended,
 and the receipt's seven refusal words name what stopped the act.

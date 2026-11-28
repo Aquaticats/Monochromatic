@@ -1189,6 +1189,81 @@ and the step's result was the `DONE=0` line of the log the wait pulled:
 the `mvm exec` that started the launcher returns before the build starts,
 and what it answers is only whether the launcher was accepted.
 
+## The forced act's guest arms
+
+`forced-act-guest.ts` runs the forced removal's act in a throwaway guest,
+because every call it makes is a mount,
+an unmount,
+a move,
+a handle open,
+a `setns` or a pinned signal,
+and none of those may run on a person's machine
+(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+"Measurements owed").
+It borrows the ZFS binding's guest recipe for the parts that are not the wrapper's
+(`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`):
+`create` and `prepare` make an Ubuntu 24.04 guest with OpenZFS 2.4.4 and the Rust toolchain,
+`run` pushes a repository-shaped snapshot of the wrapper,
+builds this crate's library and its tests inside the guest,
+runs the arm,
+and pulls `forced-act-arm.log` back,
+and `destroy` takes the guest away.
+`all` runs the four in order.
+
+The arm's phases are one `FORCEDACT` line each,
+and the run passes only when the pulled log holds every line and no `SKIPPED` line:
+
+- a path holder in a session of its own,
+  asked out and then killed,
+  with the host's unmount and the head destroy after each;
+- way 8,
+  in place by the add's handle,
+  in the shape systemd leaves a unit's parent;
+- the peer shape,
+  where the closure names the host and the act falls to way 7;
+- way 7 in both shapes,
+  with the directory made and removed;
+- a locked holder made by hand,
+  refused with `holder-locked` before any signal;
+- a locked holder that is a service unit of the guest account's own user manager,
+  whose stop the manager makes:
+  the two ways answer `holder-locked` before it,
+  the unit,
+  its control group and its namespace go with it,
+  and the host's unmount and the head destroy follow.
+
+### The measurement that step the arms owed
+
+`user-manager` is the measurement the decision record asked for
+(`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`,
+"A holder whose copy is locked (V10)"):
+it quotes the guest's own manual on lingering,
+gives the account a user manager with `loginctl enable-linger`,
+and reads the kernel's own answers around a stop of a unit that holds a copy of a
+slot mount.
+It makes that state twice,
+once with `PrivateMounts=yes` alone and once with `PrivateUsers=yes` as well,
+and the arm makes it a third time,
+because a guest's systemd may give the first shape a mount namespace the initial
+user namespace still owns.
+It prints one `MEASURE` line per fact and pulls `forced-act-measurement.log` back,
+and a run fails when the log lacks one of its markers.
+
+The stop is a system call answer and not a program's phrasing of one:
+`umount` prints `not mounted` for the `EINVAL` a locked mount gives,
+so the step calls `umount2` and `mount(MS_MOVE)` through `ctypes` and prints the
+errno each one answered.
+
+`arm` runs the arm alone behind a build that already ran in the same guest,
+which is what a second look at one phase costs instead of a whole build.
+
+```sh
+# package/git-policy/cli: one guest, the measurement, then the arm
+node e2e/forced-act-guest.ts all --name <guest> --log-dir <dir>
+# the arm alone, after a `run` that built it
+node e2e/forced-act-guest.ts arm --name <guest> --log-dir <dir>
+```
+
 ## Guest work that runs longer than the agent's safe length
 
 A guest command of a driver's step runs in a process group of its own,
@@ -1228,7 +1303,8 @@ and the removal-lineage and settling drivers start their build and their arm
 detached in the driver itself.
 So `removal-lineage-proof-guest.ts`,
 `settling-command-guest.ts`,
-`cancel-and-settle-commands-guest.ts` and
+`cancel-and-settle-commands-guest.ts`,
+`forced-act-guest.ts` and
 `zfs-step-22-measurements-guest.ts` hold no plain `guest()` command at all,
 and the three plain commands
 `mount-git-worktree-clone-datasets-guest.ts` still holds
@@ -1242,6 +1318,9 @@ each is bounded above the five minutes,
 and nothing has timed one,
 so a round that keeps them plain owes either a measurement under five minutes
 or a detached script.
+The forced act's driver started its build and its arm detached on 2026-11-28,
+after a plain `mvm exec` lost a build of 34 minutes to one unanswered status
+request while five other guests ran on this host.
 
 Every plain `guest()` command in this package is listed here,
 with the bound it carries and the duration recorded for it.
@@ -1257,14 +1336,12 @@ where a step's duration is its whole step:
   with a bound of 900 s.
   Its whole `run` took 568 s at two jobs and 843 s at one,
   of which the build is 561 s and 839 s.
-- `e2e/forced-act-guest.ts:224` is the crate's test build,
-  with a bound of 2,400 s.
-  It took 8m 30s at two jobs,
-  then 14m 35s at one job.
-- `e2e/forced-act-guest.ts:256` is that driver's arm,
-  with a bound of 900 s.
-  Its whole `run` took 546 s at two jobs and 911 s at one,
-  of which the build is 510 s and 875 s.
+- `e2e/forced-act-guest.ts` was two of these,
+  its crate test build and its arm,
+  and both started detached on 2026-11-28.
+  The build took 8m 30s at two jobs and 14m 35s at one job before that,
+  then 34m 55s and 39m 22s on 2026-11-27 and 2026-11-28 while five or more
+  other guests ran on this host.
 - `e2e/managed-git-lock-guest.ts:200` is the guest's pool,
   with a bound of 1,800 s.
   It is not timed on its own.
