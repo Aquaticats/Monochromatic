@@ -15,7 +15,8 @@
 //!  "The tests a build must have",
 //!  whose every test states which answer its double gives).
 //!  The set is a `mount_setattr(2)` on the descriptor and never a path:
-//!  the project refused a path fallback, because a path would act on whatever
+//!  the project refused a path fallback,
+//! because a path would act on whatever
 //!  stands there at that moment (choice V4).
 //!
 //! In TS you'd write (pseudocode):

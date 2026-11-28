@@ -67,7 +67,8 @@ const UNBINDABLE_OPTION: &str = "unbindable";
 ///  `statmount(2)` gives,
 ///  so they are held as three flags rather than as one word,
 ///  and the words are derived from them.
-///  A `&'static str` sibling does not fit: the word is computed from three
+///  A `&'static str` sibling does not fit:
+/// the word is computed from three
 ///  flags a caller sets at run time.
 ///
 /// In TS you'd write (pseudocode):

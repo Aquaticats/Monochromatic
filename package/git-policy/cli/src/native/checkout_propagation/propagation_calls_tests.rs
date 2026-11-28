@@ -1,5 +1,6 @@
 //! What:
-//!  The seam the step's kernel acts answer, as a control exercises it:
+//!  The seam the step's kernel acts answer,
+//! as a control exercises it:
 //!  a double that answers each act,
 //!  the number each refusal carries,
 //!  and the sentence a person reads.

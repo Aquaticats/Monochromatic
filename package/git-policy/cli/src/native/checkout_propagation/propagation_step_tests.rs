@@ -1,5 +1,6 @@
 //! What:
-//!  The step's controls, one per state it can reach:
+//!  The step's controls,
+//! one per state it can reach:
 //!  a shared mount set private,
 //!  a shared and slave mount set private with the master recorded,
 //!  a private mount already as the route wants it,
@@ -52,7 +53,8 @@ const CHECKOUT: &str = "/home/user/Monochromatic";
 const DATASET: &str = "pool/home/monochromatic-git-checkout";
 
 /// What:
-///  The step's kernel acts, answered from a script,
+///  The step's kernel acts,
+/// answered from a script,
 ///  with every act it was asked for and every refusal it was told to give.
 /// Why:
 ///  No test on this machine may change a mount,
@@ -180,7 +182,8 @@ impl PropagationCalls for Scripted {
 ///  a fixture directory this account owns,
 ///  and a boot identifier the control states.
 /// Why:
-///  The release place is `/run`, which a control never writes,
+///  The release place is `/run`,
+/// which a control never writes,
 ///  and the record is read back from the fixture so a control proves the
 ///  file as well as the answer.
 ///

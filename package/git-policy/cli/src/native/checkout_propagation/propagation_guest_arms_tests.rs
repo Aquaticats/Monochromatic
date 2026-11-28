@@ -41,12 +41,12 @@
 use super::guest_fixture::Fixture;
 use super::propagation_calls::TheKernelsCalls;
 use super::propagation_record::PropagationRecord;
-use super::propagation_step::{
+use super::propagation_step::run_the_step;
+use super::propagation_step_names::{
     CheckoutResolution,
     PropagationDone,
     PropagationPlaces,
     PropagationRefusal,
-    run_the_step,
 };
 use super::propagation_words::{
     PropagationOutcome,
@@ -365,7 +365,8 @@ fn a_mount_that_is_not_the_checkout(fixture: &Fixture) -> String {
 ///  and what it must show").
 ///  The gate is a stand-in because no root mode calls the step in this
 ///  release;
-///  the step is run on the same instance the replacement left, so the
+///  the step is run on the same instance the replacement left,
+/// so the
 ///  repair is read on the checkout the trigger fired for.
 ///
 /// In TS you'd write (pseudocode):
@@ -467,7 +468,9 @@ fn replace_and_wait(
 }
 
 /// What:
-///  Wait, bounded by the reading window, until the propagation service started
+///  Wait,
+/// bounded by the reading window,
+/// until the propagation service started
 ///  once and the gate reloaded once since the counts the caller took.
 /// Why:
 ///  Both are what "seen" means,
@@ -561,7 +564,8 @@ fn a_burst_of_replacements(
 ///  arm,
 ///  and the gate's `ExecStart` is a stand-in because this release's gate does
 ///  not call the step:
-///  its `ExecReload` appends one line, which is how the arm counts the reloads
+///  its `ExecReload` appends one line,
+/// which is how the arm counts the reloads
 ///  the request answers with.
 ///
 /// In TS you'd write (pseudocode):

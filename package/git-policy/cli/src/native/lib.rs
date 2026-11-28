@@ -476,10 +476,6 @@ pub use checkout_boot_units::*;
 #[cfg(target_os = "linux")]
 pub mod checkout_propagation;
 
-/// The same re-export for `checkout_propagation`.
-#[cfg(target_os = "linux")]
-pub use checkout_propagation::*;
-
 /// The immutable covered entry of the checkout's underlay:
 ///  what the kernel says about the entry at the checkout path and its parent,
 ///  why a reading is refused,

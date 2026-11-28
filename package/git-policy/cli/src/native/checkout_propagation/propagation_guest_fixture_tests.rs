@@ -1,7 +1,8 @@
 //! What:
 //!  The fixture and the helpers the step's guest arm shares across its phases.
 //! Why:
-//!  Every phase makes a mount, reads the table and says one line,
+//!  Every phase makes a mount,
+//! reads the table and says one line,
 //!  so the pool,
 //!  the checkout dataset and the table reading are stated once.
 //!  A run on this machine prints one `SKIPPED` line and returns,

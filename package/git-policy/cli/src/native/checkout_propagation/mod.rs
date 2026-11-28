@@ -20,7 +20,8 @@
 //!  and the guest arm beside these files calls it itself
 //!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
 //!  It is Linux only,
-//!  like `statmount(2)`, `mount_setattr(2)` and `/proc/self/mountinfo` it
+//!  like `statmount(2)`,
+//! `mount_setattr(2)` and `/proc/self/mountinfo` it
 //!  reads.
 //!
 //! Files in this folder,
@@ -54,18 +55,27 @@
 //!   the checkout,
 //!   each in the kernel's own spelling.
 //! - `propagation_record.rs`:
-//!   the record's fields,
-//!   its one text,
-//!   and the parser that reads that text back.
+//!   the record's fields and its one text.
+//! - `propagation_record_parse.rs`:
+//!   the parser that reads that text back,
+//!   and why a text is not a record this route wrote.
+//! - `propagation_record_file_refusals.rs`:
+//!   why the record's directory or its file could not be used,
+//!   with the sentence a person reads for each.
 //! - `propagation_record_file.rs`:
 //!   the root-owned `0755` directory under `/run`,
 //!   the `0644` record,
 //!   the staging sibling and the one rename,
 //!   and the read that proves what it reads.
+//! - `propagation_step_names.rs`:
+//!   the checkout and dataset a caller resolved,
+//!   the places,
+//!   the answer and the refusal.
+//! - `propagation_step_records.rs`:
+//!   the records the step files,
+//!   the sentence a refusal says and the line a mode says.
 //! - `propagation_step.rs`:
-//!   the step itself,
-//!   its order,
-//!   the answer it files and the line it says.
+//!   the step itself and its order.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -78,7 +88,11 @@ pub mod mount_propagation_set;
 pub mod propagation_calls;
 pub mod propagation_record;
 pub mod propagation_record_file;
+pub mod propagation_record_file_refusals;
+pub mod propagation_record_parse;
 pub mod propagation_step;
+pub mod propagation_step_names;
+pub mod propagation_step_records;
 pub mod propagation_words;
 pub mod shared_mounts_beneath;
 
@@ -106,21 +120,19 @@ pub use propagation_calls::{
     PropagationCalls,
     TheKernelsCalls,
 };
-pub use propagation_record::{
+pub use propagation_record::PropagationRecord;
+pub use propagation_record_file::PropagationFile;
+pub use propagation_record_file_refusals::PropagationFileRefusal;
+pub use propagation_record_parse::{
     PropagationParseRefusal,
-    PropagationRecord,
     parse_record,
 };
-pub use propagation_record_file::{
-    PropagationFile,
-    PropagationFileRefusal,
-};
-pub use propagation_step::{
+pub use propagation_step::run_the_step;
+pub use propagation_step_names::{
     CheckoutResolution,
     PropagationDone,
     PropagationPlaces,
     PropagationRefusal,
-    run_the_step,
 };
 pub use propagation_words::{
     BENEATH_PATH_KEY,

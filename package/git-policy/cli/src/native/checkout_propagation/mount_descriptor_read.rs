@@ -24,7 +24,8 @@
 //!  which states the same kernel layout for its own question).
 //!  The kernel resolves the number inside this process's own namespace,
 //!  so an instance a lazy unmount detached answers `ENOENT` and no facts at
-//!  all: a detached mount is never described here,
+//!  all:
+//! a detached mount is never described here,
 //!  which is the refusal the design's namespace check is about.
 //!
 //! In TS you'd write (pseudocode):
@@ -41,7 +42,8 @@ use std::path::PathBuf;
 /// which is 457 on x86-64 and on the asm-generic numbering aarch64 follows;
 /// every other architecture this package could build for answers "unavailable"
 /// rather than guess a number.
-/// Control of this call reads the same number, and `sweep_standing_mount_source`
+/// Control of this call reads the same number,
+/// and `sweep_standing_mount_source`
 /// declares it for the sweep's own question.
 #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
 const STATMOUNT_NUMBER: Option<libc::c_long> = Some(457);
@@ -98,23 +100,29 @@ const MOUNT_POINT_AT: usize = 108;
 const SOURCE_AT: usize = 124;
 
 /// Where `struct statmount` holds the namespace's number,
-/// which Linux 6.9 added; a kernel older than that leaves the word spare and
+/// which Linux 6.9 added;
+/// a kernel older than that leaves the word spare and
 /// the answer's mask says so.
 const NAMESPACE_ID_AT: usize = 112;
 
-/// The field asked for: the mount's own numbers and its set.
+/// The field asked for:
+/// the mount's own numbers and its set.
 const STATMOUNT_MNT_BASIC: u64 = 0x0000_0002;
 
-/// The field asked for: the mount point's string.
+/// The field asked for:
+/// the mount point's string.
 const STATMOUNT_MNT_POINT: u64 = 0x0000_0010;
 
-/// The field asked for: the filesystem type's string.
+/// The field asked for:
+/// the filesystem type's string.
 const STATMOUNT_FS_TYPE: u64 = 0x0000_0020;
 
-/// The field asked for: the namespace's number.
+/// The field asked for:
+/// the namespace's number.
 const STATMOUNT_MNT_NS_ID: u64 = 0x0000_0040;
 
-/// The field asked for: the source's string,
+/// The field asked for:
+/// the source's string,
 /// which Linux 6.13 added and an older kernel leaves out of the answer's mask.
 const STATMOUNT_SB_SOURCE: u64 = 0x0000_0200;
 
@@ -155,7 +163,8 @@ struct MountNumberRequest {
 }
 
 /// What:
-///  One mount, as the kernel reports it for a descriptor.
+///  One mount,
+/// as the kernel reports it for a descriptor.
 /// Why:
 ///  The step decides on these fields and the record carries them,
 ///  so one value holds both numbers,

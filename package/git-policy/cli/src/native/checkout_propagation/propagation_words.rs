@@ -75,7 +75,9 @@ pub const NONE_WORD: &str = "none";
 /// a canonical UUID's 36 characters.
 pub const MAXIMUM_BOOT_BYTES: usize = 36;
 
-/// The bound one mount number, one namespace number, one master number or one
+/// The bound one mount number,
+/// one namespace number,
+/// one master number or one
 /// count may use,
 /// which is twenty decimal digits of a 64-bit number.
 pub const MAXIMUM_NUMBER_BYTES: usize = 20;
@@ -220,11 +222,13 @@ pub const MAXIMUM_PROPAGATION_BYTES: usize = PROPAGATION_VERSION.len()
 pub enum PropagationOutcome {
     /// The step set the mount private and proved it.
     Applied,
-    /// The mount received and passed on nothing, so nothing was set.
+    /// The mount received and passed on nothing,
+    /// so nothing was set.
     AlreadyPrivate,
     /// The mount was in a state the step reports and does not change.
     Left,
-    /// The step refused, and nothing was changed.
+    /// The step refused,
+    /// and nothing was changed.
     Refused,
 }
 
@@ -298,7 +302,8 @@ pub enum PropagationStep {
     Type,
     /// The mount's source is not the resolved checkout dataset.
     Source,
-    /// The mount has no namespace, so it is a detached instance.
+    /// The mount has no namespace,
+    /// so it is a detached instance.
     Namespace,
     /// The mount table the record's row comes from could not be read,
     /// or holds no row describing this mount.

@@ -2670,6 +2670,45 @@ The migration,
 the property changes and the install are your own act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
 
+#### The private-propagation step, built and reached by no command
+
+Plan step 19's step is built in `src/native/checkout_propagation/`,
+and nothing reaches it:
+its call at the head of `boot-reconcile` and of the default sweep is that step's
+wiring,
+which this release does not have,
+so `zfs-root boot-reconcile` and the ZED event's own run change nothing about
+propagation.
+
+A mount that replaces the checkout's mount comes up shared again,
+and a clone mounted under a shared checkout is copied into every other mount
+namespace,
+which is what the step exists for:
+
+- it reads the checkout's own propagation as the kernel's three flags,
+  by the descriptor's unique mount number and `statmount(2)`,
+  and names it `private`,
+  `shared`,
+  `slave`,
+  `unbindable` or `shared+slave`;
+  a mount that is shared and slave at once counts as shared;
+- it sets that mount private through the descriptor it verified,
+  with no path fallback and nothing beneath it,
+  and proves the set by reading the same instance again;
+- it reports and leaves the states you decided to leave,
+  a private mount as `already-private` and a slave or unbindable one as `left`;
+- it counts the shared mounts beneath the checkout and prints four of them,
+  so you learn what still delivers to other namespaces;
+- and it files its answer in `/run/git-worktree-clone-mount-propagation/result`,
+  which `doctor` will print beside the live tag once its line is wired.
+
+No command opens `/dev/zfs` or writes a checkout for this,
+so nothing here runs on your machine,
+and the guest arm beside the folder is what proves the kernel half.
+Whether the provisional systemd trigger stays is the guest measurement the
+accepted design asks for,
+and this release ships neither the trigger nor its findings.
+
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
 Plan step 20's checks are built in `src/native/health/sanoid_coverage/`:
