@@ -34,7 +34,10 @@ use crate::worktree_clone_binding_record::add_state_commands::{
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
 use crate::worktree_clone_binding_record::binding_words::SettleReason;
 use crate::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
-use crate::worktree_clone_slot_state::slot_state_classification::SlotRouteState;
+use crate::worktree_clone_slot_state::slot_state_classification::{
+    ProofStoppedBy,
+    SlotRouteState,
+};
 use crate::worktree_clone_slot_state::slot_state_readings::{
     BindingReading,
     IntentFacts,
@@ -223,10 +226,22 @@ pub fn next_safe_action(
         ),
         SlotRouteState::CannotProve {
             reason,
-            ..
-        } => format!(
-            "nothing until the reason is resolved: {reason} Do not add here, do not move or remove the slot, and do not write a mount request; read the record, the mount table or the folder the reason names, then run the command again."
-        ),
+            stopped_by,
+        } => match stopped_by {
+            // The owner answered on 2026-11-28 that these two states refuse a removal without force, and each has its own
+            //  way on (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+            ProofStoppedBy::ADestructionPlanThatCannotBeRead => format!(
+                "nothing until the plan is read or gone past: {reason} Do not add here and do not run Git here. `git monochromatic-git-policy-cli settle-worktree-clone-record {} --confirm-removal-of {} --confirm-clone-guid {GUIDE_DIGITS_PLACEHOLDER}` prints the plan it finds and acts on none it cannot read, and `git worktree remove --force {}` goes past it: it proves the clone by the record's GUID against the pool, destroys the clone and its snapshots from the pool's own list, and removes the plan file with its own records.",
+                readings.slot, readings.slot, readings.slot
+            ),
+            ProofStoppedBy::ACloneAtTheStagingFolder => format!(
+                "nothing until the clone is back at its slot or gone: {reason} Do not add here and do not run Git here. `git monochromatic-git-policy-cli cancel-worktree-removal {}` puts the clone back at its slot, and `git worktree remove --force {}` unmounts it where it stands and destroys it once the record's GUID proves the clone.",
+                readings.slot, readings.slot
+            ),
+            _ => format!(
+                "nothing until the reason is resolved: {reason} Do not add here, do not move or remove the slot, and do not write a mount request; read the record, the mount table or the folder the reason names, then run the command again."
+            ),
+        },
     };
 }
 

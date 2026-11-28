@@ -25,9 +25,19 @@
 //!  The read is the lock design's own,
 //!  so the removal and the add's resume cannot disagree about whose a lock is.
 //!
+//!  The owner answered on 2026-11-28 that two forces pass a person's lock,
+//!  and the act stated with that answer is that "the wrapper deletes the person's
+//!  lock file and then runs the removal"
+//!  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+//!  "Two forces at a person's lock"),
+//!  so this file answers three things rather than two:
+//!  the lock is the add's,
+//!  it is a person's and the removal stops,
+//!  or it is a person's and two forces deleted it.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! refuseALockThisAddDidNotWrite(commonDir, slot); // or nothing, or the stop
+//! theLocksAnswer(commonDir, slot, force); // nothing, one line about the lock it deleted, or the stop
 //! ```
 
 use crate::worktree_clone_binding_record::lock_words::{
@@ -38,6 +48,7 @@ use crate::worktree_clone_binding_record::registration_home::home_folder;
 use crate::worktree_clone_managed_lock::lock_and_pointer_readings::read_the_lock;
 use crate::worktree_clone_managed_lock::reading_a_bounded_file::Reading;
 use crate::worktree_clone_managed_lock::recorded_lock_facts::read_the_recorded_facts;
+use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use std::path::{
     Path,
@@ -46,7 +57,8 @@ use std::path::{
 
 /// What:
 ///  Whether a standing lock keeps this removal from starting,
-///  and the stop that says so.
+///  the stop that says so,
+///  or the line a two-force removal prints about the lock it deleted.
 /// Why:
 ///  A lock with no words of the add's is a lock a person set,
 ///  and the settle would refuse it after every destroy,
@@ -54,20 +66,24 @@ use std::path::{
 ///  Absence,
 ///  the add's whole sentence and its cut-short prefix are all the wrapper's own:
 ///  the settle writes a lost lock again and completes a short one.
+///  Two forces delete a lock the wrapper cannot attribute to this add,
+///  and one force or none refuses it naming that spelling.
 ///
 /// # Throws
 /// The lock's own words,
 /// the read that refused them,
-/// or the binding the lock's sentence is recomposed from.
+/// the binding the lock's sentence is recomposed from,
+/// or the unlink a two-force removal could not make.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// refuseALockThisAddDidNotWrite(commonDir, slot);
+/// theLocksAnswer(commonDir, slot, force);
 /// ```
-pub(super) fn refuse_a_lock_this_add_did_not_write(
+pub(super) fn the_locks_answer(
     common_dir: &Path,
     slot: &str,
-) -> Result<(), RemovalStop> {
+    force: RemovalForce,
+) -> Result<Option<String>, RemovalStop> {
     let home: PathBuf = home_folder(common_dir);
     let facts = read_the_recorded_facts(common_dir, slot).map_err(|refusal| {
         return RemovalStop::NoBinding {
@@ -76,16 +92,16 @@ pub(super) fn refuse_a_lock_this_add_did_not_write(
         };
     })?;
     let Some(registration) = facts.registration.as_ref() else {
-        return Ok(());
+        return Ok(None);
     };
     let cause: String = match read_the_lock(registration) {
-        Reading::Absent => return Ok(()),
+        Reading::Absent => return Ok(None),
         Reading::Refused(refused) => refused.words(),
         Reading::Bytes(bytes) => match lock_standing_of(bytes.as_slice(), &facts.nonce) {
             LockStanding::Verified
             | LockStanding::CutShort {
                 ..
-            } => return Ok(()),
+            } => return Ok(None),
             LockStanding::Foreign => {
                 let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
                 let line: &str = text.lines().next().unwrap_or("");
@@ -99,6 +115,12 @@ pub(super) fn refuse_a_lock_this_add_did_not_write(
             }
         },
     };
+    if force.is_twice() {
+        return crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::delete_the_persons_lock(
+            registration,
+        )
+        .map(Some);
+    }
     return Err(RemovalStop::TheLocksWordsAreNotThisAdds {
         slot: String::from(slot),
         cause,

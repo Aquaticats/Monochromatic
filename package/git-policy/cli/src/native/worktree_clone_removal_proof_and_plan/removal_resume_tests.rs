@@ -41,10 +41,8 @@ use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     RemovalFixture,
     ScriptedPool,
 };
-use crate::worktree_clone_removal_proof_and_plan::removal_resume::{
-    TheStart,
-    start_the_removal,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_resume::start_the_removal;
+use crate::worktree_clone_removal_proof_and_plan::removal_start_inputs::TheStart;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_removal_deferred_origin_check::fixtures::{
     Answer,

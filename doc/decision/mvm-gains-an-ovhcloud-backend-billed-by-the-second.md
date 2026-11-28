@@ -428,3 +428,65 @@ a command,
 a push and a pull,
 and a destroy that returns when the project's listing has let the machine go;
 the billed test passed whole at 2026-11-28T07:32:22-05:00.
+
+### What stood at the mark
+
+Read at 2026-11-28T08:00:05-05:00,
+unapproved and non-final:
+
+- on this machine,
+  `mvm --backend libvirt list` named no guests,
+  and the session libvirt held no domains;
+  each round destroyed its own local guest after it was told,
+  the last before 07:53;
+- on OVHcloud the project listed 2 machines,
+  each made by a round;
+- `main` holds what a round needs there:
+  merge `a2c34bc3f0` makes a plain `/mnt/shared` in a guest that mounts no share,
+  so the arm scripts run as they are,
+  and merge `b7f9f7ed2c` gives `create` and `run` the two size options.
+
+What is not shown yet:
+no arm of a wrapper driver has run to its own result line on OVHcloud.
+The recipe's own create,
+prepare and one arm of the binding have.
+
+A defect a real run showed that morning,
+issue 6664:
+the one-shot `run` on a cloud backend drops `--vcpus` and `--memory`
+and creates the default size without a word.
+A round is fixing it.
+
+### The first arm of a wrapper driver on OVHcloud
+
+Recorded 2026-11-28T08:16:54-05:00,
+unapproved and non-final,
+from the report of the round that moved the guest drivers (merge `034df18341`).
+
+The driver `e2e:doctor-zfs-route` ran on one OVHcloud machine of four cores and 16 GiB,
+through the shared guest steps and with no arm script changed.
+Its steps took,
+by that round's own clock:
+create 75 s,
+prepare 7 min 5 s,
+the crate's build in the guest 9 min 40 s,
+the arm 2 min 3 s,
+destroy 35 s.
+Two of the driver's three guest tests passed.
+The third failed on a difference that both sides of `main` carry since 2026-11-27:
+the arm expects the cancel command's check to answer `unknown` while two steps' facts are unread,
+and the product answers `pass`.
+No control on a local guest was run for it;
+the round whose task is the doctor's route facts was told and settles which side is right.
+
+What does not run there:
+the recipe's steps whose subject is a reboot or a power cut,
+because `mvm` never stops or resumes an OVHcloud machine;
+and the step 22 measurement driver,
+whose wait reads the host's own side of the folder a local guest shares.
+
+One collision to know of:
+a round's command failed once with a missing module
+while the session rebuilt `mvm` in the main checkout,
+because every round's `mvm` is the main checkout's.
+The session rebuilds it there only when the launcher itself changed.

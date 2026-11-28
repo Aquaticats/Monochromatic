@@ -256,6 +256,7 @@ fn complete(
         cancelling: None,
         budget: the_budget(fixture),
         now: "2026-11-25T09:12:44-05:00",
+        force: crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce::none(),
     };
     return complete_the_removal(&input);
 }

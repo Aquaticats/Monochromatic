@@ -568,6 +568,23 @@ Still owed:
 - `doctor` does not yet report the migration,
   the boot findings or the immutable entry,
   which plan step 19's `### Doctor` passage and the owner's V7 answer require.
+- The propagation step is built
+  (`package/git-policy/cli/src/native/checkout_propagation/`,
+  `SPEC.md`,
+  "The private-propagation step, built and reached by no command"),
+  and no command and no root mode reaches it:
+  its call at the head of `boot-reconcile` and of the default sweep is plan step 19's wiring,
+  which is not built.
+  So the boot unit this page installs reconciles clone mounts and leaves the checkout's propagation as it
+  found it,
+  and a checkout replaced by hand comes back shared until a root run calls the step.
+  Its kernel half is the arm in a throwaway guest
+  (`propagation_guest_arms_tests.rs`, driven by `package/git-policy/cli/e2e/propagation-step-guest.ts`),
+  which is also the measurement the accepted design asks of the provisional systemd trigger:
+  whether it sees a replacement typed by hand and whether it loops.
+  That measurement's numbers, and whether the trigger stays,
+  are recorded in the round's report and in the commit that carries the arm,
+  and neither is a decision of this page.
 - The ZED half of this page:
   the zedlet's install,
   its AppArmor rules in `/etc/apparmor.d/local/zed`,
