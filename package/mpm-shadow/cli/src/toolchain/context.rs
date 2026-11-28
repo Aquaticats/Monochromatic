@@ -21,7 +21,10 @@
 /// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 /// Imports `PathBuf` from `std::path`.
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
@@ -135,17 +138,38 @@ impl Context<'_> {
         let tool: &LockedTool = self.tool(tool_id).ok()?;
         // What:
         // the toolchain `rustup` says this row's channel is, which is `None` for every route but
-        // `rustup-toolchain` and so starts nothing.
+        // `rustup-toolchain`, so a manager's lookup starts nothing.
         // Why:
-        // The search reads a `rustup-toolchain` row's programs from that one directory and from no other.
+        // A `rustup-toolchain` row's programs are read from that one directory and no other,
+        // and a caller asking for one program pays one question.
         let the_toolchains_bin: Option<PathBuf> = self.the_toolchains_bin_dir(tool);
+        return self.find_bin_of_in(tool, name, extra_dirs, the_toolchains_bin.as_deref());
+    }
+
+    /// What:
+    /// The executable `name` of `tool`,
+    /// searched where its route installs it,
+    /// with `the_toolchains_bin` handed to the search as the `bin` directory of the toolchain a
+    /// `rustup-toolchain` row's channel is.
+    /// Why:
+    /// A caller that reads every program of one row asks `rustup` which toolchain the channel is
+    /// once for the row and passes that answer here,
+    /// because asking once per program would start `rustup` once per program;
+    /// `None` is the answer for a row of another route and for a question `rustup` did not answer.
+    pub fn find_bin_of_in(
+        &self,
+        tool: &LockedTool,
+        name: &str,
+        extra_dirs: &[PathBuf],
+        the_toolchains_bin: Option<&Path>,
+    ) -> Option<PathBuf> {
         return find_tool_bin(
             tool,
             name,
             self.scope,
             self.env,
             extra_dirs,
-            the_toolchains_bin.as_deref(),
+            the_toolchains_bin,
         );
     }
 
@@ -208,16 +232,19 @@ impl Context<'_> {
     /// Which installed toolchain a channel is belongs to `rustup` alone,
     /// and the two answers it is read from are in its own source:
     /// `which` resolves the name with `cfg.default_host_tuple()`
-    /// (`src/cli/rustup_mode.rs`, `rustup 1.29.3`) and prints `toolchain.binary_file("rustc")`,
+    /// (`src/cli/rustup_mode.rs` of `rustup 1.29.3`)
+    /// and prints `toolchain.binary_file("rustc")`,
     /// which is `<toolchain path>/bin/rustc` (`src/toolchain.rs`);
-    /// and that host tuple is the kernel's own answer plus rustup's build-time C library
-    /// (`TargetTuple::from_host`, `src/dist/mod.rs`), or the `default_host_tuple` of its settings.
+    /// and that host tuple is the kernel's own answer
+    /// plus rustup's build-time C library
+    /// (`TargetTuple::from_host` in `src/dist/mod.rs`),
+    /// or the `default_host_tuple` of its settings.
     /// So a program other than `rustup` cannot work the directory name out for itself:
     /// `uname` does not say `gnu` or `musl`,
     /// a custom linked toolchain's directory is the link's own name and no triple,
     /// and the same channel can be installed for more than one host triple.
     /// The farm linked another toolchain's programs while `rustup which` named the right one
-    /// (issue 6634's read, L-1).
+    /// (L-1 of the read of issue 6634).
     pub fn the_toolchains_bin_dir(
         &self,
         tool: &LockedTool,

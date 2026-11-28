@@ -745,7 +745,8 @@ llama-cpu-cli \
   is;
   each question alone was 5.5 to 36.5 ms.
   No deadline is shipped for those waits:
-  the measurement says what an answer costs, not what a late one should be cut off at,
+  the measurement says what an answer costs,
+  not what a late one should be cut off at,
   and a cut-off would tell a person a toolchain's parts could not be read when `rustup` was merely
   slow.
 - `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...`:
