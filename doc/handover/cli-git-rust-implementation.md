@@ -2827,18 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-`cargo-shadow` `0.1.5-alpha.12` followed:
-release commit `581f7754a8`,
-locked (`e3c3dd43f1`) and installed.
-Over alpha.11 it holds issue 6578's retirement of a run's scope unit when the run ends (`5daa8810b9`),
-a refusal that lists the members of every control group below the scope,
-each read through a pidfd,
-within a bound of 500 ms beside its measurement (`c59a4f5fd5`),
-and the manifest and surface tidy (`d134b5f836`).
-Its release note's last clause is wrong
-(it names issue 6576,
-a test-only change that alpha.11 already held);
-a comment on the release commit corrects it.
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
 
