@@ -870,7 +870,8 @@ const THE_LINE_ONE_SIDE_WRITES_TWICE: &str = "dup";
 
 /// What:
 ///  An answer that holds as many copies of a line as the side that wrote more copies holds
-///  is not refused, where the other side left that line as it was held.
+///  is not refused,
+///  where the other side left that line as it was held.
 /// Why:
 ///   Exactly one side wrote more copies of the line than the base held,
 ///  so the bound is that side's count and never the count of the side that holds fewer
@@ -879,7 +880,8 @@ const THE_LINE_ONE_SIDE_WRITES_TWICE: &str = "dup";
 ///  Both sides changed a line of this region,
 ///  so this is a region Git's own line merge leaves and the pass reads:
 ///  the base writes the line once,
-///  this side wrote a second copy, and the other side changed another line of the same region.
+///  this side wrote a second copy,
+///  and the other side changed another line of the same region.
 ///  The second pass of the alpha.51 release found no control that reaches that end of the bound,
 ///  and its own 33 built cases all ended in a conflict,
 ///  so an edit that read the bound as the smaller of the two counts stayed green.

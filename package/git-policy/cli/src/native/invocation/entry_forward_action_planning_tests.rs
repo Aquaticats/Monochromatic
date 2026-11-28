@@ -7,7 +7,8 @@
 //!  as it leads the three slot refusals,
 //!  and no control named either:
 //!  an edit that dropped the stage's lines from one branch left every test green
-//!  (the second pass of that release, its L1).
+//!  (the second pass of that release,
+//!  its L1).
 //!  Each control reads the text of a real finding of the real stage,
 //!  so no sentence here is a stand-in for one the program prints.
 //!  Neither state is reachable through `plan_invocation`:
@@ -25,7 +26,8 @@
 //! ```
 #![cfg(unix)]
 
-/// The planner, its action and the failure status both of its branches end in.
+/// The planner,
+///  its action and the failure status both of its branches end in.
 use super::*;
 /// The request the stage makes for the bytes of a file an `add` would stage.
 use crate::candidate_prediction::CandidateRequest;
@@ -71,7 +73,8 @@ use crate::wrapper_controls::no_controls;
 ///  which is the finding the stage prints.
 const THE_FILE: &str = "notes.txt";
 
-/// The bytes of `THE_FILE`: one line feed at the end of the first line and none at the end.
+/// The bytes of `THE_FILE`:
+///  one line feed at the end of the first line and none at the end.
 const WITHOUT_A_LINE_FEED: &[u8] = b"one\ntwo";
 
 /// The two words a control plans,
