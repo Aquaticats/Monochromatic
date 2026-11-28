@@ -12546,3 +12546,49 @@ policy::policy_engine field PolicyFinding::commit_correction
 #   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes the same answer as the event carries it, for the renderer that chooses the hint
 policy::policy_events_kinds field FindingEvent::commit_correction
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the request one managed clone's facts are read for, which the wiring round builds per clone
+health::doctor_zfs_route::clone_facts_reads struct CloneFactsRequest
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::common_dir
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::slot
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::slot_path
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::cache
+health::doctor_zfs_route::clone_facts_reads field CloneFactsRequest::caller_task
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes a clone dataset's GUID and creation group, which split a clone's own history from the one it inherited
+health::doctor_zfs_route::clone_facts_reads struct CloneFactsIdentity
+health::doctor_zfs_route::clone_facts_reads field CloneFactsIdentity::guid
+health::doctor_zfs_route::clone_facts_reads field CloneFactsIdentity::createtxg
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the seam every read of one clone's facts passes through, so a control scripts a reading and the release answers the same one
+health::doctor_zfs_route::clone_facts_reads trait CloneFactsReads
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the one function the wiring round calls for one clone's group of lines
+health::doctor_zfs_route::clone_facts_gathering fn gather_clone_facts
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the release reader of one clone's facts, which the wiring round makes once per report
+health::doctor_zfs_route::clone_facts_live_reads struct LiveCloneFactsReads
+health::doctor_zfs_route::clone_facts_live_reads fn LiveCloneFactsReads::open
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes what stands at a path, which every handler check reads and no report may guess
+health::doctor_zfs_route::clone_facts_live_answers fn the_state_of_a_path
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes which holder tasks the caller's own session keeps, which a removal spares
+health::doctor_zfs_route::clone_facts_live_answers fn the_tasks_in_the_callers_session
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes one scan's answer as a holder per namespace with a representative task, which a report and a refusal both name
+worktree_clone_removal_proof_and_plan::holder_report struct TheHoldersOfOneClone
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::holders
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::own_mounts
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::own_namespace
+worktree_clone_removal_proof_and_plan::holder_report field TheHoldersOfOneClone::incomplete
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes one namespace that holds a dataset with one live task a person can look at
+worktree_clone_removal_proof_and_plan::holder_report struct AProvenHolder
+worktree_clone_removal_proof_and_plan::holder_report field AProvenHolder::namespace
+worktree_clone_removal_proof_and_plan::holder_report field AProvenHolder::task
+worktree_clone_removal_proof_and_plan::holder_report field AProvenHolder::mount_point
+#   2c1b132805 feat(git-policy-cli): the gatherer of one managed clone's doctor facts
+#   publishes the fresh scan one clone's holders are read from, and the mapping a control drives from a scan it wrote
+worktree_clone_removal_proof_and_plan::holder_report fn the_holders_of_one_clone
+worktree_clone_removal_proof_and_plan::holder_report fn holders_of
