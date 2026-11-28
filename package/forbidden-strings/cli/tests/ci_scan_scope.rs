@@ -198,17 +198,17 @@ impl Fixture {
             // Why:      Assuming it here would let a plant that removed the
             //           status check still pass every case.
             let after_failure: bool = step_runs_after_failure(name);
-            // What:     `body` is the step's shell, or `None` when the step is
-            //           optional and the workflow does not declare it.
+            // What:     `declared` is the step's shell, or `None` when the
+            //           step is optional and the workflow does not declare it.
             // Why:      `step_body` panics on a missing step, and `declared_step_body`
             //           answers `None`; each kind of step gets the one its
             //           requirement asks for.
-            let body: Option<String> = if required {
+            let declared: Option<String> = if required {
                 Some(step_body(name))
             } else {
                 declared_step_body(name)
             };
-            match body {
+            match declared {
                 Some(body) => {
                     fs::write(root.join(script), body).expect("write extracted step body");
                     steps.push((script, true, after_failure));
