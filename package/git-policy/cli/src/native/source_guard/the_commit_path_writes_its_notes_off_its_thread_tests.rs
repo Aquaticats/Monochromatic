@@ -36,8 +36,13 @@
 //! `use std::io::stderr as say;`,
 //! `use std::io::{stderr as say};`) and where a type position names it (`Stderr`).
 //! What this ban does not see is a call a macro of another file expands to,
-//! and a name a glob import (`use super::*;`) brings into scope;
+//! a name a glob import (`use super::*;`) brings into scope,
+//! and a call whose name and `(` a line break separates;
 //! a reader checks each of those in a file that adds one.
+//! The shared handle is read by its descriptor number too (`libc::STDERR_FILENO`),
+//! which is the same handle and holds it the same way;
+//! a write to the number itself (`libc::write(2, ...)`) names no constant and no call,
+//! and this ban reads nothing of it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -103,6 +108,19 @@ const THE_SHARED_HANDLE_CALLS: &[&str] = &["stderr"];
 /// const THE_SHARED_HANDLE_TYPES = ['Stderr'];
 /// ```
 const THE_SHARED_HANDLE_TYPES: &[&str] = &["Stderr"];
+
+/// What:
+///  `THE_SHARED_HANDLE_BY_NUMBER` is the constant that names this process's standard error by its descriptor
+///  number, which writes to the same handle as `std::io::stderr()` and holds it the same way.
+/// Why:
+///  a note written with `libc::write(libc::STDERR_FILENO, ...)` asks for the shared handle without writing either
+///  of its names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_SHARED_HANDLE_BY_NUMBER = ['STDERR_FILENO'];
+/// ```
+const THE_SHARED_HANDLE_BY_NUMBER: &[&str] = &["STDERR_FILENO"];
 
 /// What:
 ///  `THE_NOTE_FILES` is every file `main` says a note of the commit path from.
@@ -191,11 +209,12 @@ fn note_files() -> Vec<(String, String)> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const writesWhereTheCommandStands = (sources) => [...linesCallingOneOf(sources, THE_SHARED_HANDLE_CALLS), ...linesNamingOneOf(sources, THE_SHARED_HANDLE_TYPES)];
+/// const writesWhereTheCommandStands = (sources) => [...linesCallingOneOf(sources, THE_SHARED_HANDLE_CALLS), ...linesNamingOneOf(sources, THE_SHARED_HANDLE_TYPES), ...linesNamingOneOf(sources, THE_SHARED_HANDLE_BY_NUMBER)];
 /// ```
 fn writes_where_the_command_stands(sources: &[(String, String)]) -> Vec<HoldingLine> {
     let mut holding: Vec<HoldingLine> = lines_calling_one_of(sources, THE_SHARED_HANDLE_CALLS);
     holding.extend(lines_naming_one_of(sources, THE_SHARED_HANDLE_TYPES));
+    holding.extend(lines_naming_one_of(sources, THE_SHARED_HANDLE_BY_NUMBER));
     return holding;
 }
 
@@ -283,6 +302,7 @@ const SPELLINGS_OF_THE_SHARED_HANDLE: &[&str] = &[
     "let _ = io::stderr().write_all(b\"one\");",
     "use std::io::stderr as say;",
     "fn kept(handle: std::io::Stderr) {}",
+    "let _ = unsafe { libc::write(libc::STDERR_FILENO, bytes.as_ptr().cast(), bytes.len()) };",
 ];
 
 /// What:
