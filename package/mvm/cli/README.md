@@ -759,6 +759,12 @@ mise run //package/mvm/cli:run -- --backend ovh destroy --all
 mise run //package/mvm/cli:run -- --backend ovh update
 ```
 
+OVHcloud keeps an instance it has deleted in the project's listing for a while,
+with the status `DELETED`.
+`list`,
+`destroy --all` and every lookup by name leave such an instance out,
+because it runs nowhere and its name is free again.
+
 ### Differences from the Hetzner backend
 
 - **The regions are the project's own**:
