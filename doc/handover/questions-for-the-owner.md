@@ -4535,3 +4535,91 @@ and each can be undone.
   and whether a stop job queued on `app.slice` is a state the discovery waits out,
   as alpha.16's start did,
   or one it names.
+
+## Veto open: what the rounds read on the night of 2026-11-27 chose or left (recorded 2026-11-27T21:42:08-05:00)
+
+Each is a round's own or the coordinating session's,
+done or briefed without asking,
+and each can be undone.
+
+- The linter's closure rule,
+  issue 6643:
+  the proposal `doc/planning/monochromatic-lint-who-provides-the-dylint-driver-and-what-a-skipped-rule-returns.md` asks who provides the Dylint driver and what a skipped rule returns.
+  It ranks the toolchain install building the driver first,
+  then a published driver installed as a tool,
+  then the linter's task warming it,
+  then a gate that owns its driver,
+  then a skip that stops being a pass,
+  then pre-filled caches,
+  and last folding the rule back into the linter,
+  which a decision of 2026-10-18 rejected.
+  Its first choice waits on the pause of `toolchain:install` (issue 6316).
+  It says a code of its own for a skip is worth taking with any of them,
+  and that an exit status of its own for a skip contradicts the answer of 2026-11-07 that a skip is a warning.
+  Nothing is built.
+- The wrapper's round on the surface control chose:
+  a `mod` statement at a file's first column that the reader cannot place stops every scan,
+  so a later `pub(in ...) mod` line has to be written `pub(crate)`,
+  and fixture text holding such a line is written indented;
+  a carried type's members are read from the facade,
+  which added fifteen lines to the list that no round decided one by one,
+  each a name alpha.51 already publishes;
+  the commit path's files may not call `libc::syscall` at all,
+  where a sentence about the one constant was the other way;
+  and a name behind a feature gate stays in the list as published.
+  Left unread and said so in each guard:
+  a write to descriptor 2 by its number,
+  a start whose program is a value,
+  and a call a macro of another file expands to.
+  One of its commit messages says eighteen findings where twenty-nine is right,
+  corrected by a commit comment.
+- The `mpm-shadow` round on the Rust row asks whether `list` gets a deadline for its `rustup` questions.
+  None ships.
+  It ranks none first,
+  because it cannot report a part unreadable that is fine;
+  then a bound of 60 s,
+  which only a hang would reach and which needs the owner's decision under the rule on shipped limits;
+  and last a multiple of the measured cost,
+  which this machine's own slow runs would trip.
+  It added `Context::the_toolchains_bin_dir` and `Context::find_bin_of_in` and a sixth parameter to `layout::bin_search_dirs`,
+  and one of its commit subjects is wrong and has a corrective commit comment.
+- The `mpm-shadow` round on the exposure folder's removal asks three things:
+  whether a temporary link whose install cannot be judged is named in the install's report or stays silent,
+  as it does;
+  whether the temporary name's growth,
+  from about eleven bytes to about seventy,
+  is acceptable,
+  since a program name past roughly 180 bytes would now fail at the link write;
+  and whether the rule for the earlier name shape,
+  which keeps a link while any process holds its number,
+  should expire.
+  It changed `rebuild_exposure` to answer an outcome that carries both the report and the error.
+- The scanner's workflow,
+  issue 6640:
+  a link to a file has its name scanned twice,
+  so a forbidden name there prints two findings;
+  the two later steps run after a failure and not after a cancellation;
+  and `git cat-file --batch` for the index listing was not taken,
+  on a measured 2.3 s to 2.7 s for this repository's links.
+  Scanning both a link's content and its stored target text was the coordinating session's ranking in the issue.
+- The two `cargo-shadow` rounds on the alpha.17 read were briefed with these picks:
+  a call alpha.16 carried is carried again;
+  a path the confirming ask reports after a failed start is the route;
+  a stop job queued on `app.slice` does not fail the call,
+  and a wait for it gets a bound that cites the round's measurement;
+  the ordinary call keeps one `systemctl` program;
+  and whether a scope's creation that meets a reexec is tried again is set out for the owner and not built.
+- The round of issue 6644 was briefed with this pick:
+  the template guest's prepare says which module it loaded and refuses in words when it is not the one the template was built with,
+  through the shared step or a smaller one of its own,
+  which the round decides from what the template holds.
+- The round on the ZFS records' status lines was briefed with these picks:
+  a sentence that states a decision keeps its words and gains a dated note in place;
+  a sentence that only states status is corrected;
+  and the step 22 record's sentence that no value is set until the owner accepts one is not touched.
+- The four rounds that cut the handover's landed history were briefed with these picks:
+  a count from a check of a branch that has merged is not a durable fact;
+  a fact with no home goes into an existing doc on its subject,
+  and into a new file only where the sorter's ledger shows none fits;
+  and words the handover gives as the owner's stay unless the round has read them in the other record the ledger names.
+  The coordinating session read none of the four ledgers whole.
