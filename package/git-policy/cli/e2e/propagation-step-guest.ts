@@ -145,15 +145,17 @@ async function build(chosen: GuestFacts,): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
     'if ! swapon --show | grep --quiet /swapfile; then fallocate --length 6G /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi',
-    'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked --features test-only-switches > /root/propagation-build.log 2>&1',
+    // Two jobs: the guest's 8 GiB and its 6 GiB swap hold two `rustc` processes, and one job outlasted the 2,400 s
+    // bound this package's other drivers give a build on a host running ten guests (measured in this round).
+    'CARGO_BUILD_JOBS=2 cargo build --release --tests --locked --features test-only-switches > /root/propagation-build.log 2>&1',
     'tail --lines=3 /root/propagation-build.log',
   ].join('\n',);
   await detachedStep({
     chosen,
     script,
     log: 'guest-crate-build.log',
-    timeoutMilliseconds: crateBuildTimeoutMilliseconds,
-    finishTimeoutMilliseconds: crateBuildTimeoutMilliseconds + buildFinishMarginMilliseconds,
+    timeoutMilliseconds: crateBuildTimeoutMilliseconds * 2,
+    finishTimeoutMilliseconds: (crateBuildTimeoutMilliseconds * 2) + buildFinishMarginMilliseconds,
   },);
 }
 
