@@ -2681,6 +2681,9 @@ health::doctor_zfs_route::route_checks field CloneFacts::retention
 health::doctor_zfs_route::route_checks field CloneFacts::snapshots
 health::doctor_zfs_route::route_checks field CloneFacts::state
 health::doctor_zfs_route::route_checks field RouteFacts::abi
+health::doctor_zfs_route::route_checks field RouteFacts::boot_protection
+health::doctor_zfs_route::route_checks field RouteFacts::boot_setup
+health::doctor_zfs_route::route_checks field RouteFacts::cancel_command
 health::doctor_zfs_route::route_checks field RouteFacts::clones
 health::doctor_zfs_route::route_checks field RouteFacts::configuration
 health::doctor_zfs_route::route_checks field RouteFacts::datasets
@@ -2694,6 +2697,7 @@ health::doctor_zfs_route::route_checks field RouteFacts::parent_identity
 health::doctor_zfs_route::route_checks field RouteFacts::pool
 health::doctor_zfs_route::route_checks field RouteFacts::readiness
 health::doctor_zfs_route::route_checks field RouteFacts::requests
+health::doctor_zfs_route::route_checks field RouteFacts::sanoid
 health::doctor_zfs_route::route_checks field RouteFacts::slots
 health::doctor_zfs_route::route_checks field RouteFacts::staging
 health::doctor_zfs_route::route_checks field RouteFacts::staging_binds

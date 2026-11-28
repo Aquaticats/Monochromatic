@@ -89,10 +89,7 @@ pub fn later_checks_reports(facts: &LaterCheckFacts<'_>) -> Vec<CheckReport> {
             Check::BootProtection,
             check_boot_protection(facts.boot_protection),
         ),
-        CheckReport::new(
-            Check::ServiceUnit,
-            check_service_unit(facts.boot_setup),
-        ),
+        CheckReport::new(Check::ServiceUnit, check_service_unit(facts.boot_setup)),
         CheckReport::new(Check::BackupCoverage, check_backup_coverage()),
         CheckReport::new(Check::Sanoid, facts.sanoid.outcome.clone()),
     ];
