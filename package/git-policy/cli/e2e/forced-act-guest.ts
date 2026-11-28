@@ -16,11 +16,17 @@
  - way 8, in place by the add's handle, in the shape systemd leaves a unit's parent;
  - the peer shape, where the closure names the host and the act falls to way 7;
  - way 7 in both shapes, with the directory made, the copy unmoved, and the directory removed;
- - a locked holder, refused before any signal.
+ - a locked holder, refused before any signal;
+ - a mount namespace no task holds, found by `listns` and ended by the act's own stages, or refused
+   `holder-unendable` on a kernel that answers the listing `ENOSYS`.
  The caller's session's other job stays alive through every phase.
 
  Usage: node e2e/forced-act-guest.ts <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]
+        [--image <mvm template>] [--kernel-release <release>]
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
+ `--image` names a custom `mvm` template, such as step 23's CachyOS one, and the recipe then checks what the template
+ already carries instead of installing OpenZFS into an Ubuntu guest; `--kernel-release` names the release that template
+ must boot. A run that names neither gets the Ubuntu 24.04 guest this driver always made.
 
  The evidence of one run is `forced-act-arm.log`, pulled back into the log directory, and a run passes only when it
  carries every `FORCEDACT` line below and no `SKIPPED` line, so an arm that returned without running fails the run
@@ -45,12 +51,16 @@ import {
   guest,
 } from '../bin/mvm-guest-script.ts';
 import {
-  guestDriverOptions,
   type GuestDriverOptions,
+  type RunArguments,
+  flagWord,
+  guestDriverOptions,
+  runArguments,
 } from '../bin/mvm-guest-options.ts';
 import {
   FOLDER_MODE,
   HOST_COMMAND_TIMEOUT_MS,
+  SWAP_GIBIBYTES,
 } from '../bin/mvm-guest-bounds.ts';
 import {
   holdsLineStartingWith,
@@ -104,6 +114,9 @@ const EXPECTED_MARKERS = [
   'FORCEDACT phase=namespace-way7-repaired',
   'FORCEDACT phase=namespace-way7-shared',
   'FORCEDACT phase=locked-holder-refused',
+  // The taskless namespace's one marker covers both kernels: a kernel without `listns` writes
+  // `phase=taskless-namespace-unlistable`, which holds this text and states the refusal word.
+  'FORCEDACT phase=taskless-namespace',
   'FORCEDACT phase=arm-finished',
 ] as const;
 
@@ -116,6 +129,7 @@ async function create(chosen: GuestDriverOptions,): Promise<void> {
   await recipe({
     chosen,
     step: 'create',
+    extraArgumentWords: recipeExtraArguments(),
   },);
 }
 
@@ -128,7 +142,62 @@ async function prepare(chosen: GuestDriverOptions,): Promise<void> {
   await recipe({
     chosen,
     step: 'prepare',
+    extraArgumentWords: recipeExtraArguments(),
   },);
+}
+
+/**
+ The words the recipe's steps take beyond the guest's name and log folder.
+
+ A run that names a custom template hands the recipe the template and the kernel release it must boot; a run that names
+ neither leaves the recipe on its own Ubuntu 24.04 image, which it installs OpenZFS into.
+
+ @returns the recipe's extra words, empty for a run that names no template
+
+ @example
+ ```ts
+ recipeExtraArguments(); // ['--image', 'cachyos-7.3.5-1-zfs-2.4.4', '--kernel-release', '7.3.5-1-cachyos']
+ ```
+ */
+function recipeExtraArguments(): readonly string[] {
+  /**
+   The words this run's own command line carries.
+   */
+  const read: RunArguments = runArguments({
+    argv: process.argv
+      .slice(2,),
+  },);
+  /**
+   The `mvm` template the run names, empty when it names none.
+   */
+  const image = flagWord({
+    read,
+    flag: '--image',
+    fallback: '',
+  },);
+  /**
+   The kernel release that template boots, empty when the run names none.
+   */
+  const kernelRelease = flagWord({
+    read,
+    flag: '--kernel-release',
+    fallback: '',
+  },);
+  /**
+   The extra words, in the order the recipe reads them.
+   */
+  const words: string[] = [];
+  if (image !== '')
+    words.push(
+      '--image',
+      image,
+    );
+  if (kernelRelease !== '')
+    words.push(
+      '--kernel-release',
+      kernelRelease,
+    );
+  return words;
 }
 
 /**
@@ -213,6 +282,10 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     `if test -d /root/target-kept; then mv /root/target-kept ${CRATE_DIR}/package/git-policy/cli/target; fi`,
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
+    // A custom template carries no swap, and one `rustc` of this crate's test binary has been measured at 5.06 GiB of
+    // anonymous memory inside a guest before the kernel killed it (step 23's record, "The guest and how the arms
+    // ran"), so the file is added here rather than left to the image.
+    `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     // One job, for the same reason the deferred-origin driver runs one: this build is the library's test binary, and
     // one `rustc` of it takes the guest's whole memory. Measured 2026-11-27 in the guest of issue 6612's round at two
     // jobs, the build's own samples read `AnonPages` 7,249,568 kB of the guest's 8,131,780 kB with one `rustc` at
@@ -307,6 +380,7 @@ async function destroy(chosen: GuestDriverOptions,): Promise<void> {
   await recipe({
     chosen,
     step: 'destroy',
+    extraArgumentWords: recipeExtraArguments(),
   },);
 }
 

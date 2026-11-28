@@ -99,6 +99,12 @@
 //! - `the_mount_table_the_act_reads.rs`:
 //!   the kernel's mount table as the act reads it inside a holder's namespace,
 //!   one row per mount and the topmost mount at a path.
+//! - `taskless_namespace_walk.rs`:
+//!   the walk that finds a mount namespace no task holds:
+//!   the kernel's own listing,
+//!   the ids its tasks answer,
+//!   the descriptor one listed id becomes,
+//!   and the copy that namespace holds.
 //! - `the_copy_taken_out_of_a_namespace.rs`:
 //!   the shapes the act speaks in:
 //!   one holder namespace's copy,
@@ -196,6 +202,16 @@ pub mod mount_namespace_child;
 
 /// The kernel's mount table as the act reads it.
 pub mod the_mount_table_the_act_reads;
+
+// What:     the walk that finds a mount namespace no task holds.
+// Why:      the forced arm's own wiring is the step that takes it, and until then the folder publishes its pieces the
+//           way it publishes every other one.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { findTheTasklessNamespacesHolding } from './tasklessNamespaceWalk.js';
+// ```
+pub mod taskless_namespace_walk;
 
 /// The shapes the act speaks in,
 /// and the word a failed child's report becomes.
@@ -328,6 +344,7 @@ pub use holder_endings::{
     MissingKind,
     PATH_HOLDER_SHOWN_BY,
     TASKLESS_NOT_BUILT,
+    TASKLESS_SHOWN_BY,
     THE_KINDS,
     ending_of,
     ends_blockers,
@@ -412,6 +429,32 @@ pub use started_by_the_service_manager::{
     started_by_the_service_manager,
     the_refusal_text,
     unified_cgroup_path,
+};
+/// The walk that finds a mount namespace no task holds.
+pub use taskless_namespace_walk::{
+    FILEID_NSFS,
+    IDS_ONE_CALL_ASKS_FOR,
+    IOCTL_READING,
+    LISTNS_CURRENT_USER,
+    LISTNS_SYSCALL,
+    MNT_NAMESPACE_TYPE,
+    NS_GET_ID,
+    NS_GET_ID_NUMBER,
+    NS_GET_ID_WIDTH,
+    NS_ID_REQUEST_BYTES,
+    NSFS_FILE_HANDLE_BYTES,
+    NSIO,
+    OUR_MOUNT_NAMESPACE,
+    PageAnswer,
+    TasklessNamespace,
+    TasklessWalkRefusal,
+    find_the_taskless_namespaces_holding,
+    open_by_the_id,
+    pages_until_the_end,
+    the_ids_no_task_holds,
+    the_ids_this_machines_tasks_hold,
+    the_mount_namespaces_on_this_machine,
+    the_table_of_namespace,
 };
 /// The handler's journal lines.
 pub use the_acts_journal_lines::{

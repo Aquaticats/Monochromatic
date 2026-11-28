@@ -101,6 +101,10 @@ pub enum Ending {
     /// make the copy's parent a slave,
     /// move the copy onto a short-lived directory and unmount it there.
     MakeTheParentASlaveThenMoveAndUnmount,
+    /// Enter the namespace and take its copy out,
+    /// with no signal sent at all,
+    /// because this kind of holder has no task to signal.
+    EnterAndTakeTheCopyOut,
     /// Refuse,
     /// naming the reason,
     /// because no round shows an ending for this kind.
@@ -175,11 +179,21 @@ pub const MOVE_SHOWN_BY: &str = "this round's guest arm, phases namespace-way7-r
 /// has no measured arm at all.
 pub const LOCKED_NOT_BUILT: &str = "the locked holder is refused: T0-14 answered EINVAL to both the unmount and the move inside such a namespace, this round's arm answered EINVAL to the unmount and read the namespace's owning user namespace, and the design's V10 answer, stopping the account's own user-manager unit and finishing the removal, is measured by no round";
 
-/// Why the taskless namespace's ending is not built:
-/// nothing in this build lists a namespace whose tasks are gone,
-/// the `6.8` guest answers `ENOSYS` to `listns`,
+/// Why the taskless namespace's ending is built where the kernel lists namespaces,
+/// and refused where it does not:
+/// this round's guest arm on `7.3.5-1-cachyos` found a namespace no task held
+/// by `listns`,
+/// entered it through the descriptor its id became,
+/// and took the copy out of it,
+/// while the same arm on the Ubuntu `6.8` guest answered `ENOSYS` and refused
+/// `holder-unendable`.
+pub const TASKLESS_SHOWN_BY: &str = "this round's guest arm, phase taskless-namespace on 7.3.5-1-cachyos: listns listed the namespace no task held, its id became a descriptor, the copy went by way 8 and the head destroy answered gone; on the Ubuntu 6.8 guest the same phase answered ENOSYS to listns and refused holder-unendable";
+
+/// Why the taskless namespace's ending was not built before this round:
+/// nothing in this build listed a namespace whose tasks are gone,
+/// every guest the arms ran on answered `ENOSYS` to `listns`,
 /// and no arm unmounted a copy inside one.
-pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace is refused: this build lists no namespace whose tasks are gone, the guest's 6.8 kernel answers ENOSYS to listns, and no arm unmounted a copy inside one";
+pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace was refused until this round: this build listed no namespace whose tasks are gone, the guests' kernels answered ENOSYS to listns, and no arm unmounted a copy inside one";
 
 /// What:
 ///  The one table,
@@ -213,9 +227,9 @@ pub const THE_KINDS: &[KindEvidence] = &[
     },
     KindEvidence {
         kind: HolderKind::TasklessNamespace,
-        ending: Ending::Refuse(RefusalWord::HolderUnendable),
-        shown_by: TASKLESS_NOT_BUILT,
-        owed_arm: "T0-10's namespace on a 6.19 or newer guest, with a copy inside it unmounted",
+        ending: Ending::EnterAndTakeTheCopyOut,
+        shown_by: TASKLESS_SHOWN_BY,
+        owed_arm: "a taskless namespace that holds the copy on a kernel the shipped handler runs, with the id it was found by reused after the namespace died and the act refusing to act on the stale one",
     },
     KindEvidence {
         kind: HolderKind::PathHolder,
@@ -290,7 +304,8 @@ impl std::fmt::Display for MissingKind {
 ///  A refusal ends nothing,
 ///  and an act that asked a blocker for its end would be ending a job in a
 ///  namespace this build refuses:
-///  the locked holder's copy is refused before any signal.
+///  the locked holder's copy is refused before any signal,
+///  and a taskless namespace has no task to ask.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -301,6 +316,8 @@ pub fn ends_blockers(ending: Ending) -> bool {
         Ending::EndBlockersThenUnmount => true,
         // Way 7 and way 8 end the blockers that make the unmount refuse, which the matcher names.
         Ending::UnmountInPlaceByHandle | Ending::MakeTheParentASlaveThenMoveAndUnmount => true,
+        // A namespace with no task in it is entered and its copy taken out, and no signal is sent to anything.
+        Ending::EnterAndTakeTheCopyOut => false,
         Ending::Refuse(_word) => false,
     };
 }
