@@ -166,10 +166,13 @@ pub(crate) use self::the_owner_of_a_hidden_sibling::{
     start_time_of_a_process,
 };
 /// Imports the owner of a hidden sibling,
-/// and re-exports it and the two reads of a process's record for a caller that builds one of these names itself.
+/// and re-exports it and the reads of a process's record for a caller that builds one of these names itself,
+/// with the check on the boot field of a name and the question a name that records only a process number is judged by.
 pub(crate) use self::the_owner_of_a_hidden_sibling::{
     Liveness,
     Owner,
+    is_boot_id,
+    the_number_is_held,
 };
 
 /// Imports `ToolchainError` from `super::error`.
