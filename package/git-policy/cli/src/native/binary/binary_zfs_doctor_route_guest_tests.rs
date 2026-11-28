@@ -1,6 +1,6 @@
 //! What:
 //!  Plan step 18's `doctor` checks for steps 2 to 9,
-//! run against a real
+//!  run against a real
 //!  file-backed pool in a throwaway guest:
 //!  the three groups pass on the design's layout,
 //!  and each broken fact answers the finding that names it.
@@ -1140,7 +1140,8 @@ fn staging_facts() -> StagingFolderFacts {
 
 /// The three groups pass on the design's layout,
 /// the removal-side lines pass on a clone no record names,
-/// the five later steps are unknown,
+/// the cancel command passes and every check whose fact this arm does not
+/// read is unknown,
 /// and each broken fact answers the finding that names it.
 #[test]
 fn zfs_doctor_route_guest_three_groups_and_each_finding() {
@@ -1206,7 +1207,17 @@ fn zfs_doctor_route_guest_three_groups_and_each_finding() {
     ] {
         assert_pass(&reports, name);
     }
-    println!("DOCTOR-GUEST later-steps-are-unknown");
+    println!("DOCTOR-GUEST unread-step-facts-are-unknown");
+    let cancel: &CheckReport = report_of(&reports, "cancel-command");
+    assert!(cancel.passed(), "{}", cancel.line());
+    for name in [
+        "boot-protection",
+        "service-unit",
+        "backup-coverage",
+        "sanoid",
+    ] {
+        assert_unknown(&reports, name);
+    }
     the_releases_gatherer_answers_the_same_report();
     break_each_fact();
 }
@@ -1322,6 +1333,10 @@ fn the_helpers_route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::Rout
         live_boot: String::from(boot),
         requests: request_facts(),
         staging: staging_facts(),
+        boot_protection: the_machines_facts().route.boot_protection,
+        boot_setup: the_machines_facts().route.boot_setup,
+        cancel_command: the_machines_facts().route.cancel_command,
+        sanoid: the_machines_facts().route.sanoid,
     };
 }
 
@@ -1913,19 +1928,19 @@ fn breaks_missing_slot() {
 /// What:
 ///  A checkout dataset that lists its snapshot directory is a finding naming
 ///  `visible`,
-/// the command that sets `disabled`,
-/// and the module floor.
+///  the command that sets `disabled`,
+///  and the module floor.
 /// Why:
 ///  Only `disabled` keeps the kernel from mounting a snapshot an account enters
 ///  by name,
 ///  so a person must learn the value,
-/// the command and that an older module has
+///  the command and that an older module has
 ///  no such value,
 ///  and the value is read through this route's own dataset-stats reply rather
 ///  than through `zfs get`
 ///  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 ///  "What hiding comes to,
-/// answered 2026-11-23").
+///  answered 2026-11-23").
 fn breaks_snapdir_visible() {
     zfs(&["set", "snapdir=visible", checkout_dataset().as_str()]);
     let datasets: Vec<DatasetFacts> = the_machines_facts().route.datasets;
@@ -2029,7 +2044,7 @@ fn snapdir_of(dataset: &str) -> git_policy_cli::doctor_zfs_route::SnapdirSetting
 ///  so a child that did not follow its parent would leave every clone showing
 ///  its own snapshot directory;
 ///  the child carries no origin,
-/// so the read is inheritance rather than a value
+///  so the read is inheritance rather than a value
 ///  a clone copied from its origin snapshot.
 fn snapdir_follows_the_container() {
     let probe: String = format!("{}/snapdir-probe", container_dataset());

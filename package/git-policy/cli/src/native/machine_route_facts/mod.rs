@@ -82,6 +82,9 @@
 //!   the staging folders under the account's cache.
 //! - `the_delegation_read.rs`:
 //!   the account's effective delegation over the two datasets.
+//! - `the_facts_a_later_step_owns.rs`:
+//!   the four facts plan steps 19 and 20 own,
+//!   three stated as not read and the cancel command's read from the build.
 //! - `the_machines_route_facts.rs`:
 //!   one value of every fact above,
 //!   the checks a failed read leaves unproven,
@@ -106,6 +109,9 @@ mod the_delegation_read;
 /// The device,
 /// the gate and the pool.
 mod the_device_the_gate_and_the_pool;
+/// The four facts plan steps 19 and 20 own,
+/// which this gather states as not read.
+mod the_facts_a_later_step_owns;
 /// The handler's installed paths and ZED's wiring.
 mod the_handler_paths_read;
 /// The kernel's answers and the release's own,

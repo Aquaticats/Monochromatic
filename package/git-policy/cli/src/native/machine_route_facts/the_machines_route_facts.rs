@@ -58,6 +58,9 @@ use super::the_device_the_gate_and_the_pool::{
     the_device_facts,
     the_pool_facts,
 };
+/// The four facts plan steps 19 and 20 own,
+/// which this gather states as not read.
+use super::the_facts_a_later_step_owns::the_facts_a_later_step_owns;
 /// The handler's installed paths and ZED's wiring.
 use super::the_handler_paths_read::{
     TheHandlerPaths,
@@ -238,6 +241,8 @@ pub(crate) fn the_machines_route_facts(
     let staging: crate::doctor_zfs_route::staging_folder_checks::StagingFolderFacts =
         the_staging_facts(places, account);
     let delegation = the_delegation_facts(&layout, pool, &mut unread);
+    let (boot_protection, boot_setup, cancel_command, sanoid) =
+        the_facts_a_later_step_owns(account, layout.checkout.as_path());
     unread.sort_by_key(|report| return report.check);
     unread.dedup_by_key(|report| return report.check);
     return Ok(MachineRouteFacts {
@@ -261,6 +266,10 @@ pub(crate) fn the_machines_route_facts(
             staging,
             staging_binds,
             clones: Vec::new(),
+            boot_protection,
+            boot_setup,
+            cancel_command,
+            sanoid,
         },
         unread,
     });

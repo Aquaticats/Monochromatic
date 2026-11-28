@@ -109,13 +109,14 @@ fn a_machine_at_the_design_s_state_answers_every_fact_and_no_unknown() {
         .filter(|report| return report.unknown())
         .map(|report| return report.check)
         .collect();
-    // The checks a later step owes answer unknown naming that step, and the slot's walk refuses a store a fixture
-    // cannot put under root control; every other check answers from its own fact.
+    // The three facts a later step owns answer unknown naming that step, the backup coverage's own line answers
+    // unknown because its arm is not built, and the slot's walk refuses a store a fixture cannot put under root
+    // control; the cancel command's line passes on the build's own grammar, and every other check answers from its own
+    // fact.
     assert_eq!(
         unknown,
         vec![
             Check::SlotIdentity,
-            Check::CancelCommand,
             Check::BootProtection,
             Check::ServiceUnit,
             Check::BackupCoverage,
