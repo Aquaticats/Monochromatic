@@ -5843,7 +5843,11 @@ and the slot's per-slot claim is its first step and its last:
    (a fresh entry and an adopted plan).
    A folder that already stands for the same clone is no second folder and no
    refusal,
-   because only the removal that made it meets it there;
+   which is this record's own sentence for it,
+   and telling the wrapper's own leftover from an entry the account put there
+   needs the staging claim beside the folder,
+   which no release code writes yet,
+   so a run that meets its own folder goes on with it;
    an entry in its name that is not a folder this route may use,
    a pin this release cannot read and a `.cache` whose mount is not the pinned
    dataset each stop the removal before it asks for anything,
