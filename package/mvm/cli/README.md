@@ -149,6 +149,45 @@ the Hetzner backend takes the smallest server type that fits,
 and the OVHcloud backend takes the cheapest size that fits,
 or the smallest numbers when no hourly price can be read.
 
+### What the memory number comes to inside the guest
+
+`--memory 4` asks for at least four gibibytes.
+The libvirt backend defines a domain with `4096` MiB for it,
+and the Hetzner and OVHcloud catalogues publish one number per size,
+which mvm compares against the ask as gibibytes.
+
+A guest's own total is below what its machine was given,
+because the guest kernel keeps part of it,
+and mvm cannot see that part.
+A billed run on 2026-11-28 asked OVHcloud for two vCPUs and 4 GiB and printed:
+
+```text
+size at least 2 vCPUs and at least 4 GiB of memory fits d2-4 (2 vCPUs, 4 GiB of memory, 50 GB of disk), 0.033 CAD per hour
+```
+
+The command it ran printed `MemTotal:        3906272 kB` and `2`.
+3,906,272 kB is 4,000,022,528 bytes,
+which is 4.000 GB, or 3.725 GiB.
+
+So the two numbers say this:
+the size whose catalogue number is 4 gave a guest reporting 3.725 GiB of
+memory,
+which is 281 MiB,
+or 7.4 percent,
+below the 4 GiB that was asked for and printed.
+The catalogue's number therefore does not count the guest's gibibytes:
+reading it as one, as the floor rule does today,
+overstates every size by that share at this size.
+A `--memory 4` on OVHcloud ends on a guest with about 3.73 GiB,
+and a person budgeting memory for a command subtracts roughly seven percent
+from the catalogue's number to read what the guest will report.
+The reservation that makes the difference grows with the guest and is not
+something mvm reads:
+OVHcloud's schema describes `ram` as gibibytes while its price page prints
+GB,
+and the guest's own total is the only number of the three that a command runs
+against.
+
 ### On the libvirt backend
 
 A libvirt guest gets exactly the numbers asked:
@@ -648,13 +687,13 @@ built:
 ```sh
 # package/mvm/cli/README.md
 # What the guest reads: sh -c grep MemTotal /proc/meminfo; nproc
-# So it runs `sh -c grep` first, then `nproc` as a separate command: not both
-# commands inside one `sh -c`.
+# So it runs "sh -c grep" first, then "nproc" as a separate command: not both
+# commands inside one sh -c.
 mvm exec dev-01 -- sh -c 'grep MemTotal /proc/meminfo; nproc'
 
 # package/mvm/cli/README.md
 # What the guest reads: sh -c "grep MemTotal /proc/meminfo; nproc"
-# One quoted argument reaches `sh -c`, so both commands run inside it.
+# One quoted argument reaches "sh -c", so both commands run inside it.
 mvm exec dev-01 -- 'sh -c "grep MemTotal /proc/meminfo; nproc"'
 ```
 
