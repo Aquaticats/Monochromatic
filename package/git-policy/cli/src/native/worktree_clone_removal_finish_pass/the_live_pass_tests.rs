@@ -8,7 +8,8 @@
 //!  so the healthy state is the state that matters most:
 //!  it must not open a pool,
 //!  write a record or create the folder it looked for.
-//!  The reader is a seam here, so a control shows the guard missing without
+//!  The reader is a seam here,
+//!  so a control shows the guard missing without
 //!  opening this machine's ZFS device.
 //!
 //! In TS you'd write (pseudocode):
@@ -36,7 +37,8 @@ use std::path::PathBuf;
 /// Why:
 ///  The guard is about whether the pass asks for a reader at all,
 ///  and a control that answered with a real reader would open this machine's
-///  ZFS device, which no control may do.
+///  ZFS device,
+///  which no control may do.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

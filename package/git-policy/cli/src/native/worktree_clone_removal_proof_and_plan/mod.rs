@@ -109,7 +109,8 @@
 //! - `unmount_request.rs`:
 //!   the removal intent and the verified answer.
 //! - `the_staging_folder_before_the_unmount.rs`:
-//!   the staging folder the handler binds, made by the wrapper after the
+//!   the staging folder the handler binds,
+//!   made by the wrapper after the
 //!   `user-cache` pin proves the cache dataset stands.
 //! - `removal_clock.rs`:
 //!   the three process facts a removal's plan records.

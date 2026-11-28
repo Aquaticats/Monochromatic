@@ -7,8 +7,8 @@
 //!  The handler moves the clone's mount to a folder under the account's
 //!  `.cache`,
 //!  and it refuses to make that folder itself:
-//!  the wrapper creates it before the request, after the pin proves the cache
-//!  dataset is what stands at `.cache`
+//!  the wrapper creates it before the request,
+//!  after the pin proves the cache dataset is what stands at `.cache`
 //!  (`doc/planning/cli-git-zfs-staging-under-cache-design.md`,
 //!  "The staging target and who creates it";
 //!  `worktree_clone_unmount/unmount_turn.rs` names the wrapper's creation in its
