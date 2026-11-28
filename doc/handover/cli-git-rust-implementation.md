@@ -2932,11 +2932,7 @@ and the two `truepeak` files wait on their branch.
   and its choices are
   `doc/planning/git-wrapper-reload-proofs-control-arm-without-a-pre-remedy-release.md`,
   ranked C > A > B there.
-- The five controls that failed once under load are each fixed by what the control owns
-  (issues 6589 to 6593,
-  merged `69b4c4dc3e` to `c6e5d5846c`),
-  each with its failure planted and not waited for.
-  Two left proposals:
+- Two proposals wait for the owner:
   `doc/planning/cli-git-notice-of-a-stopped-step-keeps-promising-a-stop.md`
   and `doc/planning/git-policy-cli-a-step-whose-watch-cannot-start.md`.
 - The container ledger reads Rust sources now (`ff1ae3e5c7`,
