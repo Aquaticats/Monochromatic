@@ -18,6 +18,105 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: whether a deadline ends `mpm-shadow`'s wait for a program it started, with three picks beside it (recorded 2026-11-28T03:35:24-05:00)
+
+Two rounds answered the second pass over `mpm-shadow` `0.2.7-alpha.19` and merged on 2026-11-28
+(`be3a61bcd4` and `da10506b07`).
+What each found and changed is in
+`package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`.
+
+### The open choice: a deadline for a wait
+
+`mpm-shadow` starts other programs and waits for each:
+`rustup` to ask which parts a toolchain holds,
+`cargo binstall`,
+`tar`,
+`unzip`,
+`gh`.
+No deadline ends any of those waits.
+Since `da10506b07` one line goes to standard error when a wait passes 2 s,
+naming the program,
+and says that no deadline ends the wait.
+The round measured what an ordinary answer costs,
+on this machine under load,
+as ratios to a real `rustup --version` run in the same rounds:
+a stand-in's answer to the two questions took about 2.9 times that control at the median,
+and the slowest answer of all three arms was 45.61 ms.
+No run has recorded a real `rustup` that never answered;
+the second pass built the state with a stand-in that sleeps.
+
+- 1:
+  no deadline,
+  which is what ships.
+  A program that never answers makes the command wait until a person interrupts it,
+  and the line names what to stop.
+  An unattended run can hang for ever,
+  and nothing tells a script that it hung.
+- 2:
+  a deadline for the two read-only questions to `rustup` alone
+  (`rustup which` and `rustup component list --installed`),
+  ended with a failure that says the toolchain's parts could not be read.
+  `rustup` writes nothing for these questions,
+  so ending it costs no state,
+  and an unattended install or `list` stops hanging on them.
+  A slow answer on a loaded machine or a cold network file system would be reported as unreadable,
+  and the bound has to come from a measurement of the slowest honest answer,
+  which today's figures give only for this machine.
+- 3:
+  a deadline for every program,
+  the installers included.
+  A crate that compiles for minutes would be ended,
+  the bound would have to be a table per program that nothing has measured,
+  and an ended `cargo install` leaves a partial build.
+- 4:
+  a deadline for `install`'s questions and none for `list`.
+  `list` in a status loop hangs where `install` does not,
+  so two commands disagree about one question.
+
+Ranking:
+2 > 1 > 4 > 3.
+2 beats 1 because it ends the one hang that costs nothing to end,
+for the unattended runs this repository's rounds make,
+while 1 leaves every hang to a person.
+1 beats 4 because 4 adds a deadline and still leaves the command a loop runs without one.
+4 beats 3 because 3 ends work that is slow and right.
+The round that built the line recommends 1,
+because its measurement says what an answer costs and not where a late one should be cut off.
+
+### Three picks the rounds made, veto open
+
+- A bin name too long for its exposure folder is refused where the plan is read,
+  with exit status 2,
+  by every command that reads a plan
+  (`list`,
+  `update` and `bin` among them).
+  The length comes from the file system's own answer,
+  less 95 bytes for the temporary name a link is written under,
+  so at most 160 bytes where names hold 255.
+  Not taken:
+  a shorter temporary name,
+  which would give up which process,
+  start,
+  namespace and boot wrote a link;
+  and a check in `install` alone,
+  which would let `list` report on a plan that cannot be installed.
+- A temporary link whose name an earlier release wrote,
+  or that this release wrote without knowing its own boot or namespace,
+  is kept and named on every install,
+  and no run removes it.
+  It used to be removed when no process held its number,
+  which a run in another process namespace cannot know.
+  Not taken:
+  keeping that rule for names that can be judged,
+  which cannot tell the two cases apart.
+  The cost is a line on every install until a person deletes the name by hand.
+- The line for a wait covers every program a command starts,
+  goes to standard error,
+  and is printed once per start.
+  Not taken:
+  the `rustup` questions alone,
+  and a line repeated at every bound.
+
 ## Open: four proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
 
 Four rounds each wrote a proposal on 2026-11-27 and changed no code.
@@ -132,6 +231,16 @@ A beats B because the spans and blob names are what let a reader check the resol
 B beats C because any durable record on the commit beats a line on standard error nobody kept.
 
 ### What closes the last file loop in `foundation/`
+
+Taken on 2026-11-28 by the coordinating session's pick,
+with the owner's veto open:
+the third way,
+because it alone changes no signature and keeps the notice said when it is said today.
+A round builds it
+(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
+started at 2026-11-28T03:13:06-05:00),
+and it stops and reports if the third way turns out to change a signature,
+a behaviour or the moment the notice is said.
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.

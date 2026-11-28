@@ -152,7 +152,7 @@ fn read_without_writing(
 ///  prints the proof it matched and every name it would lose,
 ///  and leaves every record byte as it was.
 /// Why:
-///  This is the command's whole answer in a release with no clone removal,
+///  This is the answer a caller that answers the pool itself gets,
 ///  so the lines are the deliverable and the unchanged tree is the promise.
 #[test]
 fn a_healthy_removal_reads_its_loss_and_writes_nothing() {
@@ -186,7 +186,7 @@ fn a_healthy_removal_reads_its_loss_and_writes_nothing() {
         "{printed}"
     );
     assert!(
-        printed.contains("this release does not remove a clone yet"),
+        printed.contains("the removal itself did not run here"),
         "{printed}"
     );
     assert!(

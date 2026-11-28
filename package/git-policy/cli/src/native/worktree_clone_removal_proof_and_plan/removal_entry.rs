@@ -25,13 +25,14 @@
 //!  and this entry stops at the plan and the list of names.
 //!  A removal that finds a plan already standing for its clone stops and names it,
 //!  because adopting a kept plan,
-//!  re-proving it and carrying its loss forward is the resume the later steps build.
+//!  re-proving it and carrying its loss forward is
+//!  `removal_resume::adopt_the_removal`'s own path.
 //!  The first write,
-//!  the intent and the unmount are switched on by plan step 16's wiring:
-//!  this release's removal command runs `removal_reading::read_the_removal` and writes nothing,
-//!  and step 16 replaces that call with this entry once the snapshot batch,
-//!  the head destroy,
-//!  the origin cleanup and the Git settle exist to finish or cancel what it starts.
+//!  the intent and the unmount are what the removal a person's
+//!  `git worktree remove` runs:
+//!  `removal_command_path::complete_the_bound_clones_removal` hands this entry the
+//!  live reads,
+//!  the live unmount request and the live clock.
 //!  The three process facts the plan records are `removal_clock.rs`.
 //!
 //! In TS you'd write (pseudocode):

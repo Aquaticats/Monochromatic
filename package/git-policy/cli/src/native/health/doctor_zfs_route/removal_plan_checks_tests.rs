@@ -121,8 +121,12 @@ fn a_standing_plan_names_every_field() {
         );
     }
     assert!(
-        detail.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
-        "{detail}"
+        detail.contains("is Git's own removal"),
+        "a slot whose plan stands is warned off Git's removal: {detail}"
+    );
+    assert!(
+        !detail.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
+        "and names no removal this release runs there: {detail}"
     );
 }
 
