@@ -2,30 +2,202 @@
 
 Status:
 unapproved and non-final.
-Prepared by a Pi run on 2026-11-28,
-which read this worktree's `main` at `5a84e361c0`
-(`git log --format=%cI`:
-2026-11-28T06:16:02-05:00)
-and revised in place at 2026-11-28T06:43:30-05:00
-after the gate read described below.
-No code changed on this branch.
-The owner has not answered any question it asks,
-and no review from another vendor than the authors' has read it.
+Only the owner declares this record complete.
+Prepared by a Pi run on 2026-11-28 and revised in place the same day,
+against this worktree's `main` at `b1529e79e1`
+(`git log --format=%cI -1`:
+2026-11-28T07:52:31-05:00).
+No code changed on this branch:
+every drawing in it was put into a working tree,
+compiled,
+and taken out again,
+and the proposal alone is committed here.
 
 Gate reads of this proposal:
-one,
-a same-vendor second pass (Claude Sonnet,
+two,
+both same-vendor second passes
+(Claude Sonnet,
 the vendor of part of the work),
-made on 2026-11-28 between about 03:20 and 04:05
-against the draft at `d8fafa9ea6`.
-It found five High,
-eleven Medium and five Low findings,
-and its verdict was "not ready to put to the owner as written".
-This revision answers every one of them:
-where a finding was right the proposal changed,
-and where it was wrong the finding is named here with the line that settles it.
-It is not an independent review (`AGENTS.md` rule `IRW`),
-and another read from another vendor has not been made.
+neither of them an independent review (`AGENTS.md` rule `IRW`).
+
+- The first read found five High,
+  eleven Medium and five Low findings.
+- The second read,
+  of 2026-11-28,
+  found four High,
+  eleven Medium and eight Low findings,
+  and its verdict was "not ready to put to the owner as written".
+  Its four Highs were:
+  both after-stop options add a folder use no allow-list line can record;
+  the after-stop ranking rests on a sweep that happens in a narrower window than the file said,
+  and both drawn call sites failed against the code;
+  both step-record drawings dropped a guard the code has today;
+  and the file named no combination of answers that cannot be built.
+  Every one of those findings changed this record,
+  and every finding of the read is answered in the round's report,
+  with the line or the run that settles it.
+
+No review from a vendor other than the authors' has read any revision of this file.
+
+## The first screen
+
+### What you are asked
+
+Five questions,
+each one decision,
+each answerable alone.
+The recommendation is first in each pair of options;
+the reason given here is the delivered one,
+and each question later states its mechanism,
+its cost and what a yes leaves undecided.
+
+1.  Where the value of a command that only finishes lives.
+    Recommended:
+    `Finished` in `foundation`,
+    the plan's own words ("from a low file").
+    Reason:
+    it removes two allow-list lines in this round and three folder names at step 7,
+    where the target tree's placement removes none now.
+    Measured:
+    the two allow-list lines do not die unless the exit code moves too (`ENGINE_FAILURE_EXIT_CODE`,
+    52 release lines in 18 files).
+2.  Who sweeps the Git locks a stopped step left.
+    Recommended:
+    the watcher calls back into the caller's ledger
+    (`AfterTheStop`),
+    which is the plan's prose ("its caller hands it what to do after a stop").
+    Reason:
+    the sweep stays where it runs today,
+    inside the watcher's task,
+    including when a watch is dropped while a stop is under way;
+    the other option loses the sweep in exactly that window.
+    Measured:
+    both options add the same two folder uses
+    (`transaction -> lock` and `repo_read -> lock`),
+    which no allow-list line can record.
+3.  How the current step record is carried.
+    Recommended:
+    on the run's `GitContext`,
+    with no `Default`,
+    so the compiler refuses a build site that does not answer.
+    Reason:
+    it is the only carrier that both the folder rule can see and no builder can forget;
+    a field on `GitRequest` cannot be made non-defaulting while `GitRequest` derives `Default`.
+    Measured:
+    `GitContext` has 63 initializers (22 in release code,
+    41 in controls),
+    27 release functions return a `GitRequest`,
+    and the compiler refuses both a missing context field and a non-defaulting request field.
+4.  How far the system settings path is threaded.
+    Recommended:
+    to every caller that builds a scope,
+    the three reader files included.
+    Reason:
+    it is the reach the plan's prose states,
+    and it is the one that removes two `uses/` entries at step 7 instead of one.
+    Read:
+    of the five files of `reading_git_settings_from_files`,
+    one names the asker today.
+5.  Whether the attributes path changes in this round.
+    Recommended:
+    it does not.
+    Reason:
+    the plan records no signature for it,
+    so changing it would make this file its only statement,
+    and it delivers nothing the round's own record promises.
+    Read:
+    `system_attributes_for` is asked once,
+    at `package/git-policy/cli/src/native/worktree/worktree_clean_content_attribute_sources.rs:194`.
+
+### What binds one answer to another
+
+- Question 1's stated delivery needs the exit code moved in the same branch.
+  Anything short of that is buildable and delivers half of what its option says.
+  Reason:
+  read.
+- Question 2,
+  either option,
+  lands two folder uses that no line of the allow list can record,
+  so the round that answers it merges with two red findings or untangles them first.
+  Reason:
+  the linter,
+  on a drawing of each option.
+- Question 3,
+  option A,
+  cannot be done one build site at a time:
+  the compiler refuses every `GitContext` initializer that does not answer.
+  Reason:
+  the compiler.
+- Questions 2 and 3 cannot land in two branches,
+  because both edit `transaction/transaction_git.rs`.
+  Reason:
+  read.
+
+Inferred,
+and said so where it is used:
+how often a step is in the stop-under-way window,
+the shape of run this next once it holds together,
+and that the exit code can leave `action.rs` without a loop.
+
+### What is told, not asked
+
+- The system settings value becomes a parameter,
+  not a field on `ScopeEnvironment`.
+  The struct already holds that fact as `system_default`
+  (`repo_read/repo_read_config_scan.rs:214`),
+  and the owner's own words are "the system settings path passed to the reader".
+  Question 4 asks how far it is threaded,
+  not whether.
+- The merge half of run this next is in this round.
+  The owner settled that both in-process recursions are one change
+  ("A:
+  hand back 'run this next' (Recommended)",
+  `doc/planning/cli-git-source-layout.md:111-115`).
+- The branch shape is the plan's:
+  one branch,
+  one commit per call change
+  (`doc/planning/cli-git-source-layout-target-tree.md:8185-8191`).
+  It changes nothing that lands,
+  only what the round costs,
+  so it is recorded and not put to you.
+
+### What no drawing has shown
+
+Every drawing in this file was put into this worktree and compiled with
+`cargo check --locked --offline --all-targets` in `package/git-policy/cli`
+(none of them committed),
+and one linter run read each after-stop drawing.
+The compiler and the linter said:
+
+- The after-stop option B's own machinery (the caller sweeps,
+  the five one-shot functions answering
+  `WatchedOutput`) compiles with no error:
+  `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 27.89s`.
+  It needed 18 lines changed in three control files and 3 release call sites.
+- The after-stop option A's machinery (the watcher calls back,
+  the trait in the library) compiles with no error:
+  `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 33.89s`.
+- The step-record drawing on `GitRequest`,
+  with today's guard kept,
+  compiles:
+  `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 27.44s`,
+  with two warnings (an import and a record field the drawing does not read).
+- Both after-stop drawings add four `rust/folder-uses-links` findings,
+  two for each new use,
+  where the same run on an unedited tree printed none for those pairs:
+  12 findings before,
+  16 after.
+- Three combinations are refused by the compiler,
+  and the texts are quoted where they are named.
+
+What no compile shows:
+any behaviour.
+No test ran in this round,
+no nextest,
+no container and no guest.
+The landing's own steps,
+the sweep's timing,
+and the dropped-watch window are read from the code and named as read.
 
 ## What this record is for
 
@@ -36,71 +208,12 @@ The owner's answer of 2026-11-28 on the crate split's step 4 was
 and what follows it is that
 "the five signatures of round 4 are prepared as a proposal,
 read by a gate reader,
-and then put to the owner"
+and then put to the owner",
 and that
 "Round 4 does not run before that".
 
 This is that proposal.
-For each of the five call changes it states where the call is today,
-what the plan says the call becomes,
-two or three signatures that would do it,
-what each delivers for the split and what each costs,
-what was run to find out whether it works,
-and a ranking with a stated measure.
-It then states the order the five can land in,
-which of them touch one file,
-and the questions only the owner can answer.
-
-### The words these pages use
-
-Read this once;
-each question later repeats what it needs.
-
-- The crate split is the owner's decision of 2026-11-04
-  to break the wrapper into reusable crates
-  (`doc/planning/cli-git-source-layout.md`,
-  "Splitting into crates (owner,
-  2026-11-04)").
-  Its **step 7** is the move of the files into the target folders,
-  after the call changes.
-- The target tree is
-  `doc/planning/cli-git-source-layout-target-tree.md`,
-  which names every target folder and file,
-  and `cli-git-source-layout-target-tree-files.md`,
-  which lists them file by file with each folder's `uses/` line.
-- A folder's **`uses/` list** is the list of folders whose code it uses,
-  written as links in a `uses/` folder inside it (`AGENTS.md` LYD).
-  Two folders that use each other are a **loop**,
-  and no loop is allowed (`AGENTS.md` LYL).
-- The allow list is `package/git-policy/cli/layout-allow-list/folder-rule.txt`,
-  whose lines tolerate the loops `main` still has.
-  It may only shrink
-  (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`),
-  and a line whose use is gone is reported by name as dead.
-- `Action` is the value the top level runs
-  (`package/git-policy/cli/src/native/invocation/action.rs`):
-  a command's exit status and its two streams,
-  or a forwarded or planned run.
-- `GitRequest` is what one step of a transaction asks for
-  (`transaction/transaction_git_request_and_reply_types.rs`):
-  its arguments,
-  its directory,
-  its class and its terms.
-- `ScopeEnvironment` is the configuration scopes a reader may read,
-  settled from a list of environment variables
-  (`repo_read/repo_read_config_scan.rs`).
-- `foundation` is today's `src/native/foundation/`,
-  the folder of small helpers at the bottom,
-  which step 7 splits among three libraries and six program folders
-  (target tree,
-  lines 819-824).
-- The landing is the one operation that writes a commit in the service,
-  the only place a step is never ended
-  (the transaction's `step_bound`).
-
-## Which record governs where they disagree
-
-The question this proposal answers is
+The question it answers is
 "Open:
 does the crate split's step 4 run now?"
 (`doc/handover/questions-for-the-owner.md`),
@@ -109,147 +222,220 @@ system settings path,
 after-stop action,
 current step record and run this next.
 
-The owner's decision is
-`doc/planning/cli-git-source-layout.md`
-(section "Splitting into crates (owner,
-2026-11-04)",
-and the answers of 2026-11-04 in "What the owner asked for").
-The plan is that file's section "Changes to how code is called"
-and the target tree's section "The call changes,
-as signatures",
-which disagree with each other in the places below.
+For each of the five call changes it states where the call is today,
+what the plan says it becomes,
+two or three shapes that would do it,
+what each delivers for the split and what each costs,
+what was run to find out whether it works,
+and a ranking with a stated measure.
+It also states the combinations of answers that cannot be built,
+and the order the five can land in.
+
+## The words these pages use
+
+Read this once;
+each question later repeats the words it needs.
+
+- The crate split is the owner's decision of 2026-11-04
+  to break the wrapper into reusable crates
+  (`doc/planning/cli-git-source-layout.md`,
+  "Splitting into crates (owner,
+  2026-11-04)").
+  Its **step 7** is the move of the files into the target folders,
+  after the call changes.
+- The target tree is `doc/planning/cli-git-source-layout-target-tree.md` and
+  `doc/planning/cli-git-source-layout-target-tree-files.md`,
+  which lists the target folders file by file with each folder's `uses/` line.
+- A folder's **`uses/` list** is the list of folders whose code it uses,
+  written as links in a `uses/` folder inside it (`AGENTS.md` rule `LYD`).
+  Two folders that use each other are a **loop**,
+  and no loop is allowed (`AGENTS.md` rule `LYL`).
+- The **allow list** is `package/git-policy/cli/layout-allow-list/folder-rule.txt`,
+  whose lines tolerate the loops and uses `main` still has.
+  It may only shrink
+  (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`),
+  and a linter finding for a use that joins a loop the list already tolerates has no key,
+  so no line of the list can record it
+  (that decision's lines 115 to 119).
+- `Action` is the value the top level runs
+  (`package/git-policy/cli/src/native/invocation/action.rs`):
+  a command's exit status and its two streams,
+  or a forwarded or planned run.
+- `Finished` is the value this proposal would put in a command that only finishes:
+  an exit status and each stream's bytes.
+- `GitRequest` is what one step of a transaction asks for
+  (`package/git-policy/cli/src/native/transaction/transaction_git_request_and_reply_types.rs:91`):
+  its arguments,
+  its directory,
+  its environment adjustments,
+  its input and its child cell.
+  It is not a class and not a set of watch terms;
+  those come from the arguments and from `WatchTerms`.
+- `GitContext` is the run a request belongs to
+  (`package/git-policy/cli/src/native/transaction/transaction_git_request_and_reply_types.rs:57`):
+  the real Git,
+  the overlay,
+  the global prefix and the common Git directory.
+  It is built once per operation and passed down;
+  it has no `Default`.
+- `LockLedger` is the record of where a command's Git child can leave reference locks,
+  taken before the child starts (`package/git-policy/cli/src/native/lock/stopped_git_locks.rs:96`).
+  Its `sweep` judges each lock and removes only one it can prove stale.
+- `ScopeEnvironment` is the configuration scopes a reader may read,
+  settled from a list of environment variables
+  (`package/git-policy/cli/src/native/repo_read/repo_read_config_scan.rs:274`).
+- `WatchTerms` is what a watch runs under
+  (`package/git-policy/cli/src/native/push/child_watch_clock_marks_and_stopping.rs:80`):
+  the quiet window,
+  the notice cadence and where notices go.
+- `AfterTheStop` is the behaviour this proposal would hand the watcher:
+  what to do once the watch has ended the child and the processes below it.
+- the **landing** is the one operation that writes a commit in the service,
+  the only place a step is never ended
+  (`package/git-policy/cli/src/native/landing/landing_state_carried_by_its_task.rs`).
+- `foundation` is today's `src/native/foundation/`,
+  the folder of small helpers at the bottom,
+  which step 7 splits among three libraries and six program folders.
+
+## How every claim here was checked
+
+Every line citation in this file was checked by a script against the commit this file names,
+and every quotation was compared with its file by the same script (its method and its output
+are in the round's report).
+The compiler runs and the linter runs are named where their output is used.
+
+Run on 2026-11-28 in this worktree,
+each in its own
+`systemd-run --user --scope --slice=agent-work.slice` with `MemoryMax`,
+`CPUQuota`,
+`TasksMax`,
+`IOWeight` and `RuntimeMaxSec`:
+
+- `cargo check --locked --offline --all-targets` in `package/git-policy/cli`,
+  four times:
+  once on the unedited tree (a baseline,
+  `Finished \`dev\` profile ... in 1m 05s`),
+  once with each after-stop drawing in place,
+  and once with the step-record drawing in place.
+  Three further runs were made only to read a refusal,
+  and their errors are quoted below.
+- `/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint`,
+  three times:
+  on the unedited tree,
+  and once with each after-stop drawing in place.
+  The linter reported one rule it could not run
+  (`rust/avoidable-closure`:
+  the Dylint driver for this toolchain is absent and would have to be downloaded),
+  so this round says nothing about closures.
+
+Not run:
+no test suite,
+no nextest run,
+no container,
+no guest,
+no `mise` task,
+no editor,
+nothing on ZFS,
+no network call,
+no release,
+no workflow.
+
+## Which record governs where they disagree
 
 Where records disagree this proposal follows the owner's recorded answers first,
 the plan's prose second,
 the target tree's signatures third
 and the handover entry last.
-Each disagreement is stated where it bites:
+Each disagreement is stated where it bites.
 
 1.  The handover makes run this next a single call change in `stacked_merge_push`.
-   The plan's run this next replaces two in-process recursions,
-   `entry::plan_invocation` called from `stacked_merge_push`
-   and `entry::run_process` called from `merge_second_pass_finish`
-   (target tree,
-    lines 6434-6454).
-   The plan governs:
-   this proposal describes the whole call change.
+    The plan's run this next replaces two in-process recursions,
+    `entry::plan_invocation` called from `stacked_merge_push`
+    and `entry::run_process` called from `merge_second_pass_finish`
+    (`doc/planning/cli-git-source-layout-target-tree.md:6434-6454`).
+    The plan governs:
+    this proposal describes the whole call change.
 2.  Commands that only finish:
-   the plan's prose asks for
-   "a small \"finished with this code and output\" value from a low file"
-   (line 470),
-   while the target tree's signature puts the new file `what_a_command_hands_back`
-   in the program folder `starting_git_and_describing_a_run`
-   (line 6436),
-   which is not a low file.
-   The two placements deliver different things,
-   so the departure is the owner's to make:
-   question 1.
+    the plan's prose asks for
+    "a small \"finished with this code and output\" value from a low file"
+    (`doc/planning/cli-git-source-layout.md:470`),
+    while the target tree's signature puts the new file `what_a_command_hands_back`
+    in the program folder `starting_git_and_describing_a_run`
+    (`doc/planning/cli-git-source-layout-target-tree.md:6436`),
+    which is not a low file.
+    The two placements deliver different things,
+    so the departure is the owner's to make:
+    question 1.
 3.  After-stop action:
-   the plan's prose says
-   "its caller hands it what to do after a stop"
-   (line 458),
-   which is signature B of section 3,
-   while the target tree's signature says
-   "The watcher returns the `StopReport` it already has;
-   the caller in `bounded_push` and `transaction_git` builds the
-   `LockLedger` before the start and sweeps after the stop"
-   (lines 6472-6476),
-   which is signature A.
-   `StopReport` is not a type the watcher has:
-   it is the push's progress clock
-   (`push/stop_cause_and_words.rs:61`,
-   used as `Stalled(StopReport)` at line 104),
-   so the tree's sentence also names a type that would not travel.
-   Question 2 puts the departure to the owner.
+    the plan's prose says "its caller hands it what to do after a stop"
+    (`doc/planning/cli-git-source-layout.md:458`),
+    which is signature A of section 3,
+    while the target tree's signature says
+    "The watcher returns the `StopReport` it already has;
+    the caller in `bounded_push` and `transaction_git` builds the
+    `LockLedger` before the start and sweeps after the stop"
+    (`doc/planning/cli-git-source-layout-target-tree.md:6473-6477`),
+    which is signature B.
+    `StopReport` is not a type the watcher has:
+    it is the push's progress clock
+    (`package/git-policy/cli/src/native/push/stop_cause_and_words.rs:61`),
+    so the tree's sentence also names a type that would not travel.
+    Question 2 puts the departure to the owner.
 4.  Current step record:
-   the plan's prose says
-   "a small \"current step\" record in the basic tools that the runner writes and the service reads"
-   (line 455),
-   the target tree puts it in the program file `current_step_record`
-   in `how_long_the_program_waits_for_git_steps`
-   (lines 6457-6459),
-   and the code carries it in a `tokio::task_local!`,
-   not in a thread-local as the tree's sentence says
-   (`landing/landing_state_carried_by_its_task.rs:44-48`,
-   and the owner's choice 4 in
-   `doc/planning/git-policy-cli-full-tokio.md`,
-   lines 1655-1657 and 3370-3376).
-   Question 3 puts the departure to the owner.
+    the plan's prose says
+    "a small \"current step\" record in the basic tools that the runner writes and the service reads"
+    (`doc/planning/cli-git-source-layout.md:455`),
+    the target tree puts it in the program file `current_step_record`
+    in `how_long_the_program_waits_for_git_steps`
+    (`doc/planning/cli-git-source-layout-target-tree.md:6457-6459`),
+    and the code carries it in a `tokio::task_local!`,
+    not in a thread-local as the tree's sentence says
+    (`package/git-policy/cli/src/native/landing/landing_state_carried_by_its_task.rs:44-48`,
+    and the owner's choice 4 in
+    `doc/planning/git-policy-cli-full-tokio.md:1655-1657`).
+    Question 3 puts the departure to the owner.
 5.  System settings path:
-   the tree says `ScopeEnvironment`
-   "gains the field `system_config: Option<PathBuf>`"
-   (line 6479),
-   but the struct already holds that fact as `system_default`
-   (`repo_read/repo_read_config_scan.rs:214`),
-   filled at line 297,
-   and its meaning today (unknown,
+    the tree says `ScopeEnvironment` "gains the field `system_config: Option<PathBuf>`"
+    (`doc/planning/cli-git-source-layout-target-tree.md:6479`),
+    but the struct already holds that fact as `system_default`
+    (`package/git-policy/cli/src/native/repo_read/repo_read_config_scan.rs:214`),
+    filled at line 296,
+    and its meaning today (unknown,
     which makes the scope unresolvable)
-   is the one a parameter must keep.
-   The change is a parameter,
+    is the one a parameter must keep.
+    The change is a parameter,
     not a field,
-   and that is the owner's own wording:
-   "the system settings path passed to the reader"
-   (line 118) and "the caller passes the path in" (line 462).
+    and that is the owner's own wording:
+    "the system settings path passed to the reader"
+    (`doc/planning/cli-git-source-layout.md:118`).
 6.  The tree says the line that calls `LockLedger::before_start(command)` "in `child_watch`" moves out
-   (line 6470).
-   On `main` there are two such lines,
+    (`doc/planning/cli-git-source-layout-target-tree.md:6470`).
+    On `main` there are two such lines,
     in two sibling files,
-   `push/child_watch_one_shot_run.rs:238` and
-   `push/child_watch_output_watched_on_the_runtime.rs:243`,
-   because round 2 of the split cut them out of `child_watch.rs` after the plan was written.
-   The sentence also does not name the sweep inside
-   `child_watch_clock_marks_and_stopping::stop_process` (lines 372-383),
-   which is the half the change has to move.
-7.  The tree names `transaction_git` alone for the current step record (line 6456),
-   but `on_landing_thread` is also called by the two watched-run files above
-   (`child_watch_one_shot_run.rs:230`,
-   `child_watch_output_watched_on_the_runtime.rs:235`),
-   and the watcher library's `uses/` line names the folder those files would name
-   (target-tree-files,
-    line 322).
-   A change that stops at `transaction_git` delivers nothing to that line.
+    `package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs:238` and
+    `package/git-policy/cli/src/native/push/child_watch_output_watched_on_the_runtime.rs:243`,
+    because round 2 of the split cut them out of `child_watch.rs` after the plan was written.
+    The sentence also does not name the sweep inside
+    `child_watch_clock_marks_and_stopping::stop_process`
+    (`package/git-policy/cli/src/native/push/child_watch_clock_marks_and_stopping.rs:372-383`),
+    which is the half the change has to move.
+7.  The tree names `transaction_git` alone for the current step record
+    (`doc/planning/cli-git-source-layout-target-tree.md:6456`),
+    but `on_landing_thread` is also called by the two watched-run files named in item 6
+    (lines 231 and 236),
+    and the watcher library's `uses/` line names the folder those files would name
+    (`doc/planning/cli-git-source-layout-target-tree-files.md:322`).
+    A change that stops at `transaction_git` delivers nothing to that line.
 8.  Run this next:
-   the tree says
-   "A depth guard replaces the counter"
-   (line 6454),
-   while the code has a budget read from the todo list
-   (`merge/merge_second_pass_finish_nesting.rs`,
-   `FINISH_BUDGET` and `finish_budget`).
-   A guard of eight is not a replacement of one kind for another;
-   section 5 keeps the budget.
+    the tree says "A depth guard replaces the counter"
+    (`doc/planning/cli-git-source-layout-target-tree.md:6454`),
+    while the code has a depth read from the todo list
+    (`package/git-policy/cli/src/native/merge/merge_second_pass_finish_nesting.rs`,
+    `FINISH_BUDGET` and `finish_budget`).
+    A guard of eight is not a replacement of one kind for another;
+    section 5 keeps the budget.
 9.  The plan's order has the system settings change second,
-    not third (target tree,
-    lines 8185-8191 and 6956-6963).
-   The earlier draft of this proposal said third;
-   that was wrong.
-
-## How the call sites were found, and what moved since 2026-11-27
-
-Every call site below was read in this worktree at `5a84e361c0`,
-with `rg` and `sed`,
-and the line numbers are of that commit.
-The handover entry's list is from 2026-11-27T06:40:00-05:00,
-and `main` took merges since;
-what moved is stated beside each call change.
-
-Two measurements cover all five call changes,
-both run on 2026-11-28 by this revision:
-
-- The allow list's `uses` lines for the folder pairs each change adds or removes,
-  printed by
-  `rg -n "^uses src/native/<folder> -> src/native/<folder>" layout-allow-list/folder-rule.txt`.
-  Where a pair has no line today,
-  a change that adds the use adds a finding no line tolerates.
-- The counts quoted below,
-  each with the command that printed it,
-  in the sentence that uses it.
-
-The dead lines each change delivers were not measured here:
-the earlier draft measured them on a throwaway branch,
-and this revision did not rebuild that branch.
-Section 1 therefore states the delivery as the earlier draft's measurement,
-marked as such,
-and the round that lands it measures it again.
+    not third (`doc/planning/cli-git-source-layout-target-tree.md:8185-8191`).
 
 ## 1. Commands that only finish
 
@@ -257,57 +443,42 @@ and the round that lands it measures it again.
 
 - `package/git-policy/cli/src/native/subvolume/subvolume_command.rs:353`:
   `pub fn migrate_action(arguments: &MigrateArguments, cwd: &Path) -> Action`,
-  which returns `Action::Exit` with `stdout: String::from(MIGRATE_HELP)`
-  for `--help` (line 358),
-  `Action::Exit` with `stdout: String::new()` and the refusal in `stderr`
-  (lines 366-376),
-  and `Action::Exit { code, stdout: String::new(), stderr: String::new() }`
-  for the run (lines 383-387).
+  which returns `Action::Exit` with `stdout: String::from(MIGRATE_HELP)` for `--help` (line 358),
+  `Action::Exit` with the refusal in `stderr` (lines 366 to 376),
+  and `Action::Exit { code, stdout: String::new(), stderr: String::new() }` for the run (line 383).
 - `package/git-policy/cli/src/native/health/doctor.rs:607`:
   `pub async fn doctor_action_with_section(...) -> Action`,
-  which returns `Action::Exit` with `stdout: String::new()` and the explanation in
-  `stderr` (lines 662-666) and `Action::ExitBytes` (lines 676 and 698);
-  `doctor_failure(message: &str) -> Action` at line 718,
-  whose `Action::Exit` puts its words on `stderr` and nothing on `stdout` (lines 719-722).
+  which returns `Action::Exit` with the explanation in `stderr` (lines 662 to 666)
+  and `Action::ExitBytes` (lines 676 and 698);
+  `doctor_failure(message: &str) -> Action` at line 718.
   Its synchronous face `doctor_action` (line 441) has no release caller:
-  the only caller is `invocation/management.rs:527`,
+  the only caller is `package/git-policy/cli/src/native/invocation/management.rs:527`,
   which calls the async one.
-  It is a published name
-  (`source_guard/items_nameable_from_outside_release.txt:2451`),
-  so rewriting its return type changes the library's surface,
-  and deleting it instead is a choice this proposal does not take.
 - `package/git-policy/cli/src/native/worktree/worktree_convert_command.rs:147`:
   `pub fn convert_action(...) -> Action`,
   returning `Action::Exit` for `--help` (line 154) and for the run (line 171).
-- `package/git-policy/cli/src/native/push/stacked_merge_push.rs:226`:
-  `let action: Action = plan_invocation(arguments.as_slice(), environment.as_slice(), &inputs);`
-  then `return Ok(run_planned(action));` (line 227),
-  and `fn run_planned(action: Action) -> i32` at line 119 matches the planned `Action`'s variants.
 - The consumers that build the `Action` instead:
-  `invocation/management.rs:479` (`return migrate_action(arguments, cwd);`),
-  `:385` (`return crate::worktree_convert_command::convert_action(...)`),
-  and `:527` (`let action: Action = match run_on_runtime(doctor_action_with_section(`).
+  `package/git-policy/cli/src/native/invocation/management.rs:479`,
+  `:385` and `:527`.
 - The exit code the move drags with it:
   `ENGINE_FAILURE_EXIT_CODE` is named on 52 release lines of 18 files in 9 folders
   (`rg -n "ENGINE_FAILURE_EXIT_CODE" -g '*.rs' -g '!*_tests.rs'`,
-  counted by `wc -l` and by `xargs -n1 dirname | sort -u`),
-  not on two.
-  It is defined at `invocation/action.rs:45`,
-  used at `subvolume_command.rs:240` and `doctor.rs:720`,
-  and its published line is
-  `invocation::action const ENGINE_FAILURE_EXIT_CODE`
-  (`items_nameable_from_outside_release.txt:3142`).
-  Moving it down is a change to eighteen files,
-  so the earlier draft's "the two uses" understated it.
-
-What moved since 2026-11-27:
-nothing in the call.
-The plan's fourth name,
-`stacked_merge_push`,
-has nothing to do here today:
-its only `Action` is the planner's,
-so the change that removes it is run this next,
-not this one.
+  counted by `wc -l` and by `xargs -n1 dirname | sort -u`).
+  It is defined at `package/git-policy/cli/src/native/invocation/action.rs:45`,
+  used at `package/git-policy/cli/src/native/subvolume/subvolume_command.rs:240`
+  and `package/git-policy/cli/src/native/health/doctor.rs:720`,
+  and its published line is `invocation::action const ENGINE_FAILURE_EXIT_CODE`
+  (`package/git-policy/cli/src/native/source_guard/items_nameable_from_outside_release.txt:3142`).
+- The four names that are published and change shape:
+  `subvolume::subvolume_command fn migrate_action` (`items_nameable_from_outside_release.txt:8240`),
+  `worktree::worktree_convert_command fn convert_action` (line 8938),
+  `health::doctor fn doctor_action_with_section` (line 2452)
+  and `health::doctor fn doctor_action` (line 2451).
+  Each is `pub fn` today,
+  and each would become `pub(crate)`
+  under the guide's reach rule (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md:833`)
+  unless the round keeps a `pub` face for the library,
+  which means editing that list either way.
 
 ### What the plan says it becomes
 
@@ -317,39 +488,47 @@ The target tree's signature:
 `doctor`,
 `worktree_convert_command` and `stacked_merge_push` return
 `Finished` and only the program crate's `entry` and `management` files build `Action`"
-(lines 6482-6486).
+(`doc/planning/cli-git-source-layout-target-tree.md:6482-6486`).
 
 The plan's prose:
 "they return a small \"finished with this code and output\" value from a low file;
-only the top level builds `Action`" (lines 470-471).
+only the top level builds `Action`"
+(`doc/planning/cli-git-source-layout.md:470-471`).
 
 Which folder stops depending on which,
 in the target tree:
-`converting_the_main_checkout`
-(target-tree-files,
-line 853,
+`converting_the_main_checkout` (target-tree-files:853,
 its `uses/` at 855),
 `converting_a_linked_worktree` (line 828,
 `uses/` at 830) and
 `checking_that_your_setup_works` (line 731,
 `uses/` at 733)
 name `what_happens_when_you_type_a_command` in their `uses/` lists today,
-where `action.rs` goes
-(`the_decision_one_command_ends_in.rs`,
+where `action.rs` goes (`the_decision_one_command_ends_in.rs`,
 line 3700,
 in the folder at 3649).
 The change takes that name out of all three.
 
-Which line of the allow list it removes today:
-measured by the earlier draft on a branch that held the substitution,
+Which line of the allow list it removes,
+and when:
 `uses src/native/subvolume -> src/native/invocation`
-(`layout-allow-list/folder-rule.txt:943`)
-and `names-group src/native/subvolume src/native/invocation` (line 538),
-both of which the linter then named as tolerating nothing.
+(`package/git-policy/cli/layout-allow-list/folder-rule.txt:943`)
+and `names-group src/native/subvolume src/native/invocation` (line 538).
+Neither dies on the type change alone.
+`subvolume_command.rs` names two things from `invocation`:
+`Action` (line 31) and
+`ENGINE_FAILURE_EXIT_CODE` (lines 30 to 33,
+used at 240).
+Taking `Action` out of the file leaves the exit code,
+and the linter keeps a `uses` line alive for as long as any name of that folder is used
+(measured in this round:
+the linter's finding for a use that a line records is absent exactly when nothing names the folder,
+which is what the two after-stop drawings showed from the other side).
+So option A's two lines die only if `ENGINE_FAILURE_EXIT_CODE` leaves `action.rs` in the same branch.
 `health` and `worktree` keep using `invocation` for other files,
 so their lines stay.
 
-### Signature A: one `Finished` in a low file, one constructor per stream
+### Signature A: `Finished` in `foundation`, one constructor per stream
 
 New file `package/git-policy/cli/src/native/foundation/a_finished_command.rs`:
 
@@ -361,10 +540,10 @@ pub(crate) struct Finished {
     /// The status the process ends with.
     pub(crate) code: i32,
     /// What the command answers,
-    ///  as bytes because a report may name a path that is not text.
+    /// as bytes because a report may name a path that is not text.
     pub(crate) standard_output: Vec<u8>,
     /// What it explains,
-    ///  as bytes for the same reason.
+    /// as bytes for the same reason.
     pub(crate) standard_error: Vec<u8>,
 }
 
@@ -380,7 +559,6 @@ impl Finished {
     }
 
     /// A command that explained itself on standard error and ended with `code`.
-    /// The refusal of `migrate-to-subvolume` and the doctor's no-hooks report are these.
     pub(crate) fn explaining(code: i32, text: &str) -> Finished {
         return Finished {
             code,
@@ -400,34 +578,31 @@ impl Finished {
 }
 ```
 
-The three constructors are the correction to the earlier draft,
-which had only `saying` and `quietly`
+The three constructors are the correction to an earlier draft that had two,
 and so could not build either of the two refusals the code writes on standard error.
 
 `migrate_action`,
 `convert_action` and `doctor_action_with_section` return it,
-and the refusal keeps its stream
-(in `subvolume_command.rs`,
-today's lines 353-388):
+and the refusal keeps its stream:
 
 ```rust
 //! package/git-policy/cli/src/native/subvolume/subvolume_command.rs
 /// The migration's answer.
-pub(crate) fn migrate_action(
-    arguments: &MigrateArguments,
-    cwd: &Path,
-) -> Finished {
+pub(crate) fn migrate_action(arguments: &MigrateArguments, cwd: &Path) -> Finished {
     if arguments.help {
         return Finished::saying(0, MIGRATE_HELP);
     }
     let root: PathBuf = match main_checkout_root(cwd) {
         Ok(found) => found,
         // Today this branch is `Action::Exit { code: REFUSED_EXIT_CODE, stdout: String::new(),
-        // stderr: format!(...) }` at lines 366-376, so the words stay on standard error.
+        // stderr: format!(...) }` at lines 366 to 376, so the words stay on standard error.
         Err(message) => {
             return Finished::explaining(
                 REFUSED_EXIT_CODE,
-                format!("git monochromatic-git-policy-cli migrate-to-subvolume: refused: {message}\n  What to do: run the command inside the repository whose main checkout you want to convert.\nNothing was changed.\n").as_str(),
+                format!(
+                    "git monochromatic-git-policy-cli migrate-to-subvolume: refused: {message}\n  What to do: run the command inside the repository whose main checkout you want to convert.\nNothing was changed.\n"
+                )
+                .as_str(),
             );
         }
     };
@@ -442,16 +617,13 @@ pub(crate) fn migrate_action(
 }
 ```
 
-and one real call site rewritten,
-in `invocation/management.rs` where `run_migrate` builds the `Action` today (lines 476-481):
+and one real call site,
+where `run_migrate` builds the `Action` today (lines 476 to 481):
 
 ```rust
 //! package/git-policy/cli/src/native/invocation/management.rs
 /// Run the migration command on the platform that has btrfs subvolumes.
-fn run_migrate(
-    arguments: &MigrateArguments,
-    cwd: &Path,
-) -> Action {
+fn run_migrate(arguments: &MigrateArguments, cwd: &Path) -> Action {
     let finished: Finished = migrate_action(arguments, cwd);
     return Action::ExitBytes {
         code: finished.code,
@@ -462,229 +634,85 @@ fn run_migrate(
 ```
 
 What it delivers:
-the two allow-list lines named above,
-measured by the earlier draft's branch and not re-measured here,
-with no new use:
+the two allow-list lines,
+**if** the exit code moves with it (see "Which line of the allow list it removes"),
+and no new folder use:
 `subvolume` already uses `foundation`
 (`uses src/native/subvolume -> src/native/foundation`,
-line 942),
-so the move adds no finding.
+`folder-rule.txt:942`).
+At step 7 it takes `what_happens_when_you_type_a_command` out of those three folders' `uses/` lists.
 
-What it costs a caller:
-one value to build from the answer,
-and `entry.rs`'s `write_exit` stays the one place that writes a report,
+What it costs:
+one value to build from the answer;
+`entry.rs`'s `write_exit` stays the one place that writes a report,
 so the order the wrapper has today (plan,
-then write) is unchanged.
-The `ENGINE_FAILURE_EXIT_CODE` move adds eighteen files to the same branch,
+then write) is unchanged;
+the type moves again at step 7 into whichever library `foundation` becomes;
+and the exit code's move adds 18 files to the same branch,
 or a second commit in it.
 
-Which tests change:
-`subvolume_command_tests.rs:207,218,254`,
-`worktree_convert_command_tests.rs:294`,
-`doctor_tests.rs` (23 calls through `exit_parts` and 4 through `exit_bytes_parts`,
-`rg -c "exit_parts\(" health/doctor_tests.rs` answering 24 and 5 with the two definitions counted),
-`doctor_fsmonitor_tests.rs:54`,
-and `management`'s own tests read `Finished` instead of `Action`.
+Worked case:
+`git monochromatic-git-policy-cli migrate-to-subvolume --help`
+builds `Finished::saying(0, MIGRATE_HELP)`,
+`run_migrate` turns it into `Action::ExitBytes { code: 0, stdout: <the help text as bytes>, stderr: [] }`,
+and the person sees the same help on standard output and exit 0 as today.
+A refusal outside a repository builds `Finished::explaining(REFUSED_EXIT_CODE, <the sentence>)`,
+and the sentence stays on standard error.
 
-What it leaves undone:
-`stacked_merge_push`,
-which run this next covers,
-and the type's second move at step 7,
-when `foundation` is split.
-A yes to this placement does not decide whether `ENGINE_FAILURE_EXIT_CODE`
-moves in the same commit or its own,
-nor whether `REFUSED_EXIT_CODE` moves with it:
-the latter is defined in `subvolume_command.rs` itself
-and is imported by `worktree_copying/worktree_removal_of_a_bound_clone.rs:70`,
-which is a use of `subvolume` from `worktree_copying` that this change does not touch.
+A yes leaves undecided:
+whether `ENGINE_FAILURE_EXIT_CODE` and `REFUSED_EXIT_CODE` move in the same commit,
+its own,
+or not at all in this round
+(they are three outcomes with different deliveries,
+not one),
+and whether the four published names narrow to `pub(crate)` or keep a `pub` face for the library.
 
-### Signature B: the plan's own placement, beside `Action`
+### Signature B: the target tree's placement, beside `Action`
 
 New file `package/git-policy/cli/src/native/invocation/what_a_command_hands_back.rs`,
-next to `action.rs`:
-
-```rust
-//! package/git-policy/cli/src/native/invocation/what_a_command_hands_back.rs
-/// What a command that only finishes hands back.
-pub(crate) struct Finished {
-    /// The status the process ends with.
-    pub(crate) code: i32,
-    /// What the command answers.
-    pub(crate) stdout: String,
-    /// What it explains.
-    pub(crate) stderr: String,
-}
-
-/// The same,
-///  for a command whose answer may name a path that is not text.
-pub(crate) struct FinishedBytes {
-    /// The exit status.
-    pub(crate) code: i32,
-    /// What the command answers.
-    pub(crate) stdout: Vec<u8>,
-    /// What it explains.
-    pub(crate) stderr: Vec<u8>,
-}
-```
-
-`migrate_action` returns `Finished` (its refusal in `stderr`),
-`convert_action` returns `Finished`,
-`doctor_action_with_section` returns `FinishedBytes`,
-and one real call site rewritten,
-the same one:
-
-```rust
-//! package/git-policy/cli/src/native/invocation/management.rs
-/// Run the migration command on the platform that has btrfs subvolumes.
-fn run_migrate(
-    arguments: &MigrateArguments,
-    cwd: &Path,
-) -> Action {
-    let finished: Finished = migrate_action(arguments, cwd);
-    return Action::Exit {
-        code: finished.code,
-        stdout: finished.stdout,
-        stderr: finished.stderr,
-    };
-}
-```
+next to `action.rs`,
+with `Finished` (text streams) and `FinishedBytes` (byte streams)
+as the target tree draws them.
 
 What it delivers:
-nothing to the allow list today:
-the type sits in the folder `subvolume` already names for `Action`,
+nothing to the allow list in this round.
+The type sits in the folder `subvolume` already names for `Action`,
 so `subvolume`,
 `health` and `worktree` go on using `invocation`
 and the linter reports no dead line.
-At step 7 it delivers less than the earlier draft claimed:
+At step 7 it delivers less than the plan's prose:
 of the three folders,
 `converting_the_main_checkout` names `starting_git_and_describing_a_run` today
-(its `uses/` line,
-target-tree-files:855) and so gains nothing,
-but `checking_that_your_setup_works` (line 733) and
-`converting_a_linked_worktree` (line 830) do not name it,
-so under this placement those two gain a use of the program folder
-when they stop naming the decision folder.
-The earlier draft said each "already names" it;
-two of the three do not.
+(`doc/planning/cli-git-source-layout-target-tree-files.md:855`),
+but `checking_that_your_setup_works` (line 733) and `converting_a_linked_worktree` (line 830) do not,
+so under this placement those two gain a use of the program folder when they stop naming the decision folder.
 
-What it costs a caller:
-one value to build from the answer,
-and two types for one idea,
-or one bytes type that every text caller converts with `into_bytes`.
+What it costs:
+two types for one idea,
+or one bytes type every text caller converts with `into_bytes`;
+and the whole delivery waits for step 7.
 
-Which tests change:
-the same tests as signature A.
+Worked case:
+the same command,
+the same help text,
+with the value built as `invocation::Finished { code: 0, stdout: MIGRATE_HELP.to_string(), stderr: String::new() }`;
+the allow list is byte-for-byte what it was before the round.
 
-What it leaves undone:
-the whole delivery waits for step 7,
-and the two new uses above are a cost of waiting there rather than here.
+A yes leaves undecided:
+the same two items as option A.
 
-### Signature C: no value at all, the command writes and returns the status
+### Signature C, not offered: no value, the command writes
 
-```rust
-//! package/git-policy/cli/src/native/subvolume/subvolume_command.rs
-/// The migration's answer,
-///  written by the command itself.
-pub(crate) fn migrate_action(
-    arguments: &MigrateArguments,
-    cwd: &Path,
-    say: &mut dyn std::io::Write,
-    explain: &mut dyn std::io::Write,
-) -> i32 {
-    if arguments.help {
-        let _written = say.write_all(MIGRATE_HELP.as_bytes());
-        return 0;
-    }
-    // Today's refusal is `Action::Exit { stdout: String::new(), stderr: format!(...) }`;
-    // with two writers it stays on the second one.
-    let _written = explain.write_all(refusal_text.as_bytes());
-    return REFUSED_EXIT_CODE;
-}
-```
-
-and one real call site,
-the same `run_migrate`:
-
-```rust
-//! package/git-policy/cli/src/native/invocation/management.rs
-/// Run the migration command on the platform that has btrfs subvolumes.
-fn run_migrate(
-    arguments: &MigrateArguments,
-    cwd: &Path,
-) -> Action {
-    let code: i32 = migrate_action(
-        arguments,
-        cwd,
-        &mut std::io::stdout(),
-        &mut std::io::stderr(),
-    );
-    return Action::Exit {
-        code,
-        stdout: String::new(),
-        stderr: String::new(),
-    };
-}
-```
-
-Two writers are drawn because one is not enough:
-the earlier draft's single `say` writer would have moved
-`migrate-to-subvolume`'s refusal from standard error to standard output,
-which a person scripting the command would see.
-With two writers the command has the value's shape without the value:
-the caller still hands two streams down and reads nothing back.
-
-What it delivers:
-the same two dead lines as signature A,
-by the same measurement.
-
-What it costs a caller:
-the wrapper loses the one place that writes a command's answer after planning
+Each command writes its own answer to two writers and returns a status.
+It removes the same lines as A,
+but it loses the one place that writes a report
 (`entry.rs`'s `write_exit`),
-so the answer is written from inside the command,
-and the doctor's report leaves before the `Action` that carries it exists.
-No recheck sits between the two today
-(`run_process` rechecks only in its `Forward` arm),
-so the visible behaviour is the same,
-but a later recheck that covers exits would not see these commands.
-
-Which tests change:
-as signature A,
-and every test that captures the `Action` becomes a test that captures two `Vec<u8>`.
-
-What it leaves undone:
-`stacked_merge_push`,
-and the single-write-point invariant.
-
-### Whether it is feasible
-
-Not tried with a compiler for any of the three.
-The earlier draft's check
-(`cargo check --locked --offline --all-targets` on `probe/finished-results`)
-replaced `Action` with an enum that had `Action`'s own variants
-(`Finished::Exit`,
-`Finished::ExitBytes`,
-`Finished::Forward`,
-`Finished::ForwardSettled`,
-`Finished::ForwardPush`),
-which is not the struct any signature above draws,
-and it was read by the linter only.
-So what is known is that the four files compile when the type name changes
-and nothing else does;
-nothing is known about the three signatures' own shapes,
-and a green check of one of them is a round's first commit.
-
-The one part in doubt,
-whether `ENGINE_FAILURE_EXIT_CODE` can leave `action.rs` without a loop,
-is settled by the plan's own item move to the basic tools,
-which `foundation` is today
-(`cli-git-source-layout.md`,
-"Items that move down":
-"`ENGINE_FAILURE_EXIT_CODE`"),
-and not measured.
+so a later recheck that covers exits would not see these commands.
+It is named here because it is the shape a reader reaches for first.
 
 ### Ranking
 
-A > C > B.
+A > B.
 
 The measure:
 what each delivers to the split,
@@ -692,111 +720,97 @@ which is the allow list's shrinking lines in this round
 and the target tree's `uses/` lists at step 7,
 against what it changes for a person running the command.
 
-- A over C:
-  both remove the same two lines now and the same three names at step 7,
-  and A keeps the one place that writes a report and each command's own stream,
-  where C gives both up.
-  A's extra cost is the type's second move at step 7,
-  which is effort,
-  and effort is a cost,
-  not a reason to rank a signature lower.
-- C over B:
-  C removes two lines in this round and B removes none,
-  and at step 7 C takes the name out of all three folders
-  where B leaves two of them gaining a use.
-  B's advantage is that two streams stay two fields,
-  which C must rebuild with two writers and still cannot read back.
+- A over B:
+  with the exit code moved,
+  A removes two lines now and the same three names at step 7,
+  and B removes nothing now and leaves two folders gaining a use at step 7.
+  A's extra cost is a second move of the type at step 7,
+  which is effort.
 
 ## 2. System settings path
 
 ### Where the call is today
 
-- `package/git-policy/cli/src/native/repo_read/repo_read_config_scan.rs:297`:
+- `package/git-policy/cli/src/native/repo_read/repo_read_config_scan.rs:296`:
   `scope.system_default = crate::git_system_config::system_config_for(variables);`,
   inside `ScopeEnvironment::from_variables` (line 274),
   and the value decides `scope.unresolvable` on the next line.
+  The ask is gated:
+  it happens only inside
+  `if boolean_ok && !scope.no_system && scope.system.is_none()` (lines 295 to 298),
+  and a path that is not absolute makes the scope unresolvable (lines 299 to 307).
 - The definition it calls:
   `package/git-policy/cli/src/native/repo_read/git_system_config.rs:215`,
   `pub fn system_config_for(variables: &[(OsString, OsString)]) -> Option<PathBuf>`,
-  which reads the forward-target variable and asks that Git
-  (`system_config_of`,
-  line 114,
-  and `learned_path`,
-  line 145).
+  which reads the forward-target variable and asks that Git.
 - The builders of a `ScopeEnvironment`,
-  all ten of them
-  (`rg -n "ScopeEnvironment::from_variables" -g '*.rs' -g '!*_tests.rs'`):
+  all ten (`rg -n "ScopeEnvironment::from_variables" -g '*.rs' -g '!*_tests.rs'`):
   `index/index_reset_file_surroundings.rs:114`,
   `repo_read/repo_read_query.rs:90`,
-  `repo_read/repo_read_layout.rs:264,310,353,411`,
+  `repo_read/repo_read_layout.rs:264`,
+  `:310`,
+  `:353`,
+  `:411`,
   `repo_read/repo_read_hook.rs:105`,
   `push/auto_push_trigger_ahead_of_upstream.rs:113`,
   `merge/merge_second_pass_tree_attributes.rs:84`,
   and `worktree/worktree_clean_content_attribute_sources.rs:93`.
-  The earlier draft's eleventh,
+  An eleventh the earlier draft counted,
   `subvolume/subvolume_platform.rs:133`,
-  is `ConversionEnvironment::from_variables(&[])`,
-  a different type that asks its own two questions.
-  That matters for what this change leaves undone,
-  below.
-
-What moved since 2026-11-27:
-the handover entry says
-"`system_config_for` in two files of `repo_read/`".
-Today there is one call site.
-The round for issue 6540 moved `output_of_within_bound` out of `git_system_config.rs`
-into `git_system_config_asking.rs` (`e58254244d`,
-2026-11-27),
-and the second file it names is that one,
-which asks Git but does not call `system_config_for`.
+  is a `ConversionEnvironment::from_variables`,
+  a different type.
 
 ### What the plan says it becomes
 
 The target tree's signature:
-"`ScopeEnvironment` in `repo_read_config_scan` gains the field `system_config: Option<PathBuf>`
-and stops calling `git_system_config::system_config_for`;
+"`ScopeEnvironment` ... stops calling `git_system_config::system_config_for`;
 the callers that build a `ScopeEnvironment` pass the result"
-(lines 6478-6481).
+(`doc/planning/cli-git-source-layout-target-tree.md:6478-6481`).
 The plan's prose:
 "the caller passes the path in,
 so a reader never starts Git"
-(lines 462-463),
-and the owner's own words for the same change:
-"the system settings path passed to the reader"
-(line 118).
+(`doc/planning/cli-git-source-layout.md:462-463`),
+and the owner's own words:
+"the system settings path passed to the reader" (line 118).
 
 Which folder stops depending on which:
-none today.
-The asker and the reader are two files of one folder,
-and no line of the allow list names a pair between them.
-In the target tree the asker is a file of its own,
-`system_settings_file_of_git.rs` in `starting_git_and_describing_a_run`
-(target-tree-files,
-line 2602),
-and the reader is `configuration_scopes_scan.rs` in `reading_git_settings_from_files`
-(line 1940).
-The reader's folder names the asker's folder today
-(`reading_git_settings_from_files/uses/ -> ... starting_git_and_describing_a_run ...`,
-line 1936),
-and that line stays unless every reader file is handed the value or stops asking.
-What this change delivers now is therefore not a folder line
-but the promise in one folder's name:
-the files that answer without starting Git stop starting it,
-for the files that are handed a value.
+none today,
+because the asker and the reader are two files of one folder.
+At step 7 the reader is `configuration_scopes_scan.rs` in `reading_git_settings_from_files`
+(target-tree-files:1943),
+and the asker is `system_settings_file_of_git.rs` in `starting_git_and_describing_a_run`
+(target-tree-files:2602).
+Seven release files name `git_system_config` today
+(`rg -ln "git_system_config" src/native/repo_read -g '!*_tests.rs'`),
+and of the five files of the target reader folder
+only `repo_read_config_scan.rs` names it,
+so the reader's own `uses/` entry for the asker (`target-tree-files:1938`) dies when that file stops calling it.
+The three reader builders (`repo_read_query.rs`,
+`repo_read_hook.rs`,
+`repo_read_layout.rs`) do not name the asker today,
+only the reader;
+their folders are `answering_questions_without_starting_git` (its `uses/` at 605)
+and `finding_the_git_folders` (its `uses/` at 1038).
+Under option A those three would call the asker themselves,
+which adds `starting_git_and_describing_a_run` to `finding_the_git_folders`' list (1038 does not name it today)
+and keeps it in `answering_questions_without_starting_git`'s (605 does).
 
-### Signature A: the plan's parameter
+### Signature A: the parameter, at every caller that builds a scope
 
 ```rust
 //! package/git-policy/cli/src/native/repo_read/repo_read_config_scan.rs
-/// The scope a reader resolves its configuration files from.
+/// The facts of a scope,
+    /// settled from variables and one path.
 impl ScopeEnvironment {
     /// The facts of an environment as a child would see it,
     /// with the system configuration file's path,
-    ///  which the caller learned from that Git.
-    pub fn from_variables(
+    /// which the caller learned from that Git.
+    pub(crate) fn from_variables(
         variables: &[(OsString, OsString)],
         system_default: Option<PathBuf>,
     ) -> ScopeEnvironment {
+        // The three gates and the relative-path check are today's, in today's order:
+        // the ask moves out, the decision about what an unknown path means does not.
         let mut scope: ScopeEnvironment = ScopeEnvironment {
             home: nonempty_variable(variables, "HOME"),
             xdg: nonempty_variable(variables, "XDG_CONFIG_HOME"),
@@ -806,17 +820,24 @@ impl ScopeEnvironment {
             global: path_variable(variables, "GIT_CONFIG_GLOBAL"),
             unresolvable: !boolean_ok,
         };
-        // Git reads its compiled-in system file unless the environment removes or replaces it,
-        // and a path nobody could learn leaves the scope unresolvable, as it does today.
         if boolean_ok && !scope.no_system && scope.system.is_none() && scope.system_default.is_none() {
             scope.unresolvable = true;
         }
+        let mut relative: bool = false;
+        for path in [&scope.home, &scope.xdg, &scope.system, &scope.global] {
+            if let Some(found) = path.as_ref()
+                && !found.is_absolute()
+            {
+                relative = true;
+            }
+        }
+        scope.unresolvable = scope.unresolvable || relative;
         return scope;
     }
 }
 ```
 
-and one real call site rewritten,
+and the same builder rewritten,
 `repo_read/repo_read_layout.rs:264`:
 
 ```rust
@@ -827,422 +848,385 @@ let scope: ScopeEnvironment = ScopeEnvironment::from_variables(
 );
 ```
 
+The gate stays where it is,
+in the caller's read of the variables:
+a builder that knows `GIT_CONFIG_NOSYSTEM` is set passes `None` without asking,
+and a builder that does not passes the ask's answer.
+That is a correction to an earlier draft,
+which put the ask outside the gate and would have started Git (or read its cache) for every builder,
+even with `GIT_CONFIG_NOSYSTEM=1` or `GIT_CONFIG_SYSTEM` set.
+
 What it delivers:
 the reader's file stops starting Git,
-and the ask moves to the ten call sites.
-No allow-list line changes now.
-At step 7 the reader's folder can stop naming the asker only if the three reader files
-that build their own scope
-(`repo_read_query.rs:90`,
-`repo_read_hook.rs:105`,
-`repo_read_layout.rs:264`)
-are handed a value too,
-which is question 4.
+so at step 7 the reader's folder loses its use of the asker;
+the ask moves to every caller that builds a scope,
+including the three reader builders,
+which adds the asker to `finding_the_git_folders`' list and keeps it in `answering_questions_without_starting_git`'s.
+No allow-list line changes in this round.
 
-What it costs a caller:
-one line each,
-and a caller whose variables name no real Git passes `None`,
-which is the answer it gets today from the same variables,
-so no read changes its answer.
-A failed ask is retried on the next call,
-as today.
+What it costs:
+one line at each of the ten builders;
+and the three reader builders now start Git where their folders are named for not doing so,
+which is the cost that buys the reader's line.
 
-Which tests change:
-`repo_read_config_scan_tests.rs` (7 calls,
-`rg -n "from_variables" repo_read/repo_read_config_scan_tests.rs`),
-`git_system_config_tests.rs:256-301`
-(the control that builds scopes from a fixture Git,
-named `the_scope_reads_the_file_the_git_names`,
-which asserts a learned path and an unknown one in the same body).
+Worked case:
+`git config --get core.hooksPath` runs on a path that builds a scope in
+`repo_read_layout.rs`;
+the builder passes `system_config_for(variables)`,
+which answers `Some("/etc/gitconfig")` from the forward-target Git,
+and `configuration_scopes_scan.rs` resolves the scopes without starting a Git of its own.
+The person sees the same value as today.
 
-What it leaves undone:
-`system_attributes_for`,
-the same shape for `$(prefix)/etc/gitattributes`,
-imported at `worktree/worktree_clean_content_attribute_sources.rs:18` and asked at line 194
-inside `ConversionEnvironment::from_variables`,
-whose three test calls are `worktree_clean_content_safety_tests.rs:714,719,724`.
-So "the reader never starts Git" is not delivered for conversions by this change alone,
-whoever's signature is chosen.
+A yes leaves undecided:
+whether a builder that cannot learn a path passes `None` (making the scope unresolvable,
+as today) or whether the round gives such a scope a sentence of its own.
 
-### Signature B: two types, one settled
+### Signature B: the parameter, at the ten builders only
 
-```rust
-//! package/git-policy/cli/src/native/repo_read/repo_read_config_scan.rs
-/// The configuration scopes an environment settles without asking Git.
-pub struct ScopesAwaitingTheSystemFile {
-    /// The home folder.
-    home: Option<PathBuf>,
-    /// The XDG configuration folder.
-    xdg: Option<PathBuf>,
-    /// Whether the system file is switched off.
-    no_system: bool,
-    /// `GIT_CONFIG_SYSTEM`.
-    system: Option<PathBuf>,
-    /// `GIT_CONFIG_GLOBAL`.
-    global: Option<PathBuf>,
-    /// Whether a fact could not be settled.
-    unresolvable: bool,
-}
-
-/// The two steps that settle a scope.
-impl ScopesAwaitingTheSystemFile {
-    /// Every fact the variables alone settle.
-    pub fn from_variables(variables: &[(OsString, OsString)]) -> ScopesAwaitingTheSystemFile;
-    /// The scopes,
-    ///  with the system file's path learned by a file that may start Git.
-    pub fn with_the_system_file(self, system_default: Option<PathBuf>) -> ScopeEnvironment;
-}
-```
-
-and one real call site,
-the same one:
-
-```rust
-//! package/git-policy/cli/src/native/repo_read/repo_read_layout.rs
-let scope: ScopeEnvironment = ScopesAwaitingTheSystemFile::from_variables(variables.as_slice())
-    .with_the_system_file(crate::git_system_config::system_config_for(variables.as_slice()));
-```
+The same parameter,
+and the three reader files go on calling `system_config_for` themselves.
 
 What it delivers:
-the same as A,
-and a type that cannot be read before the system file is settled,
-so no later code can call the reader and get a scope that silently declines.
+the reader's folder line dies at step 7,
+and nothing else:
+`answering_questions_without_starting_git` keeps the asker in its list,
+and `finding_the_git_folders` never gains it.
 
-What it costs a caller:
-two calls instead of one,
-and one more public type in the folder that has to move at step 7.
+What it costs:
+the reader's file still starts Git for the three reader builders,
+so the promise in `answering_questions_without_starting_git`'s name holds only where a value was handed over;
+and the round costs one line at ten builders instead of thirteen.
 
-Which tests change:
-as A,
-plus every test that names `ScopeEnvironment::from_variables` directly.
+Worked case:
+the same command,
+the same value;
+the difference is which file runs the ask,
+and it is visible in the folder lists at step 7,
+not to the person.
 
-What it leaves undone:
-`system_attributes_for`,
-as in A.
+A yes leaves undecided:
+the same item as A.
 
-### Signature C: one answer per process, learned once
+### Signature C, not offered: one answer per process, learned once
 
-```rust
-//! package/git-policy/cli/src/native/repo_read/git_system_config.rs
-/// The path learned once for this process.
-static THE_SYSTEM_CONFIG_OF_THIS_GIT: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
-
-/// Learn the system configuration file's path once,
-///  from the Git this process runs.
-pub fn remember_the_system_config_for_this_git(variables: &[(OsString, OsString)]) {
-    let _learned: &Option<PathBuf> = THE_SYSTEM_CONFIG_OF_THIS_GIT
-        .get_or_init(|| system_config_for(variables));
-}
-
-/// The path learned earlier,
-///  or nothing where nobody learned one.
-pub fn the_system_config_remembered() -> Option<PathBuf> {
-    return THE_SYSTEM_CONFIG_OF_THIS_GIT.get().cloned().flatten();
-}
-```
-
-with `remember_the_system_config_for_this_git` called once at the service's start,
-and one real call site,
-the same one:
-
-```rust
-//! package/git-policy/cli/src/native/repo_read/repo_read_config_scan.rs
-// Today line 297. Nothing at this site changes.
-scope.system_default = crate::git_system_config::the_system_config_remembered();
-```
-
-What it delivers:
-no call site changes,
-so no caller gains an upward use,
-and nothing to the allow list or to the target tree's `uses/` lists:
-the remembered value lives in `git_system_config.rs`,
-which becomes `system_settings_file_of_git.rs`
-in `starting_git_and_describing_a_run` (target-tree-files,
-line 2602),
-and the reader calls it,
-so `reading_git_settings_from_files` goes on naming
-`starting_git_and_describing_a_run` (its `uses/` line,
-1936).
-The earlier draft's claim that C
-"takes the ask out of the reader's folder entirely"
-holds only if the remembered value lives in a file below the reader,
-which is not drawn.
-C is therefore not a pass of the owner's words either:
-those say "the caller passes the path in" (line 462),
-and a process-wide value is not something a caller passes.
-
-What it costs,
-and why this revision ranks it last:
-
-1.  The precedent is not one.
-   The earlier draft cited `invocation/git_version_cache.rs` as the repository's one process-wide cache.
-   It holds no `static`,
-    `OnceLock`,
-    `Mutex` or `thread_local`
-   (`rg -n "static|OnceLock|Mutex|thread_local" invocation/git_version_cache.rs` prints nothing).
-   It is an on-disk cache keyed by the executable's identity,
-   and its own doc says the opposite property from C's:
-   "an upgrade replaces the file (new inode) or rewrites it (new size,
-    times),
-   so a replaced Git is noticed on the next start and a stale entry is never trusted"
-   (lines 10-14).
-   `system_config_for` already works that way,
-   through `learned_path` (line 145).
-2.  The guide forbids the shape for anything a test reads.
-   Nothing a test changes may be process-wide
-   (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`,
-   section "Nothing a test changes may be process-wide"),
-   and a `OnceLock` cannot be reset,
-   so in a threaded run the first test to learn a path decides for every later one.
-   "Learn one first" is not a thing a test can do:
-   the existing control `the_scope_reads_the_file_the_git_names`
-   runs its body in a child of its own and asserts a learned path and an unknown scope
-   one after the other in the same body
-   (`git_system_config_tests.rs:256-301`),
-   which a value once set can never do again.
-   Every other test of a system file would have to join it in a child process.
-3.  A failed ask would be remembered.
-   Today each call retries;
-    `get_or_init` keeps the first answer,
-    `None` included.
-4.  The first caller's variables would decide for every later caller,
-   and the service runs more than one Git.
-5.  The ask blocks its caller (`output_of_within_bound` starts a child),
-   so inside a `OnceLock` closure it would block every other reader for up to the wait's ceiling,
-   possibly on a runtime worker.
-6.  A step that never resolves leaves it `None` for good:
-   at `run_process`'s `Ok(inputs)` arm (`invocation/entry.rs:452-460`)
-   the wrapper has resolved nothing about the real Git,
-   `ResolutionInputs` carries no Git path
-   (`invocation/real_git.rs:105-126`),
-   and the process's own environment carries no forward-target variable
-   (`repo_read_config_scan.rs:270-272` says the wrapper's own environment does not carry it),
-   so a call placed there would store `None`
-   and `get_or_init` would keep it.
-
-Which tests change:
-every test that expects a scope to name a system file would need a reset seam and a child process,
-and the guide's rule says the seam itself must refuse outside the child.
-
-What it leaves undone:
-`system_attributes_for`,
-unless it is remembered the same way,
-and with it a second process-wide value.
-
-### Whether it is feasible
-
-A and B are feasible on the reading and not tried with a compiler.
-C is feasible to compile and not to test under the guide's rule.
-The cheap compiler answer (every caller passes `None`) would compile
-and prove nothing about the question,
-which is what each caller can pass.
-That was answered by reading the callers:
-every one of the ten holds the variables the ask reads
-(`with_real_git` documents that the forward-target variable is in every child's environment,
-and `repo_read_query.rs:90` builds a scope from the base variables its caller holds),
-and `subvolume_platform.rs:212,225` builds its `ConversionEnvironment`
-from the same kind of list,
-so the two conversions' answers are unchanged by A.
+A `OnceLock` in `git_system_config.rs`,
+learned once at the service's start and read by every reader.
+It delivers nothing to the folder lists (the reader still names the file that remembers),
+it fails the guide's rule for anything a test reads
+(`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md`,
+section "Nothing a test changes may be process-wide",
+which names the current directory,
+the environment,
+the umask,
+a signal's disposition and a resource limit,
+and which a `OnceLock` set by a test would join in spirit though it names no static),
+it remembers a failed ask as `None` for good,
+and the ask blocks its caller,
+so inside a `OnceLock` closure it would block every other reader.
+It is not a pass of the owner's words either:
+a process-wide value is not something a caller passes.
 
 ### Ranking
 
-A > B > C.
+A > B.
 
 The measure:
 what each delivers to the split,
-which here is whether the reader's folder can stop naming the asker's at step 7,
-against what it costs every test of a system file.
+which here is how many target folders stop naming the asker at step 7,
+against what each changes for the files whose names promise no Git start.
 
 - A over B:
-  both deliver the same and leave the same open,
-  and A is one fact in one place,
-  where B adds a public type whose guarantee no caller needs
-  and makes every builder write two calls.
-- B over C:
-  neither delivers the folder line as drawn,
-  and B at least keeps each caller's own answer,
-  its own retry,
-  and the guide's rule about process-wide facts,
-  where C loses all three and keeps the folder edge anyway.
-
-No question asks which signature here:
-A is the plan's own and the owner's recorded words,
-so this record takes it and does not put it.
-Questions 4 and 5 ask what A leaves open.
+  A removes two `uses/` entries (the reader's,
+  and `answering_questions_without_starting_git`'s) and adds one to `finding_the_git_folders`;
+  B removes one and adds none,
+  and leaves three reader files starting Git in folders named for not doing so.
+  B's advantage is a diff of ten lines instead of thirteen,
+  which is effort.
 
 ## 3. After-stop action
 
 ### Where the call is today
 
 - `package/git-policy/cli/src/native/push/child_watch.rs:195`:
-  `return Self::start_with_locks(waiting_for, pid, terms, LockLedger::none());`,
-  the body of `start`;
-  `start_with_locks(waiting_for, pid, terms, locks: LockLedger)` at line 206;
-  `start_under_stop(waiting_for, pid, terms, locks: LockLedger, stop: Option<StopArm>)` at line 227;
-  `start_when_a_task_may_run(..., locks: LockLedger, ...)` at line 260;
-  and `watch_loop(incoming, flags, subject, pid, terms, locks, stop, root_pin)` at line 302.
-  `impl Drop for ChildWatch` is at line 474.
-- `package/git-policy/cli/src/native/push/child_watch_task_loop_and_notice.rs:76`:
-  `locks: LockLedger,` as a parameter of `watch_loop`,
-  passed to `stop_process` at lines 162 and 180,
-  and to `end_for_the_stop(..., locks: &LockLedger, ...)` at lines 123 and 197,
-  whose body starts at line 314 and calls `stop_process` again at line 324.
-  A watch that is dropped closes its channel,
-  and that path sweeps:
-  the comment inside `stop_process` says the locks are
-  "swept then,
+  `start` hands `LockLedger::none()` to `start_with_locks` (line 206),
+  which hands it to `start_under_stop` (line 227),
+  which hands it to `start_when_a_task_may_run` (line 260),
+  which hands it to `watch_loop` (line 302).
+  `impl Drop for ChildWatch` is at line 483.
+- `package/git-policy/cli/src/native/push/child_watch_task_loop_and_notice.rs:70`:
+  `watch_loop`,
+  whose `locks: LockLedger` (line 77) goes to `stop_process` (lines 162,
+  180 and 324)
+  and to `end_for_the_stop` (lines 123 and 197).
+- `package/git-policy/cli/src/native/push/child_watch_clock_marks_and_stopping.rs:308`:
+  `stop_process(pid, locks, incoming, root_pin)`,
+  whose sweep is at lines 372 to 383,
+  inside `crate::blocking_job::run_blocking_job`.
+  Its own comment says the locks are "swept then,
   or when the watch is dropped,
   whichever comes first".
-- `package/git-policy/cli/src/native/push/child_watch_clock_marks_and_stopping.rs:308`:
-  `pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut UnboundedReceiver<Mark>, root_pin: &RootPin)`,
-  with the sweep at lines 372-383,
-  which runs through `crate::blocking_job::run_blocking_job(move || { sweeping.sweep(); })`
-  because,
-  as the comment above it says,
-  `the owner, 2026-11-07, "Fail plainly": no inline run of a call that can wait on storage`.
 - The two ledger builds inside the watcher:
-  `push/child_watch_one_shot_run.rs:238` and
-  `push/child_watch_output_watched_on_the_runtime.rs:243`,
-  both `let locks: LockLedger = LockLedger::before_start(command);`.
-- The five one-shot run functions,
-  not four (`rg -n "pub fn output_watched|pub async fn output_watched_within_for_a_stop_awaiting" push/`):
+  `package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs:238` and
+  `package/git-policy/cli/src/native/push/child_watch_output_watched_on_the_runtime.rs:243`.
+- The five one-shot run functions:
   `output_watched` (line 99),
   `output_watched_stopping` (121),
   `output_watched_within` (160),
   `output_watched_within_for_a_stop` (196),
-  and the awaited `output_watched_within_for_a_stop_awaiting` (runtime file,
-  line 202).
+  and the awaited `output_watched_within_for_a_stop_awaiting`
+  (`push/child_watch_output_watched_on_the_runtime.rs:202`).
   All five return `std::io::Result<Output>` today.
-- The callers that already build a ledger:
-  `push/bounded_push.rs:421`,
-  `push/bounded_query_run_of_one_command.rs:244`,
-  and `push/stop_of_a_push_and_sweep_of_its_locks.rs:162,172,381,456`.
-- The callers that hand the watcher no ledger of their own:
-  `lfs/lfs_upload_child_run.rs:369`,
-  `process/child_awaited_until_it_exits_or_the_service_is_stopped.rs:46`,
-  and `process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs:328,373`.
-- `repo_read/git_metadata.rs:443` is not one of those.
-  It calls `output_watched_within`,
-  which reaches `LockLedger::before_start` at `child_watch_one_shot_run.rs:238`,
-  so that read has a ledger today and the watcher sweeps its ended reads.
-  The earlier draft said it "pass[es] no ledger at all";
+- The three release call sites of those five:
+  `package/git-policy/cli/src/native/transaction/transaction_git.rs:386` (the synchronous face),
+  `transaction/transaction_git_awaiting.rs:291` (the awaited face),
+  and `package/git-policy/cli/src/native/repo_read/git_metadata.rs:443`,
+  which calls `output_watched_within`
+  and so reaches `LockLedger::before_start` today.
+  An earlier draft said that read passed no ledger;
   that was wrong.
-  The one caller of `ChildWatch::start` that drops a watch with no ledger is
-  `candidate/candidate_reader.rs:315`
-  (`rg -n "ChildWatch::start\(" -g '*.rs' -g '!*_tests.rs'` answers that one line),
-  which the earlier draft did not cite.
+- `child_watch::start_with_locks` is a published name
+  (`package/git-policy/cli/src/native/source_guard/items_nameable_from_outside_release.txt:5977`),
+  and both options remove it,
+  so both edit that list.
 
-What moved since 2026-11-27:
-the handover says "`LockLedger` in six files of `push/`".
-Today eight release files of `push/` name it,
-because round 2's split cut `child_watch.rs` into five files,
-and `lfs/` and `process/` name it too.
+### What the sweep is, and the window in which a dropped watch sweeps today
+
+The sweep reads and removes reference lock files a stopped step left.
+It runs in one place today:
+the end of `stop_process`,
+on the blocking pool.
+`stop_process` runs from exactly three places in the watcher's loop,
+when the ceiling passed (line 157),
+when the quiet window passed (line 179),
+and when the stop arm fired (`end_for_the_stop`,
+line 324).
+A watch dropped while none of those is under way sweeps nothing:
+`watch_loop` returns on a closed channel at line 98 and at line 193 without a sweep,
+and `Drop for ChildWatch` waits for the task and keeps the longest gap.
+A watch dropped **while a stop is under way** does sweep today:
+the wait after the kill reads the closed channel and breaks out to the sweep
+(`package/git-policy/cli/src/native/push/child_watch_clock_marks_and_stopping.rs:362-371`).
+So the window is narrow,
+and this file names it instead of calling it a general property:
+the loss an option can cause is a sweep lost when a stop is under way and the caller stops reading,
+and what that costs is that the lock waits for the next command's stale-lock judgement
+(`push/stop_of_a_push_and_sweep_of_its_locks.rs:432-440`).
+
+Nothing here measures how often a landing's or a reader's step is in that window.
+The window is read from those three callers of `stop_process` and from the two returns of `watch_loop`.
 
 ### What the plan says it becomes
 
 The target tree's signature:
-"`ChildWatch::start_with_locks(waiting_for, pid, terms, locks)` and `watch_loop(... locks)` lose the
-`locks: LockLedger` parameter,
+"`start_with_locks(...)` and `watch_loop(...)` lose the `locks: LockLedger` parameter,
 and the line in `child_watch` that calls `LockLedger::before_start(command)` moves out.
 The watcher returns the `StopReport` it already has;
-the caller in `bounded_push` and `transaction_git` builds the
-`LockLedger` before the start and sweeps after the stop.
+the caller in `bounded_push` and `transaction_git` builds the `LockLedger` before the start and sweeps after the stop.
 The lock folder is in the program,
 above the watcher library,
 so the watcher cannot name it"
-(lines 6467-6477).
+(`doc/planning/cli-git-source-layout-target-tree.md:6467-6477`).
 
-The plan's prose and the owner's answer:
-"its caller hands it what to do after a stop" (line 458),
-from the answer "Make all four (Recommended)" (lines 116-120).
+The plan's prose:
+"its caller hands it what to do after a stop"
+(`doc/planning/cli-git-source-layout.md:458`),
+from the owner's answer
+"Make all four (Recommended)" (lines 118 to 120).
 
 Which folder stops depending on which:
-no line of the allow list,
-measured by the survivors:
-`push` keeps `lock` through `bounded_push.rs:421`,
-`bounded_query_run_of_one_command.rs:244` and the sweep file.
-What it delivers is at the library boundary.
-The five `child_watch` files are the files the rescan sends to
-`starting-and-watching-programs`,
-and that library folder's `uses/` line names `clearing_leftover_reference_locks`
-(target-tree-files,
-line 322,
-the same name at 279 in the sibling folder).
-The change is what takes it out of the folder at 322,
-which the plan itself counts on:
-the watcher's cleanliness "depends on one change of the draft"
-(target tree,
-"Changes so that a library stands alone").
-It does not take the name out of the folder at 279:
-`process/child_awaited_until_it_exits_or_the_service_is_stopped.rs:46` and
-`process/child_awaited_until_it_exits_the_stop_or_the_ceiling.rs:328,373` keep
-`stop_push(owned, STOP_GRACE, LockLedger::none())`,
-which neither signature changes,
-so `starting_programs_catching_signals_and_keeping_their_output`
-keeps using `clearing_leftover_reference_locks`.
-The earlier draft claimed the change takes the name out of the library;
-that holds for one of the library's two folders.
+no allow-list line,
+and both options add two uses that no line can record.
+Measured with one linter run over the package with each drawing applied,
+and one on the unedited tree as a control:
 
-### Signature A: the caller sweeps, the watch says how it ended
+- unedited:
+  12 `rust/folder-uses-links` findings,
+  none of them about `lock`;
+- either drawing:
+  16,
+  the four new ones being
+  `src/native/transaction uses the folder src/native/lock` and
+  `src/native/repo_read uses the folder src/native/lock`,
+  each reported twice:
+  once for a missing `uses/` link,
+  and once as
+  "both sit inside one loop the allow list tolerates today ... no line of the list records it,
+  so a tolerated loop may only lose uses".
+  The linter's help line names the link the round would create:
+  `mkdir --parents src/native/transaction/uses && ln --symbolic ../../lock src/native/transaction/uses/lock`.
+
+The decision record says such a finding has an empty key,
+"so no line of the list can record it"
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md:115-119`),
+and the owner's "Merge red,
+untangle later" covers the wiring of a built ZFS piece only;
+"any other new use inside a tolerated loop is still a finding to remove before its branch merges"
+is the coordinating session's reading,
+with the veto open (lines 162 to 165).
+So whichever way this question is answered,
+the after-stop commit lands two uses that must be untangled before it can be lint-clean,
+and a third placement exists that adds neither:
+the ledger built and swept by a `push/` function the caller calls,
+which adds no use because `transaction` and `repo_read` already name `push`.
+That placement is not drawn here,
+its shape (an opaque sweeper type in `push`,
+so the caller never names `lock`) is not measured,
+and it needs its own linter run.
+
+### Signature A: the watcher calls back
 
 ```rust
 //! package/git-policy/cli/src/native/push/child_watch.rs
+/// What a caller wants done once the watch has ended its child.
+pub trait AfterTheStop: Send + Sync {
+    /// Run after the child and the processes below it are gone.
+    fn after_the_stop(&self);
+}
+
 /// The faces of the watcher.
 impl ChildWatch {
     /// Start watching `pid`,
-    ///  a child that holds no Git lock.
-    pub fn start(waiting_for: &str, pid: u32, terms: WatchTerms) -> Self;
-
-    /// Start watching `pid`,
-    ///  ended when the service's stop is told through `stop`.
-    pub fn start_under_stop(
+    ///  calling `after` once the watch has ended the child and its processes below it.
+    pub fn start_after_the_stop(
         waiting_for: &str,
         pid: u32,
         terms: WatchTerms,
-        stop: Option<crate::stop_of_the_service_noticed_by_its_children::StopArm>,
+        after: Option<std::sync::Arc<dyn AfterTheStop>>,
     ) -> Self;
 }
+```
 
-// package/git-policy/cli/src/native/push/child_watch_task_loop_and_notice.rs
-/// The watcher's loop.
-pub(crate) async fn watch_loop(
-    incoming: UnboundedReceiver<Mark>,
-    flags: WatchFlags,
-    waiting_for: String,
-    pid: u32,
-    terms: WatchTerms,
-    stop: Option<StopArm>,
-    root_pin: crate::child_watch_clock_marks_and_stopping::RootPin,
+and the caller's behaviour,
+at `transaction/transaction_git.rs`:
+
+```rust
+//! package/git-policy/cli/src/native/transaction/transaction_git.rs
+/// The locks a step of this transaction can leave.
+struct SweepTheLocks {
+    /// The ledger of the command whose step is watched.
+    ledger: crate::stopped_git_locks::LockLedger,
+}
+
+/// What the program wants done once its child is gone.
+impl crate::child_watch::AfterTheStop for SweepTheLocks {
+    /// Sweep the lock files the stopped step left.
+    fn after_the_stop(&self) {
+        let _swept: Vec<std::path::PathBuf> = self.ledger.sweep();
+    }
+}
+
+let after: std::sync::Arc<dyn crate::child_watch::AfterTheStop> = std::sync::Arc::new(SweepTheLocks {
+    ledger: crate::stopped_git_locks::LockLedger::before_start(&step.command),
+});
+let watched: std::io::Result<std::process::Output> = output_watched_within_for_a_stop(
+    &mut step.command,
+    step.subject.as_str(),
+    step.ledger_step.as_str(),
+    step.terms,
+    step.stoppable,
+    step.bound,
+    step.a_stop_lets_it_finish,
+    request.started_child.as_ref(),
+    Some(after),
 );
+```
 
-// package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs
-/// The output of a watched step,
-///  and how the watch ended it.
-pub(crate) struct WatchedOutput {
+The callback travels the same path the ledger travels today:
+`watch_loop` and `stop_process` take it in place of `locks`,
+and the double call runs inside the same `run_blocking_job` where the sweep runs today.
+The awaited face and `git_metadata.rs` are the same drawing with the same value,
+and `git_metadata.rs` moves from `output_watched_within` to
+`output_watched_within_for_a_stop` so it can hand one over.
+
+What it delivers:
+`clearing_leftover_reference_locks` out of the watcher library's folder at step 7
+(`doc/planning/cli-git-source-layout-target-tree-files.md:322`),
+which is what the library lift needs;
+the sweep's moment unchanged,
+including the stop-under-way window;
+and no new folder use beyond the two above.
+
+What it costs:
+one trait in the library whose only implementations are the program's,
+which the plan's note disfavours for these changes ("none of the changes below hands a closure;
+each hands a value or an enum",
+`doc/planning/cli-git-source-layout-target-tree.md:6427-6429`);
+a value per call site (an `Arc` and a small struct);
+and the published `start_with_locks` line in the source guard's list changes.
+
+Whether `LockLedger` can be the state of a `Send + Sync` implementation is settled by reading,
+not by a compile:
+it holds a `Vec<PathBuf>` and an optional `Judge`,
+whose fields are a `PathBuf`,
+a `Duration`,
+an `Option<SystemTime>`,
+a `Vec<String>` and an `Option<Vec<i64>>`
+(`package/git-policy/cli/src/native/lock/stopped_git_locks.rs:96-103`,
+`package/git-policy/cli/src/native/lock/stale_ref_lock_judge.rs:94-117`),
+so it is both.
+
+Worked case:
+a landing's `git update-ref` step is stopped by the service.
+The watch ends the child,
+the wait after the kill passes,
+and the watcher's task calls
+`SweepTheLocks::after_the_stop` on the blocking pool,
+which removes the two `refs/heads/*.lock` files it can prove stale and leaves one it cannot.
+The landing's next step finds no lock it must judge.
+If the caller dropped its watch 40 seconds into the same stop,
+the sweep still happens,
+because the callback lives in the watch's task,
+not in the caller's reading.
+
+Compiled:
+this shape was put into this worktree and
+`cargo check --locked --offline --all-targets` printed
+`Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 33.89s`
+with no error and no warning.
+Changes: 11 files, 106 insertions and 38 deletions, including 7 control call lines and
+the two `LockLedger` readings the controls make.
+
+A yes leaves undecided:
+whether the same callback carries anything else later,
+which the trait's shape allows and nothing asks for now.
+
+### Signature B: the caller sweeps
+
+The five one-shot functions answer `WatchedOutput`:
+
+```rust
+//! package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs
+/// The answer of a watched step and how the watch ended it.
+#[derive(Debug)]
+pub struct WatchedOutput {
     /// What the step wrote,
-    ///  or why its output could not be read.
-    pub output: std::io::Result<std::process::Output>,
-    /// Whether the watch itself ended the child,
+    ///  or why the watch or the start ended it.
+    pub output: std::io::Result<Output>,
+    /// Whether the watch ended the child,
     ///  which is when its locks must be swept.
     pub ended_by_the_watch: bool,
 }
 ```
 
-All five one-shot functions change their answer to
-`std::io::Result<WatchedOutput>`,
-which the earlier draft never wrote;
-without it the call site below does not type,
-because `Output` has no `.output` field.
+where `ended_by_the_watch` is the three endings that ran the stop
+(`ended_by_the_stop`,
+or `ceiling_hit`/`expired` when the watch could end the step),
+and each early return that ends a watch takes `watch.ended_by_the_stop()` with it,
+which is exactly the stop-under-way window.
+`output` holds the watch-ended error,
+so a caller can sweep before it decides to return;
+the outer `Result` is the start failure alone,
+where no child exists and nothing is swept today.
 
-and one real call site rewritten,
-`transaction/transaction_git.rs:386`,
-which today reads
-`let watched: std::io::Result<std::process::Output> = output_watched_within_for_a_stop(`:
+and the three call sites,
+each in a place that can do what it must:
 
 ```rust
-//! package/git-policy/cli/src/native/transaction/transaction_git.rs
-let locks: LockLedger = LockLedger::before_start(&step.command);
-let watched: WatchedOutput = output_watched_within_for_a_stop(
+//! package/git-policy/cli/src/native/transaction/transaction_git.rs:
+//!  the synchronous face
+let locks: crate::stopped_git_locks::LockLedger =
+    crate::stopped_git_locks::LockLedger::before_start(&step.command);
+let watched: crate::child_watch_one_shot_run::WatchedOutput = output_watched_within_for_a_stop(
     &mut step.command,
     step.subject.as_str(),
     step.ledger_step.as_str(),
@@ -1252,228 +1236,113 @@ let watched: WatchedOutput = output_watched_within_for_a_stop(
     step.a_stop_lets_it_finish,
     request.started_child.as_ref(),
 )?;
-// The caller is on the runtime here, and `sweep` reads and removes files,
-// so it goes to the blocking pool the watcher used for the same work.
+// This face is on no runtime worker, so the sweep runs here.
 if watched.ended_by_the_watch {
-    crate::blocking_job::run_blocking_job(move || { locks.sweep(); }).await?;
+    let _swept: Vec<std::path::PathBuf> = locks.sweep();
 }
-return Ok(step_finished(
-    step.ledger_step.as_str(),
-    request,
-    step.began,
-    Ok(watched.output?),
-));
-```
+return Ok(step_finished(step.ledger_step.as_str(), request, step.began, watched.output?));
 
-What it delivers:
-`clearing_leftover_reference_locks` out of the watcher library folder at 322,
-which is what the library lift needs;
-no allow-list line today.
-
-What it costs a caller:
-every caller of the five one-shot functions reads a `WatchedOutput`,
-and every caller that may sweep must run the sweep on the blocking pool itself,
-because `LockLedger::sweep` reads and removes files
-and the owner's rule of 2026-11-07 quoted above forbids the inline call.
-A caller that drops the watch without reading its end sweeps nothing,
-where today the watcher's task sweeps when the channel closes:
-that is the early return in `child_watch_one_shot_run.rs`
-for a step left running (`StepBound::LeaveRunning`,
-lines 341-360),
-which ends the watch,
-forgets the captured output and answers
-`Err(std::io::ErrorKind::TimedOut)`,
-and every other path that ends a watch without reading it.
-A sweep lost that way is not retried:
-`settle_locks`'s own doc says
-"a sweep before that finds the tree running and removes nothing,
-and nothing would try again"
-(`push/stop_of_a_push_and_sweep_of_its_locks.rs:432-440`),
-so the lock waits for the next command's stale-lock judgement.
-
-Which tests change:
-`child_watch_tests.rs` (its `watch_loop` call and its five `output_watched` calls),
-`child_watch_drop_time_measurement_tests.rs:183`,
-`child_watch_output_watched_on_the_runtime_tests.rs`,
-`child_watch_one_shot_through_pipes_tests.rs`,
-`bounded_push_tests.rs:384,444`,
-`bounded_push_awaiting_tests.rs:73`,
-`stop_of_a_push_and_sweep_of_its_locks_tests.rs:53,95`,
-and `lock/git_stop_lock_tests.rs`,
-whose `watched_step` (line 917) calls `output_watched` (line 935)
-and asserts the lock state after a stop.
-The earlier draft listed the `stop_push` controls,
-which A does not change,
-and left this one out.
-
-What it leaves undone:
-the dropped-watch sweep,
-and `child_watch_running_task.rs`,
-whose task holds the flag the caller reads.
-
-### Signature B: the watcher is handed what to do after a stop
-
-The library defines the behaviour,
-the program implements it,
-which is the plan's prose and the owner's answer of 2026-11-04:
-
-```rust
-//! in the watcher library,
-//!  later package/starting-and-watching-programs/core-rust
-/// What a caller wants done once the watch has ended its child.
-pub trait AfterTheStop: Send + Sync {
-    /// Run after the child and the processes below it are gone.
-    fn after_the_stop(&self);
+// package/git-policy/cli/src/native/transaction/transaction_git_awaiting.rs, the awaited face
+let watched: crate::child_watch_one_shot_run::WatchedOutput = watched?;
+if watched.ended_by_the_watch
+    && let Err(error) = crate::blocking_job::run_blocking_job(move || {
+        locks.sweep();
+    })
+    .await
+{
+    crate::diagnostic_log::debug("transactionGit", format!("the lock files of the stopped step were not swept: {error}").as_str());
 }
 
-/// The signatures this record proposes.
-impl ChildWatch {
-    /// A watch that calls the caller once it has ended its child.
-    pub fn start_after_the_stop(
-        waiting_for: &str,
-        pid: u32,
-        terms: WatchTerms,
-        after: std::sync::Arc<dyn AfterTheStop>,
-    ) -> Self;
+// package/git-policy/cli/src/native/repo_read/git_metadata.rs
+let locks: crate::stopped_git_locks::LockLedger =
+    crate::stopped_git_locks::LockLedger::before_start(&command);
+let watched: crate::child_watch_one_shot_run::WatchedOutput = output_watched_within(
+    &mut command, subject.as_str(), subject.as_str(), terms, true, StepBound::EndAt(ceiling),
+)?;
+if watched.ended_by_the_watch {
+    let _swept: Vec<std::path::PathBuf> = locks.sweep();
 }
-```
-
-and the same real call site,
-`transaction/transaction_git.rs:386`:
-
-```rust
-//! package/git-policy/cli/src/native/transaction/transaction_git.rs
-/// The ledger the program hands the watcher.
-struct SweepTheLocks {
-    /// The ledger.
-    ledger: LockLedger,
-}
-
-/// What the program wants done once its child is gone.
-impl crate::child_watch::AfterTheStop for SweepTheLocks {
-    /// Sweep the locks of the stopped step.
-    fn after_the_stop(&self) {
-        self.ledger.sweep();
-    }
-}
-
-let watch: ChildWatch = ChildWatch::start_after_the_stop(
-    step.subject.as_str(),
-    child.id(),
-    step.terms,
-    std::sync::Arc::new(SweepTheLocks {
-        ledger: LockLedger::before_start(&step.command),
-    }),
-);
+watched.output
 ```
 
 What it delivers:
 the same library entry as A,
-and the sweep stays inside the watcher's task,
-where it runs through `run_blocking_job` as it does today,
-and where a dropped watch still sweeps.
-A caller reads no flag,
-so no caller can lose the sweep by returning early.
+and no new folder use beyond the two above.
 
-What it costs a caller:
-an allocation and a type per call site,
-and a behaviour handed across a crate boundary,
-which the plan's own note disfavours for these changes:
-"none of the changes below hands a closure;
-each hands a value or an enum"
-(target tree,
-lines 6378-6382).
-A trait object is not a closure,
-but it is the same shape and the same cost to reason about,
-and the library would define a trait whose only implementation is the program's.
-Whether `LockLedger` can be the state of a `Send + Sync` implementation is untried:
-it is `Clone, Debug` and holds `Vec<PathBuf>` and an optional judge
-(`lock/stopped_git_locks.rs:95-103`),
-and it is already `Send` because `stop_process` moves a clone into a blocking job;
-nothing shows it is `Sync`,
-and a compile is what says.
+What it costs:
+18 control lines in three files read `WatchedOutput` instead of `Output` (compiler-counted:
+the first check of this drawing printed 16 `E0308` and 2 `E0609` in three control files),
+so the round edits controls the earlier draft did not list;
+`git_metadata.rs` moves to the innermost function,
+which the earlier draft did not draw;
+and the sweep's moment moves from the watcher's ending to the caller's reading.
 
-Which tests change:
-as A,
-plus a stand-in `AfterTheStop` in every control that starts a watch.
+Worked case:
+the same landing step and the same stop.
+The synchronous face sweeps inline after the watch answers;
+the awaited face sweeps on the blocking pool;
+`git_metadata.rs` sweeps after its watched read.
+A caller that reads the answer late but does read it sweeps;
+a caller that drops the watch and returns during the stop sweeps nothing,
+and the lock waits for the next command's stale-lock judgement.
 
-What it leaves undone:
-nothing the change names,
-and the watcher's own task grows one call it cannot see into.
+Compiled:
+this shape was put into this worktree and
+`cargo check --locked --offline --all-targets` printed
+`Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 27.89s`,
+with no error and no warning. Changes: 8 files, 150 insertions and 45 deletions.
+With the awaited face left as it was, the same check prints
+`src/native/transaction/transaction_git_awaiting.rs:291:58:
+error[E0308]:
+mismatched types:
+expected \`Result<Output,
+Error>\`,
+found \`Result<WatchedOutput,
+Error>\``,
+so that combination cannot be built.
 
-### Whether it is feasible
-
-The only compiler check is of A's removal,
-not of A:
-the throwaway branch `probe/after-stop-action-a` removed the `locks` parameter
-from the faces and from `stop_process`,
-removed the sweep and the ledger builds,
-and dropped the argument from the test call sites.
-`cargo check --locked --offline --all-targets` in `package/git-policy/cli` was run on it twice,
-under a scope capped at 10G of memory and 4 CPUs;
-the first run answered two errors in
-`child_watch_drop_time_measurement_tests.rs:183`,
-where a measurement builds a ledger and had been getting the type through
-`child_watch.rs`'s import,
-and the second run printed no error and ended with the compiler's own line,
-whose backticks are the compiler's:
-
-```text
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 43.32s
-```
-
-That shows the watcher files compile without a ledger.
-It does not show that the callers can get a flag,
-that the awaited face can sweep,
-or that a control of the watcher's sweep still means anything;
-none of those was compiled.
-Neither signature's own shape has been through a compiler.
+A yes leaves undecided:
+whether the five convenience functions keep answering `WatchedOutput` or map it away for their callers,
+which is a shape the round chooses when it edits the 18 control lines.
 
 ### Ranking
 
-B > A.
+A > B.
 
 The measure:
 what each delivers to the split,
-which here is the library folder's `uses/` line,
-against what it changes for a stopped step whose locks are swept.
+which here is the same library folder for both,
+against what each changes for a stopped step whose locks are swept.
 
-- B over A:
-  both deliver the same library entry,
-  and B keeps the sweep where it runs today,
+- A over B:
+  both remove the same use,
+  and A keeps the sweep where it runs today,
   inside the watcher's task on the blocking pool,
-  and keeps a dropped watch swept;
-  A moves the sweep to every caller,
-  which must each reach the blocking pool themselves,
-  and loses the sweep on the paths that end a watch without reading it.
-  A's advantage is a plain value and a flag instead of a trait object,
+  so the stop-under-way window keeps its sweep;
+  B moves the sweep to every caller and loses it in that window,
+  and it edits 18 control lines against A's 7.
+  B's advantage is a plain answer value instead of a trait object,
   which is the shape the target tree asks for,
-  and B's cost is the trait whose only implementation is the program's.
-
-This is the earlier draft's ranking reversed.
-It rested on `repo_read/git_metadata.rs:443` passing no ledger,
-which is false:
-that read reaches `LockLedger::before_start`
-through `output_watched_within` and its ended reads are swept today.
-The one path that drops a watch with no ledger is `candidate_reader.rs:315`,
-where nothing is swept today and nothing would be swept under either signature.
+  and that is a cost of A's shape,
+  not a reason to rank A lower.
 
 ## 4. Current step record
 
 ### Where the call is today
 
-- `package/git-policy/cli/src/native/transaction/transaction_git_step_about_to_start.rs:229`:
-  `enter_step(format!("{} in {}", command_text(&request.arguments), request.cwd.display()))`,
-  held in the returned `StepAboutToStart` as `record` and dropped with the step.
-- `package/git-policy/cli/src/native/transaction/transaction_git_step_bounds.rs:113`:
-  `if crate::service_busy_step_record_on_this_thread::on_landing_thread() {`,
-  inside `not_ended_bound`,
-  which `step_bound(request: &GitRequest)` reaches at line 80.
-  The request is already the argument of `step_bound`,
-  so a fact the bound needs
-  is a fact the request can carry.
-- `package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs:230` and
-  `child_watch_output_watched_on_the_runtime.rs:235`:
+- `package/git-policy/cli/src/native/transaction/transaction_git_step_about_to_start.rs:228`:
+  `let record: Option<StepGuard> = if matches!(bound, StepBound::Unbounded) { enter_step(...) } else { None };`,
+  whose comment says "only such a step is announced" (lines 214 to 222).
+  The guard is held in the value the function answers,
+  so the record lives as long as the step does.
+- `package/git-policy/cli/src/native/transaction/transaction_git_step_bounds.rs:112`:
+  `not_ended_bound(class_ceiling)`,
+  which asks `crate::service_busy_step_record_on_this_thread::on_landing_thread()` (line 113)
+  and answers `StepBound::Unbounded` on a landing,
+  else `leave_running_bound(class_ceiling)`.
+  `step_bound(request: &GitRequest)` reaches it at line 80.
+- `package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs:231` and
+  `push/child_watch_output_watched_on_the_runtime.rs:236`:
   `crate::service_busy_step_record_on_this_thread::on_landing_thread(),`
   as the first argument of `begin_unfinished_work`.
 - The record itself:
@@ -1481,201 +1350,98 @@ where nothing is swept today and nothing would be swept under either signature.
   (`on_landing_thread` at line 109,
   `use_on_this_thread` at 114,
   `enter_step` at 176),
-  which reads and writes through
-  `task_local! { static LANDING: LandingState; }`
-  (`landing/landing_state_carried_by_its_task.rs:44-48`)
-  and names `service_busy`'s
-  `LandingBoard`,
+  which reads and writes through `task_local! { static LANDING: LandingState; }`
+  (`package/git-policy/cli/src/native/landing/landing_state_carried_by_its_task.rs:47`)
+  and writes through `service_busy`'s `LandingBoard`,
   `STEP_FILE` and `now_millis`.
 - The landing that registers its board:
-  `package/git-policy/cli/src/native/service/service_server.rs:174`:
-  `crate::service_busy_step_record_on_this_thread::use_on_this_thread(Arc::clone(&board));`,
+  `package/git-policy/cli/src/native/service/service_server.rs:174`,
   and the detail a landing sets:
-  `landing/service_land_attempt_branch_move.rs:99`.
+  `package/git-policy/cli/src/native/landing/service_land_attempt_branch_move.rs:99`.
 
-What moved since 2026-11-27:
-nothing in the call.
-What the state is has moved since the plan was written:
-it is task-carried,
-not thread-local.
 The owner's choice 4 was "Rewrite per-thread state",
 and the plan that records it says each `thread_local!` becomes a task-local or a context value
-(`doc/planning/git-policy-cli-full-tokio.md`,
-lines 1655-1657),
-and lists "the board and the detail of a never-ended write"
-among the ten that went into the task-local (lines 3370-3376).
+(`doc/planning/git-policy-cli-full-tokio.md:1655-1657`).
 The target tree's word "thread-local" predates that.
-A thread-local would not misread today,
-because the landing is one synchronous loop,
-but it would the day the landing runs as a task,
-which `in_a_landing_task` exists for.
 
 ### What the plan says it becomes
 
 The target tree's signature:
 "`transaction_git` stops calling `service_busy::enter_step` and `on_landing_thread`.
 A thread-local record (step file path and detail) moves to the new program file `current_step_record`
-in the folder `how_long_the_program_waits_for_git_steps`
-(it names Git steps,
-so it does not go to a library);
+in the folder `how_long_the_program_waits_for_git_steps` ...
 the runner writes it,
-the landing code
-registers its file path there,
-and `LandingBoard` stays in `service_busy`.
-The two functions listed as removed in the
-group map are `service_busy_step_record_on_this_thread::enter_step` and `::on_landing_thread`"
-(lines 6455-6466).
+the landing code registers its file path there,
+and `LandingBoard` stays in `service_busy`"
+(`doc/planning/cli-git-source-layout-target-tree.md:6455-6466`).
 
 The plan's prose:
 "a small \"current step\" record in the basic tools that the runner writes and the service reads"
-(line 455),
+(`doc/planning/cli-git-source-layout.md:455`),
 which is a third placement again.
 
 Which folder stops depending on which:
-no line of the allow list today,
+no allow-list line today,
 measured by the survivor:
 `transaction` keeps `service` through `wait_ceilings`
-(`transaction/transaction_phase.rs:42`,
-`transaction_git_step_bounds.rs:29,91,93`).
-At step 7 `wait_ceilings` becomes `longest_waits.rs` in `how_long_the_program_waits_for_git_steps`
-(target-tree-files,
-line 1218),
-and then the transaction folder uses only that low folder.
-The delivery that matters now is the library's:
-`landing_commits` out of the watcher library's `uses/` line (line 322),
-which needs the two push call sites in this change,
+(`package/git-policy/cli/src/native/transaction/transaction_phase.rs:42`).
+The delivery that matters is the watcher library's:
+`landing_commits` out of the library's `uses/` line
+(`doc/planning/cli-git-source-layout-target-tree-files.md:322`),
+which needs the two watched-run sites in this change,
 not only `transaction_git`.
 
-### Signature A: the record as it is, moved, still task-carried
+The overlapped change:
+the target tree's "Plain terms for the watcher"
+(`doc/planning/cli-git-source-layout-target-tree.md:6514-6522`) takes
+`WatchTerms::for_class` out of `child_watch_clock_marks_and_stopping` at step 5,
+and this round adds a field to `WatchTerms` and a parameter to `for_class`.
+Both edits land on one function,
+in two steps,
+and the second is small.
+
+### How many places build the two kinds of value
+
+Measured in this round:
+
+- 27 release functions return a `GitRequest`
+  (`rg -n -- "-> GitRequest" src -g '*.rs' -g '!*_tests.rs'`):
+  18 in `landing/`,
+  4 in `commit/`,
+  3 in `worktree/`,
+  1 in `config/` and 1 in `shadow/`.
+  `GitRequest` derives `Default`
+  (`package/git-policy/cli/src/native/transaction/transaction_git_request_and_reply_types.rs:88`),
+  so a new field of a defaultable type compiles at all 27 without a word.
+  Which of the 27 run on a landing is not enumerated by any read of this round:
+  the answer today is ambient,
+  so any step started while the landing runs carries it.
+- 63 initializers of `GitContext` in the crate,
+  22 in release code and 41 in controls,
+  counted by the compiler:
+  with a field added,
+  `cargo check` printed one `E0063` for each
+  (41 in release files counting the two builds,
+  22 distinct).
+  `GitContext` has no `Default`,
+  and it derives `Eq` and `PartialEq`,
+  so a field on it must itself be `Eq` and `PartialEq`:
+  the same run printed
+  `error[E0277]: the trait bound \`CurrentStepRecord:
+  std::cmp::Eq\` is not satisfied`
+  and `error[E0369]:
+  binary operation \`==\` cannot be applied to type \`CurrentStepRecord\``.
+
+### Signature A: the record rides the run's `GitContext`
 
 ```rust
-//! package/git-policy/cli/src/native/service/current_step_record.rs,
-//! later how_long_the_program_waits_for_git_steps/current_step_record.rs
-/// The step the landing this task serves is inside,
-///  which is the one operation that waits for a step it cannot end.
-///  It is carried by the task,
-///  not by the thread,
-///  because a task moves between them.
-tokio::task_local! {
-    static THE_STEP_OF_THIS_LANDING: std::cell::RefCell<Option<LandingWrites>>;
-}
-
-/// Where one landing writes its step.
-struct LandingWrites {
-    /// The folder the step file lives in.
-    directory: PathBuf,
-    /// What the write that follows does.
-    detail: Option<String>,
-}
-
-/// Say where the landing this task serves writes the step it is inside.
-pub(crate) fn a_landing_writes_its_step_to(directory: PathBuf);
-
-/// Whether the calling task serves a landing.
-pub(crate) fn on_a_landing() -> bool;
-
-/// Say what the write that follows does,
-///  for as long as the guard lives.
-pub(crate) fn detail(text: String) -> DetailGuard;
-
-/// Record that this task is inside a step that is never ended,
-///  until the guard is dropped.
-pub(crate) fn enter_step(command: &str) -> Option<StepGuard>;
-```
-
-and one real call site rewritten,
-`transaction/transaction_git_step_about_to_start.rs:229`:
-
-```rust
-//! package/git-policy/cli/src/native/transaction/transaction_git_step_about_to_start.rs
-// Today's line calls `enter_step` unconditionally and the record itself decides
-// whether this task is a landing; this keeps that and only moves where the record lives.
-let record: Option<crate::current_step_record::StepGuard> = crate::current_step_record::enter_step(
-    format!("{} in {}", command_text(&request.arguments), request.cwd.display()).as_str(),
-);
-```
-
-and the two watched-run sites take the answer in the terms,
-because the watcher may not name the program's record:
-
-```rust
-//! package/git-policy/cli/src/native/push/child_watch_clock_marks_and_stopping.rs
-/// The terms a watch runs under.
-pub struct WatchTerms {
-    // ... the quiet window, the notice grace and where notices go ...
-    /// Whether the caller serves a landing,
-    ///  where a step is never ended.
-    pub on_a_landing: bool,
-}
-
-/// The terms a step of `class` runs under,
-///  with the landing answer the caller's request holds.
-pub fn for_class(class: ChildClass, on_a_landing: bool) -> Self;
-
-// package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs
-let mut unfinished: Unfinished = match begin_unfinished_work(terms.on_a_landing, waiting_for) { /* ... */ };
-```
-
-What it delivers:
-`landing_commits` out of the watcher library's `uses/` line (322),
-and,
-after step 7,
-the transaction folder's use of `service` gone.
-No allow-list line today.
-
-What it costs a caller:
-the landing registers a directory instead of a board (`service_server.rs:174`),
-the record grows its own clock and its own step file name,
-replacing `now_millis` and `STEP_FILE` from `service_busy`,
-and every maker of `WatchTerms` sets the new field:
-`for_class` has 6 callers and `WatchTerms {` is written 24 times in 7 test files
-(`rg -c "WatchTerms \{" -g '*_tests.rs'`).
-The record stays state no line records,
-which is what the folder rule cannot see and what let the tangle grow.
-
-Which tests change:
-`service_busy_tests.rs`,
-`transaction_git_tests.rs`,
-`service_land_hung_write_tests.rs`,
-`service_land_tests.rs`,
-and `child_watch_tests.rs`,
-beside the seven files that write a `WatchTerms` literal.
-
-What it leaves undone:
-`LandingBoard`'s reader of the step file
-(`service/service_busy_words_of_a_stuck_write.rs:33`) reads the path the record writes,
-so the file's name is known in two places,
-and `git_metadata.rs:443`'s read,
-which is built with no request in scope
-(the function takes arguments,
-an overlay,
-a ceiling and an ending),
-would pass `false` where today a read on the landing answers `true`.
-That is a real loss of a safety default,
-and it is A's too:
-the watched read has no request to ask,
-so its answer has to be handed to it
-by whoever built its command.
-
-### Signature B: the record is a value the request holds
-
-The carrier is `GitRequest`,
-the type the runner already has,
-not a new request type:
-`GitRequest` is `#[derive(Clone, Debug, Default)]`
-(`transaction/transaction_git_request_and_reply_types.rs:89`)
-and a record of a folder and an optional detail is `Default` too,
-so no lifetime and no constructor changes.
-
-```rust
-//! package/git-policy/cli/src/native/service/current_step_record.rs,
-//! later how_long_the_program_waits_for_git_steps/current_step_record.rs
-/// Where one landing writes the step it is inside,
+//! package/git-policy/cli/src/native/transaction/transaction_git_request_and_reply_types.rs
+/// Where the landing a run serves writes the step it is inside,
 ///  and what that step does.
-#[derive(Clone, Debug, Default)]
-pub struct CurrentStepRecord {
-    /// The folder the step file lives in,
-    ///  which is empty when this step runs anywhere but a landing.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CurrentStepRecord {
+    /// The folder the step file lives in;
+    ///  none when this run is not a landing.
     directory: Option<PathBuf>,
     /// What the write that follows does.
     detail: Option<String>,
@@ -1683,126 +1449,193 @@ pub struct CurrentStepRecord {
 
 /// The record's own steps.
 impl CurrentStepRecord {
+    /// The record of a run that is not a landing.
+    pub(crate) fn nothing() -> CurrentStepRecord;
     /// The record of the landing that writes into `directory`.
-    pub fn in_the_landing_at(directory: PathBuf) -> CurrentStepRecord;
-    /// The same record,
-    ///  saying what the next write does.
-    pub fn doing(&self, text: String) -> CurrentStepRecord;
-    /// Record that this task is inside a step that is never ended,
+    pub(crate) fn in_the_landing_at(directory: PathBuf) -> CurrentStepRecord;
+    /// Whether this run is a landing,
+    ///  where a step is never ended.
+    pub(crate) fn on_a_landing(&self) -> bool;
+    /// Record that this step is inside a step that is never ended,
     ///  until the guard is dropped.
-    pub fn enter(&self, command: &str) -> Option<StepGuard>;
-    /// Whether this step runs on a landing,
-    ///  where it is never ended.
-    pub fn on_a_landing(&self) -> bool;
+    pub(crate) fn enter(&self, command: &str) -> Option<StepGuard>;
 }
-```
 
-and the request carries it:
-
-```rust
-//! package/git-policy/cli/src/native/transaction/transaction_git_request_and_reply_types.rs
-/// One step of a transaction as its runner receives it.
-#[derive(Clone, Debug, Default)]
-pub struct GitRequest {
-    // ... the arguments, the directory, the class and the terms, as today ...
-    /// The landing's step record,
-    ///  which the service hands to every step it runs;
-    ///  the default is a step outside a landing.
+/// What:
+///  The run a request belongs to.
+/// Why:
+///   It is built once per operation and passed down,
+/// so a fact of the run belongs here and not on a request.
+pub struct GitContext {
+    // ... the real Git, the overlay, the global prefix and the common Git directory, as today ...
+    /// Where the landing this run serves writes the step it is inside.
     pub step_record: CurrentStepRecord,
 }
 ```
 
-and one real call site rewritten,
-the same `step_about_to_start`,
-together with the bound the request now decides:
+and the bound asks the run,
+while the guard stays where it is:
 
 ```rust
-//! package/git-policy/cli/src/native/transaction/transaction_git_step_about_to_start.rs
-let record: Option<crate::current_step_record::StepGuard> = request.step_record.enter(
-    format!("{} in {}", command_text(&request.arguments), request.cwd.display()).as_str(),
-);
+//! package/git-policy/cli/src/native/transaction/transaction_git_step_bounds.rs
+/// What:
+///  What ends a step:
+/// a ceiling,
+///  a stop,
+///  or nothing.
+/// Why:
+///   Both faces pass the same bound,
+/// so a step cannot be waited for longer on one of them.
+pub(crate) fn step_bound(context: &GitContext, request: &GitRequest) -> StepBound {
+    // ... the class ceiling, as today ...
+    if may_be_ended(request) {
+        return StepBound::EndAt(class_ceiling);
+    }
+    if is_side_ref_write(request) {
+        return leave_running_bound(class_ceiling);
+    }
+    return not_ended_bound(class_ceiling, context.step_record.on_a_landing());
+}
 
-// package/git-policy/cli/src/native/transaction/transaction_git_step_bounds.rs
 /// The bound of a step that is never ended:
 ///  unbounded on a landing,
-///  else left running after the class ceiling plus the short extra wait.
+///  else left running.
 fn not_ended_bound(class_ceiling: Duration, on_a_landing: bool) -> StepBound {
     if on_a_landing {
         return StepBound::Unbounded;
     }
     return leave_running_bound(class_ceiling);
 }
+
+//! package/git-policy/cli/src/native/transaction/transaction_git_step_about_to_start.rs
+// Only a step that is never ended is announced, as today.
+let record: Option<StepGuard> = if matches!(bound, StepBound::Unbounded) {
+    context.step_record.enter(
+        format!("{} in {}", command_text(&request.arguments), request.cwd.display()).as_str(),
+    )
+} else {
+    None
+};
 ```
 
 What it delivers:
-the same as A,
-and the value makes the use visible to the folder rule,
-so a program folder cannot reach the record without naming it,
-and the watcher's answer arrives with the record instead of beside it.
+the same library line as the other shapes,
+with a use the folder rule can see;
+a record every build site must answer,
+because `GitContext` has no `Default`;
+and no need to know which of the 27 request builders is reached from a landing,
+which is the fact nothing in this round could count.
 
-What it costs a caller:
-a field on the type that 503 lines of 143 files name
-(`rg -n "GitRequest" -g '*.rs' | wc -l` and `rg -l ... | wc -l`,
-122 of the files release ones),
-which is a cost only where a request is built for a landing:
-the `Default` keeps every other construction as it is.
+What it costs:
+a field at all 63 `GitContext` initializers,
+each refused by the compiler until it answers
+(22 release,
+41 control);
+`Eq` and `PartialEq` on the record;
+and a `step_bound` that takes the context,
+which is two call sites in the two faces.
 
-The name `StepRecord` is taken:
-`account_companion/companion_records.rs:45` already declares `pub struct StepRecord`,
-and the crate re-exports flat today,
-so a second type of that name would invite an ambiguous path at step 6.
-`CurrentStepRecord` is free.
+Worked case:
+a landing runs `git update-ref`;
+the context the landing built carries `CurrentStepRecord::in_the_landing_at(<the board's folder>)`,
+`step_bound` answers `StepBound::Unbounded`,
+`step_about_to_start` enters the step because the bound is unbounded,
+and the client that reads the step file (`service/service_busy_words_of_a_stuck_write.rs:33`)
+sees the step while it runs.
+A read of one object started beside it,
+with the same context,
+takes the same answer,
+so its watch never ends it.
+A command outside the service builds its context with `CurrentStepRecord::nothing()`,
+gets `leave_running_bound` for a not-rerunable step,
+and no file is written.
 
-Which tests change:
-as A,
-plus every test that builds a request for a landing,
-and the 24 `WatchTerms {` literals and 6 `for_class` callers either way.
+A yes leaves undecided:
+where the record's file writer lives
+(the drawing keeps `service_busy`'s writer and moves only the carrier and the guard),
+and how the watcher's `begin_unfinished_work` answer reaches the two watched-run sites,
+which is the same `WatchTerms` field under either carrier.
 
-What it leaves undone:
-the same file-name duplication as A,
-unless the board is handed the name from the record,
-and `git_metadata.rs:443`'s read,
-which still needs its answer handed to it:
-that read takes no request,
-so its callers must pass the flag down,
-and that is a parameter through `git_metadata`'s own callers.
+### Signature B: the record stays task-carried, and moves to a program file
 
-### Whether it is feasible
+The record is today's `task_local!`,
+moved out of `service_busy` into
+`how_long_the_program_waits_for_git_steps/current_step_record.rs`,
+with `enter_step`,
+`on_landing_thread`,
+`use_on_this_thread` and the file's writer beside it,
+and `LandingBoard` left in `service_busy`.
+The watcher's answer rides a field on `WatchTerms` (`on_a_landing: bool`),
+set by whoever builds the terms.
 
-A is feasible on the reading and not tried with a compiler.
-B is feasible on the reading and not tried.
-The doubt was whether the new low file can write the step file without naming `service_busy`,
-and it can:
-`enter_step` needs a directory,
-a detail and a clock
-(`service_busy_step_record_on_this_thread.rs:176-190`),
-all three of which the record can hold,
-and `STEP_FILE` is a constant whose value can sit beside the writer.
-The other doubt,
-whether the bound can read the request,
-is settled by `step_bound(request: &GitRequest)` already taking it.
+What it delivers:
+the same library line,
+and no build site to answer,
+because the answer comes from the task.
+What it costs:
+the record stays state no line records,
+which is what the folder rule cannot see;
+20 `WatchTerms {` literals in seven control files must set the new field
+(`rg -c "WatchTerms \{" -g '*_tests.rs'`),
+and six call sites of `for_class` pass the answer.
+
+Worked case:
+the same landing step;
+the answer comes from the task the landing runs in,
+and the step file is written exactly as today.
+
+A yes leaves undecided:
+the same two items as A,
+and whether the state becomes a value later.
+
+### Signature C, not offered: a field on `GitRequest`
+
+`GitRequest` is the value the runner already has,
+and a record of a folder and an optional detail would be a natural field.
+It is not offered because its default cannot be made safe:
+`GitRequest` derives `Default`,
+so a field of a defaultable type compiles at all 27 builders without a word,
+and a step built without the field would answer "not a landing",
+which is `leave_running_bound`,
+which ends a landing's write mid-flight.
+Making the record non-defaultable is refused by the compiler while `GitRequest` derives `Default`:
+with the field added and the derive removed from the record,
+`cargo check` printed
+`src/native/transaction/transaction_git_request_and_reply_types.rs:170:5: error[E0277]:
+the trait bound \`CurrentStepRecord:
+std::default::Default\` is not satisfied`.
+With the derive kept, the same tree compiles green
+(`Finished \`dev\` profile ... in 27.44s`,
+3 files,
+57 insertions) and that silence is exactly the defect.
 
 ### Ranking
 
-B > A.
+A > B > C.
 
 The measure:
-what each delivers to the split,
-which is the same library line for both,
-against what it changes for a step that may start after a stop.
+what each makes visible to the folder rule,
+against what each can silently get wrong.
 
-- B over A:
-  both remove the same use,
-  and B removes it in a way the folder rule can see,
-  so the tangle cannot regrow through a name no line records;
-  B also gives the watcher its answer in the same value,
-  where A needs a second field beside the task-local state.
-  A's advantage is real:
-  a field on the request is more sites than a task-local,
-  and it is effort,
-  which is a cost and not a reason to rank lower.
+- A over B:
+  both deliver the library line,
+  and A puts the use where a line can record it,
+  so a program folder cannot reach the record without naming it and the tangle cannot regrow through a name;
+  B leaves the use invisible and keeps the tangle's cause.
+  A's cost is 63 sites against B's none,
+  which is effort.
+- B over C:
+  B cannot be forgotten,
+  because nothing has to be remembered;
+  C compiles at all 27 builders with the wrong answer for a landing step,
+  and cannot be made to refuse that by the compiler while `GitRequest` derives `Default`.
 
 ## 5. Run this next
+
+Told here and not asked:
+both recursions are this change
+(`doc/planning/cli-git-source-layout.md:111-115`).
+What follows is what the round would write and what this round found out about it.
 
 ### Where the call is today
 
@@ -1814,1009 +1647,690 @@ The push half:
   `pub fn gated_merge_push(...) -> Result<i32, SingleFlightError>` at line 209,
   whose last two lines are
   `let action: Action = plan_invocation(arguments.as_slice(), environment.as_slice(), &inputs);`
-  and `return Ok(run_planned(action));` (lines 226-227).
+  and `return Ok(run_planned(action));` (lines 226 to 227).
 - `fn run_planned(action: Action) -> i32` at line 119,
   whose `Action::ForwardPush` arm calls `run_stacked_push(&forward, &gated_merge_push)` at line 161.
 - `package/git-policy/cli/src/native/push/push_stacking.rs:353`:
   `pub fn run_stacked_push(forward: &PushForward, merge_push: MergePush<'_>) -> i32`,
-  whose loop state is `StackRequest<'a>` (line 110),
-  whose step is `stack_failed_push(request: &StackRequest<'_>, failed_code: i64, err: &mut dyn Write) -> Option<i32>` (line 195),
-  and whose decision is taken by its answer.
+  whose loop state is `StackRequest<'a>` (line 110)
+  and whose step is `stack_failed_push(...) -> Option<i32>` (line 195).
 - The top level that would run the next command:
-  `invocation/entry.rs:580` (`return run_stacked_push(&forward, &gated_merge_push);`)
+  `package/git-policy/cli/src/native/invocation/entry.rs:580`
   and `invocation/entry_run_forwarded_actions.rs`,
-  which `entry.rs:543` reaches through `run_coordinated_action(&forward)`.
+  which `package/git-policy/cli/src/native/invocation/entry.rs:543` reaches.
 
 The merge half:
 
 - `package/git-policy/cli/src/native/merge/merge_second_pass_finish.rs:63`:
   `use crate::entry::run_nested_process;`,
-  `fn run_nested(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32` at line 308,
-  counting `NESTED_FINISHES` around `run_nested_process(arguments, environment)` (lines 312-314),
+  `fn run_nested(...) -> i32` at line 308,
+  counting `NESTED_FINISHES` around `run_nested_process` (lines 312 to 314),
   called at lines 340,
   392 and 418.
 - `NESTED_FINISHES` and `FINISH_BUDGET`
-  (`merge/merge_second_pass_finish_nesting.rs`,
-  with `finish_budget` and `nesting_allows`),
-  and `plan_finish` refusing at `merge_second_pass_finish.rs:215-221`
-  when the budget is spent,
-  which leaves the operation stopped and Git's own status standing.
+  (`merge/merge_second_pass_finish_nesting.rs:31` and `:35`,
+  with `finish_budget` at 76 and `nesting_allows` at 91),
+  and `plan_finish` refusing at `package/git-policy/cli/src/native/merge/merge_second_pass_finish.rs:219`
+  when the budget is spent.
+  It is a **depth**:
+  `NESTED_FINISHES` is added before and subtracted after each nested process,
+  and `nesting_allows(running, budget)` compares that depth with the budget.
 - `invocation/entry.rs:614`:
-  `pub fn run_nested_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32`.
-- What runs on the status afterwards,
-  which the earlier draft's loop could not do:
+  `pub fn run_nested_process(...) -> i32`.
+- What runs on the status afterwards:
   inside `finish`,
-  the commit step's status decides whether
-  `cherry-pick --continue` runs at line 418
-  (a clean pick whose `sequencer/todo` still has lines gets a second command);
+  the commit step's status decides whether `cherry-pick --continue` runs (line 418);
   after `finish` answers,
-  `merge_second_pass_worktree::resolve_after`
-  reads the index again when the status is not zero and prints what it holds
-  (`merge_second_pass_worktree.rs:116` and 267-285);
+  `merge_second_pass_worktree::resolve_after` reads the index when the status is not zero
+  (`package/git-policy/cli/src/native/merge/merge_second_pass_worktree.rs:116`);
   and after that,
-  `lock/index_writer_forward.rs:342-358` sweeps the worktrees a merge landed,
-  with the final status.
+  `lock/index_writer_forward.rs:342` sweeps the worktrees a merge landed.
 - The path the status travels up:
-  `finish` (line 356) is called by `merge_second_pass_worktree.rs:267`,
-  whose `resolve_after(...) -> Option<i32>` (line 116) is called by
-  `lock/index_writer_forward.rs:342` inside `run_coordinated_forward(...) -> CoordinatedRun` (line 202),
+  `finish` (line 356) is called by `package/git-policy/cli/src/native/merge/merge_second_pass_worktree.rs:267`,
+  whose `resolve_after` is called by `lock/index_writer_forward.rs:342`
+  inside `run_coordinated_forward(...) -> CoordinatedRun` (line 202),
   which `entry.rs`'s `ForwardCoordinated` arm runs.
-
-What moved since 2026-11-27:
-nothing in the call.
-The handover leaves out the merge half,
-which is where the budget lives and where the status has four functions to travel through.
+  `second_pass_watch` is a local of that function (line 308),
+  not of `entry.rs`.
 
 ### What the plan says it becomes
 
-"Run this next (replaces the two in-process recursions ...).
-New file `what_a_command_hands_back` in the program folder `starting_git_and_describing_a_run`
-defines `NextCommand { arguments, environment }` and `Finished { code, stdout, stderr }`.
-`gated_merge_push` returns `Result<NextCommand, SingleFlightError>` ...
-The stacking loop in `push_stacking` becomes a step function:
-`StackingStep::{Done(i32), RunThis { command: NextCommand, resume: StackingState }}` ...
-`merge_second_pass_finish::run_nested` becomes `FinishStep::{Done(i32), RunThis(NextCommand)}`;
-the nesting counter `NESTED_FINISHES` moves to the loop.
-Consumer:
+"New file `what_a_command_hands_back` in the program folder `starting_git_and_describing_a_run`
+defines `NextCommand { arguments, environment }` and `Finished { code, stdout, stderr }`" ...
+"The stacking loop in `push_stacking` becomes a step function:
+`StackingStep::{Done(i32), RunThis { command: NextCommand, resume: StackingState }}`" ...
+"`merge_second_pass_finish::run_nested` becomes `FinishStep::{Done(i32), RunThis(NextCommand)}`;
+the nesting counter `NESTED_FINISHES` moves to the loop" ...
+"Consumer:
 the top-level loop in the program crate (`entry_run_forwarded_actions`) runs the command with
 `entry::run_process`'s planning,
 feeds the status back to the step function,
 and repeats until `Done`.
 A depth guard replaces the counter"
-(lines 6434-6454).
+(`doc/planning/cli-git-source-layout-target-tree.md:6434-6454`).
 
-The owner settled that both recursions are this change:
-"The two in-process recursions (`stacked_merge_push` planning a new invocation,
-`merge_second_pass_finish` running a nested command):
-"A:
-hand back 'run this next' (Recommended)":
-the part returns the next command and the top level runs it in its own loop"
-(`cli-git-source-layout.md`,
-lines 111-115).
-So the earlier draft's fifth question,
-whether the merge half is in this round,
-is answered by the record and is told here,
-not asked.
+### Which folder stops depending on which
 
-Which folder stops depending on which:
-no line of the allow list today,
-measured by the survivors:
-`push` keeps `invocation` through `push_stacking.rs:34` (`crate::action::PushForward`)
-and `:60` (`crate::child_environment::environment_with_overlay`),
-`bounded_push.rs:215` (`crate::forwarding::ChildOutcome`),
-`manual_push_lifecycle.rs:408` (`crate::typed_network_command_relay`).
-The merge half is the one that kills a line today:
-`uses src/native/merge -> src/native/invocation` (`folder-rule.txt:820`)
-rests on one file,
-`merge_second_pass_finish.rs`'s `use crate::entry::run_nested_process`
-(`rg -ln "crate::entry|crate::plan_invocation|crate::run_nested_process|crate::action::" src/native/merge/*.rs` answers that file alone).
-The push half kills none by itself:
-`stacked_merge_push.rs` becomes
-`push_of_a_merge_that_integrated_a_lost_race.rs` in `working_out_what_a_typed_push_would_send`
-(target-tree-files,
-line 3755),
-whose `uses/` line (3757) names both
-`starting_git_and_describing_a_run` and `what_happens_when_you_type_a_command`,
-and would lose the second,
-not the first;
-and the folder keeps the pair until `PushForward` moves into `push_stacking`,
-which the plan's items ask for and `main` has not done (`push_stacking.rs:34` still imports it from `crate::action`).
+No allow-list line today for the push half.
+For the merge half,
+`uses src/native/merge -> src/native/invocation`
+(`package/git-policy/cli/layout-allow-list/folder-rule.txt:820`) stays alive:
+ten release files of `merge/` name `invocation` modules
+(`rg -ln "crate::(entry|plan_invocation|run_nested_process|action::|child_environment|forwarded_command|escape_hatch|repository_selection)" src/native/merge -g '*.rs' -g '!*_tests.rs'`),
+and only one of them names `run_nested_process`.
+So the delivery of this change is the rule the plan wants restored,
+"the top level is called only from the top",
+not a line.
+An earlier draft claimed the line rested on one file;
+that was wrong.
 
-The earlier draft said the push folder's line at 3725 names `starting_git_and_describing_a_run` and would lose it.
-3725 is the `uses/` line of `who_owns_a_transaction_folder`;
-the push folder's is 3757.
-The merge folder `rerunning_a_merge_word_by_word` does name `what_happens_when_you_type_a_command`
-(its `uses/` line,
-2263),
-so its gain is what the earlier draft said,
-for the folder it said it about.
+At step 7,
+the push half takes `what_happens_when_you_type_a_command` out of
+`working_out_what_a_typed_push_would_send`'s `uses/` line (target-tree-files:3757)
+and out of `rerunning_a_merge_word_by_word`'s (2263).
 
-### Signature A: the plan's step functions, with the state they need
+### What the round would write, and what this round could not settle
 
-The earlier draft drew four names that exist nowhere
-(`StackingState`,
-`Ran`,
-`run_and_carry`,
-`NESTING_LIMIT`) and a step that could not run what happens after a nested command.
-Both are corrected here.
+The signatures the round would compile first,
+each named as new where it is new:
 
-```rust
-//! package/git-policy/cli/src/native/invocation/what_a_command_hands_back.rs
-/// One command the wrapper plans and runs as its own child.
-pub(crate) struct NextCommand {
-    /// The words after the program name.
-    pub arguments: Vec<OsString>,
-    /// The environment the command runs with.
-    pub environment: Vec<(OsString, OsString)>,
-}
+- `NextCommand { arguments, environment }` and `Finished { code, stdout, stderr }` in the new file;
+- `StackingState<'a>` (today's `StackRequest` plus the status its decision read) and
+  `StackingStep<'a>`;
+- `FinishStep` and a resume value per nested finish
+  (`EndingTheRebase`,
+  `Committing`,
+  `ContinuingTheSequence`),
+  because a finish hands up two commands
+  (the commit,
+  then `--continue`) and each needs its own continuation;
+- a `Pending` stack in `entry.rs`,
+  because a finish's second command can itself stop and hand one up;
+- the budget as a depth:
+  pushed when a finish is entered,
+  popped when it answers,
+  with `nesting_allows(running, finish_budget(...))` deciding,
+  as `plan_finish` does today.
 
-/// What the stacking loop carries between the commands it hands up.
-///  It is today's `StackRequest` plus the status its decision read.
-pub(crate) struct StackingState<'a> {
-    /// The push's facts.
-    pub git: &'a PushGit,
-    /// The global prefix of the arguments.
-    pub global_prefix: &'a [OsString],
-    /// The words after the subcommand.
-    pub region: &'a [OsString],
-    /// The way the wrapper integrates a merge.
-    pub merge_push: MergePush<'a>,
-}
+An earlier draft's drawing of this loop did not hold:
+its `Pending::Stacking` held a `StackingState<'static>` that cannot carry the borrows `StackingState<'a>` carries,
+`resume` was drawn with two arguments and matched against a type it does not return,
+its helper names existed nowhere,
+and `Finish` and `Watch` were called private when both are `pub struct`
+(`merge/merge_second_pass_finish.rs:151`,
+`merge/merge_second_pass_worktree_watch.rs:48`).
+Those are corrected here as shapes,
+not as compiled code:
+this round compiled nothing for run this next,
+because the merge half is the round itself.
 
-/// How a stacking step ends.
-pub(crate) enum StackingStep<'a> {
-    /// The stacking is over.
-    Done {
-        /// The status the process ends with.
-        code: i32,
-    },
-    /// Run this command,
-    ///  then hand its status back to the step function with `resume`.
-    RunThis {
-        /// The command to run.
-        command: NextCommand,
-        /// The state the status is handed back with.
-        resume: StackingState<'a>,
-    },
-}
-
-/// What a finished step does with the status of the command it handed up.
-enum FinishResume {
-    /// The rebase's `--continue`,
-    ///  whose status is the finish's own.
-    EndingTheRebase {
-        /// The plan the second pass made.
-        plan: Finish,
-    },
-    /// The commit that ends a stopped merge or pick.
-    Committing {
-        /// The plan the second pass made.
-        plan: Finish,
-        /// The environment the nested command runs in.
-        environment: Vec<(OsString, OsString)>,
-    },
-    /// The rest of a pick or revert sequence,
-    ///  when the commit landed and the todo list has lines.
-    ContinuingTheSequence {
-        /// The plan the second pass made.
-        plan: Finish,
-        /// The environment the nested command runs in.
-        environment: Vec<(OsString, OsString)>,
-    },
-}
-
-/// How a nested finish ends.
-pub(crate) enum FinishStep {
-    /// The finish is over.
-    Done {
-        /// The status the process ends with.
-        code: i32,
-    },
-    /// Run this command,
-    ///  then hand its status back to `resume`.
-    RunThis {
-        /// The command to run.
-        command: NextCommand,
-        /// What the finish does with the status.
-        resume: FinishResume,
-    },
-}
-
-/// What the second pass does with the status of the command it forwarded.
-pub(crate) struct AfterTheCommand {
-    /// The watch that may have made the second pass.
-    pub watched: Option<Watch>,
-    /// The forwarded command it is about.
-    pub forward: CoordinatedForward,
-}
-```
-
-and the top level holds a stack of them,
-because a finish's second command can itself stop and hand one up:
-
-```rust
-//! package/git-policy/cli/src/native/invocation/entry.rs,
-//!  in the arm that runs a coordinated forward
-/// One step waiting for the status of a command it handed up.
-enum Pending {
-    /// The stacking loop's step function.
-    Stacking {
-        /// The state the stacking loop carries between commands.
-        state: StackingState<'static>,
-    },
-    /// A nested finish's step function.
-    Finish {
-        /// What the finish does with the status.
-        resume: FinishResume,
-    },
-    /// The second pass's work after the command it forwarded.
-    SecondPass {
-        /// What the second pass needs to go on.
-        after: AfterTheCommand,
-    },
-}
-
-let mut pending: Vec<Pending> = vec![Pending::SecondPass {
-    after: AfterTheCommand {
-        watched: second_pass_watch.take(),
-        forward,
-    },
-}];
-let mut wanted: Option<NextCommand> = None;
-// The budget the outermost finish set from its input, kept as today.
-let mut spent: usize = 0;
-loop {
-    let status: i32 = match wanted.take() {
-        Some(command) => run_one_planned(&command, &inputs),
-        None => run_the_first_step(&mut pending, &mut wanted),
-    };
-    // Hand the status to the innermost step that waits for one.
-    let Some(step) = pending.pop() else {
-        return status;
-    };
-    match resume(step, status, &mut wanted, &mut spent) {
-        Step::Done(code) => return code,
-        Step::Waiting => {}
-    }
-}
-```
-
-where `resume` is the step function and keeps the budget:
-
-```rust
-//! package/git-policy/cli/src/native/merge/merge_second_pass_finish.rs
-/// What a finish does with the status of a command it handed up,
-///  under the budget the outermost finish set from its input.
-pub(crate) fn resume(
-    resume: FinishResume,
-    code: i32,
-) -> FinishStep {
-    match resume {
-        FinishResume::EndingTheRebase { .. } => FinishStep::Done { code },
-        FinishResume::Committing { plan, environment } => {
-            if code != 0 || plan.operation != Operation::Pick || !plan.git_dir.join("sequencer/todo").exists() {
-                return FinishStep::Done { code };
-            }
-            // Today's line 418: the rest of the sequence ends it.
-            return FinishStep::RunThis {
-                command: invocation_command(&plan, "cherry-pick", "--continue", environment.as_slice()),
-                resume: FinishResume::ContinuingTheSequence { plan, environment },
-            };
-        }
-        FinishResume::ContinuingTheSequence { .. } => FinishStep::Done { code },
-    }
-}
-```
-
-and the budget is not a constant:
-the loop counts the commands one operation handed up,
-and when `finish_budget(operation, git_dir)` is spent,
-the finish answers `Done` with the status it has,
-which is what `plan_finish` does today when `nesting_allows` refuses
-(`merge_second_pass_finish.rs:215-221`).
-A rebase that stops at its ninth conflict still ends with its own status,
-not with `ENGINE_FAILURE_EXIT_CODE`,
-which is what the earlier draft's `NESTING_LIMIT: u32 = 8` would have changed.
-
-One real call site rewritten,
-the tail of `finish` (today lines 412-422):
-
-```rust
-//! package/git-policy/cli/src/native/merge/merge_second_pass_finish.rs
-// Today: `let committed: i32 = commit_step(plan, command, environment);` then the
-// `sequencer/todo` test and `run_nested(invocation(command, &[word, "--continue"]), environment)`.
-return FinishStep::RunThis {
-    command: NextCommand {
-        arguments: commit_arguments(plan, command),
-        environment: environment.to_vec(),
-    },
-    resume: FinishResume::Committing {
-        plan: plan.clone(),
-        environment: environment.to_vec(),
-    },
-};
-```
-
-What a nested command still gets of `run_process`'s pre-steps,
-which the earlier draft left open
-(`invocation/entry.rs:437-465`):
-
-- `hooks_off::activate()` once,
-  before the loop,
-  because it is one fact of the process.
-- `abandoned_locks::meet_the_locks_of_the_working_directory(environment, start)` once per nested command,
-  with that command's own environment and directory,
-  because a nested command can wait on a lock.
-- `runtime_probe::is_requested` once at the top,
-  since it ends the process.
-- `process_resolution_inputs` once,
-  and `refusal_when_started_as_git` once,
-  because both are about this executable,
-  not the command it runs.
-- `recheck_before_the_command` once per forwarded command,
-  which is where it runs today.
-
-What it delivers:
-at step 7,
-`what_happens_when_you_type_a_command` out of
-`working_out_what_a_typed_push_would_send`'s (3757) and the merge folder's (2263) `uses/` lists,
-and the rule the plan wants restored:
-the top level is called only from the top.
-No allow-list line today for the push half;
-one,
-`uses src/native/merge -> src/native/invocation` (820),
-for the merge half alone.
-
-What it costs a caller:
-one `NextCommand` per nested command,
-two new enums and three resume variants,
-a new variant on the coordinated run's outcome,
-a stack and a budget at the top,
-and the merge path's return type changed through four functions
-(`finish`,
-`resolve_after`,
-`run_coordinated_forward`,
-`run_coordinated_action`).
-`Finish` and `Watch` must be nameable by the step functions,
-which today are private to their files.
-
-Which tests change:
-`push_stacking_tests.rs:486`,
-`entry`'s tests that read a planned `Action`,
-`merge_second_pass_finish_tests.rs`,
-`merge_second_pass_worktree`'s tests,
-`index_writer_forward`'s tests,
-and `auto_push_reconcile_tests.rs:3533`,
-which describes this call in prose.
-
-What it leaves undone:
-`PushForward`'s move down,
-without which the push folder keeps its use of `invocation`,
-and the await of a nested command's status inside `resolve_after`,
-which today is a synchronous call into a function that returns an `i32`.
-
-### Signature B: the loop keeps its place and calls a runner
-
-```rust
-//! package/git-policy/cli/src/native/push/push_stacking.rs
-/// Runs one command the wrapper planned,
-///  and answers its status.
-pub trait RunsOneCommand {
-    /// Run the command and answer its status.
-    fn run(&mut self, command: NextCommand) -> i32;
-}
-
-/// The stacking loop,
-///  with the way to run a command handed in.
-pub fn run_stacked_push(
-    forward: &PushForward,
-    merge_push: MergePush<'_>,
-    runs: &mut dyn RunsOneCommand,
-) -> i32;
-```
-
-and one real call site rewritten,
-`invocation/entry.rs:580`:
-
-```rust
-//! package/git-policy/cli/src/native/invocation/entry.rs
-/// The top level's way to run one command it planned.
-struct TheTopLevel<'a> {
-    /// The facts the planner needs about this process.
-    inputs: &'a ResolutionInputs,
-}
-
-/// How the top level runs a command.
-impl RunsOneCommand for TheTopLevel<'_> {
-    /// Plan the command and run it.
-    fn run(&mut self, command: NextCommand) -> i32 {
-        let action: Action = plan_invocation(
-            command.arguments.as_slice(),
-            command.environment.as_slice(),
-            self.inputs,
-        );
-        return run_the_action(action);
-    }
-}
-
-return run_stacked_push(&forward, &gated_merge_push, &mut TheTopLevel { inputs: &inputs });
-```
-
-What it delivers:
-the push folder's name at step 7,
-with a far smaller diff,
-because the stacking loop stays where it is.
-It delivers nothing today.
-
-What it costs a caller:
-a trait object and behaviour handed across the crate boundary,
-which the plan's note resists;
-and the run still happens inside the stacking call,
-so the top level is entered from below exactly as it is today,
-only one frame further out.
-The merge half gets no shape from this at all:
-`finish` needs an `i32` synchronously,
-and only a re-entered loop can give it one,
-which is the recursion the change exists to remove.
-
-Which tests change:
-as A,
-minus the merge path.
-
-What it leaves undone:
-the merge recursion,
-the merge folder's line (820),
-and the rule the change serves.
-
-### Whether it is feasible
-
-Neither signature was compiled.
-A compiler check of the push half alone would compile
-and would prove nothing about the merge half,
-which is the wide part;
-a check of the merge half is the round itself,
-and the resume values above are the design the round would compile first.
-The one thing a reading settles is that the status has somewhere to go now:
-every function on the path already returns a value that carries an outcome,
-and the two places that run code on a status after a nested command
-(`finish`'s `sequencer/todo` test and `run_coordinated_forward`'s sweep)
-are the two the resume values above are shaped for.
-What no reading settles is how much of the merge path's own test suite
-assumes a status is returned rather than a command.
-
-### Ranking
-
-A > B.
-
-The measure:
-what each delivers to the split,
-which is whether the top level is called only from the top,
-against what it costs in the merge path.
-
-- A over B:
-  A is the only one of the two that removes both recursions and so delivers the merge folder's line today;
-  B leaves the merge recursion,
-  the merge folder's use of `invocation`,
-  and the top level still called from inside the stacking loop,
-  so a program that runs a command from below stays possible and the folder tangles can regrow.
-  B's advantage is real:
-  a fraction of A's diff,
-  and its push half could land first.
+What no reading settles:
+how much of the merge path's own controls assume a status returned rather than a command handed up,
+and where `run_coordinated_forward` is cut so the second pass's watch travels with the stack.
 
 ## Across the five: the order they can land in
 
 Which files two of them both touch,
-from the call sites above and the first choices
-A (finished),
-A (settings),
-B (after-stop),
-B (step record) and A (run this next):
+for the recommended options (1A,
+2A,
+3A,
+4A,
+5A):
 
-- Commands that only finish and run this next share three files,
-or four if the exit code moves in the same commit:
-`push/stacked_merge_push.rs` either way,
-and `invocation/entry.rs`,
-`invocation/entry_run_forwarded_actions.rs` and
-`lock/index_writer_forward.rs` through the `ENGINE_FAILURE_EXIT_CODE` move,
-whose 18 files include all three.
-They share no new file:
-`what_a_command_hands_back` is shared only under the plan's placement of the finished value,
-and run this next's drawn code does not use `Finished`.
-The earlier draft's claim that run this next "needs the finished value whether or not the finished-results change runs"
-is wrong under either placement of section 1.
-- After-stop action and current step record share four files:
-`push/child_watch_one_shot_run.rs`,
-`push/child_watch_output_watched_on_the_runtime.rs`,
-`push/child_watch_clock_marks_and_stopping.rs`,
-where the after-stop change removes the ledger and the step-record change adds the landing answer to `WatchTerms`,
-and `transaction/transaction_git.rs`.
-- System settings path touches no file any other change touches.
-Its ten call sites are in `index/`,
+- Commands that only finish and run this next share `push/stacked_merge_push.rs`,
+  and three more files (`invocation/entry.rs`,
+  `invocation/entry_run_forwarded_actions.rs`
+  and `lock/index_writer_forward.rs`) only if the exit code moves in the same commit.
+  Without that move,
+  this change touches none of those three.
+- After-stop and current step record share four files:
+  `push/child_watch_one_shot_run.rs`,
+  `push/child_watch_output_watched_on_the_runtime.rs`
+  (the after-stop change removes the ledger,
+  the step-record change hands the landing answer to `WatchTerms`),
+  `push/child_watch_clock_marks_and_stopping.rs`,
+  and `transaction/transaction_git.rs`
+  (the after-stop change builds the ledger or the callback there,
+  and the step-record change reads the context there).
+- The system settings path touches no file another change touches:
+  its ten builders are in `index/`,
   `repo_read/` (four files),
   `push/`,
-  `merge/` and `worktree/`,
-and none of those files is on another change's list.
-The earlier draft's claim that the settings change touches no file any other change touches
-held for its recommended signature C,
-  which edited `entry.rs`;
-under A it holds,
-  and the reason is the one stated here.
+  `merge/` and `worktree/`.
+- The attributes path changes nothing under option 5A.
 
 So round 4 is at most three units at once:
-`{2}`,
-`{3 then 4}` and
-`{1 then 5}`,
+`{4}`,
+`{3 then 2}` and `{1 then 5}`,
 and the two pairs are ordered inside themselves.
-The plan's own order
-(target tree,
-lines 8185-8191 and 6956-6963)
-lists them finished results,
+The plan's order
+(`doc/planning/cli-git-source-layout-target-tree.md:8185-8191`) lists them
+finished results,
 system settings path,
 after-stop action,
 current step record,
 run this next,
-which puts the system settings change second and is compatible with all three units.
-Nothing in the plan requires that order;
-keeping it keeps a round's commits reading like the plan.
+which is compatible with all three units and with the pairs' order changed.
+Following it makes a round's commits read like the plan.
 
-Two facts of the pair `{1, 5}` matter to the owner's decision:
+## The combinations, and which cannot be built
 
-- The exit code's move is what puts three of run this next's files on the finished change's list.
-If it moves in its own commit,
-  first,
-  the two changes share `stacked_merge_push.rs` alone.
-- Inside `{1, 5}` the order does not matter to the compiler:
-1 removes `plan_invocation` from `stacked_merge_push.rs` and 5 removes the `Action` that file builds,
-and either can land first without undoing the other,
-as long as the same branch lands both before a gate.
+Which answer of one question fixes another,
+and which combinations cannot be built.
+Every reason below is a run this round made,
+or a line it read,
+and each says which.
+
+1.  Question 1,
+    option A,
+    without the exit code's move:
+    buildable,
+    and its stated delivery does not happen.
+    `subvolume_command.rs` names `invocation` twice,
+    for `Action` (line 31) and for
+    `ENGINE_FAILURE_EXIT_CODE` (lines 30 to 33,
+    used at 240),
+    and the linter keeps a `uses` line for as long as any name of the folder is used,
+    which the two after-stop linter runs showed from the other side.
+    So the two allow-list lines die only with that move,
+    which option A's "leaves undecided" names.
+    Reason:
+    read,
+    with the linter's own behaviour behind it.
+2.  Question 2,
+    either option,
+    with a lint-clean round:
+    cannot be built.
+    Both add `transaction -> lock` and `repo_read -> lock`,
+    and the linter gives each of those two a finding twice,
+    one of them with no key,
+    so no line of the allow list can record them (measured:
+    12 findings before,
+    16 after,
+    the same with either drawing).
+    Reason:
+    the linter.
+3.  Question 2,
+    option B,
+    with the awaited face unchanged:
+    cannot be built.
+    `package/git-policy/cli/src/native/transaction/transaction_git_awaiting.rs:291` prints
+    `error[E0308]: mismatched types: expected \`Result<Output,
+    Error>\`,
+    found \`Result<WatchedOutput,
+    Error>\``.
+    Reason:
+    the compiler.
+4.  Question 3,
+    option C,
+    with a record that cannot be defaulted:
+    cannot be built.
+    `error[E0277]: the trait bound \`CurrentStepRecord:
+    std::default::Default\` is not satisfied`
+    at `package/git-policy/cli/src/native/transaction/transaction_git_request_and_reply_types.rs:170`.
+    Reason:
+    the compiler.
+5.  Question 3,
+    option A:
+    buildable,
+    and every `GitContext` initializer must answer.
+    Adding the field printed `E0063` for 63 initializers (22 release,
+    41 control),
+    and the record must also be `Eq` and `PartialEq`
+    (`error[E0277] ... \`CurrentStepRecord:
+    std::cmp::Eq\` is not satisfied`,
+    `error[E0369]`).
+    Reason:
+    the compiler.
+6.  Question 4,
+    option A,
+    with the attributes path unchanged (question 5,
+    option A):
+    buildable,
+    and "the reader never starts Git" is not delivered for conversions,
+    because the conversion builder asks `system_attributes_for` at
+    `package/git-policy/cli/src/native/worktree/worktree_clean_content_attribute_sources.rs:194`.
+    Reason:
+    read.
+7.  Question 5,
+    option B,
+    in the same file as question 4's change:
+    buildable,
+    and the two are different types,
+    not one parameter twice:
+    ten `ScopeEnvironment` builders against one `ConversionEnvironment` builder
+    (`subvolume/subvolume_platform.rs:133`).
+    Reason:
+    measured by `rg`,
+    quoted in section 2.
+8.  Questions 1 and 2,
+    landed apart:
+    reachable,
+    and they share no file.
+    `subvolume_command.rs` and the three call sites of the five one-shot functions are disjoint.
+    Reason:
+    read.
+9.  Questions 2 and 3,
+    landed apart:
+    not reachable.
+    Both edit `transaction/transaction_git.rs`,
+    and both edit the two watched-run files.
+    Reason:
+    read.
 
 ## Questions for the owner
 
-Each question is one decision,
-and each is answerable alone.
+Each question is one decision and each is answerable alone.
 The recommendation is first,
 with its mechanism and its cost,
-and each option says what a yes would still leave undecided.
+and each option says what a yes would leave undecided.
+The letters are the same letters the sections use.
 
 ### Question 1: where the finished value lives
 
-Today the three commands build the top-level `Action` themselves.
-The owner's decision of 2026-11-04 was to change that:
+The owner's decision of 2026-11-04 was
 "they return a small \"finished with this code and output\" value from a low file;
-only the top level builds `Action`"
-(`cli-git-source-layout.md`,
-lines 470-471).
-The target tree's signature puts the file elsewhere:
-`what_a_command_hands_back` in the program folder `starting_git_and_describing_a_run`
-(line 6436).
-That is the departure this question puts to you.
+only the top level builds `Action`" (`doc/planning/cli-git-source-layout.md:470-471`),
+and the target tree puts the file in the program folder `starting_git_and_describing_a_run`
+(`doc/planning/cli-git-source-layout-target-tree.md:6436`).
+Both placements are the project's own words;
+they disagree about what the round delivers.
 
-Option A,
-recommended:
-the value is `Finished` in `foundation`,
+Option A (Recommended):
+`Finished` in `foundation`,
+the plan's prose.
+How it works:
+one struct of an exit status and two byte streams,
 built by `saying`,
-`explaining` and `quietly`,
-and `management` turns it into `Action::ExitBytes`.
-Mechanism:
-one struct of three fields,
-bytes for both streams;
-the command builds no `Action`;
-`subvolume` names `foundation` instead of `invocation`.
+`explaining` and `quietly`;
+`migrate_action`,
+`convert_action` and `doctor_action_with_section` return it;
+`management` turns it into `Action::ExitBytes`,
+which is the one place a report is written.
 What it changes for good:
-two allow-list lines die in this round
-(`uses src/native/subvolume -> src/native/invocation`,
-line 943,
-and `names-group src/native/subvolume src/native/invocation`,
-line 538),
-and step 7 moves the file again into one of the three libraries the rescan makes of `foundation`.
+with `ENGINE_FAILURE_EXIT_CODE` moved in the same branch,
+`uses src/native/subvolume -> src/native/invocation` (`folder-rule.txt:943`)
+and `names-group src/native/subvolume src/native/invocation` (line 538) die;
+at step 7 `what_happens_when_you_type_a_command` leaves three folders' `uses/` lists.
+Example:
+`git monochromatic-git-policy-cli migrate-to-subvolume --help`
+builds `Finished::saying(0, MIGRATE_HELP)`,
+prints the same help,
+and exits 0.
 What it gives up:
-the value sits below the command folders,
-so `stacked_merge_push` cannot return it without naming `foundation` too,
-and the type is not beside `Action`,
-which is the folder a reader of `Action` looks in.
+the type moves again at step 7,
+and the exit code's move puts 18 files on the same branch or in a second commit.
 A yes leaves undecided:
-whether `ENGINE_FAILURE_EXIT_CODE` and `REFUSED_EXIT_CODE` move in the same commit,
-which is one commit against eighteen files or two commits;
-and whether `doctor_action`,
-which has no release caller and is a published name,
-is rewritten or deleted.
+whether the exit code moves (in this round,
+in its own commit,
+or not),
+and whether the four published names narrow to `pub(crate)` or keep a `pub` face.
 
 Option B:
-the plan's placement:
 `Finished` and `FinishedBytes` in `invocation`,
-beside `action.rs`.
-Mechanism:
-two types,
-or one bytes type every text caller converts;
-the command builds no `Action`;
-nothing in the allow list changes now.
+beside `action.rs`,
+the target tree's signature.
+How it works:
+two structs,
+text streams for the two text commands and bytes for the doctor;
+nothing in the allow list changes.
 What it changes for good:
-step 7 takes `what_happens_when_you_type_a_command` out of `converting_the_main_checkout`,
-and out of `checking_that_your_setup_works` and `converting_a_linked_worktree` too,
-which then gain a use of `starting_git_and_describing_a_run`
-(lines 733 and 830 do not name it today).
+nothing this round;
+at step 7 the decision folder leaves `converting_the_main_checkout`,
+and `checking_that_your_setup_works` and `converting_a_linked_worktree` gain a use of the program folder.
+Example:
+the same command,
+the same help,
+with the value built as `invocation::Finished`.
 What it gives up:
-the loop `subvolume` and `invocation` form stays in this round and in every branch that lands this alone.
+this round delivers nothing to the allow list,
+and two folder uses are created at step 7 where A creates none.
 A yes leaves undecided:
-two types or one bytes type;
-and the same two questions about the exit codes and `doctor_action`.
+the same two items as A.
 
-A third shape was considered and is not offered:
-no value at all,
-each command writing its own answer to two writers and returning a status
-(section 1,
-signature C).
-It removes the same two lines as A but loses the one place that writes a report,
-and it cannot be built without handing every command two writers,
-at which point it has the value's shape and none of its uses.
+Ranking:
+A > B,
+because A removes two lines now and three names at step 7
+where B removes none now and leaves two folders gaining a use;
+B's advantage is that the value sits beside `Action`,
+and its diff is smaller,
+which is effort.
 
 ### Question 2: who sweeps the locks a stopped step left
 
-Today the watcher's own task sweeps them on the blocking pool,
-and also when a watch is dropped without being read.
-The plan's prose and your answer of 2026-11-04 say
-"its caller hands it what to do after a stop" (line 458);
-the target tree's signature says the watcher loses the ledger and the caller sweeps (lines 6467-6477).
-That is the departure this question puts to you.
+Today the watcher's own task builds the ledger and sweeps on the blocking pool,
+and the sweep also happens when a watch is dropped while a stop is under way.
+The plan's prose says "its caller hands it what to do after a stop"
+(`doc/planning/cli-git-source-layout.md:458`);
+the target tree's signature says the watcher loses the ledger and the caller sweeps.
 
-Option A,
-recommended:
+Option A (Recommended):
 the watcher calls back.
-The library defines `trait AfterTheStop`,
-the program implements it once per call site with its `LockLedger`,
-and the watcher runs it after the child and the processes below it are gone,
-inside its task,
+How it works:
+the library defines `trait AfterTheStop: Send + Sync`;
+the caller builds its ledger before the start and hands an `Arc` of a small struct implementing it;
+the watcher runs it inside its task,
 on the blocking pool,
-and when the watch is dropped.
+where it sweeps today.
 What it changes for good:
-the watcher library folder stops naming `clearing_leftover_reference_locks` (target-tree-files,
-line 322);
-the library exports one trait whose only implementation is the program's.
+`clearing_leftover_reference_locks` leaves the watcher library's `uses/` entry at step 7;
+the library exports one trait whose only implementations are the program's;
+`start_with_locks` leaves the source guard's published list (`items_nameable_from_outside_release.txt:5977`).
+Example:
+a landing's `git update-ref` is stopped;
+the watch ends the child,
+the wait after the kill passes,
+and the watcher's task sweeps the two stale `refs/heads/*.lock` files it can prove stale,
+leaving one it cannot.
+A watch dropped 40 seconds into the same stop still sweeps.
 What it gives up:
-nothing a person sees,
-and a behaviour crosses the crate boundary,
-which the plan's note disfavours ("each hands a value or an enum",
-lines 6378-6382).
+a behaviour crosses the crate boundary,
+which the plan's note disfavours for these changes
+(`doc/planning/cli-git-source-layout-target-tree.md:6427-6429`),
+and each call site builds one small value.
 A yes leaves undecided:
-whether `LockLedger` is `Sync` as the trait needs,
-which one compile settles;
-and whether the same callback carries anything else later,
-which the trait's shape allows and nothing asks for.
+whether the same callback carries anything else later.
+Compiled:
+yes,
+`Finished \`dev\` profile ... in 33.89s`.
 
 Option B:
 the caller sweeps.
-Each of the five one-shot functions answers `WatchedOutput { output, ended_by_the_watch }`,
-the caller builds the ledger before the start and sweeps after the end,
-and every caller that may sweep reaches the blocking pool itself.
+How it works:
+the five one-shot functions answer `WatchedOutput { output, ended_by_the_watch }`;
+the caller builds the ledger before the start,
+reads the flag,
+and sweeps,
+on the blocking pool where it is a task.
 What it changes for good:
-the same library folder line dies;
-the sweep's moment moves from the watcher's ending to the caller's reading of it.
+the same library entry,
+and the sweep's moment moves from the watcher's ending to the caller's reading.
+Example:
+the same stopped step;
+the synchronous face sweeps inline,
+the awaited face on the blocking pool,
+and a caller that drops its watch during the stop and returns sweeps nothing,
+so the lock waits for the next command's stale-lock judgement.
 What it gives up:
-a watch that is dropped without being read sweeps nothing,
-where today it sweeps,
-and a lost sweep is not retried
-(`settle_locks`:
-"a sweep before that finds the tree running and removes nothing,
-and nothing would try again"),
-so the lock waits for the next command's stale-lock judgement;
-and nine call sites gain a sweep.
+the stop-under-way window's sweep,
+and 18 control lines in three files read the new type.
 A yes leaves undecided:
-nothing about the trait,
-which would not exist;
-and whether the dropped-watch loss is acceptable,
-which is the price named above.
+whether the five convenience functions keep answering `WatchedOutput` or map it away.
+Compiled:
+yes,
+`Finished \`dev\` profile ... in 27.89s`; with the awaited face unchanged it prints `E0308`.
+
+Both options add `transaction -> lock` and `repo_read -> lock`,
+which no allow-list line can record
+(measured:
+12 findings before,
+16 after).
+A third placement,
+the ledger built and swept by a `push/` function,
+adds neither and is not drawn here;
+it is named in section 3 and needs its own linter run.
+
+Ranking:
+A > B,
+because both deliver the same library entry,
+and A keeps the sweep in the window where it happens today while B loses it there;
+B's advantage is a plain value instead of a trait object,
+and its shape is the one the target tree asks for,
+which is a cost of A's shape and not a reason to rank A lower.
 
 ### Question 3: how the current step record is carried
 
-Today it is carried by the task
-(`tokio::task_local!`,
-`landing/landing_state_carried_by_its_task.rs:44-48`),
-which is what your choice 4 asked for ("Rewrite per-thread state").
-The target tree says a thread-local record in a program file (lines 6455-6466),
-and the plan's prose says the basic tools (line 455).
-The first choice below departs from the target tree's word;
-that is the departure this question puts to you.
+Today it is carried by the task,
+in a `tokio::task_local!`
+(`landing/landing_state_carried_by_its_task.rs:47`),
+which is what the owner's choice 4 asked for.
+The target tree says a thread-local record in a program file,
+and the plan's prose says the basic tools.
 
-Option A,
-recommended:
-the record is a value on `GitRequest`,
-named `CurrentStepRecord`:
-a folder it writes into and the detail of the next write,
-defaulting to "no landing".
-The bound reads `request.step_record.on_a_landing()`,
-and `WatchTerms::for_class` takes that answer at every call site.
+Option A (Recommended):
+on the run's `GitContext`.
+How it works:
+`GitContext` gains a `CurrentStepRecord` (a folder it writes into and the detail of the next write);
+the landing builds its context with `in_the_landing_at(folder)` and every other run with `nothing()`;
+`step_bound` asks the context,
+and `step_about_to_start` keeps today's guard,
+entering the step only when the bound is `Unbounded`.
 What it changes for good:
 the record becomes a name the folder rule can see,
-so a program folder cannot reach it without naming it;
-the watcher's answer arrives with the record.
+and no build site can be forgotten,
+because `GitContext` has no `Default`.
+Example:
+the landing's `git update-ref` gets `StepBound::Unbounded` from the landing's own context,
+the step file is written,
+and the client that reads it sees the step while it runs;
+a command outside the service builds `nothing()`,
+gets `leave_running_bound`,
+and writes no file.
 What it gives up:
-a field on the type 503 lines of 143 files name,
-set only where a landing builds a request;
-and the witnessed reads built without a request must be handed the answer,
-`repo_read/git_metadata.rs:443` among them.
+a field at 63 `GitContext` initializers (22 release,
+41 control),
+each refused by the compiler until it answers,
+and `Eq`/`PartialEq` on the record.
 A yes leaves undecided:
-whether `WatchTerms::for_class`'s new argument is a `bool` or the record itself;
-and where `git_metadata`'s callers get the answer from.
+where the record's file writer lives,
+and how the watcher's answer reaches its two call sites.
 
 Option B:
-the record stays task-carried,
-moved to a program file as the target tree says,
-with the watcher's answer as a second field on `WatchTerms`.
-Mechanism:
-a `tokio::task_local!` holding the folder and the detail,
-written by the runner,
-read by the watcher through the flag it was handed.
+task-carried,
+moved to the program file the target tree names.
+How it works:
+today's `task_local!` and its writer move to `current_step_record` in
+`how_long_the_program_waits_for_git_steps`;
+`LandingBoard` stays in `service_busy`;
+the watcher's answer rides a new `WatchTerms` field.
 What it changes for good:
-the same library line dies;
-the record remains state no line records.
+the same library line,
+and nothing to answer at any build site.
+Example:
+the same landing step,
+answered from the task,
+with the step file written exactly as today.
 What it gives up:
-the folder rule cannot see the use,
+the use stays invisible to the folder rule,
 so the tangle can regrow through a name;
-and the same `WatchTerms` change and the same `git_metadata` question as A.
+20 `WatchTerms {` literals in seven control files and six `for_class` call sites take the new answer.
 A yes leaves undecided:
-whether the state stays a `task_local!` or becomes a value later;
-and the same `git_metadata` question.
+the same items as A,
+and whether the state becomes a value later.
 
 Option C,
-the target tree's word read literally,
-a new `thread_local!`,
-is not offered:
-it would put back a per-thread fact your choice 4 moved into the task,
-and it would misread the day the landing runs as a task,
-which `in_a_landing_task` exists for.
+not offered:
+a field on `GitRequest`.
+It compiles at all 27 request builders with the unsafe answer,
+and cannot be made to refuse it
+(`E0277` at `package/git-policy/cli/src/native/transaction/transaction_git_request_and_reply_types.rs:170`).
+
+Ranking:
+A > B > C,
+because A makes the use visible and un-forgettable,
+B makes it un-forgettable but invisible,
+and C makes it visible but silently wrong for a landing step.
 
 ### Question 4: how far the system settings path is threaded
 
-Option A,
-recommended:
-the ten builder call sites pass the path,
-and the three reader files that build their own scope go on asking.
-Mechanism:
-one extra parameter on `ScopeEnvironment::from_variables`
-and one line at each builder:
-`crate::git_system_config::system_config_for(variables.as_slice())`.
+The plan's prose says "the caller passes the path in,
+so a reader never starts Git"
+(`doc/planning/cli-git-source-layout.md:462-463`).
+Today the reader asks,
+inside three gates,
+and the ask can start real Git.
+
+Option A (Recommended):
+every caller that builds a scope passes the path,
+the three reader builders included.
+How it works:
+`ScopeEnvironment::from_variables(variables, system_default)`;
+the ten builders pass `system_config_for(variables)` (or `None` where a gate says the file is not read);
+the reader stops calling the asker.
 What it changes for good:
-the reader's file stops starting Git for the callers that hand a value over;
-the reader's folder goes on naming the asker's folder at step 7.
+at step 7 `reading_git_settings_from_files` drops the asker from its `uses/` line
+(target-tree-files:1938) and `answering_questions_without_starting_git` drops it from 605;
+`finding_the_git_folders` gains it at 1038,
+which does not name it today.
+Example:
+`git config --get core.hooksPath` builds a scope in `repo_read_layout.rs`;
+the builder passes `Some("/etc/gitconfig")` learned from the forward-target Git,
+and the reader resolves without starting one.
 What it gives up:
-the folder line (target-tree-files, 1936) stays,
-so the promise in `answering_questions_without_starting_git`'s name
-holds only where a value was handed over.
+the three reader builders now start Git in folders named for not doing so,
+which is the cost of the reader's line.
 A yes leaves undecided:
-nothing about the signature;
-what the three reader files do is the next question.
+what a builder passes when it cannot learn a path.
 
 Option B:
-also thread the value into `repo_read_query.rs:90`,
-`repo_read_hook.rs:105` and `repo_read_layout.rs:264`,
-so their callers learn the path and the reader's folder can stop naming the asker at step 7.
-Mechanism:
-the same parameter,
-plus a parameter through those three files' callers;
-`repo_read_query` builds its scope from base variables,
-so its caller must supply the path.
+the ten builders pass the path and the three reader files go on asking.
+How it works:
+the same parameter;
+`repo_read_query.rs`,
+`repo_read_hook.rs` and `repo_read_layout.rs` call the asker themselves.
 What it changes for good:
-the reader's folder can lose the asker at step 7,
-which is the only delivery this change has.
+the reader's line dies at step 7,
+and nothing else changes in the folder lists.
+Example:
+the same command,
+the same value,
+asked in a different file.
 What it gives up:
-a parameter through the readers' callers,
-some of which hand a path they must learn earlier,
-and a larger diff in this round.
+two of the three delivered `uses/` entries,
+and the promise in `answering_questions_without_starting_git`'s name.
 A yes leaves undecided:
-whether any of those callers still has a real Git to ask when it builds the scope.
+the same item as A.
+
+Ranking:
+A > B,
+because A removes two entries and adds one where B removes one and adds none;
+B's advantage is three fewer lines in this round,
+which is effort.
 
 ### Question 5: whether the attributes path changes in this round
 
-`system_attributes_for` is the same shape as the settings path
-and the plan does not name it
-(`worktree/worktree_clean_content_attribute_sources.rs:18,194`,
-inside `ConversionEnvironment::from_variables`,
-whose three test calls are `worktree_clean_content_safety_tests.rs:714,719,724`).
+`system_attributes_for` is the same shape as the settings path and the plan does not name it
+(`repo_read/git_system_config.rs:236`,
+asked at `package/git-policy/cli/src/native/worktree/worktree_clean_content_attribute_sources.rs:194`).
 
-Option A,
-recommended:
+Option A (Recommended):
 leave it asking in this round.
-What it changes:
+How it works:
+nothing changes here.
+What it changes for good:
 nothing.
+Example:
+`git monochromatic-git-policy-cli` converting a clone still asks the attributes file,
+and the person sees no difference.
 What it gives up:
-"the reader never starts Git" is not delivered for conversions,
-because that builder still asks for the attributes file.
+"the reader never starts Git" is not delivered for conversions.
 A yes leaves undecided:
 which step takes it.
 
 Option B:
-change it in the same round,
-with the same parameter.
-What it changes:
-the conversion builder stops starting Git for both of its questions.
+change it in the same round.
+How it works:
+the same parameter on `ConversionEnvironment::from_variables`,
+with the ask moved to its caller (`subvolume/subvolume_platform.rs:133`).
+What it changes for good:
+the conversion builder stops starting Git for both of its questions,
+which completes this change's promise where the plan's items reach.
+Example:
+the same conversion,
+with the attributes path learned before the builder runs.
 What it gives up:
-a second parameter and a wider diff in the same round,
+a second parameter and a wider diff,
 and the plan has no signature for it,
-so this proposal would be its only statement.
+so this file would be its only statement.
 A yes leaves undecided:
-whether the parameter is one `SystemAttributes` value or an `Option<PathBuf>` and a kind.
+whether the parameter is one attributes value or an optional path and a kind.
 
-### Question 6: one branch or two
+Ranking:
+A > B,
+because A keeps the round to the five changes the plan records,
+and B changes a call the plan does not name with no record behind it beyond this file;
+B's advantage is the completed promise,
+which A leaves to a later round.
 
-The three units above are `{2}`,
-`{3 then 4}` and `{1 then 5}`.
+## What was measured, what was read, and what is inferred
 
-Option A,
-recommended:
-two branches side by side,
-`{2, 3, 4}` and `{1, 5}`.
-Mechanism:
-no file is touched by both branches;
-the pair inside each branch is ordered.
-What it changes for good:
-the round's red lint findings split across two branches,
-and the handover's list of them is written once per branch.
-What it gives up:
-two merges and two gate runs.
-A yes leaves undecided:
-which branch merges first,
-which nothing in the records decides.
-
-Option B:
-one branch with five commits in the plan's order.
-Mechanism:
-one merge,
-one gate run,
-commits in the order the plan lists.
-What it changes for good:
-nothing,
-and the round reads like the plan's step.
-What it gives up:
-the wall-clock of one round doing all five,
-and a single red gate listing every finding at once.
-A yes leaves undecided:
-the same question of which lands first,
-and nothing else.
-
-Whether either is startable now depends on work in flight,
-which the handover entry names:
-the push split cuts `child_watch_one_shot_run.rs`,
-issue 6573 changes the control that reads `repo_read/git_system_config.rs`,
-and the answer to issue 6529 edits `merge_second_pass_finish.rs`.
-This proposal was written without waiting for them.
-
-## What was measured, and what was not
-
-Measured on 2026-11-28 in this worktree at `5a84e361c0`,
-with the command named:
+Measured in this worktree at `b1529e79e1`,
+each with the command that printed it:
 
 - `ENGINE_FAILURE_EXIT_CODE`:
   52 release lines in 18 files in 9 folders
   (`rg -n ... | wc -l`,
   `rg -l ... | wc -l`,
-  `rg -l ... | xargs -n1 dirname | sort -u | wc -l`),
-  and its published line at `items_nameable_from_outside_release.txt:3142`.
-- The builders of a `ScopeEnvironment`:
-  10 release call sites
+  `rg -l ... | xargs -n1 dirname | sort -u | wc -l`).
+- The ten `ScopeEnvironment` builders
   (`rg -n "ScopeEnvironment::from_variables" -g '*.rs' -g '!*_tests.rs'`),
-  and the eleventh the earlier draft counted is a `ConversionEnvironment`
-  (`rg -n "ConversionEnvironment::from_variables"`).
-- The one-shot run functions:
-  5,
-  and the one caller of `ChildWatch::start` that passes no ledger:
-  1 (`rg -n "ChildWatch::start\(" -g '*.rs' -g '!*_tests.rs'`).
-- `WatchTerms {` literals:
-  24 in 7 test files
-  (`rg -c "WatchTerms \{" -g '*_tests.rs'`),
-  and `WatchTerms::for_class` callers: 6.
+  and seven release files of `repo_read/` naming `git_system_config`.
+- The 27 release functions that return a `GitRequest`,
+  and their five folders
+  (`rg -n -- "-> GitRequest" ...`).
+- The 63 `GitContext` initializers (22 release,
+  41 control),
+  by the compiler's `E0063` count.
+- The five one-shot functions' call sites:
+  3 release,
+  and 18 control lines the compiler refused
+  with the answer type changed.
+- `WatchTerms {` literals in controls:
+  20;
+  `for_class` call lines:
+  8,
+  of which one is the definition
+  and one the internal `Self::for_class`.
 - `GitRequest`:
   503 lines of 143 files,
   122 of them release files.
-- The allow-list pairs each change adds or removes,
-  by `rg -n "^uses src/native/<a> -> src/native/<b>" layout-allow-list/folder-rule.txt`:
+- The allow-list pairs:
   `subvolume -> invocation` at 943 and its `names-group` at 538;
   `subvolume -> foundation` at 942;
   `merge -> invocation` at 820;
-  `lock -> transaction` at 805,
-  with no `transaction -> lock` line at all;
-  and the pairs `push -> service`,
-  `transaction -> service`,
-  `merge -> invocation`,
-  `push -> invocation`,
-  `transaction -> repo_read`,
-  `service -> foundation`,
-  `push -> foundation`
-  each present once or twice.
-- The target-tree rows quoted:
-  279,
-  322,
-  731-733,
-  828-830,
-  853-855,
-  1936,
-  2263,
-  2602,
-  3757,
-  and the plan's order at 8185-8191.
-- The two source lines and the control that the gate read named:
-  `migrate_action`'s refusal on standard error (`subvolume_command.rs:366-376`),
-  the doctor's standard-error-only exit (`doctor.rs:662-666`),
-  and `the_scope_reads_the_file_the_git_names` in a child of its own
-  (`git_system_config_tests.rs:256-301`).
+  `lock -> transaction` at 805;
+  and no `transaction -> lock` line at all.
+- The `rust/folder-uses-links` findings:
+  12 on the unedited tree,
+  16 with either after-stop drawing.
+- Four `cargo check --locked --offline --all-targets` runs and three linter runs,
+  named in "How every claim here was checked".
 
-The dead lines section 1 states as delivered
-are the earlier draft's measurement on a branch this revision did not rebuild,
-and each is marked so where it is used.
+Read,
+and not measured:
 
-Not run,
-and why:
+- The window in which a dropped watch sweeps today (section 3).
+- The `merge -> invocation` line's survival (section 5).
+- Which target folder each source file lands in,
+  from the target-tree rows.
+- That `Action` is the only other name `subvolume_command.rs` takes from `invocation` besides the exit code.
 
-- No build,
-  no compiler check,
-  no test suite,
-  no nextest run,
-  no container and no guest.
-  This branch changes no code;
-  the two compiler answers this proposal quotes are the earlier draft's,
-  and one of them is of a removal,
-  not of a signature.
-- No linter on a trial branch,
-  so the dead lines and the added `transaction -> lock` use
-  are stated from the source and the earlier draft,
-  not re-measured.
-  The linter's answer for the added use is the round's first measurement.
-- No trial branch for the file sets of the order section.
-  They are read from the call sites above,
-  and a diff of a trial branch is what would confirm them.
+Inferred,
+and said so where it is used:
+
+- How often a landing's or a reader's step is in the stop-under-way window.
+  Nothing measured it.
+- What the five run-this-next signatures will look like when they hold together;
+  nothing compiled them.
+- That the exit code can leave `action.rs` without a loop.
+  The plan's own item list says it moves down;
+  this round did not build it.
 
 ## What this proposal does not settle
 
-- The plan's two further call changes found by the moved-item check
-  (`copy_file_exclusive`'s error type and the hint functions of `event_hints`)
-  belong to step 5,
-  not round 4,
-  and are not described here.
 - `doctor_action`'s future:
-it has no release caller and is published
+  it has no release caller and is published
   (`items_nameable_from_outside_release.txt:2451`),
-  so the round either rewrites it with the others or deletes it and its line,
-  and deleting a published name is a change to the library's surface
-  that needs the owner's word when the next release is cut.
+  so the round either rewrites it with the others or deletes it and its line.
 - Which red `rust/folder-uses-links` findings `main` prints today
-  (`doc/handover/cli-git-rust-implementation.md` keeps that list) is not read here;
-  this proposal's line numbers are of the allow list at `5a84e361c0`,
+  (`doc/handover/cli-git-rust-implementation.md` keeps that list);
+  this file's allow-list line numbers are of `b1529e79e1`,
   and a line added or deleted before the round starts moves them.
-- The owner's other open points for the split
-  (target tree,
-  "Open points for the owner")
-  hold steps 7 and after,
-  not this round,
-  except that reading D or E of the library count decides whether
-  `starting-and-watching-programs` is a library at all.
+- The plan's two further call changes found by the moved-item check
+  (`copy_file_exclusive`'s error type and the hint functions of `event_hints`) belong to step 5,
+  not this round.
+- The owner's other open points for the split (target tree,
+  "Open points for the owner") hold steps 7 and after,
+  except that reading D or E of the library count decides whether `starting-and-watching-programs` is a library at all.
   Both readings keep it,
   so the after-stop and step-record changes are needed under either.
-
-## What the gate read changed
-
-Five High,
-eleven Medium and five Low findings;
-each is answered here or in the round's report.
-The changes that matter to a reader of the earlier draft:
-
-- The run-this-next signature now carries a resume value per step function
-  and a stack at the top (H1),
-  and keeps the todo list's budget instead of a constant of eight (H2).
-- The system settings ranking is reversed:
-  the plan's parameter is first and the process-wide value is last,
-  with its evidence stated (H3).
-- The after-stop ranking is reversed:
-  the claim that `git_metadata.rs:443` passes no ledger was wrong,
-  and the watcher's callback keeps the blocking pool and the dropped-watch sweep (H4).
-- The step record is described as it is on `main`,
-  task-carried,
-  the carrier is `GitRequest` rather than a type that does not exist,
-  and the name is `CurrentStepRecord` because `StepRecord` is taken (H5,
-  L3).
-- Every count and line number the earlier draft stated is re-measured at `5a84e361c0` (L1,
-  L2,
-  M2),
-  the step-7 delivery claims are corrected (M11),
-  the order's file sets are recomputed (M3),
-  the published surface of every drawn item is `pub(crate)` (M7),
-  and the questions are six,
-  one decision each (M4).
