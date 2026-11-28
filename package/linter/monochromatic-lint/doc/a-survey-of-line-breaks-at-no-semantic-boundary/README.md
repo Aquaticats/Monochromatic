@@ -47,10 +47,20 @@ the rule climbs `Strong`,
 `Emphasis` and `Delete` through `delimiter_tail`,
 so it wants the break after the delimiter,
 while `ends_at_break_point` strips only bracket and quote closers.
+An emphasis ending is counted whether or not the shipped join would remove it,
+so that a durable count subtracts every one of them.
+
+A continuation line of a quotation keeps the `>` its container writes.
+The survey strips the marker before it classes the line,
+counts its words or measures its clause width,
+so a quoted line is filed by its prose and not by the marker a reader does not see.
+The `block-marker` class stays for a following line the shipped join refuses,
+such as `#tag`,
+which is not a heading and does continue the paragraph.
 
 ## The classes
 
-Each break is classified by the first token of the next line,
+Each break is classified by the first token of the next line's prose,
 in this order:
 `block-marker` (`>`,
 `#`,
@@ -82,6 +92,33 @@ A clause at or over 120 characters is **forced**:
 no single line may hold it under MD1's bound,
 and it holds no punctuation to break at.
 
+## The findings each predicate would draw
+
+The survey counts the findings of six predicates,
+each in its own population:
+
+- `A`,
+  every quiet non-hard break at no boundary.
+- `B`,
+  the `A` breaks the shipped join's guards allow.
+- `D`,
+  one finding per quiet clause under 120 characters holding no hard break
+  and no emphasis ending.
+- `D2`,
+  `D` without a clause that holds a parenthesis or an inline-span edge,
+  or a break whose previous line ends in a dash.
+  The test reads every break of the clause,
+not only its first.
+- `F1`,
+  a break whose following line holds one or two words.
+- `F2`,
+  a line of one or two words that itself ends at no boundary.
+
+Each predicate also reports the class of its own breaks
+and whether the break's clause is forced,
+and each is counted per family of file,
+so a reason for one predicate can use that predicate's own numbers.
+
 ## The removal count
 
 No removal fix ships in the tree.
@@ -100,6 +137,48 @@ and the joined width against the same 120 characters the shipped join uses.
 The count is a model of a fix that does not exist,
 not a run of a shipped command.
 
+## The reported paragraphs after the shipped fix
+
+A paragraph the rule already reports can hold breaks at no boundary the rule says nothing about,
+because the fix inserts breaks and joins only a fragment one of its own inserted breaks cut.
+The survey therefore runs the shipped fix over a copy of every host file that holds a reported break,
+and counts what the reported paragraphs still hold afterwards.
+
+The copies live in the folder `SURVEY_M13_DIR` names,
+never in the repository.
+The fix is the installed binary named by `SURVEY_LINT_BIN`,
+run as `--config <the harness's own one-rule configuration> --fix --no-ignore`,
+once per batch of copies.
+The harness writes that configuration itself,
+into the same folder,
+and it is kept beside this file as `reported-paragraphs-after-the-fix-config.jsonc`.
+A control copy goes through the same invocation as the copies,
+so the measurement can be seen to see a fix run:
+its text is
+`Aaa bbb, the` / `ccc ddd eee.`,
+the unfixed copy holds one break at no boundary and the fixed copy holds none,
+and the harness asserts both that the copy changed and that it now holds zero.
+
+One file of the run recorded in `output.txt` kept findings after the fix,
+which the survey measured separately:
+`65` findings remained across all the copies,
+`64` of them in one file,
+and one in the old control copy,
+which that run's harness wrote but never passed to the fix.
+The kept harness corrects that,
+so its control can fail on an unfixed copy;
+the recorded figure rests on all `222` copies changing bytes,
+and on the control measurement kept beside this survey.
+Part of the `10,028` remaining breaks may therefore sit in paragraphs the fix leaves reported,
+and the population after a full fix run is at most `220,235`.
+
+The reported breaks that remain are the post-fix count of each file
+less the breaks that were already quiet in it.
+That subtraction is sound because a join is attached to a break one pass plans,
+so a fix never removes a break outside a paragraph the rule reports,
+and an inserted break always falls after a break-point character,
+so a fix never creates a break at no boundary.
+
 ## What is kept here
 
 - `files.txt`:
@@ -111,11 +190,23 @@ not a run of a shipped command.
   The `.keep` suffix keeps a build from compiling it
   and the repository linter from reading it as Rust.
 - `command.txt`:
-  the command and the three temporary source edits,
-  which were reverted after the run.
+  the command,
+  the three temporary changes,
+  and the environment the run had,
+  all as this run made them.
 - `output.txt`:
   the whole output of the run named in its first lines,
   including the positive control and every count.
+- `reported-paragraphs-after-the-fix-config.jsonc`:
+  the one-rule configuration the after-the-fix measurement used,
+  copied from the harness's own constant.
+- `repository-configuration-on-package-git-policy-cli.jsonl`:
+  what the repository's own configuration reports on `package/git-policy/cli`
+  at the recorded commit,
+which is the figure the proposal quotes for the tree not being green.
+- `figures-the-survey-does-not-count/`:
+  the command and output of every figure this proposal quotes that the survey does not count itself,
+  and a `README.md` naming each one.
 - `README.md`:
   this file.
 
@@ -126,11 +217,40 @@ A later rerun at a later commit will differ by the files that changed.
 
 ## How to run it again
 
+The run recorded in `output.txt` was made at commit
+`bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c` (2026-11-28T03:19:11-05:00),
+in the worktree the round was started in,
+`.claude/worktrees/pi-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again`
+of the repository,
+and its `SURVEY_COMMIT` line names the same commit.
+The join and the boundary test changed after it
+(`fc679b9392` at 2026-11-28T03:02:49-05:00):
+the join counts the host line,
+and the boundary test climbs `*` `_` and `~`.
+The harness in this folder is the later form and needs that source,
+so a rerun at the recorded commit needs this folder as that commit holds it.
+The survey was not rerun,
+and every count here is the commit's it names.
+Its list is `files.txt` at that commit.
+A rerun must read a worktree at that commit,
+because a listed path that the commit does not hold is tallied as a parse failure,
+and the harness refuses to report on an empty commit or an empty survey.
+
 The harness must sit inside the crate to call the shipped join.
 Copy it in and wire it temporarily;
-none of these edits is committed.
+none of these three changes is committed.
+The run below was made in the worktree this round was started in,
+at the commit above;
+a rerun needs a worktree at the same commit,
+and this line makes one:
 
-1. Copy the kept harness to the crate source:
+```sh
+# from the repository root
+git worktree add /home/user/temp/agent/line-break-survey-rerun bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c
+```
+
+1.
+   Copy the kept harness to the crate source:
 
    ```sh
    # from package/linter/monochromatic-lint
@@ -138,20 +258,25 @@ none of these edits is committed.
      src/markdown_fragment_joins_survey_tests.rs
    ```
 
-1. Append this module declaration to `src/markdown_fragment_joins.rs`:
+1.
+   Append this module declaration to `src/markdown_fragment_joins.rs`.
+   The comments are `//` and not `//!`,
+   because an inner doc comment after the file's items does not compile;
+   the run below compiled this text as appended.
 
-   ```rust
-   //! Wire the survey test in for one run.
-   /// Keep the survey test out of a release build.
+   ```text
+   // Wire the survey test in for one run.
+   // Keep the survey test out of a release build.
    #[cfg(test)]
    #[path = "markdown_fragment_joins_survey_tests.rs"]
    mod survey_tests;
    ```
 
-1. Change this constant in `src/markdown_fragment_joins.rs`
+1.
+   Change this constant in `src/markdown_fragment_joins.rs`
    from `2` to `usize::MAX`.
    This is the only lifted guard,
-   and this edit is the reason the count is a model:
+   and this edit is the reason the removal count is a model:
 
    ```rust
    //! Read the shipped fragment limit.
@@ -159,23 +284,34 @@ none of these edits is committed.
    const FRAGMENT_WORDS: usize = 2;
    ```
 
-1. Run the probe and the survey from the package folder,
-   with the list and the worktree root named:
+1.
+   Run the survey from the package folder,
+   with the list,
+   the worktree root,
+   the copies folder and the installed binary named:
 
    ```sh
    # from package/linter/monochromatic-lint
    SURVEY_LIST="$PWD/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt" \
-     SURVEY_ROOT="$(git rev-parse --show-toplevel)" \
+     SURVEY_ROOT="<the worktree the list came from>" \
+     SURVEY_M13_DIR="<a folder outside the repository for the fix copies>" \
+     SURVEY_LINT_BIN=/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint \
      cargo nextest run --locked --lib --no-capture survey_
    ```
 
-   The same command also runs `survey_probe_sees_every_class_on_its_fixture`.
-   That test is the positive control:
-   it fails unless the survey sees each class on its own fixture.
-   Its `PROBE` line is the evidence that the counters can see a class at all.
+   Every test whose name starts with `survey_` runs.
+   `survey_probe_sees_every_class_on_its_fixture` is the positive control:
+   it fails unless the survey sees each class on its own fixture,
+   the `block-marker` class included.
+   `survey_classes_a_quoted_line_after_its_marker`,
+   `survey_d2_leaves_a_clause_with_a_later_parenthesis_edge` and
+   `survey_counts_a_reported_paragraph_apart` are the three controls for the splits the predicates lean on;
+   each asserts exact numbers on its fixture.
 
-1. Undo the two temporary edits and delete `src/markdown_fragment_joins_survey_tests.rs`.
+1.
+   Undo the two edits and delete `src/markdown_fragment_joins_survey_tests.rs`.
    `git status --short` must name none of them before a commit.
+   The run recorded here took 1,297.955 seconds for its five tests.
 
 ## Limits
 
@@ -188,8 +324,23 @@ none of these edits is committed.
   `_` or `~`,
   so the emphasis ending is counted apart rather than as a boundary.
   A report that includes it must settle the conflict with the rule first.
+  Update,
+  2026-11-28:
+  the shipped boundary test now climbs those three delimiters
+  (the fix for the emphasis-ended fragment of the alpha.24 second pass,
+  `package/linter/monochromatic-lint/doc/second-pass-reads-of-released-versions.md`),
+  so this harness counts an emphasis ending as a boundary on a rerun:
+  the `emphasis` class and every count apart from it reach zero,
+  and the emphasis ending the classes below describe is no longer a break at no boundary.
+  The harness is updated with it:
+  the join is asked with the host prefix,
+  and a rustdoc comment's context carries the prefix of its projection,
+  because the joined width the shipped join now checks is the host line's.
 - The removal count uses the shipped join's width,
-  which adds the paragraph's continuation indent,
+  which adds the paragraph's continuation indent
+  and,
+  since 2026-11-28,
+  the characters the host writes before the line,
   not the joined line's own indent.
   A removal fix that keeps another indent would measure a few characters differently.
 - The survey does not run a removal fix,
@@ -198,7 +349,11 @@ none of these edits is committed.
   a run that joins a whole run of lines at once,
   and the Rust doc-comment projection,
   are not measured here.
+- The after-the-fix measurement runs the installed binary,
+  which is a release of the crate at the recorded commit,
+  and not a build of that commit.
+  A later release that changes the join changes the figure,
+  and the commit the figure holds at is the one `output.txt` names.
 - The list is the tracked corpus at its recorded commit,
-  before this folder and the revised
-  proposal were added,
-  so the records themselves are not in the counts.
+  before some of this folder's own records were added,
+  so those records are not in the counts.

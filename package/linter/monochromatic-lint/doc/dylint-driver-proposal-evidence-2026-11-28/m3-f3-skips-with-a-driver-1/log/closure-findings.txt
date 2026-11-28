@@ -1,0 +1,15 @@
+package/browser-selector/desktop-app	0
+package/browserslist/core-rust	0
+package/cargo-shadow/cli	6
+package/catalog-specifier/core-rust	0
+package/codex-plugin/bash-limit	0
+package/cpu-temperature/cli	13
+package/dependency-catalog/core-native	0
+package/file-enforcer/cli	0
+package/file-enforcer/core-rust	0
+package/file-manager/app	0
+package/file-manager/variant-gtk-sticky	0
+package/file-manager/variant-qt	0
+package/forbidden-strings/cli	0
+package/forbidden-strings/core	0
+package/git-policy/cli	1502

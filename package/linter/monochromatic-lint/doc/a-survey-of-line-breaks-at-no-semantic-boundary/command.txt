@@ -1,19 +1,20 @@
-Survey command and the temporary source edits
+Survey command, the temporary changes, and the environment
 
-Run at commit c8545f91b8c79a8064490bcffa667d6ea79b83df
-(2026-11-27T22:56:16-05:00).
+Run at the commit the SURVEY_COMMIT line of output.txt names.
 The list is files.txt at that commit.
 The harness reads each path with `git show <commit>:<path>`,
 so the counts are the commit's, not the worktree's later edits.
 The whole output is output.txt.
 
-The three temporary source edits, all reverted after the run and never committed:
+The three temporary changes, all reverted after the run and never committed:
 
 1. Copy the kept harness into the crate source:
    cp doc/a-survey-of-line-breaks-at-no-semantic-boundary/survey_line_breaks_at_no_semantic_boundary_tests.rs.keep \
      src/markdown_fragment_joins_survey_tests.rs
 
 2. Append to src/markdown_fragment_joins.rs:
+   // Wire the survey test in for one run.
+   // Keep the survey test out of a release build.
    #[cfg(test)]
    #[path = "markdown_fragment_joins_survey_tests.rs"]
    mod survey_tests;
@@ -25,11 +26,38 @@ The three temporary source edits, all reverted after the run and never committed
 The command, run from package/linter/monochromatic-lint:
 
 SURVEY_LIST="$PWD/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt" \
-  SURVEY_ROOT="$(git rev-parse --show-toplevel)" \
+  SURVEY_ROOT=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again \
+  SURVEY_M13_DIR=/home/user/temp/agent/line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again-scratch/survey-fix-copies \
+  SURVEY_LINT_BIN=/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint \
   cargo nextest run --locked --lib --no-capture survey_
 
 The command was run under:
 
 systemd-run --user --scope --slice=agent-work.slice \
-  --property=MemoryMax=6G --property=CPUQuota=400% --property=TasksMax=128 \
-  --property=IOWeight=1 --property=RuntimeMaxSec=2400 -- ...
+  --property=MemoryMax=8G --property=CPUQuota=400% --property=TasksMax=256 \
+  --property=IOWeight=1 --property=RuntimeMaxSec=3600 -- ...
+
+SURVEY_M13_DIR holds the copies the shipped fix changes; it is outside the repository,
+and the harness writes its one-rule configuration into it.
+The installed binary is monochromatic-lint 0.5.2-alpha.24.
+
+Run at commit bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c.
+The join and the boundary test changed after it (fc679b9392, 2026-11-28T03:02:49-05:00):
+the join counts the host line, and the boundary test climbs the emphasis delimiters.
+The harness kept in this folder is the later form; a rerun at the recorded commit needs it as that commit holds it.
+The survey was not rerun.
+
+The three edits were reverted after the run:
+git status --short named none of them.
+
+The harness's after-the-fix control was corrected after this run.
+The run's harness wrote its control copy but never passed it to the fix,
+and its expected count was one an unfixed copy also held,
+so that control could not fail.
+The kept harness passes the control through the same invocation as the copies,
+and expects the text `Aaa bbb, the` / `ccc ddd eee.`,
+which holds one break at no boundary before the fix and none after it.
+The run's figure does not depend on that control:
+all 222 copies changed bytes,
+and the corrected control is measured in
+figures-the-survey-does-not-count/reported-paragraph-control.txt.

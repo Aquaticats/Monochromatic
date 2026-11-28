@@ -1,0 +1,36 @@
+== clock 2026-11-28T08:19:05+00:00
+== cargo: /usr/bin/rustup
+== tests: 0) control 1) clean dated driver 2) probe cache 3) probe says ready, run fails
+cargo-x86_64-unknown-linux-gnu
+llvm-tools-x86_64-unknown-linux-gnu
+rust-src
+rust-std-x86_64-unknown-linux-gnu
+rustc-x86_64-unknown-linux-gnu
+rustc-dev-x86_64-unknown-linux-gnu
+== a clean driver for the dated name, no inherited RUSTFLAGS
+clean driver build status 0 after 75s
+   Compiling dylint_driver v6.4.0
+   Compiling dylint-driver-clean v0.1.0 (/work/driver-clean)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 14s
+/work/dylint-driver-clean: error while loading shared libraries: librustc_driver-5adf19dcd2f7d879.so: cannot open shared object file: No such file or directory
+ 0x0000000000000001 (NEEDED)             Shared library: [librustc_driver-5adf19dcd2f7d879.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]
+--- git execve count
+3
+/root/.dylint_drivers/nightly-2026-11-16-x86_64-unknown-linux-gnu/dylint-driver: error while loading shared libraries: librustc_driver-5adf19dcd2f7d879.so: cannot open shared object file: No such file or directory
+== fill the driver probe's own resolution offline, every platform
+probe fetch status 0 after 4s
+  Downloaded r-efi v6.0.0
+  Downloaded portable-atomic v1.15.0
+  Downloaded windows-sys v0.61.2
+offline metadata status 0
+== control: the linter over the package with the K library and the clean driver planted under the dated name
+control status 2; findings: 1
+{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\nBuilding workspace metadata entry `monochromatic-lint-closure`\nerror: no matching package named `dylint_linting` found\nlocation searched: crates.io index\nrequired by package `monochromatic-lint-closure v0.0.0 (/work/repo/lint-closure-k)`\nnote: offline mode (via `--offline`) can sometimes cause surprising resolution failures\nhelp: if this error is too confusing you may wish to retry without `--offline`\nError: \rError: `cargo` command failed; the full command can be found in `/work/tmp/.tmp5SxQJc`","code":"core/processing-failure","severity":"error","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+== probe versus run: the original library (floating name), the probe's resolve now succeeds
+no-file status 2
+{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\nBuilding workspace metadata entry `monochromatic-lint-closure`\nerror: no matching package named `dylint_linting` found\nlocation searched: crates.io index\nrequired by package `monochromatic-lint-closure v0.0.0 (/work/repo/lint-closure)`\nnote: offline mode (via `--offline`) can sometimes cause surprising resolution failures\nhelp: if this error is too confusing you may wish to retry without `--offline`\nError: \rError: `cargo` command failed; the full command can be found in `/work/tmp/.tmpYoXUNw`","code":"core/processing-failure","severity":"error","causes":[],"filename":"pkg/Cargo.toml","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+--- stderr
+== done 2026-11-28T08:21:04+00:00

@@ -47,7 +47,6 @@ use super::check_outcome::{
     unknown,
 };
 use super::staging_folder_checks::StagingBind;
-use crate::worktree_clone_binding_record::add_state_commands::NO_REMOVAL_WORDS;
 use crate::worktree_clone_slot_state::slot_state_classification::{
     SlotRouteState,
     classify_slot,
@@ -178,10 +177,9 @@ pub fn check_clone_state(facts: &CloneStateFacts) -> CheckOutcome {
             return finding(
                 "staging",
                 format!(
-                    "the slot `{}` holds a staged clone: `{dataset}` is mounted at the staging folder {} and nothing of it stands at the slot, which is the state a removal leaves when it moved the clone there and stopped before the unmount. The worktree's files are that mount and are reachable at the folder until something moves the mount back; {}. Evidence: {}.",
+                    "the slot `{}` holds a staged clone: `{dataset}` is mounted at the staging folder {} and nothing of it stands at the slot, which is the state a removal leaves when it moved the clone there and stopped before the unmount. The worktree's files are that mount and are reachable at the folder until something moves the mount back. Do not run `git worktree remove` at the slot: the wrapper's own removal takes a clone mounted at its slot or unmounted from it, so Git's own removal answers for a clone mounted elsewhere, and it would drop the registration while the clone stands at the staging folder. Evidence: {}.",
                     report.slot,
                     folder.display(),
-                    NO_REMOVAL_WORDS,
                     describe_the_evidence(&report)
                 ),
             );

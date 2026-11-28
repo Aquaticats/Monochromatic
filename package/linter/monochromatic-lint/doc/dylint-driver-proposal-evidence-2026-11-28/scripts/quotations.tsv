@@ -1,0 +1,33 @@
+doc/decision/rust-closure-lint-dylint.md	Add `rustc-dev` to the shared floating nightly.
+doc/decision/rust-closure-lint-dylint.md	The package therefore has no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override
+doc/decision/rust-closure-lint-dylint.md	a pin of the nightly
+doc/decision/rust-closure-lint-dylint.md	the floating nightly stays (no pin)
+doc/decision/rust-closure-lint-dylint.md	A package whose prerequisites are missing on the machine is skipped, and the linter says so
+doc/decision/rust-closure-lint-dylint.md	Mechanism A: `monochromatic-lint` runs `cargo dylint` for each Rust package itself
+doc/decision/rust-closure-lint-dylint.md	Fetch then warn.
+doc/decision/rust-closure-lint-dylint.md	This reads as two rules
+doc/decision/rust-closure-lint-dylint.md	A skip that remains is reported as a warning-level finding of `rust/avoidable-closure`
+doc/decision/rust-closure-lint-dylint.md	It is not a silent message with exit status 0, and it is not an error
+doc/decision/rust-closure-lint-dylint.md	A machine-wide gap (no `cargo-dylint`, no `rustc-dev`) and a missing driver produce one such finding per package, so the report shows how many packages went unchecked.
+doc/decision/rust-closure-lint-dylint.md	On 2026-11-07 a cold cargo cache skipped five packages and hid their findings behind a green run.
+package/linter/monochromatic-lint/README.md	The linter never fetches.
+package/linter/monochromatic-lint/README.md	Dylint builds the library with the active toolchain.
+package/linter/monochromatic-lint-closure/README.md	A floating-nightly upgrade can break the lint source
+package/linter/monochromatic-lint-closure/README.md	Dylint's driver cache in `~/.dylint_drivers` held 42 MB after the first run.
+doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md	B > C > A > D.
+doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md	with the toolchain-exposed cargo (`.cache/toolchain-bin/cargo`)
+doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md	compiled `dylint_driver v6.3.1` and the driver crate in 58.3 s
+doc/troubleshooting/dylint-driver-build-needs-a-rustup-proxy-cargo.md	this host has no rustup proxy in `PATH` at all
+doc/troubleshooting/dylint-driver-build-needs-a-rustup-proxy-cargo.md	so the arm could not be exercised
+doc/planning/linter-selective-anonymous-functions.md	executes the build script of every crate in the graph
+package/linter/monochromatic-lint-closure/.cargo/config.toml	rustflags = ["-C", "linker=dylint-link"]
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/issue/issue-6643.md	`rust/avoidable-closure` runs on no host run of the linter on the coordinating session's machine, so every count of findings taken there leaves that rule out.
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/issue/issue-6643.md	The rule exists and its findings are unknown for every Rust package here.
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/issue/issue-6643.md	and a run "without findings" was read as clean more than once before the line was noticed.
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/ci/ci-run-41274002049-static-step-excerpt.txt	task-run: line 1: monochromatic-lint: command not found
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/ci/ci-run-41274002049-static-step-excerpt.txt	Error: task-cli: step exited 127
+package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/upstream/dylint-v6.4.0-excerpts.txt	If you run Dylint in CI, we recommend caching certain directories to avoid rebuilding libraries, rebuilding drivers, or redownloading toolchains.
+doc/planning/repository-linter-stays-at-zero.md	`rust/avoidable-closure` 516 (508 warnings and 8 errors)
+doc/decision/rust-closure-lint-dylint.md	in their own words and not as one of the offered options: "Fetch then warn."
+doc/decision/rust-closure-lint-dylint.md	This reads as two rules: - The repository's own lint tasks fetch the Rust dependencies first (`mise run fetch:rust-dependencies`), so the cold cache that caused the skip is filled before the closure check reads it. - A skip that remains is reported as a warning-level finding of `rust/avoidable-closure`, at the package's `Cargo.toml`, naming the package and the command that fixes it. It is not a silent message with exit status 0, and it is not an error: it counts against `--max-warnings` like any warning, and `--quiet` and `--silent` hide it with the other warnings.
+doc/decision/rust-closure-lint-dylint.md	A machine-wide gap (no `cargo-dylint`, no `rustc-dev`) and a missing driver produce one such finding per package, so the report shows how many packages went unchecked. Failures that are not a missing prerequisite keep exiting with status 2.

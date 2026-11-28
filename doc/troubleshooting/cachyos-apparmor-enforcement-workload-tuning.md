@@ -2909,3 +2909,57 @@ The home and capability lines serve a dry run of the generator into a scratch fo
 The main `systemd-analyze` profile does include `local/systemd-analyze`,
 on the line before its closing brace;
 a search capped at two lines first hid it.
+
+## Eighteenth batch: ssh-keygen may write only under ~/.ssh, 2026-11-28T03:18:50-05:00
+
+The ovh backend's round asked the host's `ssh-keygen` to make a keypair in its
+own scratch folder and again in the test harness's scratch folder,
+and both writes were refused:
+
+```text
+$ ssh-keygen -t ed25519 -f /home/user/temp/agent/<run>-scratch/keyprobe/id_ed25519 -N '' -C mvm -q
+Saving key "/home/user/temp/agent/<run>-scratch/keyprobe/id_ed25519" failed: Permission denied
+```
+
+A plain write in the same directory succeeded,
+so the filesystem was never the obstacle:
+
+```text
+$ printf 'x' > plain.txt && echo "plain write ok"
+plain write ok
+```
+
+The profile is the reason.
+`/etc/apparmor.d/ssh-keygen` grants
+`owner @{user_ssh_dirs}/ rw,` and `owner @{user_ssh_dirs}/* rwl -> @{user_ssh_dirs}/*,`,
+and `@{user_ssh_dirs}` is `@{HOME}/@{XDG_SSH_DIR}` with `@{XDG_SSH_DIR}=".ssh"`
+(`/etc/apparmor.d/tunables/home.d/apparmor.d`,
+lines 44 and 71).
+`/etc/apparmor.d/local/ssh-keygen` adds the git signing buffer paths under
+`@{tmp}` and under `@{HOME}/temp/agent`,
+a cargo build folder,
+`/work/**`,
+and the git verification buffer,
+none of which covers a keypair.
+
+What the denial reaches:
+
+- `mvm --backend hetzner create` and `mvm --backend ovh create` generate their
+  managed keypair under `~/.local/share/mvm/<backend>/`,
+  which is outside `@{user_ssh_dirs}`,
+  so both refuse with the message above on this host;
+- the ovh backend round's unit tests therefore write their own stand-in keypair
+  into a scratch folder and never run `ssh-keygen`,
+  and the billed provisioning test at
+  `package/mvm/cli/src/backend/ovh/provision.expensive.unit.test.ts`
+  will hit this denial until the profile changes.
+
+Widening it is the coordinating session's call,
+because it needs root;
+a run cannot reload a profile.
+The one line that would make both backends work on this host:
+
+```text
+# /etc/apparmor.d/local/ssh-keygen
+owner @{HOME}/.local/share/mvm/** rw,
+```

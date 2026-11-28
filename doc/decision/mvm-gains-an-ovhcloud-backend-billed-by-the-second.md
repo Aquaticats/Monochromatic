@@ -112,6 +112,140 @@ Each sentence quoted here was found on its page with `agent-browser` on 2026-11-
 - The backend signs its requests with the runtime's own hash and sends them with `fetch`,
   and adds no dependency for it.
 
+## The owner's answers on the billed test, 2026-11-28
+
+Unapproved and non-final:
+the backend has created no machine that answered yet.
+Times are this machine's clock,
+UTC-05:00.
+
+### The first answer: run the test as built
+
+The owner had written "Build and test."
+before the test existed,
+so the session listed what the test does,
+step by step,
+and asked.
+The owner chose "Run it as built (Recommended)",
+whose text was these steps:
+
+1.  merge the branch,
+    then widen AppArmor's `ssh-keygen` profile so it may write under `~/.local/share/mvm/ovh/`;
+2.  `mise` gives the five key values from the encrypted secrets file to one process,
+    `node src/backend/ovh/provision.expensive.unit.test.ts`;
+3.  `ssh-keygen` makes one ed25519 keypair with no passphrase under `~/.local/share/mvm/ovh/`,
+    which stays on this machine;
+4.  reads:
+    the clock,
+    the project's regions,
+    flavors,
+    images and SSH keys;
+5.  the public key is uploaded to the project under a name beginning `mvm-`,
+    and stays there;
+6.  one machine is created,
+    of the smallest flavor in stock,
+    with `monthlyBilling` false;
+7.  up to 300 s for `ACTIVE`,
+    then `ssh` as the image's own user with host-key checking off,
+    `uname -a`,
+    and one file copied in and out of `/tmp`;
+8.  the machine is deleted,
+    the project is listed,
+    and on any failure a guard deletes every machine and snapshot whose name begins `mvm-`;
+9.  the test gives up after 900 s.
+
+Not chosen:
+the same run followed by deleting the uploaded key and the keypair,
+and not running it.
+
+The run of 04:18:56 ended after 8.7 s and created nothing.
+OVHcloud answered 404 to a flavor list:
+the project lists regions that offer storage only beside the regions that create instances,
+both Canadian and both `UP`,
+and the name order put a storage-only one first.
+
+### The second answer: diagnose, fix, run again
+
+Asked what may follow,
+the owner chose "Diagnose,
+fix,
+rerun (Recommended)":
+read-only signed reads of the region list,
+each region's record and each region's flavor list,
+kept in scratch for a day with the project identifier masked;
+a change to how the backend picks a region,
+with a unit test;
+and the same nine steps once more.
+
+The reads showed that a region record carries the services the region offers,
+and that every region listing a service named `instance` answered the flavor list
+while every region without it answered 404.
+The default regions now also require that service to be `UP`
+(commits `0a899056f5` and `c5f7e90216`).
+
+Before the second run the session also let `ssh` read `~/.local/share/mvm/ovh/`,
+in `/etc/apparmor.d/local/ssh`:
+the profile lets `ssh` read keys only in the account's `.ssh` folder,
+so step 7 would have failed after a machine existed.
+That widening was in neither option's text;
+it was done under the owner's standing "Always widen apparmor."
+and the owner was told in the next question.
+
+The run of 04:38:34 created a machine:
+OVHcloud accepted the create with `monthlyBilling` false.
+The machine did not reach `ACTIVE` within the 300 s,
+the backend deleted it at 04:43:45,
+the project listed it as `DELETING` until 04:48:42,
+and listed no instance at 04:49:59.
+The flavor was `d2-2`,
+the smallest in stock and no GPU machine;
+the image was "Ubuntu 26.04 - NVIDIA - v595",
+a GPU driver image,
+because the backend took the newest image whose name starts with `ubuntu`.
+The billing guide quoted under "What OVHcloud's own documents say" says
+the time in `BUILD` is not billed;
+which status the machine stood in was not logged,
+so whether it was billed is not known.
+
+### The third answer, and "Please don't pick GPU?"
+
+Asked again,
+the owner chose "Diagnose,
+fix,
+third run (Recommended)":
+read-only reads of the region's images and flavors,
+the project's SSH key names and its instances;
+a change to the image choice,
+stated as
+"among active public images whose name starts with the asked name,
+take the newest one the chosen flavor can boot,
+reading the image's own minDisk,
+minRam and flavorType";
+a wait that prints each status and names the last one when it gives up;
+and the nine steps a third time.
+
+While that ran the owner wrote:
+
+> Please don't pick GPU?
+
+The reads showed that the three fields named in the option cannot tell a GPU driver image from a plain one:
+every Ubuntu image in the region states a disk floor of 0,
+a memory floor of 0 and no flavor type.
+What does tell them apart is the image's tags:
+a plain distribution image carries none,
+and an image with preinstalled software carries `application` beside a tag naming the software,
+`nvidia_ngc` on the GPU driver images.
+A second thing would still have gone wrong:
+each release has a "- UEFI" variant published a minute after it,
+so the newest plain-tagged match is a variant.
+
+So the mechanism differs from the option's text,
+and the session put it to the owner again before the third run.
+A flavor record carries no field that marks a GPU flavor;
+the chooser takes the smallest flavor in stock,
+which can be a GPU flavor only when nothing smaller is in stock,
+and an explicit guard for that is open.
+
 ## What is not known
 
 - Whether the key the owner made is limited to one project,

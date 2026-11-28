@@ -5612,13 +5612,17 @@ whose words are not the command Git runs.
 Git's own removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
-nobody.
-The refusal prints the slot's report and says that this release has no removal for a clone,
-so the clone and its record stay until one does,
-and names the one command of Git's own message that works,
-`git worktree unlock <slot>`;
-what a removal would prove and lose is printed beside it,
-which the section "Removal of a ZFS worktree clone" below describes.
+nobody,
+so a `git worktree remove` of a slot a whole managed clone is bound to runs the
+wrapper's own removal instead of Git's:
+that removal destroys the clone,
+its own snapshots and its records,
+and prints what it destroyed in the same invocation,
+which the section "Removal of a ZFS worktree clone" below states.
+The slots the wrapper refuses are the ones the paragraphs below name,
+and each refusal prints the slot's report,
+the reading that stopped it,
+and the repair that ends it.
 A pending add's removal is not refused,
 because the add's own refusal names `git worktree remove <slot>` as its way forward;
 a pending add whose record has reached the phase that makes a clone
@@ -6089,9 +6093,12 @@ What this release does not do:
   (`worktree_clone_origin_cleanup::origin_cleanup_look`)
   is reached from the removal's own step of that order,
   and the other four commands' look is not yet called.
-- It adopts a plan from no command but the removal of that clone:
-  a removal that finds one adopts it and continues,
-  and no other command runs one.
+- It resumes no removal from a standing destruction plan through a command.
+  `worktree_clone_removal_proof_and_plan::removal_resume::start_the_removal` adopts a kept plan,
+  re-proves it and carries its loss forward,
+  but the command path takes only a slot it proves holds a whole clone,
+  and a slot a destruction plan names is one the command path leaves to Git,
+  so no command reaches that resume today and the plan waits for one that does.
 
 #### The cancel command
 
@@ -8754,13 +8761,20 @@ staging names.
 Every invocation the wrapper forwards to Git checks the folder once on its
 forwarded path,
 after configuration and before the child Git starts,
-at the same point the shadow sweep runs.
+at the same point the shadow sweep runs,
+which is where `run_wrapped_command` (`src/native/invocation/wrapped_command.rs`)
+calls `check_before_a_command`
+(`src/native/worktree_clone_mount_protocol/unanswered_requests_before_a_command.rs`).
 With no folder standing,
 the check is one `stat`.
 A folder whose entry a receipt answers is read,
 the entry removed,
 and the command prints nothing.
 Every failure on that path is silent and changes no command's status.
+A command the wrapper answers itself,
+and one whose repository the wrapper cannot place,
+make no check at all,
+because neither reaches that point with a common directory to look in.
 
 The nudge,
 the claim of a clone's next attempt and the gaps between attempts,
@@ -8770,14 +8784,54 @@ The first gap,
 the longest gap and a waiting command's own nudge delay are measurement M8's,
 and `the_gaps` answers nothing until step 22 states them,
 so a build with the switch on still nudges nothing.
-The check has no call site in the shipped build yet:
-a use of the protocol folder by `invocation/` is a new use inside a loop the
-layout allow list tolerates,
-which no line of that list may record,
-and the round that built the check left the call out for that reason.
-The same record's amendment of 2026-11-28 lets the wiring of a built piece merge with that finding unrecorded,
-so the forwarded path's one line is owed together with the measurement of its cost
+The check is wired,
+and what it costs a command was measured before it shipped.
+The measurement built the wrapper twice from one commit,
+with the call and with the single statement of it taken out,
+and timed a forwarded command that does no other work in a fixture repository
+with no folder of unanswered requests:
+`git rev-parse --is-inside-work-tree`,
+which loads no configuration,
+whose output a program reads,
+and asks Git for one repository fact.
+Five arms ran interleaved invocation by invocation in each round,
+20 rounds of 32 invocations per arm after 20 warm-up invocations per arm,
+and the arms were the control twice,
+the wired wrapper,
+a thousand `stat`s of the same absent folder planted on the same path,
+and a thousand calls of the check itself planted at the wiring.
+Measured 2026-11-28 on this machine,
+where the command cost 6.61 ms per invocation:
+
+- the control against itself,
+two copies of one binary,
+answered 0.979,
+0.935 to 1.061 over the rounds;
+- the wired wrapper answered 0.975,
+0.920 to 1.068,
+which is inside the control's own spread,
+so one check is below what this many rounds resolve;
+- the thousand planted `stat`s answered 1.141,
+1.078 to 1.236,
+and the thousand planted checks 1.216,
+1.156 to 1.351,
+so the harness moves when the cost is a thousand times the check's;
+- one `stat` of the absent folder is 914 ns,
+439 to 1,448 ns,
+0.014% of the command,
+and one call of the check 1.40 µs,
+1.07 to 2.42 µs,
+0.022% of it.
+
+The use that call adds,
+the folder of unanswered requests used by `invocation/`,
+is one `rust/folder-uses-links` finding no line of the layout allow list may
+record,
+and the record's amendment of 2026-11-28 lets the wiring of a built piece of
+the ZFS route merge with its finding unrecorded
 (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+So the package's lint reports that one finding,
+and no line was added to `layout-allow-list/folder-rule.txt`.
 
 ### Unmount, staging and reattach of a ZFS worktree clone
 
@@ -24516,20 +24570,25 @@ and every engine failure code,
 has a hint,
 and the test suite fails when one is added without it.
 A finding's hint says what corrects the bytes it names where the finding is made.
-The `final-newline` finding of an `add` names
+The `final-newline` finding of an `add` and of a direct check names
 `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
 which are the steps that work where the add is refused at `error` severity,
 and which also correct an index that already holds the bytes;
-it names a commit's own correction only for a commit that takes the whole file,
-because a commit whose selection is read-only records the staged bytes as they are.
-The same finding of a direct check says a commit that takes the file corrects the ending
-while this repository's settings keep `final-newline` on,
-and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+the same two places name a commit's own correction for a commit that names the file,
+as in `git commit -- <path>`,
+because a commit whose selection is read-only (`-p`,
+`-i`,
+`--include`) records the bytes it takes as they are.
 The same finding of a commit whose selection is read-only says to edit the file and stage it again,
 because the index holds the bytes as they are and no commit corrects them.
 The same finding of a landed commit and of a pushed tree says to edit the file and commit the correction,
 because a commit already records those bytes as they are.
-A finding of a patch-capable commit or of a direct fix says the correction is that lifecycle's own.
+A commit that lands reports the bytes it holds and not the index the pass read before it:
+the staged-lifecycle sentence of a read-only selection is dropped once the commit lands,
+and only the landed sentence of the post-commit gate is left.
+No finding a run prints offers a patch,
+because a lifecycle that may correct the bytes applies its correction in a pass of its own and reports that pass's
+`fix-summary` alone.
 Plain stderr notices that report a divergence from real Git's behavior end with a hint in the same voice.
 A reader that ignores unknown fields is unaffected.
 
@@ -26374,17 +26433,19 @@ warn and continue without offering an inapplicable patch.
 An explicit error override makes those findings blocking.
 The hint of a finding here says what corrects the file where the finding is made.
 A direct check reads worktree bytes a commit takes,
-so its hint names that commit's correction,
-which happens while the settings keep `final-newline` on,
-and names `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now.
+so its hint is the one an `add` gives:
+the fix and the staging after it,
+then the commit that names the file,
+which corrects the ending while the settings keep `final-newline` on,
+unless its selection is read-only.
 An `add` may be refused at `error` severity,
 which stages nothing,
 and an index keeps the bytes it already holds,
 so its hint leads with `git monochromatic-git-policy-cli fix -- <path>`
 and the `git add -- <path>` staging after it,
-and names a commit's correction only for a commit that takes the whole file,
+and names a commit's correction for a commit that names the file,
 because `-p`,
-`-i` and `--include` record the staged bytes as they are.
+`-i` and `--include` record the bytes they take as they are.
 A commit whose selection is read-only (`-p`,
 `-i`,
 `--include`) names bytes nothing corrects,

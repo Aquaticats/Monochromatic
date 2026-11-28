@@ -111,10 +111,10 @@ pub mod registration_resume;
 
 pub use add_state_commands::{
     ClonePresence,
-    NO_REMOVAL_WORDS,
     NextCommand,
     PlanHeadWord,
     StateFacts,
+    THE_REMOVALS_WORDS,
     command_for,
 };
 pub use binding_bound::{
