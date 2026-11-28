@@ -106,9 +106,14 @@ so what this round leaned on from them is restated here.
 
 The round that answered it owned the sentences an install prints and one name
 length:
-L-4, L-5, L-6, L-7 and the part of L-8 about those sentences.
+L-4,
+L-5,
+L-6,
+L-7 and the part of L-8 about those sentences.
 The exposure folder's removal
-(M-1 and L-1, L-2, L-3 and L-9)
+(M-1 and L-1,
+L-2,
+L-3 and L-9)
 belongs to the round
 `mpm-shadow-alpha-19-read-two-installs-at-once-fail-neither-and-the-removal-names-what-it-keeps`,
 and this record says nothing about it.
@@ -119,7 +124,8 @@ and each control was then proved to fail again by planting the old behaviour
 back.
 The released binaries the pass used are not in this round's hands,
 so the released-binary evidence for every finding below is the pass's own
-transcripts, quoted where they matter,
+transcripts,
+quoted where they matter,
 and every red named here is a control run on this branch.
 
 ### L-5: the added target's sentence named a listing this release never asks
@@ -152,7 +158,8 @@ Proved to fail by putting the old sentence back:
 it failed with the two texts above side by side.
 Run at the user boundary on a build of this branch:
 `install --frozen-lockfile` in a throwaway scope with a stand-in `rustup` printed
-the new sentence, exit 0.
+the new sentence,
+exit 0.
 
 ### L-6: two sentences promised more than every state keeps
 
@@ -212,7 +219,8 @@ per Rust row.
 
 Every program a command starts is now waited on through one function,
 and when a wait passes 2 s it prints one line on standard error,
-once, however long the wait lasts:
+once,
+however long the wait lasts:
 
 ```text
 mpm-shadow: still waiting for `rustup component list --installed --toolchain nightly-2026-11-16` to answer, 2.0 s after this command started it; no deadline ends that wait
@@ -224,13 +232,18 @@ measured on 2026-11-28 with three arms interleaved in each of 40 rounds:
 
 - this machine's `rustup 1.29.3` answering `--version`,
   which is the read-only call class the real program was timed on:
-  4.39 ms at the median, 45.61 ms at its slowest,
-  and its slowest sample was 10.4 times its median, which is the spread this
+  4.39 ms at the median,
+  45.61 ms at its slowest,
+  and its slowest sample was 10.4 times its median,
+  which is the spread this
   machine showed;
 - a stand-in answering `which --toolchain <channel> rustc`:
-  12.85 ms at the median, 26.58 ms at its slowest;
-- the same stand-in answering `component list --installed`: 12.63 ms at the
-  median, 26.28 ms at its slowest.
+  12.85 ms at the median,
+  26.58 ms at its slowest;
+- the same stand-in answering `component list --installed`:
+  12.63 ms at the
+  median,
+  26.28 ms at its slowest.
 
 So 2 s is 75 times the slowest ordinary question and 157 times the median of the
 two questions,
@@ -250,7 +263,8 @@ which starts the shipped runner in a process of its own and reads the line from
 its standard error.
 That last one was added because the others pass their own bound:
 with `A_WAIT_LONGER_THAN_ORDINARY` raised to an hour every earlier control stayed
-green, and only that one failed.
+green,
+and only that one failed.
 At the user boundary,
 a run of this branch's build against a stand-in `rustup` that did not answer
 printed the line once and then the answer.
@@ -277,28 +291,41 @@ The pass measured the edge at 185 bytes linked and 186 bytes failed.
 The name is now judged where the plan is read,
 before any download or link write,
 against the longest name asked of the file system the exposure folder is on
-(`statvfs`, so a file system holding 143 bytes and one holding 255 each answer
+(`statvfs`,
+so a file system holding 143 bytes and one holding 255 each answer
 for themselves).
 The reserve a temporary name adds is the widest each of its fields can be under
 its own type
-(a `u32` process number, a `u64` start time, a `u64` namespace and the boot
+(a `u32` process number,
+a `u64` start time,
+a `u64` namespace and the boot
 identifier's 36 bytes),
 95 bytes,
 so on a 255-byte file system a bin name is at most 160 bytes.
-The refusal names the plan file, the row, the bin, the limit the file system
-gave, the temporary name it cannot hold, and the two ways out:
+The refusal names the plan file,
+the row,
+the bin,
+the limit the file system
+gave,
+the temporary name it cannot hold,
+and the two ways out:
 
 ```text
 mpm-shadow: the toolchain plan <plan file> declares the bin "<bin>" of rust, 186 bytes long, and the file system of the exposure folder <folder> holds names of at most 255 bytes, so the `.<bin>.tmp.<process id>.<start time>.<namespace>.<boot>` name its link is written under before it is renamed (at most 281 bytes for that bin) cannot exist there: a bin name that folder can hold is at most 160 bytes, so declare a shorter exposed name in `bins` and the program's own name in `options.binAliases`, or run this scope from a file system whose names hold more bytes
 ```
 
-The command exits 2, the code for a plan that cannot be used.
+The command exits 2,
+the code for a plan that cannot be used.
 The name is refused wherever the plan is read,
-so `list`, `update`, `install --lockfile-only` and `bin` refuse such a plan too,
+so `list`,
+`update`,
+`install --lockfile-only` and `bin` refuse such a plan too,
 which is the cost of putting the check there;
 the way not taken is a shorter temporary name,
 which gives up the identity the name carries:
-which process, which start of it, which namespace and which boot wrote the link,
+which process,
+which start of it,
+which namespace and which boot wrote the link,
 the facts a later rebuild needs to tell a link an install still holds from one an
 install that ended left.
 The owner has that veto open.
@@ -336,14 +363,17 @@ and three controls were added:
 
 - `both_renames_failing_says_what_a_later_install_does_with_the_kept_copy`,
   which reads the sixth message's own words and then runs the install that
-  follows, which publishes the copy without downloading;
+  follows,
+  which publishes the copy without downloading;
 - `a_copy_under_a_name_from_an_earlier_boot_is_published_by_the_next_install`,
   which puts the kept copy under a name carrying a boot identifier this machine
-  is not running, and shows the next install publishes it;
+  is not running,
+  and shows the next install publishes it;
 - `a_newer_version_installed_leaves_the_kept_copy_hidden`,
   which finishes a newer version in the same root and shows the next install
   says `left the finished copy ... because 0.2.2 is installed and an older
-  repository tool is never kept`, downloads nothing and leaves the copy.
+  repository tool is never kept`,
+  downloads nothing and leaves the copy.
 
 Each was proved to fail by planting the behaviour it guards:
 the sixth message's text replaced by the fifth's,

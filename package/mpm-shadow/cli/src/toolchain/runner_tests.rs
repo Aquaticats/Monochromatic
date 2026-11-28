@@ -180,7 +180,8 @@ fn wait_for_a_shell(
 }
 
 /// A wait that ends within the bound says nothing:
-/// the line is for a wait that has outlasted an ordinary answer, not for every start.
+/// the line is for a wait that has outlasted an ordinary answer,
+/// not for every start.
 #[test]
 fn a_wait_that_ends_within_the_bound_is_silent() {
     let (said, say) = the_lines_said();
@@ -230,7 +231,8 @@ fn a_wait_that_passes_the_bound_says_what_is_being_waited_for() {
 }
 
 /// A wait that outlasts the bound several times over is named once,
-/// not once per bound: a program that runs for a minute prints one line.
+/// not once per bound:
+/// a program that runs for a minute prints one line.
 #[test]
 fn a_wait_that_outlasts_the_bound_twice_is_still_named_once() {
     let (said, say) = the_lines_said();
@@ -246,7 +248,8 @@ fn a_wait_that_outlasts_the_bound_twice_is_still_named_once() {
 
 /// The output of a program that prints more than a pipe holds is read while it runs,
 /// which is what the wait's own reading thread is for:
-/// a child blocked on a full pipe would otherwise never end, and no wait would end with it.
+/// a child blocked on a full pipe would otherwise never end,
+/// and no wait would end with it.
 #[test]
 fn a_programs_whole_output_is_read_even_when_it_is_larger_than_a_pipe() {
     let (said, say) = the_lines_said();
@@ -291,9 +294,11 @@ fn the_shipped_bound_is_far_above_an_ordinary_answer() {
 }
 
 /// What:
-/// The script the fixture below runs: it sleeps past the shipped bound and then answers.
+/// The script the fixture below runs:
+/// it sleeps past the shipped bound and then answers.
 /// Why:
-/// The control has to see the line the shipped runner prints, which only a wait longer than
+/// The control has to see the line the shipped runner prints,
+/// which only a wait longer than
 /// `A_WAIT_LONGER_THAN_ORDINARY` reaches.
 ///
 /// In TS you'd write (pseudocode):
@@ -302,12 +307,14 @@ fn the_shipped_bound_is_far_above_an_ordinary_answer() {
 /// ```
 const A_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME: &str = "sleep 2.4; echo answered";
 
-/// The name this fixture is filtered by, the way the control below starts it.
+/// The name this fixture is filtered by,
+/// the way the control below starts it.
 const THE_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME: &str =
     "toolchain::runner_tests::the_program_that_does_not_answer_in_time";
 
 /// What:
-/// A program the shipped runner waits for, started in a process of its own.
+/// A program the shipped runner waits for,
+/// started in a process of its own.
 /// Why:
 /// The line the wait prints goes to standard error of whichever process waits,
 /// and a test cannot read its own standard error,

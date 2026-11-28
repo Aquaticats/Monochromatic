@@ -103,7 +103,8 @@ pub(crate) struct Plant {
     /// One rename of this publish,
     /// answered with an operating system error's number instead of being made.
     pub(crate) refuse_the_rename: Option<(RenameRefused, i32)>,
-    /// The put-back that follows the refused rename, answered with this operating system error's number,
+    /// The put-back that follows the refused rename,
+    /// answered with this operating system error's number,
     /// which is the arm whose message names both errors:
     /// the two-rename fallback whose second rename fails and whose put-back fails too.
     /// It is a field of its own because that arm needs two of the three renames refused at once,

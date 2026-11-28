@@ -181,9 +181,11 @@ impl RunOutcome {
 /// a cut-off would tell a person a toolchain's parts could not be read when `rustup` was merely slow.
 /// What is missing instead is any word while it waits,
 /// so a run that is stuck and a run that is working look alike.
-/// The bound is where that word becomes useful, and it is not a decision about the wait's end.
+/// The bound is where that word becomes useful,
+/// and it is not a decision about the wait's end.
 /// Measured on 2026-11-28 by `measure_ordinary_rustup_calls.py` in this round's scratch folder,
-/// three arms interleaved in one round, 40 rounds:
+/// three arms interleaved in one round,
+/// 40 rounds:
 /// the real `rustup --version` (this machine's `rustup 1.29.3`) took 4.39 ms at the median and 45.61 ms at its slowest,
 /// and a stand-in's `which` and `component list` took 12.85 ms and 12.63 ms at their medians
 /// and 26.58 ms and 26.28 ms at their slowest,
@@ -230,7 +232,8 @@ fn the_wait_notice(
 /// Why:
 /// The child's answer is what the caller acts on,
 /// so its output is read as it comes and the wait has no end of its own;
-/// the one line is all this adds, and it is added once however long the wait lasts.
+/// the one line is all this adds,
+/// and it is added once however long the wait lasts.
 /// `bound` and `say` are arguments so a control can pass a bound it can wait out and read what was said;
 /// the shipped call passes `A_WAIT_LONGER_THAN_ORDINARY` and writes to standard error.
 ///

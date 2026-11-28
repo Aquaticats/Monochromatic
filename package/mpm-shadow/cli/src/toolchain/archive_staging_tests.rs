@@ -423,7 +423,8 @@ fn an_installer_that_no_longer_runs() -> Owner {
 /// An installer that made a hidden name in another boot is one that a reboot certainly ended,
 /// so a control that judges a name from another boot needs an identifier the reader's own is not,
 /// and a name whose boot field is that form is the only one this reader judges at all.
-/// The value stands for nothing any program printed; it is a boundary value of the boot field.
+/// The value stands for nothing any program printed;
+/// it is a boundary value of the boot field.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -434,7 +435,8 @@ fn another_boots_identifier() -> String {
 }
 
 /// What:
-/// An installer's pair for a process the system no longer runs, in a boot before this one.
+/// An installer's pair for a process the system no longer runs,
+/// in a boot before this one.
 /// Why:
 /// The sentence every failed publish ends with says a run after a reboot acts on the hidden name,
 /// so a control of that clause needs a name whose boot is not the running one;

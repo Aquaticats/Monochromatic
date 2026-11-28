@@ -748,7 +748,8 @@ llama-cpu-cli \
   (see "The plan" for those two questions),
   and waits for each answer with no bound of its own,
   so a `rustup` that never answers makes it wait for ever.
-  `install` waits the same way, for the questions it asks about a Rust row and for every other program it
+  `install` waits the same way,
+  for the questions it asks about a Rust row and for every other program it
   starts,
   and so does every command that starts a program,
   so a `rustup` or a `cargo` that never answers makes that command wait for ever too.
@@ -765,7 +766,8 @@ llama-cpu-cli \
   and a stand-in answering `which` and `component list` took 12.85 ms and 12.63 ms at their medians
   and 26.58 ms and 26.28 ms at their slowest,
   so 2 s is 75 times the slowest ordinary question and 157 times the median of the two questions,
-  and above the spread of the control arm, whose slowest sample was 10.4 times its median.
+  and above the spread of the control arm,
+  whose slowest sample was 10.4 times its median.
   What that costs when `rustup` answers:
   20 to 116 ms for the whole command with the row's components and targets declared,
   against 6 to 15 ms for a row that declares none and so asks only which toolchain the channel is,
@@ -1541,7 +1543,9 @@ following the words above,
 and that copy is the one a later install publishes without downloading while that version's name holds no finished copy,
 in this process namespace and after a reboot;
 an install in another process namespace does not judge that name and leaves the copy where it is,
-and a newer version of one of this repository's tools, installed by then, leaves the copy hidden,
+and a newer version of one of this repository's tools,
+installed by then,
+leaves the copy hidden,
 which is what the sentence itself then says:
 
 ```text

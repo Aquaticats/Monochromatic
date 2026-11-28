@@ -11,10 +11,13 @@
 //! and the failure names the temporary name a person never wrote and cannot find in the plan.
 //! So the name is judged where the plan is read,
 //! against the limit the file system itself reports for the folder the link goes in,
-//! and the refusal names the row, the bin and that limit.
+//! and the refusal names the row,
+//! the bin and that limit.
 //! The other way this could have been done is a shorter temporary name,
 //! which gives up the identity the name carries:
-//! which process, which start of it, which process namespace and which boot wrote the link,
+//! which process,
+//! which start of it,
+//! which process namespace and which boot wrote the link,
 //! the facts that let a later rebuild tell a link an install still holds from one an install that
 //! ended left behind.
 //!
@@ -64,14 +67,17 @@ const THE_BOOT_IDENTIFIERS_LENGTH: usize = 36;
 /// Why:
 /// The refusal has to be checked against the widest name any run can write for that bin,
 /// not this run's own:
-/// a run whose process number, start time or namespace is longer than this one's writes a longer name
+/// a run whose process number,
+/// start time or namespace is longer than this one's writes a longer name
 /// for the same bin,
 /// so the reserve is the widest each field can be under its own type
-/// (a `u32` process number, a `u64` start time and a `u64` namespace,
+/// (a `u32` process number,
+/// a `u64` start time and a `u64` namespace,
 /// which are the fields `Owner` holds)
 /// plus the boot identifier's own length.
 /// The shape is `.<bin>.{purpose}.<pid>.<start>.<namespace>.<boot>`
-/// (`archive_staging`, `hidden_sibling`),
+/// (`archive_staging`,
+/// `hidden_sibling`),
 /// so the leading dot is counted here as well.
 ///
 /// In TS you'd write (pseudocode):
@@ -110,7 +116,8 @@ pub(crate) fn the_bytes_a_temporary_name_adds() -> usize {
 /// or nothing when no directory from `folder` up to the root could be asked.
 /// Why:
 /// The limit is a property of the file system the link is written on,
-/// not a constant: eCryptfs holds 143 bytes where ext4 holds 255,
+/// not a constant:
+/// eCryptfs holds 143 bytes where ext4 holds 255,
 /// so the question is put to the file system itself.
 /// The exposure folder need not exist yet (a scope's first `install` makes it),
 /// so the nearest directory above it that does exist answers for it,
@@ -140,7 +147,9 @@ fn the_longest_name_the_folder_holds(folder: &Path) -> Option<u64> {
 
 /// What:
 /// Refuses a plan that declares a bin name the exposure folder cannot hold a link's temporary name for,
-/// naming the row, the bin, what the file system answered and the longest bin that would fit.
+/// naming the row,
+/// the bin,
+/// what the file system answered and the longest bin that would fit.
 /// Why:
 /// The check runs where the plan is read,
 /// so the refusal comes before an install downloads anything or writes a link,

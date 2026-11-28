@@ -84,14 +84,16 @@ fn a_plan_and_a_scope(
     return (plan, scope);
 }
 
-/// The longest name the file system holding `directory` holds, as the check asks it.
+/// The longest name the file system holding `directory` holds,
+/// as the check asks it.
 fn the_longest_name_there(directory: &std::path::Path) -> u64 {
     return statvfs(directory)
         .expect("the file system answers for the scratch directory")
         .f_namemax;
 }
 
-/// A bin name of `bytes` bytes, made of one letter so it is a plain file name.
+/// A bin name of `bytes` bytes,
+/// made of one letter so it is a plain file name.
 fn a_bin_name_of(bytes: usize) -> String {
     return "a".repeat(bytes);
 }
@@ -106,7 +108,9 @@ fn a_plan_whose_bins_fit_the_exposure_folder_is_accepted() {
 
 /// What:
 /// A bin the folder cannot hold a link's temporary name for is refused,
-/// and the refusal names the row, the bin, the limit the file system answered and the longest bin that fits.
+/// and the refusal names the row,
+/// the bin,
+/// the limit the file system answered and the longest bin that fits.
 /// Why:
 /// The failure the check replaces named the temporary link,
 /// which is a name no person wrote and no plan holds,
@@ -187,7 +191,8 @@ fn the_question_is_put_to_the_nearest_directory_that_exists() {
 /// A bin whose link's temporary name is exactly the longest name the file system holds is written,
 /// and one byte more fails with the system's own error.
 /// Why:
-/// This is the failure the check comes before, built on a real file system:
+/// This is the failure the check comes before,
+/// built on a real file system:
 /// it shows the reserve the check uses covers a name that fits,
 /// and that the write really does fail one byte past the limit with the temporary name in its words.
 #[test]

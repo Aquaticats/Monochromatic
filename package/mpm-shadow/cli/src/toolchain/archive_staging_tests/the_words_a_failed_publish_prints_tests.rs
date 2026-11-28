@@ -563,7 +563,9 @@ fn a_copy_under_a_name_from_an_earlier_boot_is_published_by_the_next_install() {
 }
 
 /// What:
-/// The clause "a newer version of a tool this repository publishes, installed by then, leaves that copy hidden,
+/// The clause "a newer version of a tool this repository publishes,
+/// installed by then,
+/// leaves that copy hidden,
 /// so the next install of the older version publishes nothing and downloads nothing.
 /// Why:
 /// It is the other condition of that sentence no control drove,
