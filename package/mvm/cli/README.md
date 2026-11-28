@@ -165,6 +165,13 @@ A billed run on 2026-11-28 asked OVHcloud for two vCPUs and 4 GiB and printed:
 size at least 2 vCPUs and at least 4 GiB of memory fits d2-4 (2 vCPUs, 4 GiB of memory, 50 GB of disk), 0.033 CAD per hour
 ```
 
+That figure was the instance row alone,
+which is the defect issue 6666 filed;
+since the fix in commit `d46e11bcf2` the same create prints the same line with
+`0.03732` in place of `0.033` and `counting the instance, its public IPv4
+address and its local storage, excluding tax` after it
+(see [What the printed price counts](#what-the-printed-price-counts)).
+
 The command it ran printed `MemTotal:        3906272 kB` and `2`.
 3,906,272 kB is 4,000,022,528 bytes,
 which is 4.000 GB,
@@ -270,7 +277,7 @@ Among the flavors the region has in stock,
 the backend keeps only families OVHcloud sells as general-purpose Linux
 machines,
 keeps those whose vCPUs and memory are both at least what was asked,
-reads their hourly prices,
+reads what an hour of each costs,
 and takes the cheapest.
 The price comes from OVHcloud's public order catalogue,
 `GET /v1/order/catalog/public/cloud`,
@@ -278,14 +285,80 @@ whose answer prices each flavor's hourly plan code
 (`c3-4.consumption`) in the currency its own `locale` names.
 A flavor record carries no price,
 so this is one extra read,
-made once per
-create.
+made once per create.
 
 A size the catalogue publishes no hourly price for is never picked,
-so a flavor that has no price is not a candidate even when it would fit.
-The same applies to every `-flex` twin:
-no flex name has a published hourly
-price.
+so a flavor whose `planCodes.hourly` the answer does not price is not a candidate
+even when it would fit.
+No plan code in the answer carries `flex` at all
+(none of the 2679 Canadian,
+2683 French and 626 American addons of 2026-11-28
+does),
+so a `-flex` twin is a candidate only when OVHcloud's own flavor list answers its
+plain twin's plan code for it,
+which this build has not read;
+where the list answers a `-flex` code,
+the answer prices nothing and the size is left out.
+
+#### What the printed price counts
+
+The figure is the **whole hour** OVHcloud bills,
+not the instance row alone.
+OVHcloud sells an hour of a machine in three lines,
+and the same answer prices all three:
+
+- the instance row,
+  the flavor's own hourly plan code,
+  `d2-8.consumption`;
+- the public IPv4 address every machine mvm makes reaches the network on,
+  `publicip.ip.hour.consumption`,
+  CA$0.00432 per hour in the Canadian answer of 2026-11-28;
+- local storage,
+  which only the Gen 3 families (`b3`,
+  `c3`,
+  `r3`) bill apart from the instance.
+  An instance plan names the addon that bills its own storage
+  (`instance.local-storage-gen3-gb.hour.consumption` at CA$0.0002333 per GB-hour,
+  or the zero-priced line the earlier ranges name),
+  and the GB it carries is in its own technical blob.
+
+So the Canadian answer of 2026-11-28 gives `b3-16` CA$0.19135 an hour
+(its row CA$0.1637,
+the address CA$0.00432,
+and its 100 GB at CA$0.0002333)
+and `d2-8` CA$0.06392
+(CA$0.0596,
+the address,
+and its 50 GB on the zero-priced line),
+and those are the price page's own figures for those sizes.
+The seven sizes this was checked against that day,
+`d2-2`,
+`d2-8`,
+`b2-7`,
+`b3-16`,
+`c3-4`,
+`c3-8` and `r3-16`,
+sum to the page's own whole-hour figure to the last digit.
+
+The figure leaves out the tax,
+which every price here excludes,
+and the lines a machine mvm makes does not carry:
+traffic (the answer's own `bandwidth_instance_in` and `bandwidth_instance_out`
+lines are priced 0 in Canada,
+and mvm adds none of them),
+the Windows licence line only `win-*` flavors list,
+snapshots and volumes a create does not make,
+the 12-month savings plans the page also sells,
+and a local zone's address,
+which has its own variant of the address line,
+priced as the base line in Canada and France that day and differently in the US.
+
+A size whose storage line the answer does not price,
+or whose body states no storage amount,
+is left out entirely rather than priced as if that line were free.
+So a size that is cheaper by its row alone can lose to one whose whole hour is
+cheaper,
+and the same sum decides what is printed and what is compared.
 
 When the price read cannot be had,
 the order falls back to the numbers alone:
@@ -294,13 +367,26 @@ then memory,
 then disk,
 then the plain size before its `-flex` twin,
 then the name.
+That covers a refused call and an answer carrying no price for the address line,
+which every machine carries.
 The command says which order it used:
 
 ```text
-size at least 2 vCPUs fits d2-4 (2 vCPUs, 4 GiB of memory, 50 GB of disk), 0.033 CAD per hour
+size at least 2 vCPUs fits d2-4 (2 vCPUs, 4 GiB of memory, 50 GB of disk), 0.03732 CAD per hour counting the instance, its public IPv4 address and its local storage, excluding tax
 ```
 
 That line is printed before anything is created.
+
+The American subsidiary's answer states its instance rows with no interval unit
+at all,
+which this read does not take for an hour
+(measured 2026-11-28:
+192 metered instance entries there,
+none of them stating an
+hour),
+so no size reads as priced on that host and a sized create there refuses naming
+the catalogue.
+The Canadian and French answers state their instance rows by the hour and work.
 
 ```sh
 # package/mvm/cli/README.md -- at least two vCPUs and 4 GiB of memory in BHS5
@@ -308,8 +394,8 @@ mvm --backend ovh create --vcpus 2 --memory 4 build-box
 ```
 
 Before it creates anything the command prints the size it picked,
-its numbers and its hourly price,
-for example `flavor d2-4 with 2 vCPUs, 4 GiB of memory and 50 GB of disk, 0.033 CAD per hour`.
+its numbers and its whole hourly price,
+which is the line quoted in the section above.
 That is what a live `BHS5` catalogue gives for those floors:
 `d2-4` and `c3-4`
 both have 2 vCPUs and 4 GiB,
