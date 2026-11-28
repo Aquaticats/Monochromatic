@@ -248,8 +248,9 @@ fn turn(world: &World) -> ReachedMount {
     );
 }
 
-/// The pass makes the one unmount call, names the slot, and never unmounts through
-/// the clone's own descriptor.
+/// The pass makes the one unmount call,
+/// names the slot,
+/// and never unmounts through the clone's own descriptor.
 #[test]
 fn the_pass_makes_one_unmount_call_naming_the_slot() {
     let world: World = world("unmount-call-named");
