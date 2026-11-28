@@ -156,7 +156,7 @@ fn a_join_that_would_pass_the_limit_is_declined() {
         joined(source.as_str(), &[fragment_at(source.as_str(), "the\n")], 0),
         source
     );
-    let short: String = format!("Owns the record family, the\n{}\n", &"x".repeat(3));
+    let short: String = format!("Owns the record family, the\n{}\n", "x".repeat(3));
     assert_ne!(
         joined(short.as_str(), &[fragment_at(short.as_str(), "the\n")], 0),
         short

@@ -262,9 +262,12 @@ fn a_joined_doc_line_stays_under_the_limit_in_its_host_file() {
         let source: String = format!(
             "{host_prefix}What:\n{host_prefix}Line one, {fragment}\n{host_prefix}{under}\n"
         );
-        let (fixed, remaining): (String, Vec<String>) =
+        let (fixed, remaining_under): (String, Vec<String>) =
             fix_file("a.rs", source.as_str(), EVERY_FIXABLE_RULE);
-        assert!(remaining.is_empty(), "{host_prefix:?}: {remaining:?}");
+        assert!(
+            remaining_under.is_empty(),
+            "{host_prefix:?}: {remaining_under:?}"
+        );
         assert!(
             fixed.contains(&format!("{host_prefix}{fragment} {under}")),
             "{host_prefix:?}: {fixed}"
@@ -272,23 +275,26 @@ fn a_joined_doc_line_stays_under_the_limit_in_its_host_file() {
         assert!(
             fixed
                 .lines()
-                .all(|line| line.chars().count() <= JOINED_LINE_LIMIT),
+                .all(|line| return line.chars().count() <= JOINED_LINE_LIMIT),
             "{host_prefix:?}: {fixed}"
         );
         // The same width one character further, so the host line would pass the limit: the join is declined.
         let over: String = following_word_for_host_width(JOINED_LINE_LIMIT, host_prefix, fragment);
         let long: String =
             format!("{host_prefix}What:\n{host_prefix}Line one, {fragment}\n{host_prefix}{over}\n");
-        let (kept, remaining): (String, Vec<String>) =
+        let (kept, remaining_over): (String, Vec<String>) =
             fix_file("a.rs", long.as_str(), EVERY_FIXABLE_RULE);
-        assert!(remaining.is_empty(), "{host_prefix:?}: {remaining:?}");
+        assert!(
+            remaining_over.is_empty(),
+            "{host_prefix:?}: {remaining_over:?}"
+        );
         assert!(
             kept.contains(&format!("{host_prefix}{fragment}\n")),
             "{host_prefix:?}: {kept}"
         );
         assert!(
             kept.lines()
-                .all(|line| line.chars().count() <= JOINED_LINE_LIMIT),
+                .all(|line| return line.chars().count() <= JOINED_LINE_LIMIT),
             "{host_prefix:?}: {kept}"
         );
     }
@@ -299,13 +305,14 @@ fn a_joined_doc_line_stays_under_the_limit_in_its_host_file() {
 #[test]
 fn a_fragment_ending_inside_closing_emphasis_keeps_its_line() {
     let source: &str = "One two, *held,*\nfour five.\n";
-    let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, EVERY_FIXABLE_RULE);
+    let (fixed, remaining_first): (String, Vec<String>) =
+        fix_file("a.md", source, EVERY_FIXABLE_RULE);
     assert_eq!(fixed, "One two,\n*held,*\nfour five.\n");
-    assert!(remaining.is_empty(), "{remaining:?}");
-    let (again, remaining): (String, Vec<String>) =
+    assert!(remaining_first.is_empty(), "{remaining_first:?}");
+    let (again, remaining_second): (String, Vec<String>) =
         fix_file("a.md", fixed.as_str(), EVERY_FIXABLE_RULE);
     assert_eq!(again, fixed);
-    assert!(remaining.is_empty(), "{remaining:?}");
+    assert!(remaining_second.is_empty(), "{remaining_second:?}");
 }
 
 /// Every fixture keeps its token sequence under plain `--fix` with every fixable Markdown rule enabled,

@@ -376,7 +376,7 @@ fn both_shapes_change_one_pass_and_no_more() {
             "*b,*", "*c,*", "*d,*", "*e,*", "*f,*", "*g,*", "*h,*", "*i,*", "*j,*", "*k,*", "*l,*",
             "*m,*", "*n,*", "*o,*"
         ]
-        .map(|line| format!("{line}\n"))
+        .map(|line| return format!("{line}\n"))
         .concat()
     );
     let result: FixedSource = fix_loop(chain.as_str());

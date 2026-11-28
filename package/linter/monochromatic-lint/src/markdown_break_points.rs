@@ -92,8 +92,9 @@ fn is_break_point(character: char) -> bool {
 /// ```
 pub(crate) fn ends_at_break_point(text: &str) -> bool {
     // One reverse trim over both delimiter families, so `"4."`, `*held,*` and `~~held,~~` all end where they look.
-    let stripped: &str =
-        text.trim_end_matches(|character: char| closing(character) || closing_emphasis(character));
+    let stripped: &str = text.trim_end_matches(|character: char| {
+        return closing(character) || closing_emphasis(character);
+    });
     return stripped.chars().next_back().is_some_and(is_break_point);
 }
 

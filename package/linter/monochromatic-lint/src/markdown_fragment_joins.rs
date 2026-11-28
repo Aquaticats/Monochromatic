@@ -183,12 +183,13 @@ fn fragment_join(
     // The fragment's last visible byte is where the join starts removing bytes.
     let written: &str = source[fragment..ending].trim_end_matches([' ', '\t']);
     let start: usize = fragment + written.len();
-    let written: &str = written.trim_start_matches([' ', '\t']);
-    if written.split_whitespace().count() > FRAGMENT_WORDS {
+    // The same fragment without its own leading spacing, which is the text the rule reads.
+    let text: &str = written.trim_start_matches([' ', '\t']);
+    if text.split_whitespace().count() > FRAGMENT_WORDS {
         return None;
     }
     // A fragment ending at a break point is where the rule puts a line break, so joining it would break it again.
-    if ends_at_break_point(written) {
+    if ends_at_break_point(text) {
         return None;
     }
     let next: usize = ending + ending_length;
@@ -213,7 +214,7 @@ fn fragment_join(
     let following: &str = source[text_start..following_end].trim_end_matches([' ', '\t']);
     // The host counts the characters it writes before this line's text, so a Rust doc comment's marker and indent are part of the width.
     let width: usize =
-        host_prefix_chars + indent_width + written.chars().count() + 1 + following.chars().count();
+        host_prefix_chars + indent_width + text.chars().count() + 1 + following.chars().count();
     if width >= JOINED_LINE_LIMIT {
         return None;
     }
