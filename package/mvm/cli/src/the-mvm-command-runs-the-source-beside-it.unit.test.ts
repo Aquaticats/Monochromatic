@@ -155,24 +155,61 @@ function entryOf(bin: Readonly<Record<string, string>>,): string {
 //region Reading and starting the built entry
 
 /**
- Reads the source specifier the built entry imports, when it imports one.
+ What a launcher's one import line starts and ends with, around the file it runs.
 
- The built entry is a launcher rather than a bundled program, so its whole body is one
- side-effect import of the source file the command runs.
+ The launcher the build writes holds no program: its body is `import '<specifier>';` and
+ nothing else, so a line beginning with `import '` is that line.
+ */
+const IMPORT_LINE_PREFIX = "import '";
 
- @returns the specifier the built entry imports, or nothing when it imports no relative file
+/**
+ What a launcher's import line ends with, after the file it names.
+ */
+const IMPORT_LINE_SUFFIX = "';";
+
+/**
+ Reads the file the built entry runs, from the one import line a launcher holds.
+
+ A built entry that holds a program of its own imports no source, and a source change then
+ never reaches it: that is how the six guests lost free page reporting.
+
+ @param builtEntryText - the built entry's text, which is a launcher or a bundle
+
+ @returns the absolute path the built entry runs
+
+ @throws Error when the built entry imports no file, which is what a bundle does
 
  @example
  ```ts
- const specifier = importedSpecifierOf(await readFile(path, 'utf8'));
+ const runs = sourceTheBuiltEntryRuns(await readFile(path, 'utf8'));
  ```
  */
-function importedSpecifierOf(builtEntryText: string,): string | undefined {
+function sourceTheBuiltEntryRuns(builtEntryText: string,): string {
   /**
-   The first relative specifier the file imports, which is how the launcher names its source.
+   The built entry's import line, which a launcher holds and a bundle does not.
    */
-  const found = /(?:^|\n)import\s+'(\.[^']+)'/.exec(builtEntryText,);
-  return found?.[1];
+  const importLine = builtEntryText
+    .split('\n',)
+    .find((line,) => line.startsWith(IMPORT_LINE_PREFIX,),);
+  if (importLine === undefined) {
+    throw new Error(
+      `the built entry ${BUILT_ENTRY_PATH} holds no ${IMPORT_LINE_PREFIX}...${IMPORT_LINE_SUFFIX} line, so it holds a program of its own and no source change reaches it: run \`mise run //package/mvm/cli:build\` to write the launcher the build makes now`,
+    );
+  }
+  /**
+   The file the import line names, relative to the built entry.
+   */
+  const specifier = importLine.slice(
+    IMPORT_LINE_PREFIX.length,
+    importLine.length - IMPORT_LINE_SUFFIX.length,
+  );
+  return resolve(
+    dirname(join(
+      PACKAGE_FOLDER,
+      BUILT_ENTRY_PATH,
+    ),),
+    specifier,
+  );
 }
 
 /**
@@ -278,19 +315,16 @@ await describe({
           'utf8',
         );
         /**
-         The file inside the package the built entry would run.
+         The file the built entry runs.
          */
-        const imported = importedSpecifierOf(builtEntryText,);
+        const runs = sourceTheBuiltEntryRuns(builtEntryText,);
+        /**
+         The file the manifest names as the one `mvm` starts.
+         */
+        const declared = entryOf(await manifestBin(),);
         // A bundle written by an older build holds the program itself, and then a source
         // change never reaches it: that is how the six guests lost free page reporting.
-        expect(imported,).toBeDefined();
-        expect(resolve(
-          dirname(join(
-            PACKAGE_FOLDER,
-            BUILT_ENTRY_PATH,
-          ),),
-          imported ?? '',
-        ),).toBe(entryOf(await manifestBin(),),);
+        expect(runs,).toBe(declared,);
       },
     },),
 
