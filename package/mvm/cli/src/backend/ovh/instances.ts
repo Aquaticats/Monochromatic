@@ -257,7 +257,41 @@ export async function instanceLoginUser({
 //region Waiting
 
 /**
- Polls an instance until it reports itself running.
+ Says why a wait for a running instance gave up, naming where the instance stood,
+ so a reader can tell an instance still building from one that never answered.
+
+ @param lastStatus - status the last poll read, or an empty string when none was read
+
+ @param name - VM name without the prefix, for the message
+
+ @returns the sentence the wait throws
+
+ @example
+ ```ts
+ runningTimeoutMessage({ lastStatus: 'BUILD', name: 'dev-01' });
+ ```
+ */
+export function runningTimeoutMessage({
+  lastStatus,
+  name,
+}: {
+  readonly lastStatus: string;
+  readonly name: string;
+},): string {
+  /**
+   What the wait last saw of the instance.
+   */
+  const stood = (lastStatus === '')
+    ? 'no status was read from OVHcloud in that time'
+    : `its last status was ${lastStatus}`;
+  return `instance ${name} did not reach ${INSTANCE_RUNNING_STATUS} within ${
+    String(RUNNING_TIMEOUT_MS,)
+  }ms; ${stood}`;
+}
+
+/**
+ Polls an instance until it reports itself running, saying each status it meets
+ once.
  
  @param instanceId - instance to poll
  
@@ -290,6 +324,11 @@ export async function waitUntilRunning({
    Deadline after which polling gives up.
    */
   const deadline = Date.now() + RUNNING_TIMEOUT_MS;
+  /**
+   Statuses the polls read, each kept once when it changes, so a status is said
+   once and the give-up can name where the instance stood.
+   */
+  const seen: string[] = [];
   while (Date.now() < deadline) {
     /**
      The instance as it stands now.
@@ -304,14 +343,18 @@ export async function waitUntilRunning({
         `instance ${name} reached the OVHcloud status ${instance.status} instead of running`,
       );
     }
-    rl.debug(`instance ${name} is ${instance.status}`,);
+    if (instance.status !== seen.at(-1,)) {
+      rl.info(`instance ${name} is ${instance.status}`,);
+      seen.push(instance.status,);
+    }
     // oxlint-disable-next-line no-await-in-loop -- deliberate serial polling of one instance
     await wait(POLL_INTERVAL_MS,);
   }
   throw new Error(
-    `instance ${name} did not reach ${INSTANCE_RUNNING_STATUS} within ${
-      String(RUNNING_TIMEOUT_MS,)
-    }ms`,
+    runningTimeoutMessage({
+      lastStatus: seen.at(-1,) ?? '',
+      name,
+    },),
   );
 }
 
