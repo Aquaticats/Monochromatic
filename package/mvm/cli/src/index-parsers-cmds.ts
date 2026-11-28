@@ -97,7 +97,7 @@ const serverTypeOption = optional(
     string({ metavar: 'TYPE', },),
     {
       description:
-        message`Server type: the Hetzner server type (e.g. cx23) or the OVHcloud flavor name or id (e.g. b3-8); defaults to the cheapest Hetzner type or the smallest OVHcloud flavor in stock; ignored by the libvirt backend`,
+        message`Server type: the Hetzner server type (e.g. cx23) or the OVHcloud flavor name or id (e.g. b3-8); defaults to the cheapest Hetzner type or, on OVHcloud, the smallest in-stock size of a general-purpose family; ignored by the libvirt backend`,
     },
   ),
 );

@@ -128,8 +128,14 @@ never exact demands:
 
 > the machine has at least that many virtual CPUs and at least that much memory.
 
-Without either option every backend does exactly what it did before,
-so no existing command changes.
+Without either option each backend takes its own default,
+and its subsection below says what that default is.
+On OVHcloud the default is the smallest in-stock size of a family the sized walk
+also keeps,
+so a GPU,
+storage-shaped,
+bare-metal or other-OS size is never taken by a command that named no size;
+see [On the ovh backend](#on-the-ovh-backend).
 
 A size named outright with `--server-type` (or `MVM_OVH_FLAVOR`,
 or `MVM_HCLOUD_SERVER_TYPE`) cannot be combined with either number:
@@ -266,7 +272,27 @@ so the type it prints is not one from that table.
 
 ### On the ovh backend
 
-Among the flavors the region has in stock,
+A create that names no number takes the smallest in-stock flavor of a family
+OVHcloud sells as general-purpose Linux machines,
+by vCPUs,
+then memory,
+then disk,
+then the name.
+Those are the same families the sized walk keeps,
+so a GPU,
+storage-shaped,
+bare-metal or other-OS family is never taken on this path either.
+A region with no such family in stock is refused rather than given a size of
+another family:
+the refusal says how many in-stock sizes the family rule left out,
+names the largest of them,
+and says that `--server-type` or `MVM_OVH_FLAVOR` names a size outright.
+A clone takes no `--server-type`,
+so on that path `MVM_OVH_FLAVOR` is the only way to name one,
+and a clone's refusal names only that.
+
+When a floor is asked for,
+among the flavors the region has in stock,
 the backend keeps only families OVHcloud sells as general-purpose Linux
 machines,
 keeps those whose vCPUs and memory are both at least what was asked,
@@ -350,6 +376,11 @@ Families left out:
 
 The rule is a keep list and not a drop list on purpose:
 a name nobody has seen yet cannot be picked by accident.
+It governs what mvm picks,
+never what a person names:
+`--server-type` or `MVM_OVH_FLAVOR` takes the flavor it names,
+GPU or any other family,
+as before.
 
 In the fallback order,
 a size equal to its `-flex` twin in vCPUs,
@@ -1106,11 +1137,13 @@ ambiguous.
    not server types**:
    `--server-type` takes an OVHcloud flavor name or identifier and
   `MVM_OVH_FLAVOR` sets it for a run;
-   without it and without a floor the smallest flavor in stock in the region is
-  used,
-  by virtual CPUs and then memory.
+   without it and without a floor the smallest in-stock flavor of a kept family
+  is used,
+  by virtual CPUs and then memory,
+  and a region whose sizes all belong to other families is skipped for the next
+  one.
    `--vcpus` or `--memory` replaces that walk with the size rule,
-  which also keeps special families out;
+  which keeps the same families;
   see [Choosing a machine's size](#on-the-ovh-backend).
    A region with no size that fits is skipped before anything is created,
   and the next region is asked for the same floors.
@@ -1155,7 +1188,7 @@ A live,
 `src/backend/ovh/provision.expensive.unit.test.ts`.
  It is excluded from
 `test:unit` (the `.expensive.` marker) and only runs when all five names are set.
- It creates one instance in the smallest flavor the region offers,
+ It creates one instance with at least two vCPUs and 4 GiB of memory,
  runs one command,
  pushes and pulls one file,
  destroys the instance,

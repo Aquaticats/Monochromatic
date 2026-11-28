@@ -217,7 +217,8 @@ async function chooseFlavorAndImage({
   const shorthand = image ?? DEFAULT_IMAGE;
   if (isEmptySizeRequest({ request, },)) {
     /**
-     Smallest flavor in stock, unchanged from the walk before sizes existed.
+     Smallest in-stock size of a family mvm may pick without being told one; a
+     region whose sizes are all families it leaves out refuses instead.
      */
     const flavor = await resolveFlavor({
       region,
@@ -384,8 +385,15 @@ export async function provisionInstance({
     }
   }
   if (refusals.length > 0) {
+    /**
+     What the regions could not give: the floors asked back, or, when no number
+     was asked, the kind of size a create that names none takes.
+     */
+    const wanted = isEmptySizeRequest({ request, },)
+      ? 'a size mvm picks without being told one'
+      : describeSizeRequest({ request, },);
     throw new Error(
-      `no region among ${regions.join(', ',)} can give ${describeSizeRequest({ request, },)}: ${
+      `no region among ${regions.join(', ',)} can give ${wanted}: ${
         refusals.map(function oneRefusal(refusal: { readonly message: string; },) {
           return refusal.message;
         },)

@@ -781,7 +781,7 @@ export async function errorFrom({
  ```
  */
 export function instanceAnswer({
-  flavorId = 'flavor-small',
+  flavorId = 'd2-2',
   id = 'instance-1',
   imageUser = 'ubuntu',
   ip = '192.0.2.10',
@@ -883,23 +883,27 @@ export function imageAnswer({
 
 /**
  A flavor body, from the schema's `cloud.flavor.Flavor`.
- 
+
+ The default identifier is `d2-2`, a family mvm may pick without being told a
+ size, so a create that names no number picks the default body. A test about the
+ family rule passes the identifier it means.
+
  @param available - whether the flavor is in stock
  
  @param hourlyPlanCode - the plan code the public catalogue prices this flavor by, or omitted when the body carries none
- 
+
  @param id - flavor identifier
- 
+
  @param osType - operating system family
- 
+
  @param ram - memory in GiB
- 
+
  @param region - region the flavor is offered in
- 
+
  @param vcpus - virtual CPUs
- 
+
  @returns the body, carrying only fields this backend reads
- 
+
  @example
  ```ts
  flavorAnswer({ id: 'b3-8', vcpus: 2, ram: 8 });
@@ -909,7 +913,7 @@ export function flavorAnswer({
   available = true,
   disk = 20,
   hourlyPlanCode,
-  id = 'flavor-small',
+  id = 'd2-2',
   name = id,
   osType = 'linux',
   ram = 2,

@@ -2,22 +2,25 @@
  Which flavor (plan) an instance is created with in one region.
 
  OVHcloud's flavor identifiers churn the way any provider's plans do, so no
- identifier is written here: the smallest available flavor of the region is
- chosen at call time from what the API reports, unless `--server-type` or
- `MVM_OVH_FLAVOR` names one.
+ identifier is written here: a size is chosen at call time from what the API
+ reports, unless `--server-type` or `MVM_OVH_FLAVOR` names one outright.
 
- "Smallest" is virtual CPUs first, then memory, then disk, then the identifier,
- so the choice is fixed rather than whatever order OVHcloud answers in. A flavor
- whose `osType` is `linux` is preferred, because mvm boots Linux images; when a
- region offers no Linux flavor the smallest of any kind is used and the caller's
- create reports OVHcloud's own refusal.
+ Both ways to a size keep to the families OVHcloud sells as general-purpose
+ Linux machines (see `flavor-families.ts`), so a GPU, storage shaped, bare metal
+ or other-OS size is never taken by a command that named no size. Naming one
+ outright is the other way to size a machine, and it stays the person's own
+ choice whatever family it belongs to.
 
- When a create asks for a number of virtual CPUs or an amount of memory, a
- different walk runs: only families OVHcloud sells as general-purpose Linux
- machines are candidates (see `flavor-families.ts`), a size is kept when its
- virtual CPUs and its memory are both at least what was asked, and the smallest
- survivor wins. A request no size satisfies refuses and names what was asked, the
- largest size the region had, and how to name a size outright.
+ A create that names no number takes the smallest in-stock size of a kept
+ family, by virtual CPUs, then memory, then disk, then the identifier, so the
+ choice is fixed rather than whatever order OVHcloud answers in. When the region
+ has no kept size in stock the create refuses, saying how many in-stock sizes the
+ family rule left out, the largest of them, and how to name a size outright.
+
+ When a create asks for a number of virtual CPUs or an amount of memory, the same
+ families are candidates, a size is kept when its virtual CPUs and its memory are
+ both at least what was asked, and the survivors are ordered cheapest first. A
+ request no size satisfies refuses in the same shape.
 
  @module
  */
@@ -33,7 +36,6 @@ import { listFlavors, } from './api-resources.ts';
 import { flavorOverride, } from './config.ts';
 import {
   isKeptFlavor,
-  LINUX_OS_TYPE,
 } from './flavor-families.ts';
 import type { OvhFlavor, } from './types.ts';
 
@@ -73,6 +75,13 @@ export class NoFlavorInStockError extends Error {
  How a caller names a flavor outright, on the command line and in the environment.
  */
 const OVH_OVERRIDE_OPTIONS = '--server-type or MVM_OVH_FLAVOR';
+
+/**
+ How a clone names a flavor outright. `create --from` takes no `--server-type`,
+ so the environment variable is the only way a clone can name one, and a refusal
+ on that path names only that.
+ */
+export const OVH_CLONE_OVERRIDE_OPTIONS = 'MVM_OVH_FLAVOR';
 
 /**
  Part of a flavor name that marks the flex variation of the same size.
@@ -176,50 +185,127 @@ export function describeFlavor(flavor: OvhFlavor,): string {
 }
 
 /**
- Chooses the flavor to create with.
- 
- @param flavors - flavors the region offers
- 
- @param override - flavor name or identifier from `--server-type` or the environment, `''` for the smallest
- 
- @param region - region the flavors belong to, named in errors
- 
- @returns the flavor to create with
- 
- @throws Error when the region offers nothing in stock, or the override names nothing in stock there
- 
+ One region's flavors in stock, split by whether mvm may pick one without being
+ told a size.
+
  @example
  ```ts
- selectFlavor({ flavors, override: '', region: 'bhs5' });      // the smallest available
+ const sizes: InStockSizes = { inStock, kept, leftOut };
+ ```
+ */
+type InStockSizes = {
+  /**
+   Every flavor the region has in stock, whatever its family.
+   */
+  readonly inStock: readonly OvhFlavor[];
+  /**
+   Of those, the ones from a family mvm may pick without being told a size.
+   */
+  readonly kept: readonly OvhFlavor[];
+  /**
+   Of those, the ones the family rule leaves out.
+   */
+  readonly leftOut: readonly OvhFlavor[];
+};
+
+/**
+ Splits a region's flavor list by stock and by the family rule, so every walk in
+ this module reads the rule from one place.
+
+ @param flavors - flavors the region offers
+
+ @returns the sizes in stock, the kept ones, and the ones the family rule left out
+
+ @example
+ ```ts
+ inStockSizes({ flavors }); // { inStock: [...], kept: [...], leftOut: [...] }
+ ```
+ */
+function inStockSizes({
+  flavors,
+}: {
+  readonly flavors: readonly OvhFlavor[];
+},): InStockSizes {
+  /**
+   Flavors the region has in stock; an unavailable one is refused at creation.
+   */
+  const inStock = flavors.filter(function inStockFlavor(flavor,) {
+    return flavor.available;
+  },);
+  /**
+   Of those, the ones from a family mvm may pick without being told a size.
+   */
+  const kept = inStock.filter(function keptFamily(flavor,) {
+    return isKeptFlavor({ flavor, },);
+  },);
+  return {
+    inStock,
+    kept,
+    leftOut: inStock.filter(function specialFamily(flavor,) {
+      return !isKeptFlavor({ flavor, },);
+    },),
+  };
+}
+
+/**
+ Chooses the flavor to create with.
+
+ Without an override the smallest in-stock size of a family mvm may pick wins. A
+ size named outright is taken whatever family it belongs to, because naming one
+ is the person's own choice.
+
+ @param flavors - flavors the region offers
+
+ @param override - flavor name or identifier from `--server-type` or the environment, `''` for the smallest kept size
+
+ @param overrideOptions - how the calling command can name a size outright, which the refusal spells out
+
+ @param region - region the flavors belong to, named in errors
+
+ @returns the flavor to create with
+
+ @throws Error when the override names nothing in stock there
+
+ @throws {@link NoFlavorInStockError} when the region offers nothing in stock
+
+ @throws {@link NoSizeFitsError} when every size in stock is of a family mvm does not pick without being told one
+
+ @example
+ ```ts
+ selectFlavor({ flavors, override: '', region: 'bhs5' });      // the smallest kept size in stock
  selectFlavor({ flavors, override: 'b3-8', region: 'bhs5' });  // that one, by name or id
  ```
  */
 export function selectFlavor({
   flavors,
   override,
+  overrideOptions = OVH_OVERRIDE_OPTIONS,
   region,
 }: {
   readonly flavors: readonly OvhFlavor[];
   readonly override: string;
+  readonly overrideOptions?: string;
   readonly region: string;
 },): OvhFlavor {
   /**
-   Flavors the region has in stock; an unavailable one is refused at creation.
+   The region's list, split by stock and by the family rule.
    */
-  const available = flavors.filter(function inStock(flavor,) {
-    return flavor.available;
-  },);
+  const {
+    inStock,
+    kept,
+    leftOut,
+  } = inStockSizes({ flavors, },);
   if (override !== '') {
     /**
-     The named flavor, by identifier or by name.
+     The named flavor, by identifier or by name, whatever family it belongs to.
      */
-    const named = available.find(function matches(flavor,) {
+    const named = inStock.find(function matches(flavor,) {
       return (flavor.id === override) || (flavor.name === override);
     },);
     if (named === undefined) {
       throw new Error(
         `no flavor named "${override}" is in stock in region ${region}; available: ${
-          orderFlavors({ flavors: available, },)
+          orderFlavors({ flavors: inStock, },)
             .map(function flavorId(flavor,) {
               return flavor.id;
             },)
@@ -230,27 +316,22 @@ export function selectFlavor({
     return named;
   }
   /**
-   Smallest available flavors, in size order.
+   Smallest kept size, the only kind a create that names no number may take.
    */
-  const ordered = orderFlavors({ flavors: available, },);
-  /**
-   The smallest one that boots a Linux image, when the region offers any.
-   */
-  const smallestLinux = ordered.find(function isLinux(flavor,) {
-    return flavor.osType === LINUX_OS_TYPE;
-  },);
-  if (smallestLinux !== undefined) {
-    return smallestLinux;
+  const [smallestKept,] = orderFlavors({ flavors: kept, },);
+  if (smallestKept !== undefined) {
+    return smallestKept;
   }
-  /**
-   The smallest of any kind; the create reports OVHcloud's own refusal when
-   that flavor cannot boot the image.
-   */
-  const [smallest,] = ordered;
-  if (smallest === undefined) {
+  if (inStock.length === 0) {
     throw new NoFlavorInStockError({ region, },);
   }
-  return smallest;
+  throw noSizeFits({
+    asked: describeSizeRequest({ request: {}, },),
+    kept: [],
+    leftOut,
+    overrideOptions,
+    region,
+  },);
 }
 
 //endregion Selection
@@ -259,15 +340,19 @@ export function selectFlavor({
 
 /**
  Resolves the flavor to create with in one region, from the region's own list.
- 
+
  @param override - per-invocation flavor name or identifier, or `undefined`
- 
+
+ @param overrideOptions - how the calling command can name a size outright, which a refusal spells out
+
  @param region - region to create in
- 
+
  @returns the flavor to create with
- 
- @throws Error when the region offers nothing in stock
- 
+
+ @throws {@link NoFlavorInStockError} when the region offers nothing in stock
+
+ @throws {@link NoSizeFitsError} when every size in stock is of a family mvm does not pick without being told one
+
  @example
  ```ts
  const flavor = await resolveFlavor({ region: 'bhs5' });
@@ -275,14 +360,17 @@ export function selectFlavor({
  */
 export async function resolveFlavor({
   override,
+  overrideOptions,
   region,
 }: {
   readonly override?: string;
+  readonly overrideOptions?: string;
   readonly region: string;
 },): Promise<OvhFlavor> {
   return selectFlavor({
     flavors: await listFlavors({ region, },),
     override: flavorOverride(override,),
+    ...((overrideOptions === undefined) ? {} : { overrideOptions, }),
     region,
   },);
 }
@@ -386,23 +474,13 @@ export function flavorsThatFit({
   readonly request: SizeRequest;
 },): FlavorFit {
   /**
-   Flavors the region has in stock; an unavailable one is refused at creation.
+   The region's list, split by stock and by the family rule.
    */
-  const inStock = flavors.filter(function inStockFlavor(flavor,) {
-    return flavor.available;
-  },);
-  /**
-   Of those, the ones from a family mvm may pick without being told a size.
-   */
-  const kept = inStock.filter(function keptFamily(flavor,) {
-    return isKeptFlavor({ flavor, },);
-  },);
-  /**
-   Sizes the family rule left out, which a refusal may name the largest of.
-   */
-  const leftOutSizes = inStock.filter(function specialFamily(flavor,) {
-    return !isKeptFlavor({ flavor, },);
-  },);
+  const {
+    inStock,
+    kept,
+    leftOut,
+  } = inStockSizes({ flavors, },);
   /**
    Sizes from a kept family that meet both floors.
    */
@@ -422,8 +500,8 @@ export function flavorsThatFit({
         priceChoice,
       },)
       : orderFlavors({ flavors: fitting, },),
-    largestLeftOut: largestFlavor({ flavors: leftOutSizes, },),
-    leftOut: inStock.length - kept.length,
+    largestLeftOut: largestFlavor({ flavors: leftOut, },),
+    leftOut: leftOut.length,
     order: (priceChoice.kind === 'priced') ? 'price' : 'size-numbers',
   };
 }
@@ -539,44 +617,56 @@ export function largestFlavor({
 }
 
 /**
- Builds the refusal for a region whose kept sizes all miss the request.
+ Builds the refusal for a region with no size mvm may use for what was asked.
+
+ One builder serves both ways to a size: the walk that names no number hands in
+ no kept size at all, and the walk for a floor hands in the kept sizes in stock
+ before the floors.
+
+ @param asked - what the caller asked, described by {@link describeSizeRequest}
  
- @param fit - the sizes a request may use, and what the family rule left out
- 
- @param kept - the region's in-stock kept sizes, before the floors
- 
+ @param kept - kept sizes in stock the refusal may offer as the largest it could have used
+
+ @param leftOut - in-stock sizes the family rule left out, which the refusal counts and may name the largest of
+
+ @param overrideOptions - how the calling command can name a size outright
+
  @param region - region the search ran in
- 
- @param request - the floors the caller set
- 
+
  @returns the refusal to throw
- 
+
  @example
  ```ts
- throw noSizeFits({ kept, leftOut: 0, region: 'bhs5', request });
+ throw noSizeFits({ asked, kept, leftOut, overrideOptions, region: 'bhs5' });
  ```
  */
 function noSizeFits({
-  fit,
+  asked,
   kept,
+  leftOut,
+  overrideOptions,
   region,
-  request,
 }: {
-  readonly fit: FlavorFit;
+  readonly asked: string;
   readonly kept: readonly OvhFlavor[];
+  readonly leftOut: readonly OvhFlavor[];
+  readonly overrideOptions: string;
   readonly region: string;
-  readonly request: SizeRequest;
 },): NoSizeFitsError {
   /**
    Largest size the region could have given, which a caller may name outright.
    */
   const largest = largestFlavor({ flavors: kept, },);
+  /**
+   Largest size the family rule left out, which the refusal names when it left any.
+   */
+  const largestLeftOut = largestFlavor({ flavors: leftOut, },);
   return new NoSizeFitsError({
-    asked: describeSizeRequest({ request, },),
+    asked,
     largest: (largest === NO_FLAVOR) ? '' : describeFlavor(largest,),
-    largestLeftOut: (fit.largestLeftOut === NO_FLAVOR) ? '' : describeFlavor(fit.largestLeftOut,),
-    leftOut: fit.leftOut,
-    overrideOptions: OVH_OVERRIDE_OPTIONS,
+    largestLeftOut: (largestLeftOut === NO_FLAVOR) ? '' : describeFlavor(largestLeftOut,),
+    leftOut: leftOut.length,
+    overrideOptions,
     place: `region ${region} on OVHcloud`,
   },);
 }
@@ -627,6 +717,13 @@ export async function resolveFlavorsThatFit({
    */
   const flavors = await listFlavors({ region, },);
   /**
+   The region's list, split by stock and by the family rule.
+   */
+  const {
+    kept,
+    leftOut,
+  } = inStockSizes({ flavors, },);
+  /**
    Sizes a request may use, and how many the family rule left out.
    */
   const fit = flavorsThatFit({
@@ -646,16 +743,6 @@ export async function resolveFlavorsThatFit({
       request,
     },)
       .flavors;
-    /**
-     Every kept size in stock, before the floors, which is what a refusal offers
-     as the largest the region had.
-     */
-    const keptBeforeFloors = flavorsThatFit({
-      flavors,
-      priceChoice: { kind: 'unpriced', },
-      request: {},
-    },)
-      .flavors;
     if ((floorsOnly.length > 0) && (priceChoice.kind === 'priced')) {
       throw new Error(
         `no size in region ${region} is in stock with both a published hourly price and ${
@@ -666,10 +753,11 @@ export async function resolveFlavorsThatFit({
       );
     }
     throw noSizeFits({
-      fit,
-      kept: keptBeforeFloors,
+      asked: describeSizeRequest({ request, },),
+      kept,
+      leftOut,
+      overrideOptions: OVH_OVERRIDE_OPTIONS,
       region,
-      request,
     },);
   }
   return fit;

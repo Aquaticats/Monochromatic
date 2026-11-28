@@ -144,7 +144,7 @@ await describe({
         expect(created.length,).toBe(1,);
         const body = created[0]?.body;
         expect(body,).toEqual({
-          flavorId: 'flavor-small',
+          flavorId: 'd2-2',
           imageId: 'image-ubuntu',
           monthlyBilling: false,
           name: 'mvm-dev',

@@ -39,7 +39,10 @@ import {
   validateOvhName,
 } from './config.ts';
 import { safeDeleteSnapshot, } from './discarding.ts';
-import { resolveFlavor, } from './flavors.ts';
+import {
+  OVH_CLONE_OVERRIDE_OPTIONS,
+  resolveFlavor,
+} from './flavors.ts';
 import {
   assertNameIsNotDeleting,
   findMvmInstance,
@@ -215,6 +218,7 @@ export async function ovhClone({
    */
   const flavor = await resolveFlavor({
     override: flavorOverride(),
+    overrideOptions: OVH_CLONE_OVERRIDE_OPTIONS,
     region: src.region,
   },);
   /**

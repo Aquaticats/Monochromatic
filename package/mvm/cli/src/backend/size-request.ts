@@ -291,10 +291,14 @@ export function refuseSizeAndOverride({
 
 /**
  Nothing the backend may use satisfies the request, so the machine is not made.
- 
+
+ A create that asked for no number reaches this too, when every size the backend
+ may use is in stock but belongs to a family it does not pick without being told
+ one; the refusal then says a size has to be named outright.
+
  @example
  ```ts
- try { await selectFlavor({ flavors, region, request }); }
+ try { await resolveFlavorsThatFit({ priceChoice, region, request }); }
  catch (error) { if (error instanceof NoSizeFitsError) report(error.message); }
  ```
  */
@@ -342,8 +346,15 @@ export class NoSizeFitsError extends Error {
     readonly overrideOptions: string;
     readonly place: string;
   },) {
+    /**
+     What was refused, as the first clause a person reads: the floors asked back,
+     or, when nothing was asked, that a size has to be named outright.
+     */
+    const refused = (asked === NOTHING_ASKED)
+      ? `nothing ${place} can be made without being told a size`
+      : `nothing ${place} can be made with ${asked}`;
     super(
-      `nothing ${place} can be made with ${asked}: ${
+      `${refused}: ${
         (largest === '') ? 'no size it may use is in stock there' : `the largest size it could have used was ${largest}`
       }${
         (leftOut === 0)
