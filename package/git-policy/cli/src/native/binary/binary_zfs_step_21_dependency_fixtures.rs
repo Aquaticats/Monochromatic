@@ -165,18 +165,7 @@ pub(super) fn the_node_project(fixture: &Fixture) {
     );
     // The store is warmed once, in the checkout, so both arms of every round install offline from it.
     fixture.run(Path::new(PNPM), &["install"], fixture.root());
-    fixture.git(&["add", "--all"]);
-    fixture.git(&[
-        "-c",
-        "user.name=Fixture",
-        "-c",
-        "user.email=fixture@example.invalid",
-        "commit",
-        "--quiet",
-        "--no-verify",
-        "-m",
-        "the lockfile and the tarball it names",
-    ]);
+    fixture.commit(&[], "the lockfile and the tarball it names");
     fixture.run(
         Path::new("/usr/bin/tar"),
         &["--create", "--file", PRISTINE_MODULES, "node_modules"],
@@ -221,18 +210,7 @@ pub(super) fn the_cargo_workspace(fixture: &Fixture) -> String {
     );
     std::fs::write(fixture.root().join("Cargo.lock"), stripped.as_bytes())
         .expect("the lock without the sibling");
-    fixture.git(&["add", "--all"]);
-    fixture.git(&[
-        "-c",
-        "user.name=Fixture",
-        "-c",
-        "user.email=fixture@example.invalid",
-        "commit",
-        "--quiet",
-        "--no-verify",
-        "-m",
-        "the lock the manifest no longer matches",
-    ]);
+    fixture.commit(&[], "the lock the manifest no longer matches");
     return stripped;
 }
 
