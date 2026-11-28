@@ -332,6 +332,82 @@ Its subject is a lock's lifetime in a ZFS dataset,
 not the crate's build,
 so it is an arm the build location can move without losing its subject.
 
+Issue 6612's round then left one set of guest-step helpers where three stood:
+every shared step is in `package/git-policy/cli/bin/mvm-guest-*.ts`,
+`bin/guest-route-*.ts` and `e2e/guest-host/` are deleted,
+and the line numbers this document gives for the shared plumbing name
+files that no longer exist.
+The drivers' own line numbers moved with that round too,
+so a reader who wants the text of today reads the section below,
+`A guest build's job count, and one set of guest steps`,
+which states what each driver builds now and what its build measured.
+
+### A guest build's job count, and one set of guest steps
+
+Issue 6612's round measured the three drivers that built at two jobs,
+and the lock driver's build of the one target its arm runs,
+in one prepared guest of its own
+(`issue-6612-guest`:
+`MemTotal` 8,131,780 kB,
+7.76 GiB of the 8,192 MiB the guest asks for,
+four vCPUs).
+Each build's figure is the guest's own `/proc/meminfo` and its largest `rustc`,
+sampled every two seconds inside the guest for the whole build;
+the sampler and the raw samples are in that round's kept logs,
+and these are one run each.
+
+- `slot-state-and-move-refusal-guest` builds `cargo build --release --test native_binary … -j 2`
+  and keeps two jobs:
+  `AnonPages` peaked at 3,279,656 kB (3.13 GiB),
+  the largest `rustc` at 2,817,788 kB (2.69 GiB),
+  `MemAvailable` never fell below 4,306,628 kB (4.11 GiB),
+  and the build took 6m 07s.
+- `deferred-origin-check-guest` built `cargo test --release --lib --no-run … -j 2`
+  in 9m 21s,
+  reaching `AnonPages` 7,158,060 kB (6.83 GiB),
+  one `rustc` at 7,355,484 kB (7.01 GiB)
+  and `MemAvailable` 475,396 kB (0.45 GiB).
+  It builds one job now,
+  and the same step measured again at that job count took 13m 59s,
+  reaching `AnonPages` 6,914,812 kB (6.59 GiB),
+  one `rustc` at 7,111,408 kB (6.78 GiB)
+  and `MemAvailable` 719,948 kB (0.69 GiB),
+  with the arm passing as it had at two.
+- `forced-act-guest` built the same target at two jobs in 8m 30s,
+  reaching `AnonPages` 7,249,568 kB (6.91 GiB),
+  one `rustc` at 7,418,336 kB (7.07 GiB)
+  and `MemAvailable` 398,408 kB (0.38 GiB).
+  It builds one job now,
+  and the same step measured again at that job count took 14m 35s,
+  reaching `AnonPages` 6,993,068 kB (6.67 GiB),
+  one `rustc` at 7,190,092 kB (6.86 GiB)
+  and `MemAvailable` 633,212 kB (0.60 GiB),
+  with the arm passing as it had at two.
+- `managed-git-lock-guest` builds only `--test native_binary`,
+  the target its arm starts,
+  at one job.
+  Issue 6611's round measured the same driver's `--tests` build at that job count:
+  22m 22s,
+  `AnonPages` 7,019,956 kB,
+  one `rustc` at 7,174,296 kB
+  and `MemAvailable` 625,704 kB at its lowest,
+  and the lib test's compile is the peak the arm never reads.
+  This round measured the narrowed build in its own guest:
+  `cargo build --release --test native_binary --locked --features test-only-switches --jobs 1`
+  finished in 11m 31s
+  and reached `AnonPages` 2,970,104 kB (2.83 GiB),
+  one `rustc` at 2,698,380 kB (2.57 GiB)
+  and `MemAvailable` 4,667,288 kB (4.45 GiB) at its lowest,
+  with the same fifteen `LOCK` lines and no `SKIP`,
+  and one test passed.
+  So the arm's own target costs 3.9 GiB less at its peak and half the time.
+
+The rule these figures give is for a driver that builds the library's test binary at two jobs in a guest of this size.
+One `rustc` of that build takes 7.0 GiB of the guest's 7.76 GiB,
+so a second has nowhere to go and the job count is one.
+A driver that builds a single smaller test target may keep two,
+which `slot-state-and-move-refusal-guest`'s 4.11 GiB of headroom shows.
+
 ### How a round uses guests today
 
 Every line number in this section resolves against the same `main` (`9e13d87bbd`),
