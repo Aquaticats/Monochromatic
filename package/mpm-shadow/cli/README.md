@@ -1786,6 +1786,9 @@ and it holds one link per declared bin
   A regular file,
   a directory,
   or anything else at such a name belongs to a person and stays.
+  The name of the running `mpm-shadow`,
+  which the same rebuild has just linked when there is an install to link,
+  stays whether or not a row declares it (see "The farm also carries the running `mpm-shadow`").
   The `rustup` link this repository's `rust` row left behind when it stopped declaring it
   (issue 6626) is the case the rule comes from:
   it dangled once the proxies went,
@@ -1808,8 +1811,11 @@ makes those names reachable from a fresh shell:
   so a run from a build folder puts no build on the machine's `PATH`
   (`src/toolchain/exposure.rs`,
   `expose_running_shadow`).
-  Nothing removes it:
-  the program that would is the one that is gone.
+  No other program removes it:
+  the one that made it is the one that is gone.
+  A rebuild of the folder leaves it because that run makes the same link again,
+  and a scope that has the program installed nowhere removes it as a link no row declares
+  (see "What the exposure folder holds").
 - The repository plan's `mpm-shadow` row also links `mpm` in `.cache/mpm-shadow-bin`,
   which a worktree's `PATH` holds.
   A machine-global plan need not declare `mpm-shadow` at all,
