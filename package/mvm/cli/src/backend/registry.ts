@@ -67,6 +67,15 @@ export const BACKENDS: Record<BackendKind, BackendEntry> = {
       return (await import('./hetzner/index.ts')).hetznerBackend;
     },
   },
+  ovh: {
+    meta: {
+      description: 'OVHcloud Public Cloud instances provisioned over the HTTP API (any platform; needs OVH_ENDPOINT, OVH_APPLICATION_KEY, OVH_APPLICATION_SECRET, OVH_CONSUMER_KEY, MVM_OVH_PROJECT_ID and an OpenSSH client)',
+      platforms: 'all',
+    },
+    load: async function loadOvh(): Promise<Backend> {
+      return (await import('./ovh/index.ts')).ovhBackend;
+    },
+  },
   libvirt: {
     meta: {
       description: 'Local QEMU/KVM virtual machines via libvirt (Linux only)',
