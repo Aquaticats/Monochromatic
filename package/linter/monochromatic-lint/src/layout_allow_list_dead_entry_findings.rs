@@ -20,7 +20,8 @@
 /// Import the list and the entry shapes it holds,
 ///  the finding shape,
 ///  the spelling of the names in it,
-///  and the characters a reader cannot see.
+///  the characters a reader cannot see,
+///  and the reading that removes the `.` segments and the folders a `..` reads back over.
 use crate::{
     layout_allow_list::{
         AllowEntry,
@@ -36,6 +37,7 @@ use crate::{
         spelled_unreadable,
         unseen_character_phrase,
     },
+    markdown_lfs_target::lexical_normal,
 };
 /// Import ordered collections and native paths.
 use std::{
@@ -322,9 +324,10 @@ fn file_name_advice(
         if words.get(index) != Some(&name.as_str()) {
             continue;
         }
-        // What: the path this name would have in the folder, in the spelling the walk gives it.
-        // Why: a module the folder holds is a name the line already spells, and its dead line is deleted.
-        let path: PathBuf = base.join(folder).join(name);
+        // What: the path this name would have in the folder, in the spelling the walk gives the file it read.
+        // Why: a module the folder holds is a name the line already spells, and its dead line is deleted,
+        // and the tree writes a file outside the package as the walk from the package folder, so the line's own `..` must be read back before the two spellings meet.
+        let path: PathBuf = lexical_normal(&base.join(folder).join(name));
         if module_files.contains(&path) {
             continue;
         }
