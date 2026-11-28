@@ -2827,16 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- The wrapper,
-  `0.6.1-alpha.48`:
-  release commit `e6cc06059d`,
-  cut from the commit the gate passed on
-  (no Rust or manifest file of the wrapper changed between `1c8acd5bfb` and the release).
-  Its binary is unpacked at `.cache/wrapper-release-0.6.1-alpha.48/`,
-  beside alpha.47's;
-  the wrapper's lock row and the session's `git` link are left as they are.
-  Two passes read it ("Rounds that ended,
-  and what each left").
 - `cargo-shadow`,
   `0.1.5-alpha.11`:
   release commit `82cfbcaf11`,
