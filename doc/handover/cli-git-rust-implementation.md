@@ -476,7 +476,7 @@ and the removal's own entries in the folder of unanswered requests.
   (free memory plus free swap at 80,000,000 kB on three readings a minute apart),
   because it builds the crate about a dozen times.
 
-#### Started and done between 03:30 and 05:17
+#### Started and done between 03:30 and 05:16
 
 Unapproved and non-final:
 every merge named here went in on its round's ended report,
@@ -525,7 +525,7 @@ and no gate has read `main` since `05cf4c8820`.
   Two guest arms assert the behaviour from before it
   (`binary_zfs_managed_lock_guest_tests.rs` and `binary_zfs_slot_state_guest_tests.rs`),
   and the kill matrix and the lock refusal on a real slot are owed in a guest.
-- A third gate was started behind a memory test at 05:16,
+- A third gate was started behind a memory test at 05:14,
   on the tip that holds `2d5f167ae9`:
   three readings a minute apart with `MemAvailable` over 6,000,000 kB and `full avg60` under 10,
   then `native:gate:main-tip`.
@@ -602,7 +602,7 @@ and no gate has read `main` since `05cf4c8820`.
 - The push hook did not push merge `8200df4622` within 150 s;
   it was pushed by hand,
   and the merges after it are checked a minute after each and pushed by hand where the hook has not.
-- Rounds running at 05:17,
+- Rounds running at 05:16,
   from the unit list:
   - `foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`
   - `zfs-doctor-gathers-each-managed-clones-facts-from-the-live-system`
