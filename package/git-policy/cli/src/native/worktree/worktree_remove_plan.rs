@@ -131,6 +131,12 @@ pub fn parse_remove_plan(
 ///  A command naming two operands names no one worktree,
 ///  and Git answers it with its own usage;
 ///  the refusal leaves that form to Git.
+///  The folder a registration names may be gone while the registration and the
+///  binding record stand,
+///  so the reading is Git's own list first and a directory that stands second:
+///  a slot a person moved aside or deleted is still the slot the removal would
+///  orphan a clone at
+///  (`worktree_remove_registry::the_worktree_path_git_would_remove`).
 ///  The start directory is optional because Git's own match against the
 ///  registered paths needs none:
 ///  a spelling whose global options the caller does not serve can still name a
@@ -160,13 +166,20 @@ pub fn parse_removal_target(
     if operand.is_empty() {
         return None;
     }
-    // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
+    // What: The worktree Git would remove for this name, in every spelling that names one.
+    // Why: Git's own list holds a registration's path after the slot's folder is moved aside or deleted, and Git's
+    //      removal would then delete that registration while the binding record and the clone it names stand, so the
+    //      record's refusal has to be reached for that spelling too (`SPEC.md`, "Removal of a ZFS worktree clone").
     if let Some(common) = common_dir
-        && let Some(target) =
-            crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
+        && let Some(target) = crate::worktree_remove_registry::the_worktree_path_git_would_remove(
+            common,
+            start,
+            operand.as_os_str(),
+        )
     {
         return Some(target);
     }
+    // Without a list to read, only a directory that stands names a worktree, which is the reading this route always had.
     let target: PathBuf = std::fs::canonicalize(start?.join(operand)).ok()?;
     return target.is_dir().then_some(target);
 }

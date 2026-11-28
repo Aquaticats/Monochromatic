@@ -532,8 +532,7 @@ fn a_bound_slots_removal_whose_folder_is_gone_reaches_the_step_that_answers_for_
         "one",
     );
     let aside: PathBuf = bound.root.join("one-moved-aside");
-    std::fs::rename(bound.slot.as_path(), aside.as_path())
-        .expect("the slot's folder moves aside");
+    std::fs::rename(bound.slot.as_path(), aside.as_path()).expect("the slot's folder moves aside");
     let absolute: OsString = bound.slot.as_os_str().to_os_string();
     let bindings: PathBuf = crate::worktree_clone_binding_record::registration_home::binding_path(
         bound.common.as_path(),
@@ -550,8 +549,10 @@ fn a_bound_slots_removal_whose_folder_is_gone_reaches_the_step_that_answers_for_
             &["worktree", "remove", "../one"],
         ),
         {
-            let mut words: Vec<OsString> =
-                started_in(bound.repository.as_path(), &["worktree", "remove", "-f", "-f"]);
+            let mut words: Vec<OsString> = started_in(
+                bound.repository.as_path(),
+                &["worktree", "remove", "-f", "-f"],
+            );
             words.push(absolute);
             words
         },

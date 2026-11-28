@@ -243,8 +243,145 @@ fn registered_paths(
 }
 
 /// What:
+///  A path as it resolves,
+///  read through the nearest folder above it that stands,
+///  so the answer is the same whether or not the last components are there.
+/// Why:
+///  A worktree's folder can be moved aside or deleted while its registration and
+///  its binding record stand,
+///  and the path those name is still the one the command means.
+///  Resolving the standing part and appending the rest answers the path a whole
+///  path would answer had the folder stood:
+///  a symbolic link above the slot is resolved either way,
+///  and nothing about the answer depends on the slot's own existence.
+///  Nothing stands at a path with no standing folder at all,
+///  which is no worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const resolved = pathResolvedThroughItsNearestStandingFolder('/repo/.claude/worktrees/gone'); // '/repo/.claude/worktrees/gone'
+/// ```
+fn path_resolved_through_its_nearest_standing_folder(path: &Path) -> Option<PathBuf> {
+    let mut below: Vec<&OsStr> = Vec::new();
+    let mut here: &Path = path;
+    loop {
+        if let Ok(resolved) = std::fs::canonicalize(here) {
+            let mut whole: PathBuf = resolved;
+            for name in below.iter().rev() {
+                whole.push(name);
+            }
+            return Some(whole);
+        }
+        below.push(here.file_name()?);
+        here = here.parent()?;
+    }
+}
+
+/// What:
+///  The worktree path Git's own list holds for `operand`,
+///  whether or not a folder stands there,
+///  or nothing when Git's suffix match picks none or more than one.
+/// Why:
+///   Git matches the typed name against the end of every registered worktree path at a directory boundary before it
+///  resolves a real path (`find_worktree_by_suffix` in `worktree.c`),
+///  and its list holds that path after the folder is gone too,
+///  so the worktree the command names is read from the list alone.
+///  A name two registered paths end in is Git's ambiguous case,
+///  which falls back to the resolved path,
+///  and the answer here is nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function registeredPathGitPicks(commonDir: string, operand: string): string | undefined;
+/// ```
+fn registered_path_git_picks(
+    common_dir: &Path,
+    operand: &OsStr,
+) -> Option<PathBuf> {
+    let worktrees: PathBuf = common_dir.join("worktrees");
+    let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path()).ok()?;
+    let mut picked: Option<&[u8]> = None;
+    for listed in &registered {
+        if !ends_with_name(listed.path.as_slice(), operand.as_bytes()) {
+            continue;
+        }
+        if picked.is_some() {
+            return None;
+        }
+        picked = Some(listed.path.as_slice());
+    }
+    let only: &[u8] = picked?;
+    return path_resolved_through_its_nearest_standing_folder(Path::new(OsStr::from_bytes(only)));
+}
+
+/// What:
+///  Whether Git's own list holds `target` as one of its worktrees.
+/// Why:
+///  Git removes only a worktree its list holds,
+///  and a path whose folder is gone is only the worktree registered at it:
+///  a mistyped path or a case variant is Git's own refusal,
+///  and a wrapper that answered for it would read records and mounts over a
+///  command Git refuses itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listed = aRegistrationNames('/repo/.git', '/repo/.claude/worktrees/gone');
+/// ```
+fn a_registration_names(
+    common_dir: &Path,
+    target: &Path,
+) -> bool {
+    let worktrees: PathBuf = common_dir.join("worktrees");
+    let Ok(registered) = registered_paths(common_dir, worktrees.as_path()) else {
+        return false;
+    };
+    return registered.iter().any(|listed| {
+        let spelled: &Path = Path::new(OsStr::from_bytes(listed.path.as_slice()));
+        return path_resolved_through_its_nearest_standing_folder(spelled)
+            .is_some_and(|resolved| return resolved == target);
+    });
+}
+
+/// What:
+///  The worktree `git worktree remove` names,
+///  read the way Git reads it,
+///  whether or not a folder stands at the slot.
+/// Why:
+///  Git's own list holds a registration's path after the slot's folder is moved
+///  aside or deleted,
+///  and Git's removal would then delete that registration while the binding
+///  record and the clone it names stand
+///  (`SPEC.md`,
+///  "Removal of a ZFS worktree clone").
+///  So the suffix match over the list comes first,
+///  and the operand as a path second:
+///  a folder that stands answers for itself,
+///  and a path whose folder is gone answers only when the list holds it,
+///  so no mistyped name reaches a refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const target = theWorktreePathGitWouldRemove({ commonDir, start, operand: 'one' });
+/// ```
+pub(crate) fn the_worktree_path_git_would_remove(
+    common_dir: &Path,
+    start: Option<&Path>,
+    operand: &OsStr,
+) -> Option<PathBuf> {
+    if let Some(picked) = registered_path_git_picks(common_dir, operand) {
+        return Some(picked);
+    }
+    let target: PathBuf =
+        path_resolved_through_its_nearest_standing_folder(start?.join(operand).as_path())?;
+    if target.is_dir() {
+        return Some(target);
+    }
+    return a_registration_names(common_dir, target.as_path()).then_some(target);
+}
+
+/// What:
 ///  The worktree path Git picks for `operand` by the last components of the registered paths,
-///  or nothing when it picks none or more than one.
+///  or nothing when it picks none or more than one, or when no folder stands there.
 /// Why:
 ///   Git matches the typed name against the end of every registered worktree path at a directory boundary before it
 ///  resolves a real path (`find_worktree_by_suffix` in `worktree.c`),
@@ -265,21 +402,7 @@ pub fn path_git_picks_for_operand(
     common_dir: &Path,
     operand: &OsStr,
 ) -> Option<PathBuf> {
-    let worktrees: PathBuf = common_dir.join("worktrees");
-    let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path()).ok()?;
-    let mut picked: Option<&[u8]> = None;
-    for listed in &registered {
-        if !ends_with_name(listed.path.as_slice(), operand.as_bytes()) {
-            continue;
-        }
-        // Git's suffix match answers a unique worktree or none; two matches send it to the resolved path instead.
-        if picked.is_some() {
-            return None;
-        }
-        picked = Some(listed.path.as_slice());
-    }
-    let only: &[u8] = picked?;
-    let resolved: PathBuf = std::fs::canonicalize(Path::new(OsStr::from_bytes(only))).ok()?;
+    let resolved: PathBuf = registered_path_git_picks(common_dir, operand)?;
     return resolved.is_dir().then_some(resolved);
 }
 
