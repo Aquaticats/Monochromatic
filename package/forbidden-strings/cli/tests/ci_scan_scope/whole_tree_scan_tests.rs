@@ -1,7 +1,8 @@
 //! What:
 //!  The whole-tree arm of the scan steps:
-//!  when no validated baseline exists the file scan runs `forbidden-strings
-//!  --all`, whose walk leaves every link and every gitlink out,
+//!  when no validated baseline exists the file scan runs the scanner's `--all`
+//!  walk,
+//!  which leaves every link and every gitlink out,
 //!  and these cases pin that the index's links and gitlinks still reach the
 //!  scanner,
 //!  each by its own name and,
@@ -200,6 +201,10 @@ fn whole_tree_scan_says_which_links_and_gitlinks_it_hands_over() {
     fixture.commit("A");
     fixture.link("consumer/uses/base", "../../base");
     fixture.link("consumer/uses/lib", "../../base/lib.txt");
+    // The two links are staged by name because the commit below commits the
+    // index as it stands: `git add --all` cannot stage a submodule entry whose
+    // folder is absent, so the gitlink is recorded in the index first.
+    fixture.git(&["add", "--", "consumer/uses/base", "consumer/uses/lib"]);
     fixture.gitlink("vendor/sub", "A");
     fixture.commit_index("B");
     fixture.write_runs(&[]);

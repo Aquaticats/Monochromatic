@@ -174,7 +174,7 @@ fn push_of_a_link_to_a_file_whose_stored_target_text_is_forbidden_ends_the_step_
         result.stderr,
     );
     assert!(
-        result.stdout.contains("Scanning 1 changed file(s)"),
+        result.stdout.contains("Scanning 2 changed file(s)"),
         "the link to a file must stay in the file scan's own list\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -185,11 +185,12 @@ fn push_of_a_link_to_a_file_whose_stored_target_text_is_forbidden_ends_the_step_
 // What:     `#[test] fn push_of_a_link_whose_content_and_stored_target_text_both_match_prints_both()`
 //           pushes one new link whose target file's content holds the forbidden
 //           string and whose stored target text holds it too, and expects both
-//           findings, each labelled.
+//           findings in one run, each labelled.
 // Why:      Issue #6640 asks what a person sees when both match: two findings
 //           name the same link, one from the read-through without an input
-//           index, one from the stored target text with `input=0`, so neither
-//           label hides the other.
+//           index, one from the stored target text with `input=0`. The two
+//           later steps carry `!cancelled()`, so the file scan's finding does
+//           not hide the stored target text's.
 #[test]
 fn push_of_a_link_whose_content_and_stored_target_text_both_match_prints_both() {
     let mut fixture = Fixture::new("link-to-file-both-match");
@@ -237,6 +238,12 @@ fn push_of_a_link_whose_content_and_stored_target_text_both_match_prints_both() 
             FIXTURE_RULE,
         )),
         "the stored target text must report its own line under the same link name\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stdout.contains(LINK_SCAN_LINE),
+        "the link-scan step must run even though the file scan failed\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
     );

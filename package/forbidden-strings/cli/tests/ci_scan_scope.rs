@@ -87,20 +87,23 @@ const LINK_SCAN_SCRIPT: &str = "scan-links.sh";
 //           the file scan,
 //           the step that writes each link's target text,
 //           and the step that scans links and gitlinks,
-//           each with whether the workflow must declare it.
-// Why:      The runner runs a job's steps in the workflow's order and stops at
-//           the first one that fails; one ordered list keeps the fixture on
-//           that contract when a step joins the workflow.
+//           each with whether the workflow must declare it and whether the
+//           workflow keeps it running after an earlier step failed.
+// Why:      The runner runs a job's steps in the workflow's order, stops at the
+//           first one that fails unless a later step carries a status check,
+//           and cancels the rest when the run is cancelled;
+//           one ordered list keeps the fixture on that contract when a step
+//           joins the workflow.
 //           The two older bodies are required,
 //           so a workflow that lost one fails the harness loudly;
 //           the two newer ones are optional,
 //           so a case about them reports the behaviour it found instead of a
 //           harness panic.
-const STEPS: [(&str, &str, bool); 4] = [
-    (SCOPE_STEP_NAME, SCOPE_SCRIPT, true),
-    (SCAN_STEP_NAME, SCAN_SCRIPT, true),
-    (LINK_LIST_STEP_NAME, LINK_LIST_SCRIPT, false),
-    (LINK_SCAN_STEP_NAME, LINK_SCAN_SCRIPT, false),
+const STEPS: [(&str, &str, bool, bool); 4] = [
+    (SCOPE_STEP_NAME, SCOPE_SCRIPT, true, false),
+    (SCAN_STEP_NAME, SCAN_SCRIPT, true, false),
+    (LINK_LIST_STEP_NAME, LINK_LIST_SCRIPT, false, true),
+    (LINK_SCAN_STEP_NAME, LINK_SCAN_SCRIPT, false, true),
 ];
 
 // What:     `struct RunRow` is one workflow run listed by the stub.
@@ -138,7 +141,7 @@ struct Fixture {
     runner_temp: PathBuf,
     runs_tsv: PathBuf,
     cache_dir: PathBuf,
-    steps: Vec<(&'static str, bool)>,
+    steps: Vec<(&'static str, bool, bool)>,
     shas: Vec<(String, String)>,
 }
 
@@ -180,13 +183,14 @@ impl Fixture {
         )
         .expect("write fixture rules file");
         // What:     `steps` is, in workflow order, each body the workflow
-        //           declares, with the fixture script that holds it.
+        //           declares, with the fixture script that holds it and
+        //           whether it runs after a failed step.
         // Why:      The fixture runs every declared body in order; a workflow
         //           without one of the later bodies still runs its other
         //           bodies, so a case about a missing step reports the
         //           behaviour it found instead of a harness panic.
-        let mut steps: Vec<(&'static str, bool)> = Vec::new();
-        for (name, script, required) in STEPS {
+        let mut steps: Vec<(&'static str, bool, bool)> = Vec::new();
+        for (name, script, required, after_failure) in STEPS {
             // What:     `body` is the step's shell, or `None` when the step is
             //           optional and the workflow does not declare it.
             // Why:      `step_body` panics on a missing step, and `declared_step_body`
@@ -200,9 +204,9 @@ impl Fixture {
             match body {
                 Some(body) => {
                     fs::write(root.join(script), body).expect("write extracted step body");
-                    steps.push((script, true));
+                    steps.push((script, true, after_failure));
                 }
-                None => steps.push((script, false)),
+                None => steps.push((script, false, after_failure)),
             }
         }
         let runs_tsv = root.join("runs.tsv");
@@ -400,13 +404,12 @@ impl Fixture {
 
     // What:     `fn run_scan(&self, event, head_label, branch, before_label)`
     //           executes every extracted step body the workflow declares, in
-    //           workflow order, with the environment the workflow steps
-    //           receive, and stops at the first body that fails, as the runner
-    //           stops the job.
+    //           workflow order, and stops at the first body that fails unless a
+    //           later body runs after a failure, as the runner does.
     // Why:      The contract under test is the workflow's own shell behavior,
     //           so the test runs those bodies unmodified and captures their
-    //           joined streams and the exit status of the step that failed.
-    //           Each step gets a fresh `bash`, as the runner gives it.
+    //           joined streams and the exit status of the step that failed
+    //           first. Each step gets a fresh `bash`, as the runner gives it.
     fn run_scan(
         &self,
         event: &str,
@@ -422,29 +425,33 @@ impl Fixture {
             "forbidden-strings.changed-raw",
             "forbidden-strings.whole-tree",
             "forbidden-strings.left-out-raw",
-            "forbidden-strings.links-and-gitlinks-raw",
+            "forbidden-strings.link-and-gitlink-raw",
         ] {
             let _ = fs::remove_file(self.runner_temp.join(state_file));
         }
         let mut stdout = String::new();
         let mut stderr = String::new();
-        for (script, declared) in &self.steps {
+        // What:     `failed_status` is the exit status of the first body that
+        //           failed, or 0 while every body so far passed.
+        // Why:      A body that runs after a failure still runs, and the job
+        //           keeps the status of what failed first.
+        let mut failed_status: i32 = 0;
+        for (script, declared, after_failure) in &self.steps {
             if !declared {
+                continue;
+            }
+            if failed_status != 0 && !after_failure {
                 continue;
             }
             let step = self.run_step(script, event, head_label, branch, before_label);
             stdout.push_str(&step.stdout);
             stderr.push_str(&step.stderr);
-            if step.status != 0 {
-                return ScanResult {
-                    status: step.status,
-                    stdout,
-                    stderr,
-                };
+            if step.status != 0 && failed_status == 0 {
+                failed_status = step.status;
             }
         }
         return ScanResult {
-            status: 0,
+            status: failed_status,
             stdout,
             stderr,
         };
