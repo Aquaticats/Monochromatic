@@ -88,12 +88,37 @@ export const DEFAULT_LOCATIONS: readonly string[] = [
 export const DEFAULT_IMAGE = 'ubuntu';
 
 /**
- Per-VM directory holding the managed SSH keypair for the Hetzner backend.
+ Environment variable moving the directory the managed SSH keypair lives in,
+ so a test can keep its own and two accounts never share a private key.
+ */
+export const DATA_DIR_ENV = 'MVM_HCLOUD_DATA_DIR';
+
+/**
+ Directory holding the managed SSH keypair, unless moved.
  */
 export const HETZNER_DATA_DIR: string = join(
   DATA_DIR,
   'hetzner',
 );
+
+/**
+ Where the managed SSH keypair lives now: {@link HETZNER_DATA_DIR}, or the path
+ {@link DATA_DIR_ENV} names.
+ 
+ @returns absolute directory path
+ 
+ @example
+ ```ts
+ const directory = hetznerDataDir();
+ ```
+ */
+export function hetznerDataDir(): string {
+  /**
+   Override from the environment, when one is set and non-empty.
+   */
+  const override = process.env[DATA_DIR_ENV];
+  return ((override === undefined) || (override === '')) ? HETZNER_DATA_DIR : override;
+}
 
 /**
  Label key applied to every mvm-managed Hetzner resource.

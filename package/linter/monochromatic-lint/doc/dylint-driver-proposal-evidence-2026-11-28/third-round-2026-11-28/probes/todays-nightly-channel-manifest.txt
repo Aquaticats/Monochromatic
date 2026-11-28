@@ -1,0 +1,28 @@
+read with curl on 2026-11-28T08:04:48-05:00
+== curl --silent --show-error --fail https://static.rust-lang.org/dist/channel-rust-nightly.toml | head
+date = "2026-11-28"
+version = "0.103.0-nightly (ae8f06eb4 2026-11-21)"
+version = "0.1.102-nightly"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "0.1.0-nightly"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "0.0.0-nightly"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+version = "1.12.0-nightly"
+== curl .../channel-rust-nightly-git-commit-hash.txt
+c82ce15637153c025d29abbaff6035a177361788

@@ -1082,6 +1082,166 @@ Unapproved and non-final.
   and one for a control that fails only in the threaded run of its module
   (`a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words`).
 
+#### Started and done between 08:02 and 08:16
+
+Unapproved and non-final.
+
+- Merge `034df18341` holds the whole of the guest drivers' round,
+  which has ended.
+  A wrapper driver's arm ran on OVHcloud:
+  two of the doctor driver's three guest tests passed there,
+  and the third failed on a difference `main` itself carries.
+  The times and the two things that do not run there are in
+  `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "The first arm of a wrapper driver on OVHcloud".
+- Merge `5cdc551979` joins the two `cargo-shadow` rounds on the alpha.18 read,
+  with no control's assertion changed.
+  The release of `0.1.5-alpha.19` is dispatched (run 46148606612) and followed;
+  its lock and its second pass follow.
+- The second pass on `mpm-shadow` `0.2.7-alpha.21` came back with no High,
+  one Medium and eight Low.
+  The Medium:
+  a report that cannot be written still ends an install between its plan and its sync.
+  The round `mpm-shadow-alpha-21-read-a-report-that-cannot-be-written-ends-no-install-between-its-plan-and-its-sync`
+  answers it.
+- The `mvm` package's unit task and the wrapper package's TypeScript unit task both passed on `main`
+  after the three merges taken ahead of the guest drivers' round.
+- Every line this morning's OVHcloud merges added was scanned for addresses,
+  identifiers,
+  machine names made by a run and key values,
+  and held none.
+- The sizes revision round was told to quote nothing from the session's probe log,
+  and the fix round on the alpha.53 read to merge `main` first.
+
+#### Started and done between 08:16 and 08:24
+
+Unapproved and non-final.
+
+- `cargo-shadow` `0.1.5-alpha.19` is published and locked (merge `5391c22a3c`),
+  and its second pass by Claude Sonnet runs.
+- Merge `95f65ed945` closes issue 6664:
+  the one-shot `run` hands the asked numbers to its create on every backend.
+  Its billed run read a guest's own memory total,
+  recorded in `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "What a size's memory number comes to inside the guest".
+- Four proposal revisions are merged,
+  each report read whole:
+  the development profile (`e74da32adf`),
+  the hosted runners (`59710d26b0`),
+  the line-break proposal (`4715cc382e`) and the sizes proposal (`60dc28feff`).
+  A gate read by Claude Sonnet runs on each;
+  the line-break one is narrowed to the four High findings of the read before it.
+- Issue 6666:
+  the built price read on OVHcloud prices the instance row
+  and leaves the public IPv4 and local storage out.
+- Corrective comments are posted on three pushed commits whose messages their rounds reported as inaccurate
+  (`934451eba0`,
+  `4484c1e095`,
+  `3316dea634`).
+- Ended and not yet read:
+  the Dylint proposal's third revision and the crate split proposal's second.
+
+#### Started and done between 08:24 and 08:38
+
+Unapproved and non-final.
+
+- The wrapper's `0.6.1-alpha.54` is published (release commit `b35e62237f`),
+  after one whole gate on `main` at `ce0d52a686` passed;
+  the gate is recorded in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`.
+  It is unpacked under `.cache/wrapper-release-0.6.1-alpha.54/`,
+  and neither locked nor installed.
+  Two second passes by Claude Sonnet read it:
+  one on the removal that reads force and the forced arm,
+  one on the merges that claim to change nothing a person can reach.
+- The crate split proposal's second revision (`59b7e274be`) and the Dylint proposal's third (`88980bc4bb`) are merged,
+  each report read whole.
+  The crate split has a third gate read running;
+  the Dylint proposal has a read narrowed to the three High findings of the read before it,
+  its new measurements and its first screen.
+- The two-forces design's gate read came back not ready,
+  with six High findings:
+  no table of holder classes against one force and two,
+  the unit route silent on whose identity the root handler checks,
+  what is built misdescribed,
+  the waits' values carried over as round numbers,
+  refusals that survive two forces not put to the owner,
+  and no first screen.
+  The round `zfs-two-forces-design-revised-against-its-gate-read-with-one-table-of-holders-and-the-settling-runs-made`
+  revises it and may make the settling runs on OVHcloud.
+- Issue 6667:
+  a lint run whose Dylint driver check cannot be made checks a package,
+  gets no report from the compiler,
+  prints no record and exits `0`.
+  The round `monochromatic-lint-a-package-the-closure-rule-did-not-check-never-ends-as-clean` first finds the cause.
+- Two more linter rounds answer the eight Low points of the read of `0.5.2-alpha.25`:
+  `monochromatic-lint-alpha-25-read-a-spaced-folder-is-listed-once-and-each-unseen-character-gets-its-own-advice`
+  and `monochromatic-lint-alpha-25-read-a-star-that-closes-nothing-declines-no-join-and-the-limit-says-what-it-bounds`.
+- The round `zfs-removal-that-reads-force-guest-arms-against-a-real-pool` runs,
+  on an OVHcloud guest,
+  what the round that built force on a removal could not show without a pool.
+- Issue 6665:
+  `a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words` fails only in a threaded run.
+- A reader left a stray file,
+  `/tmp/null`,
+  holding a list of commit hashes.
+  It stays:
+  the deletion guard refuses a path with a segment named `null`,
+  and a reboot clears that folder.
+
+#### Started and done between 08:38 and 08:54
+
+Unapproved and non-final.
+
+- **No removal of a ZFS worktree clone finishes on a real pool**,
+  in `0.6.1-alpha.53`,
+  `0.6.1-alpha.54` and on `main`:
+  issue 6669.
+  It stops before its first destroy,
+  so nothing is lost.
+  Two causes,
+  both read on `main`:
+  the removal's command path hands `now_iso()` to the origin cleanup record,
+  whose reader takes only whole seconds with an offset;
+  and no release code calls `create_the_staging_folder`.
+  The slot-state guest arm's round found it in a local guest and an OVHcloud one (merge `5536339cae`).
+  The round `zfs-removal-of-a-real-clone-finishes-its-moment-is-accepted-and-its-staging-folder-is-made` fixes both
+  and runs that arm green on OVHcloud.
+  Six running guest rounds were told through their inboxes.
+  The next wrapper release waits for that merge and says so in its note.
+- The fix round on the read of `0.6.1-alpha.53` is merged (`559e163abc`):
+  a removal resumed from a plan whose clone is gone reads a person's lock before any write.
+- A corrective comment stands on the release commit `b35e62237f`:
+  its note said two forces pass every refusal,
+  and four refusals are not loosened.
+- An OVHcloud size listed with 4 holds 4000 MiB,
+  measured by a second billed run and recorded in
+  `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`.
+  A floor typed in GiB and compared number to number is met by a size 2.3 percent smaller,
+  which makes the sizes proposal's sixth decision a choice for the owner.
+- The round that built the wrapper's test binaries outside the guest is merged (`708f41d524`):
+  the lock driver's arm passed from pushed binaries on a rented machine listed with 4.
+  A gate read by Claude Sonnet reads its section before its three questions are put.
+- Issue 6668:
+  a build of `package/mvm/cli` removes the file the `mvm` shim runs before writing it again,
+  and `test:unit` there depends on the build.
+  Until its round (`mvm-cli-a-build-never-leaves-the-file-the-mvm-shim-runs-absent`) merges,
+  neither task runs in the main checkout while a guest round runs.
+- The line-break proposal's narrow read and the hosted-runners proposal's third read each came back with two High findings,
+  text only.
+  Each has a last text revision running,
+  after which its questions are put with no further whole read.
+- The stop rule for the reads still out,
+  taken from the advisor:
+  when a read lands,
+  the one question is whether a High would change which option the owner picks;
+  if not,
+  the questions are put with that High stated in the question's own text.
+- The two-forces gate review is read whole,
+  and its revision round was told three things from it:
+  write the six text changes before any run,
+  name the stack of every reading,
+  and examine a wrapper that detaches itself before it ends its own ancestors.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.

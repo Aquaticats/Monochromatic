@@ -1,0 +1,15 @@
+# fetched via the search-fetch web_fetch tool, shortly before 2026-11-28T07:27:05-05:00 (this file was written then; the fetch itself was between the clock reads 07:24:33 and 07:27:05), URL https://crates.io/api/v1/crates/dylint_linting
+{
+  "name": "dylint_linting",
+  "updated_at": "2026-11-10T13:53:10.540033Z",
+  "max_version": "6.4.0",
+  "newest_version": "6.4.0"
+}
+6.4.0	2026-11-10T13:53:10.540033Z	false	
+6.3.2	2026-10-30T19:43:35.066689Z	false	
+6.3.1	2026-10-29T17:18:26.856682Z	false	
+6.3.0	2026-10-28T14:25:17.078400Z	false	
+6.2.0	2026-10-16T13:59:40.407347Z	false	
+6.1.1	2026-10-11T12:01:50.233498Z	false	
+6.1.0	2026-09-23T12:55:24.211294Z	false	
+6.0.4	2026-08-14T15:40:19.331372Z	false	

@@ -1,0 +1,25 @@
+== clock 2026-11-28T13:13:28+00:00
+== image localhost/dylint-probe-2026-11-28c
+== linter
+monochromatic-lint 0.5.2-alpha.25
+== linter digest
+34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a  /work/monochromatic-lint
+== the package's dependencies are fetched first, so nothing else can mask the probe
+pkg fetch status 0
+== the toolchain named, and that rustup does not have it
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+a rustup run status 1
+error: toolchain 'nightly-2026-11-30-x86_64-unknown-linux-gnu' is not installed
+help: run `rustup toolchain install nightly-2026-11-30-x86_64-unknown-linux-gnu` to install it
+== the version probe the linter runs, with the variable exported
+b cargo dylint --version status 1
+error: toolchain 'nightly-2026-11-30-x86_64-unknown-linux-gnu' is not installed
+help: run `rustup toolchain install` to install it
+== the linter, with the variable exported
+c linter status 2
+770 /work/log/c-linter.jsonl
+{"message":"rust/avoidable-closure could not check any package, and fails instead of skipping because nothing was checked: `cargo dylint --version` failed (exit status: 1) without saying that cargo-dylint is missing, so this is a `cargo` that is broken or older than the lock and not a machine without cargo-dylint. Its standard error was:\nerror: toolchain 'nightly-2026-11-30-x86_64-unknown-linux-gnu' is not installed\nhelp: run `rustup toolchain install` to install it\nInstalled tools that lag toolchain.lock.json cause this; run `mise run toolchain:install` in this checkout.","code":"core/processing-failure","severity":"error","causes":[],"filename":"monochromatic-lint.config.jsonc","labels":[{"span":{"offset":0,"length":0,"line":1,"column":1}}],"related":[]}
+--- stderr
+== done 2026-11-28T13:13:29+00:00

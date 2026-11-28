@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 /**
- Drive plan step 12's slot classes, its move refusal and the removal the wrapper runs itself, its prune pointer and its
- repair report end to
+ Drive plan step 12's slot classes, its move and removal refusals, its prune pointer and its repair report end to
  end in a throwaway `mvm` guest.
 
  The arm needs a real pool, a real Git registration and a real clone: it reads one slot's class from the binding
  record, the mount intent and the mount table while the clone is mounted and again while it is unmounted, and it
  shows the wrapper's refusal beside Git's own answer, which is a busy mount while mounted and success while
- unmounted. The same run drives the wrapper's own command path: `git worktree move` is refused where Git's own move succeeded, `git worktree remove`
- of a bound slot is the wrapper's own removal order rather than Git's, which stops at the origin-side inventory this
- fixture never writes and leaves the registration and the underlay pointer standing, the prune pass writes the recorded
- pointer back before Git would drop the registration, and `git worktree repair` prints what it can and cannot restore. Every one of those is a ZFS or Git
- fact no host control can make, so the arm runs only inside the guest the ZFS binding's recipe creates
+ unmounted. The same run drives the wrapper's own command path: `git worktree move` is refused, the removal of a slot
+ a whole clone is bound to runs the wrapper's own order and destroys the clone, its records and its registration,
+ the prune pass writes the recorded pointer back before Git would drop the registration, and `git worktree repair`
+ prints what it can and cannot restore. Every one of those is a ZFS or Git fact no host control can make, so the arm
+ runs only inside the guest the ZFS binding's recipe creates
  (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`).
 
  Usage: node e2e/slot-state-and-move-refusal-guest.ts <create|prepare|run|destroy|all> [--name <guest>]
@@ -19,7 +18,7 @@
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
 
  The evidence of one run is `slot-state-arm.log`, pulled back into the log directory, and a run passes only when it
- carries every `SLOT-STATE`, `MOVE-REFUSAL`, `REMOVAL-RUNS`, `PRUNE-POINTER` and `REPAIR` line below and no `SKIP`
+ carries every `SLOT-STATE`, `MOVE-REFUSAL`, `REMOVAL`, `PRUNE-POINTER` and `REPAIR` line below and no `SKIP`
  line, so an arm that returned without running fails the run instead of reporting a green suite.
  */
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -46,6 +45,13 @@ import {
   guest,
 } from '../bin/mvm-guest-script.ts';
 import {
+  buildDetached,
+  CHECKOUT,
+  CRATE_DIR,
+  POOL,
+  SBIN,
+} from './slot-state-guest-build.ts';
+import {
   guestDriverOptions,
   type GuestDriverOptions,
 } from '../bin/mvm-guest-options.ts';
@@ -63,14 +69,6 @@ import {
 const backend = guestBackend();
 
 /**
- Where the crate is unpacked and built inside the guest, which every account may traverse.
- */
-const CRATE_DIR = '/opt/git-policy-cli-slot-state';
-/**
- Milliseconds the guest's build of the test target may take.
- */
-const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
-/**
  Milliseconds the guest arm may take.
  */
 const ARM_TIMEOUT_MS = 900_000;
@@ -80,39 +78,14 @@ const ARM_TIMEOUT_MS = 900_000;
  */
 const GUEST_VARIABLE = 'CLI_GIT_ZFS_SLOT_STATE_GUEST';
 /**
- The checkout the arm registers, clones and moves, under the guest's own root.
- */
-const CHECKOUT = '/root/slot-state-checkout';
-/**
- The OpenZFS userspace the guest built, which every `zfs` the arm runs comes from.
- */
-const SBIN = '/opt/openzfs-2.4.4/sbin';
-/**
- The pool this driver makes for the arm, and the file-backed vdev it stands on.
- */
-const POOL = 'git-policy-cli-slot-state';
-/**
- The file-backed vdev the pool stands on.
- */
-const POOL_IMAGE = '/home/git-policy-cli-slot-state-fixture/pool.img';
-
-/**
- The folder the pool's vdev stands in, which the guest makes before it truncates the vdev.
- */
-const POOL_IMAGE_FOLDER = POOL_IMAGE
-  .slice(
-  0,
-  POOL_IMAGE
-    .lastIndexOf('/',),
-  );
-
-/**
  The lines a run must find in the guest's arm log, one per class and per move arm plan step 12 runs.
  */
 const EXPECTED_MARKERS = [
   'SLOT-STATE mounted class=mounted managed clone dataset=',
   'SLOT-STATE record-behind-mount class=cannot be proved',
   'SLOT-STATE unmounted class=known unmounted clone intent=mount-requested',
+  'SLOT-STATE scene slot=removal class=known unmounted clone',
+  'SLOT-STATE scene slot=aliased-removal class=known unmounted clone',
   'SLOT-STATE pending-add class=pending add',
   'SLOT-STATE pending-removal class=pending removal',
   'MOVE-REFUSAL mounted cause=bound',
@@ -121,8 +94,8 @@ const EXPECTED_MARKERS = [
   'MOVE-REFUSAL unmounted cause=bound',
   'MOVE-REFUSAL wrapper-unmounted cause=bound status=refused',
   'MOVE-REFUSAL unmounted git=succeeded',
-  'REMOVAL-RUNS wrapper class=known-unmounted-clone stop=origin-inventory status=refused',
-  'REMOVAL-RUNS alias class=known-unmounted-clone stop=origin-inventory status=refused',
+  'REMOVAL wrapper class=known-unmounted-clone status=removed clone=gone records=gone',
+  'REMOVAL wrapper-through-a-shell-alias class=known-unmounted-clone status=removed clone=gone records=gone',
   'PRUNE-POINTER intact registration=kept',
   'PRUNE-POINTER restored registration=kept',
   'REPAIR damaged registration=stands',
@@ -142,6 +115,9 @@ type GuestWorkEnding =
 
 /**
  Create the guest the arm runs in.
+
+ The image word is the recipe's own: it names the release its preparation is written for on a cloud backend, and a
+ libvirt guest's template besides.
 
  @param chosen - the run's options
  */
@@ -245,38 +221,7 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'guest-push.log',
   },);
-  /**
-   The guest's own script: unpack the archive, make the pool, and build the test target.
-   */
-  const prepareBuild = [
-    'set -eu',
-    // `mvm push` lands the tarball in the guest's shared folder, not at the path it was given.
-    'if test -f /mnt/shared/subject.tar.gz; then cp /mnt/shared/subject.tar.gz /root/subject.tar.gz; fi',
-    `rm --recursive --force ${CRATE_DIR}`,
-    `mkdir --parents ${CRATE_DIR}`,
-    `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
-    // The arm needs a pool of its own; the checkout dataset and its clone are made on it by the arm.
-    `mkdir --parents ${POOL_IMAGE_FOLDER}`,
-    `if ! ${SBIN}/zpool list -H -o name ${POOL} > /dev/null 2>&1; then`,
-    `  truncate --size 1G ${POOL_IMAGE}`,
-    `  ${SBIN}/zpool create -f -O mountpoint=none ${POOL} ${POOL_IMAGE}`,
-    'fi',
-    `mkdir --parents ${CHECKOUT}`,
-    `cd ${CRATE_DIR}/package/git-policy/cli`,
-    'export PATH=/root/.cargo/bin:$PATH',
-    // The one target the arm starts, two jobs at a time: a release rustc of this crate's tests took 6.9 GiB of this
-    // guest's 8 GiB, and the kernel killed it at four jobs on 2026-11-27 (issue 6581; cargo exited 101). The lib test
-    // harness the arm never runs is not built here.
-    'cargo build --release --test native_binary --locked --features test-only-switches -j 2 > /root/slot-state-build.log 2>&1',
-    'tail --lines=3 /root/slot-state-build.log',
-  ]
-    .join('\n',);
-  await guest({
-    chosen,
-    script: prepareBuild,
-    log: 'guest-crate-build.log',
-    timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
-  },);
+  await buildDetached({ chosen, },);
   /**
    The guest's own script: run the arm, refuse a returned one, and copy its log to the shared folder.
    */

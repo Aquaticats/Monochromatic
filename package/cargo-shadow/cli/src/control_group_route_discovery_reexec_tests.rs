@@ -682,3 +682,236 @@ fn the_gap_between_two_asks_is_the_pause_the_call_site_sleeps() {
         wanted - 1
     );
 }
+
+/// What:
+/// `const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE: Duration` is the most the time from one ask's end to the next one's beginning may hold
+/// beyond `ASKING_AGAIN_PAUSE`:
+/// the pause the discovery sleeps,
+/// plus the work of starting,
+/// reading and reaping the next stand-in.
+/// Why:
+/// The span the records name is the four pauses and nothing else,
+/// and a sleep at the call site that grew to twice the pause would double it while every lower bound stayed satisfied.
+/// What it rests on:
+/// measured 2026-11-28 on this host,
+/// in one run of `the_pauses_of_the_asking_again_are_no_longer_than_the_pause_the_call_site_sleeps` and of the control beside it:
+/// with the pause the call site sleeps,
+/// the four gaps were 208.0 ms,
+/// 207.0 ms,
+/// 206.2 ms and 207.9 ms,
+/// so the work around the sleep was at most 8.0 ms;
+/// with `std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` there,
+/// the four gaps of one run were 407.1 ms,
+/// 407.3 ms,
+/// 406.5 ms and
+/// 407.5 ms and those of the other 405.2 ms,
+/// 404.4 ms,
+/// 405.1 ms and 404.1 ms,
+/// and the lower bound of the control beside this one stayed satisfied in both.
+/// The package document records an earlier run of the same instrument with the pause in place:
+/// gaps of 209.0 ms to 209.9 ms,
+/// and under three quarters of the pause,
+/// 174.6 ms,
+/// 229.7 ms,
+/// 358.7 ms and 460.3 ms,
+/// which is why the allowance is generous:
+/// under load one gap of four can carry hundreds of milliseconds of work.
+/// The allowance is a bound on the shortest of four gaps,
+/// not on any one of them,
+/// so a loaded host that stretches one gap and leaves the others does not fail this control,
+/// where a bound on the whole span would add all four.
+/// What it does not catch:
+/// a pause that grew by less than this allowance.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE = 150 // milliseconds
+/// ```
+const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE: Duration = Duration::from_millis(150);
+
+/// The control of the pause's other side:
+/// the time from one ask's end to the next one's beginning is no more than the pause the call site sleeps plus
+/// `THE_MOST_A_GAP_OUTLASTS_THE_PAUSE`.
+/// Why it is a control and not a comment:
+/// `the_gap_between_two_asks_is_the_pause_the_call_site_sleeps` bounds that gap only from below,
+/// so `std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` at the call site stays green there
+/// with a span of 1.6 s where the records name 0.800 s
+/// (a same-vendor second read of `0.1.5-alpha.18` named that edit,
+/// 2026-11-28).
+/// The stand-in is a stand-in:
+/// it writes the clock down and refuses every ask,
+/// so the discovery's own work between two programs is all the gap holds besides the sleep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // describe('the span the question is asked again over', () => { it('spends no more than the pause the call site sleeps', ...) })
+/// ```
+#[test]
+fn the_pauses_of_the_asking_again_are_no_longer_than_the_pause_the_call_site_sleeps() {
+    this_test_needs_a_delegated_scope();
+    // The fixture directory of this control.
+    let directory = scratch();
+    // Where the stand-in writes down the moment each ask began and the moment it ended.
+    let log: PathBuf = directory.path().join("asks");
+    // What:     `program` is the stand-in: it writes down the nanosecond clock at its start and at its end and refuses the ask.
+    // Why:      A gap measured from an end to the next beginning holds the sleep and the work around it, and an ask that answered
+    //           would end the asking before the four gaps exist.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const program = aProgram(dir, 'systemctl-that-refuses-and-writes-down-when', `...`)
+    // ```
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-that-refuses-every-ask-and-writes-down-when-too",
+        &format!(
+            "#!/bin/sh\nprintf 'begin %s %s\\n' \"$(date +%s%N)\" \"$*\" >> '{log}'\necho 'the stand-in refuses every ask' >&2\nprintf 'end %s\\n' \"$(date +%s%N)\" >> '{log}'\nexit 1\n",
+            log = log.display()
+        ),
+    );
+    // The settings of this control, asking through the stand-in.
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+
+    // What:     `refused` is the discovery's failure, which every ask of this stand-in must be.
+    // Why:      An answer would mean an ask got through, and the gaps below would not be the asking again's.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let refused: string
+    // try { detectRoute(settings); throw new Error('the stand-in answered') } catch (error) { refused = String(error) }
+    // ```
+    let refused = detect_route(&settings)
+        .expect_err("a stand-in that refuses every ask is a missing capability");
+    assert!(
+        refused
+            .to_string()
+            .contains("the stand-in refuses every ask"),
+        "the refusal is not the last ask's own words: {refused}"
+    );
+    // Every line the stand-in wrote, one per moment.
+    let written: String = fs::read_to_string(&log).expect("the stand-in's log");
+    // What:     `wanted` is the attempt count as the width a count of lines answers in.
+    // Why:      The count of attempts is a `u32` and a count of lines is a `usize`, and the two are compared below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const wanted = ASKING_AGAIN_ATTEMPTS
+    // ```
+    let wanted: usize = usize::try_from(ASKING_AGAIN_ATTEMPTS)
+        .expect("an attempt count that fits a count of lines");
+    // The moments the asks began, in the order they were made.
+    let mut begins: Vec<u128> = Vec::new();
+    // The moments the asks ended, in the same order.
+    let mut ends: Vec<u128> = Vec::new();
+    for line in written.lines() {
+        // What:     `words` is that line split at its spaces: `begin` or `end`, then the clock, then the ask's own words.
+        // Why:      The kind of moment is the first word and the clock is the second.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const words = line.split(/\s+/)
+        // ```
+        let mut words = line.split_whitespace();
+        // What:     `kind` is `begin` for the moment an ask started and `end` for the moment it ended.
+        // Why:      The two are collected apart, because a gap runs from an end to the next beginning.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const kind = words.next()
+        // ```
+        let kind: &str = words.next().expect("a kind before the clock");
+        // What:     `moment` is that clock reading: nanoseconds since the epoch, as the stand-in's `date +%s%N` printed it.
+        // Why:      A gap between two of them is a duration no clock of this process read.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const moment = Number(words.next())
+        // ```
+        let moment: u128 = words
+            .next()
+            .expect("a clock after the kind")
+            .parse()
+            .expect("nanoseconds since the epoch");
+        if kind == "begin" {
+            begins.push(moment);
+        } else {
+            ends.push(moment);
+        }
+    }
+    assert_eq!(
+        begins.len(),
+        wanted,
+        "the questioning did not walk the whole span: {} asks began where {wanted} attempts are made: {written:?}",
+        begins.len()
+    );
+    assert_eq!(
+        ends.len(),
+        wanted,
+        "every ask that began did not end: {} ends where {wanted} attempts are made: {written:?}",
+        ends.len()
+    );
+    // What:     `shortest` is the shortest time from one ask's end to the next ask's beginning.
+    // Why:      A longest sleep shows in every gap, and the shortest gap is the one a loaded host can stretch least.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let shortest = Number.POSITIVE_INFINITY
+    // ```
+    let mut shortest: Duration = Duration::MAX;
+    // What:     `take(wanted - 1)` walks every ask but the last, which has no ask after it to measure a pause to.
+    // Why:      The number of pauses is one fewer than the number of asks.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const [index, ended] of ends.slice(0, wanted - 1).entries()) { ... }
+    // ```
+    for (index, ended) in ends.iter().take(wanted - 1).enumerate() {
+        // What:     `began_next` is the moment the ask after this one began, which is the end of the pause.
+        // Why:      Nothing but the discovery's own bookkeeping and its sleep stands between the two moments.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const beganNext = begins[index + 1]
+        // ```
+        let began_next: u128 = begins[index + 1];
+        // What:     `gap` is `began_next - ended` as a `Duration`: the pause plus the work around it.
+        // Why:      A `Duration` compares against the constant and prints the figure a reader needs.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const gap = (beganNext - ended) / 1e6   // milliseconds
+        // ```
+        let gap: Duration = Duration::from_nanos(
+            u64::try_from(began_next - ended).expect("a gap short enough for a duration"),
+        );
+        println!(
+            "the pause before ask {} of {} was {gap:?}",
+            index + 2,
+            wanted
+        );
+        if gap < shortest {
+            shortest = gap;
+        }
+    }
+    // What:     `allowed` is the pause the call site sleeps plus the work `THE_MOST_A_GAP_OUTLASTS_THE_PAUSE` allows it.
+    // Why:      The span the records name is the four pauses, so a gap longer than the pause by more than that work is a sleep that
+    //           is not the pause.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const allowed = ASKING_AGAIN_PAUSE + THE_MOST_A_GAP_OUTLASTS_THE_PAUSE
+    // ```
+    let allowed: Duration = ASKING_AGAIN_PAUSE + THE_MOST_A_GAP_OUTLASTS_THE_PAUSE;
+    assert!(
+        shortest <= allowed,
+        "the shortest pause between two asks was {shortest:?}, longer than the {ASKING_AGAIN_PAUSE:?} the call site sleeps plus the {THE_MOST_A_GAP_OUTLASTS_THE_PAUSE:?} the work around it is measured to take, so the span is not the {waits:?} the records name: {written:?}",
+        waits = ASKING_AGAIN_PAUSE * (ASKING_AGAIN_ATTEMPTS - 1)
+    );
+    println!(
+        "the {} pauses between the asks were at least {shortest:?}, and the call site sleeps {ASKING_AGAIN_PAUSE:?} plus at most {THE_MOST_A_GAP_OUTLASTS_THE_PAUSE:?} of work",
+        wanted - 1
+    );
+}

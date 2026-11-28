@@ -1,0 +1,56 @@
+# greps in the proposal at e63bf58c19, 2026-11-28T07:33:52-05:00
+## 2.09 / GiB
+2293:with the disk cost of a warm build (`package/ide/app/target/dylint/debug` at 2.09 GiB,
+## declined
+1244:Neither record says the floating nightly is a decision the owner declined or adopted;
+2006:The word "declined" and the phrase "the owner adopted" were wrong:
+2124:Its "which the owner declined" is answered under H1.
+## paused / pause
+1768:and the earlier draft's "which the owner has paused" was a reading of it that the session made,
+1772:and whether the pause is about the checkout only.
+1850:  A delivers nothing today because the installer it needs is the paused one,
+1851:  and while paused every run still skips.
+1854:  When the pause lifts,
+2225:its pairs rest on delivery with the pause stated as A's zero delivery today,
+2226:and the reversal when the pause lifts is written down.
+2233:except A's pause,
+2407:its F13 answer said the issue-6316 answer is not an owner pause,
+## moves daily / daily
+660:- The daily toolchain update timer stands
+661:  `disabled; inactive (dead)` (`systemctl --user status toolchain-daily-update.timer`,
+663:  it is kept in `.../gate-read-second-2026-11-28/probe-daily-update-timer-and-lock-state.txt`).
+1238:> "Make the plan file always track latest and set up a systemd cronjob to update EVERYTHING (not just rust) daily."
+1373:the machine carries about 500 MB more of components for a channel that moves daily.
+1375:the compiler that builds the lint library changes with every nightly,
+1627:an image to rebuild on every nightly or `cargo-dylint` move,
+1742:the owner's "update EVERYTHING (not just rust) daily" for these two tools,
+1955:   It takes the two tools out of the owner's "update EVERYTHING daily".
+2011:and the daily-update half of them ("Make the plan file always track latest ...") is what a pin sets
+2451:and why the daily toolchain update timer is disabled.
+## Wait for Dylint
+956:which is the owner's recorded "Wait for Dylint" situation.
+1239:> "Wait for Dylint" (the closure lint plugin `package/linter/monochromatic-lint-closure` stays as it is).
+1281:and "always latest" with "Wait for Dylint" is the arrangement it moved to.
+1359:#### Answer I: the components on the floating channel, and wait for Dylint
+1378:That is the owner's "Wait for Dylint" situation,
+1401:what to do on a nightly that breaks the library (wait for Dylint,
+1808:and the breakage policy for I is the recorded "Wait for Dylint".
+1901:   wait for Dylint when a nightly breaks it),
+2016:"Wait for Dylint" is stated as the breakage policy for I and as the answer that needs no pin.
+2044:and the answer to it is the owner's "Wait for Dylint".
+## RUSTUP_AUTO_INSTALL / auto-install
+1327:(rustup 1.29.3 warns that this auto-installation is deprecated).
+2199:auto-install when a directory's file names an absent toolchain,
+2376:warning that auto-installation is deprecated (M11).
+## status 2 / processing
+140:   at processing-failure severity,
+157:   fails the run with status `2`
+300:  a `core/processing-failure` finding and exit status `2`,
+343:  That is a `core/processing-failure` finding and status `2`,
+1119:  six skipped and two failed closure with status `2`,
+## c82ce1563
+823:`rustc 1.102.0-nightly (c82ce1563 2026-11-27)`,
+949:(`c82ce1563`,
+1176:   `c82ce1563` (2026-11-27) with `E0603` in both the library and the driver (M2b,
+1394:(`c82ce1563`,
+2043:a nightly newer than the installed `dylint` supports (measured on `c82ce1563`) breaks both I and F,

@@ -1,0 +1,141 @@
+read on 2026-11-28T08:05:02-05:00 at b1529e79e12a8684ae7bab789d2bf0adb0da6f62
+== git grep --line-number "rustup update" outside doc/ and Markdown: no hit
+(status 1; 1 means no hit)
+
+== rg "toolchain install nightly" .github (line counts per file)
+.github/workflows/crate-release.yml:1
+.github/workflows/cargo-publish.yml:17
+
+== the plan rust row, lines 175-217 of toolchain.plan.jsonc
+    // Floating nightly channel, resolved to the dated toolchain string; the pin
+    // rides in the MPM rustup package id because that adapter keeps only the id.
+    // The bins are the programs the installed toolchain holds; `rustup` itself is the
+    // manager, which the bootstrap installs before the first `mpm-shadow` run, so the
+    // row does not declare it (issue 6626).
+    // `rustfmt` is declared because it is the only component that installs `cargo-fmt` and
+    // `rustfmt`, two of the bins below; rustup's `minimal` profile installs neither, and the
+    // repository's own tasks run both (`cargo fmt`, and `format:processors` runs a bare
+    // `rustfmt`, issue 6630).
+    "rust": {
+      "request": "rust@nightly",
+      "route": "rustup-toolchain",
+      "manager": "rustup",
+      "packageId": "{version}",
+      "bins": [
+        "cargo",
+        "cargo-clippy",
+        "cargo-fmt",
+        "clippy-driver",
+        "rust-gdb",
+        "rust-gdbgui",
+        "rust-lldb",
+        "rustc",
+        "rustdoc",
+        "rustfmt"
+      ],
+      "options": {
+        "rustComponents": [
+          "clippy",
+          "rust-src",
+          "llvm-tools",
+          "rustc-dev",
+          "rustfmt"
+        ],
+        "rustTargets": [
+          "aarch64-linux-android",
+          "x86_64-linux-android"
+        ]
+      },
+      "env": {
+        "RUSTUP_TOOLCHAIN": "{version}"
+      }
+    },
+
+== the lock rust entry
+    "rust": {
+      "request": "rust@nightly",
+      "version": "nightly-2026-11-16",
+      "route": "rustup-toolchain",
+      "manager": "rustup",
+      "packageId": "nightly-2026-11-16",
+      "bins": [
+        "cargo",
+        "cargo-clippy",
+        "cargo-fmt",
+        "clippy-driver",
+        "rust-gdb",
+        "rust-gdbgui",
+        "rust-lldb",
+        "rustc",
+        "rustdoc",
+        "rustfmt"
+      ],
+      "env": {
+        "RUSTUP_TOOLCHAIN": "nightly-2026-11-16"
+      },
+      "options": {
+        "rustComponents": [
+          "clippy",
+          "rust-src",
+          "llvm-tools",
+          "rustc-dev",
+          "rustfmt"
+        ],
+        "rustTargets": [
+          "aarch64-linux-android",
+          "x86_64-linux-android"
+        ]
+      },
+      "artifacts": {}
+    },
+    "cargo-binstall": {
+      "request": "github:cargo-bins/cargo-binstall@latest",
+
+== the two install functions of mpm-shadow
+61:    let channel: &str = tool.rustup_channel();
+64:        &["toolchain", "install", "--no-self-update", channel],
+105:                tool.rustup_channel(),
+129:                tool.rustup_channel(),
+
+== rustup_channel and expand_version, model.rs
+    /// The rustup channel this row names:
+    /// the declaration's `packageId` when it has one,
+    /// else the locked version.
+    /// Why:
+    /// `rustup` names a toolchain by the channel it was installed as (`stable`,
+    /// `nightly-2026-10-30`),
+    /// and `rustup toolchain list` prints that channel followed by the host triple,
+    /// so every stage that names this row's toolchain (its install,
+    /// its components and targets,
+    /// its listing,
+    /// its observation) asks for the same text,
+    /// never for the release the channel resolved to.
+    pub fn rustup_channel(&self) -> &str {
+        return self
+            .declaration
+            .package_id
+            .as_deref()
+            .unwrap_or(&self.version);
+    }
+}
+
+//endregion Declaration and lock entry
+
+/// Re-exports the decoding functions,
+pub fn expand_version(
+    declaration: &Declaration,
+    version: &str,
+) -> Declaration {
+    let mut expanded: Declaration = declaration.clone();
+    if let Some(text) = &declaration.package_id {
+        expanded.package_id = Some(text.replace(VERSION_PLACEHOLDER, version));
+    }
+    let mut env: Vec<(String, String)> = Vec::new();
+    for (name, text) in &declaration.env {
+        env.push((name.clone(), text.replace(VERSION_PLACEHOLDER, version)));
+    }
+    expanded.env = env;
+    return expanded;
+}
+
+//endregion Version placeholder

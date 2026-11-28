@@ -12,6 +12,7 @@ use crate::test_support::{
     repository,
 };
 /// The two plans a settled run's facts may carry.
+use crate::worktree_clone_removal_proof_and_plan::removal_command_path::REMOVED_EXIT_CODE;
 use crate::worktree_command_facts::{
     AddPlan,
     RemovePlan,
@@ -19,6 +20,10 @@ use crate::worktree_command_facts::{
 /// The words a failed step is named with,
 /// written in the file that reports every run's ending.
 use crate::worktree_copy_forward_outcome::words_of;
+use crate::worktree_copying::worktree_removal_of_a_bound_clone::{
+    BoundSlotRemovalAnswer,
+    TheSlotRemoval,
+};
 use std::path::{
     Path,
     PathBuf,
@@ -287,6 +292,103 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
     assert_eq!(
         stops[0].instance,
         crate::service_instance::instance_of(registered.as_path())
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A bound slot's removal that finished is a removal that ended well,
+///  so the removed worktree's units are stopped and its shadow pool goes.
+/// Why:
+///  The alpha.53 read's L3:
+///  the bound slot's removal answers `ForwardedRun::Failed` with `REMOVED_EXIT_CODE`
+///  even when it finished,
+///  and the two steps after a removal were keyed to `Ran(0)` alone,
+///  so a finished ZFS removal left its units running and its pool standing.
+///  The removal here is the stand-in the step answers with,
+///  and what it does to the worktree is Git's own removal,
+///  so the registration the stop's instance names is gone exactly as a finished removal leaves it.
+#[cfg(unix)]
+#[test]
+fn a_finished_bound_slots_removal_stops_its_units_and_takes_its_shadow_pool() {
+    let root: PathBuf = fixture("forward-bound-removal-finished");
+    let (main, common) = source(root.as_path());
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", "../wt"],
+    );
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    let registered: PathBuf =
+        std::fs::canonicalize(common.join("worktrees/wt")).expect("registration");
+    let pool: PathBuf = crate::shadow_pool::pool_root_for(common.as_path(), registered.as_path());
+    let member: PathBuf = pool.join("member-left-by-the-fill");
+    std::fs::create_dir_all(member.as_path()).expect("a finished member of the pool");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        common_dir: Some(common.clone()),
+        creates: false,
+        destination: None,
+        add_plan: None,
+        remove_plan: Some(RemovePlan {
+            target: worktree.clone(),
+            operand: worktree.clone().into_os_string(),
+            force: false,
+        }),
+        removal_target: Some(worktree.clone()),
+        removal_force: 0,
+        quiet: false,
+    };
+    let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
+    // The removal a bound slot answers with: it takes the worktree and reports the status a finished one ends in.
+    let the_finished_removal = |_request: &TheSlotRemoval<'_>| -> Option<BoundSlotRemovalAnswer> {
+        git(
+            main.as_path(),
+            &[
+                "worktree",
+                "remove",
+                "--force",
+                worktree.to_str().expect("utf8"),
+            ],
+        );
+        return Some(BoundSlotRemovalAnswer {
+            stderr: String::from("the clone, its snapshots and its records are destroyed\n"),
+            code: REMOVED_EXIT_CODE,
+        });
+    };
+    let finished: ForwardedRun = run_forwarded_git_with_its_own_steps(
+        Path::new(REAL_GIT),
+        arguments(&[
+            "-C",
+            main.to_str().expect("utf8"),
+            "worktree",
+            "remove",
+            worktree.to_str().expect("utf8"),
+        ])
+        .as_slice(),
+        isolated_overlay().as_slice(),
+        Some(&facts),
+        TheRunsOwnSteps {
+            the_bound_slots_removal: &the_finished_removal,
+            stop_units: &|about: &WorktreeAboutToGo| asked.borrow_mut().push(about.clone()),
+        },
+    );
+    match &finished {
+        ForwardedRun::Failed {
+            code,
+            ..
+        } => assert_eq!(
+            *code, REMOVED_EXIT_CODE,
+            "the removal reported that it finished"
+        ),
+        other => panic!("a finished removal's answer travels, not {other:?}"),
+    }
+    assert!(!worktree.exists(), "the removal took the worktree");
+    let stops: Vec<WorktreeAboutToGo> = asked.into_inner();
+    assert_eq!(stops.len(), 1, "one removal, one stop");
+    assert_eq!(stops[0].git_dir, registered);
+    assert!(
+        !pool.exists(),
+        "the pool of the worktree a finished removal took goes with it"
     );
     remove(root.as_path());
 }

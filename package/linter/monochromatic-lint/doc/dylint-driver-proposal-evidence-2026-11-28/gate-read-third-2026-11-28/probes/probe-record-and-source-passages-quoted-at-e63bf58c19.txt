@@ -1,0 +1,452 @@
+# Passages quoted in review.md, copied with git show at e63bf58c19, 2026-11-28T07:44:03-05:00
+
+## doc/decision/rust-closure-lint-dylint.md lines 44 to 74
+44	## Root toolchain change approved on 2026-10-18
+45	
+46	Stage 1 kept the lint's toolchain package-local (a dated nightly in the package) because the root toolchain was not
+47	approved to change.
+48	On 2026-10-18 the owner answered three questions through the question tool,
+49	and stage 2a carries them out:
+50	
+51	- Add `rustc-dev` to the shared floating nightly.
+52	  `mise.no-env.toml` lists the component and the tools `cargo-dylint` and `dylint-link`,
+53	  `mise.toml` is regenerated from it with file-enforcer,
+54	  and `mise.lock` records the tools and the new component list.
+55	  Changing the component list changes the locked options of the `rust` entry,
+56	  so refreshing the lock also moved the floating nightly from `nightly-2026-10-17` to `nightly-2026-10-18`.
+57	- Exempt `**/tests/ui/**` from `rust/no-anonymous-functions` in `monochromatic-lint.config.jsonc`,
+58	  because the lint's fixtures contain closures on purpose
+59	  (the exemption was removed together with the rule,
+60	  see the section "Removal of `rust/no-anonymous-functions`").
+61	- The two stray mise symlinks under `~/.local/share/mise/installs` were repaired by the coordinator.
+62	
+63	The package therefore has no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override;
+64	it uses the root toolchain and its aggregate tasks are named `build` and `lint` again,
+65	so the root fan-out reaches them.
+66	Still not approved:
+67	any other change to the root toolchain declaration,
+68	a pin of the nightly,
+69	an edit to the IDE package,
+70	a push,
+71	or a publish.
+72	A floating-nightly upgrade can break the lint source,
+73	because rustc's internal API moves;
+74	the package README says so.
+
+## doc/decision/rust-closure-lint-dylint.md lines 165 to 185
+165	### Answers of 2026-10-19 to the proposal
+166	
+167	The owner answered four questions about `doc/planning/closure-lint-everywhere.md` through the question tool:
+168	
+169	- Mechanism A:
+170	  `monochromatic-lint` runs `cargo dylint` for each Rust package itself,
+171	  with the library path named in the rule options and a per-package manifest of build prerequisites.
+172	- Severity:
+173	  warnings first.
+174	- Exemptions:
+175	  tests,
+176	  fuzz crates and bench crates are exempt.
+177	- A package whose prerequisites are missing on the machine is skipped,
+178	  and the linter says so.
+179	
+180	Adopted as defaults without asking,
+181	open to veto:
+182	the floating nightly stays (no pin),
+183	only rustc's `expect` suppresses the Dylint lint (no comment directives),
+184	generated code is skipped by the lint itself (spans outside the package's own source),
+185	and the IDE keeps error severity because it has no findings.
+
+## doc/decision/rust-closure-lint-dylint.md lines 201 to 201
+201	- Dylint builds the target with the toolchain that built the library.
+
+## doc/planning/rust-nightly-always-latest.md lines 267 to 302
+267	Options for the fix on latest (all keep the lock on the newest nightly):
+268	
+269	- Patch the package source as in the scratch diff,
+270	  and update `dylint_linting` and `dylint_testing` when a release
+271	  already carries the macro change (the package README requires both crates and the two tools on one Dylint release).
+272	  Pros:
+273	  smallest change,
+274	  no lock lag.
+275	  Cons:
+276	  the `default_field_values` feature is an unstable feature gate that can move again.
+277	- Wait for a Dylint release that fixes the macro,
+278	  and patch only the `caller_bounds` call.
+279	  `dylint_linting` 6.3.2 is published (the package asks for at least 6.2);
+280	  the E0797 comes from rustc's own
+281	  `declare_lint!` expansion,
+282	  and whether any Dylint release removes the need for the gate was not tested.
+283	  Pros:
+284	  no feature gate.
+285	  Cons:
+286	  the package stays red until then,
+287	  and it was already red.
+288	- Retire the lint,
+289	  or build it only when a person asks.
+290	  Pros:
+291	  removes the coupling to compiler internals.
+292	  Cons:
+293	  loses a lint,
+294	  an owner decision.
+295	
+296	Ranking:
+297	patch now > wait for Dylint > retire.
+298	Patching now beats waiting because the package is red on the current lock anyway and the fix is two small edits that
+299	were seen to compile;
+300	waiting beats retiring because the lint has an owner-approved purpose
+301	(the package README,
+302	"Toolchain") and a Dylint release is the normal repair path for the macro half.
+
+## doc/planning/toolchain-always-latest.md lines 19 to 23
+19	- "Rust nightly should always be latest."
+20	- "Move anyway,
+21	  fix forward" (when a new nightly breaks a package).
+22	- "Make the plan file always track latest and set up a systemd cronjob to update EVERYTHING (not just rust) daily."
+23	- "Wait for Dylint" (the closure lint plugin `package/linter/monochromatic-lint-closure` stays as it is).
+
+## doc/planning/toolchain-always-latest.md lines 385 to 400
+385	fix forward"
+386	(`doc/planning/rust-nightly-always-latest.md`,
+387	section "What happens when a new nightly breaks a package").
+388	The lock goes to the newest versions regardless;
+389	this section is how a package the update breaks becomes a fix-forward issue instead of a surprise.
+390	The first daily run (`d61dc1934a`) raised the zbus floor and moved the nightly,
+391	`package/nested-wayland-session/cli` and `package/music-player/desktop-app` stopped compiling,
+392	and nobody was told.
+393	
+394	### What is checked (the proposal)
+395	
+396	This list is a proposal made by the agent that built the check,
+397	recorded here so the owner can change it.
+398	Each check is the package's own `mise` task,
+399	run from the repository root as `mise run //package/<path>:<task>`.
+400	
+
+## doc/planning/toolchain-always-latest.md lines 438 to 452
+438	1.  Before anything is updated,
+439	    every package is checked (the baseline pass).
+440	2.  The groups run and commit as before.
+441	3.  When a group committed or the machine-global lock changed,
+442	    every package is checked again (the second pass).
+443	    A run that moved nothing skips the second pass,
+444	    because no check can have become red.
+445	4.  For each check the two results are compared:
+446	    passed then failed is newly red;
+447	    failed then failed is already red and is never reported again (`package/linter/monochromatic-lint-closure` is red
+448	    today and the owner said "Wait for Dylint");
+449	    failed then passed is recovered;
+450	    passed then passed is unchanged;
+451	    anything else,
+452	    including a check that timed out or never started because the pass ran out of time,
+
+## package/mpm-shadow/cli/src/toolchain/model.rs lines 349 to 355
+349	    pub fn rustup_channel(&self) -> &str {
+350	        return self
+351	            .declaration
+352	            .package_id
+353	            .as_deref()
+354	            .unwrap_or(&self.version);
+355	    }
+
+## package/mpm-shadow/cli/src/toolchain/model.rs lines 381 to 405
+381	pub const VERSION_PLACEHOLDER: &str = "{version}";
+382	
+383	/// What:
+384	/// A copy of the declaration with `{version}` replaced by `version` in `packageId` and in every `env` value.
+385	/// Why:
+386	/// A Rust channel's package id (`nightly-2026-10-30`) and a tool's home variable (`android-sdk/23.0`) equal the
+387	///           resolved version,
+388	/// which changes on every update.
+389	/// The plan writes `{version}` once,
+390	/// the lock holds the
+391	///           expanded text,
+392	/// and comparing a plan with a lock expands the plan with the lock's version first,
+393	/// so an
+394	///           update never makes the two files disagree.
+395	///
+396	/// In TS you'd write (pseudocode):
+397	/// ```ts
+398	/// export function expandVersion(declaration: Declaration, version: string): Declaration
+399	/// ```
+400	pub fn expand_version(
+401	    declaration: &Declaration,
+402	    version: &str,
+403	) -> Declaration {
+404	    let mut expanded: Declaration = declaration.clone();
+405	    if let Some(text) = &declaration.package_id {
+
+## package/mpm-shadow/cli/src/toolchain/install_rust_android.rs lines 56 to 120
+56	/// `rustup toolchain install --no-self-update <package id, or the locked version>`.
+57	pub fn install_rust_toolchain(
+58	    ctx: &Context,
+59	    tool: &LockedTool,
+60	) -> Result<(), ToolchainError> {
+61	    let channel: &str = tool.rustup_channel();
+62	    let request: RunRequest = ctx.request(
+63	        "rustup",
+64	        &["toolchain", "install", "--no-self-update", channel],
+65	    );
+66	    run_checked(
+67	        ctx,
+68	        &request,
+69	        "rustup toolchain install",
+70	        &tool.declaration.id,
+71	    )?;
+72	    return Ok(());
+73	}
+74	
+75	/// What:
+76	/// `rustup component add <name> --toolchain <version>` for each declared component,
+77	/// then `rustup target add
+78	///           <triple> --toolchain <version>` for each declared target.
+79	/// Why:
+80	/// The toolchain install above brings the default profile;
+81	/// the plan names the extras.
+82	///
+83	/// In TS you'd write (pseudocode):
+84	/// ```ts
+85	/// export function installRustComponents(ctx: Context, tool: LockedTool): void
+86	/// ```
+87	pub fn install_rust_components(
+88	    ctx: &Context,
+89	    tool: &LockedTool,
+90	) -> Result<(), ToolchainError> {
+91	    for component in tool
+92	        .declaration
+93	        .options
+94	        .rust_components
+95	        .clone()
+96	        .unwrap_or_default()
+97	    {
+98	        let request: RunRequest = ctx.request(
+99	            "rustup",
+100	            &[
+101	                "component",
+102	                "add",
+103	                &component,
+104	                "--toolchain",
+105	                tool.rustup_channel(),
+106	            ],
+107	        );
+108	        run_checked(
+109	            ctx,
+110	            &request,
+111	            &format!("rustup component add ({component})"),
+112	            &tool.declaration.id,
+113	        )?;
+114	    }
+115	    for target in tool
+116	        .declaration
+117	        .options
+118	        .rust_targets
+119	        .clone()
+120	        .unwrap_or_default()
+
+## toolchain.plan.jsonc lines 170 to 217
+170	        "age-plugin-pq",
+171	        "age-plugin-tag",
+172	        "age-plugin-tagpq"
+173	      ]
+174	    },
+175	    // Floating nightly channel, resolved to the dated toolchain string; the pin
+176	    // rides in the MPM rustup package id because that adapter keeps only the id.
+177	    // The bins are the programs the installed toolchain holds; `rustup` itself is the
+178	    // manager, which the bootstrap installs before the first `mpm-shadow` run, so the
+179	    // row does not declare it (issue 6626).
+180	    // `rustfmt` is declared because it is the only component that installs `cargo-fmt` and
+181	    // `rustfmt`, two of the bins below; rustup's `minimal` profile installs neither, and the
+182	    // repository's own tasks run both (`cargo fmt`, and `format:processors` runs a bare
+183	    // `rustfmt`, issue 6630).
+184	    "rust": {
+185	      "request": "rust@nightly",
+186	      "route": "rustup-toolchain",
+187	      "manager": "rustup",
+188	      "packageId": "{version}",
+189	      "bins": [
+190	        "cargo",
+191	        "cargo-clippy",
+192	        "cargo-fmt",
+193	        "clippy-driver",
+194	        "rust-gdb",
+195	        "rust-gdbgui",
+196	        "rust-lldb",
+197	        "rustc",
+198	        "rustdoc",
+199	        "rustfmt"
+200	      ],
+201	      "options": {
+202	        "rustComponents": [
+203	          "clippy",
+204	          "rust-src",
+205	          "llvm-tools",
+206	          "rustc-dev",
+207	          "rustfmt"
+208	        ],
+209	        "rustTargets": [
+210	          "aarch64-linux-android",
+211	          "x86_64-linux-android"
+212	        ]
+213	      },
+214	      "env": {
+215	        "RUSTUP_TOOLCHAIN": "{version}"
+216	      }
+217	    },
+
+## package/cargo-shadow/cli/src/lean_rustup_toolchains.rs lines 1 to 12
+1	//! What:
+2	//! The removal of dated nightly Rust toolchains that no checkout's lock pins,
+3	//! after the grace period.
+4	//! Why:
+5	//! The repository installs a dated nightly per `toolchain:update` and rustup never removes one
+6	//! (20 toolchains of about 2.7 GiB each on 2026-11-04,
+7	//! `doc/planning/lean-build-dirs.md`).
+8	//! A toolchain is kept when any checkout pins it
+9	//! (`toolchain.lock.json` `.tools.rust.version`,
+10	//! `.cache/toolchain.env.json` `RUSTUP_TOOLCHAIN`,
+11	//! or a `rust-toolchain` file),
+12	//! when rustup's own settings name it as the default or an override,
+
+## package/linter/monochromatic-lint/src/closure_step_package.rs lines 173 to 188
+173	fn failure_message(
+174	    run: &DylintRun,
+175	    parsed: &Parsed,
+176	) -> String {
+177	    let detail: String = match &parsed.compiler_error {
+178	        Some(error) => format!("The first compiler error was:\n{error}"),
+179	        None => format!(
+180	            "The end of cargo's messages was:\n{}",
+181	            tail(&run.stderr, 12)
+182	        ),
+183	    };
+184	    return format!(
+185	        "{RULE} could not check this package: `cargo dylint` exited with {}. The result is incomplete, so the run cannot be trusted. {detail}",
+186	        run.status
+187	    );
+188	}
+
+## package/linter/monochromatic-lint/src/closure_step_package.rs lines 247 to 272
+247	    let run: DylintRun = match run_dylint(cargo, &package.library, &package.manifest, &setup) {
+248	        Ok(done) => done,
+249	        Err(reason) => {
+250	            outcome.findings.push(processing_failure(
+251	                manifest_name.as_str(),
+252	                file_start(),
+253	                format!("{RULE} could not check this package: {reason}"),
+254	            ));
+255	            return outcome;
+256	        }
+257	    };
+258	    let parsed: Parsed = parse_records(run.stdout.as_slice());
+259	    outcome
+260	        .findings
+261	        .extend(findings_from(parsed.reports.as_slice(), directory, targets));
+262	    outcome.notes.push(format!(
+263	        "{RULE} checked {subject}: {} report(s) from the compiler",
+264	        parsed.reports.len()
+265	    ));
+266	    if !run.success {
+267	        outcome.findings.push(processing_failure(
+268	            manifest_name.as_str(),
+269	            file_start(),
+270	            failure_message(&run, &parsed),
+271	        ));
+272	    }
+
+## package/linter/monochromatic-lint/src/closure_driver.rs lines 190 to 208
+190	    let toolchain: String = match active_toolchain(&site.rustup, library) {
+191	        Ok(name) => name,
+192	        Err(reason) => return DriverState::Unknown(reason),
+193	    };
+194	    let driver: PathBuf = drivers.join(&toolchain).join("dylint-driver");
+195	    let found: Option<(u64, u64, u64)> = driver_version(&driver);
+196	    if matches!(found, Some(version) if version >= needed) {
+197	        return DriverState::Ready;
+198	    }
+199	    let Some(scratch) = site.scratch.as_ref() else {
+200	        return DriverState::Unknown(String::from(
+201	            "no cache directory is known to resolve the driver crate in",
+202	        ));
+203	    };
+204	    let refusal: String = match driver_unresolved(cargo, scratch, &dotted(needed)) {
+205	        Ok(None) => return DriverState::Ready,
+206	        Ok(Some(first_line)) => first_line,
+207	        Err(reason) => return DriverState::Unknown(reason),
+208	    };
+
+## doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md lines 184 to 196
+184	and a run whose selected files include no Rust file of the package never reaches `check_package`.
+185	
+186	## Verification
+187	
+188	Versions under test:
+189	`cargo-dylint` 6.3.0 (`sha256` prefix `3d628fd98ba079536743`) and `dylint-link` 6.3.0
+190	(`a0b9b12a405af3720503`) from `~/.cargo/bin`;
+191	upstream tag `v6.3.0` = `39f72bb3b6c5baf402ae0ae865852d11868a5a0c`;
+192	toolchain `nightly-2026-10-30-x86_64-unknown-linux-gnu` selected through `RUSTUP_TOOLCHAIN`
+193	(cargo-dylint strips that variable for the driver build,
+194	so the driver directory was
+195	`nightly-x86_64-unknown-linux-gnu`,
+196	the rustup default,
+
+## doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md lines 213 to 228
+213	Harness for the arms:
+214	a scratch `CARGO_HOME` holding copies of `registry/index` and `registry/cache`
+215	(no `build-dir` from the host `~/.cargo/config.toml`),
+216	a scratch `DYLINT_DRIVER_PATH` and `CARGO_TARGET_DIR`,
+217	`PATH` with `~/.cargo/bin`,
+218	and `RUSTUP_AUTO_INSTALL=0`.
+219	Each arm ran as a capped unit
+220	(`systemd-run --user --collect --wait --pipe --property=MemoryMax=4G --property=CPUQuota=200%`).
+221	
+222	```ts
+223	// scratch run.ts: node run.ts <scratch> <driver-dir> <offline|online> <cargo-home>
+224	import { spawnSync } from 'node:child_process';
+225	const [scr, drivers, offline, cargoHome] = process.argv.slice(2);
+226	const home = process.env.HOME!;
+227	const env = {
+228	  PATH: `${home}/.cargo/bin:/usr/local/bin:/usr/bin:/bin`,
+
+## doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md lines 485 to 492
+485	- Reading the default toolchain as the cause:
+486	  the driver directory is `nightly-x86_64-unknown-linux-gnu`
+487	  (the rustup default,
+488	  `rustc 1.101.0-nightly (19833af72 2026-10-20)`),
+489	  not the locked `nightly-2026-10-30`.
+490	  This differs from the lock but does not produce the version error:
+491	  drivers for all three toolchain directories
+492	  are 6.2.0 and outdated alike.
+
+## package/linter/monochromatic-lint-closure/README.md lines 183 to 215
+183	### Toolchain
+184	
+185	The package uses the repository's shared floating nightly,
+186	declared in the root `mise.toml` with the `rustc-dev` component
+187	(a Dylint library links rustc's own crates)
+188	and the tools `cargo-dylint` and `dylint-link` (the owner approved this on 2026-10-18).
+189	`mise install` provisions all three;
+190	nothing else is needed,
+191	and the package has no `rust-toolchain.toml` and no toolchain override of its own.
+192	The exact nightly is whatever `mise.lock` resolves for the `rust` entry.
+193	Dylint builds a library and every package it lints with that nightly,
+194	and `cargo dylint` caches its driver in `~/.dylint_drivers` (the optional `DYLINT_DRIVER_PATH` moves it).
+195	
+196	A floating-nightly upgrade can break the lint source:
+197	rustc's internal API moves between nightlies,
+198	so after `mise.lock` moves the nightly,
+199	build the library and run the tests before relying on the lint,
+200	and fix the source if the compiler's API changed.
+201	The `dylint_linting` and `dylint_testing` crates and the two tools must stay on the same Dylint release.
+202	
+203	#### What a nightly bump has needed so far
+204	
+205	Measured on `nightly-2026-11-16`:
+206	
+207	- No Dylint release had to change.
+208	  Dylint publishes when a nightly breaks its crates;
+209	  the newest `dylint_linting`,
+210	  6.4.0 (published 2026-11-10),
+211	  compiles against this nightly,
+212	  its own lint template pins `nightly-2026-08-20`,
+213	  and the crates and tools were already on 6.4.0.
+214	  A compile failure after a bump is therefore first a question about this crate's own source,
+215	  not about the version floor.

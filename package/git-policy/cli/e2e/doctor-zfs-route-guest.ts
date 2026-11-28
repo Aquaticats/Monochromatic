@@ -193,7 +193,10 @@ async function create(chosen: GuestDriverOptions,): Promise<void> {
    */
   const listed = await captureHostCommand({
     command: 'mvm',
-    args: [...backend.mvmArgumentWords, 'list',],
+    args: [
+      ...backend.mvmArgumentWords,
+      'list',
+    ],
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   if (holdsGuestName({

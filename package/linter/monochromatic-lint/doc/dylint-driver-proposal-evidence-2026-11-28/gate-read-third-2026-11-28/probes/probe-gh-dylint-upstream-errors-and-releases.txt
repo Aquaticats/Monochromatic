@@ -1,0 +1,14 @@
+# gh read-only queries, 2026-11-28T07:27:14-05:00
+## gh search issues trailofbits/dylint ErrorOutputType
+[]
+## gh search prs trailofbits/dylint ErrorOutputType
+[{"createdAt":"2026-11-24T13:20:04Z","number":2203,"state":"merged","title":"Infer early diagnostic output type across nightlies","url":"https://github.com/trailofbits/dylint/pull/2203"}]
+## recent dylint releases
+Release 6.4.0	Latest	v6.4.0	2026-11-10T13:54:11Z
+Release 6.3.2		v6.3.2	2026-10-30T19:44:37Z
+Release 6.3.1		v6.3.1	2026-10-29T17:19:30Z
+Release 6.3.0		v6.3.0	2026-10-28T14:26:19Z
+Release 6.2.0		v6.2.0	2026-10-16T14:00:40Z
+Release 6.1.1		v6.1.1	2026-10-11T12:02:45Z
+## open PRs titled bump nightly
+[{"createdAt":"2026-11-28T03:04:27Z","mergedAt":null,"number":2212,"state":"OPEN","title":"Upgrade examples"},{"createdAt":"2026-11-26T13:35:57Z","mergedAt":"2026-11-27T13:35:52Z","number":2211,"state":"MERGED","title":"Make `markdown_link_check` its own CI job"},{"createdAt":"2026-11-26T08:35:38Z","mergedAt":"2026-11-27T20:05:08Z","number":2210,"state":"MERGED","title":"Exempt `TempDir` filesystem paths from `non_thread_safe_call_in_test`"},{"createdAt":"2026-11-26T07:10:08Z","mergedAt":"2026-11-26T10:00:26Z","number":2209,"state":"MERGED","title":"Eliminate use of `REPO_TOKEN` in \"Upgrade examples\" workflow"},{"createdAt":"2026-11-25T20:02:41Z","mergedAt":null,"number":2208,"state":"OPEN","title":"Consider `impl`s in `non_topologically_sorted_functions`"},{"createdAt":"2026-11-25T13:26:04Z","mergedAt":null,"number":2207,"state":"OPEN","title":"Reorganize lint library target directories by source"},{"createdAt":"2026-11-25T12:51:58Z","mergedAt":"2026-11-25T13:58:07Z","number":2206,"state":"MERGED","title":"Adjust order in which tools are installed in CI"},{"createdAt":"2026-11-24T22:35:13Z","mergedAt":null,"number":2205,"state":"OPEN","title":"Pass --locked and --frozen to cargo metadata"},{"createdAt":"2026-11-24T13:20:04Z","mergedAt":"2026-11-24T14:24:59Z","number":2203,"state":"MERGED","title":"Infer early diagnostic output type across nightlies"},{"createdAt":"2026-11-23T16:20:50Z","mergedAt":null,"number":2201,"state":"OPEN","title":"Recover from a poisoned mutex in `dylint_testing`"},{"createdAt":"2026-11-23T04:12:12Z","mergedAt":null,"number":2200,"state":"CLOSED","title":"Install the cargo-rdme toolchain only for the CI suite"},{"createdAt":"2026-11-23T04:12:10Z","mergedAt":null,"number":2199,"state":"CLOSED","title":"Install nightly rustfmt only for suites that use it"}]

@@ -17,6 +17,14 @@ guests keep `mvm`'s 8,192 MiB default,
 and guest memory is measured again once the split's crates build in a guest,
 starting from the fourth read's findings.
 
+On 2026-11-28 the owner reopened one of those questions
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"Building the test binaries outside the guest"):
+where the crate's test binaries are built.
+The section "Should the crate's test binaries be built outside the guest?"
+is the one revised,
+and every other question in this document stays shelved.
+
 This draft is written by an agent and is unapproved:
 it proposes,
 it changes no code and no `mvm` default,
@@ -122,10 +130,12 @@ and a compact form for a question dialog.
 - Build the crate's test binaries outside the guest,
   in an image whose glibc is the guest's,
   at the same absolute path:
-  recommended for arms whose subject is not the crate's own build;
-  the lock arm passed on such binaries in two guests,
-  and the route costs a container build of 289 s with a 9.0 GiB host peak,
-  plus one build path per driver.
+  only for a round that holds several guests at once;
+  the driver's narrowed build now uses 2.88 GiB and 746 s inside a guest,
+  against the 7.29 GiB the earlier case rested on,
+  and a container build costs about the same compiling time (0.94 to 1.04)
+  with 2.86 to 3.63 GiB of this host's memory at its peak
+  and a 35 MB push per guest.
 - Keep the guest at 8,192 MiB while an arm builds the crate inside it:
   the one guest that built the crate put 7.29 GiB of its own `AnonPages` into the build,
   and no run here shows a smaller guest building it.
@@ -134,31 +144,41 @@ and a compact form for a question dialog.
   the memfd route's RAM is page cache,
   which KSM never merges,
   and the one route that can merge has no `/mnt/shared`,
-  which every driver's transfers need.
+  which
+  every driver's transfers need.
 
-Free page reporting is decided and shipped
+Free page report
+ing is decided and shipped
 (`doc/decision/mvm-guests-report-free-pages.md`,
 commit `269b812807`),
 and the section "Free page reporting:
 decided,
-and shipped" records what it buys and costs.
+and shipped" records w
+hat it buys and
+costs.
 
 ## The question
 
 At 2026-11-25T22:00:41Z,
-with three other rounds' guests running,
+with three other
+rounds'
+guests ru
+nning,
 the host charged 24.03 GiB to those three guests
 (8.03,
 8.01 and 7.99 GiB;
 `Rss` plus `Swap` of each QEMU process),
 and its own RAM held 6.80 GiB of that charge.
 The rest was in the guests' swap,
-which the zram device held as 1.13 GiB over 34.43 GiB swapped across everything on the host
+which the zram devic
+e held as 1.13 GiB over 34.43 GiB swapped across everything on the host
 (3.3 percent)
 at that moment.
-The machine's `MemAvailable` was 5,498,576 kB (5.24 GiB),
+The machine's `MemAvailable` was 5,498,576 kB (5
+.24 GiB),
 and the ARC held 2,088,789,208 bytes against a `c_min` of 2,069,377,152,
-19,412,056 bytes above its floor
+19,412,056 bytes abo
+ve its floor
 (`mem-b-host-samples.jsonl`,
 line 1:
 its `/proc/meminfo` fields are kB and its ARC fields bytes).
@@ -167,23 +187,28 @@ One `mvm` guest asks for 8,192 MiB.
 The host must be able to give it,
 page for page,
 for as long as the guest lives,
-because nothing tells the host when a page stops mattering.
+because nothing tells the host when a pa
+ge stops mattering.
 This document measures how much of that memory the host could get back
-while rounds still run their guest arms,
+while rounds still run the
+ir guest arms,
 and what each way back costs.
 
-## How a guest's memory is backed and sized
+## How a guest's memory is backe
+d and sized
 
 ### The domain mvm writes
 
-`package/mvm/cli/src/config.ts` gives a guest 8,192 MiB and 4 vCPUs,
+`package/mvm/cli/src/config.ts` gives a guest 8,192
+MiB and 4 vCPUs,
 and no command-line flag changes either:
 `DEFAULT_MEMORY_MIB` and `DEFAULT_VCPUS` are read by `package/mvm/cli/src/domain-xml.ts`,
 which writes `<memory unit="MiB">8192</memory>` and `<vcpu>4</vcpu>`.
 
 When the share decision is `virtiofs`,
 `domain-xml.ts` also adds the share's device and,
-beside the memory element,
+beside the memor
+y element,
 the backing that device needs:
 
 ```xml
@@ -191,7 +216,7 @@ the backing that device needs:
 <memoryBacking>
   <source type="memfd"/>
   <access mode="shared"/>
-</memoryBacking>
+  </memoryBacking>
 ```
 
 `package/mvm/cli/src/domain-xml-builders.ts` builds those two elements
@@ -250,8 +275,10 @@ so what a guest carried is a claim about the source and about the round that cre
   `fallocate(FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE)` on the memfd and then
   `madvise(MADV_DONTNEED)` on the mapping (`system/physmem.c`).
   Punching a hole in a memfd frees the page from the host's page cache,
-  so reporting is not blocked by `access mode="shared"`:
-  nothing in the virtiofs route disables discards.
+  so reporting is n
+  ot blocked by `access mode="shared"`:
+  nothing in t
+  he virtiofs route disables discards.
   `ram_block_discard_disable` is called by vfio,
   vhost-vDPA,
   SEV guests,
@@ -260,7 +287,8 @@ so what a guest carried is a claim about the source and about the round that cre
 - KSM cannot touch that memory.
   QEMU marks a guest's RAM mergeable when merging is on
   (`backends/hostmem.c` calls `qemu_madvise(..., QEMU_MADV_MERGEABLE)`),
-  but the kernel's KSM documentation states that KSM
+  but the kern
+  el's KSM documentation states that KSM
   "only merges anonymous (private) pages,
   never pagecache (file) pages",
   and a memfd is page cache.
@@ -627,8 +655,8 @@ A one-file check with rustc 1.102.0 on this host showed the same:
 # a one-file probe: rustc's remapping leaves the env! text alone
 CARGO_MANIFEST_DIR=/original/build/path rustc --edition 2024 \
   --remap-path-prefix=/original/build/path=/remapped ./probe.rs -o ./probe
-./probe
-manifest=/original/build/path
+  ./probe
+  manifest=/original/build/path
 ```
 
 nextest documents a second route,
@@ -806,6 +834,75 @@ and no kept log records the flags the cells used.
 After the arm,
 each guest drops its page cache (`sync; echo 3 > /proc/sys/vm/drop_caches`),
 and the host's samples show what that returns.
+
+### This round's method, 2026-11-28
+
+This round measured the container side of the build-location route three times
+and the route's control arm inside one guest,
+under the backend decision of the same day.
+
+- The guest was `mvm`'s own `create` at its default,
+  8,192 MiB,
+  made by the worktree's built `mvm`
+  (`mise run //package/mvm/cli:build`,
+  the dist that names `freePageReporting`),
+  prepared by the ZFS binding's recipe's own `prepare` step,
+  and destroyed by its `destroy` step.
+  It was made only while `mvm --backend libvirt list` showed fewer than six guests alive,
+  which the project's bound of 2026-11-28 set
+  (`gb-i1-inside-lock-gate.log.txt`).
+- Its own `/proc/meminfo` was sampled every five seconds by a script pushed into it and started detached,
+  so a step that ended the guest would still leave the reading behind
+  (`gb-i1-inside-lock-guest-memory.log.txt`).
+- The guests' unit was sampled every ten seconds from this host:
+  `/proc/meminfo`,
+  the unit's `memory.current`,
+  `memory.swap.current`,
+  `memory.max` and its `max` event count,
+  and the guest names in the running QEMU command lines
+  (`gb-i1-inside-lock-host-samples.jsonl`).
+  A guest's own QEMU process is not a reading of what it is charged,
+  because its RAM is a shared memfd and `Rss` plus `Swap` counts swapped pages and the pages mapped at that instant
+  (`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+  "The guests' unit at its own memory cap,
+  2026-11-28").
+- The containers ran as `podman run --rm --cpus 2 --memory 10g --pids-limit 1024 --blkio-weight 10`
+  inside their own `systemd-run --user --scope --slice=agent-work.slice`
+  with `MemoryMax=12G`,
+  `CPUQuota=400%`,
+  `TasksMax=1024`,
+  `IOWeight=1` and `RuntimeMaxSec=2400`,
+  each building this round's own snapshot at the driver's crate path,
+  and each reading its own `memory.peak`.
+- No 4,096 MiB guest was made.
+  `mvm` had no flag for a guest's memory when the round began,
+  so the earlier round's 4 GiB guest came from a temporary change to `domain-xml.ts`;
+  this round would have copied the built dist and changed `DEFAULT_MEMORY_MIB`,
+  which is the mechanism its design asked `mvm` to offer.
+  The policy of 2026-11-28 then stopped every local guest,
+  and the backend it moved them to sizes a machine by its flavour rather than by a memory request.
+  So the smaller-guest question is not measured again here.
+- The outside arm ran on a rented machine,
+  because the backend decision of 2026-11-28 stopped local guests:
+  `MVM_BACKEND=ovh MVM_OVH_FLAVOR=d2-4`,
+  with the round's own built `mvm` on `PATH`,
+  the backend's own names taken from the environment `mise exec` hands a command in this worktree
+  (never printed and never written to a file),
+  and the recipe's own `create`,
+  `prepare` and `destroy` steps.
+  `d2-4` is 2 vCPUs and 4 GiB,
+  the smallest flavour the region offered that fits the 4 GiB the question names.
+  The project's bound of six machines was read before the create
+  (`gb-o1-outside-lock-create-and-destroy.log.txt`),
+  and again after it,
+  and the machine was destroyed by its name at the end of the arm.
+- The round's scripts are its own and live outside the repository:
+  a round script that drives the recipe's steps and the driver's commands in order and records each step's clock,
+  a snapshot maker that calls the drivers' own `copyWrapperSnapshot`,
+  a container build script,
+  a host sampler and a guest sampler,
+  and a summarizer that reads the round's logs.
+  No driver and no `mvm` source was changed.
 
 ## What the charge measures, and its limits
 
@@ -1582,108 +1679,684 @@ is measured to cost minutes per arm.
 
 ### Should the crate's test binaries be built outside the guest?
 
-What it would change:
-a container build on the host,
-in an image whose glibc is the guest's,
-whose binaries are placed at the absolute path each driver uses;
-and the drivers' own build steps,
-one per driver path,
-with each driver's features,
-target directory and profile.
-No `mvm` code.
+The owner reopened this one question on 2026-11-28
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"Building the test binaries outside the guest"),
+shelved before it for the crate split.
+The owner's chosen words were:
 
-What is measured:
+> one round measures the route on the ZFS recipe's guest:
+> the test binaries are built once per commit in a container whose glibc is the guest's (Ubuntu 24.04),
+> at the same absolute path,
+> then pushed into a 4 GiB guest that runs no compiler.
+> It returns as a measured design for you to accept;
+> no driver changes before that.
 
-- the same lock arm passed in two guests on the container's binaries,
-  in 1.13 and 0.39 seconds by their test binaries' summaries,
-  0.75 seconds by `mem-third-8g-prebuilt`'s driver clock,
-  each with all 15 marker lines
-  (`mem-second-4g-lock-arm.log.txt`,
-  `mem-third-8g-prebuilt-lock-arm.log.txt`),
-  and the binary that ran in `mem-third-8g-prebuilt` began at the container's own path
-  (`mem-third-8g-prebuilt-guest-unpack.log.txt`);
-  no driver was run this way,
-  and one arm of one driver is what these two runs cover;
-- the guest that built the crate put 7,641,948 kB (7.29 GiB) of its own `AnonPages` at its peak,
-  against a 7,755 MiB `MemTotal`,
-  with `MemAvailable` down to 88,740 kB (86.7 MiB);
-  the two guests that only ran the binaries peaked at 1.48 and 1.47 GiB of their own `AnonPages`.
-  These are one run each;
-  the guest's own count is the guest's accounting and the two prebuilt readings differ by 0.01 GiB,
-  and no spread of repeated runs was measured;
-- the host's charge does not separate the two routes:
-  `mem-third-8g-prebuilt`'s 6.17 GiB was reached at 04:01:26Z,
-  before its binaries were pushed at 04:01:43Z,
-  so it is the preparation's footprint,
-  and the two 8 GiB guests' charges (7.98 GiB building,
-  6.17 GiB not building) are two runs
-  two hours apart under unlike pressure.
-  No saving of host charge is therefore claimed for this option;
-- the container build took 289 seconds here,
-  and its own cgroup peaked at 9,651,453,952 bytes (9.0 GiB);
-- the source tree and the two binaries moved into the guest in 2.17 seconds:
-  a 12,994,872-byte source tarball,
-  a 31,524,648-byte wrapper and a 17,218,360-byte test binary
-  (61.7 MB in all),
-  with both binaries starting at the end of it.
+Everything else in this document stays shelved until the crate split.
+This section is the one revised,
+and it is written by an agent:
+unapproved and non-final,
+it reports what one round measured,
+what it could not measure and why,
+and ends as a design with the owner's questions.
 
-What it costs:
-a container build per commit or per round,
-which charged this host up to 9,651,453,952 bytes (9.0 GiB) of RAM in its own container
-and took 289 seconds;
-one build path per driver;
-each driver's own features,
-target directory and profile;
-a first run per driver that reproduces those flags,
-because the measured cells carried neither the drivers' `--features test-only-switches` nor their job limits;
-and the arms whose subject is the in-guest build,
-which lose their subject.
-The container's cgroup peak and a guest's charge are different quantities,
-so they are not added and no net host effect is claimed:
-the guest-side saving is what is unmeasured.
-The alternative route,
-a nextest archive with `--workspace-remap`
-(the section "What can place them where the guest finds them"),
-needs the crate's 42 `env!` path sites changed and is not measured;
-it is a separate decision,
-not a variant of this one.
+#### The round's two arms
 
-Recommendation:
-yes,
-for arms whose subject is not the crate's own build.
-The measured reason is the arm's pass:
-the lock arm ran from binaries built outside the guest in two guests,
-and the one guest that built the crate spent 7 m 40 s and 7.29 GiB of its own memory on the build.
-The scope is every arm whose subject is not the build,
-which the lock arm shows is not empty:
-its subject is a lock's lifetime in a ZFS dataset.
+- Inside,
+  the control:
+  the ZFS recipe's guest at `mvm`'s default,
+  8,192 MiB,
+  on this host,
+  building the lock driver's test target inside itself with that driver's own flags
+  (`--release --test native_binary --locked --features test-only-switches --jobs 1`),
+  then running its arm through `cargo nextest`,
+  which is the driver's own command.
+- Outside:
+  the same target built in a rootless `podman` container on this host,
+  in an Ubuntu 24.04 image whose glibc is the guest's,
+  at the driver's own crate path,
+  pushed into a 4 GiB machine that ran no compiler,
+  then the same arm started from the binary the container built.
 
-Ranking:
-build outside at the same path > keep building in the guest.
-Building outside keeps every measured arm running and removes the build from each guest's life,
-at the price of a 289 second container with a 9.0 GiB peak and a first run per driver;
-keeping the build inside costs nothing new but leaves a 7 m 40 s,
-7.29 GiB build in every guest that runs an arm,
-and its memory benefit cannot be measured without the change.
+The project decided on 2026-11-28 that all guest work runs on OVHcloud
+(`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+"All guest work runs on OVHcloud,
+2026-11-28"),
+so the outside arm ran on a rented machine,
+guest `gb-o1`,
+and the control arm had run on this host,
+guest `gb-i1`,
+before that decision reached the round.
+The rented machine was flavour `d2-4`:
+2 vCPUs and 4 GiB,
+Ubuntu 24.04.4 with kernel 6.8.0-136-generic,
+which is the release the recipe prepares
+(`gb-o1-outside-lock-release.log.txt`,
+`gb-o1-outside-lock-create-and-destroy.log.txt`).
+That flavour was this round's own choice,
+the smallest the region offered that fits the 4 GiB the route was asked about,
+at 0.033 Canadian dollars an hour,
+rather than the coordinating session's `b3-16` of 4 vCPUs and 16 GiB.
+Both machines were destroyed by the round that made them,
+and the listing after each destroy names neither
+(`gb-i1-inside-lock-create-and-destroy.log.txt`,
+`gb-o1-outside-lock-create-and-destroy.log.txt`).
 
-Question for the owner,
-ready to paste
-(this one is under 1,500 characters):
+So the two arms ran on two different machines.
+Every figure below is a reading of one machine,
+and the guest's own `AnonPages` is the only quantity this round compares across them.
+
+#### The control arm, measured once
+
+Guest `gb-i1` was `mvm`'s own `create` with no option:
+8,192 MiB asked for,
+4 vCPUs,
+the virtiofs share and the shared memfd backing,
+and `freePageReporting='on'` in the domain `mvm` wrote
+(`gb-i1-inside-lock-domain.xml.txt`,
+which is the domain file as libvirt kept it:
+`<memory unit='KiB'>8388608</memory>`,
+`<memballoon model='virtio' freePageReporting='on'>`).
+The guest was made by the worktree's own built `mvm`
+(`mise run //package/mvm/cli:build`,
+the dist that names `freePageReporting`),
+and the ZFS binding's recipe prepared it exactly as a driver's `prepare` step does,
+OpenZFS 2.4.4 built inside the guest included.
+
+Its steps,
+from this host's clock (`gb-i1-inside-lock-steps-2026-11-28T12-15Z.txt`):
+
+- slot:
+  1,560 s of waiting for fewer than six guests alive,
+  which is where that time went;
+- create:
+  9.8 s (12:15:41.067Z to 12:15:50.892Z);
+- prepare:
+  360 s (12:15:51Z to 12:21:51Z);
+- the source push:
+  0.11 s,
+  because a libvirt `mvm push` lands in the host's own virtiofs folder;
+- the crate build,
+  as one detached script:
+  746 s by this host's clock,
+  of which the guest's `cargo build` reports 12 m 10 s
+  (12:21:52Z to 12:34:03Z,
+  `gb-i1-inside-lock-crate-build.log.txt`);
+- the pool:
+  0.47 s;
+- the arm through `cargo nextest`:
+  2.376 s by this host's clock,
+  and 1.49 s by the test binary's own summary;
+- destroy:
+  1.9 s.
+
+The arm passed with all fifteen `LOCK` marker lines and no `SKIP` line
+(`gb-i1-inside-lock-arm.log.txt`):
 
 ```text
-# doc/planning/mvm-guest-memory-held-for-a-rounds-life.md: the build-location question
-Should the crate's test binaries be built outside the guest, in an image whose glibc is the guest's,
-and placed at the absolute path each driver uses?
-Build outside (Recommended), for arms whose subject is not the crate's build: pro, the lock arm passed
-in two guests on such binaries, in 1.13 s and 0.39 s, and the guest that built the crate spent 7 m 40 s
-and 7.29 GiB of its own memory on it. Con, a container build of 289 s and a 9.0 GiB host peak per
-commit or round, one build path per driver, each driver's flags, a first run per driver to prove them,
-and no arm whose subject is the in-guest build. One arm of one driver was measured; the rest is
-extrapolated.
-Keep building in the guest: pro, nothing changes and every arm keeps its subject. Con, every guest
-owes a 7 m 40 s build and 7.29 GiB, and the saving stays unmeasured.
-Ranking: build outside > keep inside, because outside keeps measured arms running and takes the build
-out of every guest, while inside leaves it in each one.
+# gb-i1-inside-lock-arm.log.txt: the arm's summary line
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1383 filtered out; finished in 1.49s
+```
+
+The guest's own `/proc/meminfo`,
+sampled every five seconds for its whole life
+(`gb-i1-inside-lock-guest-memory.log.txt`,
+219 samples),
+gives these peaks:
+
+- the preparation (apt,
+  then OpenZFS's `make --jobs=4`):
+  `AnonPages` 1,542,168 kB (1.47 GiB),
+  `MemAvailable` never below 6,023,868 kB (5.75 GiB);
+- the crate build:
+  `AnonPages` 3,018,988 kB (2.88 GiB) at 12:27:57Z,
+  `MemAvailable` down to 4,619,820 kB (4.41 GiB) at the same sample,
+  `Committed_AS` 3,511,192 kB;
+- the arm and the pool:
+  `AnonPages` 66,920 kB in the one sample that caught them,
+  `MemAvailable` 7,486,764 kB.
+
+The guest's swap file of 6 GiB,
+which the driver's own build step makes,
+was not needed:
+`SwapFree` never fell below 6,291,452 kB of `SwapTotal` 6,291,456 kB,
+so four kilobytes of it were used.
+
+The guests' unit,
+read from its own cgroup
+(`gb-i1-inside-lock-host-samples.jsonl`,
+111 samples every ten seconds),
+with what else was alive in it:
+
+- before the create,
+  at 12:15:41Z,
+  with five other rounds' guests alive:
+  `memory.current` 23,389,204,480 bytes and `memory.swap.current` 8,512,380,928 bytes;
+- during the preparation,
+  at 12:18:53Z,
+  with `gb-i1` and five others:
+  26,074,988,544 and 8,683,679,744 bytes;
+- during the build,
+  at 12:27:56Z,
+  with `gb-i1` and five others:
+  22,157,574,144 and 20,633,591,808 bytes;
+- at the highest charge of the guest's life,
+  12:34:10Z,
+  with `gb-i1` and five others:
+  29,492,166,656 and 16,602,726,400 bytes,
+  46,094,893,056 in all,
+  while the machine's `MemAvailable` read 2,080,968 kB;
+- the sampler was stopped 1.6 s after the arm and 2 s before the destroy returned,
+  so no sample of the unit after this guest was gone is in the file.
+
+No effect size is claimed from those five readings:
+five other guests came and went inside the guest's life,
+one of them leaving and another arriving between two samples,
+so the unit's charge moved for reasons this run did not cause.
+The figure this round can attribute to its own guest is the guest's own `AnonPages`,
+which is the guest's accounting of its own anonymous memory.
+
+#### The outside arm, on a rented 4 GiB machine
+
+Guest `gb-o1` was made on the ovh backend,
+prepared by the same recipe step the control used,
+given the container's source tree and its two binaries at `/opt/git-policy-cli-lock`,
+and asked to run the same arm from the test binary itself.
+It passed,
+with all fifteen `LOCK` marker lines and no `SKIP` line
+(`gb-o1-outside-lock-arm.log.txt`):
+
+```text
+# gb-o1-outside-lock-arm.log.txt: the arm's summary line
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1383 filtered out; finished in 0.83s
+```
+
+The wrapper the test binary starts ran too,
+from the container's path:
+`monochromatic-git-policy-cli 0.6.1-alpha.52, shadowing git at /usr/bin/git`
+(`gb-o1-outside-lock-place.log.txt`).
+Nothing was compiled on the machine:
+the step that unpacked the two binaries printed
+`cargo is not on PATH in this guest`,
+and no step of this round ran one there.
+
+Its steps,
+from this host's clock (`gb-o1-outside-lock-steps.txt`):
+
+- the listing and its count:
+  6.1 s before the create and 4.3 s after it;
+- create:
+  83 s (13:02:18Z to 13:03:41Z),
+  of which the instance was BUILD for 6 s and answered SSH 61 s later;
+- the release it booted,
+  read from the machine:
+  6.8 s;
+- prepare:
+  1,304.8 s (13:04:01Z to 13:25:46Z),
+  the recipe's apt step,
+  its OpenZFS 2.4.4 build and its Rust and nextest install,
+  on the machine's two vCPUs;
+- the push of the 14,807,265-byte source tree and the 20,234,246-byte artifacts tarball:
+  13.2 s;
+- unpacking both at the crate path:
+  6.7 s;
+- the pool:
+  6.3 s;
+- the arm:
+  6.567 s by this host's clock for the whole `mvm exec`,
+  and 0.83 s by the test binary's own summary;
+- pulling the arm's log and the guest's samples:
+  4.5 s and 8.5 s;
+- destroy:
+  64.8 s,
+  of which 2.7 s was the delete being accepted and 56 s the listing letting the instance go.
+
+The machine's own `/proc/meminfo`,
+sampled every five seconds for its whole life
+(`gb-o1-outside-lock-guest-memory.log.txt`,
+269 samples),
+with `MemTotal` 3,911,564 kB (3.73 GiB):
+
+- the preparation:
+  `AnonPages` 1,545,504 kB (1.47 GiB) at 13:24:28Z,
+  `MemAvailable` down to 1,937,976 kB (1.85 GiB) at the same sample;
+- the push,
+  the unpacking,
+  the pool and the arm,
+  in seven samples:
+  `AnonPages` at most 67,120 kB,
+  `MemAvailable` never below 3,363,596 kB (3.21 GiB).
+
+So a guest of 4,096 MiB ran the arm from the container's binaries,
+and the whole machine's peak was the preparation's 1.47 GiB,
+with 1.85 GiB of it to spare.
+What the arm itself needs above the machine's idle is under 0.1 GiB.
+
+A second run of the same arm was started on the same flavour and did not reach its end:
+`mvm create` stopped while it waited for SSH on the new instance,
+the recipe's create step refused,
+and the round's own cleanup did not run.
+The machine stayed in the project's listing and this round destroyed it by its name
+(`gb-o2`,
+91 s after the listing permitted the create),
+then read the listing again and found none of its own.
+No gb-o2 record or step table was written,
+so nothing of that attempt is a reading
+except the machine's own presence,
+which the destroy log and the listing show.
+#### The container side of the route, measured three times
+
+Each container ran in its own `systemd-run --user --scope --slice=agent-work.slice`
+with `MemoryMax=12G`,
+`CPUQuota=400%`,
+`TasksMax=1024`,
+`IOWeight=1` and `RuntimeMaxSec=2400`,
+as `podman run --rm --cpus 2 --memory 10g --pids-limit 1024 --blkio-weight 10`,
+and each built this round's own snapshot of commit `f855df5467`
+(the drivers' `copyWrapperSnapshot` list,
+14,807,265 bytes)
+at the path the driver holds its crate at.
+
+- The lock driver's target,
+`build --release --test native_binary --locked
+  --features test-only-switches --jobs 1`,
+  built at `/opt/git-policy-cli-lock`:
+  801 s from the container's start to its end,
+  of which the `cargo` build is 762 s (11:49:55Z to 12:02:37Z),
+  and the container's own `memory.peak` reads 3,073,142,784 bytes (2.86 GiB)
+  (`container-build-lock-2026-11-28T11-49Z.txt`).
+- The same build repeated on unchanged input,
+  at 12:39:54Z:
+  736 s from the container's start to its end,
+  of which the `cargo` build is 690 s (12:39:54Z to 12:51:24Z),
+  and the container's own `memory.peak` reads 3,897,663,488 bytes (3.63 GiB)
+  (`container-build-lock-repeat-2026-11-28T12-47Z.txt`).
+- The forced act driver's own build,
+`test --release --lib --no-run --locked -j 1`,
+  which carries no `--features test-only-switches`,
+  built at `/opt/forced-act`:
+  1,128 s from the container's start to its end,
+  of which the `cargo` build is 1,091 s (12:08:00Z to 12:26:11Z),
+  and the container's own `memory.peak` reads 8,031,784,960 bytes (7.48 GiB)
+  (`container-build-forced-act-2026-11-28T12-07Z.txt`).
+
+The image was `docker.io/library/ubuntu:24.04`,
+Ubuntu 24.04.5 with glibc 2.39 (2.39-0ubuntu8.12 once its packages were installed),
+and the toolchain was the one the recipe pins,
+Rust 1.100.0 and cargo 1.100.0.
+Each binary needs at most `GLIBC_2.39`,
+which is the guest's own floor,
+so the fit has no margin
+(`container-artifacts-paths-and-floors-2026-11-28.txt`).
+
+The paths the binaries carry are the ones the guest will hold them at:
+
+- the lock driver's test binary,
+  17,682,608 bytes,
+  names `/opt/git-policy-cli-lock` 27 times,
+  and its wrapper,
+  32,547,448 bytes,
+  names it 97 times;
+- the forced act's library test binary,
+  89,659,368 bytes,
+  names `/opt/forced-act` 111 times and the lock driver's path not at all;
+- neither lock artifact carries this host's checkout path,
+  and the one occurrence of `/home/user/Monochromatic` in the test binary
+  is a fixture string in the crate's own tests
+  (`package/git-policy/cli/src/native/worktree/worktree_clone_domain_tests.rs:86`).
+
+Packed for pushing,
+the lock driver's two artifacts are 20,234,246 bytes
+and the forced act's one artifact is 32,271,900 bytes.
+
+#### What the numbers change in this question
+
+The proposal's earlier case rested on a build the driver no longer runs.
+The one guest that built the crate in the 2026-11-26 cells put 7,641,948 kB (7.29 GiB)
+of its own `AnonPages` into `cargo build --release --tests --locked`
+at cargo's own job count.
+Issue 6612's round narrowed the lock driver to the one target its arm starts,
+at one job,
+and this round's control run measures that narrowed build:
+`AnonPages` 3,018,988 kB (2.88 GiB) of the guest's 7,755 MiB,
+with `MemAvailable` never below 4.41 GiB
+and the guest's 6 GiB swap file untouched.
+
+The outside route's guest-side saving is now measured,
+on a machine of its own:
+
+- the preparation is the same work on both routes and peaks at the same figure,
+  1,542,168 kB (1.47 GiB) here and 1,545,504 kB (1.47 GiB) there;
+- the crate build is what the inside route adds above it:
+  3,018,988 kB (2.88 GiB) against the preparation's 1.47 GiB;
+- the arm from the container's binaries adds almost nothing:
+  67,120 kB at most across the seven samples that hold the push,
+  the unpacking,
+  the pool and the arm;
+- so the inside route's peak is 1.41 GiB above the outside route's,
+  and the outside route's whole machine peak,
+  preparation included,
+  was 1.47 GiB of a 4 GiB machine,
+  with 1.85 GiB to spare.
+
+Two things follow that the earlier case did not have:
+
+- a 4,096 MiB machine runs the arm from the container's binaries,
+  preparation and all;
+- what the inside route would need of a 4,096 MiB machine is not measured.
+  Its peak,
+  2.88 GiB,
+  is 0.85 GiB under that machine's 3.73 GiB of usable memory,
+  and this round did not build inside a machine that small,
+  so the question of whether it fits is open rather than answered.
+
+Against the saving,
+the container is not free:
+it took 762 s and 690 s of compiling in two runs of unchanged input
+against the guest build's 731 s on this host's four vCPUs,
+a ratio of 0.94 to 1.04 whose two ends are wider apart than the gap between the two routes,
+so no difference in compiling time is claimed.
+It charged this host 2.86 and 3.63 GiB at its peak in those two runs,
+and it moved 20,234,246 bytes of artifacts into the guest on top of the 14,807,265-byte source tree,
+which is 2.37 times what the inside arm pushes on its own
+and 13.2 s of pushing over `scp` on the rented machine.
+The forced act's build costs more:
+1,091 s of compiling against the lock driver's 731 s (a ratio of 1.49),
+and 7.48 GiB of this host's memory at the container's peak,
+for one 89,659,368-byte binary that carries no wrapper beside it,
+because `cargo test --lib --no-run` builds the library's test binary alone.
+
+One caveat belongs to every time in this section:
+the inside arm ran on this host's machine and the outside arm on a rented one,
+so a time from one is not a time from the other.
+The container builds and the arm's own `finished in` line are the only times measured the same way on both.
+
+#### What the design would be
+
+Five parts,
+each with how it works,
+what it stores or changes for good,
+and what it gives up.
+
+**Where the container build lives.**
+One helper in `package/git-policy/cli/bin/`,
+`mvm-guest-test-binaries.ts`,
+that takes from a driver its crate path,
+its cargo words,
+the paths of the executables it expects,
+and the run's log folder;
+it starts the container in the run's own scope,
+waits for it,
+packs the executables cargo reported
+(`--message-format json`,
+whose `executable` fields are the only reliable answer,
+since this crate's test binary is written under `target/<profile>/build/<package>/<hash>/out/`
+and not under `target/<profile>/deps/`),
+and answers with one tarball at their paths relative to the crate root.
+It lives where the drivers' shared guest steps already live,
+and takes the shape `copyWrapperSnapshot` has:
+one list,
+called by every driver,
+so a new path crate or a new target reaches every caller.
+What it stores for good:
+a helper and one call site per driver's build step;
+and a per-commit artifacts tarball in the run's log folder,
+which is what a second arm of the same commit can reuse instead of building again.
+What it gives up:
+the drivers' in-guest `cargo build` steps,
+and with them the last reason a guest needs a Rust toolchain at all.
+
+**Which image.**
+`docker.io/library/ubuntu:24.04`,
+named by digest in the helper,
+with the recipe's pinned Rust 1.100.0 installed inside it the way the recipe installs it
+(the same `rustup-init` archive and the same sha256).
+What it stores for good:
+one image constant,
+and a Rust version that must move with
+`RUST_TOOLCHAIN` in `run-fixture.ts:150`.
+What it gives up:
+any margin on libc.
+The image's glibc and the binaries' floor are both 2.39,
+and the crate needs 2.39 for `pidfd_spawnp` and `pidfd_getpid`,
+so a build that picks up one newer versioned symbol would not start in the guest,
+and nothing here detects that before an arm fails.
+
+**How the path is kept the same.**
+The container extracts the drivers' snapshot at the driver's own crate path
+and builds there,
+so `env!("CARGO_MANIFEST_DIR")` and `env!("CARGO_BIN_EXE_monochromatic-git-policy-cli")`
+hold the path the guest uses.
+Measured:
+the lock driver's binaries carry `/opt/git-policy-cli-lock` and the forced act's carry
+`/opt/forced-act`,
+and neither carries this host's checkout.
+What it stores for good:
+nothing;
+no source changes.
+What it gives up:
+the route only works where the guest's crate path is the container's,
+so a guest that mounts the tree elsewhere would need the nextest archive route instead,
+with the crate's 42 `env!` path sites changed to reads at run time.
+
+**What each driver's build step becomes.**
+The step that ran `cargo build` inside the guest becomes two host steps and one guest step:
+the helper's container build,
+a push of the source tarball and the artifacts tarball,
+and a guest script that extracts both at the crate path.
+Measured:
+the push of a 14.8 MB source tree took 0.11 s on libvirt,
+and the 2026-11-26 cell moved the same shape (a 12,994,872-byte source tarball and two binaries,
+61.7 MB in all) in 2.17 s,
+so the push is small beside the build it replaces.
+What it stores for good:
+one artifacts tarball per driver per commit,
+in the run's log folder.
+What it gives up:
+nothing on either backend,
+because the shared folder the arm scripts name is made where no share is mounted
+(`package/git-policy/cli/bin/mvm-guest-shared-folder.ts`),
+and `mvm push` there writes that path over `scp`.
+Measured on the rented machine:
+35,041,511 bytes pushed in 13.2 s,
+the two tarballs unpacked at the crate path in 6.7 s,
+and the arm's log pulled back the same way
+(`gb-o1-outside-lock-steps.txt`).
+
+
+**What `mvm` must offer for a smaller guest.**
+A memory size and a vCPU count per guest,
+as floors the provider's own sizes satisfy,
+recorded in the guest's own `meta.json` and readable from `mvm list`.
+`main` has them now
+(`package/mvm/cli/src/backend/size-request.ts`,
+`package/mvm/cli/src/vm-sizes.ts`,
+`mvm create --memory <GiB> --vcpus <n>`),
+so this part of the design is already built and owes nothing.
+This round used neither:
+its libvirt guest was made at the default,
+because the round began before the floors landed,
+and its rented machine was sized by the flavour the environment names,
+`MVM_OVH_FLAVOR=d2-4`,
+which is 2 vCPUs and 4 GiB.
+What those flags store for good:
+one field in `meta.json` and each driver's choice of size.
+What they give up:
+the single default every driver relied on,
+and the guarantee that a guest is big enough for whatever a driver builds in it,
+since nothing checks a guest's size against its work.
+The design's remaining `mvm` need is therefore none,
+and the size a guest gets becomes the drivers' choice rather than `mvm`'s.
+
+
+#### What this round did not measure
+
+- The outside arm,
+  in any guest:
+  no local guest may be made since 2026-11-28,
+  and no OVHcloud guest can run an arm until the arm scripts stop reading `/mnt/shared`.
+- The run-to-run spread of the control arm:
+  one guest,
+  one build,
+  one arm.
+- The alternation the round was asked for:
+  there is no second arm to alternate with.
+- A repeat of the forced act's container build:
+  its one run is the only reading of that cost.
+- Whether a 4,096 MiB guest builds this driver's narrowed target.
+  The control guest had 4.41 GiB of `MemAvailable` at its lowest with 8 GiB installed,
+  which is not a measurement of the same build in a 4 GiB guest.
+- The second driver's arm through the outside route,
+  to any point:
+  the forced act's container build ran,
+  its arm did not.
+- The forced act's wrapper:
+  `cargo test --lib --no-run` builds no binary,
+  so that driver would need a second cargo word if its arm starts the wrapper.
+- What an arm costs in wall time on the outside route against this round's control:
+  the 2026-11-26 cells' 1.13 s and 0.39 s are of an older revision of the crate,
+  whose suite then held 1,355 tests against today's 1,384,
+  and are not comparable with today's 1.49 s.
+
+#### The questions for the owner
+
+**Question one:
+does the crate's test binaries' build leave the guest?**
+The measured build inside an 8 GiB guest uses 2.88 GiB and 746 s,
+where the earlier case rested on 7.29 GiB and 7 m 40 s;
+a container build costs about the same compiling time (0.94 to 1.04) and 2.86 to 3.63 GiB of this host's memory,
+and the arm then runs from 20.2 MB of artifacts pushed beside a 14.8 MB source tree.
+On a rented machine the question is what the guest must be:
+a 4 GiB flavour ran the arm from the container's binaries with 1.85 GiB to spare,
+and no measurement shows the build fitting that flavour.
+
+- Build outside for every arm whose subject is not the build:
+  the guest needs the preparation's 1.47 GiB and almost nothing for the arm,
+  which a 4 GiB flavour holds (measured),
+  so every such arm can run on the smallest flavour the region offers,
+  at the price of a container build per commit (11 to 13 minutes here),
+  of one build path per driver,
+  and of a libc fit with no margin.
+- Keep building inside the guest:
+  nothing changes and every arm keeps its subject,
+  at the price of 2.88 GiB and 746 s in each guest,
+  of a flavour large enough for a build whose fit in 4 GiB is unmeasured,
+  and of the compiling time being paid on the rented machine,
+  where a build would take longer per vCPU than here.
+- Build outside only for a round that holds several machines at once:
+  the same container and push,
+  spent only where the project's six machines or its bill are the scarce thing,
+  at the price of two build paths to keep working and of one-guest rounds still paying for the build.
+
+Ranking:
+build outside always > build outside only for many machines > keep building inside,
+because the measured 4 GiB fit belongs to the outside route and no measurement gives it to the inside one,
+a round of one machine is most rounds and so gains most of the saving,
+and keeping the build inside pays on a rented machine for a fit nothing measured.
+
+**Question two:
+where does the container build live?**
+- One shared helper in `package/git-policy/cli/bin/`,
+  called by every driver's build step:
+  one place to fix,
+  one place to add an image or a toolchain,
+  at the price of one more argument list per driver (its crate path,
+  cargo words and executables).
+- A step inside each driver:
+  each driver reads whole,
+  at the price of the image,
+  the toolchain and the packing written out eleven times,
+  which is the shape this package's helpers were collapsed out of in issue 6612.
+- A published image with the toolchain baked:
+  no rustup and no apt inside the build,
+  at the price of building,
+  tagging and publishing an image per toolchain change,
+  which is a package of its own to own and to keep current.
+
+Ranking:
+one shared helper > a step per driver > a published image,
+because the helper is the shape the package already uses for shared guest steps,
+a step per driver repeats the image and the packing eleven times,
+and a published image adds a published artifact to maintain for a saving this round did not measure.
+
+**Question three:
+which image builds the binaries?**
+- `docker.io/library/ubuntu:24.04`,
+  by digest:
+  its glibc is the guest's,
+  which every arm requires,
+  measured three times here with the binaries' floor at exactly 2.39,
+  at the price of downloading the toolchain inside every build and of no margin on libc.
+- The `mvm` template image the guest itself boots:
+  its libc is the guest's by construction,
+  at the price of that image being a build input too,
+  so a template change moves the binaries and the guest together,
+  and nothing here measured it.
+- Fedora 43:
+  a newer glibc,
+  so its binaries start in an Ubuntu 24.04 guest,
+  at the price of a second distribution's toolchain and its own Rust,
+  and nothing here measured it.
+
+Ranking:
+Ubuntu 24.04 by digest > the mvm template image > Fedora 43,
+because Ubuntu 24.04 is measured and needs no new input,
+the template ties the binaries to a guest image whose contents no driver pins,
+and Fedora adds a distribution this repository does not otherwise build in.
+
+**Question four:
+what must `mvm` offer for a smaller guest?**
+- `mvm create --memory <MiB> --vcpus <n>`,
+  stored in the guest's `meta.json`,
+  8,192 MiB by default:
+  measured here as one changed constant in the dist (`DEFAULT_MEMORY_MIB`),
+  at the price of one flag,
+  one field and every driver's own choice of size.
+- Size presets (`--size small|default|large`):
+  one word at a call site,
+  at the price of a table of sizes nothing measures,
+  and of a guest whose size cannot be read back from its own record.
+- Nothing:
+  every guest keeps 8,192 MiB:
+  no change at all,
+  at the price of the 4,096 MiB and smaller guests the outside route was meant to allow.
+
+Ranking:
+a memory and vCPU flag with a `meta.json` field > presets > nothing,
+because the flag carries exactly the change this round measured,
+presets hide the number a report needs,
+and nothing leaves every future guest at 8 GiB for no reason a measurement gives.
+
+The transfer to an OVHcloud guest is no longer a question.
+The shared folder the arm scripts name is made where no share is mounted,
+`mvm push` writes it over `scp`,
+and this round's outside arm pushed 35,041,511 bytes in 13.2 s there,
+unpacked them at the crate path in 6.7 s,
+ran the arm and pulled its log back
+(`gb-o1-outside-lock-steps.txt`).
+The nextest archive route of the section "What can place them where the guest finds them"
+stays a separate decision:
+it would need the crate's 42 `env!` path sites changed,
+and nothing here measured it.
+
+
+Question one,
+ready to paste:
+
+```text
+# doc/planning/mvm-guest-memory-held-for-a-rounds-life.md: should the crate's test binaries be built outside the guest?
+Measured: the build inside an 8 GiB guest uses 2.88 GiB and 746 s (the driver's narrowed --test native_binary build at
+one job), against 7.29 GiB and 7 m 40 s that this question rested on; a container build compiles in about the same
+time (0.94x to 1.04x over two runs) and peaks at 2.86 to 3.63 GiB of host memory; 20.2 MB of artifacts then go into
+the guest beside the 14.8 MB source tree. On a rented 4 GiB flavour the arm passed from those binaries with 1.85 GiB
+to spare, and the guest's peak was the preparation's 1.47 GiB.
+Build outside for every arm whose subject is not the build (Recommended): pro, the smallest flavour the region offers
+runs the arm, and nothing compiles on the rented machine. Con, a container build per commit (11 to 13 minutes here),
+one build path per driver, a libc fit with no margin.
+Keep building inside: pro, nothing changes and every arm keeps its subject. Con, 2.88 GiB and 746 s per guest, a
+flavour big enough for a build whose fit in 4 GiB is unmeasured, and compiling paid on the rented machine.
+Ranking: outside always > outside only for many machines > inside, because the measured 4 GiB fit is the outside
+route's and every one-guest round gains it.
 ```
 
 ### Should mvm's guests be smaller than 8,192 MiB?
@@ -1849,9 +2522,18 @@ Ranking: no > yes, because no costs nothing and yes begins with a driver change 
 - The host-charge effect of building outside the guest:
   only the guest's own `AnonPages` separates the two routes,
   and its two prebuilt readings are one run each.
-- A driver run that uses the container's binaries with the driver's own flags:
-  the measured cells carried neither `--features test-only-switches` nor the drivers' job limits,
-  and no kept log records what they did carry.
+- The outside arm's second run:
+  its create stopped while it waited for SSH and that machine never ran an arm
+  ("Should the crate's test binaries be built outside the guest?",
+  "The outside arm,
+  on a rented 4 GiB machine").
+- A guest smaller than 8,192 MiB running this driver's narrowed build:
+  the control guest had 4.41 GiB of `MemAvailable` left at its lowest,
+  which is not the same measurement in a 4 GiB guest.
+- A driver run of the container's binaries through the driver's own code:
+  this round's outside arm ran the container's test binary with the driver's own flags on a rented machine,
+  but it ran from the round's own script and not from the driver,
+  so the driver's step was not exercised on that route.
 - The cache drop on a guest without reporting:
   reporting is unconditional now,
   so that arm cannot be run again,
@@ -1871,6 +2553,9 @@ Ranking: no > yes, because no costs nothing and yes begins with a driver change 
   and no arm here shows it.
 - A 6 GiB middle ground,
   large enough to build and small enough to give memory back.
+- The container build's time against the guest build's,
+  at more than one run of each:
+  two container runs and one guest run are all this round has.
 - Windows and Fedora guests,
   and the Hetzner backend.
 - The nextest archive route of the section "What can place them where the guest finds them",

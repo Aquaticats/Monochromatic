@@ -1,0 +1,51 @@
+# Excerpts of documentation fetched on 2026-11-28 (fetched between the clock reads 07:24:33 and 07:29:07; this file was written at 2026-11-28T07:33:29-05:00) with the search-fetch web_fetch tool
+
+## rustup CHANGELOG.md, https://raw.githubusercontent.com/rust-lang/rustup/master/CHANGELOG.md (copied from the fetched text, lines as numbered in that fetch)
+### lines 381 to 390 (1.28.1, 2025-03-05)
+## [1.28.1] - 2025-03-05
+
+This is a patch release to restore the automatic install behavior by default.
+
+This release contains the following fixes:
+
+- Automatic install is enabled by default but can be opted out by setting `RUSTUP_AUTO_INSTALL`
+  environment variable to `0`. [pr#4214] [pr#4227]
+- `rustup show active-toolchain` will only print a single line, as it did in 1.27. [pr#4221]
+- Fixed a bug in the reqwest backend that would erroneously timeout downloads after 30s. [pr#4218]
+### lines 400 to 410 (1.28.0, 2025-03-04)
+## [1.28.0] - 2025-03-04
+
+This new release of rustup has been a long time in the making and comes with substantial changes.
+
+The following improvements might require changes to how you use rustup:
+
+- rustup will no longer automatically install the active toolchain if it is not installed. [pr#3985]
+
+  - To ensure its installation, run `rustup toolchain install` with no arguments.
+  - The following command installs the active toolchain both before and after this change:
+    ```sh
+### lines 330 to 332 (1.28.2, 2025-05-05)
+- `rustup set auto-install disable` can now be used to disable automatic installation of the toolchain.
+  This is similar to the `RUSTUP_AUTO_INSTALL` environment variable introduced in 1.28.1 but with a
+  lower priority. [pr#4254]
+
+## rustup issue 4836, https://github.com/rust-lang/rustup/issues/4836 (state CLOSED, milestone 1.30.0), the comment that lists the commands
+FTR, the new semantics implemented in #4840 have only influenced the `rustup` and `rustup-init` commands.
+In other words, for those (sub)commands with a `No` in the following table, the implicit installation of the active toolchain won't be triggered, starting from rustup v1.30:
+  install      No, because `rustup install` installs the active toolchain by default
+  show         No, because it's query-only
+  run          Yes, because the said toolchain is invoked
+  component    No, similarly to `rustup target`
+(rows reduced to the four this review uses; the fetched comment lists eighteen)
+
+## rustup book, overrides page, https://rust-lang.github.io/rustup/overrides.html
+components: "The components setting contains a list of additional components to install."
+components: "The components listed here are additive with the current profile."
+(the page says nothing about when they are installed, or about a toolchain that is already installed and lacks one)
+
+## Dylint docs/how_dylint_works.md at v6.4.0, https://raw.githubusercontent.com/trailofbits/dylint/v6.4.0/docs/how_dylint_works.md, section Limitations
+"To run a library's lints on a package, Dylint tries to build the package with the same toolchain used to build the library."
+and, Library requirements: "TOOLCHAIN is the Rust toolchain for which the library is compiled, e.g., nightly-2021-04-08-x86_64-unknown-linux-gnu."
+
+## Dylint README.md at v6.4.0, section Caching in CI
+"If you run Dylint in CI, we recommend caching certain directories to avoid rebuilding libraries, rebuilding drivers, or redownloading toolchains."
