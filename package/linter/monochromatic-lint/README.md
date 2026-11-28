@@ -2688,7 +2688,8 @@ where the line the host file shows stays under 120 characters.
 That width counts the widest prefix the host writes before the lines of the comment run,
 so a Rust doc comment's marker and indentation are part of it,
 and a comment inside a module joins a line shorter than a comment at column zero.
-The widest prefix is the run's, not the joined line's own,
+The widest prefix is the run's,
+not the joined line's own,
 so a run whose lines sit at two depths declines a join its own line's prefix would allow,
 and the line that absorbs a fragment keeps the prefix it was written with.
 Only a join is bounded this way:
@@ -2698,11 +2699,13 @@ so a break inside a deep quote or a list writes a line of 120 characters or more
 a third-level quote writes `> > > ` before a tail of 119 characters,
 a list item two levels deep writes six spaces before that tail,
 and an ordered item numbered `100.` writes five spaces before a tail of 118.
-The tail is the author's own clause, so no count shortens it,
+The tail is the author's own clause,
+so no count shortens it,
 and the rule reports nothing on the line it wrote.
 A fragment that ends where the rule's own break lands stays alone,
 because the rule wants a line to end there and would break it again on the next pass.
-The parsed tree answers that, not a run of characters that look like closers:
+The parsed tree answers that,
+not a run of characters that look like closers:
 a bracket or a quote counts where it stands in the break point's own text node,
 and a `*`,
 `_` or `~` counts where it closes an emphasis,

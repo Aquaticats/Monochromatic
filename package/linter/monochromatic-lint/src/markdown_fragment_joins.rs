@@ -184,15 +184,15 @@ fn fragment_join(
     // The same fragment without its own leading spacing, which is the text the rule reads.
     let text: &str = written.trim_start_matches([' ', '\t']);
     // The text's own byte range, which the rule's answer is measured against.
-    let text_start: usize = fragment + (written.len() - text.len());
-    let text_end: usize = fragment + written.len();
+    let text_from: usize = fragment + (written.len() - text.len());
+    let text_to: usize = fragment + written.len();
     if text.split_whitespace().count() > FRAGMENT_WORDS {
         return None;
     }
     // A fragment the rule's own break lands at is where that break wants the line to end,
     //  so joining it would have the rule break the line again on the next pass;
     //  the parsed tree, not a run of delimiters that look like closers, answers whether it does.
-    if ends_at_break_point(context, paragraph, text_start, text_end) {
+    if ends_at_break_point(context, paragraph, text_from, text_to) {
         return None;
     }
     let next: usize = ending + ending_length;
