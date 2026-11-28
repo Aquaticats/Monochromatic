@@ -23,11 +23,13 @@
  6. `ssh` probes until the login account the image names answers, then one
     `uname -a`, then one `scp` in and one `scp` out of `/tmp/mvm-live.txt`.
  7. `DELETE .../instance/<id>`, which is what stops the meter.
- 8. `GET .../instance`, and the test fails if any instance still carries mvm's
-    name prefix.
+ 8. `GET .../instance`, and the test fails if the listing still names the
+    machine this run made.
 
- A disposable guard runs `destroyAll` on scope exit, so a failed assertion still
- deletes what the run made.
+ A disposable guard destroys that one machine on scope exit, so a failed
+ assertion still deletes what the run made. Nothing here runs `destroyAll` or
+ asks for an empty listing: several runs test against the one project at once,
+ and the other machines in it are theirs.
 
  @module
  */
@@ -95,11 +97,20 @@ await describe({
           .toString('hex',);
         const name = `live-${suffix}`;
 
-        // Safety net: tear down every mvm-owned instance on scope exit, even on a
-        // thrown assertion, so a failed run does not leave a billed instance.
+        // Safety net: destroy this run's own machine on scope exit, even on a thrown
+        // assertion, so a failed run does not leave a billed instance. Machines of
+        // other runs in the same project are left alone.
         await using _teardown = {
           async [Symbol.asyncDispose](): Promise<void> {
-            await backend.destroyAll();
+            /**
+             Whether the project still lists the machine this run made.
+             */
+            const listed = (await backend.list()).some(function ownMachine(vm,) {
+              return vm.name === name;
+            },);
+            if (listed) {
+              await backend.destroy({ name, },);
+            }
           },
         };
 
@@ -161,11 +172,16 @@ await describe({
 
         await backend.destroy({ name, },);
         /**
-         Instances still carrying the tool's prefix, which must be none.
+         What the listing still holds of this run's machine, which must be nothing.
+         Machines of other runs in the project are not looked at.
          */
-        const remaining = (await backend.list()).map(function vmName(vm,) {
-          return vm.name;
-        },);
+        const remaining = (await backend.list())
+          .map(function vmName(vm,) {
+            return vm.name;
+          },)
+          .filter(function ownMachine(listedName,) {
+            return listedName === name;
+          },);
         expect(remaining,).toEqual([],);
       },
       timeout: 900_000,

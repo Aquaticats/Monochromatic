@@ -352,3 +352,38 @@ the numbers mean at least;
 the smallest size that fits wins;
 GPU and other special families are left out by family name.
 The proposal `doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md` no longer stands in front of that build.
+
+## The size taken among those that fit, 2026-11-28
+
+Asked at about 2026-11-28T07:08-05:00 which size `mvm` takes on OVHcloud when several fit an ask,
+the owner chose "Cheapest that fits (Recommended)",
+whose text was:
+
+- at create time mvm reads OVHcloud's public hourly prices,
+  keeps the sizes whose vCPUs and memory are both at least the ask,
+  and takes the lowest-priced one,
+  printing the size and its price before anything is created;
+- example:
+  `--vcpus 2 --memory 6` ends on `d2-8` at CA$0.0596 per hour;
+- it gives up the sizes with no published price (the `-flex` twins),
+  which are never picked;
+- still open after a yes:
+  the price read itself has not been made from this machine yet;
+  if it cannot be had,
+  mvm falls back to smallest numbers and says so.
+
+The option not chosen ordered the fitting sizes by vCPUs,
+then memory,
+then disk,
+and ended the same ask on `b2-7` at CA$0.1135 per hour.
+The prices are OVHcloud's price page for Canada,
+Linux,
+excluding tax,
+read 2026-11-28 by the round that revised `doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`.
+
+The same question restated the session's two other picks,
+each still open to the owner's veto and neither answered:
+the numbers mean at least;
+and no GPU size is ever taken,
+built as a list of the five general families,
+so that a GPU family OVHcloud adds later cannot be picked.

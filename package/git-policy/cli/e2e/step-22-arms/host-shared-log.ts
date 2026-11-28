@@ -17,6 +17,7 @@
 
 import {
   readFile,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 import { homedir, } from 'node:os';
@@ -53,6 +54,40 @@ export function sharedFile({
     name,
     'shared',
     file,
+  );
+}
+
+
+/**
+ Remove one guest log from the host's own side of the shared folder before a detached script starts.
+
+ A script appends its status line to its log, so a log a previous attempt left still ends with that line, and the wait
+ for the new script's end reads it as the new script's own end before the guest has even opened the file. Measured
+ 2026-11-28: the ninth `run` of this driver read the eighth attempt's `DONE=124` five seconds after starting its build,
+ so a build that then ran for an hour was never waited for.
+
+ @param name - the guest's name
+
+ @param file - the file inside the shared folder
+
+ @example
+ ```ts
+ await discardSharedLog({ name: 'zfs-step-22-measurements', file: 'step-22-measurements-arm.log' });
+ ```
+ */
+export async function discardSharedLog({
+  name,
+  file,
+}: {
+  readonly name: string;
+  readonly file: string;
+},): Promise<void> {
+  await rm(
+    sharedFile({
+      name,
+      file,
+    },),
+    { force: true, },
   );
 }
 

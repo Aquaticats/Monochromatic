@@ -1305,6 +1305,18 @@ mod zfs_lost_event_triggers_guest;
 #[path = "binary_zfs_step_22_measurement_guest_tests.rs"]
 mod zfs_step_22_measurement;
 
+/// Plan step 22's sweep cost past 64 clones in the throwaway guest:
+/// the spread on unchanged input first,
+/// then every count beside the record's own largest one in the same round.
+#[path = "binary_zfs_step_22_large_parent_guest_tests.rs"]
+mod zfs_step_22_large_parent;
+
+/// Plan step 22's pinned-output arm in the throwaway guest:
+/// incompressible bytes pinned by an hourly snapshot and overwritten after it,
+/// and what a clone's removal and the snapshot's expiry free.
+#[path = "binary_zfs_step_22_pinned_output_guest_tests.rs"]
+mod zfs_step_22_pinned_output;
+
 /// The refusal path of the installed name and the words,
 /// and the marker a start that reached the wrapper writes.
 #[path = "binary_root_mode_name_tests.rs"]
