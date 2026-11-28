@@ -60,8 +60,8 @@ The first entry that is executable wins.
 With `SHELL=/bin/fish` and `CLAUDE_CODE_SHELL` unset,
 fish is dropped and zsh is tried before bash,
 so the Bash tool runs zsh whenever zsh is installed.
-CachyOS installs zsh by default (`/usr/bin/zsh`,
-with `/usr/share/cachyos-zsh-config/cachyos-config.zsh` sourced by `~/.zshrc`).
+zsh is installed here (`/usr/bin/zsh`,
+and `~/.zshrc` sources `/usr/share/cachyos-zsh-config/cachyos-config.zsh`).
 
 The current [environment variable reference][env-vars-shell] says the same:
 
@@ -116,11 +116,12 @@ with a disposable `CLAUDE_CONFIG_DIR`,
 `SHELL=/bin/fish` as on this machine,
 and `ANTHROPIC_API_KEY` taken from the repository's test key `CLAUDE_CODE_TEST_CLAUDE_API_KEY`.
 The first three arms also had a disposable `HOME`.
-The last two used the real `HOME`,
-so the shell snapshot was built from the real `~/.bashrc` or `~/.zshrc`,
+The last two used the real `HOME`
 and a copy of the real `~/.claude/settings.json`,
-so its hooks ran;
+so its hooks ran
+(the `bash-output-filter` hook's `~` rewrite shows in their output);
 one copy was taken before the edit under "Verified workaround" and one after.
+Which startup files the shell snapshot read was not checked.
 Every arm's recorded `tool_use` input equals the command asked for.
 The runs went in `systemd-run --user --scope` units capped at `CPUQuota=200%`,
 `MemoryMax=3G`,
@@ -128,7 +129,8 @@ The runs went in `systemd-run --user --scope` units capped at `CPUQuota=200%`,
 between 2026-11-28T04:44:09-05:00 and 2026-11-28T04:47:20-05:00.
 
 The harness,
-as run:
+as it stood for the last two arms:
+the first three ran the same file before the `command` field and the real-settings arms were added.
 
 ```ts
 // Probe: which shell does Claude Code's Bash tool run when the launch SHELL is fish,
@@ -237,9 +239,8 @@ So the switch changed the interpreter and nothing that resolves commands.
 
 - Interactive sessions:
   every arm ran in `-p` mode.
-  Interactive mode reaches the same `S()` through the same memoized lookup,
-  which is a reading of the bundle,
-  not a run.
+  Which callers reach `S()` in an interactive session was not traced,
+  and no interactive session was started after the edit.
 - Hook commands,
   the status line and stdio MCP servers:
   which shell starts them was not traced.
@@ -277,10 +278,13 @@ The `after-edit` arm under "Verification" ran a copy of the edited file.
   A run with another `CLAUDE_CONFIG_DIR`,
   such as the harness here,
   falls back to detection and runs zsh.
-- A value that is not an executable bash or zsh stops working without any visible message:
-  Claude Code writes only the debug line
+- A value that is not a working bash or zsh path is ignored,
+  and detection picks zsh again
+  (the reference quoted under "Root cause").
+  The bundle holds the message
   `CLAUDE_CODE_SHELL="…" is not a valid bash/zsh path, falling back to detection`
-  and goes back to zsh.
+  (byte 337395628);
+  where it is shown was not traced.
   If bash ever moves,
   change the value.
 - Commands written for zsh behave differently under bash.
@@ -300,7 +304,7 @@ The switch and the detection order are read from a minified,
 closed-source bundle.
 After an update,
 run `rg --text --count --fixed-strings CLAUDE_CODE_SHELL ~/.local/share/claude/versions/<version>`
-(30 matches in 2.1.332)
+(30 matching lines in 2.1.332)
 and the harness's `fish-shell-override-in-user-settings-env` and `fish-shell-no-override` arms.
 
 ## What does not work
