@@ -53,6 +53,8 @@ use crate::policy_test_support::{
     scripted_facts,
 };
 use crate::policy_trigger::Trigger;
+/// Whether a command's output is read by a program, which is what the record's silence is about.
+use crate::push::push_failure_notice_machine_output::is_machine_read;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::{
     StagedSelection,
@@ -64,12 +66,31 @@ use crate::test_support::{
     remove,
     repository,
 };
+/// The check a forwarded command makes in the repository's folder of unanswered requests,
+/// the count a control reads to prove it made one,
+/// and the writer a control plants an entry with.
+use crate::worktree_clone_mount_protocol::clone_mount_intent::MountOperation;
+use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
+use crate::worktree_clone_mount_protocol::request_nonce::RequestNonce;
+use crate::worktree_clone_mount_protocol::unanswered_request_entry::{
+    RequestEntry,
+    RequestOutcome,
+};
+use crate::worktree_clone_mount_protocol::unanswered_request_names::EntryName;
+use crate::worktree_clone_mount_protocol::unanswered_requests_before_a_command::checks_this_thread_made;
+use crate::worktree_clone_mount_protocol::unanswered_requests_folder::{
+    REQUESTS_FOLDER_NAME,
+    UnansweredRequests,
+    this_account,
+};
 use crate::worktree_identity::WorktreeIdentity;
 use crate::wrapper_invocation::{
     StrippedInvocation,
     strip_wrapper_controls,
 };
 use std::ffi::OsString;
+/// `PermissionsExt` gives a folder the mode a control closes it with.
+use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -886,6 +907,180 @@ fn add_findings_come_from_what_the_add_would_stage() {
         std::fs::read(repo.join(".git/index")).expect("index"),
         index_before,
         "only Git, after the lifecycle, may change the index"
+    );
+    remove(root.as_path());
+}
+
+/// The clone a control files its request for.
+fn a_clone_guid() -> DatasetGuid {
+    return DatasetGuid::parse("1234567890123456789").expect("the control GUID is canonical");
+}
+
+/// The nonce the control's request was filed under.
+fn a_request_nonce() -> RequestNonce {
+    return RequestNonce::parse("0123456789abcdef".repeat(2).as_str())
+        .expect("the control nonce is 32 hexadecimal digits");
+}
+
+/// One entry a wait leaves when the event it waited for was lost.
+fn a_waiting_entry() -> RequestEntry {
+    return RequestEntry {
+        guid: a_clone_guid(),
+        nonce: a_request_nonce(),
+        operation: MountOperation::Mount,
+        written_at: String::from("2026-11-28T02:30:00.000Z"),
+        outcome: RequestOutcome::Waiting,
+        dataset: String::from("zpcachyos/nosnap/clones/one"),
+    };
+}
+
+/// The folder the check reads, in a fixture repository's common directory,
+/// written the way a wait writes its own entry.
+fn plant_a_waiting_entry(common: &Path) -> UnansweredRequests {
+    let requests: UnansweredRequests =
+        UnansweredRequests::at(common.join(REQUESTS_FOLDER_NAME), this_account());
+    let _planted: EntryName = requests
+        .record_the_request(&a_waiting_entry())
+        .expect("the control plants the entry a lost event leaves");
+    return requests;
+}
+
+/// The facts of a command whose repository the wrapper has already been asked about.
+/// Why:
+///  The real provider reads the common directory from the layout it read,
+///  and remembers a location it was asked for;
+///  the scripted one answers `known_common_dir` only for a question it was asked,
+///  so the control records the question rather than plant a value the shipped code never receives.
+fn asked_where_the_repository_is(location: RepositoryLocation) -> ScriptedFacts {
+    let mut facts: ScriptedFacts = located(location);
+    facts.asked.push(String::from("location"));
+    return facts;
+}
+
+/// What:
+///  A command the wrapper forwards makes the repository's one check of the folder of unanswered
+///  requests,
+///  and a command the wrapper answers itself,
+///  or one run where it cannot place the repository,
+///  makes none.
+/// Why:
+///   The wiring is one call on the forwarded path,
+///  and the check it makes leaves no trace when the folder is not there:
+///  a control that only compared a command's ending would pass with the call taken out.
+///  The count is the thread's,
+///  so it is this command's and no other control's,
+///  and the two arms that count nothing are what show the count is the check's.
+#[test]
+fn a_forwarded_command_checks_the_folder_of_unanswered_requests_once() {
+    let root: PathBuf = fixture("wrapped-command-checks-the-requests-folder");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the control makes the common directory");
+    let placed: RepositoryLocation =
+        main_worktree(root.to_str().expect("a fixture path is UTF-8"), "");
+    let forwarded: &[&str] = &["rev-parse", "--is-inside-work-tree"];
+    let before: usize = checks_this_thread_made();
+    assert_eq!(
+        run(
+            forwarded,
+            asked_where_the_repository_is(placed.clone()),
+            &[]
+        )
+        .0,
+        forwards(forwarded),
+        "the check changes nothing a command forwards"
+    );
+    assert_eq!(
+        checks_this_thread_made() - before,
+        1,
+        "a forwarded command in a repository makes exactly one check"
+    );
+    let before_answered: usize = checks_this_thread_made();
+    let _answered: (WrappedOutcome, Vec<String>) = run(
+        &["--version"],
+        asked_where_the_repository_is(placed.clone()),
+        &[],
+    );
+    assert_eq!(
+        checks_this_thread_made() - before_answered,
+        0,
+        "a command the wrapper answers itself never reaches the forwarded path"
+    );
+    let before_placed_nowhere: usize = checks_this_thread_made();
+    let _outside: (WrappedOutcome, Vec<String>) =
+        run(forwarded, located(outside_worktree()), &[]);
+    assert_eq!(
+        checks_this_thread_made() - before_placed_nowhere,
+        0,
+        "a command the wrapper cannot place in a repository has no folder to check"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A command whose output a program reads gets the same ending,
+///  and says nothing,
+///  whether the repository's folder of unanswered requests is absent,
+///  holds an entry no receipt answered,
+///  or cannot be read at all.
+/// Why:
+///   The record says every failure on this path is silent and changes no command's status,
+///  and a machine-read command is the one whose bytes must not change.
+///  The entry still stands afterwards,
+///  because nothing but a receipt answers it,
+///  which is what keeps the trigger for a lost event.
+#[test]
+fn a_command_a_program_reads_says_nothing_about_the_folder() {
+    let root: PathBuf = fixture("wrapped-command-reads-by-a-program");
+    let common: PathBuf = root.join(".git");
+    std::fs::create_dir_all(common.as_path()).expect("the control makes the common directory");
+    let placed: RepositoryLocation =
+        main_worktree(root.to_str().expect("a fixture path is UTF-8"), "");
+    let read_by_a_program: &[&str] = &["rev-parse", "--is-inside-work-tree"];
+    assert!(
+        is_machine_read(b"rev-parse", &os_arguments(read_by_a_program)),
+        "the control's command is one whose output a program reads"
+    );
+    let without_a_folder: WrappedOutcome = run(
+        read_by_a_program,
+        asked_where_the_repository_is(placed.clone()),
+        &[],
+    )
+    .0;
+    assert_eq!(
+        without_a_folder,
+        forwards(read_by_a_program),
+        "the command is forwarded as it was typed, with nothing before it"
+    );
+    let requests: UnansweredRequests = plant_a_waiting_entry(common.as_path());
+    assert!(requests.stands(), "the control's entry stands");
+    let with_an_entry: WrappedOutcome = run(
+        read_by_a_program,
+        asked_where_the_repository_is(placed.clone()),
+        &[],
+    )
+    .0;
+    assert_eq!(
+        with_an_entry, without_a_folder,
+        "an entry no receipt answered changes nothing the program reads"
+    );
+    assert_eq!(
+        requests.the_entries().len(),
+        1,
+        "the command removed nothing: only a receipt answers an entry"
+    );
+    std::fs::set_permissions(requests.path(), std::fs::Permissions::from_mode(0o000))
+        .expect("the control closes the folder");
+    let closed: WrappedOutcome = run(
+        read_by_a_program,
+        asked_where_the_repository_is(placed.clone()),
+        &[],
+    )
+    .0;
+    std::fs::set_permissions(requests.path(), std::fs::Permissions::from_mode(0o700))
+        .expect("the control opens the folder again");
+    assert_eq!(
+        closed, without_a_folder,
+        "a folder the account cannot read changes nothing the program reads"
     );
     remove(root.as_path());
 }
