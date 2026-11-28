@@ -2949,13 +2949,6 @@ and the two `truepeak` files wait on their branch.
 - A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
-- An alpha's release workflow runs no test:
-  it commits the bump without compiling,
-  and `cargo-publish.yml` builds the binaries.
-  The evidence for an alpha is the local run,
-  and for the wrapper the gate on `main`
-  (`package/cargo-shadow/cli/README.md`,
-  "Which host each check runs on").
 - `START_RETRY_BUDGET`,
   the five seconds a refused start is repeated for in `mpm-shadow` and in the wrapper's `push/start_retry.rs`,
   cites no measurement and no decision (issue 6597,
