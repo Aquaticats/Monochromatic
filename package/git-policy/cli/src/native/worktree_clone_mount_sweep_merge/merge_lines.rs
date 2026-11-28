@@ -76,7 +76,7 @@ pub(crate) fn mark_left_with_no_pass_line(owner: &BusyOwner) -> String {
 /// ```
 pub(crate) fn extra_pass_line() -> String {
     return String::from(
-        "another-pass-is-due was there when this pass released the run claim, so this invocation ran two more passes; one more pass is the most one invocation runs",
+        "another-pass-is-due was there when this pass released the run claim, so this invocation ran one more pass; one more pass is the most one invocation runs",
     );
 }
 
