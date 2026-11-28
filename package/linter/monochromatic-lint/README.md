@@ -2529,6 +2529,16 @@ Removing the deepest indent of a rustdoc run re-projects every line of that run
 `run_margin`),
 so such an edit would be refused instead of applied.
 
+A fence is closed by the author's own line, and no rule here reports one that is never closed:
+CommonMark runs an unterminated fence to the end of its container,
+so the lines after it are code to every Markdown rule,
+and a fix has nothing to say about the missing closing line.
+The wrapper's round on issue 6642 measured this on 2026-11-27:
+a `//!` fence with the info string `ts` stayed open in
+`package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`,
+the linter reported no finding on that file,
+and a break planted in the same source was reported in the same run.
+
 ## LFS image URLs
 
 `markdown/lfs-image-url` rewrites a relative image link to an LFS-tracked file
