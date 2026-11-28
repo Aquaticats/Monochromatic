@@ -4155,3 +4155,132 @@ Pick for the cure:
 the driver refuses an edit or write call on a main-checkout path > the brief's wording alone,
 because the wording failed twice in one day.
 A round for it starts after the wrapper's release is dispatched.
+
+## Veto open: what two more results of 2026-11-27 left (recorded 2026-11-27T19:25:26-05:00)
+
+### `cargo-shadow`: where the asking again is spent
+
+The Claude Sonnet second pass of `0.1.5-alpha.16` found no High and no Medium point.
+Its Low points say the five asks of the route question,
+about 0.9 s where one ask took about 0.04 s,
+are spent in more states than the records name:
+on hosts with no manager where a socket file,
+a `systemd` directory or a bus was left,
+and on a host whose manager is reachable and refuses at once
+(`app.slice` masked:
+941 ms against 68 ms).
+The picks given to the fix round as its own to show wrong:
+
+- the read of the host counts only the transports the ask can take,
+  shown from systemd's source at the versions met here;
+- an ask the manager answered with a refusal of its own ends the asking,
+  and a failure to reach the manager is asked again,
+  unless a real reexec shows such an answer inside its window,
+  in which case the README names the cost;
+- the README and the package document name every state in which the span is spent.
+
+The way not taken:
+accept the wait everywhere and only correct the sentences,
+which costs each such host about 0.9 s on every call that asks.
+
+### `mpm-shadow`: what the sentences round chose beyond its brief
+
+- The warning states the kept copy's fate only where the publish itself failed.
+  For a failed claim and a failed put-back it says nothing of the copy,
+  because no control can build a state in which the install that follows succeeds there.
+  Not taken:
+  say it in those arms too,
+  on an assertion no test holds.
+- Where the lock was already satisfied,
+  and where the install that followed failed too,
+  the warning claims nothing about a copy.
+- The `prune` line for a second copy keeps its clause on what deleting the directory loses.
+- Two README sentences outside the round's section made the same promise and were corrected with it.
+
+## Veto open: what the round on `mpm-shadow`'s Rust row chose (recorded 2026-11-27T19:34:10-05:00)
+
+The round is merged and goes out in `0.2.7-alpha.18`.
+Its picks were the coordinating session's,
+in the entry recorded 2026-11-27T19:13:58-05:00;
+these are what it chose beyond them.
+
+- The row's toolchain is found by its directory's name,
+  the channel or the channel followed by one host triple.
+  Not taken:
+  ask `rustup which` for each declared program,
+  which is exact for every case and costs a process per program on each rebuild.
+  What the name rule gives up:
+  a channel installed for more than one host triple,
+  where the first name in order answers.
+- A toolchain whose name carries a date never answers for a bare channel,
+  so `nightly` does not take a dated toolchain's programs.
+- The rebuild removes a link a person made by hand too,
+  when its name is one no row declares,
+  and names it in the report;
+  a regular file stays.
+  This machine's folder holds no such name today.
+- The name the running `mpm-shadow` is linked under stays even where no row declares it.
+- `list` asks `rustup` three questions for a Rust row where it asked one,
+  to say that a declared component or target is missing.
+  Open:
+  whether that answer is worth the two extra processes on every `list`.
+- Open:
+  whether the README should say that a plan may declare `rustup` on purpose,
+  for a machine whose cargo bin directory holds rustup's own programs.
+
+## Veto open: what four more rounds of 2026-11-27 left (recorded 2026-11-27T19:45:16-05:00)
+
+### The test tasks: `depends` against the root rule
+
+The root `mise.toml` says of tasks:
+"never use depends or post depends,
+use run only because it's the easiest to understand."
+The round of issue 6635 used `depends = ["build"]` on the driver's `test:unit`,
+as other packages do for the same need,
+and as the root's own `lint:monochromatic-lint` does with its reason beside it:
+a `run` list hands the words after `--` to every entry,
+and a test task takes test file names there.
+Ranking:
+say in the root sentence when `depends` is right > leave the sentence > forbid `depends` everywhere,
+because the first makes the rule match what works,
+the second leaves a rule that 90 package files contradict,
+and the third breaks `test:unit -- <file>` wherever a build must come first.
+
+### The test tasks: packages whose tests read a built copy the task does not build
+
+96 more packages are in the state issue 6635 cured for the driver
+(issue 6637 lists them),
+and the root aggregate `test:unit` builds nothing.
+Ranking:
+give each package's `test:unit` the same line > make the root aggregate build > leave,
+because the fault is quiet wherever the stale copy still exports every name a test asks for,
+and a per-package line keeps a package's own task right when it is run alone.
+The cost is one build per run of each such task.
+No round runs on it:
+it changes packages this work does not own.
+
+### The store fixture's deadline
+
+- The value.
+  15,000 ms is 3.26 times the slowest call measured under the small cap,
+  and equals the reader's own deadline for the same tool.
+  Not taken:
+  about 5,000 ms,
+  which still clears that call and makes a true hang cost a third as much.
+- The equality with the reader's `SOPS_TIMEOUT_MS` is a comment and not an import,
+  so the two can drift.
+- The test runner's worker count ignores the control group's `cpu.max`.
+  Ranking:
+  leave it > cap the workers at the quota,
+  because the suite now passes at the small cap in about 150 s,
+  and capping would make that several times longer without making any call faster.
+
+### The wrapper: a slot command at a directory that is no repository
+
+A removal,
+a move or a prune typed with `-C` at a directory that resolves to no repository reaches Git unchanged,
+and Git answers in its own words.
+Left as it is.
+Not taken:
+refuse every slot command whose directory Git cannot resolve,
+which would also refuse `git worktree prune` typed where there is no repository at all.

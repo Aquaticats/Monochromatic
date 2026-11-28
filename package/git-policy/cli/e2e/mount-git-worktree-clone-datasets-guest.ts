@@ -28,13 +28,23 @@
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
-import type { GuestRun, } from './guest-host/guest-run.ts';
-import { runWithAGuestThatIsDestroyed, } from './guest-host/guest-run-lifecycle.ts';
-import { recipe, } from './guest-host/host-side-commands.ts';
+import type {
+  GuestFacts,
+} from '../bin/mvm-guest-guest-facts.ts';
 import {
-  type RunArguments,
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
+import {
   runArguments,
-} from './guest-host/guest-host-rules-fixture.ts';
+  type RunArguments,
+} from '../bin/mvm-guest-options.ts';
+import {
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
+
+
+
+
 import { runTheAdoption, } from './adoption-guest-arms/adoption-arm.ts';
 import { buildInGuest, } from './adoption-guest-arms/crate-build.ts';
 import { delegation, } from './adoption-guest-arms/delegation-arm.ts';
@@ -204,11 +214,11 @@ function imageArguments(chosen: Options,): readonly string[] {
  await create(chosen);
  ```
  */
-async function create(chosen: GuestRun & Options,): Promise<void> {
+async function create(chosen: GuestFacts & Options,): Promise<void> {
   await recipe({
     chosen,
     step: 'create',
-    extraArguments: imageArguments(chosen,),
+    extraArgumentWords: imageArguments(chosen,),
   },);
 }
 
@@ -224,11 +234,11 @@ async function create(chosen: GuestRun & Options,): Promise<void> {
  await prepare(chosen);
  ```
  */
-async function prepare(chosen: GuestRun & Options,): Promise<void> {
+async function prepare(chosen: GuestFacts & Options,): Promise<void> {
   await recipe({
     chosen,
     step: 'prepare',
-    extraArguments: imageArguments(chosen,),
+    extraArgumentWords: imageArguments(chosen,),
   },);
 }
 
@@ -244,11 +254,11 @@ async function prepare(chosen: GuestRun & Options,): Promise<void> {
  await destroy(chosen);
  ```
  */
-async function destroy(chosen: GuestRun & Options,): Promise<void> {
+async function destroy(chosen: GuestFacts & Options,): Promise<void> {
   await recipe({
     chosen,
     step: 'destroy',
-    extraArguments: imageArguments(chosen,),
+    extraArgumentWords: imageArguments(chosen,),
   },);
 }
 
@@ -264,7 +274,7 @@ async function destroy(chosen: GuestRun & Options,): Promise<void> {
  await run(chosen);
  ```
  */
-async function run(chosen: GuestRun,): Promise<void> {
+async function run(chosen: GuestFacts,): Promise<void> {
   await buildInGuest({ chosen, },);
   await storeDataset({ chosen, },);
   await runTheAdoption({ chosen, },);
@@ -288,7 +298,7 @@ async function run(chosen: GuestRun,): Promise<void> {
  await sweepOnly(chosen);
  ```
  */
-async function sweepOnly(chosen: GuestRun,): Promise<void> {
+async function sweepOnly(chosen: GuestFacts,): Promise<void> {
   await buildInGuest({ chosen, },);
   await storeDataset({ chosen, },);
   await sweepArms({ chosen, },);
@@ -306,43 +316,58 @@ async function sweepOnly(chosen: GuestRun,): Promise<void> {
  await all(chosen);
  ```
  */
-async function all(chosen: GuestRun & Options,): Promise<void> {
-  /**
-   The guest this run creates, which `create` refuses to make twice.
-   */
-  function createThisGuest(): Promise<void> {
-    return create(chosen,);
-  }
-
-  /**
-   Everything the guest was created for: its preparation and every arm.
-   */
-  async function prepareAndRunEveryArm(): Promise<void> {
-    await prepare(chosen,);
-    await run(chosen,);
-  }
-
-  /**
-   The guest's destruction, which happens whatever the work did.
-   */
-  function destroyThisGuest(): Promise<void> {
-    return destroy(chosen,);
-  }
-
-  await runWithAGuestThatIsDestroyed({
-    name: chosen.name,
-    subject: 'git-policy adoption guest',
+async function all(chosen: GuestFacts & Options,): Promise<void> {
+  await runWholeGuestRun({
+    label: 'git-policy adoption guest',
+    chosen,
     keepGuest: chosen.keepGuest,
-    create: createThisGuest,
-    run: prepareAndRunEveryArm,
-    destroy: destroyThisGuest,
+    steps: {
+      create: async function createTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'create',
+          extraArgumentWords: imageArguments(chosen,),
+        },);
+      },
+      prepare: async function prepareTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'prepare',
+          extraArgumentWords: imageArguments(chosen,),
+        },);
+      },
+      work: runEveryArm,
+      destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await recipe({
+          chosen: facts,
+          step: 'destroy',
+          extraArgumentWords: imageArguments(chosen,),
+        },);
+      },
+    },
   },);
+}
+
+/**
+ Build the test target in the guest and run every arm of this driver.
+
+ @param chosen - the run's guest and log folder
+
+ @throws GuestDriverError naming the step that refused, or the marker a pulled log lacks
+
+ @example
+ ```ts
+ await runEveryArm({ chosen });
+ ```
+ */
+async function runEveryArm({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await run(chosen,);
 }
 
 /**
  The steps this driver knows, and nothing else.
  */
-const steps: ReadonlyMap<string, (chosen: GuestRun & Options,) => Promise<void>> = new Map([
+const steps: ReadonlyMap<string, (chosen: GuestFacts & Options,) => Promise<void>> = new Map([
   [
     'create',
     create,
@@ -361,13 +386,13 @@ const steps: ReadonlyMap<string, (chosen: GuestRun & Options,) => Promise<void>>
   ],
   [
     'delegation',
-    async function delegationOnly(chosen: GuestRun,): Promise<void> {
+    async function delegationOnly(chosen: GuestFacts,): Promise<void> {
       await delegation({ chosen, },);
     },
   ],
   [
     'snapdir',
-    async function snapdirOnly(chosen: GuestRun,): Promise<void> {
+    async function snapdirOnly(chosen: GuestFacts,): Promise<void> {
       await snapdirMatrix({ chosen, },);
     },
   ],
@@ -393,7 +418,7 @@ const steps: ReadonlyMap<string, (chosen: GuestRun & Options,) => Promise<void>>
  await runTheStep(chosen);
  ```
  */
-async function runTheStep(chosen: GuestRun & Options,): Promise<void> {
+async function runTheStep(chosen: GuestFacts & Options,): Promise<void> {
   /**
    The step the command line named.
    */

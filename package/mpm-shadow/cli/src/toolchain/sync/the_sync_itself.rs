@@ -24,9 +24,11 @@ use super::super::across_roots::{
     winning_version,
 };
 /// Imports the hidden siblings a killed install leaves,
+/// what a recovery that failed answers,
 /// the rule that keeps an older repository tool out of the way,
 /// and the repair of them.
 use super::super::archive_staging::{
+    ARecoveryThatFailed,
     AnOlderVersion,
     CopyRecord,
     Recovered,
@@ -174,12 +176,22 @@ fn recover_a_killed_install(
     ctx: &Context,
     tool: &LockedTool,
     older_version: AnOlderVersion,
-) -> Result<Recovered, ToolchainError> {
-    let version_dir: PathBuf = tool_install_dir(
+) -> Result<Recovered, ARecoveryThatFailed> {
+    // What: a version directory the layout refuses is a failure that read no hidden name.
+    // Why: the sentence that follows it may then claim nothing about a copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const versionDir = toolInstallDir(ctx.scope.toolchainRoot, tool.declaration.id, tool.version);
+    // ```
+    let version_dir: PathBuf = match tool_install_dir(
         &ctx.scope.toolchain_root,
         &tool.declaration.id,
         &tool.version,
-    )?;
+    ) {
+        Ok(path) => path,
+        Err(error) => return Err(ARecoveryThatFailed::nothing_read(error)),
+    };
     // What: the lock's own record of the archive this version came from.
     // Why: a hidden copy is published only when its marker records the same tool, version and digest.
     let expected: Option<CopyRecord> =
@@ -326,13 +338,13 @@ pub fn sync_tools(
     }
     for tool in &entries {
         let mut recovered: Recovered = Recovered::default();
-        let mut recovery_problem: Option<String> = None;
+        let mut recovery_problem: Option<ARecoveryThatFailed> = None;
         if tool.declaration.route == Route::Archive {
             match recover_a_killed_install(ctx, tool, older_version_rule(ctx, tool)) {
                 Ok(outcome) => recovered = outcome,
                 // The install below may still put the version in place: a recovery that failed must not cost the run the
                 // download that can repair it, and a network that is there is what an offline machine does not have.
-                Err(error) => recovery_problem = Some(error.message),
+                Err(failed) => recovery_problem = Some(failed),
             }
         }
         if let Some(sentence) = recovery_sentence(&tool.declaration.id, &tool.version, &recovered) {
@@ -386,8 +398,7 @@ pub fn sync_tools(
             // lock asks for, and what went wrong is a hidden sibling this run left or could not remove.
             if let Some(problem) = recovery_problem {
                 // What: the recovery's own words, followed by the fact that left them without a consequence.
-                // Why: its last clause says a later run publishes the copy it kept,
-                //  and this arm is reached only when the edition the lock asks for is there anyway,
+                // Why: this arm is reached only when the edition the lock asks for is there anyway,
                 //  so what a person needs to know is that nothing failed for it.
                 //  The copy's fate is not promised: a later run may publish nothing from it and remove it,
                 //  and the failure this arm can carry may be one that stops that run reading it at all.
@@ -406,18 +417,28 @@ pub fn sync_tools(
             Ok(()) => {
                 report.installed.push(tool.declaration.id.clone());
                 if let Some(problem) = recovery_problem {
-                    // What: the recovery's own words, followed by what this run then did.
-                    // Why: its last clause says the copy at the version's name "is as it was" and that running the command
-                    //  again publishes it, and this run downloaded and installed that version itself instead.
-                    //  The failure may be one that read no copy at all (the tool's directory could not be listed),
-                    //  so the suffix claims nothing about a copy and says only what this run then did.
+                    // What: the recovery's own words, followed by what this run then did,
+                    //  and, when that failure named a copy, by what the next run does with it.
+                    // Why: the recovery's own sentences name the copy it kept and say where it is,
+                    //  and they promise nothing about a later run, because this run cannot know what that one reads.
+                    //  This run does: it put the version at its name, so a later run finds the copy a second one.
+                    //  Only the publish's own failure states it: that is the arm whose copy a control can leave behind
+                    //  with the version at its name afterwards, and a failed listing names no copy at all.
                     //
                     // In TS you'd write (pseudocode):
                     // ```ts
-                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, so the run does not fail for it`);
+                    // const fate = problem.thePublishKeptItsCopy
+                    //   ? 'so a later run publishes nothing from that copy and removes it, and the run does not fail for it'
+                    //   : 'so the run does not fail for it';
+                    // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, ${fate}`);
                     // ```
+                    let fate: &str = if problem.the_publish_kept_its_copy {
+                        "so a later run publishes nothing from that copy and removes it, and the run does not fail for it"
+                    } else {
+                        "so the run does not fail for it"
+                    };
                     report.warnings.push(format!(
-                        "{problem}; the install this run went on to make put {} {} at its name, so the run does not fail for it",
+                        "{problem}; the install this run went on to make put {} {} at its name, {fate}",
                         tool.declaration.id, tool.version
                     ));
                 }
@@ -447,10 +468,11 @@ pub fn sync_tools(
             .failed
             .push(("postinstall links".to_string(), error.message)),
     }
-    if let Err(error) = rebuild_exposure(ctx, &entries) {
-        report
+    match rebuild_exposure(ctx, &entries) {
+        Ok(exposure) => report.removed_exposure_links.extend(exposure.links_removed),
+        Err(error) => report
             .failed
-            .push(("exposure directory".to_string(), error.message));
+            .push(("exposure directory".to_string(), error.message)),
     }
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.

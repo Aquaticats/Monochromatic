@@ -26,20 +26,30 @@ import {
 
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
-  captureHostCommand,
-  runGuestScript,
-  runHostCommand,
-  runRecipeStep,
-} from '../bin/guest-route-commands.ts';
+  host,
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
 import {
-  type GuestRouteOptions,
-  guestRouteOptions,
-} from '../bin/guest-route-options.ts';
-import { FOLDER_MODE, } from '../bin/guest-route-permissions.ts';
+  guest,
+} from '../bin/mvm-guest-script.ts';
 import {
-  hasLineStartingWith,
+  guestDriverOptions,
+  type GuestDriverOptions,
+} from '../bin/mvm-guest-options.ts';
+import {
+  FOLDER_MODE,
+  HOST_COMMAND_TIMEOUT_MS,
+} from '../bin/mvm-guest-bounds.ts';
+import {
+  holdsLineStartingWith,
   missingMarkers,
-} from '../bin/guest-route-log-lines.ts';
+} from '../bin/mvm-guest-arm-log.ts';
+import {
+  holdsGuestName,
+} from '../bin/mvm-guest-listing.ts';
+import {
+  captureHostCommand,
+} from '../bin/mvm-guest-step-command.ts';
 
 //region Constants
 
@@ -137,25 +147,22 @@ const GREEN_MARKERS: readonly string[] = [
 
  @throws Error naming the guest a listing already holds
  */
-async function create(chosen: GuestRouteOptions,): Promise<void> {
+async function create(chosen: GuestDriverOptions,): Promise<void> {
   /**
    What `mvm list` reported before this run asked for a guest.
    */
   const listed = await captureHostCommand({
     command: 'mvm',
     args: ['list',],
+    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
-  if (listed
-    .split('\n',)
-    .some(function holdsTheName(line: string,): boolean {
-      return line
-        .trim()
-        .startsWith(chosen.name,);
-    },))
-    throw new Error(`a guest named ${chosen.name} is already listed; name another with --name`,);
-  await runRecipeStep({
-    logDir: chosen.logDir,
+  if (holdsGuestName({
+    listing: listed,
     name: chosen.name,
+  },))
+    throw new Error(`a guest named ${chosen.name} is already listed; name another with --name`,);
+  await recipe({
+    chosen,
     step: 'create',
   },);
 }
@@ -165,10 +172,9 @@ async function create(chosen: GuestRouteOptions,): Promise<void> {
 
  @param chosen - the run's options
  */
-async function prepare(chosen: GuestRouteOptions,): Promise<void> {
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+async function prepare(chosen: GuestDriverOptions,): Promise<void> {
+  await recipe({
+    chosen,
     step: 'prepare',
   },);
 }
@@ -180,7 +186,7 @@ async function prepare(chosen: GuestRouteOptions,): Promise<void> {
 
  @throws Error naming the step that refused
  */
-async function build(chosen: GuestRouteOptions,): Promise<void> {
+async function build(chosen: GuestDriverOptions,): Promise<void> {
   /**
    Where the snapshot of this worktree is unpacked before it is pushed.
    */
@@ -210,8 +216,8 @@ async function build(chosen: GuestRouteOptions,): Promise<void> {
     chosen.logDir,
     'subject.tar.gz',
   );
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'tar',
     args: [
       '--create',
@@ -226,8 +232,8 @@ async function build(chosen: GuestRouteOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
-  await runHostCommand({
-    logDir: chosen.logDir,
+  await host({
+    chosen,
     command: 'mvm',
     args: [
       '--backend',
@@ -258,9 +264,8 @@ async function build(chosen: GuestRouteOptions,): Promise<void> {
     'tail --lines=3 /root/doctor-route-build.log',
   ]
     .join('\n',);
-  await runGuestScript({
-    logDir: chosen.logDir,
-    name: chosen.name,
+  await guest({
+    chosen,
     script,
     log: 'guest-crate-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
@@ -274,7 +279,7 @@ async function build(chosen: GuestRouteOptions,): Promise<void> {
 
  @throws Error naming the skip the arm printed, or the claims it did not print
  */
-async function arm(chosen: GuestRouteOptions,): Promise<void> {
+async function arm(chosen: GuestDriverOptions,): Promise<void> {
   /**
    The guest's own script: both arms, each with its log on the guest's standard output.
    */
@@ -300,16 +305,15 @@ async function arm(chosen: GuestRouteOptions,): Promise<void> {
   /**
    Everything the arm printed, read back from the guest's log.
    */
-  const pulled = await runGuestScript({
-    logDir: chosen.logDir,
-    name: chosen.name,
+  const pulled = await guest({
+    chosen,
     script,
     log: 'guest-arm.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
   },);
-  if (hasLineStartingWith({
+  if (holdsLineStartingWith({
     text: pulled,
-    prefix: 'SKIP',
+    word: 'SKIP',
   },))
     throw new Error('the arm printed SKIP inside the guest: its variables did not reach it',);
   /**
@@ -331,15 +335,14 @@ async function arm(chosen: GuestRouteOptions,): Promise<void> {
 
  @param chosen - the run's options
  */
-async function destroy(chosen: GuestRouteOptions,): Promise<void> {
+async function destroy(chosen: GuestDriverOptions,): Promise<void> {
   if (chosen.keepGuest) {
     process.stdout
       .write(`kept ${chosen.name}\n`,);
     return;
   }
-  await runRecipeStep({
-    logDir: chosen.logDir,
-    name: chosen.name,
+  await recipe({
+    chosen,
     step: 'destroy',
   },);
 }
@@ -356,10 +359,10 @@ async function destroy(chosen: GuestRouteOptions,): Promise<void> {
 
  @example
  ```ts
- await using guest = madeGuest(chosen);
+ await using thisGuest = madeGuest(chosen);
  ```
  */
-function madeGuest(chosen: GuestRouteOptions,): { readonly [Symbol.asyncDispose]: () => Promise<void>; } {
+function madeGuest(chosen: GuestDriverOptions,): { readonly [Symbol.asyncDispose]: () => Promise<void>; } {
   return {
     async [Symbol.asyncDispose](): Promise<void> {
       await destroy(chosen,);
@@ -374,12 +377,12 @@ function madeGuest(chosen: GuestRouteOptions,): { readonly [Symbol.asyncDispose]
 
  @throws Error naming the step or the claim that refused
  */
-async function all(chosen: GuestRouteOptions,): Promise<void> {
+async function all(chosen: GuestDriverOptions,): Promise<void> {
   await create(chosen,);
   /**
    The guest this run made, destroyed however this run ends.
    */
-  await using guest = madeGuest(chosen,);
+  await using thisGuest = madeGuest(chosen,);
   await prepare(chosen,);
   await build(chosen,);
   await arm(chosen,);
@@ -392,7 +395,7 @@ async function all(chosen: GuestRouteOptions,): Promise<void> {
 /**
  The steps this driver knows, and nothing else.
  */
-const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
+const steps: Record<string, (chosen: GuestDriverOptions,) => Promise<void>> = {
   create,
   prepare,
   build,
@@ -404,8 +407,9 @@ const steps: Record<string, (chosen: GuestRouteOptions,) => Promise<void>> = {
 /**
  The step and the values the command line gave this run.
  */
-const chosen = guestRouteOptions({
-  argv: process.argv,
+const chosen = guestDriverOptions({
+  argv: process.argv
+    .slice(2,),
   defaultName: 'git-policy-doctor-route',
   defaultLogDir: resolve(
     import.meta.dirname,

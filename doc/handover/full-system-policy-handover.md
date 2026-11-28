@@ -1,6 +1,6 @@
 # AppArmor full-system rollout handover
 
-## Status at 2026-11-26T18:40:10-05:00
+## Status at 2026-11-27T19:49:28-05:00
 
 The owner approved the enforcement result and requested a complete installed-system and repo
 inventory.
@@ -246,6 +246,19 @@ Unprofiled development processes remain a residual risk.
   the system copy is removed and create-only user dry-runs pass.
   The old user-service failure remains recorded for the next scheduled timer.
   See `doc/troubleshooting/systemd-tmpfiles-home-temp-recursive-clean.md`.
+- On 2026-11-27, VIA could enumerate the 1upsuper16v3 keyboard but not initialize it.
+  The boundary was root-owned mode-0600 hidraw nodes without a user ACL, not AppArmor or firmware.
+  `/etc/udev/rules.d/50-qmk-1upsuper16v3.rules` grants `uaccess` only to `6f75:5610`.
+  All three interfaces now open as the user and under enforcing Helium, and the owner confirmed VIA
+  works. No AppArmor cache change was needed. See `doc/troubleshooting/via-webhid-hidraw-uaccess.md`.
+- Later on 2026-11-27, Helium crashed with `ud2` on Best Buy's geolocation **Never allow** action.
+  Chromium's already-landed `c00e3e4c171cabbd92ebcf0c91ba9b19b8a35096` fix identifies the
+  embedded-prompt re-creation bug.
+  `--disable-features=GeolocationElement` avoids that path until Helium includes it;
+  the owner confirmed the action now completes without a crash.
+  Scoped `local/coredumpctl` and `local/coredumpctl_gdb` rules permit this incident's core extraction
+  and debugger mapping without adding `dac_override`.
+  See `doc/troubleshooting/helium-geolocation-never-allow-embedded-reprompt.md`.
 
 ## Current-boot evidence
 
@@ -455,14 +468,14 @@ checked every expected profile artifact and the live feature bytes,
 verified cache hits,
 preserved prior runtime policy,
 and reloaded the real loader.
-The latest such report is `verified-selected-user-tmpfiles-migration-2026-11-26T18-37-50-0500.json`.
+The latest such report is `verified-selected-coredumpctl-debug-access-2026-11-27T19-48-06-0500.json`.
 
 Original recovery cache:
 `/etc/apparmor/earlypolicy/.previous-default-complain-policy`.
 
 Current verified backup:
-`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-26T18-37-50-0500`.
-All 29
+`/var/backups/apparmor-full-system-pre-enforcement-cold-boot-2026-11-27T19-48-06-0500`.
+All 35
 copied objects compared equal.
 The earlier pre-enforcement backup remains at
 `/var/backups/apparmor-full-system-pre-default-enforcement-2026-11-23T08-52-55-0500`.

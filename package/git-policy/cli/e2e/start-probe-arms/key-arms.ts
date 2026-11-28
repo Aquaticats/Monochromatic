@@ -16,8 +16,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   armTimeoutMilliseconds,
   probeDataset,
@@ -51,7 +57,7 @@ const readWriteLog = 'guest-m1-read-write.log';
 export async function m1Key({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The control: the source attached with its key loaded, then unloaded, then
@@ -92,7 +98,7 @@ export async function m1Key({
     chosen,
     script,
     log: keyLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }
 
@@ -111,7 +117,7 @@ export async function m1Key({
 export async function m1ReadWrite({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The control: a read-write mount of the dataset, then a read-only request
@@ -147,6 +153,6 @@ export async function m1ReadWrite({
     chosen,
     script,
     log: readWriteLog,
-    timeout: armTimeoutMilliseconds,
+    timeoutMilliseconds: armTimeoutMilliseconds,
   },);
 }

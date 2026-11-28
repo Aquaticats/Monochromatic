@@ -162,3 +162,209 @@ fn a_plan_that_declares_the_name_keeps_its_own_link() {
         "the record names the row the farm link belongs to"
     );
 }
+
+// What:
+// `const THE_LINK_A_ROW_NO_LONGER_DECLARES: &str = "cargo-miri"` is the name of a program rustup's
+// `miri` component installs,
+// which no row of the sample plan declares.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// The farm keeps a name an earlier row declared,
+// and the state to build is one link for a name no row of the lock declares.
+// Gotcha:
+// A name handed to a test this way stands for rustup's own spelling of that program;
+// the fixture's program is written here and is not rustup's.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const theLinkARowNoLongerDeclares = 'cargo-miri';
+// ```
+const THE_LINK_A_ROW_NO_LONGER_DECLARES: &str = "cargo-miri";
+
+// What:
+// `const THE_LINK_THAT_RESOLVES_NOWHERE: &str = "miri"` is a second name no row of the sample plan
+// declares,
+// whose link points at a program that is not on the disk.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// A name whose target went away is the state issue 6634's Low point 3 describes:
+// the link dangles once the program behind it does,
+// and a removal that only follows resolving links would leave it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const theLinkThatResolvesNowhere = 'miri';
+// ```
+const THE_LINK_THAT_RESOLVES_NOWHERE: &str = "miri";
+
+// What:
+// `const A_FILE_A_PERSON_PUT_IN_THE_FARM: &str = "my-rust"` is a regular file in the exposure
+// directory whose name no row declares.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// The farm is a directory on a person's machine,
+// so the removal is about the links the tool made and never about a file somebody put there.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aFileAPersonPutInTheFarm = 'my-rust';
+// ```
+const A_FILE_A_PERSON_PUT_IN_THE_FARM: &str = "my-rust";
+
+// What:
+// `fn whether_a_row_declares(rig: &Rig, name: &str) -> bool` says whether any row of the rig's lock
+// declares `name` as a bin.
+// Why:
+// The three entries below are about names no row declares,
+// and a name the sample plan declares would make the control pass for another reason.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function whetherARowDeclares(rig: Rig, name: string): boolean
+// ```
+fn whether_a_row_declares(
+    rig: &Rig,
+    name: &str,
+) -> bool {
+    // What:
+    // `.iter().any(...)` walks the lock's rows and answers whether one holds the name.
+    // Why:
+    // One pass over a small list, and no allocation.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return rig.lock.tools.some((tool) => tool.declaration.bins.includes(name));
+    // ```
+    return rig
+        .lock
+        .tools
+        .iter()
+        .any(|tool| return tool.declaration.bins.iter().any(|bin| return bin == name));
+}
+
+// What:
+// `#[test] fn a_rebuild_removes_the_links_no_row_declares_and_leaves_a_persons_file()`
+// builds a farm holding a link for a name no row declares whose program is there,
+// a second such link whose program is gone,
+// and a regular file of such a name,
+// then rebuilds the farm and reads what is left.
+// Why:
+// Issue 6634's Low point 3:
+// a machine that installed with `0.2.7-alpha.16`'s row keeps a `rustup` link in the farm,
+// which dangles once rustup's proxies go,
+// and `rebuild_exposure` only made links.
+// The farm holds what the lock declares:
+// a symbolic link for a name no row declares is removed,
+// and a file is a person's.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a rebuild removes the links no row declares and leaves a persons file', () => { ... });
+// ```
+#[test]
+fn a_rebuild_removes_the_links_no_row_declares_and_leaves_a_persons_file() {
+    let rig: Rig = Rig::new();
+    fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    // What:
+    // the program the first link points at: a stand-in written beside the farm, not a real tool.
+    // Why:
+    // A link whose target is there is the ordinary state of a name an earlier row declared.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const program = pathJoin(rig.scope.root, 'build', theLinkARowNoLongerDeclares);
+    // writeExecutable(program);
+    // ```
+    let program: PathBuf = rig
+        .scope
+        .root
+        .join("build")
+        .join(THE_LINK_A_ROW_NO_LONGER_DECLARES);
+    write_executable(&program);
+    assert!(
+        !whether_a_row_declares(&rig, THE_LINK_A_ROW_NO_LONGER_DECLARES),
+        "no row of the sample lock declares {THE_LINK_A_ROW_NO_LONGER_DECLARES}"
+    );
+    assert!(
+        !whether_a_row_declares(&rig, THE_LINK_THAT_RESOLVES_NOWHERE),
+        "no row of the sample lock declares {THE_LINK_THAT_RESOLVES_NOWHERE}"
+    );
+    assert!(
+        !whether_a_row_declares(&rig, A_FILE_A_PERSON_PUT_IN_THE_FARM),
+        "no row of the sample lock declares {A_FILE_A_PERSON_PUT_IN_THE_FARM}"
+    );
+    symlink(
+        &program,
+        rig.scope
+            .exposure_dir
+            .join(THE_LINK_A_ROW_NO_LONGER_DECLARES),
+    )
+    .expect("link the program under a name no row declares");
+    // What:
+    // the second link, pointing at a program that is not on the disk.
+    // Why:
+    // That is the dangling state the finding is about.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // symlinkSync(pathJoin(rig.scope.root, 'gone', theLinkThatResolvesNowhere), pathJoin(rig.scope.exposureDir, theLinkThatResolvesNowhere));
+    // ```
+    symlink(
+        rig.scope
+            .root
+            .join("gone")
+            .join(THE_LINK_THAT_RESOLVES_NOWHERE),
+        rig.scope.exposure_dir.join(THE_LINK_THAT_RESOLVES_NOWHERE),
+    )
+    .expect("link a name whose program is gone");
+    // What:
+    // a regular file of a name no row declares, holding text.
+    // Why:
+    // The rebuild has to leave what a person put there,
+    // and the text read back proves it was neither removed nor rewritten.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(pathJoin(rig.scope.exposureDir, aFileAPersonPutInTheFarm), "a person's file\n");
+    // ```
+    let the_file: PathBuf = rig.scope.exposure_dir.join(A_FILE_A_PERSON_PUT_IN_THE_FARM);
+    fs::write(&the_file, "a person's file\n").expect("write a person's file into the farm");
+    rebuild_exposure(&rig.context(), &[]).expect("rebuild the farm");
+    // What:
+    // the two links, which must be gone: `symlink_metadata` reads the entry itself and never follows
+    // the link, so a dangling link still answers whether it is there.
+    // Why:
+    // `Path::exists` follows the link and is false for a dangling one,
+    // so it cannot tell a removed link from a dangling one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(lstatSync(pathJoin(rig.scope.exposureDir, theLinkARowNoLongerDeclares), { throwIfNoEntry: false })).toBeUndefined();
+    // ```
+    for name in [
+        THE_LINK_A_ROW_NO_LONGER_DECLARES,
+        THE_LINK_THAT_RESOLVES_NOWHERE,
+    ] {
+        assert!(
+            fs::symlink_metadata(rig.scope.exposure_dir.join(name)).is_err(),
+            "the farm holds no {name}, because no row of the lock declares it"
+        );
+    }
+    // What:
+    // the regular file's own content, read back.
+    // Why:
+    // A file of a name no row declares belongs to a person, and the rebuild leaves it untouched.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(readFileSync(theFile, 'utf8')).toBe("a person's file\n");
+    // ```
+    assert_eq!(
+        fs::read_to_string(&the_file).expect("a person's file stays where it is"),
+        "a person's file\n",
+        "the rebuild leaves a regular file of a name no row declares"
+    );
+}

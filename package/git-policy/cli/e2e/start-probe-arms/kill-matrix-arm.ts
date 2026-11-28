@@ -13,8 +13,14 @@
  ```
  */
 
-import type { GuestRun, } from '../guest-host/guest-run.ts';
-import { guest, } from '../guest-host/guest-side-scripts.ts';
+import type {
+  GuestFacts,
+} from '../../bin/mvm-guest-guest-facts.ts';
+import {
+  guest,
+} from '../../bin/mvm-guest-script.ts';
+
+
 import {
   longArmTimeoutMilliseconds,
   probeScript,
@@ -40,7 +46,7 @@ const killLog = 'guest-m3-kill.log';
 export async function m3Kill({
   chosen,
 }: {
-  readonly chosen: GuestRun;
+  readonly chosen: GuestFacts;
 },): Promise<void> {
   /**
    The matrix: one control run per hold point, then five kills per hold point,
@@ -86,6 +92,6 @@ export async function m3Kill({
     chosen,
     script,
     log: killLog,
-    timeout: longArmTimeoutMilliseconds,
+    timeoutMilliseconds: longArmTimeoutMilliseconds,
   },);
 }

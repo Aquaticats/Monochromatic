@@ -2754,6 +2754,37 @@ A test writes its own runs folder,
 hands over its own units,
 and needs neither a running unit nor a process table.
 
+## Running this package's tests
+
+`mise run //package/pi-shared/subagent-driver:test:unit` runs the package's unit test files,
+one Node process per file,
+and prints one `[PASS]` line for each suite that came back and a `[FAIL]` line for each that did not;
+setting `MONOCHROMATIC_VERBOSE=true` also prints one line per test.
+
+A file that tests what the package exports imports the package entry,
+`../dist/final/node/index.mjs`,
+which is the copy the exports map hands a user of the package,
+so the suite exercises the built artifact and not the sources.
+Three files import no built copy:
+two run `.ts` stand-ins and `mise` itself,
+and `src/the-unit-test-task-declares-the-build-it-needs.unit.test.ts` asks mise for the task's own dependency list.
+
+The task therefore declares `depends = ["build"]` in the package's `mise.toml`,
+and mise builds the package before the first test file starts,
+so no test reads a copy older than the sources it was built from.
+A worktree with no built copy and a worktree whose copy is older than a source file now run the same way:
+the build runs first,
+and the suite printed 229 `[PASS]` lines and no `[FAIL]` line in both states on 2026-11-27.
+
+The cost is one build in every run of the task,
+measured at 5.053 s alone in the same control group and cap as the suite.
+The suite itself took 107.0 s before the declaration and 109.4 s after it,
+one run each on a host whose load average was 28.66 and 22.30 at the minute each started,
+so the build's own 5 s is what the declaration adds rather than the difference of those two runs.
+`mise run //package/pi-shared/subagent-driver:buildAndTest` still builds before it calls this task,
+so it builds twice;
+the second build rewrites the same artifact and costs the same 5 s.
+
 ## What is bounded, and what is not
 
 Every wait for Pi is bounded:

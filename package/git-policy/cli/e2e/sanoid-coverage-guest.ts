@@ -29,27 +29,35 @@ import {
 } from 'node:path';
 
 import { runGateCommand, } from '../bin/native-gate-run.ts';
-import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
-  holdsWordLine,
-  missingMarkerRefusal,
-  missingMarkers,
+  holdsLineStartingWith,
+  requireMarkers,
 } from '../bin/mvm-guest-arm-log.ts';
 import {
-  flagGiven,
-  flagValue,
-} from '../bin/mvm-guest-command-line.ts';
+  FOLDER_MODE,
+  HOST_COMMAND_TIMEOUT_MS,
+} from '../bin/mvm-guest-bounds.ts';
 import {
   GuestDriverError,
-  refusalOf,
 } from '../bin/mvm-guest-error.ts';
-import { holdsGuestName, } from '../bin/mvm-guest-listing.ts';
-import { runGuestScript, } from '../bin/mvm-guest-script.ts';
-import { runGuestRecipeStep, } from '../bin/mvm-guest-recipe-step.ts';
+import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
-  readStepLog,
-  runRequiredStepCommand,
-} from '../bin/mvm-guest-step-command.ts';
+  pushWorktreeSnapshot,
+  recipe,
+} from '../bin/mvm-guest-host-command.ts';
+import {
+  holdsGuestName,
+} from '../bin/mvm-guest-listing.ts';
+import {
+  guestDriverOptions,
+  type GuestDriverOptions,
+} from '../bin/mvm-guest-options.ts';
+import {
+  guest,
+} from '../bin/mvm-guest-script.ts';
+import {
+  runWholeGuestRun,
+} from '../bin/mvm-guest-whole-run.ts';
 
 //region Constants
 
@@ -101,11 +109,6 @@ const SANOID_SHA256 = '1d8735a271a34ec87ea46313a66f6f20bd38b583886924574d3c1f72e
 const CONTROL_RELEASE = '2.2';
 
 /**
- Milliseconds one host command may take.
- */
-const HOST_COMMAND_TIMEOUT_MS = 120_000;
-
-/**
  Milliseconds the guest's Sanoid install may take.
  */
 const SANOID_INSTALL_TIMEOUT_MS = 600_000;
@@ -119,11 +122,6 @@ const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
  Milliseconds one arm may take.
  */
 const ARM_TIMEOUT_MS = 1_200_000;
-
-/**
- Seconds the guest's own `timeout` fires before `mvm`'s kill, so the guest reports a status rather than dying with it.
- */
-const GUEST_TIMEOUT_MARGIN_SECONDS = 60;
 
 /**
  The guest name a run takes when the command line names none.
@@ -166,13 +164,6 @@ const GREEN_MARKERS: readonly string[] = [
 /**
  The step, the guest name, the log directory and whether a run keeps the guest it made.
  */
-type Options = {
-  readonly step: string;
-  readonly name: string;
-  readonly logDirectory: string;
-  readonly keepGuest: boolean;
-};
-
 /**
  The log directory a run keeps its logs in, which this package's build folder holds unless the command line names one.
 
@@ -202,29 +193,13 @@ function defaultLogDirectory(): string {
  const chosen = options();
  ```
  */
-function options(): Options {
-  /**
-   The words this run was started with, after the program and this file's own path.
-   */
-  const argumentLine = process.argv
-    .slice(2,);
-  return {
-    step: argumentLine[0] ?? '',
-    name: flagValue({
-      argumentWords: argumentLine,
-      flag: '--name',
-      fallback: DEFAULT_GUEST_NAME,
-    },),
-    logDirectory: flagValue({
-      argumentWords: argumentLine,
-      flag: '--log-dir',
-      fallback: defaultLogDirectory(),
-    },),
-    keepGuest: flagGiven({
-      argumentWords: argumentLine,
-      flag: '--keep-guest',
-    },),
-  };
+function options(): GuestDriverOptions {
+  return guestDriverOptions({
+    argv: process.argv
+      .slice(2,),
+    defaultName: DEFAULT_GUEST_NAME,
+    defaultLogDir: defaultLogDirectory(),
+  },);
 }
 
 //endregion Arguments
@@ -243,7 +218,7 @@ function options(): Options {
  await create({ chosen });
  ```
  */
-async function create({ chosen, }: { readonly chosen: Options; },): Promise<void> {
+async function create({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
   /**
    What `mvm list` answered, which names every guest this account holds.
    */
@@ -258,9 +233,8 @@ async function create({ chosen, }: { readonly chosen: Options; },): Promise<void
   },)) {
     throw new GuestDriverError(`a guest named ${chosen.name} is already listed; name another with --name`,);
   }
-  await runGuestRecipeStep({
-    name: chosen.name,
-    logDirectory: chosen.logDirectory,
+  await recipe({
+    chosen,
     step: 'create',
   },);
 }
@@ -277,10 +251,9 @@ async function create({ chosen, }: { readonly chosen: Options; },): Promise<void
  await prepare({ chosen });
  ```
  */
-async function prepare({ chosen, }: { readonly chosen: Options; },): Promise<void> {
-  await runGuestRecipeStep({
-    name: chosen.name,
-    logDirectory: chosen.logDirectory,
+async function prepare({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
+  await recipe({
+    chosen,
     step: 'prepare',
   },);
   /**
@@ -302,13 +275,11 @@ async function prepare({ chosen, }: { readonly chosen: Options; },): Promise<voi
     'echo "measured $measured from the archive" >> /root/sanoid-install.log',
     'tail --lines=6 /root/sanoid-install.log',
   ].join('\n',);
-  await runGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+  await guest({
+    chosen,
     script,
     log: 'guest-sanoid-install.log',
     timeoutMilliseconds: SANOID_INSTALL_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
   },);
 }
 
@@ -324,67 +295,8 @@ async function prepare({ chosen, }: { readonly chosen: Options; },): Promise<voi
  await build({ chosen });
  ```
  */
-async function build({ chosen, }: { readonly chosen: Options; },): Promise<void> {
-  /**
-   The build context the wrapper's tree is copied into before it is packed.
-   */
-  const context = join(
-    chosen.logDirectory,
-    'snapshot',
-  );
-  await rm(
-    context,
-    {
-      recursive: true,
-      force: true,
-    },
-  );
-  await mkdir(
-    context,
-    {
-      recursive: true,
-      mode: 0o700,
-    },
-  );
-  await copyWrapperSnapshot({ context, },);
-  /**
-   The packed tree this run hands the guest.
-   */
-  const tarball = join(
-    chosen.logDirectory,
-    'subject.tar.gz',
-  );
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'tar',
-    argumentWords: [
-      '--create',
-      '--gzip',
-      '--file',
-      tarball,
-      '--exclude=target',
-      '--exclude=node_modules',
-      '--directory',
-      context,
-      '.',
-    ],
-    log: 'host-package.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
-  },);
-  await runRequiredStepCommand({
-    logDirectory: chosen.logDirectory,
-    program: 'mvm',
-    argumentWords: [
-      '--backend',
-      'libvirt',
-      'push',
-      chosen.name,
-      tarball,
-      '/root/subject.tar.gz',
-    ],
-    log: 'guest-push.log',
-    timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
-  },);
+async function build({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
+  await pushWorktreeSnapshot({ chosen, },);
   /**
    The script the guest runs to unpack and build the crate.
    */
@@ -405,13 +317,11 @@ async function build({ chosen, }: { readonly chosen: Options; },): Promise<void>
     'tail --lines=5 /root/sanoid-coverage-build.log',
     'exit $status',
   ].join('\n',);
-  await runGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+  await guest({
+    chosen,
     script,
     log: 'guest-crate-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
   },);
 }
 
@@ -427,7 +337,7 @@ async function build({ chosen, }: { readonly chosen: Options; },): Promise<void>
  await arm({ chosen });
  ```
  */
-async function arm({ chosen, }: { readonly chosen: Options; },): Promise<void> {
+async function arm({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
   /**
    The script the guest runs to perform the arm and print its log.
    */
@@ -447,29 +357,24 @@ async function arm({ chosen, }: { readonly chosen: Options; },): Promise<void> {
   /**
    What the guest printed, which is the arm's own log.
    */
-  const pulled = await runGuestScript({
-    logDirectory: chosen.logDirectory,
-    name: chosen.name,
+  const pulled = await guest({
+    chosen,
     script,
     log: 'guest-arm.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
-    guestTimeoutMarginSeconds: GUEST_TIMEOUT_MARGIN_SECONDS,
   },);
-  if (holdsWordLine({
+  if (holdsLineStartingWith({
     text: pulled,
     word: SKIP_WORD,
   },)) {
     throw new GuestDriverError('the arm printed SKIP inside the guest: its variables did not reach it',);
   }
-  /**
-   The first claim the arm's own output lacks a line for, which the run refuses on.
-   */
-  const [firstMissing] = missingMarkers({
+  requireMarkers({
     text: pulled,
     markers: GREEN_MARKERS,
+    subject: "the arm's own output",
+    because: 'the arm printed fewer claims than it must',
   },);
-  if (firstMissing !== undefined)
-    throw missingMarkerRefusal({ marker: firstMissing, },);
   process.stdout
     .write(`sanoid coverage arm passed ${String(GREEN_MARKERS.length,)} claim(s)\n`,);
 }
@@ -486,51 +391,39 @@ async function arm({ chosen, }: { readonly chosen: Options; },): Promise<void> {
  await destroy({ chosen });
  ```
  */
-async function destroy({ chosen, }: { readonly chosen: Options; },): Promise<void> {
-  if (chosen.keepGuest) {
+async function destroy({
+  chosen,
+  keepGuest,
+}: {
+  readonly chosen: GuestFacts;
+  readonly keepGuest: boolean;
+},): Promise<void> {
+  if (keepGuest) {
     process.stdout
       .write(`kept ${chosen.name}\n`,);
     return;
   }
-  await runGuestRecipeStep({
-    name: chosen.name,
-    logDirectory: chosen.logDirectory,
+  await recipe({
+    chosen,
     step: 'destroy',
   },);
 }
 
 /**
- How the work of one `all` run went: what refused, or nothing when nothing did.
- */
-type WorkOutcome = {
-  readonly refusal?: unknown;
-};
+ Build the crate in the guest and run the coverage arm there.
 
-/**
- Prepare, build and run the arm, reporting what refused instead of raising it.
+ @param chosen - the run's guest and log folder
 
- The three are one answer because the guest goes whatever any of them said: `all` destroys the guest it created even
- when the work refused, and a destruction that refused is the failure the run reports.
-
- @param chosen - the run's options
-
- @returns what refused, or nothing when the whole of the work passed
+ @throws GuestDriverError when the build or the arm refused
 
  @example
  ```ts
- const outcome = await attemptWork({ chosen });
+ await buildAndRunTheArm({ chosen });
  ```
  */
-async function attemptWork({ chosen, }: { readonly chosen: Options; },): Promise<WorkOutcome> {
-  try {
-    await prepare({ chosen, },);
-    await build({ chosen, },);
-    await arm({ chosen, },);
-    return {};
-  }
-  catch (caught) {
-    return { refusal: caught, };
-  }
+async function buildAndRunTheArm({ chosen }: { readonly chosen: GuestFacts },): Promise<void> {
+  await build({ chosen, },);
+  await arm({ chosen, },);
 }
 
 /**
@@ -545,15 +438,23 @@ async function attemptWork({ chosen, }: { readonly chosen: Options; },): Promise
  await all({ chosen });
  ```
  */
-async function all({ chosen, }: { readonly chosen: Options; },): Promise<void> {
-  await create({ chosen, },);
-  /**
-   How the work went, kept until the guest is gone so a destruction that refused is the failure a person reads.
-   */
-  const outcome = await attemptWork({ chosen, },);
-  await destroy({ chosen, },);
-  if (outcome.refusal !== undefined)
-    throw refusalOf({ caught: outcome.refusal, },);
+async function all({ chosen, }: { readonly chosen: GuestDriverOptions; },): Promise<void> {
+  await runWholeGuestRun({
+    label: 'git-policy sanoid-coverage guest',
+    chosen,
+    keepGuest: chosen.keepGuest,
+    steps: {
+      create,
+      prepare,
+      work: buildAndRunTheArm,
+      destroy: async function destroyTheGuest({ chosen: facts }: { readonly chosen: GuestFacts }) {
+        await destroy({
+          chosen: facts,
+          keepGuest: chosen.keepGuest,
+        },);
+      },
+    },
+  },);
 }
 
 //endregion Steps
@@ -563,14 +464,47 @@ async function all({ chosen, }: { readonly chosen: Options; },): Promise<void> {
 /**
  The steps this driver knows, and nothing else.
  */
-const steps: Record<string, (run: { readonly chosen: Options; }) => Promise<void>> = {
-  create,
-  prepare,
-  build,
-  arm,
-  destroy,
-  all,
-};
+const steps: ReadonlyMap<string, (chosen: GuestDriverOptions,) => Promise<void>> = new Map([
+  [
+    'create',
+    async function createStep(chosen: GuestDriverOptions,) {
+      await create({ chosen, },);
+    },
+  ],
+  [
+    'prepare',
+    async function prepareStep(chosen: GuestDriverOptions,) {
+      await prepare({ chosen, },);
+    },
+  ],
+  [
+    'build',
+    async function buildStep(chosen: GuestDriverOptions,) {
+      await build({ chosen, },);
+    },
+  ],
+  [
+    'arm',
+    async function armStep(chosen: GuestDriverOptions,) {
+      await arm({ chosen, },);
+    },
+  ],
+  [
+    'destroy',
+    async function destroyStep(chosen: GuestDriverOptions,) {
+      await destroy({
+        chosen,
+        keepGuest: chosen.keepGuest,
+      },);
+    },
+  ],
+  [
+    'all',
+    async function allStep(chosen: GuestDriverOptions,) {
+      await all({ chosen, },);
+    },
+  ],
+],);
 
 /**
  The options this run was given.
@@ -580,17 +514,17 @@ const chosen = options();
 /**
  The step this run performs, or nothing when the command line named one this driver does not know.
  */
-const step = steps[chosen.step];
+const step = steps.get(chosen.step,);
 if (step === undefined) {
-  throw new GuestDriverError(`unknown step ${chosen.step}; give create, prepare, build, arm, destroy or all`,);
+  throw new GuestDriverError(`unknown step '${chosen.step}'; use ${[...steps.keys(),].join(', ',)}`,);
 }
 await mkdir(
-  chosen.logDirectory,
+  chosen.logDir,
   {
     recursive: true,
-    mode: 0o700,
+    mode: FOLDER_MODE,
   },
 );
-await step({ chosen, },);
+await step(chosen,);
 
 //endregion The command line

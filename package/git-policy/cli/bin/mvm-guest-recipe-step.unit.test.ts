@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { guestRecipePath, } from './guest-route-commands.ts';
+import { guestRecipePath, } from './mvm-guest-recipe-step.ts';
 
 /** Where the recipe sits below the package this driver belongs to, which the resolved path has to end with. */
 const RECIPE_FROM_THE_PACKAGE = '/package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts';

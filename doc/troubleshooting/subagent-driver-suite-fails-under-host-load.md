@@ -475,6 +475,143 @@ moved verbatim on 2026-11-23:
   that test file alone failed 5 of 6 rounds with 6 of 18 stores empty for their whole life,
   and a probe of the fixture's own shape with eight children in flight captured nothing in 4 of 80 waits for `exit` and the whole document in 80 of 80 waits for `close`.
 
+## The fixture deadline that failed at a small cap, and what sizes it now
+
+`createSopsFixture`,
+`encryptJson`,
+`decryptStore`
+and `createIdentityFile`
+bound every tool call through `runCommand`
+(`package/env-local-json/core/src/fixture.ts`),
+and on 2026-11-27 that bound was 2,000 ms.
+The round that merged as `25dec7b462`
+measured it on a host with four other Pi runs and two other Claude runs,
+where the slowest whole `createSopsFixture` call took 18.7 ms,
+and its own report found the bound failing
+when that fixture ran inside this suite:
+at `CPUQuota=400%`
+four `sops --encrypt` calls failed with
+`did not complete within 2000 ms`,
+while the same suite at 700 percent passed every file that loaded.
+The bound is a guard against a tool that never closes its output,
+and a call that was merely slow under a small cap was failed by it.
+
+### What the two caps measured on 2026-11-27
+
+One run of `mise run //package/pi-shared/subagent-driver:test:unit` was made at
+each cap,
+with the fixture's deadline lifted to 600,000 ms by a `NODE_OPTIONS` loader that
+rewrote the module as it loaded:
+the shipped default was never edited,
+and no call was cut short.
+Every call inside both runs recorded its own wall-clock duration.
+The other-run counts come from
+`ps -eo args | grep 'drive-pi-subagent.ts --run-folder='`,
+which matches its own `grep` process
+(a probe at 2026-11-27T19:33:31-05:00 counted 31 that way and 30 with
+`[d]rive-pi-subagent`),
+so the figures below already have that one taken off.
+
+- At `CPUQuota=400%`,
+  between 2026-11-27T19:16:30-05:00 and 2026-11-27T19:19:03-05:00:
+  36 calls,
+  median 104.2 ms,
+  slowest 4597.5 ms,
+  which is a `sops --encrypt` call and one of the 36 that the 2,000 ms bound
+  would have failed;
+  18 `sops --encrypt` calls had a median of 392.8 ms
+  and 18 `age-keygen` calls a median of 99.7 ms.
+  Load average was 23.23 when the run started and 33.56 when it ended,
+  with 10 and then 12 other Pi runs and two Claude runs in the process list.
+  The suite passed,
+  228 `[PASS]` lines.
+- At `CPUQuota=1000%`,
+  the cap a Pi round runs under,
+  between 2026-11-27T19:20:18-05:00 and 2026-11-27T19:21:57-05:00:
+  36 calls,
+  median 39.3 ms,
+  slowest 513.7 ms,
+  and no call came near the old bound.
+  Load average was 12.94,
+  with 28 other Pi runs and two Claude runs in the process list at the start
+  and 12 other Pi runs at the end.
+  The suite passed,
+  228 `[PASS]` lines.
+
+### The default now, and what it stands to
+
+`FIXTURE_COMMAND_TIMEOUT_MS` is 15,000 ms.
+It is 3.3 times the slowest call measured under the 400 percent cap
+and 29 times the slowest under 1000 percent,
+it is 5.9 times the 2,564 ms stall a 4 KiB write-and-sync probe saw on
+2026-11-17,
+and it is no stricter than `SOPS_TIMEOUT_MS`,
+the deadline the reader gives the same `sops` child,
+so a fixture fails no call the shipped reader waits out.
+Fifteen seconds is an engineering bound from one run per cap,
+not a demonstrated worst case:
+it says how long a hang may last,
+not that no host will ever make a call slower than it.
+A tool that truly hangs now costs 15 s before its process group is stopped,
+where it cost 2 s:
+that is what a bound large enough for the calls above costs,
+and each test of the fixture makes a handful of calls.
+
+The whole suite was then run once more at `CPUQuota=400%` with the shipped
+default in place and no loader:
+between 2026-11-27T19:27:05-05:00 and 2026-11-27T19:29:37-05:00,
+load average 6.76 rising to 9.19,
+with 10 other Pi runs and two Claude runs in the process list,
+it passed every file,
+228 `[PASS]` lines,
+and no call met the deadline.
+That is the cap where the 2,000 ms bound failed four calls on 2026-11-27.
+
+### Why 32 test files ran under a 400 percent cap
+
+The count is decided by this repository's own test runner,
+not by a third-party one:
+the `test:unit` template in the root `mise.toml`
+runs every `*.unit.test.ts` through `runTestFiles`,
+whose `fileWorkerPlan` sets the worker count to
+`Math.min(availableParallelism(), fileCount)`.
+This package has 76 unit test files,
+so the plan was 32 workers,
+and `availableParallelism()` reads the affinity mask:
+inside a `CPUQuota=400%` scope `nproc` reported 4
+and `availableParallelism()` still reported 32,
+so 32 files shared four processors' worth of time.
+The plan does honour a cgroup pids limit,
+through `MONOCHROMATIC_TEST_FILE_TASKS` and the nearest `pids.max`,
+but that sizes processes,
+not processors.
+
+The quota is readable next to the affinity mask:
+inside a `CPUQuota=400%` scope,
+the scope's own
+`/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/agent.slice/agent-work.slice/run-p4152182-i96316691.scope/cpu.max`
+held `400000 100000`,
+`Cpus_allowed_list` still read `0-31`,
+`nproc` reported 4,
+and `availableParallelism()` reported 32.
+So `nproc` from coreutils 9.12 already answers what the runner needs,
+and Node asks a different question.
+
+A cure there would walk from the process's own cgroup node up,
+as `nearestPidsLimit` already does for `pids.max`,
+read the first finite `cpu.max`,
+and cap the worker count at its `quota/period`,
+so 400 percent planned 4 workers and 1000 percent planned 10.
+What it costs:
+a fallback for the hierarchy where `cpu.max` is absent (the root of
+`/sys/fs/cgroup` on this host has none),
+another for cgroup v1 hosts and containers,
+a floor of one worker,
+and more wall-clock time for a suite that finished in about 150 s at 32
+workers while most of its files wait on processes rather than burn processors.
+This round changes nothing there;
+the choice is the owner's.
+
 ## Limits of this record
 
 - The failing test name from the original report was never kept,
