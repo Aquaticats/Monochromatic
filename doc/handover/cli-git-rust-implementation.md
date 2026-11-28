@@ -1595,51 +1595,7 @@ held or removed stay as the round that joined two `mpm-shadow` rounds picked the
 with the owner's veto open and the read's costs written beside them
 (`doc/handover/questions-for-the-owner.md`).
 
-What `cargo-shadow`'s alpha.16 read found
-(`~/temp/agent/cargo-shadow-alpha-16-release-review-2026-11-27/keep/review.md`,
-a same-vendor second pass,
-its end state taken 2026-11-27T19:12:03-05:00):
-no High and no Medium finding,
-and four Low.
-What it confirmed with both released binaries:
-across real reexecs of a container's own manager,
-13 of 13 calls per arm that began inside a reexec took the weaker path under `0.1.5-alpha.15`
-and the delegated route under `0.1.5-alpha.16`;
-the kinds of later run after a kept journal,
-and the fast path,
-behave the same on both releases;
-and where the manager answers at once the two differ in 12 of 240 compared files,
-the version lines and the help of `install` and `update`,
-which now prints the long layout for every option,
-a change no record names.
-Its findings.
-The five asks,
-about 0.9 s against about 0.04 s,
-are spent in 11 of 24 states of a host with no manager,
-where the README says the span is spent where a manager answers "and nowhere else";
-plain files at the socket names and a live bus with no manager are named by no record.
-The read of the host counts the bus socket and the bus address,
-transports that `systemctl --user` of systemd 262.2 does not take when `XDG_RUNTIME_DIR` is set,
-where the code's comments say the reverse;
-a guest on systemd 255 was answered over the bus,
-so the versions may differ.
-A manager that is reachable and refuses at once,
-shown with `app.slice` masked,
-is asked five times (941 ms against 68 ms),
-and so is an answer that is not a path,
-which no control and no record names.
-And three edits leave every control green:
-the new `ENODEV` row skipping the check that the absence is verified,
-one ask fewer or a shorter pause,
-and the removal of the check for the manager's directory.
-The read broke its brief in two places and said so:
-four `--version` calls ran outside a scope,
-and it looked at one running batch more than twice.
-Its containers are gone and it left no scope.
-The coordinator's weighing:
-all four are taken by the one round the release's passage names,
-since they meet in the same files.
-Its picks,
+The `cargo-shadow` alpha.16 read's picks,
 the coordinator's own with the veto open:
 the read counts the transports the ask can take,
 shown from systemd's source at both versions;
