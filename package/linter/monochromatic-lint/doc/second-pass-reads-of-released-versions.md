@@ -339,8 +339,8 @@ so this round took the brief's pick:
 the width is the host line's.
 The veto stays open.
 `doc/planning/monochromatic-lint-a-line-break-at-no-semantic-boundary-is-or-is-not-a-finding.md`,
-question 4,
-records that an earlier round refused a host-aware bound and asks the owner which bound to use;
+decision 3,
+records that an earlier round refused a host-aware bound and asks the owner for a veto;
 that note now says what the shipped code does and that the owner has not been asked since.
 
 #### The quote marker the README said was not written (Low 8)
@@ -544,7 +544,7 @@ in its own capped scope:
   The shipped code now counts the host line,
   including the marker and the host indent.
   An earlier round refused that bound,
-  and the proposal's question 4 asks for the choice.
+  and the proposal's decision 3 asks for the veto.
   The way not taken is the projection's width with a corrected README,
   which costs a rule that writes lines over the limit it enforces.
 - Whether the join should reach a line the author wrote alone.
