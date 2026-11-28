@@ -1307,6 +1307,12 @@ where a step's duration is its whole step:
 - `e2e/start-probe-arms/timing-arms.ts:198` is the `timings-boot-first` arm,
   with a bound of 900 s.
   It took 12 s.
+- `e2e/lost-event-arms/zed-arms.ts`'s judge is the one test the lost-event
+  driver runs plainly,
+  with a bound of 300 s.
+  It is not timed on its own;
+  it reads the deliveries and the receipts the case script left and prints
+  `LOST-EVENTS every case held`.
 
 ## The step 22 measurement driver
 
@@ -1334,3 +1340,61 @@ so a round that needs the numbers again runs it by hand.
 # package/git-policy/cli: one throwaway guest for the whole measurement
 node e2e/zfs-step-22-measurements-guest.ts all --name <guest> --log-dir <dir>
 ```
+
+## The lost-event triggers' guest cases
+
+`lost-event-triggers-guest.ts` runs plan step 19's lost-event cases in a guest
+with a real `zfs-zed.service`:
+
+- an event a ZED start replays,
+- a dropped event with nobody waiting,
+- a dropped event with a live caller,
+- two zedlets ZED forked at once,
+- a stale receipt,
+- and a pending unmount across a restart.
+
+The handler side is built ahead of the wiring that calls it,
+so the installed zedlet is this arm's own:
+`/etc/zfs/zed.d/history_event-mount_git_worktree_clone_datasets` runs one test
+of the crate's `native_binary` target,
+and that process reads the delivery ZED handed it,
+decides it through the released `worktree_clone_mount_event_filter`,
+and,
+when the event passes,
+runs the released `worktree_clone_mount_sweep_merge` around a stand-in pass
+that files the product's receipt.
+The stand-in is the pass's work alone:
+it reads the request the driver wrote under `/opt/lost-events`,
+because the sweep that reads a clone's intent property is plan step 8's.
+Everything else is the product's:
+the filter's rule and words,
+the device's folder under `/run`,
+its claim and its mark,
+and the receipt writer.
+
+The fixture is the guest's own file-backed pool `zfsr9`:
+a clone parent,
+one clone under it,
+and a dataset outside the parent whose property change is the event the filter
+drops.
+The cases change only the guest's `/etc/zfs/zed.d`,
+its `zfs-zed.service` and its
+`/run`.
+
+```sh
+# package/git-policy/cli: one throwaway guest for the whole arm
+node e2e/lost-event-triggers-guest.ts all --name zfs-r9-lost-event-triggers --log-dir <dir>
+```
+
+The evidence is `lost-event-arm.log`,
+which carries one `LOST-EVENT` line per case,
+and `lost-event-judge.log`,
+which carries the judge's claims and ends `LOST-EVENTS every case held`.
+The driver refuses a case log that lacks one of its lines and a judge that did
+not print the last one,
+so an arm that returned without running fails the run.
+`--keep-guest` keeps a failed run's guest to inspect.
+
+Its build runs detached (`e2e/adoption-guest-arms/detached-step.ts`),
+because a test build of this crate takes minutes in a guest,
+and its one plain `guest()` command is the judge above.

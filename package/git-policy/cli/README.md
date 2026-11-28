@@ -2689,6 +2689,43 @@ The migration,
 the property changes and the install are your own act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
 
+#### The event filter and the merge device, built and reached by no command
+
+Plan step 19's lost-event triggers have a handler side in two folders,
+and no command reaches either of them in this release.
+
+`src/native/worktree_clone_mount_event_filter/` is the event filter:
+ZED starts the installed handler for every history event of every pool,
+and this rule reads the delivery's own pool and dataset and drops everything
+that is not about your clone parent or a dataset below it.
+A drop writes one line and opens nothing,
+so a dropped event costs the fork ZED already paid and no pass.
+A delivery that named no pool,
+no dataset,
+or whose parent name could not be read is let through instead,
+because the handler's own checks then decide on live facts.
+The cost of that bound is the accidental recovery an unrelated event would have
+given,
+which the accepted design states.
+
+`src/native/worktree_clone_mount_sweep_merge/` is the merge device:
+two triggers that arrive together need one pass that reads the clone after both
+writes,
+so one event-driven pass holds a run claim under `/run`,
+a trigger that finds the claim held writes the mark `another-pass-is-due` and
+tries once more without waiting,
+and a mark a running pass finds buys it exactly one more pass.
+A mark that survives that second pass waits for the next trigger.
+The device is cost and never safety:
+a record it cannot read is reported and the pass runs,
+and the per-slot claim is what keeps two passes safe on one clone.
+The pass budget and its number are plan step 22's,
+so nothing here reads or writes one.
+
+No command reaches either folder yet:
+the filter's call at the head of the handler's dispatch and the device's call at
+the entry of the default sweep are plan step 19's wiring.
+
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
 Plan step 20's checks are built in `src/native/health/sanoid_coverage/`:

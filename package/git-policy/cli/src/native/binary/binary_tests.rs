@@ -1281,6 +1281,16 @@ mod zfs_add_guest;
 #[path = "binary_zfs_sweep_guest_tests.rs"]
 mod zfs_sweep_guest;
 
+/// Plan step 19's lost-event cases in a guest with a real ZED:
+/// an event a ZED start replays,
+/// a dropped event with and without a live caller,
+/// zedlets run at once,
+/// a stale receipt,
+/// and a pending unmount across a restart,
+/// driven through this crate's own event filter and merge device.
+#[path = "binary_zfs_lost_event_triggers_guest_tests.rs"]
+mod zfs_lost_event_triggers_guest;
+
 /// Plan step 22's guest measurements:
 /// the add against ordinary Git,
 /// the waits,
