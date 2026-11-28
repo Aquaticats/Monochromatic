@@ -349,6 +349,29 @@ pub enum RemovalStop {
         /// The clone that answered.
         clone: String,
     },
+    /// The registration's lock holds words this add cannot attribute to itself,
+    /// so a person's lock may stand on it and the removal refuses before its first
+    /// write.
+    TheLocksWordsAreNotThisAdds {
+        /// The slot the lock stands on.
+        slot: String,
+        /// What the lock holds,
+        /// or why its read refused it.
+        cause: String,
+    },
+    /// The pool could not prove whether the clone a standing plan names is
+    /// gone,
+    /// so the plan's own resume path cannot be chosen.
+    TheClonesAbsenceCouldNotBeProved {
+        /// The slot the plan belongs to.
+        slot: String,
+        /// The plan's file.
+        path: PathBuf,
+        /// The plan's head word.
+        head: String,
+        /// What the read answered.
+        reason: String,
+    },
     /// The registration settle refused.
     TheSettleRefused {
         /// The step that refused.

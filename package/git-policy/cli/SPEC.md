@@ -5113,18 +5113,20 @@ and every step reads the state a kill at the step before it leaves:
   sentence,
   which names the person's `git worktree unlock <slot>` as the way out,
   and nothing is removed or rewritten.
-- The lock is released only by the registration-cleanup step,
-  which is plan step 16's,
+- The lock is released only by the removal's registration-cleanup step,
   and only after the recorded clone's destruction is proven
   (`src/native/worktree_clone_managed_lock/clone_destruction_proof.rs` and
-  `lock_release.rs`).
-  This release calls neither:
-  the release refuses a proof made for another slot or another clone,
+  `lock_release.rs`),
+  which a `git worktree remove` of the slot reaches through the removal's Git settle.
+  The release refuses a proof made for another slot or another clone,
   a clone that still answers,
   a pool that could not be read,
   a record that names no clone GUID,
-  and a lock that is not this add's own,
-  and no command of this release reaches it.
+  and a lock that is not this add's own.
+  The removal reads the lock before its first write,
+  so a lock holding a person's words refuses the removal before anything is
+  destroyed
+  (the section "Removal of a ZFS worktree clone" below).
   Nothing else releases the lock,
   and reading a slot never changes one.
 - If no frozen capture stands,
@@ -5629,7 +5631,11 @@ a pending add whose record has reached the phase that makes a clone
 (`cloned` or `settling`) is the exception:
 an unreadable mount table alone would say whether that clone is mounted at the slot,
 so it refuses the removal until it can be read;
-a pending removal is left to Git,
+a pending removal is the removal's own:
+a slot a destruction plan names is taken by the wrapper's removal,
+which reads the plan,
+proves every name the plan records again and ends it,
+as the section "Removal of a ZFS worktree clone" below states;
 and a slot whose binding record cannot be read is refused rather than left to Git,
 naming the record and what to repair,
 as `git worktree move` already refuses it.
@@ -5646,9 +5652,11 @@ Each of the three refuses before Git with what could not be proved and the repai
 that ends it,
 so no pool is read to make the answer.
 A phase that disagrees with its mount and a destruction plan nobody could read are
-still left to Git,
+still left to Git when no plan naming the clone stands,
 because the answer names these three and no more,
-and the slot's report says which reading it met.
+and a destruction plan that reads names the clone before the phase and the mount
+are compared,
+so the slot's report says which reading it met.
 A global option this build does not know is refused rather than forwarded while the
 repository holds slot records:
 `git worktree remove` and `git worktree move` behind such an option stop before Git,
@@ -5751,8 +5759,8 @@ and the sentences it prints are the ones the classification and the add's refusa
 
 What this release does not do:
 
-- It does not release the managed lock;
-  the release belongs to the registration-cleanup step that plan step 16 builds,
+- The repair report does not release the managed lock;
+  the release belongs to the removal's registration-cleanup step,
   after the recorded clone's destruction is proven.
 - It does not remove a clone the wrapper's own removal refuses;
   the removal's own checks are the whole of what decides,
@@ -6082,6 +6090,49 @@ and no outcome is ever replaced with a guess.
 The head's own request is the one in-flight state the record stores,
 and it is written before the request.
 
+A slot a destruction plan names is the removal's own:
+`worktree_copying::worktree_removal_of_a_bound_clone::the_removal_with` takes it,
+so every spelling of `git worktree remove`,
+`-f -f` among them,
+runs the wrapper's removal instead of Git's.
+The order's own resume then reads the plan and the live pinned parent,
+and no other fact decides its path
+(`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+"Which resume path a removal takes"):
+
+- The recorded clone answers under the pinned parent,
+  so the head-present path runs:
+  the plan is adopted under this run's nonce,
+  every name it records is proved again by its recorded GUID,
+  no request names a snapshot the plan records as `destroyed`,
+  the loss the plan records is carried into the report,
+  and the removal's own records end the plan.
+- The clone's GUID and name are absent and the head word is `requested`,
+  `unknown` or `gone`,
+  so the head-gone path runs and finishes the settle,
+  the binding's files and the plan.
+- The clone is gone and the head word is `present` or `refused`,
+  so the clone was destroyed outside its removal:
+  the run refuses and names the settling command.
+- A recorded name carries another clone's GUID,
+  so the name was reused:
+  the run refuses and names the reuse.
+- The pool cannot prove the absence,
+  so the run refuses,
+  names the plan and the failed read,
+  and names the settling command for every head word but `gone`,
+  whose route is the finish pass once the pool answers.
+
+A lock on the registration whose words are not the add's own refuses the removal
+before its first write,
+in the same words the add's own resume uses,
+because the Git settle is the order's only step that reads `locked` and it comes
+after every destroy:
+nothing is unmounted,
+nothing is destroyed,
+no intent is filed and no plan is written,
+and the sentence names `git worktree unlock <slot>`.
+
 What this release does not do:
 
 - It ends no holder and forces nothing.
@@ -6093,12 +6144,10 @@ What this release does not do:
   (`worktree_clone_origin_cleanup::origin_cleanup_look`)
   is reached from the removal's own step of that order,
   and the other four commands' look is not yet called.
-- It resumes no removal from a standing destruction plan through a command.
-  `worktree_clone_removal_proof_and_plan::removal_resume::start_the_removal` adopts a kept plan,
-  re-proves it and carries its loss forward,
-  but the command path takes only a slot it proves holds a whole clone,
-  and a slot a destruction plan names is one the command path leaves to Git,
-  so no command reaches that resume today and the plan waits for one that does.
+- It resumes no removal whose destruction plan it cannot read.
+  A slot whose plan does not read is left to Git with the other readings the
+  owner's answer of 2026-11-26 does not name,
+  and the slot's report says which reading it met.
 
 #### The cancel command
 

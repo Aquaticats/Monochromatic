@@ -2507,9 +2507,11 @@ and none of them reads a pool:
 Git's own removal would otherwise delete the registration and the underlay folder
 while a clone's files may stand behind the mount.
 A phase that disagrees with its mount and a destruction plan nobody could read are
-still left to Git,
+still left to Git when no plan naming the clone stands,
 because the answer names these three and no more,
-and the slot's report says which reading it met.
+and a destruction plan that reads names the clone before the phase and the mount
+are compared,
+so the slot's report says which reading it met.
 A `git worktree remove` or `git worktree move` behind a global option this build does not know
 (a spelling a newer Git may add) is refused while the repository holds slot records,
 because the option leaves the worktree's path unread and Git would then delete a bound
@@ -2553,9 +2555,12 @@ step by step:
   and a newly created own snapshot added to the plan,
   and the kept plan a killed,
   refused or cancelled run left,
-  which a resume proves again before any request for a name the plan does not record as destroyed,
-  and which no command of this release reaches,
-  because a slot a destruction plan names is one `git worktree remove` leaves to Git;
+  which the same command resumes:
+  the plan is adopted under the run's own nonce,
+  every name it records is proved again by its recorded GUID,
+  no request names a snapshot the plan records as destroyed,
+  the loss it records is carried into the report,
+  and the removal's own records end it;
 - the origin cleanup record,
   published before the first destroy,
   and the attempt that destroys the checkout's origin snapshot under the account's own
@@ -2867,9 +2872,12 @@ A lock holding a person's words is never overwritten:
 the add refuses,
 says what stands,
 and names `git worktree unlock <slot>` as the way out.
+A `git worktree remove` of that slot refuses for the same lock before its first
+write,
+and its sentence names the same command,
+so nothing of the clone is unmounted or destroyed while a person's lock stands.
 The lock is released only by the removal's registration-cleanup step,
-after the clone's destruction is proven,
-and this release does not release it.
+after the clone's destruction is proven.
 
 ### Converting the checkout to a btrfs subvolume
 

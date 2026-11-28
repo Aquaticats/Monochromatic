@@ -53,6 +53,8 @@
 //!   every way the removal stops.
 //! - `removal_stop_sentences.rs`:
 //!   the sentence each way of stopping prints.
+//! - `the_lock_a_removal_refuses.rs`:
+//!   the refusal a removal owes a lock whose words are not its add's.
 //! - `fresh_holder_scan.rs`:
 //!   the fresh all-namespace scan each destroy is preceded by.
 //! - `removal_identities.rs`:
@@ -200,6 +202,7 @@ pub mod removal_snapshot_settlement;
 pub mod removal_stop;
 pub mod removal_stop_sentences;
 pub mod started_moment;
+pub mod the_lock_a_removal_refuses;
 pub mod the_self_cancelling_seam;
 pub mod unmount_request;
 

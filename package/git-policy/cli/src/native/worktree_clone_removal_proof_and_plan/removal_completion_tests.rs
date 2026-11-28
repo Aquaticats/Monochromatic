@@ -55,26 +55,45 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
     a_marked_checks_pool,
     a_record_stands,
     a_scan_with_a_holder,
+    an_intent_property,
     complete,
     the_budget,
     the_checks_pool,
+    the_checks_pool_of,
     the_origin_full_name,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,
+    ORIGIN_SNAPSHOT_GUID,
+    OWN_CREATETXG,
+    OWN_GUID,
+    OWN_SNAPSHOT,
     RemovalFixture,
+    SANOID_CREATETXG,
+    SANOID_GUID,
+    SANOID_SNAPSHOT,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_report::OriginCleanupDone;
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::TheLiveSettle;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_removal_deferred_origin_check::fixtures::Pool;
+use crate::worktree_removal_deferred_origin_check::origin_mark::MARK_OFF;
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
 use std::cell::{
     Cell,
     RefCell,
 };
+use std::path::PathBuf;
 use std::rc::Rc;
 
 //endregion
+
+/// The bytes a person's `git worktree lock --reason 'ZFS test underlay'` leaves,
+/// which is the reason measurement item 6's guest gave and the newline Git's `write_file`
+/// completes it with (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+/// "Where the lock lives,
+/// and what Git reads it for").
+const PERSON_LOCK_WORDS: &[u8] = b"ZFS test underlay\n";
 
 #[test]
 fn a_healthy_removal_destroys_the_snapshots_the_head_and_the_origin_and_frees_the_slot() {
@@ -565,6 +584,296 @@ fn an_incomplete_namespace_read_is_carried_into_the_report() {
             .contains("namespace read(s) of the fresh scans could not be completed"),
         "{}",
         done.text()
+    );
+}
+
+/// What:
+///  A kept plan is resumed:
+///  the name it records as destroyed is never requested again,
+///  the loss it records is carried into the report,
+///  and the removal's own records end the plan.
+/// Why:
+///  This is the resume the accepted records ask for:
+///  the next removal of that clone reads the record,
+///  proves it,
+///  carries the loss forward and ends it
+///  (`doc/decision/cli-git-zfs-clone-worktree-records-seven-answers.md`,
+///  "How long the plan a cancellation keeps stays";
+///  `doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "Which resume path a removal takes").
+///  The plan's head stands and its clone answers,
+///  which is the head-present path,
+///  and the clone's own intent is the `unmount` request a person's cancellation
+///  left.
+#[test]
+fn a_kept_plan_is_resumed_without_a_request_for_a_name_it_records_as_destroyed() {
+    let fixture: RemovalFixture = a_fixture("completion-resume-kept");
+    let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    // The earlier run destroyed the clone's own snapshot, so the pool no longer lists it.
+    for listed in pool.lists.borrow_mut().iter_mut() {
+        if listed.0 == CLONE {
+            listed.1.retain(|object| return object.name != OWN_SNAPSHOT);
+        }
+    }
+    let plan: PathBuf = fixture.plant_a_plan(
+        HeadWord::Present,
+        vec![
+            fixture.a_line_of_the_plan(
+                SANOID_SNAPSHOT,
+                SANOID_GUID,
+                SANOID_CREATETXG,
+                0,
+                SnapshotOutcome::Planned,
+            ),
+            fixture.a_line_of_the_plan(
+                OWN_SNAPSHOT,
+                OWN_GUID,
+                OWN_CREATETXG,
+                0,
+                SnapshotOutcome::Destroyed,
+            ),
+        ],
+    );
+    let check: Pool = the_checks_pool_of(MARK_OFF, an_intent_property("unmount"));
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe {
+        pool: check,
+        hidden: Rc::clone(&hidden),
+    };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    let head: ScriptedHead = ScriptedHead::succeeding(
+        fixture.plan_folder(),
+        fixture.recorded().clone_guid,
+        Rc::clone(&hidden),
+    );
+    let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+    let settle: ScriptedSettle = ScriptedSettle::succeeding();
+    let done = complete(&TheCompletion {
+        fixture: &fixture,
+        pool: &pool,
+        check: &probe,
+        probe: &probe,
+        device: &device,
+        head: &head,
+        holders: &holders,
+        settle: &settle,
+        cancelling: None,
+        budget: the_budget(),
+    })
+    .expect("the kept plan is resumed and finished");
+    assert_eq!(
+        device.sent.borrow().clone(),
+        vec![
+            vec![format!("{CLONE}@{SANOID_SNAPSHOT}")],
+            vec![the_origin_full_name()],
+        ],
+        "the name the plan records as destroyed is never requested again"
+    );
+    assert!(
+        done.destroyed.contains(&format!("{CLONE}@{OWN_SNAPSHOT}")),
+        "the loss the plan recorded is carried into the report: {:?}",
+        done.destroyed
+    );
+    assert!(
+        done.destroyed
+            .contains(&format!("{CLONE}@{SANOID_SNAPSHOT}")),
+        "the name this run destroyed is reported beside it: {:?}",
+        done.destroyed
+    );
+    assert!(
+        done.records.plan_removed,
+        "the removal's own records end the plan"
+    );
+    assert!(
+        std::fs::symlink_metadata(plan.as_path()).is_err(),
+        "the plan's file is gone"
+    );
+}
+
+/// What:
+///  A plan that reads and names another origin than the add's record refuses the
+///  removal and changes nothing.
+/// Why:
+///  No record wins when the plan and the binding disagree:
+///  the removal refuses before the first delete,
+///  names the field,
+///  and rewrites neither
+///  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+///  "6.
+/// The binding record and the removal intent",
+///  "When they disagree").
+#[test]
+fn a_plan_that_names_another_origin_refuses_and_changes_nothing() {
+    let fixture: RemovalFixture = a_fixture("completion-plan-of-another-origin");
+    let plan: PathBuf = fixture.plant_a_plan(HeadWord::Present, Vec::new());
+    let planted: String = std::fs::read_to_string(plan.as_path()).expect("the planted plan reads");
+    // The plan still reads as one: only the field's value is another canonical GUID.
+    let another: String = String::from("11050373805378911968");
+    let rewritten: String = planted.replace(
+        format!("originSnapshotGuid={ORIGIN_SNAPSHOT_GUID}").as_str(),
+        format!("originSnapshotGuid={another}").as_str(),
+    );
+    assert_ne!(rewritten, planted, "the plan carries the field");
+    std::fs::write(plan.as_path(), rewritten).expect("the plan of another origin");
+    let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    let check: Pool = the_checks_pool();
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe {
+        pool: check,
+        hidden: Rc::clone(&hidden),
+    };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    let head: ScriptedHead = ScriptedHead::succeeding(
+        fixture.plan_folder(),
+        fixture.recorded().clone_guid,
+        Rc::clone(&hidden),
+    );
+    let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+    let settle: ScriptedSettle = ScriptedSettle::succeeding();
+    let stop: RemovalStop = complete(&TheCompletion {
+        fixture: &fixture,
+        pool: &pool,
+        check: &probe,
+        probe: &probe,
+        device: &device,
+        head: &head,
+        holders: &holders,
+        settle: &settle,
+        cancelling: None,
+        budget: the_budget(),
+    })
+    .expect_err("a plan of another origin is refused");
+    match &stop {
+        RemovalStop::IdentityDiffers {
+            object,
+            field,
+            ..
+        } => {
+            assert_eq!(object, "the standing destruction plan");
+            assert_eq!(*field, "originSnapshotGuid");
+        }
+        other => panic!("the plan's own identity refusal, not {other:?}"),
+    }
+    assert!(
+        device.sent.borrow().is_empty(),
+        "no snapshot request was sent: {:?}",
+        device.sent.borrow()
+    );
+    assert!(
+        head.sent.borrow().is_empty(),
+        "no head destroy was sent: {:?}",
+        head.sent.borrow()
+    );
+    assert!(plan.is_file(), "the refusal rewrote no plan");
+    assert!(
+        a_record_stands(&fixture, binding_name("fix-flaky-test").as_str()),
+        "the refusal changed no binding"
+    );
+}
+
+/// What:
+///  The order a removal meets a lock a person wrote,
+///  measured through the scripted seams:
+///  it refuses before a single request,
+///  and the sentence names the lock,
+///  what was not removed,
+///  and the one command that clears it.
+/// Why:
+///  Git refuses its own removal for a lock and steers a person to the double force,
+///  which here runs this wrapper's removal and destroys a clone and its snapshots
+///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+///  "What Git 2.56.1 does").
+///  Measured at `8bdae8a0d8`:
+///  with a person's lock on the fixture's registration,
+///  this same removal destroyed the clone's own snapshots,
+///  the origin snapshot and the head,
+///  and only then did the Git settle refuse the lock's words,
+///  because the settle is the order's only step that reads `locked`.
+///  So the lock is read before the first write now,
+///  and this control holds that:
+///  no request of either device,
+///  no intent and no plan.
+#[test]
+fn a_persons_lock_refuses_the_removal_before_any_request() {
+    let fixture: RemovalFixture = a_fixture("completion-persons-lock");
+    let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    let check: Pool = the_checks_pool();
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe {
+        pool: check,
+        hidden: Rc::clone(&hidden),
+    };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    let head: ScriptedHead = ScriptedHead::succeeding(
+        fixture.plan_folder(),
+        fixture.recorded().clone_guid,
+        Rc::clone(&hidden),
+    );
+    let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+    let locked: PathBuf = fixture.registration.join("locked");
+    std::fs::write(locked.as_path(), PERSON_LOCK_WORDS).expect("the person's lock");
+    let settle: TheLiveSettle = TheLiveSettle;
+    let stopped = complete(&TheCompletion {
+        fixture: &fixture,
+        pool: &pool,
+        check: &probe,
+        probe: &probe,
+        device: &device,
+        head: &head,
+        holders: &holders,
+        settle: &settle,
+        cancelling: None,
+        budget: the_budget(),
+    });
+    let stop: RemovalStop = match stopped {
+        Ok(done) => panic!(
+            "a person's lock refuses the removal, so nothing finishes: {}",
+            done.text()
+        ),
+        Err(stop) => stop,
+    };
+    match &stop {
+        RemovalStop::TheLocksWordsAreNotThisAdds {
+            slot,
+            cause,
+        } => {
+            assert_eq!(slot, "fix-flaky-test");
+            assert!(
+                cause.contains("ZFS test underlay"),
+                "the refusal names the lock's own words: {cause}"
+            );
+        }
+        other => panic!("the lock's own refusal, not {other:?}"),
+    }
+    assert!(
+        device.sent.borrow().is_empty(),
+        "no snapshot request was sent: {:?}",
+        device.sent.borrow()
+    );
+    assert!(
+        head.sent.borrow().is_empty(),
+        "no head destroy was sent: {:?}",
+        head.sent.borrow()
+    );
+    assert!(
+        std::fs::symlink_metadata(plans_folder(fixture.common()).as_path()).is_err(),
+        "no removal intent was filed and no plan was written"
+    );
+    let message: String = stop.message();
+    for said in [
+        "a person's lock may stand there",
+        "Nothing was unmounted, nothing was destroyed",
+        "`git worktree unlock fix-flaky-test`",
+        "`-f -f` among them",
+    ] {
+        assert!(
+            message.contains(said),
+            "the sentence says {said}: {message}"
+        );
+    }
+    assert!(
+        locked.is_file(),
+        "the person's lock stands where it was, and the removal never rewrote it"
     );
 }
 
