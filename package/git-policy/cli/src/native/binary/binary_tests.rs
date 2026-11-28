@@ -1350,6 +1350,11 @@ mod zfs_sanoid_coverage_guest;
 #[path = "binary_zfs_slot_state_guest_fixture.rs"]
 mod zfs_slot_state_guest_fixture;
 
+/// The origin-side inventory the add records for one slot,
+/// read from the throwaway guest's own pool.
+#[path = "binary_zfs_origin_inventory_guest_fixture.rs"]
+mod zfs_origin_inventory_guest_fixture;
+
 /// Plan step 12's arms:
 /// one real clone's mounted and unmounted class,
 /// a pending add and

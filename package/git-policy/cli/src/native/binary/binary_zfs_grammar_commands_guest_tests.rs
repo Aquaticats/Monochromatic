@@ -28,6 +28,7 @@
 //! expect(said.code).toBe(0); expect(said.stderr).toContain('cancelled the removal of');
 //! ```
 
+use super::zfs_origin_inventory_guest_fixture::write_the_origin_inventory;
 use super::zfs_slot_state_guest_fixture::{
     Place,
     publish,
@@ -51,7 +52,10 @@ use super::zfs_sweep_guest::{
 use git_policy_cli::worktree_clone_binding_record::binding_encoding::FolderIdentity;
 use git_policy_cli::worktree_clone_binding_record::binding_words::Phase;
 use git_policy_cli::worktree_clone_binding_record::registration_home::plans_folder;
-use git_policy_cli::worktree_clone_mount_protocol::clone_mount_intent::MountIntent;
+use git_policy_cli::worktree_clone_mount_protocol::clone_mount_intent::{
+    MountIntent,
+    intent_text,
+};
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_receipt::ReceiptOutcome;
 use git_policy_cli::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
@@ -66,6 +70,7 @@ use git_policy_cli::worktree_clone_removal_proof_and_plan::unmount_request::{
     RemovalUnmount,
     UnmountAnswer,
 };
+use std::cell::RefCell;
 use std::path::{
     Path,
     PathBuf,
@@ -207,17 +212,28 @@ impl TheFixture {
     ///  Build the layout,
     ///  the registration and the clone,
     ///  attach the clone at its slot,
-    ///  and publish the add's record of it.
+    ///  make the add's own exchange of the clone's copied administration for the
+    ///  registration pointer,
+    ///  and publish the add's records of it.
     /// Why:
-    ///  The mount and the record are what both commands prove,
+    ///  The mount and the records are what both commands prove,
     ///  and the slot's underlay identity is read before the mount because the
     ///  record holds it.
+    ///  A slot whose clone is mounted shows the clone's copy of the checkout's
+    ///  `.git` until the exchange runs,
+    ///  so a command that reads the slot's pointer would meet a directory rather
+    ///  than the registration the add installed.
     fn build(
         checkout: PathBuf,
         pool: String,
         sbin: String,
     ) -> TheFixture {
-        // One arm's fixtures are torn down before the next arm's, so a run that repeats an arm never meets it.
+        let slot: PathBuf = checkout.join(".claude").join("worktrees").join(SLOT);
+        // One arm's fixtures are torn down before the next arm's, so a run that repeats an arm never meets it: a clone
+        //  an earlier arm left mounted hides the underlay and holds the dataset a rebuild would destroy.
+        if super::zfs_sweep_guest::mount_row(slot.as_path()).is_some() {
+            unmount_at(slot.as_path());
+        }
         let _previous: std::io::Result<()> = std::fs::remove_dir_all(checkout.as_path());
         std::fs::create_dir_all(checkout.as_path()).expect("the checkout folder is made");
         let (checkout_dataset, container): (String, String) =
@@ -241,7 +257,6 @@ impl TheFixture {
                 "the arm's base",
             ],
         );
-        let slot: PathBuf = worktrees.join(SLOT);
         command_ok(
             "git",
             &[
@@ -292,7 +307,18 @@ impl TheFixture {
             "the sweep attached the clone: {}",
             attached.said
         );
+        // The add's own exchange, measured as item 1's order: the clone's copy of the checkout's administration moves
+        //  aside under the mount and the registration's pointer is installed in its place, so the slot Git validates is
+        //  the clone's root rather than the copied repository.
+        std::fs::rename(slot.join(".git"), slot.join("git-administered-copy"))
+            .expect("the copied administration moves aside");
+        std::fs::write(
+            slot.join(".git"),
+            format!("gitdir: {}\n", place.registration.display()),
+        )
+        .expect("the registration pointer is installed under the mount");
         publish(&place, Phase::Filled, sbin.as_str(), SLOT);
+        write_the_origin_inventory(&place, sbin.as_str(), SLOT);
         return TheFixture {
             checkout,
             sbin,
@@ -316,6 +342,9 @@ impl TheFixture {
 struct ADoneUnmount {
     /// The clone's GUID.
     clone_guid: DatasetGuid,
+    /// The call the entry asked for,
+    /// which the real unmount writes into the clone before it waits.
+    asked: RefCell<Option<MountIntent>>,
 }
 
 impl RemovalUnmount for ADoneUnmount {
@@ -326,6 +355,7 @@ impl RemovalUnmount for ADoneUnmount {
         UnmountAnswer,
         git_policy_cli::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop,
     > {
+        self.asked.replace(Some(intent.clone()));
         return Ok(UnmountAnswer {
             dataset: self.clone_guid,
             operation: intent.operation,
@@ -341,7 +371,7 @@ impl RemovalUnmount for ADoneUnmount {
 /// What:
 ///  The state a removal the wrapper was killed in leaves:
 ///  the entry's own plan,
-///  its `unmount` request,
+///  the clone's own `unmount` request,
 ///  the clone unmounted,
 ///  and a plan whose owner no longer runs.
 /// Why:
@@ -349,6 +379,9 @@ impl RemovalUnmount for ADoneUnmount {
 ///  which the cancel command refuses by design,
 ///  and a pid above `pid_max` cannot be alive,
 ///  so the record is the same one the entry wrote with a dead owner.
+///  The request goes into the clone as well as into the plan,
+///  because the real unmount writes the intent before it waits for the receipt,
+///  and a kill after that write leaves both.
 fn the_state_a_kill_leaves(fixture: &TheFixture) {
     let guid: DatasetGuid = fixture.guid();
     let entry: RemovalEntry<'_> = RemovalEntry {
@@ -358,9 +391,27 @@ fn the_state_a_kill_leaves(fixture: &TheFixture) {
     let reads: LiveRemovalReads = LiveRemovalReads::open().expect("the guest has /dev/zfs");
     let unmount: ADoneUnmount = ADoneUnmount {
         clone_guid: guid,
+        asked: RefCell::new(None),
     };
     enter_the_removal(&entry, &reads, &unmount, &TheLiveClock)
         .expect("the removal's own entry writes its plan");
+    let asked: MountIntent = unmount
+        .asked
+        .borrow()
+        .clone()
+        .expect("the entry asked for one unmount");
+    zfs_ok(
+        fixture.sbin.as_str(),
+        &[
+            "set",
+            format!(
+                "{DESIRED_STATE_PROPERTY}={}",
+                intent_text(asked.operation, &asked.nonce)
+            )
+            .as_str(),
+            fixture.clone.as_str(),
+        ],
+    );
     let mut plan: DestructionPlan =
         git_policy_cli::worktree_clone_removal_proof_and_plan::plan_reading::read_an_existing_plan(
             fixture.place.common.as_path(),
@@ -430,11 +481,17 @@ fn the_request(fixture: &TheFixture) -> String {
 ///  That a slot no removal has touched is refused by the cancel word itself,
 ///  with the caller's status and a sentence naming the slot.
 /// Why:
-///  This is the answer the plan's step 17 owes while the removal's command path
-///  is still cut:
-///  the word is admitted,
-///  it proves the records,
-///  and it says there is no removal to cancel rather than printing a usage text.
+///  A slot whose records hold no plan,
+///  no staged record and no `unmount` request,
+///  is not a removal,
+///  and a person who names it must not be told one was reversed:
+///  the word proves the records it already reads,
+///  answers its own sentence about this slot rather than the namespace's usage
+///  text,
+///  and ends in the caller's status.
+///  The slot is the one this fixture bound and mounted,
+///  because a name no folder answers is a damaged pointer rather than a slot
+///  whose records were read.
 #[test]
 fn the_cancel_word_refuses_a_slot_no_removal_has_touched() {
     if !in_the_guest() {
@@ -450,7 +507,7 @@ fn the_cancel_word_refuses_a_slot_no_removal_has_touched() {
         &[
             "monochromatic-git-policy-cli",
             "cancel-worktree-removal",
-            "no-such-slot",
+            SLOT,
         ],
     );
     let text: String = text_of(&answer);
@@ -460,7 +517,7 @@ fn the_cancel_word_refuses_a_slot_no_removal_has_touched() {
         "a slot that is no removal is the caller's mistake: {text}"
     );
     assert!(
-        text.contains("the slot `no-such-slot` is not being removed"),
+        text.contains("the slot `fix-flaky-test` is not being removed"),
         "{text}"
     );
     assert!(
