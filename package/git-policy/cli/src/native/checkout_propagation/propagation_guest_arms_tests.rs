@@ -228,15 +228,31 @@ fn one_state(
     let dataset: String = format!("{}/{CHECKOUT_DATASET_LEAF}", fixture.pool);
     let checkout: &Path = fixture.checkout.as_path();
     let text: &str = checkout.to_str().expect("a text path");
+    // This namespace starts as a peer of the guest's own table, so a mount made here would be delivered there. Each
+    // state fixes the propagation it is about before it mounts anything, so the guest's table keeps what it had.
     match state {
-        "shared" => mount_the_checkout(fixture, dataset.as_str()),
-        "private" => {
+        "shared" => {
+            make_the_tree_private(fixture);
+            make_the_root_shared(fixture);
             mount_the_checkout(fixture, dataset.as_str());
-            let (private, private_said) = fixture.ask("mount", &["--make-private", text]);
+        }
+        "private" => {
+            // Under a private parent a mount is private as soon as it exists, which is the state the step reports.
+            make_the_tree_private(fixture);
+            mount_the_checkout(fixture, dataset.as_str());
+        }
+        "unbindable" => {
+            make_the_tree_private(fixture);
+            mount_the_checkout(fixture, dataset.as_str());
+            let (unbindable, unbindable_said) = fixture.ask("mount", &["--make-unbindable", text]);
             assert!(
-                private,
-                "the mount could not be made private: {private_said}"
+                unbindable,
+                "the mount could not be made unbindable: {unbindable_said}"
             );
+        }
+        "slave" => {
+            make_the_parent_a_slave(fixture);
+            mount_the_checkout(fixture, dataset.as_str());
         }
         "shared+slave" => {
             // A mount made under a slave parent receives that parent's master, and making it shared again keeps the
@@ -245,18 +261,6 @@ fn one_state(
             mount_the_checkout(fixture, dataset.as_str());
             let (shared, shared_said) = fixture.ask("mount", &["--make-shared", text]);
             assert!(shared, "the mount could not be made shared: {shared_said}");
-        }
-        "slave" => {
-            make_the_parent_a_slave(fixture);
-            mount_the_checkout(fixture, dataset.as_str());
-        }
-        "unbindable" => {
-            mount_the_checkout(fixture, dataset.as_str());
-            let (unbindable, unbindable_said) = fixture.ask("mount", &["--make-unbindable", text]);
-            assert!(
-                unbindable,
-                "the mount could not be made unbindable: {unbindable_said}"
-            );
         }
         other => panic!("a state this arm does not know: {other}"),
     }
@@ -327,6 +331,8 @@ fn one_state(
 fn a_mount_that_is_not_the_checkout(fixture: &Fixture) -> String {
     let other: String = format!("{}/{OTHER_DATASET_LEAF}", fixture.pool);
     let checkout: &Path = fixture.checkout.as_path();
+    make_the_tree_private(fixture);
+    let before: String = propagation_of(fixture, checkout);
     let (mounted, mounted_said) = fixture.ask("zfs", &["mount", other.as_str()]);
     assert!(
         mounted,
@@ -346,7 +352,7 @@ fn a_mount_that_is_not_the_checkout(fixture: &Fixture) -> String {
     );
     assert_eq!(
         propagation_of(fixture, checkout),
-        "shared",
+        before,
         "the refusal changed nothing about the mount"
     );
     return format!(
@@ -719,6 +725,34 @@ fn instance_of(path: &Path) -> u64 {
     return unique_mount_number_of(&handle).expect("the descriptor's unique mount number");
 }
 
+/// Make this namespace's whole tree private, so nothing mounted here is delivered to the guest's own table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// exec('mount --make-rprivate /');
+/// ```
+fn make_the_tree_private(fixture: &Fixture) {
+    let (private, private_said) = fixture.ask("mount", &["--make-rprivate", "/"]);
+    assert!(
+        private,
+        "the namespace's tree could not be made private: {private_said}"
+    );
+}
+
+/// Make this namespace's root a shared mount of its own, so a mount made on it comes up shared and stays here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// exec('mount --make-shared /');
+/// ```
+fn make_the_root_shared(fixture: &Fixture) {
+    let (shared, shared_said) = fixture.ask("mount", &["--make-shared", "/"]);
+    assert!(
+        shared,
+        "the namespace's root could not be made shared: {shared_said}"
+    );
+}
+
 /// Make the folder the checkout is mounted in a slave of the namespace the arm came from,
 /// which is what makes a mount beneath it a slave rather than a shared mount.
 ///
@@ -746,9 +780,20 @@ fn mount_the_checkout(
     dataset: &str,
 ) {
     let (mounted, mounted_said) = fixture.ask("zfs", &["mount", dataset]);
+    if mounted {
+        return;
+    }
+    // A mount namespace that ended leaves OpenZFS still naming its dataset mounted, so the state a phase takes over is
+    // unmounted here before this phase's own mount.
     assert!(
-        mounted,
+        mounted_said.contains("already mounted"),
         "the dataset {dataset} could not be mounted: {mounted_said}"
+    );
+    let _unmounted: (bool, String) = fixture.ask("zfs", &["unmount", dataset]);
+    let (again, again_said) = fixture.ask("zfs", &["mount", dataset]);
+    assert!(
+        again,
+        "the dataset {dataset} could not be mounted after it was unmounted: {again_said}"
     );
 }
 
