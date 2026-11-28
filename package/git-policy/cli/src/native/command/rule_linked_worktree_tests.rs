@@ -15,14 +15,12 @@
 ///  its texts and the argument builder.
 use super::{
     DirtyQuestion,
-    DirtyWorktree,
     GuardedCommand,
     LINKED_WORKTREE_REQUIRED_CODE,
     LinkedWorktreeDecision,
     TargetTree,
     decide_linked_worktree,
     dirty_question,
-    dirty_worktree_message,
     exemption_notice,
     ignored_file_message,
     main_worktree_message,
@@ -40,6 +38,12 @@ use crate::command_test_support::{
     repository,
 };
 use crate::effective_target::EffectiveTarget;
+/// The dirty refusal,
+///  which moved into a sibling file of its own so the texts' module stays inside the linter's limit.
+use crate::rule_linked_worktree_dirty_refusal::{
+    DirtyWorktree,
+    dirty_worktree_message,
+};
 use crate::rule_worktree_dirty::DirtyScope;
 use std::ffi::OsString;
 use std::path::{
@@ -341,7 +345,8 @@ fn only_main_and_absent_worktrees_are_rejected() {
 /// Why:
 ///  Every assertion here is about the sentences a form gets,
 ///  and the two places a real refusal names are read from a repository these controls never build.
-///  The shape with two places has its own control, which builds the state a `!` alias hands a nested Git
+///  The shape with two places has its own control,
+///  which builds the state a `!` alias hands a nested Git
 ///  (`entry_shell_alias_judged_where_its_words_point_tests.rs`).
 ///
 /// In TS you'd write (pseudocode):

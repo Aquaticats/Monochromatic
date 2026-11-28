@@ -79,12 +79,6 @@ use crate::command_stash::{
 use crate::command_worktree::worktree_removal;
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
-/// The dirty refusal and the places it names,
-///  which the checks build from the identity they read and nothing outside this crate calls.
-pub(crate) use crate::rule_linked_worktree_messages::{
-    DirtyWorktree,
-    dirty_worktree_message,
-};
 pub use crate::rule_linked_worktree_messages::{
     exemption_notice,
     ignored_file_message,

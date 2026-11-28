@@ -34,7 +34,7 @@ use crate::policy_engine::{
     PolicyFinding,
     PolicyOutcome,
 };
-use crate::policy_linked_worktree::dirty_worktree;
+use crate::policy_linked_worktree_the_places_it_judged::dirty_worktree;
 use crate::policy_registry::PolicyId;
 use crate::policy_test_support::{
     ScriptedFacts,
@@ -48,12 +48,12 @@ use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::StagedSelection;
 use crate::rule_linked_worktree::{
     GuardedCommand,
-    dirty_worktree_message,
     exemption_notice,
     main_worktree_message,
     outside_worktree_message,
     repository_stash_message,
 };
+use crate::rule_linked_worktree_dirty_refusal::dirty_worktree_message;
 /// Whether a command writes the remote settings every worktree shares,
 ///  and the text its refusal prints.
 use crate::rule_shared_remote::{
