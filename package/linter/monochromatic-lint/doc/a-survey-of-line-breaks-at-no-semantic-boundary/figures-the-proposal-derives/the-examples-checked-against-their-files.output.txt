@@ -1,0 +1,119 @@
+Running as unit: run-p4149094-i104773136.scope; invocation ID: 0586077cb7694eccbf08cc5131e46855
+== A, doc  doc/philosophy/agents.md:313
+   the quoted text, read from the file:
+   |AD3 is a narrow architecture rule:
+   | prefer calling async functions directly over building descriptor objects that another
+   |interpreter executes.
+   the break ends at line 313 (the quotation's line 2 of 3)
+   class ordinary; clause 107 characters (lines 313..314); forced False
+   own line 11 words; next line 2 words; the clause opens on the break line: True
+
+== A, Rust doc  package/git-policy/cli/src/native/service/wait_ceilings.rs:71
+   the quoted text, read from the file:
+   |/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`);
+   |/// the service greeted the next time it was
+   |///  asked,
+   the break ends at line 71 (the quotation's line 2 of 3)
+   class ordinary; clause 48 characters (lines 71..72); forced False
+   own line 8 words; next line 1 words; the clause opens on the break line: True
+
+== B, doc  doc/philosophy/agents.md:606
+   the quoted text, read from the file:
+   | The available-skill description supplies the trigger;
+   | the enumerated
+   |detail lives in the skill.
+   the break ends at line 606 (the quotation's line 2 of 3)
+   class ordinary; clause 41 characters (lines 606..607); forced False
+   own line 2 words; next line 5 words; the clause opens on the break line: True
+
+== B, Rust doc  package/git-policy/cli/src/native/service/wait_ceilings.rs:192
+   the quoted text, read from the file:
+   |/// and so the longest a commit waits behind one:
+   |/// the longest
+   |///  self-released wait with a margin of five,
+   the break ends at line 192 (the quotation's line 2 of 3)
+   class ordinary; clause 54 characters (lines 192..193); forced False
+   own line 2 words; next line 7 words; the clause opens on the break line: True
+
+== D leaves (forced)  doc/philosophy/agents.md:180
+   the quoted text, read from the file:
+   |Any competent agent or developer already knows how to use `ripgrep` or when to reach for official documentation
+   |over source code.
+   the break ends at line 180 (the quotation's line 1 of 2)
+   class ordinary; clause 129 characters (lines 180..181); forced True
+   own line 18 words; next line 3 words; the clause opens on the break line: True
+
+== F1  .agents/skills/android-emulator/SKILL.md:22
+   the quoted text, read from the file:
+   | Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+   | `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+   the break ends at line 22 (the quotation's line 1 of 2)
+   class inline-span; clause 162 characters (lines 22..23); forced True
+   own line 17 words; next line 1 words; the clause opens on the break line: True
+
+== F2  .agents/skills/css/SKILL.md:170
+   the quoted text, read from the file:
+   | user-configurable properties
+   |where the fallback represents the default user choice.
+   the break ends at line 170 (the quotation's line 1 of 2)
+   class conjunction; clause 83 characters (lines 170..171); forced False
+   own line 2 words; next line 8 words; the clause opens on the break line: True
+
+== kind block-marker  doc/audit/tech-mold-linker-vet-2026-10-05.md:786
+   the quoted text, read from the file:
+   |  #1695 closed unmerged with follow-up issue
+   |  #1696 open (thread-pool tuning discussion);
+   the break ends at line 786 (the quotation's line 1 of 2)
+   class block-marker; clause 86 characters (lines 786..787); forced False
+   own line 6 words; next line 5 words; the clause opens on the break line: True
+
+== kind parenthesis  .agents/skills/choosing-technology/SKILL.md:151
+   the quoted text, read from the file:
+   |because the user may delegate the enumeration to a cheaper model of their choosing
+   |(not necessarily Haiku)
+   the break ends at line 151 (the quotation's line 1 of 2)
+   class parenthesis; clause 128 characters (lines 151..153); forced True
+   own line 14 words; next line 3 words; the clause opens on the break line: True
+
+== kind inline-span  .agents/skills/android-emulator/SKILL.md:22
+   the quoted text, read from the file:
+   | Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+   | `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+   the break ends at line 22 (the quotation's line 1 of 2)
+   class inline-span; clause 162 characters (lines 22..23); forced True
+   own line 17 words; next line 1 words; the clause opens on the break line: True
+
+== kind conjunction  .agents/skills/css/SKILL.md:170
+   the quoted text, read from the file:
+   | user-configurable properties
+   |where the fallback represents the default user choice.
+   the break ends at line 170 (the quotation's line 1 of 2)
+   class conjunction; clause 83 characters (lines 170..171); forced False
+   own line 2 words; next line 8 words; the clause opens on the break line: True
+
+== kind dash  .agents/skills/project-code-review/PHILOSOPHY.md:24
+   the quoted text, read from the file:
+   |The alternative -- referencing `AGENTS.md` sections by name ("apply the rules from the TypeScript Standards section") --
+   |assumes the agent will cross-reference accurately across documents under context pressure.
+   the break ends at line 24 (the quotation's line 1 of 2)
+   class dash; clause 211 characters (lines 24..25); forced True
+   own line 17 words; next line 11 words; the clause opens on the break line: True
+
+== kind ordinary  .agents/skills/css/SKILL.md:54
+   the quoted text, read from the file:
+   |Anything supported in evergreen Firefox but not ESR 140
+   |is off-limits without a feature query.
+   the break ends at line 54 (the quotation's line 1 of 2)
+   class ordinary; clause 94 characters (lines 54..55); forced False
+   own line 9 words; next line 6 words; the clause opens on the break line: True
+
+== calibration ordinary  .agents/skills/choosing-technology/SKILL.md:688
+   the quoted text, read from the file:
+   |Clone every serious alternative and finalist under a private `~/temp/agent/` root using the repository
+   |cloning convention.
+   the break ends at line 688 (the quotation's line 1 of 2)
+   class ordinary; clause 122 characters (lines 688..689); forced True
+   own line 14 words; next line 2 words; the clause opens on the break line: True
+
+measurements that differ from the proposal: 0
+the parenthesis class's clause width is the one figure the review did not check; it is measured here

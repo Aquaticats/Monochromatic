@@ -1,0 +1,4 @@
+# gh pr view 2203 (read-only), 2026-11-28T07:27:23-05:00
+{"number":2203,"title":"Infer early diagnostic output type across nightlies","state":"MERGED","createdAt":"2026-11-24T13:20:04Z","mergedAt":"2026-11-24T14:24:59Z","mergeCommit":"a7c307ff5d0efa930d0c653ff8258abfd16d86f7","body":"Use the argument type of EarlyDiagCtxt::new to select the default error output type. This keeps the driver and linting utility compatible with nightly toolchains that moved ErrorOutputType out of rustc_session::config.","files":["driver/src/lib.rs","utils/linting/src/lib.rs"]}
+## commits on main since v6.4.0
+{"ahead_by":51,"status":"ahead"}

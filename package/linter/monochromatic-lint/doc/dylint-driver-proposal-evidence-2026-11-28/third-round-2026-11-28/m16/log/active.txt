@@ -1,0 +1,1 @@
+nightly-2026-11-28-x86_64-unknown-linux-gnu (overridden by '/work/repo-b/lint-closure/rust-toolchain.toml')

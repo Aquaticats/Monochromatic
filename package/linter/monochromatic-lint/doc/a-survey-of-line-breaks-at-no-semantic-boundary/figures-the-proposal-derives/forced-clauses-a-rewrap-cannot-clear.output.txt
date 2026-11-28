@@ -1,0 +1,28 @@
+Running as unit: run-p4152817-i104736943.scope; invocation ID: 9c9271b0a20d4065bce23de8a13d0daf
+files read: 163; clauses of two or more lines: 8234; of those forced (width at least 120): 2331
+forced clauses of three words or fewer: 21; of five words or fewer: 58
+
+each forced clause of three words or fewer: the class of the break it would hold at each position
+coding-harness-dependency-maintenance.md:50 width 125, 3 words: ['conjunction', 'inline-span']
+coding-harness-dependency-maintenance.md:96 width 121, 3 words: ['conjunction', 'inline-span']
+deepseek-harness-node-domexception.md:245 width 141, 3 words: ['inline-span', 'parenthesis']
+depot-independent-policy-process-mvm-review-2026-10-18.md:12 width 126, 3 words: ['conjunction', 'inline-span']
+depot-logger-complete-2026-10-17.md:503 width 134, 3 words: ['conjunction', 'inline-span']
+dry.md:1573 width 134, 3 words: ['ordinary', 'inline-span']
+dry.md:2151 width 135, 3 words: ['ordinary', 'ordinary']   NO REWRAP CLEARS IT UNDER ANY ANSWER
+firefox-esr-disk-responsiveness.md:307 width 255, 3 words: ['ordinary', 'inline-span']
+firefox-esr-disk-responsiveness.md:442 width 212, 3 words: ['ordinary', 'inline-span']
+firefox-esr-disk-responsiveness.md:945 width 206, 3 words: ['ordinary', 'inline-span']
+firefox-esr-disk-responsiveness.md:1236 width 240, 3 words: ['ordinary', 'inline-span']
+firefox-esr-disk-responsiveness.md:1260 width 218, 3 words: ['ordinary', 'inline-span']
+firefox-esr-disk-responsiveness.md:1263 width 196, 3 words: ['ordinary', 'inline-span']
+firefox-esr-disk-responsiveness.md:1285 width 204, 3 words: ['ordinary', 'inline-span']
+removed-archives-and-where-history-holds-each.md:1726 width 131, 3 words: ['conjunction', 'inline-span']
+tech-btf-reader-for-the-zfs-layout-checker-vet-2026-11-20.md:2133 width 126, 3 words: ['ordinary', 'inline-span']
+tech-candidate-e-hyper-roster-expansion-vet-2026-08-30.md:519 width 127, 3 words: ['conjunction', 'inline-span']
+tech-cli-git-parser-migration-to-cac-vet-2026-08-14-a48b54e2.md:811 width 139, 2 words: ['inline-span']
+tech-monorepo-manager-vet-2026-09-16.md:15 width 122, 3 words: ['ordinary', 'inline-span']
+tech-namespace-ci-migration-vet-2026-08-19.md:456 width 128, 3 words: ['conjunction', 'ordinary']
+tech-pi-dynamic-workflows-replacement-for-narumi-vet-2026-07-10.md:727 width 177, 3 words: ['conjunction', 'ordinary']
+
+of the 21, clauses whose every position is ordinary-class: 1

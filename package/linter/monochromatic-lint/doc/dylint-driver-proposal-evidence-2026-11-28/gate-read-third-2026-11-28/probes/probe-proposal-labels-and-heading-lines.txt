@@ -1,0 +1,90 @@
+# grep of the proposal at e63bf58c19 for labels used without a description, 2026-11-28T07:29:18-05:00
+## option M / Answer M / Option E / Answer E / Design S / Answers F and P / Option P
+817:### M7: option K measured alone
+829:the library directory holds option K's file,
+1066:- M5 (option K end to end,
+1968:- Answer I with option M.
+1976:- Answer I with option E.
+2176:is Decision 2's Design S,
+2203:option M is described with cargo's `[env]` semantics and its missing measurement;
+2248:Question 5 quotes the issue-6316 comment so the owner reads the text they are asked about.
+2275:nightly bear on Answers F and P and are now cited there.
+2382:option M,
+2444:that option M's `[env]` reaches the linker (unmeasured);
+2472:- It did not measure option M,
+
+## line numbers of headings
+1:# Who provides the Dylint driver `rust/avoidable-closure` needs, and what a skipped rule returns
+67:## The question the issue records
+103:## How the linter runs the rule
+202:### What `cargo dylint` itself does, and in which order
+286:## What each absence produces
+352:## What a skipped rule returns
+446:## Who provides the driver today
+451:### The toolchain plan, the lock and the install task
+497:### The linter's own message and its warm command
+517:### The tasks that do name the rule's needs
+547:### The workflows
+614:## The machine's toolchain state
+705:## What changed since the rule last ran
+772:## What this round measured
+817:### M7: option K measured alone
+893:### M8: option I measured on this compiler
+958:### M10: the statuses a skip returns, with the status lines kept
+987:### The earlier round's measurements, and what their logs do and do not hold
+1146:## What the measurements imply
+1214:## The decisions, each answerable alone
+1227:### Decision 1: which toolchain the linter's library names, and whether it is pinned
+1292:#### Answer K1: a toolchain file generated from the lock
+1335:#### Answer K2: a toolchain file with a date pinned by hand
+1359:#### Answer I: the components on the floating channel, and wait for Dylint
+1406:### Decision 2: how the toolchain variable gets back to Dylint's children
+1424:#### Mechanism T: the lint task's own environment puts the proxy first
+1446:#### Mechanism N: no change; the person runs the lint with the proxy first
+1459:#### Design CL: the linter puts the proxy first for the `cargo dylint` child
+1476:#### Design SH: the shadow restores the variable from the lock for every cargo it starts
+1495:### Decision 3: who provides the driver on a person's machine
+1500:#### Answer B: the lint task warms the driver before the offline run
+1523:#### Answer Z: the documented manual warm
+1541:#### Answer A: a plan row that builds the driver at install time
+1574:#### Option F is a complement to B, Z and A, not an alternative
+1600:### Decision 4: how a pull request gets the rule
+1605:#### Answer C: a prepared image that the job runs
+1634:#### Answer H: the existing job provisions the tools itself
+1668:### Decision 5: what a skip returns
+1734:### Decision 6: whether to pin `cargo-dylint`
+1753:### Decision 7: what the 2026-11-23 answer in issue 6316 covers
+1774:## The rankings, each with its criterion
+1776:### Decision 1, the toolchain
+1812:### Decision 2, the mechanism
+1834:### Decision 3, the local provider
+1859:### Decision 4, the pull-request surface
+1884:### Decision 5, the skip's parts
+1892:## What the owner is asked to pick
+1966:## Combinations that cannot be built
+1996:## The two gate reads, finding by finding
+1998:### The read of 2026-11-28, High findings
+2000:#### H1, the pin question is framed on a misreading
+2027:#### H2, K was never measured alone, and I's disqualification is another machine's snapshot
+2054:#### H3, the sets are not separable
+2081:#### H4, option F's last place rests on a reason that applies to every option
+2104:### The read of 2026-11-28, Medium findings
+2106:#### M1, what changed since the rule last ran, and answers in words only
+2129:#### M2, statements with no line in a kept log
+2156:#### M3, which `cargo` runs, and the shadow launcher
+2185:#### M4, options named or half-described, and upstream's silent rebuild
+2217:#### M5, adjacent pairs leaning on state or effort
+2238:#### M6, the seven questions
+2259:#### M7, records that bear and are not cited
+2284:#### M8, M3's own facts
+2299:### The read of 2026-11-28, Low findings
+2301:#### L1, line citations off at the merged commit
+2316:#### L2, file names, order and unlabelled files in the evidence
+2340:#### L3, text defects in the options
+2350:#### L4, "reproduced" and the cold registry
+2359:#### L5, small statements of tool behaviour that overreach
+2385:#### L6, letters reused, and the cleaner
+2400:### The read of 2026-11-27, its sixteen findings
+2415:## Measured, inferred, and not known
+2453:## What this round did not do
+2480:## The evidence folder

@@ -1,0 +1,3 @@
+122:    Finished `release` profile [optimized] target(s) in 32.00s
+217:    Finished `dev` profile [unoptimized + debuginfo] target(s) in 54.97s
+275:    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.17s

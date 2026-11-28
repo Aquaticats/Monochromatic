@@ -36,7 +36,7 @@ export const createTool: ToolEntry = defineTool({
   name: 'create_vm',
   entry: {
     description:
-      'Creates and starts a new VM on the selected backend. libvirt supports ubuntu (default), fedora, alpine, windows, or a custom template name; hetzner supports ubuntu/debian/fedora/rocky/centos/alma or a literal Hetzner image slug; ovh takes an image shorthand or a catalogue name. Windows libvirt VMs take 15-30 minutes on first creation. When `from` is provided, clones from that existing VM instead, and the clone keeps the source size. `vcpus` and `memory` ask for floors: libvirt gives exactly those, and a cloud backend picks the smallest size with at least both. `server_type` and `location` name a size and a place outright, and `server_type` cannot be combined with either floor.',
+      'Creates and starts a new VM on the selected backend. libvirt supports ubuntu (default), fedora, alpine, windows, or a custom template name; hetzner supports ubuntu/debian/fedora/rocky/centos/alma or a literal Hetzner image slug; ovh takes an image shorthand or a catalogue name. Windows libvirt VMs take 15-30 minutes on first creation. `vcpus` and `memory` ask for floors: libvirt gives exactly those, Hetzner takes the smallest server type with at least both, and OVHcloud the cheapest size that fits, or its smallest numbers when no hourly price can be read. A clone keeps the source size, so `from` cannot be combined with either floor, and `server_type` names a size outright, so it cannot be combined with them either.',
     schema: strictArguments({
       name: requiredString(
         'VM name (alphanumeric, hyphens, underscores; hetzner additionally forbids underscores)',
@@ -52,10 +52,10 @@ export const createTool: ToolEntry = defineTool({
         'Hetzner location or comma-separated fallback series (e.g. fsn1,nbg1), or OVHcloud regions (e.g. bhs5); ignored by the libvirt backend',
       ),
       vcpus: optionalPositiveInteger(
-        'Fewest virtual CPUs the machine may have. libvirt gives exactly this many; a cloud backend picks the smallest size with at least this many',
+        'Fewest virtual CPUs the machine may have. libvirt gives exactly this many; Hetzner takes the smallest server type with at least this many; OVHcloud the cheapest size that fits, or its smallest numbers when no hourly price can be read',
       ),
       memory: optionalPositiveInteger(
-        'Least memory the machine may have, in gibibytes. libvirt gives exactly this much; a cloud backend picks the smallest size with at least this much',
+        'Least memory the machine may have, in gibibytes. libvirt gives exactly this much; Hetzner takes the smallest server type with at least this much; OVHcloud the cheapest size that fits, or its smallest numbers when no hourly price can be read',
       ),
       backend: BACKEND_ARGUMENT,
     },),
@@ -63,8 +63,7 @@ export const createTool: ToolEntry = defineTool({
       /**
        New VM name validated as string so the backend receives a stable type regardless of MCP client encoding.
        */
-      const name = requiredStringArgument(args.name,);
-      /**
+      const name = requiredStringArgument(args.name,);      /**
        Optional source VM to clone from; `undefined` selects the create-fresh path below.
        */
       const from = ((typeof args.from) === 'string') ? args.from : undefined;
@@ -88,6 +87,29 @@ export const createTool: ToolEntry = defineTool({
        Optional floor on memory, in gibibytes.
        */
       const memoryGiB = ((typeof args.memory) === 'number') ? args.memory : undefined;
+      /**
+       Floor clauses as a person reads them, one per number asked.
+       */
+      const asked: string[] = [];
+      if (vcpus !== undefined) {
+        asked.push(`at least ${String(vcpus,)} vCPUs`,);
+      }
+      if (memoryGiB !== undefined) {
+        asked.push(`at least ${String(memoryGiB,)} GiB of memory`,);
+      }
+      // A clone boots its source's own size, so a floor cannot be honoured by one.
+      // Dropping it would hand back a machine smaller than the caller asked for, which
+      // is what `mvm create --from` refuses; this tool refuses it too, before any
+      // backend is resolved.
+      if ((from !== undefined) && (asked.length > 0)) {
+        return invalidArgumentsResponse({
+          tag: 'create_vm',
+          text:
+            `\`from\` clones the existing VM "${from}" and a clone keeps the source size, so `
+              + `\`vcpus\` and \`memory\` cannot be honoured with it: ${asked.join(' and ',)} was asked. `
+              + 'Drop `from` to create a sized machine, or drop the floors and clone as the source is.',
+        },);
+      }
       try {
         /**
          Backend resolved from the optional `backend` arg, env, or default.

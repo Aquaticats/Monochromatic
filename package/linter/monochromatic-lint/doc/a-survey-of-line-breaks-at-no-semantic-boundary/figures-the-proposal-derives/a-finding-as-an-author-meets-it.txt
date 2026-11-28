@@ -1,0 +1,102 @@
+# A finding as an author meets it, and the text the fix writes
+
+A real capture, not a stand-in.
+It was made on 2026-11-28 with the linter the toolchain installs,
+`monochromatic-lint 0.5.2-alpha.25`
+(`/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint --version`),
+in a scratch folder outside the repository,
+each run in its own `systemd-run --user --scope --slice=agent-work.slice`
+scope (`MemoryMax=1G`, `CPUQuota=100%`, `TasksMax=32`, `IOWeight=1`, `RuntimeMaxSec=120`).
+Nothing in the repository was touched.
+
+The configuration is the survey's one-rule form:
+
+```jsonc
+[
+  {
+    "files": ["**/*.md"],
+    "rules": {
+      "markdown/semantic-line-breaks": { "severity": "error" }
+    }
+  }
+]
+```
+
+## The run, and what it printed
+
+```text
+$ monochromatic-lint --config one-rule-config.jsonc a-comma-followed-by-prose.md a-lone-short-word-at-no-boundary.md
+{"message":"A line break belongs here, after a prose break-point character.","code":"markdown/semantic-line-breaks","severity":"error","causes":[],"filename":"a-comma-followed-by-prose.md","labels":[{"span":{"offset":8,"length":0,"line":1,"column":9}}],"related":[]}
+{"message":"A line break belongs here, after a prose break-point character.","code":"markdown/semantic-line-breaks","severity":"error","causes":[],"filename":"a-lone-short-word-at-no-boundary.md","labels":[{"span":{"offset":8,"length":0,"line":1,"column":9}}],"related":[]}
+exit 1
+```
+
+`a-comma-followed-by-prose.md` holds:
+
+```text
+Aaa bbb, the
+ccc ddd eee.
+```
+
+`a-lone-short-word-at-no-boundary.md` holds:
+
+```text
+Aaa bbb, ccc ddd eee
+the
+fff ggg hhh.
+```
+
+Both findings are at line 1, column 9:
+the comma, which the rule wants a break after.
+Neither run reports the break before `the` at line 2,
+which is at no boundary:
+that break is the class this proposal is about,
+and the rule reports nothing for it.
+
+## The text a fix writes
+
+```text
+$ monochromatic-lint --config one-rule-config.jsonc --fix fixed-comma.md
+exit 0
+
+$ cat fixed-comma.md
+Aaa bbb,
+the ccc ddd eee.
+```
+
+`fixed-comma.md` began as `a-comma-followed-by-prose.md`.
+So the rule's own fix writes a line holding one word at no boundary:
+`the`,
+between `Aaa bbb,` and `ccc ddd eee.`.
+That is the shape issue 6642 names,
+written by the shipped fixer.
+
+A run of `--fix` on the second fixture rewrites line 1 only:
+
+```text
+$ monochromatic-lint --config one-rule-config.jsonc --fix fixed-lone.md
+exit 0
+
+$ cat fixed-lone.md
+Aaa bbb,
+ccc ddd eee
+the
+fff ggg hhh.
+```
+
+So the fix cuts the comma's line and leaves the lone `the` where it was.
+That is the defect the existing rule's fix does not reach:
+the join answers only about the fragments a break of the same pass cut.
+
+## The rule ids the binary lists, and this rule's fix class
+
+```text
+$ monochromatic-lint --rules | rg -c '^\{'
+29
+
+$ monochromatic-lint --rules | rg 'semantic-line-breaks'
+{"id":"markdown/semantic-line-breaks","fixable":true,"fixClass":"whitespace","options":[],"suppressible":true}
+```
+
+`fixClass: whitespace` is what makes plain `--fix` apply this rule's fix,
+which is what decision 7 of the proposal is about.

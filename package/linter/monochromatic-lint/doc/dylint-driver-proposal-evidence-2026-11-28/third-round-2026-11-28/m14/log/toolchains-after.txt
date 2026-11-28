@@ -1,0 +1,4 @@
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+nightly-2026-11-20-x86_64-unknown-linux-gnu

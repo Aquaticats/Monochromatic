@@ -1,0 +1,1 @@
+Error: environment variable not found: RUSTUP_TOOLCHAIN

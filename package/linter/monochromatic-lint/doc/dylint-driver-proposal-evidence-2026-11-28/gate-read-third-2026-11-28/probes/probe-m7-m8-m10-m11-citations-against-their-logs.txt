@@ -1,0 +1,17 @@
+# grep for the linter digest and the Android targets in the kept logs, 2026-11-28T07:32:29-05:00
+## m7-k-with-minimal-floating-channel/run.txt: lines with 'linter binary' or '34ca8f26d6'
+89:== linter binary: 34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a  -
+## m8-option-i-on-the-host-like-floating-build/run.txt: lines with 'linter binary' or '34ca8f26d6'
+85:== linter binary: 34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a  -
+## m10-skip-statuses/run.txt: lines with 'linter binary' or '34ca8f26d6'
+(none)
+## m11-rustup-does-not-install-an-absent-toolchain/run.txt: lines with 'linter binary' or '34ca8f26d6'
+(none)
+## android in M7 dated-components.txt
+0
+## the same facts for the rest of the evidence folder: any android line in a component log
+(none)
+## machine-state: dated toolchain components
+24:rust-std-aarch64-linux-android
+25:rust-std-x86_64-linux-android
+64:package/music-player/android-app/rust/monochromatic-lint.prerequisites.jsonc

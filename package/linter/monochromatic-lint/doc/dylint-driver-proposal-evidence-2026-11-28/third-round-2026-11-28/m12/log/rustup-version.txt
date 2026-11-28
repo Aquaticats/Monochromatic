@@ -1,0 +1,1 @@
+info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`

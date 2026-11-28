@@ -728,10 +728,13 @@ and what is open is listed in that proposal.
   and the same command with `-name '*_tests.rs'`,
   and the file count with `find src/native -type f -name '*.rs' | wc -l`.
 - Memory is the limit now:
-  one compiler of this crate's test build held 28.8 GiB resident on 2026-11-27
+  twenty-three rounds starting at once on 2026-11-27 ran the machine out of memory and swap,
+  and the record of that night names `rustc` in aggregate,
+  "`rustc` holding 28.8 GiB resident",
+  beside "eleven `rustc` processes and nineteen rounds",
+  so it names no single compiler and no single unit
   (`doc/handover/cli-git-rust-implementation.md`,
-  the paragraph naming that night),
-  and twenty-three rounds starting at once ran the machine out of memory and swap.
+  "Memory").
 
 So the two questions are the ones the 2026-11-13 round left open:
 whether incremental compilation lowers or raises the compiler's peak memory for this crate,
@@ -1240,3 +1243,521 @@ because that peak is this crate's unit.
   and the ledger file each holds.
 - Free space:
   `df -h /home`.
+
+## The recommended form measured on its own, 2026-11-28
+
+Status:
+unapproved and not final.
+This section changes no setting and no source.
+It measures form D,
+`[profile.dev.package.monochromatic-git-policy-cli] incremental = true` beside
+`[profile.dev] incremental = false`,
+which is the form the proposal recommends,
+in its own first build and its own rebuild of the library build and of the library test build,
+each beside two form A controls run between them in the same round.
+It also observes,
+in two rounds that run both of a round's commands in one build directory,
+whether the `forbidden-strings` build script runs a second time under form C.
+The proposal is `doc/planning/cli-git-development-profile-after-the-move-to-the-new-drive.md`;
+the owner declares completion,
+and what is open is listed there.
+
+The crate is 1,311,645 lines in 4,049 Rust files below `src/native` at 2026-11-28T08:22-05:00,
+688,854 of them in 1,582 `*_tests.rs` files,
+counted with the commands under "What was different from the 2026-11-13 measurement" above;
+the 1,298,623 lines counted earlier the same day are that round's reading of a crate that grew while these rounds ran.
+
+The arms above measured the everywhere form,
+because the harness set `CARGO_INCREMENTAL` and changed no manifest.
+This round changes no variable:
+each arm writes the manifest text of its own form into `package/git-policy/cli/Cargo.toml` before it starts and puts the
+checked-out bytes back after it,
+and each arm's record holds the text it added,
+so a reader can tell which form it measured.
+
+What the data is,
+from Cargo's reference fetched 2026-11-28:
+"Incremental compilation causes rustc to save additional information to disk which will be reused when recompiling the
+crate,
+improving re-compile times".
+rustc writes that information under `<build dir>/debug/incremental/<crate>-<hash>/s-<session>/`,
+one directory per compiler run,
+and garbage-collects it each time it starts in incremental mode,
+deleting every session directory it cannot lock and every finalized session except the most recent one
+(`compiler/rustc_incremental/src/persist/fs.rs`,
+rust-lang/rust,
+read 2026-11-28).
+So a crate's incremental directory is bounded by one session's size and not by how many rebuilds a tree has seen.
+An inherited `CARGO_INCREMENTAL`,
+`CARGO_PROFILE_DEV_INCREMENTAL`,
+`CARGO_PROFILE_TEST_INCREMENTAL`,
+`RUSTFLAGS` or `CARGO_BUILD_JOBS` would have made every arm the everywhere form,
+so the harness deletes the three Cargo variables from the child's environment and records all five by name;
+every arm records all five as `unset`.
+
+### What one arm is, this round
+
+The shape is the one under "What one arm is" above:
+one build in a build directory of its own,
+inside `systemd-run --user --scope --slice=agent-work.slice` with `MemoryMax=40G`,
+`CPUQuota=600%`,
+`TasksMax=1024`,
+`IOWeight=1` and `RuntimeMaxSec=5400`,
+one build at a time,
+behind the memory-pressure gate that opens below `full avg60` 10,
+with `CARGO_TARGET_DIR` and `CARGO_BUILD_BUILD_DIR` pointing into a tree of the arm's own.
+`cargo` inside such a scope reads `nproc` as 6,
+as before.
+
+Three differences from the arms above:
+
+- The two commands are the same two,
+  and a "round" arm runs both in one build directory,
+  each in a scope of its own,
+  so a round's tree is measured as a round builds it.
+- The first round pair ran with `-v` and the second with `-vv`,
+  because Cargo prints a build script's own run only at `-vv`:
+  the line reads ``Running `CARGO=... CARGO_PKG_NAME=forbidden-strings ...` ``.
+- Every arm's record keeps its dependency-phase timeline,
+  the compiling count and,
+  in the round arms,
+  the number of build-script run lines and build-script compile lines.
+
+### Every arm
+
+Wall is the clock's;
+CPU is the scope's processor time;
+`rustc` is the largest compiler run's peak resident memory;
+`scope` is the scope's `memory.peak`;
+tree is the build directory's apparent size after the arm,
+with the incremental data's share of it.
+The evidence is the arms' own logs,
+and the two restore arms (15 and 19) only put a tree back to its original bytes before its wide-edit arm.
+
+The first build,
+in a clean build directory:
+
+- `lib-clean-a-1`,
+  form A,
+  `cargo build --lib`:
+  wall 111.0 s,
+  CPU 459.3 s,
+  `rustc` 2837 MiB,
+  scope 3807 MiB,
+  tree 788 MiB and no incremental data.
+- `lib-clean-d`,
+  form D,
+  the same build:
+  wall 104.5 s,
+  CPU 446.5 s,
+  `rustc` 2835 MiB,
+  scope 3780 MiB,
+  tree 1410 MiB,
+  of which 651 MiB incremental data in one directory.
+- `lib-clean-a-2`,
+  form A again:
+  wall 89.2 s,
+  CPU 410.4 s,
+  `rustc` 2848 MiB,
+  scope 3753 MiB,
+  tree 788 MiB.
+- `test-clean-a-1`,
+  form A,
+  `cargo test --lib --no-run`:
+  wall 136.1 s,
+  CPU 518.5 s,
+  `rustc` 7445 MiB,
+  scope 7578 MiB,
+  tree 897 MiB.
+- `test-clean-d`,
+  form D,
+  the same build:
+  wall 164.9 s,
+  CPU 552.0 s,
+  `rustc` 7059 MiB,
+  scope 7179 MiB,
+  tree 2572 MiB,
+  of which 1674 MiB incremental data in one directory.
+- `test-clean-a-2`,
+  form A again:
+  wall 129.7 s,
+  CPU 513.5 s,
+  `rustc` 7532 MiB,
+  scope 7659 MiB,
+  tree 897 MiB.
+
+The rebuild after the leaf file's one line
+(`src/native/candidate/candidate_store_commit_listings.rs`,
+named by no other file of the crate):
+
+- `lib-leaf-a-1`,
+  form A:
+  wall 20.6 s,
+  CPU 35.3 s,
+  `rustc` 2853 MiB,
+  scope 2762 MiB.
+- `lib-leaf-d`,
+  form D:
+  wall 13.6 s,
+  CPU 18.1 s,
+  `rustc` 2192 MiB,
+  scope 2405 MiB,
+  tree 1397 MiB with 638 MiB of incremental data.
+- `lib-leaf-a-1-revert`,
+  form A,
+  the same work in the other direction:
+  wall 21.8 s,
+  CPU 37.9 s,
+  `rustc` 2813 MiB,
+  scope 2703 MiB.
+- `test-leaf-a-1`,
+  form A:
+  wall 54.0 s,
+  CPU 107.1 s,
+  `rustc` 7525 MiB,
+  scope 7410 MiB.
+- `test-leaf-d`,
+  form D:
+  wall 23.6 s,
+  CPU 27.1 s,
+  `rustc` 5057 MiB,
+  scope 5737 MiB,
+  tree 2524 MiB with 1627 MiB of incremental data.
+- `test-leaf-a-1-revert`,
+  form A:
+  wall 54.5 s,
+  CPU 107.9 s,
+  `rustc` 7519 MiB,
+  scope 7411 MiB.
+
+The rebuild after the widely used file's one line
+(`src/native/worktree_clone_mount_protocol/mod.rs`,
+which 273 files of the crate name):
+
+- `lib-wide-a-1`,
+  form A:
+  wall 21.5 s,
+  CPU 37.9 s,
+  `rustc` 2860 MiB,
+  scope 2848 MiB.
+- `lib-wide-d`,
+  form D:
+  wall 11.3 s,
+  CPU 14.0 s,
+  `rustc` 2071 MiB,
+  scope 2328 MiB,
+  tree 1395 MiB with 635 MiB of incremental data.
+- `lib-wide-a-1-revert`,
+  form A:
+  wall 23.8 s,
+  CPU 39.5 s,
+  `rustc` 2815 MiB,
+  scope 2751 MiB.
+- `test-wide-a-1`,
+  form A:
+  wall 62.6 s,
+  CPU 117.8 s,
+  `rustc` 7544 MiB,
+  scope 7547 MiB.
+- `test-wide-d`,
+  form D:
+  wall 25.4 s,
+  CPU 27.5 s,
+  `rustc` 4961 MiB,
+  scope 5665 MiB,
+  tree 2524 MiB with 1627 MiB of incremental data.
+- `test-wide-a-1-revert`,
+  form A:
+  wall 52.9 s,
+  CPU 106.6 s,
+  `rustc` 7539 MiB,
+  scope 7496 MiB.
+
+The two rounds of both commands in one build directory:
+
+- `round-d-both-commands`,
+  form D,
+  `-v`:
+  `cargo build --lib` wall 87.6 s and CPU 393.6 s,
+  compiling 272 units;
+  `cargo test --lib --no-run` wall 74.2 s and CPU 133.2 s,
+  compiling one unit,
+  this crate's.
+  The tree after both is 3410 MiB,
+  of which 2325 MiB of incremental data in two directories,
+  and both name this crate.
+- `round-c-both-commands`,
+  form C,
+  `-v`:
+  `cargo build --lib` wall 95.8 s and CPU 432.0 s,
+  compiling 270 units;
+  `cargo test --lib --no-run` wall 103.2 s and CPU 268.4 s,
+  compiling seven units.
+  The tree after both is 2998 MiB,
+  of which 1836 MiB of incremental data in nine directories:
+  this crate,
+  the seven path dependencies and their build script,
+  and `forbidden_regex` twice.
+
+### Every cell as a ratio to the controls of its own round
+
+Each cell is one command and one round;
+the control is form A;
+the ratio is the treatment over the mean of the two control runs,
+with the range that dividing by each control alone gives,
+and the controls' own spread.
+A ratio inside the controls' spread,
+or inside the 20% these builds can show,
+is reported as no difference:
+the page's own rule reads "A difference smaller than 1.20 is no difference these builds can show."
+
+The first build:
+
+- library build:
+  wall 104.5 s against 111.0 and 89.2 s,
+  1.04,
+  range 0.94 to 1.17,
+  controls 24.5% apart,
+  so this cell shows no wall difference and its controls differ by more than the 20% bar;
+  CPU 1.03,
+  range 0.97 to 1.09,
+  controls 11.9% apart,
+  no difference shown;
+  largest compiler 1.00,
+  scope peak 1.00,
+  anonymous 1.01.
+- library test build:
+  wall 164.9 s against 136.1 and 129.7 s,
+  1.24,
+  range 1.21 to 1.27,
+  controls 4.9% apart,
+  which clears the bar;
+  CPU 1.07,
+  range 1.06 to 1.07,
+  controls 1.0% apart;
+  largest compiler 0.94,
+  range 0.94 to 0.95,
+  scope peak 0.94,
+  anonymous 0.96,
+  all three inside the 20% bar,
+  so a first build's peak is unchanged as far as this measurement can tell.
+
+The rebuild after the leaf file's line:
+
+- library build:
+  wall 0.64,
+  range 0.63 to 0.66,
+  controls 5.7% apart;
+  CPU 0.49,
+  range 0.48 to 0.51,
+  controls 7.3% apart;
+  largest compiler 0.77,
+  missing from scope peak (0.88) and clear on anonymous memory (0.72).
+- library test build:
+  wall 0.44,
+  range 0.43 to 0.44,
+  controls 0.9% apart;
+  CPU 0.25,
+  range 0.25 to 0.25,
+  controls 0.7% apart;
+  largest compiler 0.67,
+  scope peak 0.77,
+  anonymous 0.63.
+
+The rebuild after the widely used file's line:
+
+- library build:
+  wall 0.50,
+  range 0.48 to 0.53,
+  controls 10.7% apart;
+  CPU 0.36,
+  range 0.35 to 0.37,
+  controls 4.0% apart;
+  largest compiler 0.73,
+  anonymous 0.68,
+  and scope peak 0.83 which is inside the bar.
+- library test build:
+  wall 0.44,
+  range 0.41 to 0.48,
+  controls 18.3% apart;
+  CPU 0.25,
+  range 0.23 to 0.26,
+  controls 10.5% apart;
+  largest compiler 0.66,
+  scope peak 0.75,
+  anonymous 0.63.
+
+So the recommended form's rebuild loop is measured for both edits,
+and the wall gain holds for both:
+0.64 and 0.50 on the library build,
+0.44 and 0.44 on the library test build.
+The one cell this round did not reproduce from the arms above is the wide-edit test rebuild's wall of 1.00 there;
+here the same cell reads 0.44 against two controls 18.3% apart.
+
+### What a round pays and what it gets back
+
+On the library test build,
+form D's first build costs 32.0 s more wall (164.9 s against the controls' mean of 132.9 s)
+and 36.0 s more processor time (552.0 s against 516.0 s).
+Both edits pay that back at about one rebuild:
+
+- leaf edit:
+  a rebuild is 23.6 s against 54.2 s of wall and 27.1 s against 107.5 s of processor time,
+  so the first build's extra wall is paid back after 1.04 rebuilds and its extra processor time after 0.45;
+  at k rebuilds the wall is 1.01,
+  0.88,
+  0.80,
+  0.70 and 0.59 of today for k = 1,
+  2,
+  3,
+  5 and 10,
+  and the processor time 0.93,
+  0.83,
+  0.76,
+  0.65 and 0.52.
+- wide edit:
+  a rebuild is 25.4 s against 57.7 s of wall and 27.5 s against 112.2 s of processor time,
+  so the first build's extra wall is paid back after 0.99 rebuilds and its extra processor time after 0.42;
+  at the same k the wall is 1.00,
+  0.87,
+  0.79,
+  0.69 and 0.59,
+  and the processor time 0.92,
+  0.82,
+  0.74,
+  0.64 and 0.51.
+
+A round that makes no rebuild after its first build pays 1.24 in wall and 1.07 in processor time and gets nothing back.
+How many rebuilds a round makes is still unmeasured;
+no record holds it.
+
+### The dependency phase, in this round's own timelines
+
+The sampler counts processes named `rustc`,
+once a second,
+and the scope peak it records is the kernel's `memory.peak` for the scope,
+page cache included.
+So a peak that is reached while no `rustc` is in the scope is not a compiler's.
+
+In the two form A library first builds,
+the scope's peak (3807 and 3753 MiB) is reached during a stretch with no `rustc` in the scope,
+13 and 13 one-second samples of it,
+while the largest compiler peaked at 2837 and 2848 MiB.
+In the two form A library test builds,
+the samples with no `rustc` in the scope stood at 3761 and 3748 MiB,
+and this crate's unit started at 72.7 s of 136.1 s and 72.3 s of 129.7 s.
+That is the level the 2026-11-25 record names,
+in the words "the `forbidden-strings` build script's run at 3756 MiB in every worktree where its output is not fresh"
+(`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+"A build's peak is one process").
+The sampler cannot name the process,
+so the attribution to that build script is the earlier record's,
+not this round's;
+what this round adds is the level,
+the counter that measured it and the samples it was measured in.
+
+### Whether a build script runs a second time
+
+Cargo prints a build script's own run only at `-vv`.
+In the first command of both `-vv` rounds,
+the detector finds 21 and 20 build-script run lines and 33 build-script compile lines,
+which is the positive control:
+it can see a run it should see.
+In the second command:
+
+- form D (`round-d-both-commands-vv`):
+  no build-script run line,
+  no build-script compile line,
+  one unit compiled,
+  this crate's,
+  wall 75.4 s and CPU 140.7 s.
+- form C (`round-c-both-commands-vv`):
+  two build-script run lines,
+  `monochromatic-catalog-specifier`'s and `forbidden-strings`'s
+  (the second reads `.../build/forbidden-strings/c65731ebdc1d74a6/out/build_script_build`
+  with `CARGO_PKG_NAME=forbidden-strings`),
+  one build-script compile line,
+  seven units compiled,
+  wall 94.7 s and CPU 263.4 s,
+  against form D's one unit and 75.4 s of wall.
+
+So under form C the test command compiles the path dependencies again,
+compiles the build script again and runs it again,
+and under form D it does none of those.
+
+### What each form writes
+
+The incremental directories a tree holds after the arm,
+by name as they stand on disk:
+
+- form A:
+  none,
+  in either build.
+- form D:
+  `git_policy_cli-<hash>` only,
+  one directory in the library tree and one in the test tree,
+  and two in the round's one tree,
+  both this crate's.
+- form C:
+  nine,
+  this crate's,
+  the seven path dependencies' and their build script's,
+  and `forbidden_regex` twice,
+  which is the same crate's unit for the two profiles.
+
+That is the scoping D asks for,
+observed rather than inferred:
+the path dependencies hold no incremental data under D and do hold it under C.
+
+### Disk, from this round's trees
+
+Apparent bytes,
+which on this filesystem equal the block count the same `du` reports:
+
+- a first library build:
+  788 MiB for form A,
+  1410 MiB for form D with 651 MiB of incremental data;
+- a first library test build:
+  897 MiB for form A,
+  2572 MiB for form D with 1674 MiB of incremental data;
+- a rebuild:
+  the incremental directory does not grow,
+  638 and 635 MiB on the library tree and 1627 MiB twice on the test tree;
+- a round's one tree,
+  both commands:
+  3410 MiB for form D with 2325 MiB of incremental data,
+  and 2998 MiB for form C with 1836 MiB.
+
+So a round that builds both commands in one directory under form D adds about 2.3 GiB to that tree,
+and one under form C about 1.8 GiB,
+which is smaller only because C writes nothing for the library build of this crate.
+
+### What a live tree holds now, and what removes it
+
+Read on 2026-11-28 between 07:34 and 07:36,
+one `cargo metadata` and one stat per workspace,
+never a walk of the base:
+
+- of the 29 workspaces this repository has checked out (the main checkout and 28 worktrees),
+  24 report a workspace-keyed build directory (`<base>/<2 hex>/<14 hex>`),
+  and 23 hold a debug tree there;
+  the other five answer with no workspace at that path or a manifest a dependency cannot load.
+- those 23 trees total 37,653,572,191 bytes (35.1 GiB),
+  from 506 MiB to 3.7 GiB,
+  a mean of 1561 MiB.
+- every one of those trees holds only `debug/build` and `release/build`:
+  the build scripts' outputs,
+  from 314 MiB to 3.2 GiB of `debug/build` and 506 MiB of `release/build` per tree,
+  and an `incremental` directory that is empty (0 bytes) in all 23.
+  No tree holds `deps` or `.fingerprint`,
+  so the compiled units a first build makes are not in a build directory at all.
+- none of the 29 reports a `toolchain/<toolchain>/` path,
+  which is the layout the two trees above were measured in;
+  the main checkout now reports `<base>/f6/26ded3a61dae16`,
+  864,182,952 bytes.
+- free space:
+  1,548,279,218,176 bytes (1442 GiB) with `df --block-size=1 /home`.
+- nothing removes a tree by itself:
+  `cargo-shadow-lean.service` reads loaded,
+  disabled and inactive,
+  and no cargo-shadow timer is listed.

@@ -22,7 +22,7 @@ import { HOST_COMMAND_TIMEOUT_MS, } from './mvm-guest-bounds.ts';
 /**
  The guests this process has already made the folder in, so a run of several pushes makes it once.
  */
-const prepared: Set<string> = new Set();
+const prepared: Set<string> = new Set<string>();
 
 /**
  How one guest command is started, so a test can hold what this module asks for without a guest.
@@ -53,7 +53,9 @@ async function aGuestCommand({
   readonly chosen: GuestFacts;
   readonly argumentWords: readonly string[];
 }): Promise<number> {
-  // The backend this run drives, whose words select it and whose root words start the command.
+  /**
+   The backend this run drives, whose words select it and whose root words start the command.
+   */
   const backend = guestBackend();
   return await runQuietStepCommand({
     program: 'mvm',
@@ -82,9 +84,7 @@ async function aGuestCommand({
 
  @param run - how one guest command is started, which a test replaces to hold the words
 
- @returns nothing; nothing is run when the backend mounts the folder itself
-
- @throws GuestDriverError naming the command and its status when the folder could not be made
+ @throws Error naming the command and its status when the folder could not be made
 
  @example
  ```ts
@@ -100,12 +100,12 @@ export async function ensureTheGuestSharedFolder({
   readonly backend?: GuestBackend;
   readonly run?: GuestStepRunner;
 }): Promise<void> {
+  if (backend.makesTheSharedFolder === undefined)
+    return;
   /**
-   The command this backend runs to make the folder, absent when it mounts one there.
+   The command this backend runs to make the folder.
    */
   const command = backend.makesTheSharedFolder;
-  if (command === undefined)
-    return;
   if (prepared.has(chosen.name,))
     return;
   // Marked before the run rather than after: a run that refused is the one a person reads, and another push in the same
@@ -119,8 +119,20 @@ export async function ensureTheGuestSharedFolder({
     argumentWords: command,
   },);
   if (status !== 0) {
+    /**
+     The words that select the backend, as one word.
+     */
+    const backendWords = backend.mvmArgumentWords
+      .join(' ',);
+    /**
+     The command as a person would type it, which the refusal names in full.
+     */
+    const refused = [
+      ...backend.rootWords,
+      ...command,
+    ].join(' ',);
     throw new Error(
-      `mvm ${backend.mvmArgumentWords.join(' ',)} exec ${chosen.name} -- ${[...backend.rootWords, ...command,].join(' ',)} exited ${String(status,)}: the guest has no ${backend.guestSharedFolder} folder, so no pushed file could reach it`,
+      `mvm ${backendWords} exec ${chosen.name} -- ${refused} exited ${String(status,)}: the guest has no ${backend.guestSharedFolder} folder, so no pushed file could reach it`,
     );
   }
 }
