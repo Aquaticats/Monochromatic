@@ -90,6 +90,10 @@
 //! - `clone_mount_readiness_file.rs`:
 //!   the root-owned readiness directory and its record:
 //!   where one boot's readiness lives and how it is written.
+//! - `clone_mount_readiness_file_withdraw.rs`:
+//!   the withdrawal of one boot's record,
+//!   the removal through the proved directory,
+//!   and the read that proves nothing answers after it.
 //! - `clone_mount_intent_write.rs`:
 //!   the wrapper's request and nudge payloads and the gated writes.
 //! - `unanswered_request_entry.rs`:
@@ -193,6 +197,9 @@ pub mod clone_mount_readiness_parse;
 
 /// The root-owned readiness directory and its file.
 pub mod clone_mount_readiness_file;
+
+/// The withdrawal of one boot's readiness record.
+pub mod clone_mount_readiness_file_withdraw;
 
 /// The wrapper's intent and nudge writes behind the gate.
 pub mod clone_mount_intent_write;
