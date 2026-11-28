@@ -73,6 +73,11 @@ import {
   buildScript,
 } from './shutdown-unmount-guest-scripts.ts';
 
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
+
 //region Constants
 
 /**
@@ -162,7 +167,10 @@ async function create({ chosen, }: { readonly chosen: GuestFacts; },): Promise<v
    */
   const listed = await captureHostCommand({
     command: 'mvm',
-    args: [...guestBackend().mvmArgumentWords, 'list',],
+    args: [
+      ...backend.mvmArgumentWords,
+      'list',
+    ],
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   if (holdsGuestName({
