@@ -1566,11 +1566,7 @@ no start failed at its `EXEC` step,
 no unit reached the start limit,
 and the pair of commits made at once each landed once.
 
-Issue 6586 is merged (`7d6bd90c92`).
-A build made for tests now reads the session's runtime directory and bus address only from two switches a control sets,
-and offers the account's service manager no program,
-so a library test run from a tree that holds that merge needs no fixture runtime directory.
-A run of a built wrapper executable on the host still does
+A run of a built wrapper executable on the host still needs a fixture runtime directory and no bus address
 (a release binary in a pass,
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
