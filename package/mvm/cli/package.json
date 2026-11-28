@@ -7,7 +7,7 @@
   "main": "src/index.ts",
   "module": "dist/final/node/index.mjs",
   "bin": {
-    "mvm": "dist/final/node/cli.mjs"
+    "mvm": "src/cli.ts"
   },
   "exports": {
     ".": {
