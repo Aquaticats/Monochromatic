@@ -324,7 +324,20 @@ pub fn check_file_order(
     // What: the folders of this package, so a dead line that names one of them says whether the tree holds it.
     // Why: a mistyped or hand-aligned line names a folder no tree holds, and naming it is what tells its reader to re-space the line.
     let folders: BTreeSet<PathBuf> = by_folder.keys().cloned().collect::<BTreeSet<PathBuf>>();
-    kept.extend(dead_entry_findings(list, &entries_used, &folders, base));
+    // What: every module file of the package, so a dead line can tell a file name its folder holds from one it does not.
+    // Why: a line that spells a real module file's own name is dead for another reason than a mistyped name.
+    let module_files: BTreeSet<PathBuf> = by_folder
+        .values()
+        .flatten()
+        .cloned()
+        .collect::<BTreeSet<PathBuf>>();
+    kept.extend(dead_entry_findings(
+        list,
+        &entries_used,
+        &folders,
+        &module_files,
+        base,
+    ));
     return kept;
 }
 
