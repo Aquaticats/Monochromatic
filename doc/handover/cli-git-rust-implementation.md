@@ -2913,18 +2913,7 @@ and the two `truepeak` files wait on their branch.
   and what refused under heavy disk load on 2026-11-26 is not known.
   Issue 6523 (`package/ide/app` does not compile on `main`) has its compile fix on `main` since `4df352241d`,
   and what is left of it is the owner's (a comment on the issue).
-- The wrapper package's TypeScript side was red on `main` and nothing ran it.
-  Issue 6562's round reported it,
-  and at `1c8acd5bfb` `test:unit` exits 1 on two files:
-  `e2e/service-mode-words.unit.test.ts` looks for a declaration line that became a slice (issue 6579),
-  and `bin/native-planted-controls.unit.test.ts` dies with "Invalid string length"
-  because a recursive read of `src/native` follows the `uses/` links
-  and returns 163,079 entries for a tree of 3,809 files (issue 6580).
-  `lint:oxlint` exits 1 with 850 errors and 1856 warnings in fifteen files:
-  eleven guest scripts in `e2e/`,
-  two fence measurements in `perf/`
-  and `bin/service-manager-install-proof.ts` (issue 6581).
-  The release gate runs the Rust suite and Clippy,
+- The release gate runs the Rust suite and Clippy,
   a round runs the Rust modules it touched,
   and the coordinator's tip check ran `native:check`,
   Clippy and `source_guard`;
