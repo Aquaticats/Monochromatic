@@ -2944,15 +2944,7 @@ and the two `truepeak` files wait on their branch.
   neither is released,
   because the standing answer on alphas does not name them
   (`doc/handover/questions-for-the-owner.md`).
-- The gate's reader of a container's control group keeps a whole reading (`9ea0d98dda`,
-  issue 6614),
-  by the rule issue 6610 gave the check scope's reader:
-  a reading that lost part of its group neither replaces a whole one nor throws,
-  so a container killed inside its memory bound whose `memory.events` went before a read is still reported as killed.
-  The reader answers two things apart,
-  a directory it cannot find and a reading that is not whole,
-  because only the first ends a role in the recorder.
-  No real gate has run on it yet:
+- No real gate has run on the gate's reader of a container's control group yet:
   the next whole gate is its first.
 - The managed-lock guest driver builds within its guest and its arm ran to its end (`239b91c5ee`,
   issue 6611):
