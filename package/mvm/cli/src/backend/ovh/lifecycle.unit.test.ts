@@ -122,6 +122,89 @@ function cloneRoutes(): Routes {
 
 //endregion Routes
 
+//region Priced catalogue stand-ins
+
+/**
+ The address line every machine carries, as the live CA answer of 2026-11-28
+ states it: one metered entry whose `intervalUnit` is `none`, and its hour in
+ the commercial blob.
+ */
+const ADDRESS_ADDON = {
+  blobs: { commercial: { price: { interval: 'PT1H', }, }, },
+  planCode: 'publicip.ip.hour.consumption',
+  pricings: [{ interval: 0, intervalUnit: 'none', price: 432_000, type: 'consumption', },],
+  product: 'publiccloud-publicip-ip',
+};
+
+/**
+ The Gen 3 storage line, as that answer states it: 23330 per GB-hour, whose GB
+ the instance plan states separately.
+ */
+const GEN3_STORAGE_ADDON = {
+  planCode: 'instance.local-storage-gen3-gb.hour.consumption',
+  pricings: [{ interval: 1, intervalUnit: 'hour', price: 23_330, type: 'consumption', },],
+  product: 'publiccloud-local-storage-gen3-gb',
+};
+
+/**
+ The storage line the earlier ranges name, which that answer prices at zero
+ because their local storage is included in the row.
+ */
+const FREE_STORAGE_ADDON = {
+  planCode: 'instance.local-storage-free-gb.hour.consumption',
+  pricings: [{ interval: 1, intervalUnit: 'hour', price: 0, type: 'consumption', },],
+  product: 'publiccloud-local-storage-free-gb',
+};
+
+/**
+ One instance plan as that answer states an instance plan: its own row, the
+ family naming the addon that bills its storage, and the disks its technical
+ blob lists.
+ 
+ This is a stand-in: its numbers are the ones each call passes, not live ones.
+ */
+function planAddon({
+  diskGb,
+  planCode,
+  rowPrice,
+  storagePlanCode,
+}: {
+  readonly diskGb: number;
+  readonly planCode: string;
+  readonly rowPrice: number;
+  readonly storagePlanCode: string;
+},) {
+  return {
+    addonFamilies: [{ addons: [storagePlanCode,], name: 'local-storage', },],
+    blobs: { technical: { storage: { disks: [{ capacity: diskGb, number: 1, },], }, }, },
+    planCode,
+    pricings: [{ interval: 1, intervalUnit: 'hour', price: rowPrice, type: 'consumption', },],
+    product: 'publiccloud-instance',
+  };
+}
+
+/**
+ A catalogue answer holding the answer's own three side lines and the plans a
+ test prices.
+ 
+ @param addons - the plans and side lines this answer carries
+ 
+ @returns the body the price read parses
+ 
+ @example
+ ```ts
+ priceCatalog([ADDRESS_ADDON, FREE_STORAGE_ADDON, planAddon({ ... })]);
+ ```
+ */
+function priceCatalog(addons: readonly unknown[],) {
+  return {
+    addons,
+    locale: { currencyCode: 'CAD', },
+  };
+}
+
+//endregion Priced catalogue stand-ins
+
 await describe({
   name: 'ovh lifecycle',
   concurrency: 1,
@@ -467,29 +550,22 @@ await describe({
               vcpus: 4,
             },),
           ],),],
-          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [jsonAnswer({
-            addons: [
-              {
-                planCode: 'b2-7.consumption',
-                pricings: [{
-                  interval: 1,
-                  intervalUnit: 'hour',
-                  price: 11_350_000,
-                  type: 'consumption',
-                },],
-              },
-              {
-                planCode: 'd2-8.consumption',
-                pricings: [{
-                  interval: 1,
-                  intervalUnit: 'hour',
-                  price: 5_960_000,
-                  type: 'consumption',
-                },],
-              },
-            ],
-            locale: { currencyCode: 'CAD', },
-          },),],
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [jsonAnswer(priceCatalog([
+            ADDRESS_ADDON,
+            FREE_STORAGE_ADDON,
+            planAddon({
+              diskGb: 50,
+              planCode: 'b2-7.consumption',
+              rowPrice: 11_350_000,
+              storagePlanCode: 'instance.local-storage-free-gb.hour.consumption',
+            },),
+            planAddon({
+              diskGb: 50,
+              planCode: 'd2-8.consumption',
+              rowPrice: 5_960_000,
+              storagePlanCode: 'instance.local-storage-free-gb.hour.consumption',
+            },),
+          ],),),],
         },),);
         await ovhCreate({
           memoryGiB: 6,
@@ -516,6 +592,148 @@ await describe({
             path: '/v1/order/catalog/public/cloud?ovhSubsidiary=CA',
           },).length,
         ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a create ranks and prints the whole hour, so a Gen 3 size cheaper by its row loses once its storage is counted',
+      fn: async ctx => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'b2-7.consumption',
+              id: 'b2-7',
+              ram: 7,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 400,
+              hourlyPlanCode: 'b3-8.consumption',
+              id: 'b3-8',
+              ram: 8,
+              vcpus: 2,
+            },),
+          ],),],
+          // The rows turn the other way: b3-8's row is 0.09 against b2-7's
+          // 0.1135, and its 400 GB of local storage add 0.09332, which puts its
+          // whole hour at 0.18764. The rows are stand-ins chosen to make the
+          // order turn; the live grid changes no pick (issue 6666).
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [jsonAnswer(priceCatalog([
+            ADDRESS_ADDON,
+            GEN3_STORAGE_ADDON,
+            FREE_STORAGE_ADDON,
+            planAddon({
+              diskGb: 50,
+              planCode: 'b2-7.consumption',
+              rowPrice: 11_350_000,
+              storagePlanCode: 'instance.local-storage-free-gb.hour.consumption',
+            },),
+            planAddon({
+              diskGb: 400,
+              planCode: 'b3-8.consumption',
+              rowPrice: 9_000_000,
+              storagePlanCode: 'instance.local-storage-gen3-gb.hour.consumption',
+            },),
+          ],),),],
+        },),);
+        /**
+         Everything the create printed while it chose.
+         */
+        const info = ctx.sinon.stub(console, 'info',);
+        info.returns(undefined,);
+        await ovhCreate({
+          memoryGiB: 6,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        expect((created.body as { readonly flavorId: string; }).flavorId,).toBe('b2-7',);
+        // Positive control: the capture can show a line, so a missing figure
+        // below means the create did not print it, not a blind probe.
+        console.info('capture-probe',);
+        /**
+         Every line the create printed, as one text.
+         */
+        const printed = info.args
+          .map(function asText(args,) {
+            return args.map(String,)
+              .join(' ',);
+          },)
+          .join('\n',);
+        expect(printed,).toContain('capture-probe',);
+        // The figure is b2-7's whole hour, not its 0.1135 row.
+        expect(printed,).toContain('0.11782 CAD per hour',);
+        expect(printed,).toContain('public IPv4 address',);
+        expect(printed,).toContain('local storage',);
+        expect(printed,).toContain('excluding tax',);
+      },
+    },),
+    it({
+      name: 'a create never takes a Gen 3 size whose storage line the answer does not price, even when its row is cheapest',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 100,
+              hourlyPlanCode: 'c3-8.consumption',
+              id: 'c3-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'd2-8.consumption',
+              id: 'd2-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+          ],),],
+          // c3-8's row is 0.03 and d2-8's whole hour is 0.06392, so a read that
+          // priced a size by its row alone would take c3-8. Its storage family
+          // names a line this answer does not carry, which is a size with no
+          // published price at all.
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [jsonAnswer(priceCatalog([
+            ADDRESS_ADDON,
+            FREE_STORAGE_ADDON,
+            planAddon({
+              diskGb: 100,
+              planCode: 'c3-8.consumption',
+              rowPrice: 3_000_000,
+              storagePlanCode: 'instance.local-storage-gen3-gb.hour.consumption',
+            },),
+            planAddon({
+              diskGb: 50,
+              planCode: 'd2-8.consumption',
+              rowPrice: 5_960_000,
+              storagePlanCode: 'instance.local-storage-free-gb.hour.consumption',
+            },),
+          ],),),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 8,
+          name: 'dev',
+          vcpus: 4,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        expect((created.body as { readonly flavorId: string; }).flavorId,).toBe('d2-8',);
       },
     },),
     it({

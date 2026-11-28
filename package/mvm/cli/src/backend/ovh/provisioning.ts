@@ -271,7 +271,7 @@ async function chooseFlavorAndImage({
       },);
       rl.info(
         `size ${describeSizeRequest({ request, },)} fits ${flavor.name} (${String(flavor.vcpus,)} vCPUs, ${String(flavor.ram,)} GiB of memory, ${String(flavor.disk,)} GB of disk)${
-          (price === NO_PRICE) ? ', no published hourly price could be read so the smallest numbers win' : `, ${String(price,)} ${(priceChoice.kind === 'priced') ? priceChoice.currency : ''} per hour${(fit.order === 'price') ? '' : ', read by size because no price was available'}`
+          (price === NO_PRICE) ? ', no published hourly price could be read so the smallest numbers win' : `, ${String(price,)} ${(priceChoice.kind === 'priced') ? priceChoice.currency : ''} per hour counting the instance, its public IPv4 address and its local storage, excluding tax${(fit.order === 'price') ? '' : ', read by size because no price was available'}`
         }`,
       );
       return {
