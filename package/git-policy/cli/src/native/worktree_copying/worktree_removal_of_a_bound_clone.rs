@@ -312,12 +312,12 @@ pub fn the_removal_with(
         RemovalReads::Live => format!(
             "the removal of `{}` runs here: a whole managed clone is bound to this slot, and {}. Git does not run, and this release's removal ends no holder and forces nothing, so `-f -f` and every other spelling take this path.\n",
             target.display(),
-            crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+            crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
         ),
         _ => format!(
-            "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}. Nothing was removed, and Git did not run. Every spelling of `git worktree remove` is refused here, `-f -f` included: `git worktree unlock {slot}` releases the registration Git holds, and being rid of the clone after that is a person's own destroy, which takes its snapshots and bookmarks with it.\n",
+            "the removal of `{}` is refused: a whole managed clone is bound to this slot, and {}. The pool here is the caller's own answer and not this machine's device, which the whole removal needs, so nothing was removed and Git did not run; the lines after this one say what a removal would prove and lose.\n",
             target.display(),
-            crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+            crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
         ),
     };
     for line in at.lines() {

@@ -177,7 +177,7 @@ fn an_unmounted_clone_passes_and_names_its_dataset() {
 
 /// A clone a removal left mounted in a staging folder is a finding that names
 /// the folder,
-/// and says the release has no removal.
+/// and names no removal that would take that slot.
 #[test]
 fn a_staged_clone_is_a_finding_naming_the_folder() {
     let folder: String = format!("{CACHE}/monochromatic-git-policy-cli-staging-1837462836473829");
@@ -202,8 +202,12 @@ fn a_staged_clone_is_a_finding_naming_the_folder() {
     assert_eq!(field, "staging");
     assert!(detail.contains(folder.as_str()), "{detail}");
     assert!(
-        detail.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        detail.contains("Git's own removal answers for a clone mounted elsewhere"),
         "{detail}"
+    );
+    assert!(
+        !detail.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
+        "the wrapper's removal does not take a clone mounted away from its slot: {detail}"
     );
 }
 

@@ -112,7 +112,7 @@ impl RemovalReading {
         ));
         lines.extend(self.lost.lines());
         lines.push(String::from(
-            "this release does not remove a clone yet: nothing was unmounted, no removal intent was filed and no destruction plan was written, so every snapshot, bookmark, record and registration still stands.",
+            "the removal itself did not run here: nothing was unmounted, no removal intent was filed and no destruction plan was written, so every snapshot, bookmark, record and registration still stands.",
         ));
         return lines;
     }
