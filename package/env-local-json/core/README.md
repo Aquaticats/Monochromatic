@@ -237,8 +237,17 @@ not a built entry point.
   It inherits the caller's environment with any `extraEnv` overrides;
   `readerEnvironment` does not change this.
 
-Every tool call has a two-second deadline by default,
+Every tool call has a fifteen-second deadline by default,
 including the time for its output to close.
+That bound is sized from the slowest call measured where the fixture's users run it,
+the subagent driver's unit suite at the caps a test run gets:
+at a `CPUQuota` of 400 percent of one processor
+one run made 36 calls,
+median 104.2 ms and slowest 4597.5 ms,
+on 2026-11-27T19:16:30-05:00,
+and the same suite at 1000 percent was slowest at 513.7 ms.
+It equals the reader's own `SOPS_TIMEOUT_MS`,
+so a call the shipped reader would wait out cannot fail a fixture.
 Tests can override it with `runCommand`'s `timeoutMilliseconds` option.
 On expiry the runner closes its ends of the output streams and signals the tool's whole process group.
 The tool runs in a group of its own,

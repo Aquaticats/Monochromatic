@@ -124,6 +124,19 @@ const FLOOD_PADDING_BYTES = (2 ** 10) * (2 ** 10);
 /** Test deadline long after the stand-in can start, but before its deliberately open pipes close. */
 const TEST_DEADLINE_MS = 500;
 const MILLISECONDS_PER_SECOND = 1_000;
+
+/**
+ Deadline this issue replaced: under it, `sops --encrypt` calls of the driver's
+ unit suite at `CPUQuota=400%` failed falsely (issue 6410).
+ */
+const PREVIOUS_DEFAULT_TIMEOUT_MS = 2_000;
+
+/**
+ How far past {@link PREVIOUS_DEFAULT_TIMEOUT_MS} the slow stand-in waits, so
+ its call measurably outlasts that old default and still sits far inside the
+ shipped one.
+ */
+const SLOW_CALL_MARGIN_MS = 250;
 /** Finite so a missing deadline gives a failed assertion instead of stranding a tool. */
 const HOLD_SECONDS = (4 * TEST_DEADLINE_MS) / MILLISECONDS_PER_SECOND;
 
@@ -340,6 +353,91 @@ async function standInChildFailure({
     };
   }
   throw new Error('expected the fixture runner to reject a failed pipe read',);
+}
+
+/**
+ Runs one fixture command with the deadline timer replaced for the call's own
+ synchronous part, and reports the delay the runner armed.
+
+The runner arms its deadline before its first `await`, so the replacement is
+installed, used and put back before anything else in this process runs: no
+other test's timer and no harness timer ever sees it. The replacement hands the
+runner's own callback to `setImmediate` instead of arming a timer, so a shipped
+default of seconds costs this test none of them.
+
+@param options - invocation whose deadline is measured
+@returns failure message and the delay the runner asked for
+*/
+async function failureUnderImmediateDeadline(
+  options: Parameters<typeof runCommand>[0],
+): Promise<{ readonly delayMilliseconds: number; readonly message: string; }> {
+  const {
+    armed,
+    pending,
+  } = startUnderImmediateDeadline(options,);
+  try {
+    await pending;
+  }
+  catch (error) {
+    if (!(error instanceof FixtureCommandError))
+      throw error;
+    return {
+      delayMilliseconds: armed.delayMilliseconds,
+      message: error.message,
+    };
+  }
+  throw new Error(`Expected fixture command ${options.command} to reject, but it returned normally.`,);
+}
+
+/**
+ Delay one call asked a replaced timer for, and that call.
+ */
+type CallUnderImmediateDeadline = {
+  /**
+   Delay the runner asked its deadline timer for, in milliseconds.
+   */
+  readonly armed: { delayMilliseconds: number; };
+
+  /**
+   Pending fixture call.
+   */
+  readonly pending: Promise<unknown>;
+};
+
+/**
+ Starts one fixture command with the deadline timer replaced, and puts the
+ process timer back before the call is awaited.
+
+@param options - invocation to start
+
+@returns the delay the runner asks for and the pending call
+*/
+function startUnderImmediateDeadline(
+  options: Parameters<typeof runCommand>[0],
+): CallUnderImmediateDeadline {
+  /**
+   The process timer the replacement puts back, in the same synchronous part it
+   was taken in.
+   */
+  const realSetTimeout = globalThis.setTimeout;
+  const armed = { delayMilliseconds: Number.NaN, };
+  using _putTheTimerBack = {
+    [Symbol.dispose]: function putTheTimerBack(): void {
+      globalThis.setTimeout = realSetTimeout;
+    },
+  };
+  globalThis.setTimeout = function immediateDeadline(
+    callback: () => void,
+    milliseconds?: number,
+  ): ReturnType<typeof setImmediate> {
+    armed.delayMilliseconds = milliseconds ?? Number.NaN;
+    return setImmediate(callback,);
+  } as unknown as typeof globalThis.setTimeout;
+  const pending = runCommand(options,);
+  return {
+    armed,
+    pending,
+  };
 }
 
 //endregion Helpers
@@ -619,18 +717,49 @@ await describe({
     },),
     it({
       fn: async () => {
-        const message = await commandFailureMessage({
+        const {
+          delayMilliseconds,
+          message,
+        } = await failureUnderImmediateDeadline({
           args: [],
           command: STAND_IN_TOOL_NAME,
           spawnTool: function startStandInChild(): ChildProcess {
             return standInChild().child;
           },
         },);
+        // A caller that names no deadline gets the shipped constant, and a tool
+        // whose pipes never close is failed by it. The replacement timer says
+        // which delay the runner armed, so the test proves the shipped default
+        // rather than waiting it out.
+        expect(delayMilliseconds,).toBe(FIXTURE_COMMAND_TIMEOUT_MS,);
         expect(message,).toContain(`did not complete within ${String(FIXTURE_COMMAND_TIMEOUT_MS,)} ms`,);
         expect(message,).toContain('Check why the tool did not finish.',);
       },
-      name: 'waits the default deadline when the caller names none',
-      timeout: 4 * FIXTURE_COMMAND_TIMEOUT_MS,
+      name: 'fails a tool whose output never closes at the shipped default, without waiting it',
+    },),
+    it({
+      fn: async () => {
+        // The bound is a hang guard, not a speed limit: a call the previous
+        // two-second default failed must pass under the shipped one.
+        expect(FIXTURE_COMMAND_TIMEOUT_MS,).toBeGreaterThan(PREVIOUS_DEFAULT_TIMEOUT_MS,);
+        await using temp = await createTempRoot();
+        const command = await writeStandInTool({
+          root: temp.root,
+          lines: [
+            `sleep ${String((PREVIOUS_DEFAULT_TIMEOUT_MS + SLOW_CALL_MARGIN_MS) / MILLISECONDS_PER_SECOND,)}`,
+            `printf '%s' '${STDOUT_MARKER}'`,
+          ],
+        },);
+        const startedAt = performance.now();
+        const result = await runCommand({ args: [], command, },);
+        const elapsed = performance.now() - startedAt;
+        expect(result.stdout,).toBe(STDOUT_MARKER,);
+        // The positive control: this call really did outlast the old default, so
+        // its success measures the shipped default's room and not a fast host.
+        expect(elapsed,).toBeGreaterThan(PREVIOUS_DEFAULT_TIMEOUT_MS,);
+      },
+      name: 'allows a call slower than the two-second default this issue replaced',
+      timeout: 4 * (PREVIOUS_DEFAULT_TIMEOUT_MS + SLOW_CALL_MARGIN_MS),
     },),
     it({
       fn: async () => {

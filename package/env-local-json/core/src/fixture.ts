@@ -72,14 +72,23 @@ const PUBLIC_KEY_COMMENT_START = '#';
  Fixture-only deadline for one tool call, including the time to drain both
  output streams.
 
- Measured on 2026-11-27T18:30:20-05:00 on this machine as it was found (load
- average 9.46 over the minute, four other Pi runs and two other Claude runs in
- the process list), over 20 calls per arm: `age-keygen` slowest 3.8 ms, `sops
- --encrypt` slowest 14.2 ms, `sops --decrypt` slowest 11.9 ms, a whole
- `createSopsFixture` slowest 18.7 ms. Two seconds is 107 times that slowest
- whole fixture call, which leaves room for scheduling and a slower test host.
+ Sized from the slowest call measured where the fixture's users run it, the
+ driver's unit suite at the caps a test run gets, not from a quiet host. One
+ run of that suite inside `CPUQuota=400%` made 36 calls between
+ 2026-11-27T19:16:41-05:00 and 2026-11-27T19:18:09-05:00: median 104.2 ms,
+ slowest 4597.5 ms, and that slowest call is past the previous 2000 ms default.
+ The same suite at `CPUQuota=1000%` made 36 calls between
+ 2026-11-27T19:20:22-05:00 and 2026-11-27T19:20:59-05:00: median 39.3 ms,
+ slowest 513.7 ms. Load average stood at 23.23 and 12.94 when those runs
+ started, with 11 and 29 other Pi runs and two Claude runs in the process list.
+
+ Fifteen seconds is 3.3 times that slowest capped call and 29 times the slowest
+ call at 1000%, so a stalled disk fits inside it: a 4 KiB write-and-sync probe
+ saw 2564 ms on 2026-11-17. It equals `SOPS_TIMEOUT_MS`, the deadline the reader
+ gives the same sops child, so no call the reader would wait out can fail a
+ fixture.
  */
-export const FIXTURE_COMMAND_TIMEOUT_MS = 2_000;
+export const FIXTURE_COMMAND_TIMEOUT_MS = 15_000;
 
 /**
  Signal sent to a tool's process group when the deadline passes. Nothing of a
