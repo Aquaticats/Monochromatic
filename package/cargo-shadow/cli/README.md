@@ -2016,14 +2016,45 @@ against one ask and about 0.03 s a call where the read finds nothing.
 A manager that is there and answers with a refusal of its own is not one of those,
 and neither is an answer that is not a control group path:
 the discovery asks where the slice is first,
-starts the slice only where the manager reports no control group,
-and asks once more after a start it refused,
-so an answer of the manager's ends the asking
-(measured 2026-11-27 in a container whose own manager had `app.slice` masked and stopped:
+and that one ask reads two properties in one program start,
+the slice's control group and the job queued on the slice.
+The slice is started where the manager reports no control group **or a job queued on it**,
+and where it is a path and no job stands, the path is the route.
+A start that fails is followed by one more ask,
+and what that ask answers decides the asking (`the_manager_answered_a_start`):
+a path is the route and is used, whatever the start's words were;
+an empty answer ends the asking only where the start's own words are the manager's answer about the slice,
+which is what `Failed to start app.slice: Unit app.slice is masked.` is and no wait changes;
+and an empty answer after words of a transport,
+or after words that name neither the slice nor a transport,
+is a moment, and the whole question is put again inside the same span.
+An answer that is not a control group path ends the asking the same way,
+after the ask that followed the start,
+because the manager answered twice.
+Measured 2026-11-27 in a container whose own manager had `app.slice` masked and stopped:
 **3 asks and 56.5 ms a call against the released `0.1.5-alpha.16`'s 5 asks and 883.1 ms**,
 with the same refusal words;
 and through a stand-in that answers every ask of where the slice is with an empty value,
-**3 asks and 41.8 ms against 10 asks and 890.4 ms**).
+**3 asks and 41.8 ms against 10 asks and 890.4 ms**.
+This branch's binary made 3 asks in each of 12 calls there, beside the released `0.1.5-alpha.17`'s 3 and its
+byte-identical copy's 3, where `0.1.5-alpha.16` made 5.
+A slice with a stop job queued is one of the states a start waits out:
+the manager keeps the slice's path while the job stands,
+and a scope made in the slice then is refused (`Transaction for cargo-shadow-....scope/start is destructive (app.slice has 'stop'
+job queued, but 'start' is included in transaction).`, measured 2026-11-27 in a container),
+so the discovery starts the slice, which returned 0 after 3.68 s to 3.78 s behind a planted four-second stop and left
+nothing queued on the slice.
+Measured 2026-11-27 in that container's own manager with a service that ignores SIGTERM holding the stop open, three
+rounds of each arm, one call each:
+this branch's binary exited 0 and took the delegated route in 3 of 3 calls, in 3 asks and 3.8 s to 6.1 s,
+where `0.1.5-alpha.16` did the same in 2 asks and 3.6 s to 5.7 s,
+and the released `0.1.5-alpha.17` and its byte-identical copy exited 1 in the 4 calls that met the state (1 ask, 0.1 s to
+0.2 s), with the manager's words above under "Cargo output".
+What a start behind a queued stop does is in systemd's own source at v262 and v255, and the document below
+reads it there (`src/core/job.c`, `src/core/transaction.c`, `src/run/run.c` and `src/systemctl/systemctl.h` at both
+versions): a start and a stop of one unit cannot merge, a transaction is refused as destructive only in `fail` or
+`lenient` mode or against a job marked irreversible, and `systemd-run` puts a scope's transaction in `fail` while
+`systemctl start` puts its own in `replace`.
 Where no user manager can be reached at all,
 the question is asked once:
 the discovery reads in its own process that nothing on this host could carry an ask
