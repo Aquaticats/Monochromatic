@@ -93,11 +93,21 @@
 //! - `scoped_start.rs`:
 //!   a scoped thread,
 //!   or the work done in turn where the system cannot start one.
+//! - `the_queue_and_its_thread.rs`:
+//!   the queue a line waits in and the thread that writes it:
+//!   the value both ends of one queue share,
+//!   the policy that says how one queue differs from the other,
+//!   the thread that takes lines and writes them,
+//!   and the state a control reads.
+//! - `the_line_a_refused_thread_writes_where_it_is_said.rs`:
+//!   the line a process whose process limit refused the queue's thread writes on the thread that says it,
+//!   as much of it as the stream takes at once and never in a wait for a reader.
 //! - `lines_written_by_a_thread.rs`:
-//!   lines a caller hands over and a thread of its own writes:
-//!   the bounded queue,
-//!   its thread,
-//!   and the wait the end of a process makes for them.
+//!   a caller's side of a queue of lines a thread writes:
+//!   the answer a handed line gets,
+//!   the hand-over,
+//!   the wait for that line to reach the stream,
+//!   and the wait the end of a process makes for the lines it handed over.
 //! - `the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote.rs`:
 //!   the words one diagnostic line is made of:
 //!   the two switches a level answers to,
@@ -384,10 +394,22 @@ pub mod js_text;
 /// the door that chooses a level and asks for its line to be written.
 pub mod diagnostic_log;
 
-/// Lines a caller hands over and a thread of its own writes:
-/// the bounded queue,
-/// its thread,
-/// and the wait the end of a process makes for them.
+/// The queue a line waits in and the thread that writes it:
+/// the value both ends of one queue share,
+/// the policy that says how one queue differs from the other,
+/// the thread that takes lines and writes them,
+/// and the state a control reads.
+pub(crate) mod the_queue_and_its_thread;
+
+/// The line a process whose process limit refused the queue's thread writes on the thread that says it,
+/// as much of it as the stream takes at once and never in a wait for a reader.
+pub(crate) mod the_line_a_refused_thread_writes_where_it_is_said;
+
+/// A caller's side of a queue of lines a thread writes:
+/// the answer a handed line gets,
+/// the hand-over,
+/// the wait for that line to reach the stream,
+/// and the wait the end of a process makes for the lines it handed over.
 pub mod lines_written_by_a_thread;
 
 /// The words one diagnostic line is made of:
