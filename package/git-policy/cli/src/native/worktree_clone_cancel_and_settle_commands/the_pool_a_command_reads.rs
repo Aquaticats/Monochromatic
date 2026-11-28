@@ -56,7 +56,7 @@ use std::cell::OnceCell;
 /// ```ts
 /// type ThePool = { pool: OnceCell<Result<LiveRemovalReads, string>>; children: OnceCell<Result<ZfsDatasetReader, ReadFailure>> };
 /// ```
-pub struct ThePoolACommandReadsWhenAsked {
+pub(crate) struct ThePoolACommandReadsWhenAsked {
     /// The removal's reads,
     /// opened by the first pool request,
     /// which runs the compatibility gate first.
@@ -69,7 +69,7 @@ pub struct ThePoolACommandReadsWhenAsked {
 
 impl ThePoolACommandReadsWhenAsked {
     /// The pool nothing has opened yet.
-    pub fn not_opened() -> ThePoolACommandReadsWhenAsked {
+    pub(crate) fn not_opened() -> ThePoolACommandReadsWhenAsked {
         return ThePoolACommandReadsWhenAsked {
             pool: OnceCell::new(),
             children: OnceCell::new(),

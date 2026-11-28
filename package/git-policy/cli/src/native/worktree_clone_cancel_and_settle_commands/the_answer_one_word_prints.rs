@@ -29,15 +29,15 @@
 /// const answer: AnAnswer = { code: 0, stdout: '', stderr: 'cancelled the removal of `one`...' };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AnAnswer {
+pub(crate) struct AnAnswer {
     /// The status this process exits with.
-    pub code: i32,
+    pub(crate) code: i32,
     /// The text written on standard output,
     /// line-terminated where it is not empty.
-    pub stdout: String,
+    pub(crate) stdout: String,
     /// The text written on standard error,
     /// line-terminated where it is not empty.
-    pub stderr: String,
+    pub(crate) stderr: String,
 }
 
 impl AnAnswer {
@@ -51,7 +51,7 @@ impl AnAnswer {
     /// ```ts
     /// AnAnswer.onStandardOutput(0, 'settled the records of `one`.\n');
     /// ```
-    pub fn on_standard_output(
+    pub(crate) fn on_standard_output(
         code: i32,
         text: String,
     ) -> AnAnswer {
@@ -74,7 +74,7 @@ impl AnAnswer {
     /// ```ts
     /// AnAnswer.onStandardError(2, 'no slot was named, so there is nothing to cancel.\n');
     /// ```
-    pub fn on_standard_error(
+    pub(crate) fn on_standard_error(
         code: i32,
         text: String,
     ) -> AnAnswer {
@@ -97,7 +97,7 @@ impl AnAnswer {
     /// ```ts
     /// answer.lineTerminated();
     /// ```
-    pub fn line_terminated(mut self) -> AnAnswer {
+    pub(crate) fn line_terminated(mut self) -> AnAnswer {
         if !self.stdout.is_empty() && !self.stdout.ends_with('\n') {
             self.stdout.push('\n');
         }

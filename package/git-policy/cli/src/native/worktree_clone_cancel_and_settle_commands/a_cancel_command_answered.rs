@@ -57,7 +57,7 @@ use std::path::PathBuf;
 /// ```ts
 /// aCancelCommandAnswered(invocation, route);
 /// ```
-pub fn a_cancel_command_answered(
+pub(crate) fn a_cancel_command_answered(
     invocation: Result<CancelInvocation, CancelMistake>,
     route: Result<TheRoute, AnAnswer>,
 ) -> AnAnswer {

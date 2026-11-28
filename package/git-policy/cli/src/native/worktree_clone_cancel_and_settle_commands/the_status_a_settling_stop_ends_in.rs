@@ -41,7 +41,7 @@ use crate::worktree_clone_removal_cancel::cancel_refusal::{
 /// ```ts
 /// exitStatusOf(stop); // 2 for a usage or a confirmation mistake, 1 otherwise
 /// ```
-pub fn exit_status_of(stop: &SettlingStop) -> i32 {
+pub(crate) fn exit_status_of(stop: &SettlingStop) -> i32 {
     return match stop {
         SettlingStop::Usage {
             ..

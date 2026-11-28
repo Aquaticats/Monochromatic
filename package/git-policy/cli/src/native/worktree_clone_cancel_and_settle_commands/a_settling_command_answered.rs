@@ -50,7 +50,7 @@ use std::path::PathBuf;
 /// ```ts
 /// aSettlingCommandAnswered(parse_settling_arguments(rest), theRoute(word, ...));
 /// ```
-pub fn a_settling_command_answered(
+pub(crate) fn a_settling_command_answered(
     invocation: Result<SettlingRequest, SettlingStop>,
     route: Result<TheRoute, AnAnswer>,
 ) -> AnAnswer {

@@ -20,7 +20,7 @@
 
 /// The management word that runs the settling command,
 /// which is the last word of the invocation the add's records print.
-pub const SETTLE_COMMAND_WORD: &str = "settle-worktree-clone-record";
+pub(crate) const SETTLE_COMMAND_WORD: &str = "settle-worktree-clone-record";
 
 /// Controls stay out of the release executable.
 #[cfg(test)]

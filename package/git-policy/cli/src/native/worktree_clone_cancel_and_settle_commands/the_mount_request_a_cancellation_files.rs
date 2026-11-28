@@ -49,7 +49,7 @@ use std::path::Path;
 /// ```ts
 /// type TheWriter = { commonDir: string; slot: string; writer: OnceCell<Result<LiveTheMountRequest, string>> };
 /// ```
-pub struct TheMountRequestFiledWhenAsked<'a> {
+pub(crate) struct TheMountRequestFiledWhenAsked<'a> {
     /// The common Git directory whose record home holds the slot's binding.
     common_dir: &'a Path,
     /// The slot the command proved.
@@ -61,7 +61,7 @@ pub struct TheMountRequestFiledWhenAsked<'a> {
 
 impl<'a> TheMountRequestFiledWhenAsked<'a> {
     /// A writer for one slot whose record has not been read yet.
-    pub fn for_the_slot(
+    pub(crate) fn for_the_slot(
         common_dir: &'a Path,
         slot: &'a str,
     ) -> TheMountRequestFiledWhenAsked<'a> {

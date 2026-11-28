@@ -51,15 +51,15 @@ use std::path::{
 /// type TheRoute = { checkout: string; commonDir: string; home?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TheRoute {
+pub(crate) struct TheRoute {
     /// The checkout whose `.claude/worktrees` holds the slots.
-    pub checkout: PathBuf,
+    pub(crate) checkout: PathBuf,
     /// The common Git directory the wrapper's records live under.
-    pub common_dir: PathBuf,
+    pub(crate) common_dir: PathBuf,
     /// The account's home,
     /// which the cache holding the staging folder stands in,
     /// where this process can name it.
-    pub home: Option<PathBuf>,
+    pub(crate) home: Option<PathBuf>,
 }
 
 impl TheRoute {
@@ -77,7 +77,7 @@ impl TheRoute {
     /// ```ts
     /// TheRoute.of('cancel-worktree-removal', globalArguments, overlay, realGit, home);
     /// ```
-    pub fn of(
+    pub(crate) fn of(
         word: &str,
         global_arguments: &[OsString],
         overlay: &[(OsString, OsString)],
@@ -128,7 +128,7 @@ impl TheRoute {
     /// ```ts
     /// const home = route.theHome('cancel-worktree-removal');
     /// ```
-    pub fn the_home(
+    pub(crate) fn the_home(
         &self,
         word: &str,
     ) -> Result<&Path, AnAnswer> {

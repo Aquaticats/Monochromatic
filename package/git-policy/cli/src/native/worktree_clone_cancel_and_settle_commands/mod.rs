@@ -60,30 +60,26 @@
 //! ```
 
 /// The word the grammar reads for the settling command.
-pub mod the_settling_commands_word;
+pub(crate) mod the_settling_commands_word;
 
 /// The status each way the settling command stops ends in.
-pub mod the_status_a_settling_stop_ends_in;
+pub(crate) mod the_status_a_settling_stop_ends_in;
 
 /// One finished invocation's status and the text each stream carries.
-pub mod the_answer_one_word_prints;
+pub(crate) mod the_answer_one_word_prints;
 
 /// The place the two commands run in.
-pub mod the_place_the_two_commands_run_in;
+pub(crate) mod the_place_the_two_commands_run_in;
 
 /// The pool both commands read,
 /// opened at the first read that needs it.
-pub mod the_pool_a_command_reads;
+pub(crate) mod the_pool_a_command_reads;
 
 /// The reversing request a cancellation files.
-pub mod the_mount_request_a_cancellation_files;
+pub(crate) mod the_mount_request_a_cancellation_files;
 
 /// What the `cancel-worktree-removal` word prints.
-pub mod a_cancel_command_answered;
+pub(crate) mod a_cancel_command_answered;
 
 /// What the `settle-worktree-clone-record` word prints.
-pub mod a_settling_command_answered;
-
-pub use a_cancel_command_answered::a_cancel_command_answered;
-pub use a_settling_command_answered::a_settling_command_answered;
-pub use the_answer_one_word_prints::AnAnswer;
+pub(crate) mod a_settling_command_answered;
