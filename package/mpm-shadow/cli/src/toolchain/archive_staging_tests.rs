@@ -416,6 +416,47 @@ fn an_installer_that_no_longer_runs() -> Owner {
     };
 }
 
+/// What:
+/// A boot identifier no run of this machine is running under,
+/// in the UUID form the kernel writes.
+/// Why:
+/// An installer that made a hidden name in another boot is one that a reboot certainly ended,
+/// so a control that judges a name from another boot needs an identifier the reader's own is not,
+/// and a name whose boot field is that form is the only one this reader judges at all.
+/// The value stands for nothing any program printed;
+/// it is a boundary value of the boot field.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ANOTHER_BOOTS_IDENTIFIER = '00000000-0000-0000-0000-000000000000';
+/// ```
+fn another_boots_identifier() -> String {
+    return "00000000-0000-0000-0000-000000000000".to_string();
+}
+
+/// What:
+/// An installer's pair for a process the system no longer runs,
+/// in a boot before this one.
+/// Why:
+/// The sentence every failed publish ends with says a run after a reboot acts on the hidden name,
+/// so a control of that clause needs a name whose boot is not the running one;
+/// the number and the moment are the ones a dead installer of this boot would carry,
+/// and the boot is what makes the answer "ended" without asking about the process at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function anInstallerOfAnotherBoot(): Owner { return { ...anInstallerThatNoLongerRuns(), boot: ANOTHER_BOOTS_IDENTIFIER }; }
+/// ```
+fn an_installer_of_another_boot() -> Owner {
+    let ended: Owner = an_installer_that_no_longer_runs();
+    return Owner {
+        pid: ended.pid,
+        started: ended.started,
+        boot: Some(another_boots_identifier()),
+        namespace: ended.namespace,
+    };
+}
+
 #[test]
 fn a_copy_that_is_there_is_replaced_in_one_exchange_that_no_kill_can_interrupt() {
     let rig = Rig::new();
