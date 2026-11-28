@@ -290,11 +290,18 @@ export class NoSizeFitsError extends Error {
   readonly leftOut: number;
 
   /**
+   The largest size the family rule left out, described, or `''` when it left none.
+   */
+  readonly largestLeftOut: string;
+
+  /**
    @param asked - the floors the caller set, described back
  
    @param largest - the largest size the backend could have used, described, or `''` when it had none
  
    @param leftOut - how many sizes in stock the family rule left out
+ 
+   @param largestLeftOut - the largest such size, described, or `''` when none was left out
  
    @param overrideOptions - how a caller names a size on this backend
  
@@ -303,12 +310,14 @@ export class NoSizeFitsError extends Error {
   constructor({
     asked,
     largest,
+    largestLeftOut = '',
     leftOut = 0,
     overrideOptions,
     place,
   }: {
     readonly asked: string;
     readonly largest: string;
+    readonly largestLeftOut?: string;
     readonly leftOut?: number;
     readonly overrideOptions: string;
     readonly place: string;
@@ -319,11 +328,14 @@ export class NoSizeFitsError extends Error {
       }${
         (leftOut === 0)
           ? ''
-          : `, and ${String(leftOut,)} size${(leftOut === 1) ? '' : 's'} in stock was left out as a special family`
+          : `, and ${String(leftOut,)} size${(leftOut === 1) ? '' : 's'} in stock ${(leftOut === 1) ? 'was' : 'were'} left out as a family mvm does not pick without being told${
+            (largestLeftOut === '') ? '' : `, the largest being ${largestLeftOut}`
+          }`
       }; name a size outright with ${overrideOptions}`,
     );
     this.name = 'NoSizeFitsError';
     this.asked = asked;
+    this.largestLeftOut = largestLeftOut;
     this.leftOut = leftOut;
   }
 }

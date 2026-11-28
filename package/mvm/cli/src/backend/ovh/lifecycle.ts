@@ -20,6 +20,11 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { VM_PREFIX, } from '../../config.ts';
 import type { VmInfo, } from '../../list.ts';
 import {
+  refuseSizeAndOverride,
+  sizeRequest,
+  type SizeRequest,
+} from '../size-request.ts';
+import {
   createInstance,
   createSnapshot,
   deleteInstance,
@@ -63,28 +68,37 @@ const l = tagged({ tag: 'mvm', },);
  
  @param location - per-invocation region or comma-separated fallback series
  
+ @param memoryGiB - least memory the machine may have, in gibibytes, or omitted
+ 
  @param name - VM name without the mvm- prefix
  
  @param serverType - per-invocation flavor name or identifier
  
- @throws Error on an invalid name, on no region with stock, or when the instance never answers
+ @param vcpus - fewest virtual CPUs the machine may have, or omitted
+ 
+ @throws Error on an invalid name, on no region with stock or with a size that fits, on a size named beside a floor, or when the instance never answers
  
  @example
  ```ts
  await ovhCreate({ name: 'dev-01' });
  await ovhCreate({ name: 'big', serverType: 'b3-16', location: 'bhs5' });
+ await ovhCreate({ memoryGiB: 4, name: 'build', vcpus: 2 });
  ```
  */
 export async function ovhCreate({
   image,
   location,
+  memoryGiB,
   name,
   serverType,
+  vcpus,
 }: {
   readonly name: string;
   readonly image?: string;
+  readonly memoryGiB?: number;
   readonly serverType?: string;
   readonly location?: string;
+  readonly vcpus?: number;
 },): Promise<void> {
   validateOvhName(name,);
   /**
@@ -95,10 +109,24 @@ export async function ovhCreate({
     l,
   },);
   /**
+   The floors this create set; empty when it set none, which keeps the smallest
+   size in stock the walk it has always been.
+   */
+  const request: SizeRequest = sizeRequest({
+    memoryGiB,
+    vcpus,
+  },);
+  refuseSizeAndOverride({
+    override: flavorOverride(serverType,),
+    overrideOptions: '--server-type or MVM_OVH_FLAVOR',
+    request,
+  },);
+  /**
    Instance OVHcloud created; from here on a failure has to delete it.
    */
   const created = await provisionInstance({
     name,
+    request,
     rl,
     ...((image === undefined) ? {} : { image, }),
     ...((location === undefined) ? {} : { location, }),

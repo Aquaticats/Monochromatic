@@ -134,11 +134,26 @@ export {
  @internal
  */
 export {
+  describeFlavor,
+  flavorsThatFit,
+  largestFlavor,
   NoFlavorInStockError,
   orderFlavors,
   resolveFlavor,
+  resolveFlavorsThatFit,
   selectFlavor,
 } from './backend/ovh/flavors.ts';
+/**
+ The families mvm may pick a machine size from, exposed for built-artifact
+ verification.
+
+ @internal
+ */
+export {
+  flavorFamilyOf,
+  isKeptFlavor,
+  KEPT_FLAVOR_FAMILIES,
+} from './backend/ovh/flavor-families.ts';
 /**
  OVHcloud image selection, exposed for built-artifact verification.
 
