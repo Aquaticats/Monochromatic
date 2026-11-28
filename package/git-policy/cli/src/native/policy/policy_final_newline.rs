@@ -230,36 +230,37 @@ fn finding(
 }
 
 /// What:
-///  What a commit that takes the bytes `lifecycle` offered does with them.
+///  What a commit does with the bytes `lifecycle` offered.
 /// Why:
-///   An `add` and a direct check read the worktree bytes a commit would take,
-///  so that commit
-///       corrects them before it records them;
-///  a commit's own index,
-///  a landed commit and a pushed tree are states in which a
-///       commit records exactly the bytes it was given,
-///  so nothing corrects them.
-///  A lifecycle that
-///       offers no candidates makes no finding,
+///   An `add` puts worktree bytes in the index,
+///  which a plain commit corrects and a commit whose selection is read-only (`-p`,
+///  `-i`,
+///  `--include`) records as they are;
+///  a direct check reads worktree bytes a commit takes only by taking the file itself;
+///  a commit's own index is bytes nothing corrects yet;
+///  and a landed commit and a pushed tree hold bytes a commit already recorded.
+///  A lifecycle that offers no candidates makes no finding,
 ///  so its answer is never printed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const commitCorrection = lifecycle.kind === 'add' || lifecycle.kind === 'direct' ? 'corrects' : 'records';
+/// const commitCorrection = lifecycle.kind === 'add' ? 'corrects-unless-the-selection-is-read-only' : lifecycle.kind === 'direct' ? 'corrects' : lifecycle.kind === 'pushed' || lifecycle.kind === 'landed' ? 'nothing-corrects-what-a-commit-holds' : 'nothing-corrects-what-the-index-holds';
 /// ```
 fn commit_correction(lifecycle: &LifecycleContent) -> CommitCorrection {
     // `let ... else` runs the fallback for a lifecycle that offers no candidates.
     let LifecycleContent::Requested(request) = lifecycle else {
-        return CommitCorrection::Records;
+        return CommitCorrection::NothingCorrectsWhatTheIndexHolds;
     };
     return match request {
-        CandidateRequest::Add(_) | CandidateRequest::Direct(_) => CommitCorrection::Corrects,
+        CandidateRequest::Add(_) => CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly,
+        CandidateRequest::Direct(_) => CommitCorrection::Corrects,
         CandidateRequest::Staged(_)
         | CandidateRequest::StagedAtBase {
             ..
+        } => CommitCorrection::NothingCorrectsWhatTheIndexHolds,
+        CandidateRequest::Pushed(_) | CandidateRequest::Landed(_) => {
+            CommitCorrection::NothingCorrectsWhatACommitHolds
         }
-        | CandidateRequest::Pushed(_)
-        | CandidateRequest::Landed(_) => CommitCorrection::Records,
     };
 }
 

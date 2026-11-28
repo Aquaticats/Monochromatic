@@ -3352,14 +3352,22 @@ The rejections that already carry their own alternatives (`require-root`,
 `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
 The `final-newline` finding says what corrects the file where the finding is made:
-an `add` and `git monochromatic-git-policy-cli check` name the commit's correction,
- which happens while the settings keep `final-newline` on,
- and `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now;
+an `add` names `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
+ which are the steps that work where the add is refused at `error` severity,
+ and which also correct an index that already holds the bytes,
+ and it names a commit's own correction only for a commit that takes the whole file,
+ because a commit whose selection is read-only records the staged bytes as they are;
+`git monochromatic-git-policy-cli check` names the commit that takes the file,
+ which corrects the ending while the settings keep `final-newline` on,
+ and the fix for correcting the file now;
+a commit that may correct the bytes,
+and `git monochromatic-git-policy-cli fix`,
+say the correction is that command's own;
 a commit whose selection is read-only (`-p`,
  `-i`,
- `--include`),
- a landed commit and a pushed commit say to edit the file,
- because nothing corrects bytes that are already recorded.
+ `--include`) says to edit the file and stage it again;
+and a landed commit and a pushed commit say to edit the file and commit the correction,
+because nothing corrects bytes that are already recorded.
 `src/native/policy/event_hints.rs` holds the texts,
 and its tests fail when a finding code or an engine failure code has no hint.
 
@@ -5405,9 +5413,14 @@ Listing one with a severity is the only way to turn it on,
   never from the worktree.
   Files below `dist/final/node/` or `bundle/node/` are also exempt,
   as generated output.
-  A commit that may correct the file corrects its ending itself;
-  an `add` and a direct check stage the bytes and warn,
-  so their hint names the commit's correction and the `fix` command.
+  A commit that may correct the file corrects its ending itself.
+  A direct check reads worktree bytes a commit takes,
+  so its hint names that commit's correction and the `fix` command.
+  An `add` names the `fix` command and the `git add` staging after it,
+  because an `add` at `error` severity stages nothing
+  and an index keeps the bytes it already holds.
+  A landed commit and a pushed tree name the edit and the commit after it,
+  because a commit already records those bytes.
 - `markdown/autofix`:
    default `warn`.
   Runs the linked `monochromatic-lint` fix engine over staged Markdown inside the commit,
