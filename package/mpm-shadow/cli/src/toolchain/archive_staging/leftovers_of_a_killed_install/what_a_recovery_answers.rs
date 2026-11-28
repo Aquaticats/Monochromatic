@@ -167,7 +167,7 @@ impl ARecoveryThatFailed {
     /// }
     /// ```
     pub(crate) fn the_copy_that_was_moved_aside_it_named(
-        error: ToolchainError,
+        error: ToolchainError
     ) -> ARecoveryThatFailed {
         return ARecoveryThatFailed {
             error,

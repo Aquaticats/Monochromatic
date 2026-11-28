@@ -68,8 +68,8 @@ use super::{
     ID,
     ReadOnly,
     Rig,
-    an_installer_that_no_longer_runs,
     a_finished_copy_at_the_version_as_another_install,
+    an_installer_that_no_longer_runs,
     as_after_this_process_ended,
     context_of,
     lock_at,
@@ -194,7 +194,12 @@ fn the_failure_says_what_a_later_install_does(
     assert!(
         is_finished(std::path::Path::new(copy), BIN),
         "the finished copy the message names is on disk: {:?}",
-        names_of(&version_dir.parent().expect("the tool's directory").to_path_buf())
+        names_of(
+            &version_dir
+                .parent()
+                .expect("the tool's directory")
+                .to_path_buf()
+        )
     );
     let downloads_before: usize = rig.http.requests().len();
     as_after_this_process_ended(std::path::Path::new(copy), version_dir, STAGING_PURPOSE);
@@ -212,13 +217,19 @@ fn an_ordinary_installs_failed_publish_says_what_a_later_install_does_with_the_c
         refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
-    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)), None);
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
     clear_the_plant();
     let copy: String = staging_dir_of(&version_dir).display().to_string();
     the_failure_says_what_a_later_install_does(
         &rig,
         &report,
-        &format!("cannot move the finished install to {}: Input/output error (os error 5)", version_dir.display()),
+        &format!(
+            "cannot move the finished install to {}: Input/output error (os error 5)",
+            version_dir.display()
+        ),
         &copy,
         &version_dir,
     );
@@ -237,7 +248,10 @@ fn a_failed_exchange_says_what_a_later_install_does_with_the_copy_it_kept() {
         answer_the_exchange_with: Some(AN_INPUT_OUTPUT_ERROR),
         ..Plant::default()
     });
-    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)), None);
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
     clear_the_plant();
     let copy: String = staging_dir_of(&version_dir).display().to_string();
     the_failure_says_what_a_later_install_does(
@@ -265,7 +279,10 @@ fn a_failed_aside_rename_says_what_a_later_install_does_with_the_copy_it_kept() 
         refuse_the_rename: Some((RenameRefused::MovesTheCopyAside, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
-    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)), None);
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
     clear_the_plant();
     let copy: String = staging_dir_of(&version_dir).display().to_string();
     the_failure_says_what_a_later_install_does(
@@ -293,7 +310,10 @@ fn a_failed_rename_into_a_name_put_back_says_what_a_later_install_does_with_the_
         refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
-    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)), None);
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
     clear_the_plant();
     let copy: String = staging_dir_of(&version_dir).display().to_string();
     the_failure_says_what_a_later_install_does(
@@ -327,7 +347,10 @@ fn a_put_back_a_second_install_forces_says_what_a_later_install_does_with_the_ke
         refuse_the_rename: Some((RenameRefused::PutsTheCopyBack, AN_INPUT_OUTPUT_ERROR)),
         ..Plant::default()
     });
-    let report: SyncReport = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)), None);
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
     clear_the_plant();
     let copy: String = staging_dir_of(&version_dir).display().to_string();
     the_failure_says_what_a_later_install_does(
@@ -375,7 +398,10 @@ fn a_failed_claim_says_what_a_later_install_does_with_the_finished_copy_it_named
     .expect_err("the claim's rename was refused");
     drop(read_only);
     assert!(
-        failed.error.message.contains("cannot claim the finished install at"),
+        failed
+            .error
+            .message
+            .contains("cannot claim the finished install at"),
         "the failure names the claim: {failed:?}"
     );
     assert_eq!(
@@ -414,10 +440,7 @@ fn a_failed_put_back_of_the_copy_that_was_there_claims_nothing_about_a_finished_
     .expect_err("the put-back's rename was refused");
     drop(read_only);
     assert!(
-        failed
-            .error
-            .message
-            .contains("cannot put back the copy at"),
+        failed.error.message.contains("cannot put back the copy at"),
         "the failure names the put-back: {failed:?}"
     );
     assert_eq!(

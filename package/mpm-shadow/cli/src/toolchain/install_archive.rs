@@ -441,8 +441,7 @@ fn install_archive_files(
     // ```ts
     // publishStaged(staging, installDir, requiredProgram(tool) ?? '');
     // ```
-    if let Err(error) =
-        publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""))
+    if let Err(error) = publish_staged(&staging, &install_dir, required_program(tool).unwrap_or(""))
     {
         // What: the failure's own words, followed by what a later install does with the finished copy they name.
         // Why: no install of this tool follows such a failure in this run, so a person reading it has only that later

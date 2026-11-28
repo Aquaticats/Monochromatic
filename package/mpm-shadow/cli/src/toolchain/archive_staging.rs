@@ -134,6 +134,10 @@ use self::exchanging_the_two_names::{
     cannot_exchange,
     exchange_the_two_names,
 };
+/// Re-exports which copy a failed recovery named,
+/// which only a control reads.
+#[cfg(test)]
+pub(crate) use self::leftovers_of_a_killed_install::WhatTheFailureNamed;
 /// Imports what a later install does with the leftovers of a killed one,
 /// what a recovery that failed answers,
 /// and the hidden name that holds the copy a kill moved aside.
@@ -149,10 +153,6 @@ pub(crate) use self::leftovers_of_a_killed_install::{
     hidden_siblings,
     recover_leftovers,
 };
-/// Re-exports which copy a failed recovery named,
-/// which only a control reads.
-#[cfg(test)]
-pub(crate) use self::leftovers_of_a_killed_install::WhatTheFailureNamed;
 
 /// Re-exports what a process's record answers,
 /// and the reader a control uses to name a process of its own choosing.
@@ -209,8 +209,7 @@ pub(crate) const RECOVERED_PURPOSE: &str = "recovered";
 /// const WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY =
 ///   'A later install of that version publishes that copy without downloading ...';
 /// ```
-pub(crate) const WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY: &str =
-    "A later install of that version publishes that copy without downloading when the version's name holds no finished copy by then, \
+pub(crate) const WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY: &str = "A later install of that version publishes that copy without downloading when the version's name holds no finished copy by then, \
      and removes it as a second finished copy when that name holds one; \
      it acts on that name in this process namespace and after a reboot, \
      but an install in another process namespace does not judge that name and leaves the copy where it is, \
