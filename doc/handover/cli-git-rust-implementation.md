@@ -1617,40 +1617,6 @@ The raw characters in the linter's other messages wait for the owner,
 because a command a person copies must hold the name raw
 (`doc/handover/questions-for-the-owner.md`).
 
-What the linter's alpha.20 read found
-(`~/temp/agent/monochromatic-lint-alpha-20-release-review-2026-11-27/keep/review.md`):
-no High finding,
-two Medium and eight Low.
-What it confirmed with both binaries:
-of 220 spellings of a `uses` line alpha.20 reads 31 and reports 189 dead,
-with none refused,
-where alpha.19 refused 163;
-over 4,092 lists,
-none that alpha.19 read clean is unclean in alpha.20;
-the keys it prints read back with no dead line;
-the two allow lists of `package/git-policy/cli` give identical output in alpha.16,
-alpha.19 and alpha.20;
-and CPU time against alpha.19 was 0.89 to 1.08 over five interleaved rounds,
-with a byte-identical copy of alpha.19 as the control at 0.90 to 1.11,
-so no cost was measurable.
-One real change of behaviour beyond the release's notes:
-a tree whose folder name sets `->` off with a tab or a no-break space is refused with exit 2,
-where alpha.19 read it clean.
-Its Medium findings:
-a `file-uses` line for a folder whose name holds a tab,
-a no-break space or two spaces gets only the shape sentence,
-where alpha.19 named the folder;
-and five behaviours of the new code are held by no test,
-argued from the test files and not by running the edits.
-Its Low findings are messages that point the wrong way
-(a byte order mark gets the advice to delete a line that records a real loop),
-three README sentences,
-and arms no input reaches.
-The closure step did not run on this host for either binary,
-because its Dylint driver is absent and fetching it needs the network.
-One round holds all of it.
-
-
 What the wrapper's alpha.49 behaviour pass found
 (`~/temp/agent/git-policy-cli-alpha-49-release-review-behaviour-2026-11-27/keep/review.md`):
 no High finding,
