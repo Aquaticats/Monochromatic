@@ -191,7 +191,7 @@ fn the_stopped_removal(
     checkout: &Path,
     slot: &Path,
 ) -> String {
-    let removed: Output = wrapper_git(checkout, &["worktree", "remove", "--force", shown(slot)]);
+    let removed: Output = wrapper_git(checkout, &["worktree", "remove", shown(slot)]);
     let said: String = said_of(&removed);
     assert_eq!(
         removed.status.code(),
@@ -618,11 +618,11 @@ fn zfs_removal_refusal_guest() {
     zfs_ok(sbin.as_str(), &["promote", clone.as_str()]);
     let promoted: String = the_stopped_removal(checkout.as_path(), slot.as_path());
     assert!(
-        promoted.contains("Nothing was destroyed, and the registration stands."),
+        promoted.contains("Nothing was destroyed, and no plan was written."),
         "{promoted}"
     );
     assert!(
-        promoted.contains(&format!("the clone `{clone}` answers with origin")),
+        promoted.contains(&format!("the clone `{clone}` has origin")),
         "{promoted}"
     );
     assert!(
@@ -672,7 +672,7 @@ fn zfs_removal_refusal_guest() {
     );
     let inherited: String = the_stopped_removal(checkout.as_path(), slot.as_path());
     assert!(
-        inherited.contains("Nothing was destroyed, and the registration stands."),
+        inherited.contains("Nothing was destroyed, and no plan was written."),
         "{inherited}"
     );
     // The bookmark carries the transferred snapshot's GUID, so a set of identities cannot grow by it: what the arm can
