@@ -1759,9 +1759,18 @@ and the guest arm is what did catch them.
   and that a pin of another dataset makes nothing.
 - `removal_origin_step_tests.rs` asserts the words of a refused record's stop:
   the record's file and the field the reader refused.
-- `e2e:zfs-slot-state` runs both spellings of the removal in a guest with no
-  fixture making the folder,
-  so the handler's own turn is what the release's folder has to satisfy.
+- `e2e:zfs-slot-state` runs both spellings of the removal in a guest,
+  and its scene asks the release's own creation for the folder its own unmount
+  binds,
+  so no fixture writes a directory anywhere:
+  the handler binds a folder the release made,
+  at the mode the route records.
+  What this arm cannot show in a guest is the removal's own call:
+  the scene's own unmount is answered by the handler and leaves the staged record
+  beside the folder,
+  and the handler answers the removal's later request from that record,
+  so the removal meets a folder that already stands.
+  The host control above is what holds that call.
 
 ### What is open
 
