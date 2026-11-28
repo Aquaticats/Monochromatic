@@ -1,10 +1,14 @@
 //! What:
 //!  Plan step 22's sweep cost past 64 clones in the throwaway guest:
 //!  the run-to-run spread over the same unmounted clones first,
-//!  then the sweep at 16, 64, 128, 256 and 512 clones,
+//!  then the sweep at 16,
+//!  64,
+//!  128,
+//!  256 and 512 clones,
 //!  each count beside the record's own largest count in the same round.
 //! Why:
-//!  The record of 2026-11-25 measured the sweep at 1, 16 and 64 clones
+//!  The record of 2026-11-25 measured the sweep at 1,
+//!  16 and 64 clones
 //!  (`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`)
 //!  and its proposal for the handler's heartbeat period says
 //!  "A parent that holds more clones than 64 would need the period raised with
@@ -47,7 +51,8 @@ use super::zfs_sweep_guest::{
 /// Why:
 ///  Sixteen and sixty-four are the record's own counts,
 ///  so each round's ratios have the same control the record used,
-///  and 128, 256 and 512 are two doublings and three past it.
+///  and 128,
+///  256 and 512 are two doublings and three past it.
 const PARENT_COUNTS: &[usize] = &[16, 64, 128, 256, 512];
 
 /// The count the spread probe and each round's control are read at,
@@ -61,7 +66,8 @@ const SPREAD_RUNS: usize = 5;
 const PARENT_ROUNDS: usize = 3;
 
 /// What:
-///  The spread first, then every round's counts,
+///  The spread first,
+///  then every round's counts,
 ///  and the clones taken away again.
 /// Why:
 ///  The spread is measured before any claim is made,
