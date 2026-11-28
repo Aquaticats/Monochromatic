@@ -16,6 +16,8 @@
 //!  (the review's finding M2 of 2026-11-27),
 //!  and no module test could see it,
 //!  because each sentence only ever met a name of printable ASCII.
+//!  The alpha.49 read named five places that printed such a name with no escape,
+//!  and a scan of the release sources found eighteen.
 //!  Two lists make the rule checkable:
 //!  the sentences this program has,
 //!  which each call the escape,

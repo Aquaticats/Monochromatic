@@ -16,15 +16,30 @@ A change to the order is a plan edit the owner sees.
 ## Status and sources
 
 The design is accepted,
-and step 1 alone is built,
-as of its merge on 2026-11-19:
+and step 1 was the first build,
+merged on 2026-11-19:
 `package/zfs/request-to-openzfs-kernel-device` and its fuzz sidecar,
 released only as the alpha `0.1.0-alpha.1`,
 which never goes to crates.io.
 Its merge checks passed in its container,
 except that the repository linter skipped its Dylint rule `rust/avoidable-closure`,
 as it does on every Rust package here while `cargo dylint` is not installed.
-The wrapper has no ZFS route.
+
+State at 2026-11-27T21:42:57-05:00,
+read from the steps below and `SPEC.md`:
+steps 1 to 16 are on `main`;
+step 17's cancel command and forced arm are built and the removal command path
+stays cut (`df15f27a7a`,
+`64a71a4c9b`,
+and `3ebc78c3dc`,
+which proves the arm's kernel calls in a guest);
+step 18's `doctor` checks are merged unwired;
+step 19's unit texts and its entry are built and its migration is a runbook that
+has not run;
+the checks of steps 20 and 21 are merged and no command reaches them;
+steps 22 and 23 are records of runs.
+`SPEC.md`'s "What this release does not yet do" names each gap,
+and nothing of the route is installed.
 The checkout still lives on the home dataset,
 and no pool,
 dataset or unit on this host was changed while this plan was written.
@@ -1181,9 +1196,18 @@ Runs in the throwaway guest.
 
 #### Open items
 
-Proceeds without "Which triggers a lost last event waits for".
-The design keeps the coalescing and rate rule unwritten and bounds one sweep's work instead;
-step 22 measures the sweep cost before any shipped bound.
+Proceeds without "Which triggers a lost last event waits for":
+the design for it is written and accepted
+([the design](cli-git-zfs-lost-last-event-triggers-design.md),
+accepted 2026-11-23,
+`4c2108cd55`),
+and it writes the coalescing and the rate rule's shape,
+which steps 10,
+14,
+18,
+19 and 22 build ("What builds it").
+Step 22 measures the sweep cost and sets the rule's numbers before any shipped
+bound.
 
 #### Depends on
 
@@ -3093,11 +3117,20 @@ the forced arm's three waits,
 and the snapshot-destroy request budget,
 and it proposes each value with its citation without setting one.
 No shipped constant changed in that round,
-and the storage half remains the owner's act.
+and the storage half is the agent's act on the owner's authorisation,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+`0a58781554`,
+2026-11-26T01:37:29-05:00).
 
 #### Open items
 
-Proceeds without "Which triggers a lost last event waits for" and measures before any rate rule ships.
+Carries the numbers of "Which triggers a lost last event waits for":
+the accepted design sets `D`,
+`G0` and `Gmax` from M8 here and turns the nudge on
+([the design](cli-git-zfs-lost-last-event-triggers-design.md),
+"What builds it"),
+and no rate rule ships before that measurement.
 
 #### Depends on
 
@@ -3197,6 +3230,15 @@ and a measurement of this host's storage.
 Steps 18,
 19,
 20 and 22 name the part each would need.
+(Amended 2026-11-26 by the owner's answers in `doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`
+(`0a58781554`,
+2026-11-26T01:37:29-05:00):
+the agent applies each of these with sudo once its step is wired and proven in a
+guest,
+logging the command,
+its output and its undo;
+any reboot of this host is the one thing whose moment stays the owner's to
+choose.)
 Every VM run also retains evidence of guest and pool teardown,
 never of system changes on the host,
 and captures versions,
@@ -3538,10 +3580,18 @@ and whether the answer is the owner's or a writer's design work.
   blocking for its acceptance item,
   writer design work.
 - "Which triggers a lost last event waits for":
-  steps 7 and 22,
-  not blocking either,
-  writer design work;
-  the rate rule waits for step 22's measurement.
+  steps 10,
+  14,
+  18,
+  19 and 22,
+  the accepted design's division of the work
+  ([the design](cli-git-zfs-lost-last-event-triggers-design.md),
+  "What builds it"),
+  with the merge device in step 19 and the budget's number in step 22
+  ([the decision](../decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md),
+  choice 17);
+  blocking none of them,
+  and the rate rule waits for step 22's measurement.
 
 No open item needs a design before step 1.
 

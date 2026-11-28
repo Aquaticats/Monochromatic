@@ -278,6 +278,72 @@ the restore finished in 16 seconds with a peak of 64 MB,
 and the capture loop was then started the same way with `MemoryMax=2G`,
 outside the shared cgroup.
 
+## Seen: swap filled while many rounds compiled one crate, and a marked unit lived
+
+On 2026-11-27 fourteen agent rounds that each compile the Git wrapper's crate,
+started between 21:11 and 21:16 -05:00,
+ran beside seven guests and five other rounds on 66 GB of memory and 66 GB of zram swap.
+Each round's commands were capped at 24 GiB,
+which that many rounds overcommit several times.
+
+Between 22:34:15 and 22:48:09 eleven `run-p*.scope` units ended with the result `oom-kill`.
+Between 22:47:44 and 22:48:10 `systemd-oomd` wrote at least fourteen lines of this shape,
+with memory used at 66,220,068,864 of 66,220,068,864 bytes and swap used up to 65,982,111,744 of 66,219,667,456:
+
+```text
+Marked /user.slice/user-1000.slice/user@1000.service/app.slice/mvm-libvirt-session.service for killing due to memory used (...) / total (...) and swap used (...) / total (...) being more than
+```
+
+That unit held 37.4 G of swap and every guest.
+It stayed active,
+started 20:03:51 with no restart,
+and its seven guests were running at 22:49:20.
+Why a unit `systemd-oomd` marked was still alive is not known:
+the daemon's source was not read,
+and no line saying it had killed the unit was found.
+In the same minutes a compiler inside a container of the wrapper's test gate ended by signal 9,
+41 minutes into the gate.
+At 22:51:42 `MemAvailable` read 0 kB and `SwapFree` 2,267,792 of 64,667,644 kB;
+at 22:57:32 they read 7,961,472 kB and 15,256,480 kB.
+
+A third stretch followed.
+Between 23:15:47 and 23:19:55 twelve more scopes ended `oom-kill`,
+and at 23:19:36 `SwapFree` read 55,744 kB of 64,667,644 with `MemAvailable` at 0.
+`systemd-oomd` wrote 2,913 lines that mark or kill a unit between 23:00 and 23:20,
+and ten guests were running at 23:20:27.
+What held the memory was read then:
+`mvm-libvirt-session.service` held 29,937,127,424 bytes of memory and 50,694,000,640 of swap,
+and `agent-work.slice`,
+where the rounds' builds run,
+held 15,762,833,408 and 1,350,725,632,
+with no memory limit set on the slice.
+The guests are at 8,192 MiB each.
+That reading counts what was left:
+it was taken seconds after twelve builds had been killed,
+with three compilers alive.
+Over its life the builds' slice has peaked at 55,702,958,080 bytes of memory and 56,149,524,480 of swap,
+and the guests' unit,
+since it started at 20:03:51,
+at 33,109,938,176 and 52,823,150,592
+(`MemoryPeak` and `MemorySwapPeak`,
+read at 23:25:24),
+so neither is shown to be the larger at the moment the memory ran out.
+What both readings of the night show is that the guests' unit holds about 50 GB of the 64.7 GB of swap the whole time,
+whether a guest is in use or not,
+and a build holds its peak for minutes.
+The scopes that are killed are the builds.
+The first paragraph's account of the load,
+written before that reading,
+names the builds alone.
+
+Not read:
+the kernel's log,
+which gave the agent's account nothing,
+so whether the kernel's own killer or a unit's memory limit ended each scope is not shown.
+The one-reading-a-minute log of that night is scratch,
+`~/temp/agent/memory-exhausted-on-the-night-of-2026-11-27/keep/readings-once-a-minute.txt`,
+and expires a day after its last change.
+
 ## What does not work
 
 - Detaching a run from the shell with a new session (`setsid`,
