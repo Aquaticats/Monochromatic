@@ -188,8 +188,23 @@ none of these edits is committed.
   `_` or `~`,
   so the emphasis ending is counted apart rather than as a boundary.
   A report that includes it must settle the conflict with the rule first.
+  Update,
+  2026-11-28:
+  the shipped boundary test now climbs those three delimiters
+  (the fix for the emphasis-ended fragment of the alpha.24 second pass,
+  `package/linter/monochromatic-lint/doc/second-pass-reads.md`),
+  so this harness counts an emphasis ending as a boundary on a rerun:
+  the `emphasis` class and every count apart from it reach zero,
+  and the emphasis ending the classes below describe is no longer a break at no boundary.
+  The harness is updated with it:
+  the join is asked with the host prefix,
+  and a rustdoc comment's context carries the prefix of its projection,
+  because the joined width the shipped join now checks is the host line's.
 - The removal count uses the shipped join's width,
-  which adds the paragraph's continuation indent,
+  which adds the paragraph's continuation indent
+  and,
+  since 2026-11-28,
+  the characters the host writes before the line,
   not the joined line's own indent.
   A removal fix that keeps another indent would measure a few characters differently.
 - The survey does not run a removal fix,
