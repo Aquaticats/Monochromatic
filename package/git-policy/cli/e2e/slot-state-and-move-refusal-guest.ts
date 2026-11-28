@@ -114,7 +114,17 @@ type GuestWorkEnding =
     };
 
 /**
+ The catalogue image a cloud backend's guest is made from.
+
+ The recipe's preparation is written for Ubuntu 24.04, and the catalogue's default entry booted 26.04 on 2026-11-28,
+ which that preparation is not known on, so the release is named where a catalogue is asked.
+ */
+const THE_CATALOGUE_IMAGE = 'Ubuntu 24.04';
+
+/**
  Create the guest the arm runs in.
+
+ A libvirt guest's template is the recipe's own, so no catalogue word is passed there.
 
  @param chosen - the run's options
  */
@@ -122,6 +132,12 @@ async function create(chosen: GuestDriverOptions,): Promise<void> {
   await recipe({
     chosen,
     step: 'create',
+    extraArgumentWords: backend.kind === 'ovh'
+      ? [
+        '--guest-image',
+        THE_CATALOGUE_IMAGE,
+      ]
+      : [],
   },);
 }
 
