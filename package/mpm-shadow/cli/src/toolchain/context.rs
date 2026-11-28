@@ -37,6 +37,7 @@ use super::layout::{
 use super::model::{
     LockedTool,
     OsFamily,
+    Route,
 };
 /// Imports what this module uses from `super::runner`.
 use super::runner::{
@@ -132,7 +133,20 @@ impl Context<'_> {
         extra_dirs: &[PathBuf],
     ) -> Option<PathBuf> {
         let tool: &LockedTool = self.tool(tool_id).ok()?;
-        return find_tool_bin(tool, name, self.scope, self.env, extra_dirs);
+        // What:
+        // the toolchain `rustup` says this row's channel is, which is `None` for every route but
+        // `rustup-toolchain` and so starts nothing.
+        // Why:
+        // The search reads a `rustup-toolchain` row's programs from that one directory and from no other.
+        let the_toolchains_bin: Option<PathBuf> = self.the_toolchains_bin_dir(tool);
+        return find_tool_bin(
+            tool,
+            name,
+            self.scope,
+            self.env,
+            extra_dirs,
+            the_toolchains_bin.as_deref(),
+        );
     }
 
     /// The environment installs run with (see `toolchain_path_env`).
@@ -182,6 +196,60 @@ impl Context<'_> {
         let mut env: BTreeMap<String, String> = self.path_env();
         env.insert("RUSTUP_AUTO_INSTALL".to_string(), "0".to_string());
         return RunRequest::new("rustup", args).with_env(env);
+    }
+
+    /// What:
+    /// The `bin` directory of the toolchain `rustup` says `channel` is,
+    /// from `rustup which --toolchain <channel> rustc`,
+    /// or `None` for a row of another route,
+    /// a channel `rustup` does not resolve,
+    /// and an answer that names no path.
+    /// Why:
+    /// Which installed toolchain a channel is belongs to `rustup` alone,
+    /// and the two answers it is read from are in its own source:
+    /// `which` resolves the name with `cfg.default_host_tuple()`
+    /// (`src/cli/rustup_mode.rs`, `rustup 1.29.3`) and prints `toolchain.binary_file("rustc")`,
+    /// which is `<toolchain path>/bin/rustc` (`src/toolchain.rs`);
+    /// and that host tuple is the kernel's own answer plus rustup's build-time C library
+    /// (`TargetTuple::from_host`, `src/dist/mod.rs`), or the `default_host_tuple` of its settings.
+    /// So a program other than `rustup` cannot work the directory name out for itself:
+    /// `uname` does not say `gnu` or `musl`,
+    /// a custom linked toolchain's directory is the link's own name and no triple,
+    /// and the same channel can be installed for more than one host triple.
+    /// The farm linked another toolchain's programs while `rustup which` named the right one
+    /// (issue 6634's read, L-1).
+    pub fn the_toolchains_bin_dir(
+        &self,
+        tool: &LockedTool,
+    ) -> Option<PathBuf> {
+        // A row of another route has no toolchain `rustup` would name, so no question is asked for it.
+        if tool.declaration.route != Route::RustupToolchain {
+            return None;
+        }
+        let outcome: RunOutcome = self.run(&self.rustup_query(&[
+            "which",
+            "--toolchain",
+            tool.rustup_channel(),
+            "rustc",
+        ]));
+        // A question that failed or printed no path proves nothing about where the toolchain is.
+        if !outcome.succeeded() {
+            return None;
+        }
+        let printed: &str = outcome.stdout.trim();
+        if printed.is_empty() {
+            return None;
+        }
+        let program: PathBuf = PathBuf::from(printed);
+        // What:
+        // `program.parent()` is the directory holding the program, which is the toolchain's `bin`,
+        // or `None` for a path with no directory in it.
+        // Why:
+        // The search adds file names to a directory, so the parent is the value it needs.
+        let Some(bin) = program.parent() else {
+            return None;
+        };
+        return Some(bin.to_path_buf());
     }
 
     /// Runs a request.

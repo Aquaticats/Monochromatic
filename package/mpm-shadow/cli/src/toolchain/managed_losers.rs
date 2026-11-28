@@ -203,7 +203,14 @@ fn precondition_reason(
     }
     for copy in copies {
         for (bin, _) in &copy.bins {
-            if find_tool_bin(tool, bin, ctx.scope, ctx.env, &[]).is_none() {
+            if find_tool_bin(
+                tool,
+                bin,
+                ctx.scope,
+                ctx.env,
+                &[],
+                ctx.the_toolchains_bin_dir(tool).as_deref(),
+            ).is_none() {
                 return Some(format!(
                     "the newest copy has no working {bin}, so this may be the only working one"
                 ));
@@ -240,7 +247,14 @@ fn plan_root(
         for (bin, file) in &copy.bins {
             let scan = links_to_copy(places, file);
             unreadable.extend(scan.unreadable);
-            let Some(target) = find_tool_bin(tool, bin, ctx.scope, ctx.env, &[]) else {
+            let Some(target) = find_tool_bin(
+                tool,
+                bin,
+                ctx.scope,
+                ctx.env,
+                &[],
+                ctx.the_toolchains_bin_dir(tool).as_deref(),
+            ) else {
                 continue;
             };
             for found in scan.found {

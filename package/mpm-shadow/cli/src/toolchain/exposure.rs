@@ -158,6 +158,12 @@ pub fn rebuild_exposure(
             .bin_aliases
             .clone()
             .unwrap_or_default();
+        // What:
+        // the toolchain `rustup` says this row's channel is, asked once for the whole row.
+        // Why:
+        // Every program of a `rustup-toolchain` row is read from that one directory,
+        // so one question per row is enough, and it is `None` for every other route.
+        let the_toolchains_bin: Option<PathBuf> = ctx.the_toolchains_bin_dir(tool);
         for name in &tool.declaration.bins {
             let mut primary: String = name.clone();
             for (alias, primary_name) in &aliases {
@@ -166,7 +172,14 @@ pub fn rebuild_exposure(
                     break;
                 }
             }
-            match find_tool_bin(tool, &primary, ctx.scope, ctx.env, &extra_dirs(ctx)) {
+            match find_tool_bin(
+                tool,
+                &primary,
+                ctx.scope,
+                ctx.env,
+                &extra_dirs(ctx),
+                the_toolchains_bin.as_deref(),
+            ) {
                 Some(found) => {
                     let target: PathBuf = exposed_target(ctx.scope, tool, name, &found)?;
                     atomic_symlink(&ctx.scope.exposure_dir.join(name), &target)?;
@@ -313,7 +326,14 @@ pub fn make_postinstall_links(
             continue;
         };
         let Some(found) =
-            find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
+            find_tool_bin(
+            tool,
+            &link.source_bin,
+            ctx.scope,
+            ctx.env,
+            &extra_dirs(ctx),
+            ctx.the_toolchains_bin_dir(tool).as_deref(),
+        )
         else {
             continue;
         };
@@ -452,7 +472,14 @@ pub fn run_postinstall_commands(
             continue;
         };
         let Some(target) =
-            find_tool_bin(tool, &step.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx))
+            find_tool_bin(
+            tool,
+            &step.source_bin,
+            ctx.scope,
+            ctx.env,
+            &extra_dirs(ctx),
+            ctx.the_toolchains_bin_dir(tool).as_deref(),
+        )
         else {
             continue;
         };

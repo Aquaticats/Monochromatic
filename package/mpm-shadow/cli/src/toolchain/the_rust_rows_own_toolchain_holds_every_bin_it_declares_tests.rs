@@ -1258,6 +1258,19 @@ fn rig_holding_the_programs_of(component_names: &[String]) -> Rig {
         write_executable(&bin.join(&program));
     }
     // What:
+    // the answer a machine whose toolchain is installed gives to
+    // `rustup which --toolchain <the row's channel> rustc`: that toolchain's own compiler.
+    // Why:
+    // These controls write a toolchain under the name rustup gives one,
+    // so `rustup` names it,
+    // and both the observation and the farm have to read this directory and no other.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // answerWhich(rig, row.rustupChannel(), pathJoin(bin, 'rustc'));
+    // ```
+    answer_which(&rig, row.rustup_channel(), &bin.join("rustc"));
+    // What:
     // the rig with only this row in its lock.
     // Why:
     // The sample lock's other tools would install archives and crates the fixture does not hold,
