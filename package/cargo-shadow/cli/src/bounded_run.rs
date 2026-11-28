@@ -182,7 +182,6 @@ pub(crate) use crate::bounded_run_containment::{
     finished,
     lose,
     open_pidfd,
-    reason_of,
     settle,
     start_contained,
     wait_for_exit,
@@ -219,6 +218,7 @@ mod scope;
 /// What one bounded call is allowed and how it fails (split out of this module).
 pub use self::bound_and_error::{
     Bound,
+    ROUTE_REFUSED_OPENING,
     RunError,
 };
 /// The mark that a run's writers may remain,
@@ -409,7 +409,17 @@ fn run_bounded(
     let scope: Option<Rc<ScopeState>> = current_scope();
     let deadline: Instant = Instant::now() + bound.limit;
     configure_stdio(command, input.is_some());
-    let containment: Containment = contain();
+    // What:     `containment` is the scope the run is given, or the refusal of a route no wait of this tool ends.
+    // Why:      A refused route stops the run before anything is started, so no program writes a file behind another unit's stop.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const containment = contain()  // throws RunError
+    // ```
+    let containment: Containment = match contain() {
+        Ok(found) => found,
+        Err(error) => return Err(error),
+    };
     let mut child: Child = match start_contained(
         command,
         &containment,

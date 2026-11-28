@@ -247,6 +247,18 @@ impl CargoRunner for RealCargo {
             // // Err(error) is  throw error;   (the caller sees it as a returned value)
             // ```
             // Macro `format!`: builds or prints text (or a list) from a template.
+            // What:     `Err(error @ RunError::RouteRefused { .. })` is the route refused before anything started: the words name
+            //           the program and the bound, and the install step stops the command for them instead of adding `--locked`.
+            // Why:      Wrapping them in "could not start" would hide which program answered and would read as an operational
+            //           failure of the cargo call (Medium 1 of the alpha.18 read).
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // catch (error) { if (error.kind === 'routeRefused') throw new Error(String(error)) }
+            // ```
+            Err(error @ RunError::RouteRefused {
+                ..
+            }) => return Err(error.to_string()),
             Err(RunError::Io(error)) => {
                 return Err(format!(
                     "could not start {}: {error}",
