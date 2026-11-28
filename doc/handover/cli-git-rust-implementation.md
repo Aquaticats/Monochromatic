@@ -2827,26 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- `mpm-shadow` alpha.12:
-  the claim of no change of behaviour holds.
-  Of 929 production items,
-  891 are identical token for token,
-  31 differ only in layout,
-  five are real edits that the splits needed (the dispatch split into five functions,
-  and four structs whose fields became visible to sibling files),
-  and none was removed;
-  all 780 tests survive;
-  216 of 223 command lines gave the same output,
-  status and written files from both binaries,
-  and the other seven differ only in the version string.
-  Its one Medium is that the binary is built by a newer compiler and linker and a lock that moved two crates,
-  which no diff of the crate shows.
-  Routed:
-  a start refused with "Text file busy" is not retried and its advice cannot show the error again
-  (issue 6585,
-  the same on alpha.11);
-  items the splits made reachable from a whole folder,
-  and stale paths in records (one round).
 - `cargo-shadow` alpha.11:
   issue 6528's change alters what is said and not what is decided
   (`stop_everything` still answers `Ok` only when the program was reaped and the scope is empty),
