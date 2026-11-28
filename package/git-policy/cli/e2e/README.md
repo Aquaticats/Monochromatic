@@ -1366,6 +1366,27 @@ where a step's duration is its whole step:
   with a bound of 900 s.
   It is not timed on its own;
   it printed its 25 claims and passed.
+- The same step runs the gatherer's arm,
+  `zfs_doctor_clone_facts_guest` in
+  `src/native/health/doctor_zfs_route/clone_facts_guest_arm_tests.rs`,
+  in the same bound and the same guest:
+  it builds six managed clones in one repository
+  (mounted,
+  unmounted,
+  staged under the cache,
+  one whose removal stopped after its first write,
+  one whose origin snapshot carries the deferred-destroy mark,
+  and one a task in another mount namespace holds),
+  gathers each with `LiveCloneFactsReads`,
+  and prints one `CLONE-FACTS-GUEST` claim per state plus one that the
+  gather wrote no record.
+  No task in this package's `mise.toml` runs the doctor driver,
+  so a round runs it by hand:
+
+  ```sh
+  # package/git-policy/cli: one throwaway guest for both arms
+  node e2e/doctor-zfs-route-guest.ts all --name zfs-r4-clone-facts --log-dir <dir>
+  ```
 - `e2e/sanoid-coverage-guest.ts:278` is the Sanoid install,
   with a bound of 600 s.
   It is part of a whole `all` of 575 s.
@@ -1480,7 +1501,21 @@ Its build,
 its two pools,
 its measurement arm
 and the holder scan beside it are in `e2e/step-22-arms/`,
-and the numbers one run took are recorded in
+and two more arms live beside the measurement arm as files of the `native_binary` test target,
+which the same test calls in the order the record reads:
+`src/native/binary/binary_zfs_step_22_large_parent_guest_tests.rs`
+sweeps a parent at 16,
+64,
+128,
+256 and 512 clones after the run-to-run spread on unchanged input,
+and `binary_zfs_step_22_pinned_output_guest_tests.rs`
+writes incompressible bytes,
+pins them with an hourly snapshot,
+overwrites them,
+and reads what a clone's removal,
+the snapshot's expiry and the live copy's removal free,
+beside the same counts over one repeated byte as the probe's positive control.
+The numbers one run took are recorded in
 `doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`;
 no task runs the driver,
 so a round that needs the numbers again runs it by hand.

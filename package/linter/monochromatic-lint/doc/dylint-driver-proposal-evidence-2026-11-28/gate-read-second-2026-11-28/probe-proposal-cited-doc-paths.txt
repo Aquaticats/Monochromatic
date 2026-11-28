@@ -1,0 +1,9 @@
+# doc/ record paths the proposal cites (grep -o, counted)
+      8 doc/decision/rust-closure-lint-dylint.md
+      1 doc/planning/linter-selective-anonymous-functions.md
+      2 doc/planning/repository-linter-stays-at-zero.md
+      4 doc/troubleshooting/cargo-dylint-driver-pin-offline-after-upgrade.md
+      2 doc/troubleshooting/ci-steps-do-not-see-the-toolchain-environment.md
+      1 doc/troubleshooting/dylint-driver-build-needs-a-rustup-proxy-cargo.md
+# neither of these appears in the proposal:
+0

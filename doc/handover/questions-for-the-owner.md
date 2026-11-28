@@ -18,116 +18,7 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Open: what a ZFS removal does at a person's lock, at a plan it cannot read and at a staged clone, with one pick beside them (recorded 2026-11-28T05:17:09-05:00)
-
-The round that answered the lock question merged on 2026-11-28 as `2d5f167ae9`.
-Its control showed that on `main` a `git worktree remove` of a ZFS slot under a lock a person wrote
-sent the clone's snapshot request,
-the head destroy and the origin snapshot's request,
-and only then met the lock.
-The removal now reads the lock before its first write.
-What it built and measured is in `package/git-policy/cli/SPEC.md`,
-"Removal of a ZFS worktree clone".
-
-### Two forces at a person's lock
-
-A person ran `git worktree lock --reason 'keep this' <slot>` on a ZFS worktree,
-and someone then runs `git worktree remove --force --force <slot>`.
-In Git alone two forces drop a locked registration and leave the files.
-Here the removal destroys the clone and its own snapshots.
-
-- 1:
-  every spelling refuses,
-  two forces among them,
-  and the sentence names `git worktree unlock <slot>` as the way on.
-  The wrapper reads the lock file before it claims the slot,
-  compares its words with the sentence this add wrote,
-  and stops when they differ;
-  nothing is unmounted,
-  destroyed or written.
-  A person who means it types `git worktree unlock <slot>` and then the removal:
-  two commands.
-  This is what is built.
-- 2:
-  two forces pass.
-  The wrapper deletes the person's lock file itself and then destroys the clone.
-  One command,
-  with Git's own meaning of two forces;
-  the lock's one confirmation is gone,
-  and the function that never removes a lock it cannot attribute to this add would have to.
-- 3:
-  a spelling of the wrapper's own,
-  `--no-enforce-…`,
-  that says "and the lock too".
-  The wrapper would read that option,
-  delete the lock and destroy the clone.
-  One command;
-  it adds an option to a Git command whose grammar is Git's,
-  where `git worktree unlock` already says the same.
-
-Ranking:
-1 > 3 > 2.
-1 over 3:
-both keep a person's lock from being passed by habit,
-and 1 does it with a command Git already has.
-3 over 2:
-3 asks for a spelling nobody types by reflex,
-and 2 gives the destruction to the spelling Git's own refusal suggests.
-
-### A slot whose destruction plan does not read
-
-A removal was killed part way and its plan file is damaged.
-Today such a slot is left to Git:
-`git worktree remove` drops the registration and the slot folder,
-and the clone and the damaged plan stay.
-The owner's answer of 2026-11-26 named three refusals "and no more",
-and this is not one of them.
-
-- 1:
-  leave it to Git,
-  as now.
-  The wrapper classes the slot as a reading it cannot prove and answers nothing.
-  A clone stays on the pool with no registration,
-  which `doctor` reports.
-- 2:
-  refuse the removal there too,
-  naming the plan file and `git monochromatic-git-policy-cli settle-worktree-clone-record`.
-  The wrapper would add this reading to the ones that refuse.
-  Nothing is dropped until a person has settled the plan;
-  it is a fourth refusal beside the three the owner named.
-
-Ranking:
-2 > 1.
-Both destroy nothing;
-2 keeps the registration that says where the clone belongs,
-and 1 leaves a clone nothing points at.
-
-### A clone mounted at the staging folder, with no plan
-
-- 1:
-  leave it to Git,
-  as now:
-  the registration and the slot folder go,
-  and the clone stays mounted at the staging folder.
-- 2:
-  refuse the removal,
-  naming `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
-  which is the command the cancellation design gives for putting the mount back.
-- 3:
-  take the slot and let the removal's own unmount request run.
-  No record says what that request does to a clone already at the staging folder,
-  so this one needs a guest measurement before it could be built.
-
-Ranking:
-2 > 1 > 3.
-2 over 1:
-2 names the command that repairs the state,
-and 1 leaves it for `doctor` to find.
-1 over 3:
-3 could destroy snapshots while the mount still stands,
-and nothing has measured it.
-
-### The pick the session made, with the veto open
+## A pick on the check before a command, veto open (recorded 2026-11-28T05:17:09-05:00)
 
 The check before a command is wired with the nudge's switch off
 (`fcaea34f36`),
@@ -370,8 +261,10 @@ its moment and that it is said once,
 and was shown red by a plant.
 The folder's three file-loop lines left the allow list,
 and `lines_written_by_a_thread.rs` is split in three.
-A veto would be against that shape;
-ways 1 and 2 would each still need the words in a file of their own and the split.
+On 2026-11-28 the owner chose "Keep it as built (Recommended)",
+so the veto is closed
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The foundation folder's last file loop").
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
@@ -5070,3 +4963,79 @@ and each can be undone.
   wrote records for its two controls,
   and measures the pause from a stand-in's own start and end lines,
   which showed the planted edit in one gap of four on the loaded host.
+
+## For the owner, and veto open: what the morning of 2026-11-28 left between 06:14 and 07:17 (recorded 2026-11-28T07:17:43-05:00)
+
+The owner's stated priority this morning is guests on OVHcloud,
+so every question here waits until that work is moving,
+and none of them holds it.
+
+### Six proposals whose questions come after their gate reads
+
+Each was revised against its last gate read and merged on 2026-11-28,
+and each has a gate read by Claude Sonnet running;
+its questions are put through the question tool when that read is back:
+
+- the wrapper's development profile (`471d462ccf`),
+  six questions;
+- `mvm`'s sizes (`4217d02664`),
+  five still open of six;
+- the crate split's round 4 signatures (`39d9ec0b51`),
+  six questions;
+- GitHub's hosted runners (`60064b0024`),
+  six questions;
+- the linter's Dylint driver (`e63bf58c19`),
+  eight questions;
+- the linter's line breaks (`dc42566e69`),
+  nine questions.
+
+The paragraph of this file that begins with the linter's closure rule and issue 6643 describes the Dylint proposal's first draft.
+The proposal at `e63bf58c19` ranks differently:
+the floating channel with its components first for the toolchain,
+the lint task warming the driver first among local providers,
+and the pull-request surface as a question of its own.
+
+### `mvm` on OVHcloud: two picks with the veto open
+
+The owner chose the cheapest size that fits.
+The session's two other picks were shown beside that question and not answered:
+the numbers mean at least;
+and no GPU size is ever taken,
+built as a list of the five general families.
+Both are being built that way.
+
+### `mpm-shadow`: seven items the alpha.20 read left
+
+They are restated with their evidence,
+their options and a ranking in `package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`,
+"What stays open after the alpha.20 read":
+temporary links of an earlier shape named on every install for ever;
+a bin name that is long only together with its folder;
+the two-second line for installers that routinely run longer;
+an install by `0.2.7-alpha.19` beside one by `0.2.7-alpha.20`;
+two locks in one scope;
+a killed move of `current`;
+and the report on standard output,
+which still ends the command when its reader has left.
+
+### The ZFS route: three proposed values a measurement contradicts
+
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md` now shows that the mount-request deadline and step 9's unmount deadline,
+both proposed at 5,000 ms,
+hold only to a parent of about 256 clones,
+and that the heartbeat's four periods of 1,000 ms hold to about 205.
+The round's ways:
+bound a parent's clones;
+set the deadline from the clone count;
+chunk the sweep so a request is answered between chunks;
+or accept a missed window on a large parent.
+No constant was changed.
+
+### `mvm`: what a published copy runs
+
+Merge `9afd7194ab` makes the command run the TypeScript source beside it.
+A copy published to a registry cannot do that,
+because Node refuses TypeScript under `node_modules`,
+so it would need a built copy and a check of another kind.
+`mvm` is private today.
+Issue 6660 lists the twenty other commands and `mvm-mcp` that have the old shape.

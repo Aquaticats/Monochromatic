@@ -318,7 +318,7 @@ description = "Run plan step 15's deferred-origin arm end to end in the throwawa
 run = "node e2e/deferred-origin-check-guest.ts"
 
 [tasks."e2e:forced-act"]
-description = "Run the forced removal's act end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then the route's own calls, phase by phase, for a path holder asked out and one killed, way 8 by the add's handle, the peer shape the closure sends to way 7, way 7 in both shapes with its directory made and removed, and a locked holder refused before any signal, with the caller's session's other job alive throughout; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>]`. The guest is the ZFS binding's recipe (Ubuntu 24.04, OpenZFS 2.4.4), and the arm runs only inside it"
+description = "Run the forced removal's act end to end in the throwaway `mvm` libvirt guest: one file-backed pool, then the route's own calls, phase by phase, for a path holder asked out and one killed, way 8 by the add's handle, the peer shape the closure sends to way 7, way 7 in both shapes with its directory made and removed, a locked holder refused before any signal, and a mount namespace no task holds found by `listns` and ended there, or refused `holder-unendable` on a kernel without that call, with the caller's session's other job alive throughout; `-- <create|prepare|run|destroy|all> [--name <guest>] [--log-dir <dir>] [--image <mvm template>] [--kernel-release <release>]`. The guest is the ZFS binding's recipe: Ubuntu 24.04 with OpenZFS 2.4.4, or the custom template `--image` names (step 23's is `cachyos-7.3.5-1-zfs-2.4.4`, booting `7.3.5-1-cachyos`), and the arm runs only inside it"
 run = "node e2e/forced-act-guest.ts"
 
 [tasks."e2e:removal-lineage-proof"]

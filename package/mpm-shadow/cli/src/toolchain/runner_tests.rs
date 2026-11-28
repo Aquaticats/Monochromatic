@@ -294,6 +294,33 @@ fn the_shipped_bound_is_far_above_an_ordinary_answer() {
 }
 
 /// What:
+/// The shipped bound is the two seconds the record promises,
+/// not merely a value far above an ordinary answer.
+/// Why:
+/// `README.md` says the line arrives "once it has passed 2 s",
+/// and the control above holds only that the bound is at least twenty times an ordinary answer,
+/// so a bound of 600 ms passed it while every sentence of the record said 2 s.
+/// The number here is the record's figure,
+/// which is what the control holds the code to.
+#[test]
+fn the_shipped_bound_is_the_two_seconds_the_record_promises() {
+    // What: the bound the record promises, as a `Duration`.
+    // Why: a comparison of the shipped constant with this value is what fails when the constant moves
+    //  without the record.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const thePromisedBound = 2000;
+    // ```
+    let the_promised_bound: Duration = Duration::from_millis(2000);
+    assert_eq!(
+        super::runner::A_WAIT_LONGER_THAN_ORDINARY,
+        the_promised_bound,
+        "the bound the README promises is the one that ships"
+    );
+}
+
+/// What:
 /// The script the fixture below runs:
 /// it sleeps past the shipped bound and then answers.
 /// Why:
@@ -375,4 +402,139 @@ fn the_shipped_runner_names_a_program_whose_answer_passes_the_bound() {
         1,
         "one line however long the wait lasts: {printed}"
     );
+}
+
+/// What:
+/// Starts the fixture above with the standard error the caller gives it,
+/// and answers what the fixture's process did.
+/// Why:
+/// The line the wait prints goes to the fixture's standard error,
+/// so the only way to hold what happens when that stream refuses the line is to give the fixture
+/// a stream that refuses it,
+/// and the fixture is the shipped runner started with nothing changed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theFixtureWith(stderr: Stdio): { status: string; stdout: string; stderr: string }
+/// ```
+fn the_fixture_with_standard_error_on(standard_error: std::process::Stdio) -> std::process::Output {
+    return std::process::Command::new(
+        std::env::current_exe().expect("the test binary's own path"),
+    )
+    .arg("--exact")
+    .arg(THE_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME)
+    .arg("--ignored")
+    .arg("--nocapture")
+    .arg("--test-threads=1")
+    .stderr(standard_error)
+    .output()
+    .expect("start the fixture the shipped runner waits for");
+}
+
+/// What:
+/// The fixture's own assertions,
+/// in one place:
+/// it ran ("1 passed")
+/// and ended successfully.
+/// Why:
+/// A control that only reads the status cannot tell a fixture that passed from one that never ran
+/// (a filter that matched nothing ends 0);
+/// the count is what shows the fixture ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function assertTheFixtureRan(output: Output): void
+/// ```
+fn assert_the_fixture_ran(output: &std::process::Output) {
+    assert!(
+        output.status.success(),
+        "the fixture's wait ended with an answer even though a line it printed was refused: {:?} {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let printed: String = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        printed.contains("1 passed"),
+        "the fixture ran and passed, so the wait it holds really happened: {printed}"
+    );
+}
+
+/// What:
+/// A wait past the shipped bound whose line standard error refuses
+/// (`/dev/full`,
+/// an open stream that answers every write `ENOSPC`)
+/// still ends with the program's answer and a successful command.
+/// Why:
+/// `0.2.7-alpha.20` wrote the line with `eprintln!`,
+/// which panics on a write error,
+/// and the release profile sets `panic = "abort"`,
+/// so an install whose standard error was a full disk stopped with `SIGABRT` at the first program
+/// that took more than 2 s.
+/// The line is a courtesy and not the command's result,
+/// so the command has to finish in this state as it did in `0.2.7-alpha.19`.
+#[test]
+fn a_wait_notice_a_full_standard_error_refuses_does_not_end_the_command() {
+    // What: `/dev/full` opened for writing: the one stream on this machine that is open and refuses
+    //  every byte with `ENOSPC`.
+    // Why: the defect needs a stream that answers an error rather than a closed descriptor,
+    //  because the standard library ignores a closed one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const full = fs.openSync('/dev/full', 'w');
+    // ```
+    let full = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .expect("/dev/full is open for writing on this machine");
+    let output = the_fixture_with_standard_error_on(std::process::Stdio::from(full));
+    assert_the_fixture_ran(&output);
+}
+
+/// What:
+/// A wait past the shipped bound whose line a pipe refuses
+/// (a pipe whose reader has left:
+/// every write answers `EPIPE`)
+/// still ends with the program's answer and a successful command.
+/// Why:
+/// A caller that stops reading (`| head`,
+/// a wrapper that exits) leaves exactly this stream,
+/// and `0.2.7-alpha.20` ended such an install with `SIGABRT` at the first long wait.
+#[test]
+fn a_wait_notice_a_departed_reader_refuses_does_not_end_the_command() {
+    // What: the fixture started with a pipe for its standard error, which the next line then closes
+    //  on this side (dropping the read end is what makes the writer answer `EPIPE`).
+    // Why: this is the state a pipeline creates when its reader exits early,
+    //  and it is the second state the release aborted in.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const child = spawn(exe, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    // child.stderr.destroy();
+    // ```
+    let mut child = std::process::Command::new(
+        std::env::current_exe().expect("the test binary's own path"),
+    )
+    .arg("--exact")
+    .arg(THE_PROGRAM_THAT_DOES_NOT_ANSWER_IN_TIME)
+    .arg("--ignored")
+    .arg("--nocapture")
+    .arg("--test-threads=1")
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::piped())
+    .spawn()
+    .expect("start the fixture the shipped runner waits for");
+    // What: `child.stderr.take()` takes the read end out of the child handle and the discard drops it,
+    //  which closes the only reader the pipe had.
+    // Why: the fixture keeps the write end and must meet a refusal on its first line.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // child.stderr.destroy();
+    // ```
+    let _ = child.stderr.take();
+    let output = child
+        .wait_with_output()
+        .expect("read what the fixture printed");
+    assert_the_fixture_ran(&output);
 }
