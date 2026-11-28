@@ -96,6 +96,8 @@ use crate::worktree_copy_forward::{
 };
 use crate::worktree_removal_of_a_bound_clone::{
     RemovalReads,
+    TheRemovalsReadings,
+    TheSlotRemoval,
     the_removal_with,
 };
 use std::ffi::OsString;
@@ -280,12 +282,13 @@ fn run_the_removal_with(
     words: &[OsString],
     sources: &SlotReadingSources<'_>,
 ) -> ForwardedRun {
-    let refusal = |target: &Path, common: &Path| {
+    let refusal = |request: &TheSlotRemoval<'_>| {
         return the_removal_with(
-            target,
-            common,
-            RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
-            sources,
+            request,
+            &TheRemovalsReadings {
+                reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+                sources,
+            },
         );
     };
     return run_forwarded_git_with_its_own_steps(

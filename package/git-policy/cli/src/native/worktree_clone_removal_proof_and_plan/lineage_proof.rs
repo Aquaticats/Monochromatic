@@ -263,6 +263,98 @@ pub fn prove_the_lineage(
 }
 
 /// What:
+///  What a forced removal holds when it destroys from the pool's own list:
+///  the live identities the pool answers,
+///  the whole inventory of the name the add's record holds,
+///  and every snapshot that list carries.
+/// Why:
+///  Two forces pass a clone the wrapper cannot prove,
+///  and the owner answered on 2026-11-28 that such a removal
+///  "destroys the dataset the slot's record names even when the pool's answer
+///  does not match the record"
+///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`):
+///  the name is the record's,
+///  and every identity the plan records is the one the pool answered,
+///  so the plan names the object this run destroys and a person can read
+///  afterwards which one it was.
+///  The recorded identities are not compared with anything here:
+///  that comparison is exactly the proof this path was given leave to skip.
+///
+/// # Throws
+/// A name the pool does not answer,
+/// a clone whose reply carries no origin,
+/// or an inventory that could not be read completely,
+/// because a destroy this route sends is written from what it read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const proven = proveTheLiveLineage(reads, recorded);
+/// ```
+pub fn prove_the_live_lineage(
+    reads: &dyn RemovalPoolReads,
+    recorded: &RecordedBinding,
+) -> Result<ProvenRemoval, RemovalStop> {
+    let pool: ObjectIdentity = identity_of(reads, recorded.pool.as_str())?;
+    let clone_reply: DatasetIdentity =
+        reads
+            .identity(recorded.clone_dataset.as_str())
+            .map_err(|reason| {
+                return RemovalStop::DoesNotAnswer {
+                    object: recorded.clone_dataset.clone(),
+                    reason,
+                };
+            })?;
+    let clone: ObjectIdentity = identity_from(&clone_reply, recorded.clone_dataset.as_str())?;
+    let live_origin: Option<String> =
+        Some(clone_reply.stats.origin()).filter(|origin| return !origin.is_empty());
+    let Some(origin_snapshot_name) = live_origin else {
+        return Err(RemovalStop::OriginIsNotTheRecordedOne {
+            clone: recorded.clone_dataset.clone(),
+            recorded: recorded.origin_snapshot.clone(),
+            live: None,
+        });
+    };
+    let origin_snapshot_reply: DatasetIdentity = reads
+        .identity(origin_snapshot_name.as_str())
+        .map_err(|reason| {
+            return RemovalStop::DoesNotAnswer {
+                object: origin_snapshot_name.clone(),
+                reason,
+            };
+        })?;
+    let origin_snapshot: ObjectIdentity =
+        identity_from(&origin_snapshot_reply, origin_snapshot_name.as_str())?;
+    let origin_dataset_name: &str = origin_snapshot_name
+        .split_once('@')
+        .map(|(dataset, _snapshot)| return dataset)
+        .unwrap_or(origin_snapshot_name.as_str());
+    let origin_dataset: ObjectIdentity = identity_of(reads, origin_dataset_name)?;
+    let inventory: LiveInventory =
+        crate::worktree_clone_removal_proof_and_plan::removal_reads::whole_inventory(
+            reads,
+            recorded.clone_dataset.as_str(),
+            clone.guid,
+        )
+        .map_err(|reason| {
+            return RemovalStop::InventoryUnreadable {
+                clone: recorded.clone_dataset.clone(),
+                reason,
+            };
+        })?;
+    let every: Vec<PlanSnapshot> = inventory.every_snapshot();
+    return Ok(ProvenRemoval {
+        identities: ProvenIdentities {
+            pool_guid: pool.guid,
+            clone,
+            origin_dataset,
+            origin_snapshot,
+        },
+        inventory,
+        own_snapshots: every,
+    });
+}
+
+/// What:
 ///  Whether every live object is the clone's own:
 ///  each snapshot newer than the clone,
 ///  and no object carrying a GUID the origin side recorded.

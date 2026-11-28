@@ -1021,6 +1021,64 @@ Unapproved and non-final.
 - Ended and not yet read:
   the two fix rounds on the `cargo-shadow` alpha.18 read and the two-forces design.
 
+#### Started and done between 07:45 and 08:02
+
+Unapproved and non-final.
+
+- At the owner's 08:00 mark no guest ran on this machine and the project on OVHcloud listed two machines,
+  each made by a round:
+  `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "What stood at the mark".
+  Every local guest had been destroyed by its own round;
+  the guest unit's memory sampler was stopped at 07:53:01.
+- Merge `9d23b5f6bc` took the guest drivers' round a third time ahead of its end:
+  a driver's guest gets the release the recipe prepares,
+  where a driver's create named no image and the guest booted the catalogue's default.
+  The live guest rounds were told to merge `main` again.
+- Merge `b7f9f7ed2c` has a defect a real run showed,
+  issue 6664:
+  the one-shot `run` on a cloud backend drops `--vcpus` and `--memory`.
+  The round `mvm-cli-run-hands-the-asked-vcpus-and-memory-to-its-create-on-every-backend` is fixing it,
+  and its one billed run settles whether the catalogue's memory number is GB or GiB.
+- Merge `7c4962988d`:
+  the ZFS removal reads force.
+  Two forces delete a person's lock,
+  go past a plan that cannot be read and destroy a clone the wrapper cannot prove;
+  one force passes the plan and a clone at the staging folder;
+  without force those two states now refuse.
+  It also closes a defect the released `0.6.1-alpha.53` carries:
+  nothing read the files at a bound slot,
+  so a slot whose worktree held modified or untracked files had its clone destroyed with no force.
+  Its picks are in `doc/handover/questions-for-the-owner.md`.
+- Merge `ce0d52a686`:
+  the checkout's private propagation step,
+  built and reached by no command,
+  proved in a guest before the switch;
+  its trigger measurement saw ten of ten replacements once each and no loop.
+- Merge `0d03853329`:
+  the two-forces design,
+  with a gate read by Claude Sonnet running.
+- Merge `b1529e79e1`:
+  the `cargo-shadow` round on the alpha.18 read's two Medium findings.
+  The round on its six Low findings conflicts with it in four files;
+  the round `cargo-shadow-the-two-alpha-18-fix-branches-joined-with-both-rounds-controls-green` joins them.
+- One whole gate was started on `main` at `ce0d52a686`;
+  the wrapper's next alpha follows its reading.
+- Gate reads back since 07:29,
+  each not ready:
+  the sizes,
+  hosted-runners,
+  Dylint,
+  crate split and line-break proposals.
+  A revision round runs for each,
+  and for the development-profile proposal.
+- The fix round for the alpha.53 behaviour read runs:
+  `wrapper-alpha-53-read-a-resumed-removal-reads-a-persons-lock-before-it-writes-and-a-finished-removal-is-cleaned-up-after`.
+- Issues filed:
+  6664,
+  and one for a control that fails only in the threaded run of its module
+  (`a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words`).
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
