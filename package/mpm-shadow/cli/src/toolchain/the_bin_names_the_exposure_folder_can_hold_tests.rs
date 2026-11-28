@@ -250,7 +250,8 @@ fn a_name_at_the_limit_is_written_and_one_byte_more_fails_with_the_systems_own_e
 /// and the length counted is bytes rather than characters.
 /// Why:
 /// The edge is the whole rule:
-/// a check that refused the longest name that fits, or accepted one byte past it,
+/// a check that refused the longest name that fits,
+/// or accepted one byte past it,
 /// or measured a multibyte name in characters,
 /// would refuse a plan that links today or link a name the file system cannot hold.
 /// Every length here is derived from the file system's own answer and the reserve the check
@@ -295,8 +296,17 @@ fn a_bin_of_the_longest_fitting_length_is_accepted_and_one_byte_more_is_refused(
     let (plan, scope) = a_plan_and_a_scope(&a_bin_name_of(most), directory.path());
     refuse_bin_names_the_exposure_folder_cannot_hold(&plan, &scope)
         .expect("the longest bin name that fits is accepted");
-    let (plan, scope) = a_plan_and_a_scope(&a_bin_name_of(most + 1), directory.path());
-    let error = refuse_bin_names_the_exposure_folder_cannot_hold(&plan, &scope)
+    // What: the same plan and scope pair for the length one byte past the edge, under names of their own.
+    // Why: a name reused for a second answer of the same kind would shadow the first in the compiler's eyes,
+    //  and these are two different plans.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const [oneMorePlan, oneMoreScope] = aPlanAndAScope(aBinNameOf(most + 1), directory.path());
+    // ```
+    let (one_more_plan, one_more_scope) =
+        a_plan_and_a_scope(&a_bin_name_of(most + 1), directory.path());
+    let error = refuse_bin_names_the_exposure_folder_cannot_hold(&one_more_plan, &one_more_scope)
         .expect_err("one byte past the longest name that fits is refused");
     assert!(
         error.message.contains(&format!("is at most {most} bytes")),
@@ -320,8 +330,10 @@ fn a_bin_of_the_longest_fitting_length_is_accepted_and_one_byte_more_is_refused(
         multibyte.chars().count(),
         multibyte.len()
     );
-    let (plan, scope) = a_plan_and_a_scope(&multibyte, directory.path());
-    refuse_bin_names_the_exposure_folder_cannot_hold(&plan, &scope)
+    // What: the third plan and scope pair, for the multibyte name.
+    // Why: a distinct pair per plan keeps each answer's plan identifiable in a failing assertion.
+    let (multibyte_plan, multibyte_scope) = a_plan_and_a_scope(&multibyte, directory.path());
+    refuse_bin_names_the_exposure_folder_cannot_hold(&multibyte_plan, &multibyte_scope)
         .expect_err("a bin the file system cannot hold is refused however few characters it has");
 }
 

@@ -300,7 +300,8 @@ fn the_shipped_bound_is_far_above_an_ordinary_answer() {
 /// `README.md` says the line arrives "once it has passed 2 s",
 /// and the control above holds only that the bound is at least twenty times an ordinary answer,
 /// so a bound of 600 ms passed it while every sentence of the record said 2 s.
-/// The number here is the record's figure, which is what the control holds the code to.
+/// The number here is the record's figure,
+/// which is what the control holds the code to.
 #[test]
 fn the_shipped_bound_is_the_two_seconds_the_record_promises() {
     // What: the bound the record promises, as a `Duration`.
@@ -431,7 +432,8 @@ fn the_fixture_with_standard_error_on(standard_error: std::process::Stdio) -> st
 }
 
 /// What:
-/// The fixture's own assertions, in one place:
+/// The fixture's own assertions,
+/// in one place:
 /// it ran ("1 passed")
 /// and ended successfully.
 /// Why:
@@ -459,7 +461,8 @@ fn assert_the_fixture_ran(output: &std::process::Output) {
 
 /// What:
 /// A wait past the shipped bound whose line standard error refuses
-/// (`/dev/full`, an open stream that answers every write `ENOSPC`)
+/// (`/dev/full`,
+/// an open stream that answers every write `ENOSPC`)
 /// still ends with the program's answer and a successful command.
 /// Why:
 /// `0.2.7-alpha.20` wrote the line with `eprintln!`,
@@ -490,10 +493,12 @@ fn a_wait_notice_a_full_standard_error_refuses_does_not_end_the_command() {
 
 /// What:
 /// A wait past the shipped bound whose line a pipe refuses
-/// (a pipe whose reader has left: every write answers `EPIPE`)
+/// (a pipe whose reader has left:
+/// every write answers `EPIPE`)
 /// still ends with the program's answer and a successful command.
 /// Why:
-/// A caller that stops reading (`| head`, a wrapper that exits) leaves exactly this stream,
+/// A caller that stops reading (`| head`,
+/// a wrapper that exits) leaves exactly this stream,
 /// and `0.2.7-alpha.20` ended such an install with `SIGABRT` at the first long wait.
 #[test]
 fn a_wait_notice_a_departed_reader_refuses_does_not_end_the_command() {

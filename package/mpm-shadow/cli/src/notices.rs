@@ -8,7 +8,8 @@
 //! A person reading a terminal or a log needs those lines,
 //! and the work they describe either succeeded already or is still going:
 //! none of them is the command's result,
-//! so a stream that refuses the bytes must not end, fail or change the command.
+//! so a stream that refuses the bytes must not end,
+//! fail or change the command.
 //! `eprintln!` does not answer that need:
 //! it panics on every write error but a closed descriptor,
 //! and this crate's release build sets `panic = "abort"`,

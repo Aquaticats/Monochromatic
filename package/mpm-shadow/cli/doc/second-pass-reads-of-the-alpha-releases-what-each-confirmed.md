@@ -568,7 +568,10 @@ which was measured on 2026-11-28T06:46:53-05:00 with the released
 `update`,
 `outdated` and
 `verify-archive` exit 2 with the refusal and nothing on standard output,
-and `bin` (plain and `--json`), `prune`, `prune --toolchain`, `--version` and `--help`
+and `bin` (plain and `--json`),
+`prune`,
+`prune --toolchain`,
+`--version` and `--help`
 run as before.
 `bin` and `prune --toolchain` never read the plan,
 so a person whose plan holds such a bin can still print the exposure folder and the IDE file;
@@ -663,21 +666,34 @@ so its fixtures and the read's used the same binaries.
 Every run of either released binary,
 and of this branch's build,
 went through `systemd-run --user --scope --slice=agent-work.slice` with
-`MemoryMax`, `CPUQuota`, `TasksMax`, `IOWeight=1` and `RuntimeMaxSec`,
-with a throwaway `HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `PATH`,
-no `DBUS_SESSION_BUS_ADDRESS`, and a stand-in `rustup` (a Node script with the
-bare name `rustup` on `PATH`, which logs every call it is given).
+`MemoryMax`,
+`CPUQuota`,
+`TasksMax`,
+`IOWeight=1` and `RuntimeMaxSec`,
+with a throwaway `HOME`,
+`XDG_CONFIG_HOME`,
+`XDG_DATA_HOME` and `PATH`,
+no `DBUS_SESSION_BUS_ADDRESS`,
+and a stand-in `rustup` (a Node script with the
+bare name `rustup` on `PATH`,
+which logs every call it is given).
 Every run that was expected to abort was started through
-`prlimit --core=0`, so no core dump was stored.
-No network was reached and no real `rustup`, `cargo`, `pnpm` or `go` was
-started: the stand-in stands for each, and no claim below about a real
+`prlimit --core=0`,
+so no core dump was stored.
+No network was reached and no real `rustup`,
+`cargo`,
+`pnpm` or `go` was
+started:
+the stand-in stands for each,
+and no claim below about a real
 `rustup` rests on it.
 
 ### F-M1: the wait line ended the whole install when standard error refused it
 
 Changed:
 `src/toolchain/runner.rs` now writes the wait line through one new writer,
-`src/notices.rs` `say`, which drops whatever the write answered,
+`src/notices.rs` `say`,
+which drops whatever the write answered,
 instead of `eprintln!`,
 which panics on a write error;
 this crate's release profile sets `panic = "abort"`,
@@ -695,7 +711,8 @@ so the wait passes the shipped 2 s bound:
   both call the stand-in twice,
   and alpha.20 prints the wait line twice (314 bytes on standard error) while
   alpha.19 prints nothing;
-- standard error `/dev/full` (open, answering `ENOSPC`):
+  standard error `/dev/full` (open,
+  answering `ENOSPC`):
   alpha.19 exits 0 after 2 calls;
   alpha.20 ends with `SIGABRT` 2.048 s after the start,
   having called the stand-in once,
@@ -706,10 +723,13 @@ so the wait passes the shipped 2 s bound:
 - standard output and standard error one pipe whose reader left at 0.5 s:
   both releases end with `SIGABRT`,
   alpha.19 at 6.1 s after both calls and alpha.20 at 2.056 s after one,
-  which is a second, older defect (see "What stays open", the last item).
+  which is a second,
+  older defect (see "What stays open",
+  the last item).
 
 This branch's build in the same four states:
-0 in the first three (twice two calls, the wait line written in the control arm)
+0 in the first three (twice two calls,
+the wait line written in the control arm)
 and `SIGABRT` only in the fourth,
 where it is the report on standard output rather than a notice that the stream
 refuses.
@@ -730,11 +750,15 @@ Each line below was an `eprintln!` in `0.2.7-alpha.20`
 (line numbers are the release's),
 and each now goes through `notices::say`:
 
-- `src/toolchain/runner.rs:339-341`, `say_on_standard_error`:
+  `src/toolchain/runner.rs:339-341`,
+  `say_on_standard_error`:
   the wait line.
   It ended an install in the two stream states above.
-- `src/toolchain/commands/what_every_verb_prints.rs:112`, `warn_older_locks`:
-  the older-lock warning that `install --lockfile-only`, `update`, `outdated`
+  `src/toolchain/commands/what_every_verb_prints.rs:112`,
+  `warn_older_locks`:
+  the older-lock warning that `install --lockfile-only`,
+  `update`,
+  `outdated`
   and `bin` print and then succeed.
   Measured at the user boundary on a machine-global scope whose lock pins
   `0.2.7-alpha.19` while `0.2.7-alpha.20` is installed:
@@ -752,28 +776,44 @@ and each now goes through `notices::say`:
   which the function's own doc says must not change the run's exit code.
 - `src/shim.rs:334`:
   the line that says a start was refused for lack of processes and then
-  succeeded, printed before the child is waited for.
+  succeeded,
+  printed before the child is waited for.
 - `src/shim.rs:397`:
-  the post-run cleanup summary, printed before the shadow returns mpm's own
+  the post-run cleanup summary,
+  printed before the shadow returns mpm's own
   status.
-- `src/toolchain/launcher/starting_it.rs:179`, `:187`:
-  the two lines saying why a lock could not be read, printed before the tool is
+  `src/toolchain/launcher/starting_it.rs:179`,
+  `:187`:
+  the two lines saying why a lock could not be read,
+  printed before the tool is
   started.
 - `src/toolchain/launcher/starting_it.rs:280`:
   the older-lock warning a launcher prints before it replaces itself with the
   program.
 - `src/toolchain/launcher/starting_it.rs:288`:
-  the warning that a launcher record could not be rewritten, printed before the
+  the warning that a launcher record could not be rewritten,
+  printed before the
   start.
 
-Left as `eprintln!`, because the command is already failing and the line is its
+Left as `eprintln!`,
+because the command is already failing and the line is its
 failure report rather than a courtesy:
 `src/toolchain/commands/what_every_verb_prints.rs:68` (`report`),
 `src/cli.rs:256` (neither `CARGO_HOME` nor `HOME` is set),
-`src/shim.rs:476`, `:497`, `:504`, `:536` and `:542` (the shadow's start
-refusals and failures, which end 126 or 127),
-`src/toolchain/launcher/starting_it.rs:294`, `:312`, `:316`, `:326`, `:330`,
-`:333`, `:374` and `:378` (a launcher's refusals and missing program, which end
+`src/shim.rs:476`,
+`:497`,
+`:504`,
+`:536` and `:542` (the shadow's start
+refusals and failures,
+which end 126 or 127),
+`src/toolchain/launcher/starting_it.rs:294`,
+`:312`,
+`:316`,
+`:326`,
+`:330`,
+`:333`,
+`:374` and `:378` (a launcher's refusals and missing program,
+which end
 126 or 127),
 and `src/toolchain/prune_cargo/the_prune_command.rs:53` and `:80`.
 In those states a stream that refuses the line turns a documented failure into
@@ -784,23 +824,37 @@ and this round changed none of them.
 
 ### F-L2: the refused bin names and the commands that refuse them
 
-Changed: the record, not the code.
+Changed:
+the record,
+not the code.
 The release's behaviour is right and the record named the wrong commands.
 
 Measured on 2026-11-28T06:46:53-05:00 with the released `0.2.7-alpha.20`,
 on a fixture whose plan and lock declare one `rust` row:
 
-- a bin of 160 bytes: `install --lockfile-only`, `install --frozen-lockfile`,
-  `list`, `update`, `outdated` and `bin` exit 0;
-  `verify-archive` exits 2 for an absent artifact, which is its own refusal.
-- a bin of 161 bytes: `install --lockfile-only`, `install --frozen-lockfile`,
-  `list`, `update`, `outdated` and `verify-archive` exit 2 with the plan
+  a bin of 160 bytes:
+  `install --lockfile-only`,
+  `install --frozen-lockfile`,
+  `list`,
+  `update`,
+  `outdated` and `bin` exit 0;
+  `verify-archive` exits 2 for an absent artifact,
+  which is its own refusal.
+  a bin of 161 bytes:
+  `install --lockfile-only`,
+  `install --frozen-lockfile`,
+  `list`,
+  `update`,
+  `outdated` and `verify-archive` exit 2 with the plan
   refusal and nothing on standard output;
   `bin` exits 0 and prints the exposure folder,
   and `prune --toolchain --dry-run` fails on the fixture's absent `.git`
-  rather than on the plan, so neither of those two reads the plan.
+  rather than on the plan,
+  so neither of those two reads the plan.
 
-The record's L-4 section said `list`, `update`, `install --lockfile-only` and
+The record's L-4 section said `list`,
+`update`,
+`install --lockfile-only` and
 `bin` refuse,
 and left out `outdated` and `verify-archive`;
 it now names the measured set and says that `bin` and `prune --toolchain` never
@@ -808,16 +862,20 @@ read the plan.
 The same section said the pass measured the edge at 185 bytes linked and 186
 failed without saying that 186 is the failure the check replaces rather than the
 length the check refuses;
-it now says both, with 161 as the first refused length.
+it now says both,
+with 161 as the first refused length.
 
 ### F-L4: "every rebuild names it once" and a rebuild that stops
 
-Changed: the record, not the code.
+Changed:
+the record,
+not the code.
 
 The rebuild's pass stops at the first removal that fails,
 and a control holds that:
 `a_run_names_the_removals_it_made_before_a_later_one_failed` plants two orphan
-links, refuses the second removal with `EIO`,
+links,
+refuses the second removal with `EIO`,
 and asserts that the second link is still there afterwards,
 which can only be true if the pass stopped.
 So the sentence "every rebuild names it once" was the side that was wrong.
@@ -832,10 +890,13 @@ so a run that fails after judging a name still prints its line.
 
 ### F-L5: the doc comment of `the_link_the_farm_keeps`
 
-Changed: the code's comment, not its behaviour.
+Changed:
+the code's comment,
+not its behaviour.
 
 The comment said a link into another tool's install directory,
-a superseded version, or a dead installer's staging directory is not kept;
+a superseded version,
+or a dead installer's staging directory is not kept;
 the code keeps the last two and removes the first,
 because the question it asks is which install directory the resolved file sits
 in and never which version it is.
@@ -845,22 +906,29 @@ and the test
 `a_sync_keeps_the_farms_mpm_shadow_link_that_resolves_into_the_cargo_routes_install`
 holds the two install directories the code compares.
 The comment now says what the code does and why the version does not matter.
-The read's two planted states (a link onto an older version directory, and one
+The read's two planted states (a link onto an older version directory,
+and one
 onto a `.staging` copy inside the program's own install directory) are still
-kept, and no test holds either; that is in "What stays open".
+kept,
+and no test holds either;
+that is in "What stays open".
 
 ### F-L10: "every program a command starts" is wider than the code
 
-Changed: the record, and one sentence of `README.md`.
+Changed:
+the record,
+and one sentence of `README.md`.
 
 Three starts do not go through the runner and print no wait line:
-the shadow mode's start of the real `mpm` (`src/shim.rs:265`, standard streams
+the shadow mode's start of the real `mpm` (`src/shim.rs:265`,
+standard streams
 inherited),
 a launcher's replacement of itself with the program its record names
 (`src/toolchain/launcher/starting_it.rs:91` and `:106`),
 and the repository-link check's own program under its own deadline
 (`src/toolchain/repository_link_cause.rs:242`).
-Each is right: a pass-through has nothing to report,
+Each is right:
+a pass-through has nothing to report,
 and the link check ends the program it started itself.
 The record's L-7 section and the README's `list` bullet now say
 "every program a toolchain command runs through the runner",
@@ -904,7 +972,7 @@ and the report of this round says so.
 
 ## What stays open after the alpha.20 read
 
-Six items,
+Seven items,
 each with what the released binaries showed and what each answer would cost.
 None is fixed in this round,
 and the owner decides.
@@ -917,13 +985,16 @@ a farm holding `.<name>.<pid>.tmp` (the shape `0.2.7-alpha.18` wrote) and
 own boot or process namespace) keeps those names through ten installs in a row,
 each install printing one line per name;
 `list` and `prune --toolchain` print nothing about them.
-A reboot clears neither: the name carries no boot, so no run can show its
+A reboot clears neither:
+the name carries no boot,
+so no run can show its
 installer ended.
 `0.2.7-alpha.19` removed such a name once no process held its number,
 and said nothing about the ones it kept.
 The writing of the shorter shape is not hypothetical:
 a run whose read of `/proc/sys/kernel/random/boot_id` is refused writes
-`.thirdbin.tmp.<pid>.<start>`, and every install after it names it.
+`.thirdbin.tmp.<pid>.<start>`,
+and every install after it names it.
 A person's own `.<name>.<n>.tmp` link joins the list.
 
 Two answers:
@@ -937,15 +1008,18 @@ or keep the shipped rule,
 which never deletes what it cannot judge,
 at the cost of one line per name on every install for ever,
 a reboot included.
-Ranking: the `btime` rule > shipped keep-and-name > removal by free number,
+Ranking:
+the `btime` rule > shipped keep-and-name > removal by free number,
 because the first ends the lines without deleting anything a live install
-holds, and alpha.19's rule deleted a live install's link in another namespace.
+holds,
+and alpha.19's rule deleted a live install's link in another namespace.
 
 ### A bin name that is long only together with its folder is not refused
 
 Evidence:
 a scope directory 3907 bytes deep with a 100-byte bin (its link path 4029 bytes,
-its temporary link's about 4099, `PATH_MAX` 4096) fails the install with exit 1
+its temporary link's about 4099,
+`PATH_MAX` 4096) fails the install with exit 1
 and `cannot link <...>/.bbb...x.tmp.<...>: File name too long (os error 36)`,
 which is the failure the check was written to replace;
 `list` and `bin` exit 0.
@@ -954,14 +1028,16 @@ Both releases behave the same way.
 
 Two answers:
 ask the kernel about the whole path as well (a link write's own `ENAMETOOLONG`
-is the only question that covers every component, so a dry construction of the
+is the only question that covers every component,
+so a dry construction of the
 temporary path's length against `PATH_MAX` and the folder's own spelling would
 be the check),
 at the cost of a second rule that can refuse a scope whose folder is later
 shortened;
 or say in `README.md` that the check is of the name alone,
 at the cost of leaving the deep-checkout failure where it is.
-Ranking: the README sentence > the path check,
+Ranking:
+the README sentence > the path check,
 because a path check that refuses a plan which links today is
 what the read objected to at the name limit.
 
@@ -969,20 +1045,26 @@ what the read objected to at the name limit.
 
 Evidence:
 a `rustup component add`/`target add` that takes 3 s prints one line per add
-(on a fixture, three adds printed at 2.09 s, 5.17 s and 8.20 s);
+(on a fixture,
+three adds printed at 2.09 s,
+5.17 s and 8.20 s);
 the same `rustup which ...` called twice by one install prints the identical
-line twice, each saying "2.0 s after this command started it".
+line twice,
+each saying "2.0 s after this command started it".
 The 2 s bound was measured on read-only questions (this machine's
 `rustup --version` and a stand-in's `which` and `component list`);
-the installers the same runner starts (`rustup component add`, `target add`,
-`cargo binstall`, `pnpm add`) download for longer than that in an ordinary run.
+the installers the same runner starts (`rustup component add`,
+`target add`,
+`cargo binstall`,
+`pnpm add`) download for longer than that in an ordinary run.
 
 Two answers:
 one bound for read-only questions and a larger one for installers,
 at the cost of two constants and a second measurement;
 or one bound above the slowest ordinary installer,
 at the cost of a wait on a stuck read-only question going unnamed for longer.
-Ranking: the two bounds > one larger bound,
+Ranking:
+the two bounds > one larger bound,
 because the questions differ by an order of magnitude and one bound must be
 wrong for one of them.
 
@@ -996,7 +1078,8 @@ alpha.19 exits 1 with
 and at its `readlink` and its `lstat` of a killed install's leftover that
 alpha.20 removes;
 the held calls answer `ENOENT`.
-Two alpha.20 installs fail neither, and two alpha.19 installs fail each other,
+Two alpha.20 installs fail neither,
+and two alpha.19 installs fail each other,
 which is the failure alpha.19's own read reported.
 The repository's lock named `0.2.7-alpha.19` until
 2026-11-28T04:44:29-05:00 and names alpha.20 since.
@@ -1007,20 +1090,27 @@ alpha.19 fails against one on alpha.20,
 at the cost of nothing but words;
 or a release note and a lock bump everywhere alpha.19 still runs,
 at the cost of a release for a binary that no change here can fix.
-Ranking: the README sentence > the release,
+Ranking:
+the README sentence > the release,
 because nothing in this crate can change what alpha.19's remover does.
 
 ### Two locks in one folder: an install removes a link the other just made
 
 Evidence:
-install A is held before its removal pass while install B, whose plan and lock
-declare one more tool, links that tool;
-A, released, removes the link as one "no row of the lock declares";
-both exit 0, and B's tool is unreachable until its next install.
+install A is held before its removal pass while install B,
+whose plan and lock
+declare one more tool,
+links that tool;
+A,
+released,
+removes the link as one "no row of the lock declares";
+both exit 0,
+and B's tool is unreachable until its next install.
 The same in all four pairs of the releases.
 The claim the removal's rule makes is about one lock,
 so this is outside it,
-and it needs two locks in one scope (a branch switch during an install, or a
+and it needs two locks in one scope (a branch switch during an install,
+or a
 folder shared by trees with different locks).
 
 Two answers:
@@ -1029,7 +1119,8 @@ at the cost of a state a person can reach without knowing;
 or judge a name against every lock `git worktree list` reports,
 at the cost of a `git` call in every install and a new failure mode when git
 cannot answer.
-Ranking: the README sentence > the second lock set,
+Ranking:
+the README sentence > the second lock set,
 because the second adds a slow call to the common path for a state only two
 concurrent sessions with different locks reach.
 
@@ -1037,8 +1128,11 @@ concurrent sessions with different locks reach.
 
 Evidence:
 `.current.tmp.<pid>.<start>.<namespace>.<boot>` in a tool folder stays through
-the next install, a second install, `prune --toolchain --dry-run` and `list`;
-no line names it, in either release.
+the next install,
+a second install,
+`prune --toolchain --dry-run` and `list`;
+no line names it,
+in either release.
 The record says the tool folders have no removal pass;
 `README.md` says nothing about it.
 
@@ -1047,9 +1141,12 @@ one `README.md` sentence saying what such a name is and that it is left,
 at the cost of nothing but words;
 or a removal pass for the tool folders,
 at the cost of the four proofs the record's earlier section lists
-(is it this tool's name, has its installer ended, does a later step read it,
+(is it this tool's name,
+has its installer ended,
+does a later step read it,
 which directories may it touch).
-Ranking: the sentence > the pass,
+Ranking:
+the sentence > the pass,
 because the pass has to answer four questions for names this tool's own writes
 leave in folders that also hold other things.
 
@@ -1057,31 +1154,45 @@ leave in folders that also hold other things.
 
 Evidence:
 with standard output and standard error one pipe whose reader left 0.5 s after
-the start, `0.2.7-alpha.19`, `0.2.7-alpha.20` and this branch's build all end
+the start,
+`0.2.7-alpha.19`,
+`0.2.7-alpha.20` and this branch's build all end
 with `SIGABRT`;
-the report lines go out with `println!`, which panics on a write error as
+the report lines go out with `println!`,
+which panics on a write error as
 `eprintln!` did.
-The work the report describes has already finished there, so the abort changes
-what a caller learns, not what happened.
+The work the report describes has already finished there,
+so the abort changes
+what a caller learns,
+not what happened.
 
 Two answers:
 write the report through a writer that drops the refused answer,
 at the cost of a caller that cannot tell a report was refused;
-or keep `println!`, and say that a caller which stops reading its output ends
+or keep `println!`,
+and say that a caller which stops reading its output ends
 the command,
 at the cost of a state a pipeline reaches without meaning to.
-Ranking: the sentences above are unasked for by the read;
+Ranking:
+the sentences above are unasked for by the read;
 the round left `println!` alone and put the choice here.
 
 ## What this round did not run
 
 - The six open items above were not re-reproduced:
-  their states need a real second process namespace, a reboot, a deep checkout
+  their states need a real second process namespace,
+  a reboot,
+  a deep checkout
   or two released binaries held at a call,
   and the read's own fixtures for them are the evidence restated above.
-- `cargo binstall`, `pnpm add`, `uv tool install`, `go install` and a real
-  `rustup`: every program the runner starts was a stand-in.
-- A file system whose name limit is below 255 bytes: that needs a mount.
+  `cargo binstall`,
+  `pnpm add`,
+  `uv tool install`,
+  `go install` and a real
+  `rustup`:
+  every program the runner starts was a stand-in.
+  A file system whose name limit is below 255 bytes:
+  that needs a mount.
 - The three quarters of the notice sites checked only by reading and by the
   shared writer's two controls:
   the older-lock warning was run at the user boundary,
