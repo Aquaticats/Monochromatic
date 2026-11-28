@@ -17,6 +17,7 @@ use super::zfs_removal_force_guest_fixture::{
     shown,
 };
 use super::zfs_sweep_guest::{
+    command_ok,
     mounted,
     rows_naming,
     sweep,
@@ -24,14 +25,63 @@ use super::zfs_sweep_guest::{
     zfs_ok,
 };
 use git_policy_cli::worktree_clone_binding_record::registration_home::plans_folder;
-use std::path::PathBuf;
+use git_policy_cli::worktree_clone_unmount::user_cache_pin::{
+    UserCachePin,
+    write_pin,
+};
+use std::os::unix::fs::MetadataExt;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::{
     Child,
     Command,
     Stdio,
 };
 
+/// The folder the release's own pin record lives in,
+/// which is `USER_CACHE_PIN_PATH`'s parent.
+pub(super) const THE_PIN_FOLDER: &str = "/var/lib/monochromatic-git-policy-cli";
+
 impl Arm {
+    /// What:
+    ///  Mount this arm's cache dataset at the account's cache and pin it.
+    /// Why:
+    ///  The handler's unmount turn opens the account's cache and checks it
+    ///  against the pin before either `umount2`,
+    ///  so every arm whose removal asks the handler for an unmount needs a
+    ///  pinned cache and not only the arm about a staged clone.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// arm.pinTheCache();
+    /// ```
+    pub(super) fn pin_the_cache(&self) {
+        let dataset: String = format!("{}/cache", self.pool);
+        zfs_ok(
+            self.sbin.as_str(),
+            &["create", "-o", "mountpoint=legacy", dataset.as_str()],
+        );
+        let cache_path: PathBuf = PathBuf::from("/root/.cache");
+        std::fs::create_dir_all(cache_path.as_path()).expect("the account's cache folder is there");
+        command_ok(
+            "mount",
+            &["-t", "zfs", dataset.as_str(), shown(cache_path.as_path())],
+        );
+        let facts: std::fs::Metadata =
+            std::fs::metadata(cache_path.as_path()).expect("the cache's own facts read");
+        let pin: UserCachePin = UserCachePin {
+            source: dataset,
+            root_inode: facts.ino(),
+            device: facts.dev(),
+        };
+        std::fs::create_dir_all(Path::new(THE_PIN_FOLDER)).expect("the pin's folder is made");
+        let folder: std::fs::File =
+            std::fs::File::open(Path::new(THE_PIN_FOLDER)).expect("the pin's folder opens");
+        write_pin(&folder, &pin).expect("the pin is written");
+    }
+
     /// What:
     ///  Run one arm's clone attached at its slot,
     ///  which is the state every removal that reaches a pool starts from.

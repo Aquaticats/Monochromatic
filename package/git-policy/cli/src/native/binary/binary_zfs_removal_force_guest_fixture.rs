@@ -240,7 +240,7 @@ impl Arm {
         publish(&place, Phase::Filled, sbin.as_str(), SLOT);
         write_the_origin_inventory(&place, sbin.as_str());
         let clone_guid: DatasetGuid = guid_of(sbin.as_str(), clone.as_str());
-        return Arm {
+        let arm: Arm = Arm {
             sbin,
             pool,
             root,
@@ -249,6 +249,10 @@ impl Arm {
             clone,
             clone_guid,
         };
+        // The handler's unmount turn checks the account's cache against the pin before either `umount2`, so the
+        // fixture pins its own cache dataset for every arm and not only the one about a staged clone.
+        arm.pin_the_cache();
+        return arm;
     }
 
     /// The `PATH` the guest's OpenZFS userspace needs.
