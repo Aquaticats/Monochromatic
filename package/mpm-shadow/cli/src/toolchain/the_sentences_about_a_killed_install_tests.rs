@@ -440,8 +440,8 @@ fn the_removal_says_a_second_copy_went_when_the_version_is_finished_at_its_name(
         report.recovered,
         vec![format!(
             "removed 1 hidden directory left behind by an install of {ID} that has ended, \
-             1 of which held a second finished copy of 0.2.1; \
-             0.2.1 holds its completion marker and its program at its name, so that copy was a second one"
+             1 of which held a second finished copy of 0.2.1, \
+             because 0.2.1 holds its completion marker and its program at its name"
         )],
         "the sentence says what went and what it read at the version's name: {report:?}"
     );
@@ -722,8 +722,8 @@ fn the_removal_says_only_what_it_read_at_the_version_name() {
         report.recovered,
         vec![format!(
             "removed 1 hidden directory left behind by an install of {ID} that has ended, \
-             1 of which held a second finished copy of 0.2.1; \
-             0.2.1 holds its completion marker and its program at its name, so that copy was a second one"
+             1 of which held a second finished copy of 0.2.1, \
+             because 0.2.1 holds its completion marker and its program at its name"
         )],
         "the sentence says what went and only what the run read at the version's name: {report:?}"
     );
@@ -761,8 +761,8 @@ fn the_removal_says_a_second_copy_went_when_no_program_name_is_known() {
         report.recovered,
         vec![format!(
             "removed 1 hidden directory left behind by an install of {ID} that has ended, \
-             1 of which held a second finished copy of 0.2.1; \
-             0.2.1 holds its completion marker at its name, so that copy was a second one"
+             1 of which held a second finished copy of 0.2.1, \
+             because 0.2.1 holds its completion marker at its name"
         )],
         "the sentence names the marker alone when no program name is known: {report:?}"
     );

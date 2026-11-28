@@ -557,6 +557,7 @@ fn a_fully_matching_report_says_so() {
         locked: "1".to_string(),
         observed: Some("1".to_string()),
         in_sync: true,
+        missing_parts: Vec::new(),
     }];
     assert!(
         format_status(&observations)

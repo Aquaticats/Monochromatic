@@ -61,14 +61,37 @@ use super::runner::{
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
+/// What:
+/// The removal of the farm's links whose names no row of the lock declares,
+/// which a rebuild runs after it links the declared names.
+/// Why:
+/// The rule that decides a removal and the sentence it prints belong beside each other,
+/// and this file keeps the linking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { removeTheLinksNoRowDeclares } from './exposure/the-links-no-row-declares.ts';
+/// ```
+mod the_links_no_row_declares;
+/// Imports the removal of the farm's links no row of the lock declares.
+use self::the_links_no_row_declares::remove_the_links_no_row_declares;
+
 /// The result of rebuilding the farm:
-/// the names now linked and the names whose program was not found.
+/// the names now linked,
+/// the names whose program was not found,
+/// and one sentence per link the rebuild removed because no row of the lock declares it.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ExposureReport {
     /// Names linked in the exposure directory.
     pub linked: Vec<String>,
     /// Declared names no installed program was found for.
     pub missing: Vec<String>,
+    /// What the rebuild removed from the directory,
+    /// one sentence per symbolic link,
+    /// naming the link,
+    /// where it pointed,
+    /// and that no row of the lock declares it.
+    pub links_removed: Vec<String>,
 }
 
 /// The directories searched in addition to a route's own:
@@ -156,6 +179,18 @@ pub fn rebuild_exposure(
     if let Some(name) = expose_running_shadow(ctx, &running_program()?)? {
         report.linked.push(name);
     }
+    // What:
+    // the links the farm held for names no row of the lock declares, removed and each named for the
+    // report.
+    // Why:
+    // The farm is `PATH`'s first directory, so a name an earlier row declared and this lock does not
+    // would go on standing in front of the machine's own programs.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // report.linksRemoved = removeTheLinksNoRowDeclares(ctx, report.linked);
+    // ```
+    report.links_removed = remove_the_links_no_row_declares(ctx, &report.linked)?;
     return Ok(report);
 }
 

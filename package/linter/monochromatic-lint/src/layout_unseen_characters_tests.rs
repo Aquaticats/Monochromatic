@@ -143,3 +143,56 @@ fn a_whitespace_character_is_no_character_of_this_set() {
         );
     }
 }
+
+/// The first and last code point of every range, and the code point just outside each end,
+///  written out one by one rather than read from the table the answer is built from.
+/// Why:
+///  A control that walks `DEFAULT_IGNORABLE_CODE_POINTS` itself cannot see an edit to that table:
+///  deleting a range, cutting an end or dropping a range leaves every assertion it makes true.
+///  The code points below were taken from the Unicode 17.0.0 data files on 2026-11-27:
+///  `DerivedCoreProperties-17.0.0.txt` (property `Default_Ignorable_Code_Point`, date 2025-07-30),
+///  `DerivedGeneralCategory-17.0.0.txt` (`Cf` and `Cc`) and `PropList-17.0.0.txt` (`White_Space`),
+///  all three from https://www.unicode.org/Public/17.0.0/ucd/,
+///  taking the property's code points and leaving out every `Cf`, `Cc` and whitespace one.
+#[test]
+fn every_range_end_and_the_code_point_just_outside_it_is_written_out() {
+    // What: each range as (first, last, the code point before it, the code point after it).
+    // Why: the four literals are the control; a table edit cannot change what this list asserts.
+    for (first, last, before, after) in [
+        ('\u{34f}', '\u{34f}', '\u{34e}', '\u{350}'),
+        ('\u{115f}', '\u{1160}', '\u{115e}', '\u{1161}'),
+        ('\u{17b4}', '\u{17b5}', '\u{17b3}', '\u{17b6}'),
+        ('\u{180b}', '\u{180d}', '\u{180a}', '\u{180e}'),
+        ('\u{180f}', '\u{180f}', '\u{180e}', '\u{1810}'),
+        ('\u{2065}', '\u{2065}', '\u{2064}', '\u{2066}'),
+        ('\u{3164}', '\u{3164}', '\u{3163}', '\u{3165}'),
+        ('\u{fe00}', '\u{fe0f}', '\u{fdfe}', '\u{fe10}'),
+        ('\u{ffa0}', '\u{ffa0}', '\u{ff9f}', '\u{ffa1}'),
+        ('\u{fff0}', '\u{fff8}', '\u{ffef}', '\u{fff9}'),
+        ('\u{e0000}', '\u{e0000}', '\u{dffff}', '\u{e0001}'),
+        ('\u{e0002}', '\u{e001f}', '\u{e0001}', '\u{e0020}'),
+        ('\u{e0080}', '\u{e0fff}', '\u{e007f}', '\u{e1000}'),
+    ] {
+        // What: both ends of the range, which the table must answer as printing as nothing.
+        // Why: a cut end or a deleted range leaves one of these answered as a visible character.
+        for end in [first, last] {
+            assert!(
+                prints_as_nothing(end),
+                "U+{:04X} is the end of a range and must print as nothing",
+                end as u32
+            );
+        }
+        // What: the two code points just outside the range, whose answer must be the category's alone.
+        // Why: a lookup that reached one character too far would pass the ends above and spell a name a reader reads.
+        for neighbour in [before, after] {
+            assert_eq!(
+                prints_as_nothing(neighbour),
+                is_format_or_control_of_the_linked_tables(neighbour),
+                "U+{:04X} stands just outside U+{:04X}..U+{:04X} and its answer is the category's alone",
+                neighbour as u32,
+                first as u32,
+                last as u32
+            );
+        }
+    }
+}

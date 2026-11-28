@@ -4,7 +4,8 @@
 //! the exchange answered with an error a control names,
 //! one of the three renames answered with an error a control names,
 //! the process ended in the instant between the two renames of the fallback,
-//! and what another install does while this one stands at its step.
+//! and what another install does while this one stands at one of its steps,
+//! before that copy is moved aside as well as after it.
 //! Why:
 //! A control has to show every arm of the replace step and of the single rename,
 //! and the instructions a second install interleaves with,
@@ -77,7 +78,7 @@ pub(crate) enum RenameRefused {
 /// the exchange's own error picks what the arm that meets it does,
 /// a refused rename picks one of the three failure arms of the rename itself,
 /// the kill names the instant only the two-rename arm has,
-/// and the action is what a second install does at the step the control stops this one at.
+/// and each action is what a second install does at the instant its own field names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,6 +88,7 @@ pub(crate) enum RenameRefused {
 ///   refuseTheRename?: [RenameRefused, number];
 ///   killBetweenTheTwoRenames: boolean;
 ///   anotherInstallActs?: (staging: string, finalDir: string) => void;
+///   anotherInstallPublishesBeforeTheAsideRename?: (staging: string, finalDir: string) => void;
 /// };
 /// ```
 #[cfg(test)]
@@ -105,6 +107,9 @@ pub(crate) struct Plant {
     /// What another install does while this publish stands at its step,
     /// with the name this publish holds the finished copy at and the version's name.
     pub(crate) another_install_acts: Option<fn(&Path, &Path)>,
+    /// What another install publishes in the instant before this publish moves the copy at the version's name aside,
+    /// with the name this publish holds the finished copy at and the version's name.
+    pub(crate) another_install_publishes_before_the_aside_rename: Option<fn(&Path, &Path)>,
 }
 
 #[cfg(test)]
@@ -348,6 +353,60 @@ pub(super) fn reached_the_instant_between_the_two_renames(
 /// nothing else acts there and nothing ends the process.
 #[cfg(not(test))]
 pub(super) fn reached_the_instant_between_the_two_renames(
+    _staging: &Path,
+    _final_dir: &Path,
+) {
+}
+
+/// What:
+/// Runs what another install publishes in the instant before this publish moves the copy there aside,
+/// with the name it holds the finished copy at and the version's name.
+/// Why:
+/// A second install can give the version its name between this publish's check that the name holds no finished copy
+/// and the rename that moves whatever is there aside,
+/// and the copy moved aside then reads as finished;
+/// a control picks that instant exactly,
+/// it is the only way the arm that puts such a copy back is reached,
+/// and it publishes once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reachedTheInstantBeforeTheAsideRename(staging: string, finalDir: string): void {
+///   plantedSteps()?.anotherInstallPublishesBeforeTheAsideRename?.(staging, finalDir);
+/// }
+/// ```
+#[cfg(test)]
+pub(super) fn reached_the_instant_before_the_aside_rename(
+    staging: &Path,
+    final_dir: &Path,
+) {
+    let planted: Option<Plant> = planted_steps();
+    let Some(publishes) = planted.and_then(|plant| {
+        return plant.another_install_publishes_before_the_aside_rename;
+    }) else {
+        return;
+    };
+    // What: the publisher is taken out of the plant before it runs, so a second publish of this run meets the real step.
+    // Why: the install that follows a failed recovery publishes too,
+    //  and its copy must not be the last thing this control put at the version's name.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // planted.anotherInstallPublishesBeforeTheAsideRename = undefined;
+    // ```
+    PLANTED.with(|cell| {
+        if let Some(mut plant) = cell.get() {
+            plant.another_install_publishes_before_the_aside_rename = None;
+            cell.set(Some(plant));
+        }
+    });
+    publishes(staging, final_dir);
+}
+
+/// The same instant in a shipped build:
+/// nothing else acts there.
+#[cfg(not(test))]
+pub(super) fn reached_the_instant_before_the_aside_rename(
     _staging: &Path,
     _final_dir: &Path,
 ) {

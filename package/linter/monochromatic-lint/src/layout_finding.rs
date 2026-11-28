@@ -112,6 +112,29 @@ pub(crate) fn spelled_unreadable(name: &str) -> String {
 }
 
 /// What:
+///  The phrase a message calls one character a reader cannot see:
+///  its plain name where this crate has one, and the character's code point either way.
+/// Why:
+///  A reader told only that a character cannot be seen has nothing to search for,
+///  and a character with no common name is still found by its code point in the line.
+///  The two spellings differ, so the phrase keeps the name where one exists and never invents one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const phrase = (letter) =>
+///   unseenCharacterName(letter) ?? `a character a reader cannot see (\`\\u{${letter.codePointAt(0)!.toString(16)}}\`)`
+/// ```
+pub(crate) fn unseen_character_phrase(letter: char) -> String {
+    return match unseen_character_name(letter) {
+        Some(name) => String::from(name),
+        None => format!(
+            "a character a reader cannot see (`\\u{{{:x}}}`)",
+            letter as u32
+        ),
+    };
+}
+
+/// What:
 ///  Whether a character prints as nothing wherever it stands,
 ///  so a name holding one is no name a reader can see.
 /// Why:
@@ -182,8 +205,8 @@ pub(crate) fn unseen_character_name(letter: char) -> Option<&'static str> {
 ///  A message that names such a character must say where it stands,
 ///  because the line's words look right without it and its reader has to know which character to take out.
 ///  The position counts characters rather than bytes,
-///  because a person counting in an editor counts what is on the screen:
-///  `usés` holds five characters and six bytes, and a byte offset would name a place no editor shows.
+///  because a byte offset names a place no person can count, and an editor may show a tab as several cells or a letter as more than one byte:
+///  `usés` holds five characters and six bytes, and a byte offset would name a place the file does not hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
