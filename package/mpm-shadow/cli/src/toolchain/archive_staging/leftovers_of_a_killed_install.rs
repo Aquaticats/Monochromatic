@@ -110,6 +110,7 @@
 //! ```ts
 //! // leftovers-of-a-killed-install.ts
 //! function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered;  // throws
+//! type ARecoveryThatFailed = { error: ToolchainError; readTheHiddenNames: boolean };
 //! ```
 
 /// The shapes a recovery works in,
@@ -131,8 +132,10 @@ use self::the_claim_of_a_finished_copy::claim_the_finished_copy;
 /// the hidden name that holds the copy a kill moved aside,
 /// the hidden siblings this run removed,
 /// what the recovery answered,
+/// what a recovery that failed answers,
 /// and the two questions the repair asks of those shapes.
 pub(crate) use self::what_a_recovery_answers::{
+    ARecoveryThatFailed,
     AnOlderVersion,
     FinishedCopy,
     HoldingInstaller,
@@ -503,21 +506,31 @@ fn why_this_run_did_not_publish_it(older_version: &AnOlderVersion) -> WhyNotPubl
 /// A finished copy is published only when `expected` records the tool,
 /// the version and the archive digest its own marker records too,
 /// so a copy the lock does not vouch for never becomes a version.
+/// A failure answers whether it read the directory's hidden names,
+/// because the listing is the one step before which no copy was read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered
+/// export function recoverLeftovers(versionDir: string, firstBin: string, olderVersion: AnOlderVersion, expected: CopyRecord | undefined): Recovered  // throws
 /// ```
 pub(crate) fn recover_leftovers(
     version_dir: &Path,
     first_bin: &str,
     older_version: AnOlderVersion,
     expected: Option<&CopyRecord>,
-) -> Result<Recovered, ToolchainError> {
+) -> Result<Recovered, ARecoveryThatFailed> {
     let Some(directory) = version_dir.parent() else {
         return Ok(Recovered::default());
     };
-    let siblings: Vec<Leftover> = hidden_siblings(directory)?;
+    // What: the listing is the first read of the recovery, so a failure here is one that read no hidden name.
+    // Why: the warning an install makes of it may then claim nothing about a copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const siblings = hiddenSiblings(directory).mapErr(nothingRead);
+    // ```
+    let siblings: Vec<Leftover> = hidden_siblings(directory)
+        .map_err(|error| return ARecoveryThatFailed::nothing_read(error))?;
     let gone: Vec<&Leftover> = siblings
         .iter()
         .filter(|sibling| return is_gone(sibling))

@@ -1095,7 +1095,8 @@ fn a_failed_publish_of_a_name_that_holds_nothing_says_what_the_next_run_does() {
     let rig = Rig::new();
     let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
     // A kill between the two renames leaves the version's name holding nothing and the finished copy beside it.
-    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, false);
+    let tool_dir: PathBuf =
+        a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, false);
     serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
     plant_these_steps(Plant {
         refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
@@ -1127,7 +1128,11 @@ fn a_failed_publish_of_a_name_that_holds_nothing_says_what_the_next_run_does() {
         !printed.contains("running the command again publishes it without downloading"),
         "no line promises a publish this run made instead: {printed}"
     );
-    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+    the_next_run_publishes_nothing_from_the_kept_copy(
+        &rig,
+        &lock,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+    );
 }
 
 #[test]
@@ -1135,7 +1140,8 @@ fn a_failed_exchange_says_what_the_next_run_does_with_the_copy_it_kept() {
     let rig = Rig::new();
     let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
     // A kill during the unpacking left the version's name unfinished, and the finished copy beside it.
-    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    let tool_dir: PathBuf =
+        a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
     serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
     plant_these_steps(Plant {
         answer_the_exchange_with: Some(AN_INPUT_OUTPUT_ERROR),
@@ -1167,14 +1173,19 @@ fn a_failed_exchange_says_what_the_next_run_does_with_the_copy_it_kept() {
         !printed.contains("running the command again publishes it without downloading"),
         "no line promises a publish this run made instead: {printed}"
     );
-    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+    the_next_run_publishes_nothing_from_the_kept_copy(
+        &rig,
+        &lock,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+    );
 }
 
 #[test]
 fn a_failed_aside_rename_says_what_the_next_run_does_with_the_copy_it_kept() {
     let rig = Rig::new();
     let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
-    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    let tool_dir: PathBuf =
+        a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
     serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
     plant_these_steps(Plant {
         refuse_the_exchange: true,
@@ -1207,14 +1218,19 @@ fn a_failed_aside_rename_says_what_the_next_run_does_with_the_copy_it_kept() {
         !printed.contains("running the command again publishes it without downloading"),
         "no line promises a publish this run made instead: {printed}"
     );
-    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+    the_next_run_publishes_nothing_from_the_kept_copy(
+        &rig,
+        &lock,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+    );
 }
 
 #[test]
 fn a_failed_rename_into_a_name_put_back_says_what_the_next_run_does_with_the_kept_copy() {
     let rig = Rig::new();
     let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
-    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    let tool_dir: PathBuf =
+        a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
     serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
     plant_these_steps(Plant {
         refuse_the_exchange: true,
@@ -1248,14 +1264,19 @@ fn a_failed_rename_into_a_name_put_back_says_what_the_next_run_does_with_the_kep
         !printed.contains("running the command again publishes it without downloading"),
         "no line promises a publish this run made instead: {printed}"
     );
-    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+    the_next_run_publishes_nothing_from_the_kept_copy(
+        &rig,
+        &lock,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+    );
 }
 
 #[test]
 fn a_failed_put_back_of_a_finished_copy_says_what_the_next_run_does_with_the_kept_copy() {
     let rig = Rig::new();
     let lock: Lock = lock_at(&rig, THE_VERSION_A_KILL_LEFT_FINISHED);
-    let tool_dir: PathBuf = a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
+    let tool_dir: PathBuf =
+        a_kill_that_left_a_finished_copy(&rig, THE_VERSION_A_KILL_LEFT_FINISHED, true);
     serve_releases(&rig, &[THE_VERSION_A_KILL_LEFT_FINISHED]);
     plant_these_steps(Plant {
         refuse_the_exchange: true,
@@ -1297,7 +1318,11 @@ fn a_failed_put_back_of_a_finished_copy_says_what_the_next_run_does_with_the_kep
         !printed.contains("running the command again publishes it without downloading"),
         "no line promises a publish this run made instead: {printed}"
     );
-    the_next_run_publishes_nothing_from_the_kept_copy(&rig, &lock, THE_VERSION_A_KILL_LEFT_FINISHED);
+    the_next_run_publishes_nothing_from_the_kept_copy(
+        &rig,
+        &lock,
+        THE_VERSION_A_KILL_LEFT_FINISHED,
+    );
 }
 
 /// What:

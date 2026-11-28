@@ -4,7 +4,8 @@
 //! the hidden sibling itself,
 //! the rule that decides whether a version may be kept,
 //! what became of the finished copy,
-//! and what the recovery answered.
+//! what the recovery answered,
+//! and what a recovery that failed answers.
 //! Why:
 //! The repair and the report both name these answers,
 //! and they are the whole vocabulary a reader of a recovery's sentence needs;
@@ -22,12 +23,18 @@
 //! type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string; programFound: boolean } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
 //! type WhyNotPublished = 'the-lock-does-not-record-its-archive' | { anOlderRepositoryToolIsNeverKept: string };
 //! type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall?: HoldingInstaller; removed: RemovedLeftover[] };
+//! type ARecoveryThatFailed = { error: ToolchainError; readTheHiddenNames: boolean };
 //! function holdsOf(purpose: string): Holds | undefined;
 //! function mayBePublished(holds: Holds): boolean;
 //! ```
 
+/// Imports what this module uses from `std::fmt`.
+use std::fmt;
 /// Imports what this module uses from `std::path`.
 use std::path::PathBuf;
+
+/// Imports the error type the recovery answers with.
+use super::super::super::error::ToolchainError;
 
 /// Imports the owner of a hidden sibling and its liveness question.
 use super::super::the_owner_of_a_hidden_sibling::{
@@ -40,6 +47,96 @@ use super::super::{
     REPLACED_PURPOSE,
     STAGING_PURPOSE,
 };
+
+/// What:
+/// A recovery that failed:
+/// the error a person reads,
+/// and whether the run had read the tool directory's hidden names before it failed.
+/// Why:
+/// The warning an install makes of a failed recovery states what a later run does with the copy that failure kept,
+/// and only a failure that read the hidden names names a copy at all:
+/// the one step before that read is the listing of the tool's directory,
+/// and every failure after it is one that left the copy it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ARecoveryThatFailed = { error: ToolchainError; readTheHiddenNames: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ARecoveryThatFailed {
+    /// The error the run prints.
+    pub(crate) error: ToolchainError,
+    /// Whether the tool directory's hidden names were read,
+    /// which is where every copy such a failure names comes from.
+    pub(crate) read_the_hidden_names: bool,
+}
+
+/// The methods of `ARecoveryThatFailed`.
+impl ARecoveryThatFailed {
+    /// What:
+    /// A recovery that failed before it could read the tool directory's hidden names,
+    /// so it names no copy.
+    /// Why:
+    /// The listing is the first step of a recovery,
+    /// and a run whose listing failed read nothing about what the directory holds.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function nothingRead(error: ToolchainError): ARecoveryThatFailed { return { error, readTheHiddenNames: false }; }
+    /// ```
+    pub(crate) fn nothing_read(error: ToolchainError) -> ARecoveryThatFailed {
+        return ARecoveryThatFailed {
+            error,
+            read_the_hidden_names: false,
+        };
+    }
+
+    /// What:
+    /// A recovery that failed after it read the tool directory's hidden names.
+    /// Why:
+    /// Every failure from then on is one about a copy the run found,
+    /// and its message names the copy it left.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function afterReadingTheNames(error: ToolchainError): ARecoveryThatFailed { return { error, readTheHiddenNames: true }; }
+    /// ```
+    pub(crate) fn after_reading_the_names(error: ToolchainError) -> ARecoveryThatFailed {
+        return ARecoveryThatFailed {
+            error,
+            read_the_hidden_names: true,
+        };
+    }
+}
+
+/// Makes `?` answer a failure after the hidden names were read,
+/// which is what every step after that read is.
+impl From<ToolchainError> for ARecoveryThatFailed {
+    fn from(error: ToolchainError) -> ARecoveryThatFailed {
+        return ARecoveryThatFailed::after_reading_the_names(error);
+    }
+}
+
+/// Implements `fmt::Display` for `ARecoveryThatFailed`.
+impl fmt::Display for ARecoveryThatFailed {
+    /// What:
+    /// Prints the error alone,
+    /// which is the sentence a warning carries.
+    /// Why:
+    /// A warning joins this to what the run then did,
+    /// and the fact that the run read the names is not part of what a person reads.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// toString(): string { return this.error.message; }
+    /// ```
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        return write!(formatter, "{}", self.error.message);
+    }
+}
 
 /// What one hidden sibling holds.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

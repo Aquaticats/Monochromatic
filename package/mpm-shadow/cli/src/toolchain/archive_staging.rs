@@ -46,9 +46,11 @@
 //!
 //! A publish that fails costs neither copy:
 //! the finished copy stays under the name this run holds it at,
-//! which the next install publishes without downloading,
 //! and the message names that path and the version's name,
 //! so a person reads what is on disk.
+//! What a later install does with that copy is that install's to read:
+//! it publishes it when the version's name holds no finished copy,
+//! and removes it as a second one when the version is at its name by then.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -129,8 +131,10 @@ use self::exchanging_the_two_names::{
     exchange_the_two_names,
 };
 /// Imports what a later install does with the leftovers of a killed one,
+/// what a recovery that failed answers,
 /// and the hidden name that holds the copy a kill moved aside.
 pub(crate) use self::leftovers_of_a_killed_install::{
+    ARecoveryThatFailed,
     AnOlderVersion,
     FinishedCopy,
     HoldingInstaller,
@@ -298,7 +302,8 @@ fn the_rename(
 /// A failed publish costs nothing either:
 /// the finished copy is the only way an offline machine gets the version back,
 /// so it stays under the name this run claimed it at,
-/// where the next install publishes it without downloading.
+/// and a later install publishes it when the version's name holds no finished copy by then,
+/// and removes it as a second one when it does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -356,7 +361,7 @@ fn move_the_finished_install(
             return replace_the_copy_that_is_there(staging, final_dir, first_bin);
         }
         return Err(ToolchainError::failure(format!(
-            "cannot move the finished install to {}: {error}; the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+            "cannot move the finished install to {}: {error}; the finished copy this run holds is still at {}",
             final_dir.display(),
             staging.display()
         )));
@@ -374,7 +379,8 @@ fn move_the_finished_install(
 /// (`leftovers_of_a_killed_install` repairs that,
 /// and the exchange means the instant need not exist at all).
 /// A failure here changes neither name and keeps the finished copy this call holds,
-/// so the next install publishes it.
+/// so a later install either publishes it or removes it as a second one,
+/// once there is a finished copy at the version's name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -432,7 +438,7 @@ fn replace_the_copy_that_is_there(
                 return Ok(Published::AlreadyThere);
             }
             return Err(ToolchainError::failure(format!(
-                "cannot put the finished install in place of the copy at {}: {error}; that copy is as it was, the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+                "cannot put the finished install in place of the copy at {}: {error}; that copy is as it was, the finished copy this run holds is still at {}",
                 final_dir.display(),
                 staging.display()
             )));
@@ -478,7 +484,7 @@ fn two_renames(
     reached_the_instant_before_the_aside_rename(staging, final_dir);
     if let Err(error) = the_rename(final_dir, &aside, RenameRefused::MovesTheCopyAside) {
         return Err(ToolchainError::failure(format!(
-            "cannot move the copy at {} aside to install over it: {error}; that copy is as it was, the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+            "cannot move the copy at {} aside to install over it: {error}; that copy is as it was, the finished copy this run holds is still at {}",
             final_dir.display(),
             staging.display()
         )));
@@ -490,7 +496,7 @@ fn two_renames(
     if is_finished(&aside, first_bin) {
         if let Err(error) = the_rename(&aside, final_dir, RenameRefused::PutsTheCopyBack) {
             return Err(ToolchainError::failure(format!(
-                "cannot put the finished install that was at {} back from {}: {error}; the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+                "cannot put the finished install that was at {} back from {}: {error}; the finished copy this run holds is still at {}",
                 final_dir.display(),
                 aside.display(),
                 staging.display()
@@ -519,7 +525,7 @@ fn two_renames(
             )));
         }
         return Err(ToolchainError::failure(format!(
-            "cannot move the finished install to {}: {error}; the copy that was there is back at {}, the finished copy this run holds is still at {}, and running the command again publishes it without downloading",
+            "cannot move the finished install to {}: {error}; the copy that was there is back at {}, the finished copy this run holds is still at {}",
             final_dir.display(),
             final_dir.display(),
             staging.display()

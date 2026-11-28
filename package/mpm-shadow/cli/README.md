@@ -1260,7 +1260,8 @@ whichever route installed them.
   count as finished and cause the working older version to be deleted.
   A failed install removes its staging directory and touches no copy that was already there.
   A publish that fails keeps the finished copy under the hidden name that run holds it at,
-  which the next install of that version publishes without downloading,
+  which an install either publishes or removes as a second one,
+  depending on what the version's name holds by then,
   and its message names that path and the version's name.
   A directory without the marker (one an earlier release unpacked in place,
   or one cut short) is never finished:
@@ -1387,6 +1388,13 @@ so a copy a kill leaves under it is never published and never removed.
   `.recovered` holds it,
   and the next install of that version publishes it,
   downloading nothing.
+
+A hidden copy that holds a finished install is published by the next install of that version,
+downloading nothing,
+unless that version's name holds a finished copy by then,
+which makes the hidden one a second one that install removes.
+That is the one case a failed publish's copy is left in after this run put the version at its name,
+and the warning says so when it happens.
 - After the rename and before the `.replaced` name is removed:
   the version is finished,
   and `.replaced` holds the unfinished copy it replaced,
@@ -1420,16 +1428,24 @@ a finished copy of another version is left for that version's own install to pub
 
 A recovery whose own publish fails keeps the copy it claimed:
 the copy stays under its `.recovered` name with that run's pair,
-which the next install of that version finds dead,
-claims and publishes,
 and the failure names both the version's name and the path the copy is at.
+Such a sentence promises nothing about a later run,
+because only the run that follows reads what that one would find:
+an install publishes the copy when the version may be kept and its own name holds no finished copy by then,
+and removes it as a second one when that name holds one.
 A recovery that fails does not stop the install that follows it:
 the tool is installed from the network when the network is there,
 the recovery's message is then a warning in the report,
 and when that install fails too the report names both causes in one failure.
-That warning ends with what the run then did,
-because the recovery's own last clause says the copy is still where a later run would publish it from,
-which is false once this run installed the version itself.
+That warning ends with what this run then did.
+When the install that follows put the version at its name,
+the warning says that a later run publishes nothing from the copy and removes it,
+which is what that later run then does;
+when that install failed too,
+the copy stays where the run's own sentence put it.
+The one failure that names no copy is the tool's directory that could not be listed:
+its warning says what this run then did and that the run does not fail for it,
+and nothing about a copy it never read.
 A recovery that failed is a warning,
 and not a failure,
 whenever this tree's lock is satisfied after the run:
