@@ -37,6 +37,142 @@ so the session tells a round to create its guest only when fewer than nine are a
 that figure is the session's pick,
 with the veto open,
 until the search in `doc/handover/agents-at-once-on-this-machine.md` finds the level.
+Since 2026-11-28T05:44-05:00 the figure is six,
+by the owner's answer in the section
+"The guests' memory:
+the unit's cap,
+builds outside the guest,
+and where more memory comes from".
+Nine was never set against the limit of the unit the guests run in.
+
+## The guests' memory: the unit's cap, builds outside the guest, and where more memory comes from
+
+Asked through the question tool after 2026-11-28T05:41:48-05:00
+and answered before 2026-11-28T05:44:12-05:00;
+the fourth question was asked after that and answered before 05:45:26.
+What the questions rested on is recorded in
+`doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+"The guests' unit at its own memory cap,
+2026-11-28":
+eight guests that had touched 58.2 GiB sat in a unit `mvm` limits to half the machine's memory,
+30.8 GiB,
+and the unit swapped against that limit while the machine had memory free.
+
+### The unit's cap
+
+The question's own words on what was at stake:
+"What should hold?
+Ranking:
+keep half with four guests > three quarters with six > no cap."
+The session recommended keeping half.
+The owner chose "Three quarters,
+six guests",
+whose text was:
+
+> How:
+> the divisor in mvm's session-daemon-memory.ts changes so the unit's MemoryMax becomes 46.3 GiB;
+> it applies when mvm next starts the unit,
+> and I bound guests alive to six.
+> Gives:
+> six guest rounds at once.
+> Gives up:
+> host builds,
+> the gate (its unit may take 20 GiB) and the desktop share 15.4 GiB,
+> so they swap instead.
+> Second because it moves the squeeze from guests to builds.
+
+This replaces the project's choice of 2026-11-21 for issue 6338,
+"half of total".
+
+### When the new cap takes effect
+
+The chosen text said the cap applies when `mvm` next starts the unit,
+which had been up since 2026-11-27T20:03:51-05:00 and starts again only once every guest is gone.
+So the session asked when the 46.3 GiB takes effect,
+and the owner chose "Now,
+on the running unit (Recommended)":
+
+> How:
+> I run `systemctl --user set-property --runtime mvm-libvirt-session.service MemoryMax=47364M`.
+> systemd writes a drop-in under /run/user/1000/systemd/user.control/ (gone at the next reboot)
+> and sets the group's limit at once;
+> no guest restarts.
+> The eight guests alive have touched 58.2 GiB,
+> so they fill 46.3 GiB and still keep about 12 GiB in swap until two end;
+> everything else drops to 15.4 GiB at once,
+> where it had 7 to 13 GiB to spare,
+> so host work swaps and the gate waits longer for its 8 GB.
+> Undo:
+> the same command with MemoryMax=31576M.
+> mvm's code changes too,
+> so later starts agree.
+
+What was done:
+the command ran at 2026-11-28T05:45:26-05:00 and exited 0.
+The unit's `memory.max` went from 33,109,835,776 to 49,664,753,664 bytes,
+the eight guests stayed up,
+and the unit stayed active.
+One thing differs from the option's text:
+the unit is a transient one,
+so systemd wrote the drop-in to
+`/run/user/1000/systemd/transient/mvm-libvirt-session.service.d/50-MemoryMax.conf`,
+not under `user.control/`.
+It is gone at the next reboot all the same.
+
+### Building the test binaries outside the guest
+
+The owner shelved `doc/planning/mvm-guest-memory-held-for-a-rounds-life.md` on 2026-11-26 until the crate split.
+Asked whether that night's reading reopens its one question on where the crate's test binaries are built,
+the owner chose "Reopen that one question (Recommended)":
+
+> How:
+> one round measures the route on the ZFS recipe's guest:
+> the test binaries are built once per commit in a container whose glibc is the guest's (Ubuntu 24.04),
+> at the same absolute path,
+> then pushed into a 4 GiB guest that runs no compiler.
+> It returns as a measured design for you to accept;
+> no driver changes before that.
+> Gives:
+> possibly eight small guests under the cap.
+> Gives up:
+> one round's work now;
+> the container build cost 289 s and a 9.0 GiB host peak in its one measurement;
+> the crate split will move the figures,
+> which is why you shelved it.
+
+The proposal's other questions stay shelved.
+
+### Where more memory comes from
+
+The owner had written,
+earlier that night,
+"If you think me giving more resources to you,
+hardware,
+or through a provider,
+would make you work better,
+tell me."
+The session answered that memory for guests would,
+and offered three things of which several could be chosen:
+two more 32 GiB modules
+(the board has two of four slots empty and its firmware reports a ceiling of 128 GiB),
+guests on OVHcloud,
+and neither.
+The owner chose "Guests on OVHcloud" alone:
+
+> How:
+> guest rounds rent a machine by the second through mvm's new ovh backend,
+> so a guest uses none of this machine's memory.
+> Not working yet:
+> neither billed run produced a machine that answered,
+> the sizes design came back from its gate read not ready (five High points),
+> and a third run needs your yes.
+> I would finish that design and bring its questions to you.
+
+So no memory is bought,
+the sizes design
+(`doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`)
+is revised and its questions go to the owner,
+and no billed run is made before the owner says so.
 
 ## Whether the machine and the repository are set up right
 
