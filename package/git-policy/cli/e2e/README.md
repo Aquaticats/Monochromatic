@@ -1303,7 +1303,7 @@ and the removal-lineage and settling drivers start their build and their arm
 detached in the driver itself.
 So `removal-lineage-proof-guest.ts`,
 `settling-command-guest.ts`,
-`cancel-and-settle-commands-guest.ts` and
+`cancel-and-settle-commands-guest.ts`,
 `forced-act-guest.ts` and
 `zfs-step-22-measurements-guest.ts` hold no plain `guest()` command at all,
 and the three plain commands
