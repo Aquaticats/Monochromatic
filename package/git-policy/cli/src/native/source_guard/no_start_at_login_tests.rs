@@ -38,7 +38,8 @@
 //!  so a start whose type another name spells is refused where that name is brought in.
 //!  A literal further than the next code line from the call's `(` is not read.
 //!  A comment line between the call's `(` and its literal hides nothing:
-//!  the reading joins the next code line, and a comment line is not one.
+//!  the reading joins the next code line,
+//!  and a comment line is not one.
 //!  A comment is a line whose first characters are `//`,
 //!  so a banned text written after code on a line is a finding.
 //! Why:
@@ -545,7 +546,8 @@ fn the_manager_s_program_is_read_when_its_literal_is_on_the_next_line() {
 ///  the guard answered a one-line start three times:
 ///  the whole-tree reading checked the line itself,
 ///  the next-line reading found it again,
-///  and the line before it, joined with it, matched too,
+///  and the line before it matched too,
+///  joined with it,
 ///  so a maintainer saw three findings for one start,
 ///  one of them numbered a line early and showing two lines of code
 ///  (the alpha.53 no-change read's L6).

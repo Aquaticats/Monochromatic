@@ -81,7 +81,8 @@ fn the_taskless_row_keeps_the_ending_its_guest_arm_measured_and_a_unit_of_ours_i
 ///  with the ending the accepted answer gives them and the arm still owed:
 ///  a kind the evidence does not show is no reason to refuse it here,
 ///  and `SPEC.md` and this module's own doc said it was
-///  (the gate read of the two-forces design, its H3).
+///  (the gate read of the two-forces design,
+///  its H3).
 #[test]
 fn every_rows_evidence_says_what_is_shown_and_what_is_owed() {
     for kind in [HolderKind::SessionTask, HolderKind::PathHolder] {

@@ -504,6 +504,24 @@ keep `final-newline` on, but a commit whose selection is read-only (`-p`, `-i` o
 takes exactly as they are.
 ```
 
+Note of 2026-11-28T09:29:00-05:00:
+this choice is superseded.
+The read of `0.6.1-alpha.53` found the clause about an index that already holds the bytes false
+where a direct check prints it,
+and that round gave the check its own sentence
+(`CommitCorrection::CorrectsWhatNothingHasStagedUnlessTheSelectionIsReadOnly` in
+`src/native/policy/event_hints.rs`,
+found in the section "The alpha.53 second pass" of this file):
+
+```text
+Hint: this check staged nothing, so to correct the ending now, run `git monochromatic-git-policy-cli fix --
+<path>`, and then either stage the file with `git add -- <path>` or commit it, as in `git commit -- <path>`; a
+commit that names the file corrects the ending while this repository's settings keep `final-newline` on, but a
+commit whose selection is read-only (`-p`, `-i` or `--include`) records the bytes it takes exactly as they are.
+```
+
+The `add`'s text above is unchanged.
+
 The controls are
 `policy::final_newline_hint_of_each_lifecycle_tests::a_direct_check_says_what_corrects_the_bytes_it_read`,
 which reads the rendered finding in-process,
@@ -1612,6 +1630,334 @@ own>`.
 - No guest:
   this machine's home is on a ZFS pool and no record authorizes a run
   to work on it,
+  and the brief asks for no guest.
+- No command opened `/dev/zfs`,
+  changed ZFS,
+  mounted anything,
+  used `sudo` or started a service manager.
+- No whole container gate,
+  no mutation campaign and no independent review.
+
+## The alpha.53 second pass: two reads, one gate read, and what each sentence now says
+
+Round of 2026-11-28,
+unapproved and non-final.
+Three reads of release `0.6.1-alpha.53` (`f81526484e`,
+published 2026-11-28T11:49:18Z) against `0.6.1-alpha.52` (`bf46e60f6d`)
+found places where a guard or a sentence said more,
+or less,
+than the code does.
+Two are second passes by another agent of the same vendor as some of the authors,
+so they are no independent review;
+the third is a gate read of a design.
+This round reproduced each finding,
+changed what it could,
+and leaves what it could not;
+the code and these records are what carry the findings now,
+because the passes' own scratch expires a day after its last change.
+Only the owner declares the work complete.
+
+The behaviour pass read the release beside its predecessor with both binaries;
+the no-change pass read the five merges that claim to change nothing a release build does
+(`74f34f6af9`,
+`039e39b885`,
+`18327d05f6`,
+`888d3646df`,
+`6f52a414fc`);
+the gate read read the two-forces design,
+and its H3 is the part that concerns this package.
+
+### The no-change pass's L1, as the record states it
+
+The merge `74f34f6af9` was recorded as a refactor that moves code between files.
+For a release build,
+"moves code" is the smaller half of what it does.
+
+It moves 23 items with their bodies,
+visibility and attributes unchanged,
+and it changes nine item bodies,
+of which one is new indirection on the path that gives a stalled reader up:
+
+- `QueuePolicy` gains `reader_stopped_notice: Option<fn(&'static str, Duration)>`
+  (`src/native/foundation/the_queue_and_its_thread.rs`,
+  the field at line 133 after the merge);
+- the diagnostics' policy sets it to `say_the_reader_stopped`
+  (`foundation/diagnostic_lines_off_the_calling_thread.rs`),
+  and the service's log queue sets it to `None`
+  (`service/service_log_lines_off_the_calling_thread.rs`);
+- `wait_until_written` (`foundation/lines_written_by_a_thread.rs`)
+  calls that function where its wait finds the bound passed,
+  where it called `diagnostic_log::debug` itself before the merge;
+- and `say_the_reader_stopped` is the new function that keeps the switch,
+  the level,
+  the tag and the sentence where the measurement now is.
+
+The same merge also adds 22 items,
+four of them files,
+changes four visibilities from private to `pub(crate)` and the fields of two structs to `pub(super)`,
+and changes `SPEC.md` in two passages (the file that says where a refused thread's line is written,
+and the list of the crate's own locks).
+It adds no bare `pub`,
+so it publishes nothing new.
+
+Measured 2026-11-28 by this round,
+on the merge's own control,
+`foundation::diagnostic_lines_off_the_calling_thread::tests::the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound`:
+with `reader_stopped_notice: None` on the diagnostics' policy the control fails,
+`one notice is said for one reader that stopped: []` against one expected,
+`test result: FAILED. 0 passed; 1 failed`;
+with the field as the merge wrote it the control passes,
+`test result: ok. 1 passed; 0 failed`.
+So the function is on a path a control reaches,
+and the indirection is what tells a person that diagnostics stopped reaching them.
+The pass could not see the line in either binary,
+which stands:
+the queue's thread holds the stream and the command ends before the notice reaches it.
+
+### The no-change pass's L2, as the record states it
+
+The merge `18327d05f6` was recorded as TypeScript under `e2e/` and records,
+which ships nothing new.
+What it changes:
+
+- ten files under `e2e/`;
+- seven under `src/native/`:
+  two release files whose four changed lines are test-gated
+  (`checkout_boot_units/boot_unit_facts.rs`,
+  `mod tests;` to `pub(crate) mod tests;` under `#[cfg(test)]`,
+  and `checkout_underlay_entry/underlay_entry_verdict.rs`,
+  a `#[cfg(test)] mod guest_tests;` and its doc)
+  and five `_tests.rs` files,
+  two of them new;
+- `README.md` (six lines) and `SPEC.md` (32 lines) at the package root;
+- and `doc/runbook/zfs-checkout-migration-and-boot-setup.md`,
+  outside the package.
+
+What a release ships of that,
+by `Cargo.toml`'s `include` list (`src/native/**/*.rs`,
+`/README.md`,
+`/SPEC.md` and data files,
+and no `doc/` and no `e2e/`):
+the changed `README.md` in the crate archive and in both published binary archives,
+whose copy is the repository's file at the release commit
+(`sha256` `79f9d8508de236421af2c6e288aec4fdf1fe5a8a96116eb63fc6cfb7d7895024` in alpha.52's archives
+and `c3430c8f92b01ffae633ca68288a02078d8574e7eb82d03fcde34cc0ec8cae82` in alpha.53's),
+the changed `SPEC.md` and the five test files in the crate archive,
+and nothing of it in the compiled program,
+because every changed release line is behind `#[cfg(test)]`.
+
+### What this round changed
+
+Each finding was reproduced before anything changed,
+with a control that fails on the merge for the reason the finding gives.
+
+The no-change pass's L6,
+one start of the manager's program answered three times.
+`source_guard/no_start_at_login_tests.rs` checked a line for `Command::new("systemctl")` in the
+whole-tree reading,
+and then the next-line reading found that same start at its own line and again at the line before it,
+joined with it.
+A one-line start planted in `service/service_instance.rs` was answered three times:
+
+```text
+service/service_instance.rs:107: a start of the manager's own program
+service/service_instance.rs:106: a start of the manager's own program: pub fn a_planted_one_line_start() {     let _ = std::process::Command::new("systemctl").arg("enable");
+service/service_instance.rs:107: a start of the manager's own program:     let _ = std::process::Command::new("systemctl").arg("enable");
+```
+
+The next-line reading now joins a line only where the call's `(` ends it,
+and leaves a start the next line spells on its own to that line's turn;
+the whole-tree reading asks that reading alone.
+The same plant is one finding,
+at line 107,
+and the control `a_one_line_start_of_the_manager_s_program_is_one_finding`
+asserts one finding at the start's own line where the merge answered two.
+
+The no-change pass's L3,
+a literal a comment line was said to hide.
+The guard's top doc and the next-line reading's doc said a literal a comment line separates from
+the call is not read,
+and the reading joins the next code line,
+so it is read.
+Both docs say what the code does now,
+and a plant in `the_manager_s_program_is_read_when_its_literal_is_on_the_next_line`
+holds the shape:
+`Command::new(`,
+a comment line,
+then `"systemctl"`,
+is one finding at the call's line.
+
+The no-change pass's L5,
+`dbg!` read by nothing.
+`dbg!` writes this process's shared standard error on the caller's own thread,
+which is the write the note guard exists to refuse,
+and no guard,
+lint or linter named it.
+A `dbg!` planted in `commit/commit_command_words.rs` left the note guard green
+(`test result: ok. 6 passed; 0 failed`) before the change
+and is a finding after it:
+
+```text
+commit/commit_command_words.rs:69 (dbg!) dbg!(text);
+test result: FAILED. 5 passed; 1 failed
+```
+
+The guard's terse spellings include it beside `eprintln!` and `eprint!`,
+and its control's spelling list reads it,
+which fails without the list entry
+(`dbg!(one); asks for the shared handle: []`).
+The guard's top doc now also names the macro spelling it still cannot see,
+one with a space before its `!`.
+
+The behaviour pass's L5,
+a check given the `add`'s reason for staging.
+The `final-newline` hint said an index already holds these bytes wherever it printed.
+An `add` has just staged them,
+and a direct check stages nothing.
+The check's answer is now its own `CommitCorrection`
+(`CorrectsWhatNothingHasStagedUnlessTheSelectionIsReadOnly`,
+beside `CorrectsWhatTheIndexHoldsUnlessTheSelectionIsReadOnly` for the `add`),
+and its sentence is:
+
+```text
+Hint: this check staged nothing, so to correct the ending now, run `git monochromatic-git-policy-cli fix --
+<path>`, and then either stage the file with `git add -- <path>` or commit it, as in `git commit -- <path>`; a
+commit that names the file corrects the ending while this repository's settings keep `final-newline` on, but a
+commit whose selection is read-only (`-p`, `-i` or `--include`) records the bytes it takes exactly as they are.
+```
+
+The control `a_direct_check_says_what_corrects_the_bytes_it_read` asserts that whole sentence,
+and it failed on the merge with the false reason in `left`
+(`assertion left == right failed` on the rendered `direct-check` finding);
+the built executable's control `a_direct_check_gives_the_hint_whose_commit_corrects_the_bytes_it_read`
+reads the same four wordings through the printed finding.
+
+The two reads' L1 and L2 are the two sections above:
+what `74f34f6af9` and `18327d05f6` do is stated there in place of "moves code" and
+"TypeScript and records".
+
+### What this round left
+
+- The no-change pass's L4,
+  that a release's record by this package's folder omits its path dependency's changes,
+  belongs to the release tooling and its own issue.
+- The no-change pass's L7,
+  three aftermath sentences the compiler folded away,
+  was weighed by the session and dismissed:
+  the unreachable arms are the source's own,
+  and a person sees the same sentence in both releases.
+- The behaviour pass's L2,
+  a registered slot whose folder is gone,
+  belongs to the round that reads a resumed removal.
+- The behaviour pass's L6,
+  a guest arm's stale comment,
+  waits for issue 6669's fix,
+  and this round ran no guest.
+
+### The gate read's H3: the forced arm's two rows against `SPEC.md`
+
+`worktree_clone_forced_removal/holder_endings.rs` gives another account's task and a unit's task
+`Ending::EndBlockersThenUnmount`,
+with the evidence text "no round shows this kind's end",
+and its control asserts that text.
+`SPEC.md` said "A kind the evidence does not show is identified and refused,
+never ended".
+The accepted record is
+`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`
+(the first answer,
+"B:
+root handler",
+and the fourth,
+the pinned signal)
+and the design it accepts,
+`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`:
+the two kinds are kinds (b) and (c) of "Who ends each kind of holder",
+and one forced removal meets them by unmounting the clone inside the holder's namespace,
+sending `SIGTERM`,
+waiting,
+and then `SIGKILL` to the blockers.
+So the ending those rows carry is the accepted answer's,
+and what no round has shown is the arm that would prove it,
+which the row's `owed_arm` says and `forced_arm_numbers.rs` holds back by shipping no value.
+
+The side that moved is `SPEC.md`,
+and the module's own top doc with it.
+`SPEC.md` now says that a kind the evidence does not show keeps the ending the accepted answer gives it,
+that the row names the arm still owed,
+and that the receipt's seven refusal words name what stopped the act.
+The table's rows,
+their evidence text,
+the control's assertion on that text,
+and the row that ends a locked holder of the account's own unit are unchanged.
+The control also refuses a row for either kind that is a refusal,
+so the sentence cannot come back without a table change:
+`every_rows_evidence_says_what_is_shown_and_what_is_owed` asserts
+that neither row's ending is `Ending::Refuse`.
+No command reaches this arm,
+so nothing a person meets changed.
+
+### The files this round changed
+
+- `src/native/source_guard/no_start_at_login_tests.rs`:
+  one finding per start,
+  the two docs that described a comment line wrongly,
+  and the two controls.
+- `src/native/source_guard/the_commit_path_writes_its_notes_off_its_thread_tests.rs`:
+  `dbg!` in the terse spellings,
+  its control's list,
+  and what the guard cannot see.
+- `src/native/policy/event_hints.rs`,
+  `policy/policy_final_newline.rs` and their controls:
+  the check's own `CommitCorrection` and its sentence.
+- `src/native/invocation/management_tests.rs`,
+  `src/native/invocation/wrapped_command_tests.rs` and
+  `src/native/binary/binary_final_newline_hint_steps_tests.rs`:
+  the hint each place expects,
+  and the words each reads.
+- `src/native/worktree_clone_forced_removal/holder_endings.rs` and its control:
+  the two docs and the sentence the control refuses,
+  with the table unchanged.
+- `SPEC.md` and this package's guide:
+  the two sentences the code contradicts.
+- this record.
+
+### The checks this round ran
+
+Each once,
+in `package/git-policy/cli`,
+in its own `systemd-run --user --scope --slice=agent-work.slice`
+with `MemoryMax`,
+`CPUQuota`,
+`TasksMax`,
+`IOWeight=1` and `RuntimeMaxSec`:
+
+- the two `source_guard` modules this round changed,
+  threaded,
+  13 and 6 passed;
+- `policy::event_hints::tests`,
+  4 passed;
+- `policy::policy_final_newline::hint_of_each_lifecycle_tests`,
+  5 passed;
+- `invocation::management::tests`,
+  27 passed;
+- `invocation::wrapped_command::tests`,
+  12 passed;
+- `native_binary`'s `final_newline_hint_steps`,
+  6 passed;
+- the merge's own notice control,
+  1 passed,
+  and red without the policy's function.
+- `cargo fmt --check`,
+  `cargo check --locked --offline --all-targets`,
+  Clippy with and without `test-only-switches`,
+  the whole `source_guard` module,
+  and the repository's linter over this package.
+
+### What could not be run, and why
+
+- No guest:
+  this machine's home is on a ZFS pool,
+  no record authorizes a run to work on it,
   and the brief asks for no guest.
 - No command opened `/dev/zfs`,
   changed ZFS,

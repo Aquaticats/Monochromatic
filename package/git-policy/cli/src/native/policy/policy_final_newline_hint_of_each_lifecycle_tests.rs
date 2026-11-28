@@ -119,7 +119,8 @@ const THE_HINT_OF_AN_ADD: &str = "Hint: to correct the ending now, run `git \
      commit whose selection is read-only (`-p`, `-i` or `--include`) records the bytes it takes exactly as they are.";
 
 /// The hint of a direct check:
-///  the correction now, and then either way to record it,
+///  the correction now,
+///  and then either way to record it,
 ///  because a check read the worktree and staged nothing,
 ///  and the commit that names the file corrects the ending
 ///  unless its selection is read-only.
