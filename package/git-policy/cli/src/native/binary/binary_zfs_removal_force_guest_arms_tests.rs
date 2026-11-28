@@ -148,12 +148,7 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
     let probe_dataset: String = format!("{}/probe", arm.pool);
     zfs_ok(
         arm.sbin.as_str(),
-        &[
-            "create",
-            "-o",
-            "mountpoint=legacy",
-            probe_dataset.as_str(),
-        ],
+        &["create", "-o", "mountpoint=legacy", probe_dataset.as_str()],
     );
     let probe_folder: PathBuf = arm.root.join("probe-mnt");
     std::fs::create_dir_all(probe_folder.as_path()).expect("the probe's folder is made");
@@ -172,8 +167,7 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
         &["destroy", "-r", probe_dataset.as_str()],
         None,
     );
-    let still_mounted: bool =
-        super::zfs_sweep_guest::mount_row(probe_folder.as_path()).is_some();
+    let still_mounted: bool = super::zfs_sweep_guest::mount_row(probe_folder.as_path()).is_some();
     println!(
         "REMOVAL-FORCE arm=1 pool-on-a-mounted-dataset destroyed={} row-left={still_mounted} said={}{}",
         probe.0,
@@ -191,7 +185,10 @@ fn zfs_removal_force_guest_the_staging_folder_arm() {
     let said: String = Arm::said(&removed);
     // The handler's own receipt is printed before the assertion: a refusal's words are the handler's and the wrapper
     // prints only the outcome it read.
-    println!("REMOVAL-FORCE arm=1 receipt={}", the_receipt_of(arm.clone_guid));
+    println!(
+        "REMOVAL-FORCE arm=1 receipt={}",
+        the_receipt_of(arm.clone_guid)
+    );
     assert_eq!(
         removed.status.code(),
         Some(0),

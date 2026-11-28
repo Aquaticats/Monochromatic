@@ -236,8 +236,8 @@ impl Arm {
         // the slot out, because the cleanliness reading needs the registration's index, so the files it wrote into the
         // underlay are taken out again: the clone carries the checkout's files and the underlay is the empty folder the
         // settle removes.
-        for entry in std::fs::read_dir(slot.as_path()).expect("the underlay lists") {
-            let entry: std::fs::DirEntry = entry.expect("one underlay entry");
+        for listed in std::fs::read_dir(slot.as_path()).expect("the underlay lists") {
+            let entry: std::fs::DirEntry = listed.expect("one underlay entry");
             if entry.file_name() == std::ffi::OsStr::new(".git") {
                 continue;
             }
