@@ -210,6 +210,11 @@ The pause's own gaps with the pause in place were 208.0 ms,
 207.0 ms,
 206.2 ms and 207.9 ms,
 so the work around the sleep cost at most 8.0 ms there.
+A second run of the same control on the unchanged tree gave 204.2 ms,
+204.2 ms,
+203.4 ms and 205.5 ms,
+so the instrument's own spread between runs is about 4.6 ms at each gap,
+against the 200 ms a doubled sleep adds.
 `THE_MOST_A_GAP_OUTLASTS_THE_PAUSE` (150 ms) is sized from that and from the earlier run the package document records,
 and it does not catch a pause that grew by less than that.
 
