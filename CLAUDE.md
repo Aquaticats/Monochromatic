@@ -1782,10 +1782,13 @@ ABR:
  and WebAudio unlocked by scripted clicks plays on system speakers.
 
 URF:
- Verification needing a user-provided resource runs first,
- before other work or other parts of the task;
- scope growth never defers it;
- not done until the resource is exercised.
+ A user-provided resource (keys,
+ a provider,
+ a machine) is used first:
+ verify it,
+ then move the work it can carry onto it,
+ before other work;
+ scope growth or a design question never defers this.
 
 ### Verify on a throwaway, not against real state
 
