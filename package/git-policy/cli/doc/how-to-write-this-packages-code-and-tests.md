@@ -180,6 +180,10 @@ So a control whose body routes a hand-over hands in a fixture runtime directory 
 as `worktree_copying`'s two hand-over controls do,
 and the hand-over fails with "no commit service can be started from this session",
 which is the world those controls are about.
+The merge that added the two switches changes a real run in three edge cases:
+a runtime directory whose name is not UTF-8 is used where it was ignored,
+an empty bus address is passed on and treated as before,
+and an empty `XDG_RUNTIME_DIR` on the ZFS add route is refused as not set.
 A control whose subject is a route with a program in it passes one to `choose_route` itself,
 and `landing/service_route_tests.rs` holds both kinds.
 A child also inherits the records its parent holds,
@@ -852,6 +856,16 @@ so say only what the source shows:
 declared in `worktree_remove_clears_the_registration`,
 and that module is `#[cfg(target_os = "linux")]` (`worktree/mod.rs`).
 
+A merge can take a gate away with no textual conflict,
+and one did on 2026-11-27:
+a merge restored seven platform gates,
+seven such attributes in its diff outside tests,
+where its commit says 29 items and the handover of that day said 28.
+The same merges left a Linux release build differing through two changes only,
+argued from the source text and not from a build:
+an unused constant left it,
+and one tag constant went from 141 copies to 123 with every value the same.
+
 ## A published name takes a line in the list beside the surface control
 
 `source_guard/nothing_becomes_nameable_from_outside_tests.rs` holds the library target's published surface to
@@ -896,6 +910,18 @@ so
 `pub(in crate::a) mod x;`,
 `pub(self) mod x;`
 and a `mod` line with text after its `;` are errors.
+
+The reading was widened on 2026-11-27 to the shapes above,
+because 154 of 155 published names it could not see had no line in the list:
+a function with `async` before `fn`,
+a name another listed item already has,
+a field,
+a method,
+and a `pub use` written over several lines.
+
+A merge of two branches that each narrow an item or change an excuse can break
+the build with no textual conflict,
+so `native:check` runs on the merged tree before the next merge.
 
 Two facts of the reading are decisions a reader has to see in the list:
 a name behind a feature gate counts as published,
