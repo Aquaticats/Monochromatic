@@ -69,16 +69,25 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as outputs:
               outputs.write(f"openable={'true' if openable else 'false'}\n")
           PROBE
-      - name: Grant the runner user the device
+      - name: Grant the runner user the device and probe again
+        id: granted
         continue-on-error: true
         run: |
           set -eux
           sudo setfacl --modify "u:$(id --user):rw" /dev/kvm
           getfacl --omit-header /dev/kvm
-          python3 -c 'import os; os.close(os.open("/dev/kvm", os.O_RDWR)); print("opened after the grant")'
+          python3 - <<'GRANTED'
+          import fcntl, os
+          descriptor = os.open("/dev/kvm", os.O_RDWR)
+          version = fcntl.ioctl(descriptor, 0xAE00, 0)
+          os.close(descriptor)
+          print(f"after the grant: opened, KVM_GET_API_VERSION answered {version}", flush=True)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as outputs:
+              outputs.write(f"openable={'true' if version == 12 else 'false'}\n")
+          GRANTED
       - name: Boot one small cloud image under QEMU with KVM
         id: guest
-        if: steps.kvm.outputs.openable == 'true'
+        if: steps.granted.outputs.openable == 'true'
         continue-on-error: true
         run: |
           set -eux
@@ -111,5 +120,6 @@ jobs:
         if: always()
         run: |
           set -eux
-          echo "openable=${{ steps.kvm.outputs.openable }}"
+          echo "openable as the runner user without a grant=${{ steps.kvm.outputs.openable }}"
+          echo "openable after the grant=${{ steps.granted.outputs.openable }}"
           echo "guest=${{ steps.guest.outputs.seconds }} ${{ steps.guest.outputs.answered }}"
