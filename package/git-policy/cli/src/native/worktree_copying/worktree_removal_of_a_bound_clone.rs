@@ -18,8 +18,8 @@
 //!  a clone mounted at its slot,
 //!  one unmounted from it,
 //!  and a slot a destruction plan names,
-//!  which the removal resumes: the plan is the record of what an earlier run
-//!  destroyed,
+//!  which the removal resumes:
+//!  the plan is the record of what an earlier run destroyed,
 //!  and its removal reads it,
 //!  proves every name again and ends it
 //!  (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,

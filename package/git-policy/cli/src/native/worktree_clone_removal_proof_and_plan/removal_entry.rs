@@ -49,13 +49,6 @@
 //! ```
 
 use crate::subvolume::fs_beneath::ObjectId;
-use crate::worktree_clone_binding_record::lock_words::{
-    LockStanding,
-    lock_standing_of,
-};
-use crate::worktree_clone_managed_lock::lock_and_pointer_readings::read_the_lock;
-use crate::worktree_clone_managed_lock::reading_a_bounded_file::Reading;
-use crate::worktree_clone_managed_lock::recorded_lock_facts::read_the_recorded_facts;
 use crate::worktree_clone_removal_proof_and_plan::bookmark_rule::{
     explanations_of,
     refuse_the_unexplained_bookmarks,
@@ -267,7 +260,10 @@ pub(super) fn prepare_the_removal_over_a_plan(
     refuse_a_standing_plan: bool,
 ) -> Result<(PreparedRemoval, Option<DestructionPlan>), RemovalStop> {
     let recorded: RecordedBinding = read_the_recorded_binding(entry.common_dir, entry.slot)?;
-    refuse_a_lock_this_add_did_not_write(entry)?;
+    super::the_lock_a_removal_refuses::refuse_a_lock_this_add_did_not_write(
+        entry.common_dir,
+        entry.slot,
+    )?;
     let registration: ObjectId = prove_the_adds_registration(entry.common_dir, &recorded)?;
     let origin_inventory = read_the_origin_inventory(entry.common_dir, &recorded)?;
     let standing: Option<DestructionPlan> =
@@ -333,73 +329,6 @@ pub(super) fn prepare_the_removal_over_a_plan(
         },
         standing,
     ));
-}
-
-/// What:
-///  The refusal a removal owes a lock whose words are not its add's,
-///  read before anything is written.
-/// Why:
-///  Git refuses a locked registration to its own removal and refuses it to one force,
-///  and its own message therefore steers a person to `-f -f`
-///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
-///  "What Git 2.56.1 does"),
-///  which here runs this wrapper's removal instead of Git's.
-///  The wrapper's order reads the lock at its Git settle alone,
-///  which comes after the snapshot batch,
-///  the head destroy and the origin attempt,
-///  and the settle refuses words it cannot recompose from the add's nonce
-///  (the same design's S3);
-///  so a person's lock met there would be met after the clone's history went.
-///  The lock is therefore read here,
-///  under the slot's claim,
-///  and words this add did not write refuse the removal as the add's own resume refuses
-///  them.
-///
-/// # Throws
-/// The lock's own words,
-/// or the read that refused them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// refuseALockThisAddDidNotWrite(entry);
-/// ```
-fn refuse_a_lock_this_add_did_not_write(entry: &RemovalEntry<'_>) -> Result<(), RemovalStop> {
-    let home: PathBuf =
-        crate::worktree_clone_binding_record::registration_home::home_folder(entry.common_dir);
-    let facts = read_the_recorded_facts(entry.common_dir, entry.slot).map_err(|refusal| {
-        return RemovalStop::NoBinding {
-            slot: String::from(entry.slot),
-            reason: refusal.words(entry.slot, home.as_path()),
-        };
-    })?;
-    let Some(registration) = facts.registration.as_ref() else {
-        return Ok(());
-    };
-    let cause: String = match read_the_lock(registration) {
-        Reading::Absent => return Ok(()),
-        Reading::Refused(refused) => refused.words(),
-        Reading::Bytes(bytes) => match lock_standing_of(bytes.as_slice(), &facts.nonce) {
-            LockStanding::Verified
-            | LockStanding::CutShort {
-                ..
-            } => return Ok(()),
-            LockStanding::Foreign => {
-                let text: std::borrow::Cow<'_, str> = String::from_utf8_lossy(bytes.as_slice());
-                let line: &str = text.lines().next().unwrap_or("");
-                if line.is_empty() {
-                    String::from(
-                        "its file is empty, which is also what a person's `git worktree lock` with no reason leaves",
-                    )
-                } else {
-                    format!("its words are `{line}`")
-                }
-            }
-        },
-    };
-    return Err(RemovalStop::TheLocksWordsAreNotThisAdds {
-        slot: String::from(entry.slot),
-        cause,
-    });
 }
 
 /// What:

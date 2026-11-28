@@ -6092,7 +6092,8 @@ and it is written before the request.
 
 A slot a destruction plan names is the removal's own:
 `worktree_copying::worktree_removal_of_a_bound_clone::the_removal_with` takes it,
-so every spelling of `git worktree remove`, `-f -f` among them,
+so every spelling of `git worktree remove`,
+`-f -f` among them,
 runs the wrapper's removal instead of Git's.
 The order's own resume then reads the plan and the live pinned parent,
 and no other fact decides its path
@@ -6108,8 +6109,8 @@ and no other fact decides its path
   and the removal's own records end the plan.
 - The clone's GUID and name are absent and the head word is `requested`,
   `unknown` or `gone`,
-  so the head-gone path runs and finishes the settle, the binding's files and
-  the plan.
+  so the head-gone path runs and finishes the settle,
+  the binding's files and the plan.
 - The clone is gone and the head word is `present` or `refused`,
   so the clone was destroyed outside its removal:
   the run refuses and names the settling command.
