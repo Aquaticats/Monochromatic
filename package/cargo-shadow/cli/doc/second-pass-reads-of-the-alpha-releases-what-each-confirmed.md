@@ -6,14 +6,17 @@ one section per release.
 
 Status:
 **unapproved and non-final**.
-Written by the coordinating session from the second passes' reports.
+Written by the coordinating session from the second passes' reports,
+with the alpha.18 section written by the round that answered that read,
+which says so where the section begins.
 Each pass was another agent of the same vendor,
 so a second pass and not an independent review,
 and each is named by the release it read.
 Every figure below is one that pass measured;
 the behaviour it confirmed is stated where this package's `README.md` states
 it,
-and this file holds only what the released binaries themselves showed.
+and a section holds what the released binaries themselves showed,
+and what that answer changed where its own round answered the read.
 
 ## The alpha.13 pass: cost of a trivial call against alpha.11
 
@@ -67,3 +70,405 @@ the version lines,
 and the help of `install` and `update`,
 which now prints the long layout for every option,
 a change no record names.
+
+## The alpha.18 read: a stop that outlasted the discovery's bound, a path the manager reports, and controls that could not fail
+
+The read was a same-vendor second pass over `0.1.5-alpha.18`
+(sha256 `2cccd94c`),
+so a second pass and not an independent review.
+It raised no High finding,
+two Medium ones and six Low ones.
+This section is written by the rounds that answered it,
+so it holds what the read found and what each answer changed,
+not only what the released binary showed.
+The two Medium findings were answered by the round on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-18-read-a-stop-past-the-bound-is-refused-and-a-reported-path-is-checked`,
+whose change is in `src/control_group_route_discovery.rs`,
+`src/control_group_route_one_ask.rs` and the refusal those two carry;
+the six Low findings by the round on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-18-read-controls-that-can-fail-and-sentences-that-say-what-runs`,
+which changed no release code of the discovery.
+The two branches are joined on
+`fix/cargo-shadow-cli-the-two-alpha-18-fix-branches-joined-with-both-rounds-controls-green`,
+and the measurements,
+the controls and the open items of both are in
+`doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
+
+### Medium 1: a stop that outlasts the bound was taken as a route, not refused
+
+The package's records said a slice whose stop outlasts the discovery's bound
+"is refused by that bound rather than waited for".
+The released binary did the opposite:
+its start was killed at the bound,
+the job that start had queued stayed in the manager,
+the ask after it reported the path and that job,
+and the call took the path.
+The scope launcher then waited for that job with no bound of this tool's.
+The read measured 29.8 s to 29.9 s in six of six calls behind a stop of 30 s,
+and a call still waiting at 45 s behind a stop that never ends.
+
+What changed:
+a path beside a job after a start that spent `DISCOVERY_BOUND` is no route.
+The refusal says it stops the call,
+and the call stops before anything is started,
+so no lockfile is changed and the person's command does not run with `--locked` added.
+
+What the round that answered it measured
+(2026-11-28,
+a rootless container whose own user manager was systemd 262.2,
+a service in `app.slice` that ignores SIGTERM under `TimeoutStopSec=30`,
+the stop issued about 0.7 s before each call,
+three rounds,
+one call of each arm in every round and the arms alternated within it,
+so three calls an arm,
+every call meeting the state):
+
+- `0.1.5-alpha.18`:
+  exit 0,
+  29.584 s,
+  29.579 s and 29.375 s,
+  on the delegated route.
+- the answering branch:
+  exit 1,
+  10.027 s,
+  10.036 s and 10.026 s,
+  with the refusal naming the program,
+  the bound and the job.
+- the ratio of the released call to the branch's,
+  per round:
+  2.95,
+  2.95 and 2.93.
+- without `--dry-run` from the same state:
+  the released binary exited 0 after 29.477 s and left the lockfile updated,
+  and the branch exited 1 after 10.029 s and left the lockfile exactly as it found it.
+
+### Medium 2: a path the manager reports was used without checking it was the slice's
+
+The discovery accepted any path whose directory exists and holds `cgroup.kill`.
+A stand-in answering `/system.slice` or `/init.scope` for `app.slice`
+gave a call that exited 0,
+reported the delegated route and left its straggler alive,
+where the same call on the real route killed it.
+The read found no real mechanism that reports such a path,
+and staged it with a stand-in only.
+
+What changed:
+an answer whose last component is not the slice that was asked about is refused as a route,
+because a unit's own control group always carries the unit's name.
+The run then takes the weaker path and says so,
+which is what it does on a host with no manager,
+and it claims no quiescence it has not shown.
+
+What the round that answered it measured:
+the first of the two stand-in answers was taken as `app.slice`'s route before the change
+(`Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`),
+and both are refused after it;
+and in the same container,
+through a stand-in answering `ControlGroup=/system.slice`,
+the released binary exited 0 in 146 ms on the delegated route
+where the branch took the weaker path in 32 ms and named the path and the reason.
+
+### Low 1: six edits, each now held by a control that goes red under it
+
+Each edit was applied to the release code of this round's worktree,
+the controls named here ran in one nextest invocation,
+and the edit was then removed and the file restored.
+Under every edit the controls that held the record before stayed green,
+which is the finding:
+a green suite did not show these edits.
+Each pair below is one run of 2026-11-28,
+with `cargo nextest run --release --no-fail-fast` and one filter per control.
+
+#### The question's `--property=Job`
+
+Dropped from the question in `src/control_group_route_one_ask.rs`.
+
+Green:
+the four controls that read the manager's answers,
+`a_path_the_ask_after_a_failed_start_reports_is_the_route`,
+`a_start_that_never_reached_the_manager_is_put_again`,
+`a_start_that_failed_and_the_ask_after_it_failing_too_is_put_again` and
+`a_stop_job_queued_on_the_slice_is_asked_through_before_the_route_is_taken`.
+
+Red:
+`control_group_route_one_ask::one_ask_tests::the_question_asks_for_the_slice_s_control_group_and_the_job_queued_on_it`,
+with:
+
+```text
+the question does not ask for the slice's control group and the job queued on it in one program start: "--user show app.slice --property=ControlGroup\n"
+```
+
+#### The middle of the reading of a failed start's words
+
+Two halves of `the_manager_answered_a_start`.
+
+The transport's words deleted:
+
+- green:
+  `a_refusal_the_manager_answers_ends_the_asking` and
+  `a_start_that_never_reached_the_manager_is_put_again`;
+- red:
+  `one_ask_tests::the_manager_answered_a_start_tells_its_refusal_from_a_moment_and_from_other_words`,
+  with
+  `a start whose reply was lost was read as the manager's refusal, so a call that really started the slice would be refused`.
+
+The slice's name after the verb no longer required:
+
+- green:
+  the same two controls;
+- red:
+  the same control,
+  with
+  `words that name the slice only in the verb's opening were read as the manager's answer about it, so a refusal that names no unit would end the asking`.
+
+#### `spent` after a start
+
+`!spent &&` dropped from `ask_once`'s failed-start answer in `src/control_group_route_discovery.rs`.
+
+Green:
+`a_manager_that_answers_nothing_is_asked_once_and_ends_the_discovery_with_its_own_words`,
+which is the `show` that spends the bound,
+so no control but this round's makes a start spend one.
+
+Red:
+`asking_again_tests::a_start_that_spent_its_bound_is_not_put_again`,
+which counted six asks where three are expected:
+a first attempt of `show`,
+`start` and `show`,
+then a second attempt after the question was put again.
+
+#### A sleep longer than the pause
+
+`std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` at the call site in `ask_where_the_slice_is`.
+
+Green:
+`reexec_tests::the_gap_between_two_asks_is_the_pause_the_call_site_sleeps`,
+whose four gaps were 406.5 ms to 407.5 ms.
+
+Red:
+`reexec_tests::the_pauses_of_the_asking_again_are_no_longer_than_the_pause_the_call_site_sleeps`,
+with:
+
+```text
+the shortest pause between two asks was 404.084351ms, longer than the 200ms the call site sleeps plus the 150ms the work around it is measured to take, so the span is not the 800ms the records name
+```
+
+#### The kind of file an address names
+
+`is_a_socket` replaced by a check that the path exists in `src/control_group_route_manager_reach.rs`.
+
+Green:
+`a_manager_socket_at_the_runtime_directory_keeps_the_asking_again`,
+`a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directory_is_set` and
+`a_bus_address_naming_a_socket_keeps_the_asking_again_where_a_runtime_directory_is_set`.
+
+Red:
+`a_plain_file_at_a_bus_address_is_not_a_transport_the_ask_takes` and
+`a_directory_at_a_bus_address_is_not_a_transport_the_ask_takes`,
+each with five asks where one is required.
+
+#### A path beside a queued job after a successful start
+
+The final ask's path refused when a job stands on the slice.
+
+Green:
+`a_stop_job_queued_on_the_slice_is_asked_through_before_the_route_is_taken`,
+whose last ask is the real manager's and answers no job.
+
+Red:
+`asking_again_tests::a_path_beside_a_job_after_a_successful_start_is_taken_as_the_route`,
+with:
+
+```text
+a path the manager reports beside a job, after a start that ran, is the route: GroupUnavailable { reason: "a job is queued on app.slice after the start" }
+```
+
+#### What the green arm measured
+
+The controls that stay green in the green arm of every pair are the ones named above,
+and each was run in the same invocation as the control that reddened.
+The pause's own gaps with the pause in place were 208.0 ms,
+207.0 ms,
+206.2 ms and 207.9 ms,
+so the work around the sleep cost at most 8.0 ms there.
+A second run of the same control on the unchanged tree gave 204.2 ms,
+204.2 ms,
+203.4 ms and 205.5 ms,
+so the instrument's own spread between runs is about 4.6 ms at each gap,
+against the 200 ms a doubled sleep adds.
+`THE_MOST_A_GAP_OUTLASTS_THE_PAUSE` (150 ms) is sized from that and from the earlier run the package document records,
+and it does not catch a pause that grew by less than that.
+
+One more control came with them,
+for a branch no record read before:
+`what_the_manager_reported_reads_the_two_named_lines_and_one_value_alone`.
+It reads the answer's two named lines,
+the one value a stand-in prints,
+an empty path,
+a relative one,
+a value spanning lines and a name that is not the slice's.
+
+One trap of the method is worth recording.
+Each edit was removed by copying the file back with its timestamps preserved,
+so the restored file carried its original modification time,
+which is older than the build the edit had just made.
+Cargo reads that as a source it has already compiled,
+so the first run of the restored tree re-ran the edited binary and reddened the very control the removal was meant to green.
+The restored files were touched after the last removal,
+and the green run is the one made after that.
+A round that removes an edit must make the next build see the source again.
+
+What the read named and this round leaves uncovered:
+
+- an address naming an existing socket beside a runtime directory that holds the bus socket:
+  the answer is the same either way,
+  because the bus socket alone already keeps the asking again,
+  so no count of asks can tell an edit that skips the address there;
+  only the words of a refusal that appears when nothing is there could,
+  and no state prints them;
+- the reading of a failed start's words is held for the four shapes this round wrote;
+  a refusal of a shape nobody has captured is still read as a moment,
+  which is the safe direction and is said in the source.
+
+### Low 5: three sentences, corrected against their own records
+
+#### Every discovery was done before the window opened
+
+The sentence stood in the README's Development section and in the package document's "What the span does not cover".
+The record it cites is the alpha.17 read's own log of 24 calls whose reexec was fired 0 to 110 ms after each began,
+and it shows the opposite for half of them:
+
+- in 12 of the 24 an ask overlapped the window,
+  and every one of those twelve calls exited 0;
+- the 11 calls that exited 1 are the ones whose asks had all ended before the window opened,
+  being 7 of `0.1.5-alpha.16`'s 12 and 4 of `0.1.5-alpha.17`'s 12;
+- one more call of the 24 exited 0 without meeting the window.
+
+Both sentences now say that.
+
+#### 2 of its 24 calls
+
+It stood in the package document twice,
+in "What this does not cover" and in the Open list.
+The 24 is `0.1.5-alpha.17`'s 12 aligned calls together with the 12 of its byte-identical copy,
+and the two are `0.1.5-alpha.17`'s own:
+
+- the state was reached in 2 of its 12 calls;
+- in 0 of the copy's 12;
+- and in 0 of its 9 calls against a loaded manager.
+
+Both sentences now say that.
+
+#### A program that outlives its run is left alive on that fallback
+
+The sentence stood in the README under "Limits".
+Measured by the alpha.18 read on this host with no manager at all:
+
+- a program started with `setsid` was left alive in 4 of 4 calls;
+- one that stays in the run's process group was killed in 4 of 4;
+- and the same held in both releases.
+
+The README now says that a program staying in the group is killed and one that leaves it is left alive.
+
+### Low 6: what the control of issue 6650 prints when it fails
+
+The control's clean-up wrote `cgroup.kill` and discarded the answer,
+then waited twenty seconds for the group below the scope to list no process,
+and its failure said only `the nested group's end did not happen in time`.
+It now keeps the write's answer and reads the state of every process the group still lists.
+
+The sentence it fails with is this one,
+printed by the control of that sentence with a fifty-millisecond bound and a group holding a live process,
+a zombie and an id no process of this machine can have:
+
+```text
+the nested group <group> still listed a process at the bound of 50ms: the write of <group>/cgroup.kill was refused (Is a directory (os error 21)), and every process it lists: <pid> is alive, so the kill did not take it (state "S" of /proc/<pid>/stat: <the stat line>); <pid> has exited and waits to be reaped, so it can write nothing (state "Z" of /proc/<pid>/stat: <the stat line>); 4294967295 has no process any more (/proc/4294967295/stat could not be read: No such file or directory (os error 2)), so the group's listing has not caught up with a member that left. A member that has exited or is no longer there was slow to leave; one alive in any other state is a member the kill did not take
+```
+
+The control's own bound is unchanged at twenty seconds,
+so the only difference in a real failure is the bound's figure and the group's own path.
+What the sentence still cannot say is why a member stayed:
+a member that has exited and a listing that has not caught up look the same from here,
+and the sentence names which of the two the state shows rather than guessing.
+
+### Low 2, Low 3 and Low 4: what was left, and the figures
+
+No code changed for these three.
+Their figures are restated in the package document's Open list,
+and the questions they leave are in the round's report.
+
+#### Low 2: a refusal for good asked fifteen times
+
+A refusal for good whose words do not name the slice after the verb is asked five times,
+which is 15 asks where `0.1.5-alpha.17` made 3.
+A call's time as a ratio to `0.1.5-alpha.17` in the same round,
+with a byte-identical copy of that release as the control:
+
+- 8.47 (6.32 to 10.38) for a dependency that fails every time;
+- 8.55 (6.32 to 10.93) for a cyclic transaction order;
+- 8.97 (7.60 to 11.69) for a masked dependency;
+- 8.87 (5.28 to 9.99) for a missing one;
+- 1.05 (0.98 to 1.15) for a masked slice,
+  whose words do name it;
+- and the copy's own ratio ranged from 0.40 to 2.37.
+
+A dependency that sleeps eight seconds and then fails took 15 asks and 41.9 s to 49.5 s a call against 8.3 s to 10.7 s.
+
+#### Low 3: the early ends that remain
+
+- a dependency of `app.slice` that starts slower than the ten-second bound takes the weaker path in 9 of 9 calls of each of the three releases,
+  and the slice is active a few seconds later;
+- a `show` that hangs on a busy host spent the bound in one call of 15 and took the weaker path after 18.2 s;
+- a slice stopped between a successful start and the final ask takes the weaker path in 9 of 9 calls;
+- and a stop job queued after a successful start makes the call exit 1 in 9 of 9 calls,
+  because the final ask's path is taken and the scope is then refused as destructive.
+
+#### Low 4: a call's start replaces a person's stop
+
+Nine seconds after a call,
+`app.slice` is active under `0.1.5-alpha.18` where it was inactive under `0.1.5-alpha.17`.
+That is two calls an arm,
+with a service holding the slice for four seconds and the stop issued 0.7 s before the call.
+The discovery's `start` uses `replace` mode,
+so it cancels the person's queued stop.
+The README now says so where the queued stop is described.
+
+### What the two rounds left
+
+- Which account's slice a reported path belongs to.
+  The check compares the unit's name and not the `user-<number>.slice` above it,
+  because the manager's slice is spelled differently on different hosts.
+  It is in the package document's Open list.
+- Whether a refused route should instead be the weaker path plus the notice.
+  The record's own sentence says the bound refuses it,
+  the round read that as the call stopping,
+  and the way not taken is in the same Open list with its cost.
+- Low 2,
+  Low 3 and Low 4's questions,
+  each with the figures the read measured:
+  whether fifteen asks are worth refusing a person's broken unit configuration at once,
+  whether any of the early ends should be tried again,
+  and whether a call's start should cancel a person's stop of the slice.
+  All three are in the same Open list.
+
+The two controls the Low round added that read `ask_once` pass beside the Medium round's change,
+in one run on the joined tree of 2026-11-28
+(`mise exec -- cargo nextest run --release --no-fail-fast`
+with the four controls the two rounds added to `asking_again_tests` as its filter:
+`4 tests run: 4 passed, 1018 skipped`),
+so the join rewrote neither of them:
+
+- `asking_again_tests::a_start_that_spent_its_bound_is_not_put_again`
+  requires three asks for one attempt and a refusal that names the bound the start spent,
+  which is what the joined code does:
+  the Medium round's refusal is asked about the path a spent start's last ask reports,
+  and a spent start whose last ask reports nothing ends the asking as it did before;
+- `...::a_path_beside_a_job_after_a_successful_start_is_taken_as_the_route`
+  requires that the path an answer carries is the route where the start ended inside its bound,
+  which the Medium round's change leaves as it was:
+  that refusal is asked only where the start spent the bound and the job is still queued.
+
+A round that refuses a path beside a job after a start that ended inside its bound,
+or that asks again after a start that spent its bound,
+reddens them,
+which is what they are for.

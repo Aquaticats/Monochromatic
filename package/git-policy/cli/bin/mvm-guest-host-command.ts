@@ -20,6 +20,8 @@ import {
   join,
 } from 'node:path';
 
+import { guestBackend, } from './mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from './mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from './native-wrapper-snapshot.ts';
 import {
   FOLDER_MODE,
@@ -52,7 +54,7 @@ import {
 
  @example
  ```ts
- await host({ chosen, command: 'mvm', args: ['--backend', 'libvirt', 'list'], log: 'host-mvm-list.log' });
+ await host({ chosen, command: 'mvm', args: [...guestBackend().mvmArgumentWords, 'list'], log: 'host-mvm-list.log' });
  ```
  */
 export async function host({
@@ -177,16 +179,19 @@ export async function pushWorktreeSnapshot({
     ],
     log: 'host-package.log',
   },);
+  /**
+   The backend this run drives, which decides where `mvm push` puts the archive.
+   */
+  const backend = guestBackend();
   await host({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz',),
     ],
     log: 'guest-push.log',
   },);

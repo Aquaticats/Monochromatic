@@ -5039,3 +5039,108 @@ because Node refuses TypeScript under `node_modules`,
 so it would need a built copy and a check of another kind.
 `mvm` is private today.
 Issue 6660 lists the twenty other commands and `mvm-mcp` that have the old shape.
+
+## Veto open: what the shutdown pass's round chose (recorded 2026-11-28T07:29:00-05:00)
+
+Merge `871e0be314` built the ZFS route's shutdown pass ahead of its wiring.
+Its round made these picks beyond its brief,
+each with the way not taken and its cost in the round's report,
+whose scratch expires a day after its last change:
+
+- the pass compares no live dataset GUID,
+  so a dataset destroyed and made again under the same name and mounted at the same slot is unmounted and not refused;
+  comparing one would make every check wait on `/dev/zfs` at shutdown;
+- a readiness record the route's reader refuses is removed all the same,
+  and a directory the route did not make is refused,
+  so a corrupt record is deleted and named in the pass's line and no mount is left standing over it;
+- the withdrawal removes the record and publishes no second one,
+  so nothing under `/run` says the boot is ending;
+- a busy mount's holder is named by mount namespace and never by process,
+  because naming the process would mean reading another account's descriptors;
+- the unmount is named by the descriptor opened without crossing the slot's mount,
+  after the clone's own descriptor is dropped,
+  which a guest run measured:
+  with the clone's descriptor held the kernel answered that the mount was busy.
+
+## Veto open: what the cheapest size that fits comes to (recorded 2026-11-28T07:45:46-05:00)
+
+The owner decided on 2026-11-28 that among sizes that fit the cheapest is taken,
+and merge `b7f9f7ed2c` builds it.
+What that decision was not shown,
+from the build's report and the proposal's second gate read:
+
+- for small asks the cheapest size is a `d2` one,
+  which OVHcloud's own table calls Discovery:
+  shared resources,
+  for testing and proof of concept.
+  The billed run asked for two cores and 4 GiB and got `d2-4` at 0.033 CAD an hour;
+  `c3-4`,
+  with the same numbers and cores of its own,
+  is 0.0732;
+- the hourly figures the proposal lists leave out two billed lines the price page shows:
+  a public IPv4 address at 0.00432 CAD an hour,
+  and local storage on the `b3`,
+  `c3` and `r3` sizes at 0.011665 CAD an hour for each 50 GB.
+  Whether the build's price read counts them is not checked;
+- `--memory` is compared with the catalogue's own memory number with no unit change,
+  so `--memory 4` is met by a size listed with 4.
+  The repository's comment calls that number GiB and the proposal treated it as GB;
+  one create settles which;
+- the build leaves the storage family `i1` out,
+  where the proposal's allow-list kept it;
+- a clone that is given either number refuses,
+  where it used to ignore nothing because the numbers did not exist.
+
+Guest rounds meanwhile name a size outright,
+`b3-16`,
+which is the session's pick.
+
+## Veto open: what the round that made the removal read force chose (recorded 2026-11-28T08:02:12-05:00)
+
+Merge `7c4962988d` built the owner's answers of 2026-11-28 on forces at a ZFS removal.
+Where the round went past what was decided,
+each with the way not taken in its report,
+whose scratch expires a day after its last change:
+
+- two forces do not loosen four refusals:
+  the transferred-history refusal,
+  the origin-side hit,
+  the deferred-origin checks and the holder scans.
+  The owner's words were that force "overrides anything and delete and destroy no matter what";
+  no design says what destroying inherited history or a marked origin should do,
+  and the two-forces design asks about holders;
+- a forced removal whose plan cannot be read and whose clone no longer answers refuses,
+  with one force and with two,
+  because deleting that plan would delete the only record of what an earlier run destroyed.
+  The settling command refuses such a plan too,
+  so a person has no way out of that state in this build;
+- a worktree with modified or untracked files refuses without force and passes one force,
+  which is Git's own gradation.
+  Before this merge,
+  by the round's reading of the source and its control on the value layer,
+  the clone was destroyed with no force at all;
+  no run against the released binary or a real pool shows it yet;
+- the bookmark rule is waived whenever a force was given,
+  and the report names each bookmark that went;
+- a spelling Git itself refuses counts as no force;
+- a clone mounted somewhere that is no staging folder stays Git's,
+  with or without force.
+
+## Veto open: what the private propagation step's round chose (recorded 2026-11-28T08:02:12-05:00)
+
+Merge `ce0d52a686` built the step ahead of its wiring:
+
+- on a kernel that reports no namespace number for a mount (before Linux 6.9),
+  the step does not refuse for want of it and the record's field reads `none`;
+- the record gains one step word the accepted design did not list,
+  `record`,
+  for a run whose answer could not be filed;
+- every item of the step is published from the crate,
+  with its names in the list of published names,
+  because an unwired piece's private items fail the build as dead code;
+- the trigger measurement read:
+  ten of ten replacements at a person's pace seen once each,
+  no loop,
+  and a burst of eight held to three starts.
+  On that reading the provisional systemd trigger stays;
+  the decision is the owner's.

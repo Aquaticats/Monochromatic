@@ -1961,9 +1961,8 @@ no argument at all is the clone-mount sweep ZED's own start runs,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and,
-when it is run,
-names the unit that runs it,
+whose pass is built and whose mode refuses,
+naming the unit that runs it,
 and `holder-scan` is the all-namespace holder scan of one dataset under a nonce
 of its own,
 which reads and changes nothing.
@@ -2456,6 +2455,43 @@ which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
 (`SPEC.md`,
 "Removal of a ZFS worktree clone").
+The force each spelling carries is counted the way Git counts it
+(`-f`,
+`--force`,
+a cluster such as `-ff`,
+`--force` repeated,
+any prefix of `force`,
+and `--no-force`,
+which sets the count back to zero),
+and it decides which refusals the run passes.
+The owner answered on 2026-11-28 that two forces pass every refusal this removal has
+and that one force passes the states the removal can answer for itself
+("Two force does everything.
+One force - you pick.",
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`):
+
+- two forces delete a person's lock file and then run the removal,
+  go past a destruction plan that cannot be read
+  (proving the clone by the record's GUID against the pool,
+  destroying the clone and its snapshots from the pool's own list,
+  and removing that plan file with the run's records),
+  take a clone off the staging folder and destroy it,
+  and destroy the dataset the slot's record names even when the pool's answer does not match the record,
+  printing the dataset destroyed and both GUIDs;
+- one force goes past a plan that cannot be read,
+  past a clone an earlier unmount left on the staging folder where the record's GUID proves it,
+  and past Git's own cleanliness refusal (a worktree holding modified or untracked files,
+  which Git itself refuses only while the count is zero,
+  `builtin/worktree.c`'s `if (!force) check_clean_worktree(wt, av[0])`),
+  and it refuses a person's lock and a clone the wrapper cannot prove,
+  each naming two forces,
+  the lock's sentence naming `git worktree unlock <slot>` as well;
+- no force refuses each of the four and the cleanliness refusal,
+  and the two states the owner's answers of 2026-11-28 added print the command each way forward uses.
+
+A holder is ended by no force count:
+the stop points below cancel the removal and put the clone back,
+which the round that would pass a holder has not built.
 The command prints the slot's state,
 its dataset and the one next safe action,
 then takes the slot's per-slot claim,
@@ -2506,9 +2542,20 @@ Each of the three names what could not be proved and the repair that ends it,
 and none of them reads a pool:
 Git's own removal would otherwise delete the registration and the underlay folder
 while a clone's files may stand behind the mount.
-A phase that disagrees with its mount and a destruction plan nobody could read are
-still left to Git when no plan naming the clone stands,
-because the answer names these three and no more,
+A destruction plan nobody could read and a clone mounted on a staging folder with
+no plan are refused too,
+which the owner answered on 2026-11-28
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`):
+the first names the plan's file and
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
+and the second names
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
+which puts the clone back at its slot.
+Both sentences also name the forced removal that goes past them.
+A phase that disagrees with its mount,
+and a clone mounted somewhere that is no staging folder,
+are still left to Git when no plan naming the clone stands,
+because no answer names them,
 and a destruction plan that reads names the clone before the phase and the mount
 are compared,
 so the slot's report says which reading it met.
@@ -2841,6 +2888,94 @@ a ZED delivery or start,
 a start of the checkout provider,
 the boot unit's reconcile,
 or a lever you fire.
+
+#### The shutdown pass, built and reached by no command
+
+The pass the gate's `ExecStopPost` runs is built in `src/native/worktree_clone_shutdown_unmount_pass/`,
+and no command reaches it in this build:
+`zfs-root shutdown-unmount` still refuses,
+naming the step whose boot unit runs it,
+and the round that wires the mode calls the pass from there.
+What it does,
+in the order the design gives
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit"):
+
+- it withdraws this boot's readiness record,
+  the one `boot-reconcile` publishes,
+  so no attach is admitted after it;
+- it reads the same root-owned configuration the gate's own `ExecStart` read,
+  so the mounts it looks at are the ones that pass made;
+- it takes,
+  from this process's mount table,
+  every standing mount of an immediate child of the configured clone container
+  that stands at a slot of the configured checkout;
+- it proves each one before any kernel call:
+  the folder the slot hangs in is the `.claude/worktrees` folder the route
+  recorded,
+  a fresh walk reaches the same mount the descriptor is on,
+  the device and inode are the walk's own,
+  the path the kernel reports is the slot's,
+  and the row's source,
+  filesystem,
+  root,
+  mount point and parent are the clone's own mount at that slot;
+- it takes the slot's per-slot claim before it acts,
+  and leaves a slot another handler holds to that handler;
+- it unmounts from the held descriptor,
+  without force and without lazy detach;
+- a mount the kernel answers `EBUSY` for stays exactly as it was,
+  and the all-namespace holder scan names what holds it;
+- it files no receipt and changes no clone's durable intent,
+  because it answered no request.
+
+The proof is one guest arm
+(`src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`,
+driven by `e2e/shutdown-unmount-guest.ts`):
+an idle clone's mount is unmounted,
+a busy one's is kept and named,
+this boot's readiness is withdrawn before either,
+no attach is admitted afterwards,
+and both clones' durable intent is exactly what it was.
+
+#### The private-propagation step, built and reached by no command
+
+Plan step 19's step is built in `src/native/checkout_propagation/`,
+and nothing reaches it:
+its call at the head of `boot-reconcile` and of the default sweep is that step's
+wiring,
+which this release does not have,
+so `zfs-root boot-reconcile` and the ZED event's own run change nothing about
+propagation.
+
+A mount that replaces the checkout's mount comes up shared again,
+and a clone mounted under a shared checkout is copied into every other mount
+namespace,
+which is what the step exists for:
+
+- it reads the checkout's own propagation as the kernel's three flags,
+  by the descriptor's unique mount number and `statmount(2)`,
+  and names it `private`,
+  `shared`,
+  `slave`,
+  `unbindable` or `shared+slave`;
+  a mount that is shared and slave at once counts as shared;
+- it sets that mount private through the descriptor it verified,
+  with no path fallback and nothing beneath it,
+  and proves the set by reading the same instance again;
+- it reports and leaves the states you decided to leave,
+  a private mount as `already-private` and a slave or unbindable one as `left`;
+- it counts the shared mounts beneath the checkout and prints four of them,
+  so you learn what still delivers to other namespaces;
+- and it files its answer in `/run/git-worktree-clone-mount-propagation/result`,
+  which `doctor` will print beside the live tag once its line is wired.
+
+No command opens `/dev/zfs` or writes a checkout for this,
+so nothing here runs on your machine,
+and the guest arm beside the folder is what proves the kernel half.
+Whether the provisional systemd trigger stays is the guest measurement the
+accepted design asks for,
+and this release ships neither the trigger nor its findings.
 
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 

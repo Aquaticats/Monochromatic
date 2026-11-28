@@ -504,6 +504,24 @@ pub mod checkout_boot_units;
 #[cfg(target_os = "linux")]
 pub use checkout_boot_units::*;
 
+/// What one root run does about the checkout's mount propagation:
+///  the check that the mount passes no mounts on,
+///  the set that makes it private through the descriptor it verified,
+///  the read that proves the set,
+///  the report of the shared mounts beneath the checkout,
+///  and the root-owned record of the answer.
+/// Plan step 19's piece,
+/// built ahead of the plan's order and unwired:
+/// its call at the head of `boot-reconcile` and of the default sweep is that
+/// step's wiring,
+/// so no command and no root mode reaches it in this release,
+/// and the guest arm beside its files calls it itself.
+/// It is Linux only,
+/// like the `statmount(2)`,
+/// `mount_setattr(2)` and `/proc/self/mountinfo` calls it makes.
+#[cfg(target_os = "linux")]
+pub mod checkout_propagation;
+
 /// The immutable covered entry of the checkout's underlay:
 ///  what the kernel says about the entry at the checkout path and its parent,
 ///  why a reading is refused,
@@ -648,6 +666,20 @@ pub mod zfs_mounted_dataset;
 /// like the module it builds on.
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
+
+/// Plan step 19's shutdown pass over the managed clone mounts,
+///  built ahead of the unit that runs it:
+///  withdraw this boot's readiness,
+///  close admission to new attaches,
+///  and unmount only the mounts this boot verified,
+///  without changing durable intent.
+/// No command reaches it in this build:
+///  `zfs-root shutdown-unmount` still answers the refusal that names the unit,
+///  and the round that wires the mode calls `run_the_pass` from it.
+/// It is Linux only,
+/// like the mounts and `/proc` files it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_shutdown_unmount_pass;
 
 /// The root handler's all-namespace holder scan of one ZFS clone:
 ///  the live tasks grouped by mount namespace,

@@ -94,6 +94,10 @@ pub(super) fn the_head_present_path(
             clone: entered.plan.facts.clone_dataset.clone(),
         });
     }
+    // What force did is read before the plan moves out of the value, because the report prints it and the records' end
+    //  removes the plan file a forced run went past.
+    let forced: crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs =
+        entered.forced.clone();
     let mut plan: DestructionPlan = entered.plan;
     let plan_path: PathBuf = entered.plan_path;
     let pool: String = entered.pool;
@@ -183,8 +187,12 @@ pub(super) fn the_head_present_path(
     }
     let origin: OriginCleanupDone = attempt_the_origin_cleanup(input, &plan)?;
     let settle: SettleAnswer = settle_the_registration(input, &plan)?;
-    let records: RecordsGone =
-        remove_the_removal_records(input.entry.common_dir, input.entry.slot, &plan)?;
+    let records: RecordsGone = remove_the_removal_records(
+        input.entry.common_dir,
+        input.entry.slot,
+        &plan,
+        forced.the_unreadable_plan.as_deref(),
+    )?;
     return Ok(TheRemovalDone {
         slot: String::from(input.entry.slot),
         dataset: plan.facts.clone_dataset.clone(),
@@ -197,6 +205,7 @@ pub(super) fn the_head_present_path(
         settle,
         records,
         claim: ClaimEnd::Held,
+        forced,
         plan_path,
         requests,
     });

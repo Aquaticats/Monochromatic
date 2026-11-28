@@ -946,6 +946,142 @@ Unapproved and non-final.
   two machines active,
   both created by rounds that are running.
 
+#### Started and done between 07:23 and 07:29
+
+Unapproved and non-final.
+
+- The development-profile proposal's second gate read came back not ready
+  (three High,
+  ten Medium,
+  nine Low).
+  Its first point is that the recommended form was never measured.
+  The round `development-profile-proposal-revised-against-its-second-gate-read-with-the-recommended-form-measured`
+  started at 07:27:49;
+  unlike the first revision it may build the fewest arms that measure that form.
+- Merge `871e0be314` holds the shutdown pass
+  (`src/native/worktree_clone_shutdown_unmount_pass/`),
+  built and proved in a guest and reached by no command:
+  the mode `zfs-root shutdown-unmount` still refuses,
+  as its brief directed.
+  The pass withdraws this boot's readiness record first,
+  unmounts only the clone mounts this boot verified,
+  leaves a busy mount standing and names its holders,
+  and changes no durable intent.
+  Its picks the brief did not decide are in `doc/handover/questions-for-the-owner.md`.
+
+#### Started and done between 07:29 and 07:45
+
+Unapproved and non-final.
+
+- The owner's word,
+  typed at about 07:30:
+  all guest work runs on OVHcloud from 08:00,
+  no matter what.
+  It is quoted in `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "All guest work runs on OVHcloud,
+  2026-11-28".
+  A command that ends at 08:00 and a one-shot schedule are armed.
+- Merge `feb999c67a`:
+  `mvm --backend ovh destroy` returns when the project's listing has let the machine go.
+  The billed test then passed whole on `main` at 07:32:22 and the project listed no machine.
+- Merges `832b3e25c2` and `a2c34bc3f0` took the guest drivers' round ahead of its end:
+  a driver takes its backend from `MVM_BACKEND`,
+  and on a backend that mounts no share the shared steps make a plain `/mnt/shared` in the guest,
+  so every arm script runs as it is.
+  That round is still running,
+  and the shared helpers and the recipe stay its to change.
+- Merge `b7f9f7ed2c`:
+  `mvm create` and `mvm run` take `--vcpus` and `--memory`,
+  and on OVHcloud the cheapest size that fits is taken from a live price read.
+  What the owner has not been shown yet is in `doc/handover/questions-for-the-owner.md`.
+- Every live round that runs guest arms was told at 07:34 to stop using its local guest,
+  and at 07:44 how to run its arms on OVHcloud:
+  through its driver's own mise task with `MVM_BACKEND=ovh MVM_OVH_FLAVOR=b3-16` in front,
+  a create only when the project lists fewer than six machines,
+  its own machine destroyed by name.
+  The note as sent is in `~/temp/agent/all-guest-work-moves-to-ovhcloud-2026-11-28/keep/`,
+  scratch that expires a day after its last change.
+- No arm of a wrapper driver has run on OVHcloud yet;
+  the recipe's create,
+  prepare and one arm of the binding's own have.
+- Issues 6662 (a create with a name already in use makes a second billed machine)
+  and 6663 (the Hetzner backend's destroy returns on acceptance) are filed.
+- Gate reads back,
+  both not ready:
+  the sizes proposal (three High,
+  twelve Medium,
+  five Low) and the development-profile proposal,
+  whose second revision is running.
+- The second pass on the wrapper's `0.6.1-alpha.53` behaviour found no High,
+  two Medium and six Low.
+  Its first Medium:
+  a removal resumed after its clone is gone publishes its plan and destroys the origin snapshot
+  before it reads a person's lock.
+  A fix round is owed.
+- Ended and not yet read:
+  the two fix rounds on the `cargo-shadow` alpha.18 read and the two-forces design.
+
+#### Started and done between 07:45 and 08:02
+
+Unapproved and non-final.
+
+- At the owner's 08:00 mark no guest ran on this machine and the project on OVHcloud listed two machines,
+  each made by a round:
+  `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "What stood at the mark".
+  Every local guest had been destroyed by its own round;
+  the guest unit's memory sampler was stopped at 07:53:01.
+- Merge `9d23b5f6bc` took the guest drivers' round a third time ahead of its end:
+  a driver's guest gets the release the recipe prepares,
+  where a driver's create named no image and the guest booted the catalogue's default.
+  The live guest rounds were told to merge `main` again.
+- Merge `b7f9f7ed2c` has a defect a real run showed,
+  issue 6664:
+  the one-shot `run` on a cloud backend drops `--vcpus` and `--memory`.
+  The round `mvm-cli-run-hands-the-asked-vcpus-and-memory-to-its-create-on-every-backend` is fixing it,
+  and its one billed run settles whether the catalogue's memory number is GB or GiB.
+- Merge `7c4962988d`:
+  the ZFS removal reads force.
+  Two forces delete a person's lock,
+  go past a plan that cannot be read and destroy a clone the wrapper cannot prove;
+  one force passes the plan and a clone at the staging folder;
+  without force those two states now refuse.
+  By that round's reading of the source,
+  held by a control on the value layer
+  and never run against the released binary or a real pool,
+  it also closes a defect the released `0.6.1-alpha.53` carries:
+  nothing read the files at a bound slot,
+  so a slot whose worktree held modified or untracked files had its clone destroyed with no force.
+  Its picks are in `doc/handover/questions-for-the-owner.md`.
+- Merge `ce0d52a686`:
+  the checkout's private propagation step,
+  built and reached by no command,
+  proved in a guest before the switch;
+  its trigger measurement saw ten of ten replacements once each and no loop.
+- Merge `0d03853329`:
+  the two-forces design,
+  with a gate read by Claude Sonnet running.
+- Merge `b1529e79e1`:
+  the `cargo-shadow` round on the alpha.18 read's two Medium findings.
+  The round on its six Low findings conflicts with it in four files;
+  the round `cargo-shadow-the-two-alpha-18-fix-branches-joined-with-both-rounds-controls-green` joins them.
+- One whole gate was started on `main` at `ce0d52a686`;
+  the wrapper's next alpha follows its reading.
+- Gate reads back since 07:29,
+  each not ready:
+  the sizes,
+  hosted-runners,
+  Dylint,
+  crate split and line-break proposals.
+  A revision round runs for each,
+  and for the development-profile proposal.
+- The fix round for the alpha.53 behaviour read runs:
+  `wrapper-alpha-53-read-a-resumed-removal-reads-a-persons-lock-before-it-writes-and-a-finished-removal-is-cleaned-up-after`.
+- Issues filed:
+  6664,
+  and one for a control that fails only in the threaded run of its module
+  (`a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words`).
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.

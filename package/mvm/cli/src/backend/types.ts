@@ -45,13 +45,25 @@ export type Backend = {
   /**
    Creates and starts a VM.
    
-   @param args - Name, optional image, and cloud-only server type / location
+   @param args - Name, optional image, cloud-only server type / location, and
+   the size floors a caller asked for
    */
   readonly create: (args: {
     readonly name: string;
     readonly image?: string;
     readonly serverType?: string;
     readonly location?: string;
+    /**
+     Least memory the machine may have, in gibibytes. Absent when the caller
+     asked for none, in which case the backend does exactly what it did before
+     this option existed.
+     */
+    readonly memoryGiB?: number;
+    /**
+     Fewest virtual CPUs the machine may have. Absent when the caller asked for
+     none.
+     */
+    readonly vcpus?: number;
   },) => Promise<void>;
 
   /**
@@ -94,11 +106,14 @@ export type Backend = {
   /**
    Creates an ephemeral VM, runs a command, then destroys it.
    
-   @param args - Command to run and optional source VM to clone from
+   @param args - Command to run, optional source VM to clone from, and the size
+   floors a caller asked for
    */
   readonly run: (args: {
     readonly command: string;
     readonly from?: string;
+    readonly memoryGiB?: number;
+    readonly vcpus?: number;
   },) => Promise<ExecResult>;
 
   /**

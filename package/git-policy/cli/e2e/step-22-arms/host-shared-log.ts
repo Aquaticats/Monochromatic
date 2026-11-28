@@ -23,6 +23,46 @@ import {
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
+import {
+  type GuestBackend,
+  guestBackend,
+} from '../../bin/mvm-guest-backend.ts';
+
+/**
+ Refuse a step that reads the host's own side of the shared folder on a backend that mounts none there.
+
+ What this module reads is the folder `mvm` mounts into a libvirt guest, on the host's file system, so a finished script's
+ log is read without an agent answer and a guest whose agent is busy still hands its log over
+ (`doc/troubleshooting/mvm-push-writes-the-shared-folder-not-the-guest-path.md`). A backend that has to make the folder
+ inside the guest keeps it in the guest: reading it from here would put an `ssh` round trip inside a poll that runs for
+ the length of a long build, which nothing has measured, so this driver refuses there instead of waiting on a path that
+ does not exist.
+
+ @param backend - the backend this run drives
+
+ @param step - the step the run named
+
+ @throws Error naming the step, the backend and the path it cannot read
+
+ @example
+ ```ts
+ refuseAHostSideRead({ backend: guestBackend(), step: 'run' }); // refuses on ovh
+ ```
+ */
+export function refuseAHostSideRead({
+  backend,
+  step,
+}: {
+  readonly backend: GuestBackend;
+  readonly step: string;
+}): void {
+  if (backend.makesTheSharedFolder === undefined)
+    return;
+  throw new Error(
+    `step '${step}' reads the host's own side of the guest's shared folder, and backend '${backend.kind}' keeps that folder inside the guest: this driver waits by reading the folder's file from this host, which only a libvirt guest mounts`,
+  );
+}
+
 /**
  The host folder a guest's shared folder is mounted from, which needs no guest
  agent to read.

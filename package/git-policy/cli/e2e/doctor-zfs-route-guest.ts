@@ -24,6 +24,10 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from '../bin/mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -50,6 +54,11 @@ import {
 import {
   captureHostCommand,
 } from '../bin/mvm-guest-step-command.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -184,7 +193,7 @@ async function create(chosen: GuestDriverOptions,): Promise<void> {
    */
   const listed = await captureHostCommand({
     command: 'mvm',
-    args: ['list',],
+    args: [...backend.mvmArgumentWords, 'list',],
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
   if (holdsGuestName({
@@ -263,16 +272,17 @@ async function build(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
+  // A backend that mounts no share has no folder for the archive to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await host({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz'),
     ],
     log: 'guest-push.log',
   },);
@@ -319,13 +329,13 @@ async function arm(chosen: GuestDriverOptions,): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${POOL_VARIABLE}=${POOL}`,
-    `export ${REMOVAL_GUEST_VARIABLE}=${chosen.name}`,
+    `export ${REMOVAL_GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${REMOVAL_POOL_VARIABLE}=${REMOVAL_POOL}`,
     `export ${REMOVAL_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${REMOVAL_ROOT_VARIABLE}=${REMOVAL_ROOT}`,
-    `export ${CLONE_FACTS_GUEST_VARIABLE}=${chosen.name}`,
+    `export ${CLONE_FACTS_GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${CLONE_FACTS_POOL_VARIABLE}=${CLONE_FACTS_POOL}`,
     `export ${CLONE_FACTS_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${CLONE_FACTS_ROOT_VARIABLE}=${CLONE_FACTS_ROOT}`,

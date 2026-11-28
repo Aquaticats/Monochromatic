@@ -176,6 +176,17 @@ export const INSTANCE_RUNNING_STATUS: OvhInstanceState = 'ACTIVE';
 export const INSTANCE_DELETED_STATUS: OvhInstanceState = 'DELETED';
 
 /**
+ The status under which the project lists an instance while it deletes it.
+
+ A live run on 2026-11-28 read this status from the project's listing 15.9s
+ after OVHcloud accepted its delete, and `DELETED` from another run's listing
+ 11.7s after its own delete was accepted. An instance under this status is
+ still billed, so it stays one of mvm's machines: only
+ {@link INSTANCE_DELETED_STATUS} and absence take it out of the listing.
+ */
+export const INSTANCE_DELETING_STATUS: OvhInstanceState = 'DELETING';
+
+/**
  Statuses from which an instance never becomes usable on its own, so a wait for
  it must stop and report the failure.
  */
@@ -336,6 +347,14 @@ export type OvhFlavor = {
    How many more instances of this flavor the project's quota allows.
    */
   readonly quota: number;
+  /**
+   Order plan codes of this flavor, from the schema's flavor plan codes; the
+   `hourly` one is the code the public catalogue prices the machine by. Absent
+   in a body that carries none, which is why it is optional.
+   */
+  readonly planCodes?: {
+    readonly hourly: string;
+  };
 };
 
 //endregion Flavor

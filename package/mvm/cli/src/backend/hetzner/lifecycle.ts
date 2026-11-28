@@ -16,6 +16,15 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { VM_PREFIX, } from '../../config.ts';
 import type { VmInfo, } from '../../list.ts';
 import {
+  describeSizeRequest,
+  isEmptySizeRequest,
+  memoryGiBArgument,
+  refuseSizeAndOverride,
+  sizeRequest,
+  vcpusArgument,
+  type SizeRequest,
+} from '../size-request.ts';
+import {
   HetznerApiError,
   waitForAction,
 } from './api.ts';
@@ -38,7 +47,12 @@ import {
   validateHetznerName,
 } from './config.ts';
 import { resolveHetznerImage, } from './images.ts';
-import { resolveCheapestServerType, } from './server-types.ts';
+import {
+  chooseServerTypeName,
+  describeServerType,
+  NOT_SIZED,
+  resolveCheapestServerType,
+} from './server-types.ts';
 import { ensureSshKeyId, } from './ssh-key.ts';
 import { waitForSsh, } from './ssh.ts';
 import type {
@@ -219,13 +233,17 @@ export async function hetznerCreate(
   {
     image,
     location,
+    memoryGiB,
     name,
     serverType,
+    vcpus,
   }: {
     readonly name: string;
     readonly image?: string;
+    readonly memoryGiB?: number;
     readonly serverType?: string;
     readonly location?: string;
+    readonly vcpus?: number;
   },
 ): Promise<void> {
   validateHetznerName(name,);
@@ -249,17 +267,37 @@ export async function hetznerCreate(
    */
   const locations = resolveLocations(location,);
   /**
-   Explicit server-type override, or `''` to pick the cheapest type.
+   Explicit server-type override, or `''` to pick a type from the catalogue.
    */
   const explicitType = serverTypeOverride(serverType,);
   /**
-   Server type to provision: the override, or the cheapest non-deprecated type
-   offered in the target locations (the image is by name, so any architecture
-   matches).
+   The floors this create set; empty when it set none, which keeps the cheapest
+   type the walk it has always been.
    */
-  const serverTypeName = (explicitType !== '')
-    ? explicitType
-    : await resolveCheapestServerType({ locations, },);
+  const request: SizeRequest = sizeRequest({
+    memoryGiB: memoryGiBArgument(memoryGiB,),
+    vcpus: vcpusArgument(vcpus,),
+  },);
+  refuseSizeAndOverride({
+    override: explicitType,
+    overrideOptions: '--server-type or MVM_HCLOUD_SERVER_TYPE',
+    request,
+  },);
+  /**
+   Server type to provision: the override, the smallest type that meets the
+   floors, or the cheapest non-deprecated type offered in the target locations
+   (the image is by name, so any architecture matches).
+   */
+  const chosen = await chooseServerTypeName({
+    explicitType,
+    locations,
+    request,
+  },);
+  if (chosen.sized !== NOT_SIZED) {
+    rl.info(
+      `size ${describeSizeRequest({ request, },)} fits ${describeServerType(chosen.sized,)}`,
+    );
+  }
   /**
    Created server plus boot action, after location fallback.
    */
@@ -268,7 +306,7 @@ export async function hetznerCreate(
     image: imageSlug,
     locations,
     rl,
-    serverType: serverTypeName,
+    serverType: chosen.serverTypeName,
     sshKeyId,
   },);
   await waitForAction({ id: created.action
@@ -580,6 +618,18 @@ export async function hetznerList(): Promise<readonly VmInfo[]> {
           .slice(VM_PREFIX.length,)
         : server.name,
       state: server.status,
+      /**
+       Size the server was made with, when the response embeds it; a response
+       that does not is one mvm cannot tell the size from, so it says nothing.
+       */
+      ...((server.server_type
+        .memory
+        === undefined) ? {} : { memoryGiB: server.server_type
+          .memory, }),
+      ...((server.server_type
+        .cores
+        === undefined) ? {} : { vcpus: server.server_type
+          .cores, }),
     };
   },);
 }

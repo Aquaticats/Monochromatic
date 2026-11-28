@@ -85,6 +85,7 @@ pub fn remove_the_removal_records(
     common_dir: &Path,
     slot: &str,
     plan: &DestructionPlan,
+    the_unreadable_plan: Option<&Path>,
 ) -> Result<RecordsGone, RemovalStop> {
     let home: PathBuf = home_folder(common_dir);
     let binding_path: PathBuf = home.join(binding_name(slot));
@@ -125,6 +126,18 @@ pub fn remove_the_removal_records(
     let plan_path: PathBuf = plans_folder(common_dir).join(plan.facts.clone_guid.file_name());
     remove_one_file(plan_path.as_path())?;
     gone.plan_removed = true;
+    // A forced removal that went past a plan it could not read removes that file here, after the destruction that makes
+    //  removing it safe and under the same proof as this run's own plan
+    //  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+    if let Some(unreadable) = the_unreadable_plan
+        && unreadable != plan_path.as_path()
+    {
+        remove_one_file(unreadable)?;
+        gone.files.push(format!(
+            "the plan at {}, which could not be read",
+            unreadable.display()
+        ));
+    }
     let folder: PathBuf = plans_folder(common_dir);
     if std::fs::remove_dir(folder.as_path()).is_ok() {
         gone.folder_removed = true;

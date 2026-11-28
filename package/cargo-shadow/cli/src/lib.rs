@@ -183,6 +183,14 @@ pub(crate) mod control_group_route_one_ask;
 /// Discovery of the route to a delegated control group (split out of the control group module).
 pub mod control_group_route_discovery;
 
+/// Why a route to a delegated control group was not had,
+/// and the two kinds of refusal
+/// (split out of the route discovery module).
+pub(crate) mod control_group_route_refusal;
+
+/// The settings one discovery of a route is made with (split out of the route discovery module).
+pub(crate) mod control_group_route_settings;
+
 /// The mount view a control group route records (split out of the route discovery module).
 pub(crate) mod control_group_route_view;
 
