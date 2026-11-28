@@ -1,20 +1,20 @@
 //! What:
 //!  The end of one add:
-//! the repair of the new worktree,
-//! the hand-over of its
+//!  the repair of the new worktree,
+//!  the hand-over of its
 //!  trash to the service,
-//! and the record's last phase.
+//!  and the record's last phase.
 //! Why:
 //!  A filled worktree is whole before either runs,
-//! so neither fails the add:
+//!  so neither fails the add:
 //!  a trash the service cannot take stays named by its record,
-//! and a repair
+//!  and a repair
 //!  that finds nothing reports nothing
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//! A12).
+//!  A12).
 //!  `add_route_run.rs` would go over the file-size limit carrying the end beside
 //!  the runner,
-//! and the end is the one step that must not change the add's
+//!  and the end is the one step that must not change the add's
 //!  answer.
 //!
 //! In TS you'd write (pseudocode):

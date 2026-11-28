@@ -6,8 +6,8 @@
 //! Why:
 //!  The project's answer spares "the caller and the processes of its session"
 //!  and,
-//! in its fourth answer,
-//! "any ancestor of the command up to the first
+//!  in its fourth answer,
+//!  "any ancestor of the command up to the first
 //!  process",
 //!  refusing when one of them holds the clone
 //!  (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
@@ -21,7 +21,7 @@
 //!  The walk stops at the first process because nothing above it is a process
 //!  of this machine's lifetime,
 //!  and it is bounded like the crate's own `chain_ancestors`,
-//! whose loop bound
+//!  whose loop bound
 //!  guards a tree that cannot be walked rather than a depth a real chain
 //!  reaches.
 //!

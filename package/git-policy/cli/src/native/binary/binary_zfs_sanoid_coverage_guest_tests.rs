@@ -5,13 +5,13 @@
 //!  the `recursive = zfs` control,
 //!  the retention prune,
 //!  each drift's finding and printed correction,
-//! and the space guard's scope,
+//!  and the space guard's scope,
 //!  measured against a real file-backed pool with Sanoid 2.3.0 and the
 //!  Ubuntu package's 2.2.0 beside it.
 //! Why:
 //!  The section-order effect and the exclusion are behaviours of Sanoid
 //!  itself,
-//! not of this crate,
+//!  not of this crate,
 //!  so only a real Sanoid run on a real dataset tree shows them,
 //!  and the project's 2.3.0 measurements needed the 2.2.0 guest's result
 //!  beside them
@@ -19,12 +19,12 @@
 //!  step 20,
 //!  "VM measurements";
 //!  `doc/planning/cli-git-zfs-clones-mounted-under-the-checkout.md`,
-//! item 4).
+//!  item 4).
 //!  The arm prints `SKIP` where `CLI_GIT_ZFS_SANOID_GUEST` does not name the
 //!  guest,
 //!  and it creates every pool,
-//! dataset,
-//! property and configuration it reads
+//!  dataset,
+//!  property and configuration it reads
 //!  under one fixture folder,
 //!  so a run leaves the guest as it found it and this machine is never
 //!  touched.

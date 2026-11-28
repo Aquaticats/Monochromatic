@@ -1,8 +1,8 @@
 //! What:
 //!  The act's unmount stage,
-//! in both halves:
+//!  in both halves:
 //!  the half the caller runs,
-//! which enters the holder's namespace through one
+//!  which enters the holder's namespace through one
 //!  single-threaded child and reads the child's bounded report,
 //!  and the half the child runs there,
 //!  which unmounts the copy in place by the handle or moves it onto way 7's

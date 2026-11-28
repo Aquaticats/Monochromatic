@@ -32,6 +32,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::DatasetDestroyDevice;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::RegistrationSettle;
+use crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheRemovalCancelling;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;
 use crate::worktree_clone_snapshot_batch::request_budget::RequestBudget;
 use crate::worktree_clone_snapshot_batch::snapshot_batch_send::SnapshotDestroyDevice;
@@ -72,6 +73,9 @@ pub struct RemovalCompletion<'a> {
     pub holders: &'a dyn FreshHolderScan,
     /// The Git settle.
     pub settle: &'a dyn RegistrationSettle,
+    /// The answer a holder-stopped removal asks to put the clone back,
+    /// and nothing for a control that is not about a stop point.
+    pub cancelling: Option<&'a dyn TheRemovalCancelling>,
     /// The bytes one snapshot request may carry.
     pub budget: RequestBudget,
     /// The moment this run's records and attempts carry.

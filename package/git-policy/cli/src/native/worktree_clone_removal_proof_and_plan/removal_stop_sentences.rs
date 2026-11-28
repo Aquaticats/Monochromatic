@@ -198,7 +198,7 @@ impl RemovalStop {
                 holders,
                 incomplete,
             } => format!(
-                "a fresh all-namespace scan still sees this clone held, in {} namespace(s):\n{}\n{incomplete} further read(s) could not be completed. Nothing was destroyed for those holders, the plan keeps every line it had, and the clone stays unmounted. Ways forward: release the holders, or run a forced removal once it is measured; a scan that sees no holder never proves there is none.",
+                "a fresh all-namespace scan still sees this clone held, in {} namespace(s):\n{}\n{incomplete} further read(s) could not be completed. Nothing was destroyed for those holders, the plan keeps every line it had, and the clone stays unmounted. Ways forward: release the holders and run the removal again; a scan that sees no holder never proves there is none, and this release's removal ends no holder.",
                 holders.len(),
                 holders.join("\n")
             ),
@@ -228,11 +228,35 @@ impl RemovalStop {
             } => format!(
                 "a destruction plan stands for `{clone}`, and the clone's own `unmount` property names no request this run may go on from, so nothing proves the unmount the plan claims. Nothing was destroyed. Ways forward: run `git worktree add` at the slot again if the worktree must come back, or read the plan's file in the wrapper's plan folder; a removal never removes the property a person wrote."
             ),
+            RemovalStop::TheClonesAbsenceCouldNotBeProved {
+                slot,
+                path,
+                head,
+                reason,
+            } => format!(
+                "the destruction plan for the slot `{slot}` stands at {}, and the pool could not prove whether the clone it names is gone ({reason}), so this removal takes neither resume path and changes nothing. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. Ways forward: {} Read the plan's own file for the names it records as destroyed, and run the removal again once the pool answers; a removal never decides a path from a read that stopped.",
+                path.display(),
+                if head == "gone" {
+                    format!(
+                        "a plan whose head is `gone` is settled by the finish pass once the pool answers, and the settling command refuses it"
+                    )
+                } else {
+                    format!(
+                        "run `git monochromatic-git-policy-cli settle-worktree-clone-record {slot} --confirm-removal-of {slot} --confirm-clone-guid <guid>` for a clone destroyed outside its removal, or run the removal again and it resumes the plan"
+                    )
+                }
+            ),
             RemovalStop::ThePlanContradictsThePool {
                 head,
                 clone,
             } => format!(
                 "the plan says `head={head}` and the clone `{clone}` still answers on the pool, so the record and the pool disagree about whether a destroy happened. Nothing was destroyed. Ways forward: read the plan's file in the wrapper's plan folder and compare it with the pool; a removal never rewrites a recorded outcome to match what it finds."
+            ),
+            RemovalStop::TheLocksWordsAreNotThisAdds {
+                slot,
+                cause,
+            } => format!(
+                "the Git registration of the slot `{slot}` holds a lock this add cannot attribute to itself ({cause}), so a person's lock may stand there and this removal stops before its first write. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. Ways forward: run `git worktree unlock {slot}` to remove the lock, then run the removal again; every spelling of `git worktree remove` refuses here, `-f -f` among them, because this removal destroys the clone and its own snapshots whereas Git's own two forces would only drop the registration."
             ),
             RemovalStop::TheSettleRefused {
                 step,
@@ -251,7 +275,31 @@ impl RemovalStop {
                 step,
                 said,
             } => format!(
-                "the unmount step `{step}` did not prove the clone absent ({said}), so the removal stops before it records a destruction plan. Nothing was destroyed, every snapshot and bookmark stands, and the clone either stays where the step left it or stands at its slot again. Ways forward: find what holds the clone, release it, and run the removal again; with `--force` the wrapper ends the holders other than the caller and its session."
+                "the unmount step `{step}` did not prove the clone absent ({said}), so the removal stops before it records a destruction plan. Nothing was destroyed, every snapshot and bookmark stands, and the clone either stays where the step left it or stands at its slot again. Ways forward: find what holds the clone, release it, and run the removal again; this release's removal ends no holder, and `git worktree remove` offers no way to ask it to."
+            ),
+            RemovalStop::TheRemovalCancelledItself {
+                said,
+            } => String::from(said.as_str()),
+            RemovalStop::TheHeadDestroyWasRefused {
+                errno,
+                names,
+            } => format!(
+                "the head destroy of this clone did not take it (errno {}), and every name the pool still answers is:\n{}\nThe clone stands with what this run proved about it, and the plan records the request its head word names. Ways forward: release what holds the clone and run the removal again, which adopts the plan and destroys nothing twice.",
+                match errno {
+                    Some(held) => held.to_string(),
+                    None => String::from("none"),
+                },
+                if names.is_empty() {
+                    String::from("  no snapshot of this clone is left")
+                } else {
+                    names.join("\n")
+                }
+            ),
+            RemovalStop::TheRemovalCouldNotCancelItself {
+                stop,
+                said,
+            } => format!(
+                "{stop}, so the removal asked to put the clone back at its slot and could not: {said}. Nothing of the clone's own history was destroyed by a stop that came before a delete, and the plan keeps every line it had. Ways forward: read what refused, then run `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` to finish putting the clone back, or run the removal again once the request can be answered."
             ),
         };
     }

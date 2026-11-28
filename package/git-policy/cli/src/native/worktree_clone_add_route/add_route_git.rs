@@ -1,17 +1,17 @@
 //! What:
 //!  The Git runner the ZFS clone route's own restore steps start real Git
 //!  through,
-//! with the variables the command carries and the variables the step
+//!  with the variables the command carries and the variables the step
 //!  adds.
 //! Why:
 //!  The restore is the btrfs rung's own function
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "The restore" step 6),
-//! and it runs its steps through the ladder's runner so
+//!  and it runs its steps through the ladder's runner so
 //!  no policy of the wrapper that guards a person's `read-tree` applies to them.
 //!  A step is a real Git child started by path with the wrapper's own hooks-off
 //!  prefix,
-//! and its status is kept as Git answered it.
+//!  and its status is kept as Git answered it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

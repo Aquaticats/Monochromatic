@@ -22,6 +22,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const findings = await scanCandidates({ builtinRules, repositoryRoot, candidates });
+//! ```
 
 /// Import the candidates whose content a parent commit's tree already holds.
 use crate::candidate_known_content::KnownContent;

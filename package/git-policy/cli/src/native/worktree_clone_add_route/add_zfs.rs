@@ -1,23 +1,21 @@
 //! What:
 //!  The route's pool requests:
-//! the device opened behind the start-time gate,
-//! the
-//!  identity read,
-//! the snapshot,
-//! the clone,
-//! the origin and the delegations,
-//! and
-//!  the mount request.
+//!  the device opened behind the start-time gate,
+//!  the identity read,
+//!  the snapshot,
+//!  the clone,
+//!  the origin and the delegations,
+//!  and the mount request.
 //! Why:
 //!  Every call is the binding's own typed request,
-//! and no `zfs` program starts
+//!  and no `zfs` program starts
 //!  (`package/zfs/request-to-openzfs-kernel-device`;
 //!  `doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Binding crate and compatibility").
 //!  A refused gate disables every raw request,
-//! and the device is opened once
+//!  and the device is opened once
 //!  behind it,
-//! so a control hands in the gate's answer instead of this machine's
+//!  so a control hands in the gate's answer instead of this machine's
 //!  `/dev/zfs`.
 //!  `add_zfs_pool_answers.rs` reads what the pool answered and
 //!  `add_zfs_inventories.rs` lists what an origin and a clone hold,
@@ -73,7 +71,7 @@ use super::add_zfs_pool_answers::guid_of;
 ///  the two numbers the record writes.
 /// Why:
 ///  Every read-back answers the same two numbers,
-/// so the record and its readers
+///  so the record and its readers
 ///  name them once.
 pub use super::add_zfs_pool_answers::ObjectIdentity;
 
@@ -83,7 +81,7 @@ pub use super::add_zfs_pool_answers::ObjectIdentity;
 ///  and the properties the add reads to report a clone it cannot use.
 /// Why:
 ///  The kernel's own reply for the clone carries both,
-/// so one request answers
+///  so one request answers
 ///  what the record and the add's report need.
 pub use super::add_zfs_pool_answers::CloneMade;
 
@@ -92,7 +90,7 @@ pub use super::add_zfs_pool_answers::the_clones_mountpoint_failure;
 
 /// What:
 ///  The device the route makes its requests through,
-/// opened after the gate.
+///  opened after the gate.
 /// Why:
 ///  A refused gate disables every raw request,
 ///  and the refusal names the file or the difference rather than the add.

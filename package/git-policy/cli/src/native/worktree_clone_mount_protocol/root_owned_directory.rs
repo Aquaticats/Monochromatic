@@ -81,7 +81,7 @@ pub enum RootDirectoryRefusal {
 /// ```ts
 /// const directory = makeAndProveDirectory(path, owner, mode);
 /// ```
-pub(super) fn make_and_prove(
+pub(crate) fn make_and_prove(
     path: &Path,
     owner: u32,
     mode: u32,

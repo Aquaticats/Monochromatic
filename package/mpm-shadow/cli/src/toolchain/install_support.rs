@@ -54,6 +54,9 @@ mod a_control_refuses_the_link_move;
 /// The one atomic link write every installer shares,
 /// and the failure its rename answers with.
 mod the_atomic_symlink;
+/// The name a link is written under while its write is between its two steps,
+/// and what that name says about the install that holds it.
+mod the_temporary_link_of_an_installer;
 
 /// Imports the refusal of a link move a control plants,
 /// and the function that plants it.
@@ -64,6 +67,14 @@ pub(crate) use self::a_control_refuses_the_link_move::{
 };
 /// Re-exports the link write every installer shares.
 pub use self::the_atomic_symlink::atomic_symlink;
+/// Re-exports the name a held link carries,
+/// the purpose its name records,
+/// and the question the farm's rebuild asks of such a name.
+pub(crate) use self::the_temporary_link_of_an_installer::{
+    TEMPORARY_PURPOSE,
+    liveness_of_the_installer,
+    the_temporary_link_of,
+};
 
 /// How many levels below the install directory `restore_exec_bits` looks for the launchers.
 const EXEC_SCAN_MAX_DEPTH: usize = 3;

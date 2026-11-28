@@ -1,14 +1,13 @@
 //! What:
 //!  The capture's fixed words and the widths its bound rests on:
-//! the header
-//!  line,
-//! the keys the fixed part writes,
-//! and the widest form of each value.
+//!  the header line,
+//!  the keys the fixed part writes,
+//!  and the widest form of each value.
 //! Why:
 //!  The bound is the index's own entry count times one line's widest form plus
 //!  the fixed lines,
-//! and no separate total is shipped,
-//! exactly as the design
+//!  and no separate total is shipped,
+//!  exactly as the design
 //!  says
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "What 'the captured source' is").

@@ -13,7 +13,7 @@
 //!  and the path stayed taken with nothing said.
 //!  Every control here compares what stands in the volume before and after the removal,
 //!  so a step that changed a mode,
-//! an owner or a byte fails it.
+//!  an owner or a byte fails it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -82,12 +82,12 @@ fn a_repository_with_rules(
 }
 
 /// What one directory holds,
-/// as text:
+///  as text:
 ///  every path below it,
-/// its kind,
-/// its mode,
-/// its owner,
-/// and a digest of a file's bytes,
+///  its kind,
+///  its mode,
+///  its owner,
+///  and a digest of a file's bytes,
 ///  sorted so two readings compare whatever order the kernel lists them in.
 fn tree_of(root: &Path) -> Vec<String> {
     let mut shown: Vec<String> = Vec::new();
@@ -178,7 +178,7 @@ fn listing(
 
 /// What:
 ///  A subvolume the wrapper did not make,
-/// inside a worktree,
+///  inside a worktree,
 ///  with a file a person put there.
 /// Why:
 ///  Every control needs the same volume,
@@ -529,7 +529,7 @@ fn a_volume_several_directories_deep_and_a_second_one_are_both_left_with_their_m
 ///  A typed removal never does more than real Git does without `--force`,
 ///  and the decision spares an untracked file that is not ignored.
 ///  The volume is not a file that would go:
-/// `--force` keeps it,
+///  `--force` keeps it,
 ///  which is what the refusal says.
 #[test]
 fn a_volume_the_ignore_rules_do_not_cover_refuses_without_force_and_is_left_with_it() {
@@ -813,7 +813,7 @@ fn a_read_only_mount_point_is_left_standingly_untouched() {
 ///  Git's own sentence for the occupied path says only that it is there,
 ///  and the person who removed the worktree was told what stayed:
 ///  the two have to meet,
-/// or the path looks broken rather than taken.
+///  or the path looks broken rather than taken.
 #[test]
 fn a_later_add_at_the_path_names_the_volume_a_removal_left() {
     let fixture: Fixture = fixture("removal-around-later-add");
@@ -867,8 +867,8 @@ fn a_later_add_at_the_path_names_the_volume_a_removal_left() {
 /// What:
 ///  A clean worktree that holds no volume is removed exactly as it was before this change:
 ///  the one-call destroy,
-/// its notice,
-/// no registration and no directory.
+///  its notice,
+///  no registration and no directory.
 /// Why:
 ///  Every control above would pass just as well if the removal had stopped removing ordinary worktrees.
 #[test]
@@ -1167,8 +1167,8 @@ fn a_removal_over_missing_entries_without_a_record_says_what_is_true() {
 /// so this control ages nothing and rewrites
 ///  no index:
 ///  it adds,
-/// puts the volume in,
-/// and removes.
+///  puts the volume in,
+///  and removes.
 #[test]
 fn a_worktree_removed_in_the_second_it_was_added_goes_around_its_volume() {
     let fixture: Fixture = fixture("removal-around-the-same-second");

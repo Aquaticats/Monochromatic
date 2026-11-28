@@ -227,7 +227,7 @@ fn a_wave_with_no_future_answers_nothing() {
 ///  so a caller settles one record while its slow sibling still runs.
 /// Why:
 ///   A wave that answered only at its slowest left a push refused at once recorded,
-/// and its notice written,
+///  and its notice written,
 /// only when the sibling a silent server held for minutes ended.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,6 +1,6 @@
 //! What:
 //!  The one pool script every control of this folder drives,
-//! and the healthy tuple they break
+//!  and the healthy tuple they break
 //!  one field at a time.
 //! Why:
 //!  No control on a person's machine may open `/dev/zfs`,

@@ -18,9 +18,9 @@
 //!  `doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`).
 //!  The kernel is asked for every fact and nothing is taken from a written name:
 //!  the mount table says which dataset the checkout is on,
-//! the dataset's own
+//!  the dataset's own
 //!  reply says its GUID and mountpoint,
-//! and the record is compared field by
+//!  and the record is compared field by
 //!  field with both before anything is written.
 //!
 //! In TS you'd write (pseudocode):
@@ -117,7 +117,7 @@ pub fn run(request: &RecordCheckoutRequest) -> Result<String, RecordCheckoutFail
 
 /// What:
 ///  Run the mode from the places,
-/// the gate's answer and the caller it is given.
+///  the gate's answer and the caller it is given.
 /// Why:
 ///   Every read and write is an argument,
 ///  so a control proves each refusal without root,

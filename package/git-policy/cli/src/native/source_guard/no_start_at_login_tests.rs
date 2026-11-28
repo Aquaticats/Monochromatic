@@ -20,6 +20,28 @@
 //! preset or default anything,
 //! and speaks to the manager only with the
 //!  members on the list below.
+//! What this reading does not see,
+//! and what a reader therefore checks by hand:
+//!  a start whose program is a value rather than a literal
+//!  (`Command::new(EXECUTABLE_SYSTEMCTL)`,
+//!  whose path `checkout_boot_units/boot_unit_names.rs` holds),
+//!  a `member:` whose name is a constant or whose literal a line break separates from its key,
+//!  a unit text or an install line that a macro of another file expands to,
+//!  and a release file whose name this guard reads as test code
+//!  (`testing/`,
+//!  `binary/`,
+//!  a name ending `_tests.rs` or holding `test_support`),
+//!  which `lib.rs` gates with `#[cfg(test)]` today.
+//!  The manager's program is read where the call's `(` ends its line and its literal stands on the next
+//!  one,
+//!  and the import that renames the type (`use std::process::Command as Cmd;`) is a finding of its own,
+//!  so a start whose type another name spells is refused where that name is brought in.
+//!  A literal further than the next code line from the call's `(`,
+//!  and one a comment line separates from
+//!  it,
+//!  are not read.
+//!  A comment is a line whose first characters are `//`,
+//!  so a banned text written after code on a line is a finding.
 //! Why:
 //!  Owner,
 //! 2026-11-07:
@@ -48,6 +70,10 @@ use std::path::{
     Path,
     PathBuf,
 };
+
+/// The shared scan's text reading,
+/// so the import that renames the type of a start is judged by the same rule every other text ban uses.
+use super::lines_holding_one_of;
 
 /// The members of the user manager (and of the bus daemon) the wrapper may call:
 /// say hello,
@@ -86,8 +112,14 @@ const ALLOWED_MEMBERS: &[&str] = &[
 
 /// Texts that no release code line may carry:
 /// the manager's calls that make a unit start at startup or login,
-/// and the program
-///  that makes them from a shell.
+/// the program
+///  that makes them from a shell,
+///  and the import that brings the type of a start in under another name.
+/// The manager's own program is read by `starts_the_manager_s_program` instead of by a text,
+/// because a start may spell its path (`Command::new("/usr/bin/systemctl")`).
+/// Why `Command as ` is here:
+///  `Cmd::new("systemctl")` after `use std::process::Command as Cmd;` starts the same program,
+///  and the line that says the name is the import (the alpha.52 read's L2).
 const FORBIDDEN_IN_CODE: &[&str] = &[
     "EnableUnitFiles",
     "LinkUnitFiles",
@@ -95,10 +127,10 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
     "PresetUnitFiles",
     "SetDefaultTarget",
     "MaskUnitFiles",
-    "Command::new(\"systemctl",
     "WantedBy=",
     "RequiredBy=",
     "[Install]",
+    "Command as ",
 ];
 
 /// What:
@@ -142,6 +174,76 @@ fn the_entry_of_a_wants_line(
             && line.contains(allowed_text)
             && line.trim() == *written;
     });
+}
+
+/// Whether this release code line starts the system manager's own program,
+/// however the literal is spelled:
+/// the bare name,
+/// a path that ends in it,
+/// or a raw literal.
+/// Why:
+///  the ban read one literal (`Command::new("systemctl`),
+///  so `Command::new("/usr/bin/systemctl").arg("enable")` passed it,
+///  and `checkout_boot_units/boot_unit_names.rs` holds the path as `EXECUTABLE_SYSTEMCTL`.
+///  A start whose program is a value names no literal here,
+///  which this guard's top doc says.
+fn starts_the_manager_s_program(line: &str) -> bool {
+    let Some(at) = line.find("Command::new") else {
+        return false;
+    };
+    let named: &str = line[at + "Command::new".len()..].trim_start();
+    let Some(inside_the_call) = named.strip_prefix('(') else {
+        return false;
+    };
+    let arguments: &str = inside_the_call.trim_start();
+    let literal: &str = if let Some(after) = arguments.strip_prefix("r\"") {
+        after
+    } else if let Some(after) = arguments.strip_prefix('"') {
+        after
+    } else {
+        return false;
+    };
+    let spelled: &str = literal.split('"').next().unwrap_or("");
+    return spelled == "systemctl" || spelled.ends_with("/systemctl");
+}
+
+/// What:
+///  `fn lines_starting_the_manager_s_program(text: &str) -> Vec<(usize, String)>` lists the code lines of one source
+///  that start the manager's own program,
+///  each with the number of the line the start is written on,
+///  joining a call whose `(` ends its line with the code line after it.
+/// Why:
+///  A start may put its literal on the line after the call's `(`,
+///  and that literal is the only thing that says which program it starts
+///  (the alpha.52 read's L2).
+///  Only the next code line is joined,
+///  which is the line a literal there stands on;
+///  a literal further down,
+///  or one a comment line separates from the call,
+///  is no reading here,
+///  and this guard's top doc says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function linesStartingTheManagerSProgram(text: string): [number, string][]
+/// ```
+fn lines_starting_the_manager_s_program(text: &str) -> Vec<(usize, String)> {
+    let lines: Vec<(usize, &str)> = code_lines(text);
+    let mut found: Vec<(usize, String)> = Vec::new();
+    for (at, (number, line)) in lines.iter().enumerate() {
+        if starts_the_manager_s_program(line) {
+            found.push((*number, String::from(*line)));
+            continue;
+        }
+        let Some((_, after)) = lines.get(at + 1) else {
+            continue;
+        };
+        let joined: String = format!("{line} {after}");
+        if starts_the_manager_s_program(joined.as_str()) {
+            found.push((*number, joined));
+        }
+    }
+    return found;
 }
 
 /// The unit texts the one-time ZFS setup installs under `multi-user.target`,
@@ -358,6 +460,94 @@ fn the_detector_finds_every_install_line_and_skips_comments() {
     assert!(lines_that_start_at_login("[Unit]\n# WantedBy=default.target is not written\n; [Install]\n[Socket]\nListenStream=%t/x.sock\n").is_empty());
 }
 
+/// The manager's own program is read however its literal is spelled,
+/// and a start of another program,
+/// a sentence that mentions the program,
+/// or the constant that holds its path is none.
+#[test]
+fn the_manager_s_program_is_read_however_the_literal_spells_it() {
+    for planted in [
+        "let _ = Command::new(\"systemctl\").arg(\"enable\");",
+        "let _ = Command::new(\"/usr/bin/systemctl\").arg(\"enable\");",
+        "let _ = Command::new(r\"systemctl\").arg(\"enable\");",
+    ] {
+        assert!(starts_the_manager_s_program(planted), "{planted}");
+    }
+    for fine in [
+        "let _ = Command::new(git);",
+        "let _ = Command::new(\"git\");",
+        "let _ = Command::new(EXECUTABLE_SYSTEMCTL).arg(\"enable\");",
+        "pub const EXECUTABLE_SYSTEMCTL: &str = \"/usr/bin/systemctl\";",
+        "let advice = format!(\"stop it with `systemctl --user stop {unit}` and run again\");",
+    ] {
+        assert!(!starts_the_manager_s_program(fine), "{fine}");
+    }
+}
+
+/// A start whose literal stands on the line after its `(` is read,
+/// and a start of another program written the same way is not.
+/// Why:
+///  the literal was read from the call's own line alone,
+///  so `Command::new(` with `"systemctl"` on the next line started the manager with no finding
+///  (the alpha.52 read's L2).
+#[test]
+fn the_manager_s_program_is_read_when_its_literal_is_on_the_next_line() {
+    for planted in [
+        "fn start() {\n    let _ = std::process::Command::new(\n        \"systemctl\",\n    );\n}\n",
+        "fn start() {\n    let _ = Command::new(\n        \"/usr/bin/systemctl\",\n    );\n}\n",
+        "fn start() {\n    let _ = Command::new(\n        r\"systemctl\",\n    );\n}\n",
+    ] {
+        assert_eq!(
+            lines_starting_the_manager_s_program(planted).len(),
+            1,
+            "{planted}"
+        );
+    }
+    for fine in [
+        "fn start() {\n    let _ = Command::new(\n        git,\n    );\n}\n",
+        "fn start() {\n    let _ = Command::new(git);\n    let _ = Command::new(\n        \"git\",\n    );\n}\n",
+        "fn ask() {\n    let _ = Command::new(EXECUTABLE_SYSTEMCTL)\n        .arg(\"enable\");\n}\n",
+    ] {
+        assert!(
+            lines_starting_the_manager_s_program(fine).is_empty(),
+            "{fine}"
+        );
+    }
+}
+
+/// A start under another name of the type is a finding where the name is brought in,
+/// so `Cmd::new("systemctl")` after `use std::process::Command as Cmd;` is refused,
+/// and the type imported under its own name is still no finding.
+/// Why:
+///  the call spells no `Command::new`,
+///  and the import is the one line that says which type the name starts
+///  (the alpha.52 read's L2).
+#[test]
+fn a_start_under_another_name_is_read_where_the_name_is_brought_in() {
+    for import in [
+        "use std::process::Command as Cmd;\n",
+        "use std::process::{Command as Cmd};\n",
+    ] {
+        let planted: Vec<(String, String)> = vec![(
+            String::from("service/planted.rs"),
+            format!("fn start() {{\n    {import}    let _ = Cmd::new(\"systemctl\");\n}}\n"),
+        )];
+        assert_eq!(
+            lines_holding_one_of(planted.as_slice(), FORBIDDEN_IN_CODE).len(),
+            1,
+            "{import}"
+        );
+    }
+    let imported_under_its_own_name: Vec<(String, String)> = vec![(
+        String::from("service/planted.rs"),
+        String::from("use std::process::Command;\n"),
+    )];
+    assert!(
+        lines_holding_one_of(imported_under_its_own_name.as_slice(), FORBIDDEN_IN_CODE).is_empty(),
+        "the type imported under its own name names no other start"
+    );
+}
+
 /// What:
 ///  The walk skips a `uses` link that names a folder below its root,
 ///  and refuses every other link,
@@ -432,6 +622,11 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
                     found.push(format!("{relative}:{number}: {forbidden}"));
                 }
             }
+            if starts_the_manager_s_program(line) {
+                found.push(format!(
+                    "{relative}:{number}: a start of the manager's own program"
+                ));
+            }
             let wants: bool = line.contains(".wants") || line.contains(".requires");
             if !wants {
                 continue;
@@ -442,6 +637,11 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
                 Some(at) => excused[at] = true,
                 None => found.push(format!("{relative}:{number}: a wants or requires folder")),
             }
+        }
+        for (number, line) in lines_starting_the_manager_s_program(text.as_str()) {
+            found.push(format!(
+                "{relative}:{number}: a start of the manager's own program: {line}"
+            ));
         }
     }
     assert_eq!(found, Vec::<String>::new());

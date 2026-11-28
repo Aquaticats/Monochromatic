@@ -164,7 +164,7 @@ fn real(
 /// The environment every real-Git query of this control runs with:
 ///  no system or global configuration,
 /// and a home inside the repository,
-/// so nothing of the account's own reaches a fixture.
+///  so nothing of the account's own reaches a fixture.
 fn hermetic_environment(repo: &Path) -> Vec<(OsString, OsString)> {
     return vec![
         (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),

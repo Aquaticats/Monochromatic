@@ -13,8 +13,12 @@
  copy. Both were answers of the three sets of guest helpers, and the polling, the pull and the judgement of the status
  are the one answer this module holds.
 
- The guest-name check a detached script carries is `{@link detachedScriptFiles}`'s distinguishing switch: one driver's
- scripts answer it in the step file and the other two in the launcher.
+ The guest-name check a detached script carries is `{@link detachedScriptFiles}`'s distinguishing switch: the step 22
+ driver's scripts answer it in the step file, the adoption driver's and the start probe's in the launcher, and the
+ removal-lineage, settling and cancel-and-settle drivers' scripts carry none.
+
+ The launcher is a command this host waits for, and the status it exits with is read: a launcher that was refused says so
+ at once instead of leaving the run to wait out the bound for a log no guest will write.
  */
 import { writeFile, } from 'node:fs/promises';
 import {
@@ -111,7 +115,7 @@ async function pushIntoSharedFolder({
 
  @param nameCheck - which of the two files carries the guest's name check, if either
 
- @throws GuestDriverError when the guest could not be asked to start the script
+ @throws GuestDriverError when the launcher was refused, or when it never started or was stopped at its bound
 
  @example
  ```ts
@@ -183,9 +187,14 @@ export async function startDetachedGuestScript({
     from: launchPath,
     log: `guest-push-${log}.log`,
   },);
-  // The launcher's text ends with `exit 0`, so its own status says only that the guest accepted the file; what the
-  // script went on to do is read from the shared log below.
-  await runQuietStepCommand({
+  // The launcher's text ends with `exit 0`, so a status other than zero is the launcher's own refusal: either the guest
+  // it names is not the machine the command reached, or `mvm` could not ask the guest at all. What the script went on to
+  // do is read from the shared log below, and this refusal is said here rather than after a wait for a log that no guest
+  // will write.
+  /**
+   The status the launcher exited with, which is this host's only news that the step file was started at all.
+   */
+  const launcherStatus = await runQuietStepCommand({
     program: 'mvm',
     argumentWords: [
       '--backend',
@@ -198,6 +207,11 @@ export async function startDetachedGuestScript({
     ],
     timeoutMilliseconds: HOST_COMMAND_TIMEOUT_MS,
   },);
+  if (launcherStatus !== 0) {
+    throw new GuestDriverError(
+      `mvm --backend libvirt exec ${chosen.name} -- sh ${GUEST_SHARED_FOLDER}/${log}.launch.sh exited ${String(launcherStatus,)}: the launcher was refused, so '${chosen.name}' started none of ${log}.step.sh`,
+    );
+  }
 }
 
 /**

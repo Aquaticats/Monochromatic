@@ -211,8 +211,8 @@ fn fake_mpm_shadow(fixture: &Fixture) {
 ///  Every install of this release answers only for the names the worktree's own lock declares,
 ///  so such a record stayed stale on every try:
 ///  the relink was retried,
-/// given up on,
-/// and left a notice telling the person to run an install that answers the same way.
+///  given up on,
+///  and left a notice telling the person to run an install that answers the same way.
 ///  The record the lock declares is the one the install rewrote,
 ///  which this control reads to show the copy was not simply the only record there.
 ///
@@ -281,7 +281,7 @@ const PNPM_ATTEMPT_PATIENCE: Duration = Duration::from_secs(30);
 /// Why:
 ///  A repair whose tool failed is answered with a retry,
 /// and the service tries it again only when the record's claim lease ends (`CLAIM_LEASE`,
-/// 120 seconds),
+///  120 seconds),
 /// for up to `MAX_TRIES` tries.
 /// A control about the hand-over reads the first attempt,
 /// so it waits for that attempt's record and not for the repair to settle.

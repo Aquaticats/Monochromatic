@@ -61,7 +61,7 @@ use crate::worktree_clone_mount_protocol::local_user_property::{
 ///  as a finding or nothing.
 /// Why:
 ///  The checkout,
-/// the container and each clone hold the same facts in a
+///  the container and each clone hold the same facts in a
 ///  different shape,
 ///  so one comparison answers all three and a new property is one arm rather
 ///  than three.
@@ -190,8 +190,7 @@ fn container_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
 
 /// A clone's properties:
 /// legacy inherited from the container,
-/// and no
-/// set-user-ID or device nodes in its mount.
+/// and no set-user-ID or device nodes in its mount.
 pub(super) fn clone_failure(facts: &CloneObjectFacts) -> Option<(String, String)> {
     if facts.mountpoint.text() != Some(LEGACY_MOUNTPOINT) {
         return Some((

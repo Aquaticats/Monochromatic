@@ -7,6 +7,10 @@
 //!  and every name a `pub use` publishes that the chain does not already reach:
 //!  a name carried out of a module it does not reach,
 //!  and a name a re-export spells differently from the name it re-exports.
+//!  A shape a split writes is read as well:
+//!  a declaration on the line of the attribute above it (`#[inline] pub fn f() {}`),
+//!  a `#[macro_export(local_inner_macros)] macro_rules!`,
+//!  and a field or an `impl` body whose header runs over several lines.
 //! Why:
 //!  A `mod` line and a `use` line decide reachability in two different ways,
 //!  and a reader of one file sees neither:
@@ -28,10 +32,16 @@
 //!    Such a field is reached as `.0`,
 //!    and this scan keys a member by the name the declaration writes,
 //!    which a paren body does not write.
-//!  - A member of a type published only through a `pub use` facade:
-//!    the type's own `pub` declaration sits in a module no `pub mod` chain reaches,
-//!    and this scan reads a type as published only where such a chain reaches its declaration.
-//!    A consumer can reach such a member through the facade and this scan reads nothing of it.
+//!  - A member of a type whose only public path is a `pub use` facade is read,
+//!    at the facade's path and under the name the facade gives it,
+//!    from the module the statement names.
+//!    Nothing of it is read where that statement names an inline `mod name { ... }` body
+//!    (`conflict/discarded_store.rs` and `worktree/worktree_ladder.rs` re-export such a body,
+//!    which exists only where the crate is built for another platform),
+//!    where it names a module no `pub mod` chain and no glob of the crate root reaches,
+//!    where two modules a root glob names both hold the path's next segment,
+//!    or where the module it names declares no type of that name (a function or a constant takes its own line
+//!    and has no members).
 //!  - A `pub trait`'s methods and a `pub enum`'s variants:
 //!    both are published with no `pub` of their own,
 //!    so a new one changes the published surface without a line here.
@@ -49,6 +59,17 @@
 //!    A re-export that spells the name differently publishes a new name and takes a line.
 //!  - A signature or a value that changes under a name that stays:
 //!    the entry names the name and nothing of its shape or its value.
+//!  - A name behind a feature gate,
+//!    as `#[cfg(feature = "measurement-routes")] pub fn f`,
+//!    counts as published,
+//!    because a gate keeps an item out only where it holds only when testing.
+//!    The build that turns the feature on publishes the name,
+//!    and the list holds every such name the tree writes today.
+//!  - Members are matched by a type's bare name and by nothing else,
+//!    so a type declared `pub` in a module nothing publishes has its `pub` members read as published whenever a
+//!    published type elsewhere writes the same name.
+//!    Such a name takes a line a consumer does not need,
+//!    and a control beside this file pins that it does.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -60,7 +81,10 @@ use super::modules_a_library_root_reaches_tests::{
     chain_the_target_reaches,
     read_the_tree,
 };
-use crate::source_scan_tests::declaration::is_test_gate;
+use crate::source_scan_tests::declaration::{
+    is_test_gate,
+    leading_attributes,
+};
 use std::collections::{
     BTreeMap,
     BTreeSet,
@@ -262,6 +286,27 @@ fn declaration_after_pub(rest: &str) -> Option<(String, String)> {
 }
 
 /// What:
+///  `fn is_a_macro_export(attribute: &str) -> bool` answers whether an attribute publishes the macro below it
+///  to another crate,
+///  whatever stands inside its parentheses.
+/// Why:
+///  `#[macro_export(local_inner_macros)]` publishes the macro exactly as `#[macro_export]` does,
+///  and a reader that compared the whole attribute with the one text read the first form as no export
+///  (the alpha.52 read's L1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAMacroExport = (attribute: string): boolean => /^#\[macro_export(?:\s*\(.*\))?\]$/.test(attribute)
+/// ```
+fn is_a_macro_export(attribute: &str) -> bool {
+    let Some(after_the_name) = attribute.strip_prefix("#[macro_export") else {
+        return false;
+    };
+    let inside: &str = after_the_name.trim_end();
+    return inside == "]" || (inside.starts_with('(') && inside.ends_with(")]"));
+}
+
+/// What:
 ///  `fn is_a_test_only_attribute(attribute: &str) -> bool` answers whether an attribute keeps the
 ///  declaration below it out of a release build.
 /// Why:
@@ -299,6 +344,10 @@ fn is_a_test_only_attribute(attribute: &str) -> bool {
 /// which `members_in` reads.
 ///  A `#[cfg(test)]` attribute above a declaration keeps it out of the release build,
 ///  so it publishes nothing.
+/// Gotcha:
+///  An attribute and the declaration it gates may share one line,
+///  so the line is read from the first `pub` or `macro_rules!` after its attributes,
+///  and an indented `#[` line is no attribute of a first-column declaration.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -311,13 +360,21 @@ fn first_column_declarations(text: &str) -> Vec<(String, String)> {
         if line.trim_start().starts_with("//") {
             continue;
         }
-        if line.starts_with("#[") {
-            attributes.push(line.trim_end());
+        // What: the attributes a first-column line starts with, and the declaration after them on that line.
+        // Why: a declaration on its attribute's line publishes a name, and a `#[` line one level in is no
+        //      attribute of a first-column declaration.
+        let (written, declaration): (Vec<&str>, &str) = if line.starts_with("#[") {
+            leading_attributes(line)
+        } else {
+            (Vec::new(), line)
+        };
+        attributes.extend(written);
+        if declaration.trim().is_empty() {
             continue;
         }
-        let exported: bool = attributes.iter().any(|attribute| {
-            return *attribute == "#[macro_export]";
-        });
+        let exported: bool = attributes
+            .iter()
+            .any(|attribute| return is_a_macro_export(attribute));
         let only_for_tests: bool = attributes.iter().any(|attribute| {
             return is_a_test_only_attribute(attribute);
         });
@@ -326,17 +383,18 @@ fn first_column_declarations(text: &str) -> Vec<(String, String)> {
             continue;
         }
         if exported {
-            let exported_name: Option<&str> = line.strip_prefix("macro_rules! ").and_then(|rest| {
-                return rest
-                    .split(|character: char| return character == ' ' || character == '{')
-                    .next();
-            });
+            let exported_name: Option<&str> =
+                declaration.strip_prefix("macro_rules! ").and_then(|rest| {
+                    return rest
+                        .split(|character: char| return character == ' ' || character == '{')
+                        .next();
+                });
             if let Some(name) = exported_name {
                 found.push((String::from("macro_rules"), name.to_owned()));
             }
             continue;
         }
-        let Some(rest) = line.strip_prefix("pub ") else {
+        let Some(rest) = declaration.strip_prefix("pub ") else {
             continue;
         };
         if let Some(declared) = declaration_after_pub(rest) {
@@ -492,7 +550,9 @@ fn member_of_body(
 ///  The scan reads a member one level inside the body its declaration opened,
 ///  so a member of a tuple-like struct's parentheses is read by nothing here.
 ///  A declaration whose body opens on a later line is held as the opening it still waits for,
-///  because this crate writes the generics of a type or an `impl` over several lines.
+///  because this crate writes the generics of a type or an `impl` over several lines;
+///  an `impl` whose own generics run over those lines names its type only after them,
+///  so its header is held as one text until its `{` arrives and the type is read from all of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -504,7 +564,8 @@ fn members_of(
 ) -> Vec<(String, String)> {
     let mut found: Vec<(String, String)> = Vec::new();
     let mut body: Option<(String, bool)> = None;
-    let mut opening: Option<(String, bool)> = None;
+    let mut opening: Option<(Option<String>, bool)> = None;
+    let mut header: String = String::new();
     let mut remaining: i32 = 0;
     let mut only_for_tests: bool = false;
     for line in text.lines() {
@@ -515,14 +576,32 @@ fn members_of(
         // first column, because a type's or an `impl`'s generics and `where` clause are written there.
         // Why: Only the line holding the body's `{` opens it, and a header that ends in `;` has no body.
         if let Some((owner, methods)) = opening.take() {
+            let resolved: Option<String> = match owner {
+                Some(name) => Some(name),
+                None => {
+                    // What: an `impl` whose generics ran over several lines names its type after them.
+                    // Why: the type is written across the whole header, and the line of the `impl` alone
+                    //      named none of it.
+                    header.push(' ');
+                    header.push_str(line.trim());
+                    self_type_of(header.as_str())
+                }
+            };
             remaining += brace_delta(line);
             if line.contains('{') {
-                body = Some((owner, methods));
-                if remaining <= 0 {
-                    body = None;
+                // What: the body opens here, and only for a type the chain publishes.
+                // Why: a `pub` member of a type no consumer can name publishes nothing.
+                match resolved {
+                    Some(name) if published_types.contains(name.as_str()) => {
+                        body = Some((name, methods));
+                        if remaining <= 0 {
+                            body = None;
+                        }
+                    }
+                    _ => {}
                 }
             } else if !(line.contains(';') || remaining < 0) {
-                opening = Some((owner, methods));
+                opening = Some((resolved, methods));
             }
             continue;
         }
@@ -554,10 +633,21 @@ fn members_of(
                         // body waits for a later line.
                         // Why: `pub struct Unit;` writes a `;` and has no body at all.
                         remaining = 0;
-                        opening = Some((owner, methods));
+                        opening = Some((Some(owner), methods));
                     }
                 }
-                _ => {}
+                _ => {
+                    // What: An `impl` whose own generics run over several lines names its type after them,
+                    // so the whole header is held and the type read where the body's `{` arrives.
+                    // Why: `rustfmt` writes that header for a long generic list, and a reader of the `impl`
+                    // line alone published none of the members the body writes.
+                    if line.starts_with("impl") {
+                        header.clear();
+                        header.push_str(line);
+                        remaining = 0;
+                        opening = Some((None, true));
+                    }
+                }
             }
             continue;
         }
@@ -628,10 +718,30 @@ fn use_statements(text: &str) -> Vec<String> {
 }
 
 /// What:
-///  `fn carried_of_statement(statement: &str) -> Vec<(String, String, bool)>` lists the
-///  `(module, name, renamed)` triples one `pub use` statement names,
-///  with every `as` rename applied and the module written as the statement writes it,
-///  and `renamed` true where the statement spells the name differently from the name it re-exports.
+///  `struct CarriedOfAStatement` is one name a `pub use` statement publishes:
+///  the module the statement names,
+///  the name that module declares,
+///  the name the statement publishes,
+///  and whether those two differ.
+/// Why:
+///  A facade publishes a type at a path of its own,
+///  so a member of that type is read where the type is declared and keyed by the name the facade gives it.
+struct CarriedOfAStatement {
+    /// The module path the statement writes before the name it publishes.
+    module: String,
+    /// The name the module the statement names declares.
+    declared: String,
+    /// The name the statement publishes,
+    /// which is the name after an `as`.
+    published: String,
+    /// Whether the statement spells the name differently from the name it re-exports.
+    renamed: bool,
+}
+
+/// What:
+///  `fn carried_of_statement(statement: &str) -> Vec<CarriedOfAStatement>` lists one record per name one
+///  `pub use` statement publishes,
+///  with every `as` rename applied and the module written as the statement writes it.
 /// Why:
 ///  The name a statement publishes is the name after its `as`,
 /// not the one it started from,
@@ -641,10 +751,10 @@ fn use_statements(text: &str) -> Vec<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function carriedOfStatement(statement: string): [string, string, boolean][]
+/// function carriedOfStatement(statement: string): CarriedOfAStatement[]
 /// ```
-fn carried_of_statement(statement: &str) -> Vec<(String, String, bool)> {
-    let mut found: Vec<(String, String, bool)> = Vec::new();
+fn carried_of_statement(statement: &str) -> Vec<CarriedOfAStatement> {
+    let mut found: Vec<CarriedOfAStatement> = Vec::new();
     let mut prefixes: Vec<String> = vec![String::new()];
     let mut piece: String = String::new();
     let mut depth: usize = 0;
@@ -683,7 +793,7 @@ fn carried_of_statement(statement: &str) -> Vec<(String, String, bool)> {
         if entry.is_empty() {
             continue;
         }
-        let (path, name): (&str, &str) = match entry.split_once(" as ") {
+        let (path, named): (&str, &str) = match entry.split_once(" as ") {
             Some((path, alias)) => (path.trim(), alias.trim()),
             None => (entry, entry.rsplit("::").next().unwrap_or(entry).trim()),
         };
@@ -691,15 +801,16 @@ fn carried_of_statement(statement: &str) -> Vec<(String, String, bool)> {
             Some((module, last)) => (module, last),
             None => continue,
         };
-        let published: &str = name_of(last, name);
+        let published: &str = name_of(last, named);
         if published.is_empty() {
             continue;
         }
-        found.push((
-            module.to_owned(),
-            published.to_owned(),
-            entry.contains(" as "),
-        ));
+        found.push(CarriedOfAStatement {
+            module: module.to_owned(),
+            declared: last.to_owned(),
+            published: published.to_owned(),
+            renamed: entry.contains(" as "),
+        });
     }
     return found;
 }
@@ -725,8 +836,8 @@ fn name_of<'a>(
 }
 
 /// What:
-///  `fn carried_names(text: &str) -> Vec<(String, String, bool)>` lists every `(module, name, renamed)` triple
-///  the text's `pub use` statements publish,
+///  `fn carried_names(text: &str) -> Vec<CarriedOfAStatement>` lists every name the text's `pub use` statements
+///  publish,
 ///  however many lines each statement spans.
 /// Why:
 ///  The caller decides which of them the `pub mod` chain does not already reach;
@@ -734,15 +845,164 @@ fn name_of<'a>(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const carriedNames = (text: string): [string, string, boolean][] =>
+/// const carriedNames = (text: string): CarriedOfAStatement[] =>
 ///   useStatements(text).flatMap(carriedOfStatement)
 /// ```
-fn carried_names(text: &str) -> Vec<(String, String, bool)> {
-    let mut found: Vec<(String, String, bool)> = Vec::new();
+fn carried_names(text: &str) -> Vec<CarriedOfAStatement> {
+    let mut found: Vec<CarriedOfAStatement> = Vec::new();
     for statement in use_statements(text) {
         found.extend(carried_of_statement(statement.as_str()));
     }
     return found;
+}
+
+/// What:
+///  `fn glob_targets(text: &str) -> Vec<String>` lists the module paths a text's `pub use <module>::*` statements
+///  name.
+/// Why:
+///  The library root re-exports each of its folders with a glob,
+///  and a facade may write a path that names a module through one of them
+///  (`crate::the_guarded_commands` for `command::the_guarded_commands`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const globTargets = (text: string): string[] =>
+///   useStatements(text).filter((s) => s.endsWith('::*')).map((s) => s.slice(0, -3).trim())
+/// ```
+fn glob_targets(text: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for statement in use_statements(text) {
+        let Some(target) = statement.strip_suffix("::*") else {
+            continue;
+        };
+        found.push(target.trim().to_owned());
+    }
+    return found;
+}
+
+/// What:
+///  `fn through_the_globs(modules, globbed, path) -> Option<String>` follows the rest of a root path from the
+///  modules the root's globs name,
+///  and answers the one chain every candidate agrees on.
+/// Why:
+///  A glob re-export is what makes such a path compile,
+///  and a segment two globbed modules both hold is no answer this reading can give,
+///  so it answers nothing rather than guessing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function throughTheGlobs(modules, globbed: string[], path: string): string | undefined
+/// ```
+fn through_the_globs(
+    modules: &BTreeMap<String, ModuleOfTheTree>,
+    globbed: &[String],
+    path: &str,
+) -> Option<String> {
+    let mut candidates: Vec<String> = globbed.to_vec();
+    for segment in path
+        .split("::")
+        .filter(|segment| return !segment.is_empty())
+    {
+        let mut next: Vec<String> = Vec::new();
+        for chain in &candidates {
+            let Some(child) = modules
+                .get(chain.as_str())
+                .and_then(|module| return module.children.get(segment))
+            else {
+                continue;
+            };
+            next.push(child.clone());
+        }
+        candidates = next;
+    }
+    if candidates.len() == 1 {
+        return candidates.into_iter().next();
+    }
+    return None;
+}
+
+/// What:
+///  `fn the_module_a_facade_names(modules, from, target, globbed) -> Option<String>` answers the chain of the
+///  module a `pub use` statement names,
+///  which is where the names it publishes are declared.
+/// Why:
+///  A type a facade publishes sits in a module no `pub mod` chain reaches,
+///  so its declaration is found through the statement's own path;
+///  and a `crate::` path the root holds as no module may still name one the root's globs re-export.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theModuleAFacadeNames(modules, from: string, target: string, globbed: string[]): string | undefined
+/// ```
+fn the_module_a_facade_names(
+    modules: &BTreeMap<String, ModuleOfTheTree>,
+    from: &str,
+    target: &str,
+    globbed: &[String],
+) -> Option<String> {
+    if let Some(found) = chain_the_target_reaches(modules, from, target) {
+        return Some(found);
+    }
+    let rest: &str = target.strip_prefix("crate::")?;
+    return through_the_globs(modules, globbed, rest);
+}
+
+/// What:
+///  `fn the_members_a_facade_publishes(modules, root, from, carried, globbed)` lists the `pub` members of the type
+///  a statement publishes,
+///  each as its kind and the member's own name.
+/// Why:
+///  A consumer reaches the type's fields,
+///  methods and associated constants through the facade,
+///  so they publish names of the facade's path even though the type's declaration sits in a module nothing
+///  else reaches.
+///  Only a declaration of the name the statement publishes is read,
+///  so a function,
+///  a constant or another module's name of that spelling reads nothing here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theMembersAFacadePublishes(modules, root: string, from: string, carried: CarriedOfAStatement, globbed: string[]): [string, string][]  // throws Error
+/// ```
+fn the_members_a_facade_publishes(
+    modules: &BTreeMap<String, ModuleOfTheTree>,
+    root: &Path,
+    from: &str,
+    carried: &CarriedOfAStatement,
+    globbed: &[String],
+) -> Result<Vec<(String, String)>, String> {
+    let Some(declaring) =
+        the_module_a_facade_names(modules, from, carried.module.as_str(), globbed)
+    else {
+        return Ok(Vec::new());
+    };
+    let Some(module) = modules.get(declaring.as_str()) else {
+        return Ok(Vec::new());
+    };
+    if module.test_only {
+        return Ok(Vec::new());
+    }
+    let text: String = read_module(root, module)?;
+    let declares_a_type: bool =
+        first_column_declarations(text.as_str())
+            .iter()
+            .any(|(kind, name)| {
+                return KINDS_THAT_OWN_MEMBERS.contains(&kind.as_str())
+                    && *name == carried.declared;
+            });
+    if !declares_a_type {
+        return Ok(Vec::new());
+    }
+    let mut published_types: BTreeSet<String> = BTreeSet::new();
+    published_types.insert(carried.declared.clone());
+    let mut found: Vec<(String, String)> = Vec::new();
+    for (kind, member) in members_of(text.as_str(), &published_types) {
+        let bare: &str = member
+            .split_once("::")
+            .map_or(member.as_str(), |(_owner, rest)| return rest);
+        found.push((kind, bare.to_owned()));
+    }
+    return Ok(found);
 }
 
 /// What:
@@ -772,7 +1032,8 @@ fn module_key(chain: &str) -> String {
 /// Gotcha:
 ///  The types a public module publishes are read before any member is,
 ///  because a member publishes a name only through its type;
-///  so every file of the tree is read once for its declarations and once for its members.
+///  so every file of the tree is read once for its declarations and once for its members,
+///  and the file a facade names is read once more for the members that facade publishes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -781,17 +1042,25 @@ fn module_key(chain: &str) -> String {
 pub(crate) fn surface_of(root: &Path) -> Result<Surface, String> {
     let modules: BTreeMap<String, ModuleOfTheTree> = read_the_tree(root)?;
     let mut published_types: BTreeSet<String> = BTreeSet::new();
+    let mut globbed: Vec<String> = Vec::new();
     for (chain, module) in &modules {
         if !module.public || module.test_only {
             continue;
         }
         let text: String = read_module(root, module)?;
+        if chain.is_empty() {
+            for target in glob_targets(text.as_str()) {
+                let Some(found) = chain_the_target_reaches(&modules, chain, target.as_str()) else {
+                    continue;
+                };
+                globbed.push(found);
+            }
+        }
         for (kind, name) in first_column_declarations(text.as_str()) {
             if KINDS_THAT_OWN_MEMBERS.contains(&kind.as_str()) {
                 published_types.insert(name);
             }
         }
-        let _ = chain;
     }
     let mut items: Vec<NameableItem> = Vec::new();
     let mut carried: Vec<CarriedName> = Vec::new();
@@ -816,17 +1085,33 @@ pub(crate) fn surface_of(root: &Path) -> Result<Surface, String> {
                 file: module.file.clone(),
             });
         }
-        for (target, name, renamed) in carried_names(text.as_str()) {
-            let reached: Option<String> =
-                chain_the_target_reaches(&modules, chain, target.as_str());
+        for site in carried_names(text.as_str()) {
+            let target: &str = site.module.as_str();
+            let reached: Option<String> = chain_the_target_reaches(&modules, chain, target);
             let public: bool = reached
                 .and_then(|found| return modules.get(found.as_str()))
                 .is_some_and(|found| return found.public && !found.test_only);
-            if !public || renamed {
+            if !public || site.renamed {
                 carried.push(CarriedName {
-                    key: format!("{written} pub use {target}::{name}"),
+                    key: format!("{written} pub use {target}::{}", site.published),
                     file: module.file.clone(),
                 });
+                // What: the members a consumer reaches through this facade, keyed by the path and the name the
+                //       facade gives the type.
+                // Why: the statement is the only thing that says which type a consumer can name here, because
+                //      the type's own declaration sits in a module the `pub mod` chain does not reach.
+                for (kind, member) in the_members_a_facade_publishes(
+                    &modules,
+                    root,
+                    chain,
+                    &site,
+                    globbed.as_slice(),
+                )? {
+                    items.push(NameableItem {
+                        key: format!("{written} {kind} {}::{member}", site.published),
+                        file: module.file.clone(),
+                    });
+                }
             }
         }
     }

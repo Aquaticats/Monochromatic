@@ -6,7 +6,7 @@
 //! which is what a service that stopped accepting connections leaves behind,
 //! and the owner's
 //!  rule is that nothing waits for ever (`wait_ceilings.rs`,
-//! `CONNECT_CEILING`).
+//!  `CONNECT_CEILING`).
 //! The address a service listens at is one of two shapes,
 //! a file name or a Linux abstract name,
 //! and both become the
@@ -164,17 +164,17 @@ impl Address {
 
     /// What:
     ///  The connect itself,
-    /// and the wait for the socket to take it,
+    ///  and the wait for the socket to take it,
     ///  retried while the queue of a listening socket has no room.
     /// Why:
     ///   On a socket that does not block,
-    /// a connect into a queue nothing accepts returns `EAGAIN` and does not
+    ///  a connect into a queue nothing accepts returns `EAGAIN` and does not
     /// happen at all,
-    /// and a peer that stops accepting leaves the poll that follows reporting the socket as writable:
+    ///  and a peer that stops accepting leaves the poll that follows reporting the socket as writable:
     /// asking the kernel whether a peer is there is what keeps an unconnected socket from being handed on as connected
     /// (the control `a_queue_nothing_accepts_ends_the_wait_at_its_bound` caught exactly that).
     /// So the connect is asked again after each wait,
-    /// and the answer is proved by `getpeername` before it is given.
+    ///  and the answer is proved by `getpeername` before it is given.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -285,7 +285,7 @@ pub(crate) fn connect_within(address: &Bind) -> std::io::Result<UnixStream> {
 
 /// What:
 ///  `connect_within`,
-/// waiting no longer than `within`.
+///  waiting no longer than `within`.
 /// Why:
 ///   A caller whose own answer is waited for with a shorter bound (a status command) connects within that bound,
 /// and

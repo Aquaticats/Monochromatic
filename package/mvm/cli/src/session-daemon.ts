@@ -213,14 +213,14 @@ export function sessionDaemonCommand({
 
  @param daemon - Command that runs `virtqemud`, then its leading arguments
 
- @param memoryMax - Cap on the memory of every guest together, as the machine's
- half is read at start time
+ @param memoryMax - Cap on the memory of every guest together, as the decided
+ fraction of the machine's memory is read at start time
 
  @returns Arguments after the executable name
 
  @example
  ```ts
- startArguments({ daemon: ['virtqemud'], memoryMax: '31576M' }); // => ['--user', '--unit=mvm-libvirt-session', ..., 'virtqemud', '--timeout=120']
+ startArguments({ daemon: ['virtqemud'], memoryMax: '47364M' }); // => ['--user', '--unit=mvm-libvirt-session', ..., 'virtqemud', '--timeout=120']
  ```
  */
 function startArguments({
@@ -371,7 +371,7 @@ async function systemdRunExists(): Promise<boolean> {
 
  @example
  ```ts
- await startUnit({ daemon: ['virtqemud'], deadlineMs: 30_000, memoryMax: '31576M', virsh: { argv: ['virsh'], origin: 'path' } });
+ await startUnit({ daemon: ['virtqemud'], deadlineMs: 30_000, memoryMax: '47364M', virsh: { argv: ['virsh'], origin: 'path' } });
  ```
  */
 async function startUnit({

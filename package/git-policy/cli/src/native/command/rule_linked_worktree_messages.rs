@@ -51,7 +51,7 @@ pub(crate) const HATCH_ADVICE: &str = "If you have decided to discard the work o
 /// ```ts
 /// function describe(command: GuardedCommand): { name: string; risk: string; instead: string };
 /// ```
-fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static str) {
+pub(crate) fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static str) {
     match command {
         GuardedCommand::Stash => {
             return (
@@ -383,37 +383,6 @@ pub fn repository_stash_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
     return format!(
         "monochromatic-git-policy-cli: {name} is rejected because this repository holds a stash entry: {risk}, and it is not this worktree's. \
-         {instead} {HATCH_ADVICE}"
-    );
-}
-
-/// What:
-///  The rejection text for a command run in a worktree that holds uncommitted state.
-/// Why:
-///   The state is what the command could destroy;
-/// committing it with explicit paths or moving to a clean linked
-///  worktree are the ways forward that lose nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function dirtyWorktreeMessage({ command }): string;
-/// ```
-pub fn dirty_worktree_message(command: GuardedCommand) -> String {
-    let (name, risk, instead): (&str, &str, &str) = describe(command);
-    let what: &str = match command {
-        GuardedCommand::Clean => "changes to tracked files or untracked files",
-        // An ignored file is not a reason to refuse this clean in a linked worktree, so the text names only what
-        //  the worktree holds and this clean loses.
-        GuardedCommand::CleanIgnored => "changes to tracked files or untracked files",
-        // Only the spelling that carries its own `-e`/`--exclude` patterns is asked about, and what those patterns
-        //  pull in is a path the worktree does not itself ignore.
-        GuardedCommand::CleanIgnoredOnly => {
-            "work that only its own -e/--exclude patterns call ignored"
-        }
-        _ => "changes to tracked files",
-    };
-    return format!(
-        "monochromatic-git-policy-cli: {name} is rejected because this worktree has uncommitted {what}: {risk}. \
          {instead} {HATCH_ADVICE}"
     );
 }

@@ -11,7 +11,11 @@
 //! expect(RequestBudget.ofInputBytes(4096).inputBytes()).toBe(4096);
 //! ```
 
-use super::RequestBudget;
+use super::{
+    RequestBudget,
+    THE_REMOVALS_REQUEST_BUDGET_BYTES,
+    the_removals_request_budget,
+};
 
 /// The number reads back in its own unit.
 #[test]
@@ -27,4 +31,23 @@ fn the_budget_prints_its_unit() {
         RequestBudget::of_input_bytes(1).to_string(),
         "1 bytes of encoded request input"
     );
+}
+
+/// The removal's own budget is the constant and nothing else,
+/// so a measurement or the owner's decision changes one line.
+#[test]
+fn the_removals_budget_is_the_measured_constant() {
+    assert_eq!(
+        the_removals_request_budget().input_bytes(),
+        THE_REMOVALS_REQUEST_BUDGET_BYTES
+    );
+}
+
+/// The measured budget carries 64 KiB,
+/// which is the proposal step 22's record makes,
+/// 2.3 times the 512-name request the guest accepted and under the largest it took.
+#[test]
+fn the_removals_budget_is_the_records_proposal() {
+    let record: usize = 64 * 1024;
+    assert_eq!(THE_REMOVALS_REQUEST_BUDGET_BYTES, record);
 }

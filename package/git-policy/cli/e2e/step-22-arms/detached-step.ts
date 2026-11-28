@@ -7,7 +7,9 @@
  is a folder `mvm` mounts in the guest, so a busy agent does not hide a finished script.
 
  This driver's step file carries the guest-name check rather than the launcher, which is the shape it has always sent
- and why `nameCheck` is `step` here and `launcher` in the adoption driver.
+ and why `nameCheck` is `step` here and `launcher` in the adoption driver: the check refuses, and writes the status line
+ the host waits for before it exits, so a command that reached another machine's guest is reported at the host's next
+ look rather than at the end of the script's bound.
 
  @example
  ```ts

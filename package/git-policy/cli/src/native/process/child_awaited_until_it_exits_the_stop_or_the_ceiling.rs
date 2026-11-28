@@ -435,7 +435,7 @@ pub async fn wait_until_it_exits_the_stop_or_the_ceiling(
 /// What:
 ///  What the ceiling does now that it has come:
 ///  stands aside for this step,
-/// or ends it at the usual ceiling.
+///  or ends it at the usual ceiling.
 /// Why:
 ///   The stand-aside is one decision shared with the notice's thread,
 ///  so a step the other enforcer found held is waited for here even when this look found nothing.

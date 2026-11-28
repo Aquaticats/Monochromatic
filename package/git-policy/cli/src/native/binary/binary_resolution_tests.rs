@@ -121,7 +121,7 @@ fn path_of(
 /// The line the Git under test prints for `--version`,
 ///  which is the first line the wrapper passes on.
 ///  The query runs under `bound` seconds,
-/// so a Git that never answers ends this control
+///  so a Git that never answers ends this control
 ///  with a verdict that names the query and the bound.
 fn git_version_line(
     fixture: &Fixture,

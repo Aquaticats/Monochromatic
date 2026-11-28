@@ -11,13 +11,13 @@
 //!  the report and the controls spelling the same bytes
 //!  (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
 //!  "The refusal,
-//! and what it leaves",
+//!  and what it leaves",
 //!  "The act's mechanism",
 //!  and "The callers and its protected set").
 //!  A receipt's `failedStep` and `errno` words are bounded at 64 bytes and the
 //!  scan file and the progress file sit beside the receipt in the same
 //!  root-owned folder,
-//! which is why their suffixes live here rather than beside
+//!  which is why their suffixes live here rather than beside
 //!  their readers.
 //!
 //! In TS you'd write (pseudocode):
@@ -67,7 +67,7 @@ pub const FAILED_STEP_MAXIMUM_BYTES: usize = 64;
 ///  which is the receipt's failed step and the report's first line.
 /// Why:
 ///  A person,
-/// `doctor` and the sibling design each read the word,
+///  `doctor` and the sibling design each read the word,
 ///  and the design fixes them:
 ///  `caller-protected-holds` for a holder in the set this arm never ends,
 ///  `holder-unendable` for one it could not end or a namespace its reach

@@ -85,11 +85,11 @@ pub(super) struct CopyOfAnEarlierLayout {
 ///   A lock this release cannot read leaves every record something an install answers,
 ///  which keeps the check as strict as it was before the names were read at all.
 ///  The lock is read the way the record beside it is:
-/// only a plain file is opened and only so many bytes of it are read,
+///  only a plain file is opened and only so many bytes of it are read,
 ///  so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
 ///  and a runaway file cannot be read into memory whole.
 ///  A lock behind a link of the person's own is read,
-/// because that is the lock the worktree means.
+///  because that is the lock the worktree means.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
