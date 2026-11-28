@@ -1,0 +1,5 @@
+# the two pushes of gb-o1's round, as mvm printed them
+
+pushed <round folder>/keep/tarballs/source-snapshot.tar.gz -> /mnt/shared/source-snapshot.tar.gz in VM gb-o1
+
+pushed <round folder>/keep/podman/lock/artifacts.tar.gz -> /mnt/shared/artifacts.tar.gz in VM gb-o1
