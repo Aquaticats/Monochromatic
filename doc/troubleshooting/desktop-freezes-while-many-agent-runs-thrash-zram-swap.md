@@ -1628,8 +1628,9 @@ when `MemAvailable` read 0 kB for the whole machine.
 From 05:23:27 to 05:38:03 the machine's own pressure line,
 `full` in `/proc/pressure/memory`,
 read between 55 and 88 over sixty seconds,
-while `MemAvailable` read between 7.7 GB and 13.8 GB
-and no compiler was running.
+while `MemAvailable` read between 7.7 GB and 13.8 GB;
+no compiler was running at 05:23:27,
+the one moment that was read for it.
 One control group accounts for it.
 
 - Every guest `mvm` starts runs inside `mvm-libvirt-session.service`,
@@ -1657,11 +1658,12 @@ One control group accounts for it.
 - At 05:38:03:
   eight guests,
   31,575 MiB held and 27,983 MiB in swap,
-  which is 7,445 MiB a guest on average.
+  59,558 MiB between them,
+  which is 7,445 MiB (7.3 GiB) a guest on average.
   Two guests read alone through `smaps_rollup` held 5,189 MiB and 4,180 MiB,
   nearly all of it in swap.
 
-So eight guests that between them had touched 59.6 GiB sat in a unit allowed 31.6 GiB,
+So eight guests that between them had touched 58.2 GiB sat in a unit allowed 30.8 GiB,
 and the unit swapped against its own limit while memory stood free outside it.
 The machine-wide pressure line reads that unit's stall as the machine's.
 
@@ -1695,8 +1697,8 @@ What the six guests would have returned with it is not measured.
 ### Not known
 
 - How many guests fit the limit without the unit swapping:
-  the average says four at 7.4 GiB each,
-  and a guest that has touched all of its 8 GiB makes it three.
+  the average says four at 7.3 GiB each (29.1 GiB of the 30.8 GiB),
+  and four guests that have each touched all of their 8 GiB are 1.2 GiB over.
 - Whether the stall at 03:51:23 had the same unit at its centre:
   nobody read the unit's own counters then.
 
