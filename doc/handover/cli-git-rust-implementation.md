@@ -2975,11 +2975,6 @@ and the two `truepeak` files wait on their branch.
   a build in a worktree whose add was interrupted writes that worktree's own `cargo-shadow` stamp,
   and the owed ignored-state copy can then never finish
   (a comment on that issue has the round's lines).
-- One blocking pool per process,
-  one thread per runtime worker (`foundation/runtime_plan.rs`),
-  is what several threaded-only failures in `landing::` wait on:
-  issue 6565's round measured it for the prestage controls with a planted full pool,
-  and issues 6567 and 6569 are the two modules it read the same way without measuring.
 - The Slint round (`f1957916b0`,
   the owner's "Finish the move (Recommended)",
   `doc/decision/rust-dependency-catalog.md`) left three points open:
