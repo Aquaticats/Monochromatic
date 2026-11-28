@@ -43,7 +43,7 @@ description = "Build the crates.io package tarball"
 run = "cargo package"
 
 [tasks.test]
-description = "cargo nextest run in release mode, then the host-side check of the guest recipe's module step"
+description = "cargo nextest run in release mode, then the host-side checks of the guest recipe's module steps"
 run = ["cargo nextest run --release", "mise run test:tooling"]
 
 # The guest recipe loads the kernel modules it builds, and a guest made from a custom template loads the module that

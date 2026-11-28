@@ -44,6 +44,9 @@ const OTHER_RELEASE = '2.2.2';
 /** The release a rebuilt template states, which the recipe's pin must refuse. */
 const REBUILT_RELEASE = '2.4.5-1';
 
+/** The release the stand-in `modprobe` reports for a module the scenario says comes up as another build. */
+const WRONG_VERSION = '9.9.9';
+
 /** Where the template's package puts the module file this step names. */
 const MODULE_FILE = `/lib/modules/${STAND_IN_KERNEL}/extramodules/zfs.ko.zst`;
 
@@ -52,9 +55,9 @@ const MODULE_FILE = `/lib/modules/${STAND_IN_KERNEL}/extramodules/zfs.ko.zst`;
 
  A stand-in, and every part of it says so: a real `modinfo` reads the module file's own
  metadata from the tree `modules.dep` names, and a real `modprobe` asks the kernel to
- load it. Here `modinfo` answers `<field>` from a file of that scenario's own and
- `modprobe` writes the version file a loaded module publishes, or fails, as the
- scenario's control file says.
+ load it. Here `modinfo` answers a field from a file of that scenario's own and
+ `modprobe` writes the version files a loaded module publishes, or fails, as the
+ scenario's control files say.
 
  Every call is appended to `calls.log`, so a check can read which programs ran, in
  which order, and that a refused run loaded nothing.
@@ -81,9 +84,13 @@ const STAND_INS: readonly string[] = [
   '    keep) return 0 ;;',
   '  esac',
   '  for loaded in spl zfs; do',
-  '    if test -f "$CHECK_ROOT/modinfo/$loaded.version"; then',
+  '    published=$CHECK_ROOT/modinfo/$loaded.version',
+  // A scenario may name the version a fresh load comes up as, which is how a module that
+  // answers with another build than its file states is held here.
+  '    if test -f "$CHECK_ROOT/loaded-versions/$loaded"; then published=$CHECK_ROOT/loaded-versions/$loaded; fi',
+  '    if test -f "$published"; then',
   '      mkdir --parents "$CHECK_ROOT/sys/module/$loaded"',
-  '      cat "$CHECK_ROOT/modinfo/$loaded.version" > "$CHECK_ROOT/sys/module/$loaded/version"',
+  '      cat "$published" > "$CHECK_ROOT/sys/module/$loaded/version"',
   '    fi',
   '  done',
   '  return 0',
@@ -101,6 +108,8 @@ interface Scenario {
   readonly files?: { readonly spl?: string; readonly zfs?: string };
   /** The version each loaded module publishes; `null` publishes none. */
   readonly loaded?: { readonly spl?: string | null; readonly zfs?: string | null };
+  /** The version a fresh `modprobe` load comes up as, where it differs from what the file states. */
+  readonly loadedVersions?: { readonly spl?: string; readonly zfs?: string };
   /** What the stand-in `modprobe` does: `fail`, `fail-quietly`, `keep`, or nothing for a load. */
   readonly modprobe?: string;
   /** A module whose `modinfo` refuses to answer, which is a file this step cannot read a version from. */
@@ -148,6 +157,15 @@ function makeTrees(scenario: Scenario,): Trees {
   }
   if (scenario.files?.zfs !== undefined)
     writeFileSync(join(root, 'modinfo', 'zfs.filename',), MODULE_FILE,);
+  const loadedVersions = scenario.loadedVersions;
+  if (loadedVersions !== undefined) {
+    mkdirSync(join(root, 'loaded-versions',), { recursive: true, },);
+    for (const name of ['spl', 'zfs',] as const) {
+      const version = loadedVersions[name];
+      if (version !== undefined)
+        writeFileSync(join(root, 'loaded-versions', name,), version,);
+    }
+  }
   if (scenario.unreadable !== undefined)
     writeFileSync(join(root, 'modinfo', `${scenario.unreadable}.version.unreadable`,), '',);
   if (scenario.modprobe !== undefined)
@@ -238,6 +256,8 @@ interface Expectation {
 /**
  The three reads every run begins with, in the order the step makes them: the file this
  template installs, the version that file states, and the version its spl file states.
+ The step reads these before it loads anything, so a file that is not there or carries
+ another release is refused with nothing loaded.
  */
 const READS: readonly string[] = [
   'modinfo --field filename zfs',
@@ -254,7 +274,7 @@ const EXPECTATIONS: readonly Expectation[] = [
     },
     says: [NOTHING_LOADED_WORDS, LOADED_WORDS, `zfs ${TEMPLATE_RELEASE}`, `from ${MODULE_FILE}`,],
     status: 'zero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [`zfs ${TEMPLATE_RELEASE}`, `spl ${TEMPLATE_RELEASE}`,],
   },
   {
@@ -266,7 +286,7 @@ const EXPECTATIONS: readonly Expectation[] = [
     },
     says: [ALREADY_RUNNING_WORDS, 'nothing to load', `zfs ${TEMPLATE_RELEASE}`,],
     status: 'zero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [`zfs ${TEMPLATE_RELEASE}`, `spl ${TEMPLATE_RELEASE}`,],
   },
   {
@@ -279,12 +299,12 @@ const EXPECTATIONS: readonly Expectation[] = [
       REFUSAL_WORDS,
       'modprobe zfs could not load',
       'modprobe: FATAL: Module zfs not found',
-      `loaded now: zfs none, spl none`,
-      `the file this template installs: ${MODULE_FILE} stating ${TEMPLATE_RELEASE}`,
+      'loaded now: zfs none, spl none',
+      `the file this template installs: ${MODULE_FILE} stating zfs ${TEMPLATE_RELEASE}`,
       `this recipe pins OpenZFS ${TEMPLATE_RELEASE}`,
     ],
     status: 'nonzero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [],
   },
   {
@@ -295,13 +315,13 @@ const EXPECTATIONS: readonly Expectation[] = [
     },
     says: [REFUSAL_WORDS, 'printed nothing and exited with a failure', 'loaded now: zfs none, spl none',],
     status: 'nonzero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [],
   },
   {
     scenario: {
       name: 'another zfs module already loaded is refused, and both versions and the file are named',
-      files: { spl: OTHER_RELEASE, zfs: TEMPLATE_RELEASE, },
+      files: { spl: TEMPLATE_RELEASE, zfs: TEMPLATE_RELEASE, },
       loaded: { spl: OTHER_RELEASE, zfs: OTHER_RELEASE, },
       modprobe: 'keep',
     },
@@ -315,7 +335,7 @@ const EXPECTATIONS: readonly Expectation[] = [
       'modprobe --remove zfs',
     ],
     status: 'nonzero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [`zfs ${OTHER_RELEASE}`, `spl ${OTHER_RELEASE}`,],
   },
   {
@@ -327,8 +347,24 @@ const EXPECTATIONS: readonly Expectation[] = [
     },
     says: [REFUSAL_WORDS, `loaded: zfs ${TEMPLATE_RELEASE}, spl ${OTHER_RELEASE}`, 'runs a module this template did not install',],
     status: 'nonzero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [`zfs ${TEMPLATE_RELEASE}`, `spl ${OTHER_RELEASE}`,],
+  },
+  {
+    scenario: {
+      name: 'a module that comes up as another version than its file states is refused',
+      files: { spl: TEMPLATE_RELEASE, zfs: TEMPLATE_RELEASE, },
+      loadedVersions: { zfs: WRONG_VERSION, },
+    },
+    says: [
+      REFUSAL_WORDS,
+      `loaded: zfs ${WRONG_VERSION}, spl ${TEMPLATE_RELEASE}`,
+      `stating zfs ${TEMPLATE_RELEASE}`,
+      'runs a module this template did not install',
+    ],
+    status: 'nonzero',
+    calls: [...READS, 'modprobe zfs',],
+    loaded: [`zfs ${WRONG_VERSION}`, `spl ${TEMPLATE_RELEASE}`,],
   },
   {
     scenario: {
@@ -339,29 +375,55 @@ const EXPECTATIONS: readonly Expectation[] = [
     },
     says: [ALREADY_RUNNING_WORDS, 'nothing to load',],
     status: 'zero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [`zfs ${TEMPLATE_RELEASE}`, 'spl unknown',],
   },
   {
     scenario: {
-      name: 'a file that states another release than this recipe pins is refused, and both are named',
+      name: 'a zfs file that states another release than this recipe pins is refused before anything is loaded',
       files: { spl: REBUILT_RELEASE, zfs: REBUILT_RELEASE, },
     },
-    says: [REFUSAL_WORDS, `states zfs ${REBUILT_RELEASE}`, `this recipe pins OpenZFS ${TEMPLATE_RELEASE}`, `the file: ${MODULE_FILE}`,],
+    says: [
+      REFUSAL_WORDS,
+      `states zfs ${REBUILT_RELEASE} where this recipe pins`,
+      `this recipe pins OpenZFS ${TEMPLATE_RELEASE}`,
+      `the file: ${MODULE_FILE}`,
+      'nothing was loaded here',
+    ],
     status: 'nonzero',
-    calls: ['modprobe zfs', ...READS,],
-    loaded: [`zfs ${REBUILT_RELEASE}`, `spl ${REBUILT_RELEASE}`,],
+    calls: [...READS,],
+    loaded: [],
   },
   {
     scenario: {
-      name: 'a modinfo that refuses to answer is refused in words rather than by a bare status',
+      name: 'an spl file that states another release than this recipe pins is refused before anything is loaded',
+      files: { spl: REBUILT_RELEASE, zfs: TEMPLATE_RELEASE, },
+    },
+    says: [
+      REFUSAL_WORDS,
+      `states spl ${REBUILT_RELEASE} where this recipe pins`,
+      `this recipe pins OpenZFS ${TEMPLATE_RELEASE}`,
+      'nothing was loaded here',
+    ],
+    status: 'nonzero',
+    calls: [...READS,],
+    loaded: [],
+  },
+  {
+    scenario: {
+      name: 'a modinfo that refuses to answer is refused in words, and nothing is loaded',
       files: { spl: TEMPLATE_RELEASE, zfs: TEMPLATE_RELEASE, },
       unreadable: 'zfs',
     },
-    says: [REFUSAL_WORDS, 'nothing here says which module this template installs', 'modinfo: ERROR: could not read zfs',],
+    says: [
+      REFUSAL_WORDS,
+      'nothing here says which module this template installs',
+      'modinfo: ERROR: could not read zfs',
+      'nothing was loaded here',
+    ],
     status: 'nonzero',
-    calls: ['modprobe zfs', 'modinfo --field filename zfs', 'modinfo --field version zfs',],
-    loaded: [`zfs ${TEMPLATE_RELEASE}`, `spl ${TEMPLATE_RELEASE}`,],
+    calls: ['modinfo --field filename zfs', 'modinfo --field version zfs',],
+    loaded: [],
   },
   {
     scenario: {
@@ -371,7 +433,7 @@ const EXPECTATIONS: readonly Expectation[] = [
     },
     says: [REFUSAL_WORDS, 'no zfs module is loaded', `the file this template installs: ${MODULE_FILE}`,],
     status: 'nonzero',
-    calls: ['modprobe zfs', ...READS,],
+    calls: [...READS, 'modprobe zfs',],
     loaded: [],
   },
 ];

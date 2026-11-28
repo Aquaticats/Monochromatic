@@ -242,7 +242,12 @@ reads the version the file this template installs states
 (`modinfo --field version zfs`,
 and the file's own path from `modinfo --field filename zfs`),
 and compares the loaded module with that file and with the OpenZFS release
-this recipe pins.
+this recipe pins,
+for both module files.
+It reads before it loads,
+so a file that cannot be read,
+or that carries another release,
+is refused with nothing loaded.
 Those readings leave five states:
 
 - the guest already runs the module the template installs:
@@ -258,8 +263,11 @@ Those readings leave five states:
   what is loaded now,
   the file the template installs and the release this recipe pins,
   and what to check before running the step again;
-- the installed file states another release than the one this recipe pins:
-  it refuses,
+  a `modprobe` that exits 0 and loads nothing is refused the same way,
+  because the version read after it would fail with no reason;
+- the installed file states another release than the one this recipe pins,
+  in either of the two files:
+  it refuses before anything is loaded,
   naming both releases and the file;
 - a module is loaded that is not the one the file states:
   it refuses,
@@ -274,7 +282,10 @@ Those readings leave five states:
   and run the step again.
 
 A `modinfo` that cannot read the file is a refusal too,
-so a template whose module files are gone ends in words rather than in a bare status.
+so a template whose module files are gone ends in words rather than in a bare status,
+and nothing is loaded.
+A refusal after a `modprobe` that failed says what the guest is left running,
+because the kernel may have loaded `spl` before refusing `zfs`.
 [`doc/prepare-in-a-prepared-guest-2026-11-27.md`](../doc/prepare-in-a-prepared-guest-2026-11-27.md)
 records the guest runs,
 issue 6644's own,
