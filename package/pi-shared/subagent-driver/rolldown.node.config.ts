@@ -13,6 +13,9 @@ const config: NodeFlavorConfig = nodeConfig({
     // The extension Pi loads for every run, which masks the secret values of this machine in each tool result. Not a bin: Pi
     // loads the file itself, and the driver hands its path to Pi with `--extension`.
     'secret-value-masking-extension': './src/secret-value-masking-extension.ts',
+    // The other extension Pi loads for every run: it refuses an edit or write call that names the repository's main checkout,
+    // whose folders the driver hands over on `--extension` and in the environment beside it. Not a bin, for the same reason.
+    'main-checkout-guard-extension': './src/main-checkout-guard-extension.ts',
     'watch-overdue-pi-runs': './src/watch-overdue-pi-runs.ts',
     'check-in-on-pi-runs': './src/check-in-on-pi-runs.ts',
     'start-pi-run-when-a-pool-has-room': './src/start-pi-run-when-a-pool-has-room.ts',

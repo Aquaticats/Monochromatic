@@ -115,6 +115,12 @@ export * from './index-of-a-driver-run.ts';
 export * from './index-of-secret-value-masking.ts';
 
 /**
+ The guard that keeps a run's `edit` and `write` calls out of the repository's main checkout: the folders it holds, the extension
+ Pi loads with them, and the decision it answers. Kept in a file of its own for the same reason.
+ */
+export * from './index-of-the-main-checkout-guard.ts';
+
+/**
  What the watch for runs that should have come back reads, and the lines it answers with. The command is
  `watch-overdue-pi-runs.ts`.
  */
