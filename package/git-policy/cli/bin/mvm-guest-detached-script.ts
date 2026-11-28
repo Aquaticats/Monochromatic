@@ -13,8 +13,9 @@
  copy. Both were answers of the three sets of guest helpers, and the polling, the pull and the judgement of the status
  are the one answer this module holds.
 
- The guest-name check a detached script carries is `{@link detachedScriptFiles}`'s distinguishing switch: one driver's
- scripts answer it in the step file and the other two in the launcher.
+ The guest-name check a detached script carries is `{@link detachedScriptFiles}`'s distinguishing switch: the step 22
+ driver's scripts answer it in the step file, the adoption driver's and the start probe's in the launcher, and the
+ removal-lineage, settling and cancel-and-settle drivers' scripts carry none.
 
  The launcher is a command this host waits for, and the status it exits with is read: a launcher that was refused says so
  at once instead of leaving the run to wait out the bound for a log no guest will write.

@@ -8,9 +8,10 @@
  `bin/mvm-guest-command-line.ts` and `e2e/guest-host/guest-host-rules-fixture.ts`), and they agreed byte for byte; what
  survived is the shape each question was answered best in.
 
- A detached script is the one place the three did not agree, and the difference is kept: one driver's scripts carry the
- guest's name check in the step file and the other two carry it in the launcher, and the two scripts are identical only
- with that distinction (`{@link detachedScriptFiles}`'s `nameCheck`).
+ A detached script is the one place the three helper sets did not agree, and the difference is kept: the step 22 driver's
+ scripts carry the guest's name check in the step file, the adoption driver's and the start probe's carry it in the
+ launcher, and the scripts of the three drivers that carry none are identical only in having none
+ (`{@link detachedScriptFiles}`'s `nameCheck`).
  */
 
 import {
