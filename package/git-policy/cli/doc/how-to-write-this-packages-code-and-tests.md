@@ -1094,6 +1094,14 @@ and each guard whose scope could hold one says so in its top doc:
 a call a macro written outside the scope expands to,
 a name a glob import (`use super::*;`) brings into scope without writing it,
 and a call whose name and `(` a line break separates.
+The alpha.50 read planted nine spellings against these guards on 2026-11-27,
+and the call reader reads each of these now but the macro:
+a renamed import,
+a function taken as a value,
+a call with its types written out,
+another crate's name for the same call,
+a handle reached through a module,
+and a key passed through a constant.
 A spelling a guard can be made to read,
 it reads and plants a control for:
 the commit path's ban reads a direct `syscall` call,
