@@ -89,6 +89,26 @@ impl TheRemovalAnswer {
 }
 
 /// What:
+///  The one moment this command's own records carry,
+///  which is the moment the plan's `started=` field and the origin cleanup
+///  record's `startedAt` field both name.
+/// Why:
+///  Both records are read back by their own readers,
+///  and a reader refuses a moment whose spelling it does not know,
+///  so the clock is read through one function that the control of this file
+///  calls the same way the command does.
+///  It is read once per run,
+///  so one run's records agree with each other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const now = nowWithOffset();
+/// ```
+fn the_moment_the_records_carry() -> String {
+    return now_iso();
+}
+
+/// What:
 ///  The whole removal of one slot a whole managed clone is bound to,
 ///  over the live seams of this machine.
 /// Why:
@@ -149,7 +169,7 @@ pub fn complete_the_bound_clones_removal(
         }
     };
     // The moment the records carry is read once, so one run's plan lines agree with each other.
-    let now: String = now_iso();
+    let now: String = the_moment_the_records_carry();
     let input: RemovalCompletion<'_> = RemovalCompletion {
         entry: &entry,
         reads: &reads,
@@ -174,3 +194,8 @@ pub fn complete_the_bound_clones_removal(
         Err(stop) => TheRemovalAnswer::stopped(stop.message()),
     };
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "removal_command_path_tests.rs"]
+mod tests;
