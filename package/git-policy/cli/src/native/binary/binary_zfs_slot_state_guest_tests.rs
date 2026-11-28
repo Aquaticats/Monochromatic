@@ -93,7 +93,6 @@ use git_policy_cli::worktree_clone_move_refusal::managed_move_refusal::{
 use git_policy_cli::worktree_clone_slot_state::slot_state_classification::classify_slot;
 use git_policy_cli::worktree_clone_slot_state::slot_state_readings::SlotReadings;
 use git_policy_cli::worktree_clone_slot_state::slot_state_report::report_of;
-use git_policy_cli::worktree_clone_unmount::staging_folder_name::staging_folder_name;
 use git_policy_cli::worktree_clone_unmount::user_cache_pin::{
     USER_CACHE_PIN_PATH,
     UserCachePin,
@@ -101,7 +100,6 @@ use git_policy_cli::worktree_clone_unmount::user_cache_pin::{
 };
 use git_policy_cli::worktree_clone_unmount::user_cache_pin_record::write_pin;
 use std::os::unix::fs::MetadataExt;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -342,35 +340,6 @@ impl ASceneToMake<'_> {
     }
 
     /// What:
-    ///  The empty staging folder the handler binds over before it moves the
-    ///  clone's mount,
-    ///  at the account's cache and under the clone's GUID.
-    /// Why:
-    ///  The handler's unmount turn opens that folder before anything else and
-    ///  answers `cancelled` at `staging-folder` when it is absent,
-    ///  and the design gives its creation to the wrapper:
-    ///  `worktree_clone_unmount::staging_cleanup::create_the_staging_folder`
-    ///  carries that duty and this release calls it from nowhere,
-    ///  which this round reports from the guest's own receipt.
-    ///  The scene makes the folder the design says the wrapper makes,
-    ///  so the order this step asserts can be reached at all,
-    ///  and a round that wires the creation in deletes this.
-    ///
-    /// # Panics
-    /// The folder that could not be made or given its mode.
-    fn make_the_staging_folder(
-        &self,
-        clone_guid: DatasetGuid,
-    ) {
-        let staging: PathBuf = self
-            .the_accounts_cache()
-            .join(staging_folder_name(clone_guid));
-        std::fs::create_dir(staging.as_path()).expect("the scene's staging folder is made");
-        std::fs::set_permissions(staging.as_path(), std::fs::Permissions::from_mode(0o700))
-            .expect("the staging folder holds the route's mode");
-    }
-
-    /// What:
     ///  Publish the origin-side inventory the add records for this scene's
     ///  slot:
     ///  the checkout's snapshots at or below the origin snapshot's transaction
@@ -567,8 +536,9 @@ impl ASceneToMake<'_> {
             pointer,
             registration: common.join("worktrees").join(self.slot_name),
         };
+        // The removal's own order makes the staging folder the handler binds, at its step 2 and after the
+        //  `user-cache` pin check, which is what this release owes and what the removal below needs.
         self.pin_the_accounts_cache();
-        self.make_the_staging_folder(clone_guid);
         let attached = sweep();
         assert_eq!(
             attached.status,
