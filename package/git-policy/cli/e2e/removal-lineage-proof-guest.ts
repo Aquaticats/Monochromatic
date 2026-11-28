@@ -58,6 +58,7 @@ import {
 import {
   type GuestDriverOptions,
   guestDriverOptions,
+  runArguments,
 } from '../bin/mvm-guest-options.ts';
 import {
   awaitDetachedGuestScript,
@@ -155,7 +156,34 @@ async function create({ chosen, }: { readonly chosen: GuestFacts; },): Promise<v
   await recipe({
     chosen,
     step: 'create',
+    extraArgumentWords: theImageWords(),
   },);
+}
+
+/**
+ The image the recipe's create asks the backend's catalogue for, when the run named one.
+
+ A cloud backend's create with no image takes the newest Ubuntu its catalogue offers, whose release nobody here chose;
+ `--guest-image 'Ubuntu 24.04'` names the one this recipe's preparation was run against.
+
+ @returns the create's own words, empty when the run named no image
+ */
+function theImageWords(): readonly string[] {
+  /**
+   The image the run named, when it named one.
+   */
+  const image = runArguments({
+    argv: process.argv
+      .slice(2,),
+  },)
+    .values
+    .get('--guest-image',);
+  if (image === undefined)
+    return [];
+  return [
+    '--guest-image',
+    image,
+  ];
 }
 
 /**
@@ -207,7 +235,12 @@ async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
   },);
   await startDetachedGuestScript({
     chosen,
-    script: armScript({ name: chosen.name, },),
+    // The arms compare `gethostname()` with the name they are given, and a guest reached over `ssh` answers
+    //  `mvm-<name>`, so the backend's own answer for this name is what the script exports.
+    script: armScript({
+      name: guestBackend()
+        .hostnameOf(chosen.name),
+    },),
     log: 'removal-lineage-arm-shell.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
     nameCheck: 'none',
