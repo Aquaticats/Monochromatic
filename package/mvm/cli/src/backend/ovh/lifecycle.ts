@@ -20,10 +20,18 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { VM_PREFIX, } from '../../config.ts';
 import type { VmInfo, } from '../../list.ts';
 import {
+  memoryGiBArgument,
+  refuseSizeAndOverride,
+  sizeRequest,
+  vcpusArgument,
+  type SizeRequest,
+} from '../size-request.ts';
+import {
   createInstance,
   createSnapshot,
   deleteInstance,
   deleteSnapshot,
+  listFlavors,
   listSnapshots,
 } from './api-resources.ts';
 import {
@@ -65,28 +73,37 @@ const l = tagged({ tag: 'mvm', },);
  
  @param location - per-invocation region or comma-separated fallback series
  
+ @param memoryGiB - least memory the machine may have, in gibibytes, or omitted
+ 
  @param name - VM name without the mvm- prefix
  
  @param serverType - per-invocation flavor name or identifier
  
- @throws Error on an invalid name, on no region with stock, or when the instance never answers
+ @param vcpus - fewest virtual CPUs the machine may have, or omitted
+ 
+ @throws Error on an invalid name, on no region with stock or with a size that fits, on a size named beside a floor, or when the instance never answers
  
  @example
  ```ts
  await ovhCreate({ name: 'dev-01' });
  await ovhCreate({ name: 'big', serverType: 'b3-16', location: 'bhs5' });
+ await ovhCreate({ memoryGiB: 4, name: 'build', vcpus: 2 });
  ```
  */
 export async function ovhCreate({
   image,
   location,
+  memoryGiB,
   name,
   serverType,
+  vcpus,
 }: {
   readonly name: string;
   readonly image?: string;
+  readonly memoryGiB?: number;
   readonly serverType?: string;
   readonly location?: string;
+  readonly vcpus?: number;
 },): Promise<void> {
   validateOvhName(name,);
   /**
@@ -97,10 +114,24 @@ export async function ovhCreate({
     l,
   },);
   /**
+   The floors this create set; empty when it set none, which keeps the smallest
+   size in stock the walk it has always been.
+   */
+  const request: SizeRequest = sizeRequest({
+    memoryGiB: memoryGiBArgument(memoryGiB,),
+    vcpus: vcpusArgument(vcpus,),
+  },);
+  refuseSizeAndOverride({
+    override: flavorOverride(serverType,),
+    overrideOptions: '--server-type or MVM_OVH_FLAVOR',
+    request,
+  },);
+  /**
    Instance OVHcloud created; from here on a failure has to delete it.
    */
   const created = await provisionInstance({
     name,
+    request,
     rl,
     ...((image === undefined) ? {} : { image, }),
     ...((location === undefined) ? {} : { location, }),
@@ -328,9 +359,14 @@ export async function ovhDestroyAll(): Promise<void> {
 }
 
 /**
- Lists the instances mvm owns with their state.
+ Lists the instances mvm owns with their state and the size they run.
  
- @returns VM entries with the unprefixed name and the lower-cased OVHcloud status
+ The size is read from the flavor each instance names, in that instance's own
+ region, because a flavor identifier means nothing in another region. One flavor
+ list is read per region in play, never one per instance.
+ 
+ @returns VM entries with the unprefixed name, the lower-cased OVHcloud status,
+ and the flavor's virtual CPUs and memory where the region still lists it
  
  @example
  ```ts
@@ -342,12 +378,38 @@ export async function ovhList(): Promise<readonly VmInfo[]> {
    Instances mvm owns, of those the project holds.
    */
   const owned = await listMvmInstances();
+  /**
+   Regions the listed instances run in, each read once.
+   */
+  const regions = [...new Set(owned.map(function regionOf(instance,) {
+    return instance.region;
+  },),),];
+  /**
+   Each region's flavors, by region name, so an instance's flavor id resolves.
+   */
+  const flavorsByRegion = new Map(
+    await Promise.all(regions.map(async function readRegion(region,) {
+      return [
+        region,
+        await listFlavors({ region, },),
+      ] as const;
+    },),),
+  );
   return owned.map(function toVmInfo(instance,) {
+    /**
+     Flavor the instance names, when its region still lists it.
+     */
+    const flavor = flavorsByRegion.get(instance.region,)
+      ?.find(function sameId(candidate,) {
+        return candidate.id === instance.flavorId;
+      },);
     return {
       name: instance.name
         .slice(VM_PREFIX.length,),
       state: instance.status
         .toLowerCase(),
+      ...((flavor === undefined) ? {} : { memoryGiB: flavor.ram, }),
+      ...((flavor === undefined) ? {} : { vcpus: flavor.vcpus, }),
     };
   },);
 }
