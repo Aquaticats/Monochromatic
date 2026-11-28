@@ -19,6 +19,7 @@ import {
   describeSizeRequest,
   isEmptySizeRequest,
   memoryGiBArgument,
+  NO_NUMBER,
   NoSizeFitsError,
   refuseSizeAndOverride,
   sizeRequest,
@@ -55,10 +56,10 @@ await describe({
           fn: async () => {
             expect(sizeRequest({
               memoryGiB: FOUR_GIB,
-              vcpus: undefined,
+              vcpus: NO_NUMBER,
             },),).toEqual({ memoryGiB: FOUR_GIB, },);
             expect(sizeRequest({
-              memoryGiB: undefined,
+              memoryGiB: NO_NUMBER,
               vcpus: TWO_VCPUS,
             },),).toEqual({ vcpus: TWO_VCPUS, },);
             expect(sizeRequest({
@@ -135,9 +136,9 @@ await describe({
       name: vcpusArgument.name,
       children: [
         it({
-          name: 'keeps absent and reads a positive whole number',
+          name: 'answers NO_NUMBER when absent and reads a positive whole number',
           fn: async () => {
-            expect(vcpusArgument(undefined,),).toBeUndefined();
+            expect(vcpusArgument(undefined,),).toBe(NO_NUMBER,);
             expect(vcpusArgument(TWO_VCPUS,),).toBe(TWO_VCPUS,);
           },
         },),
@@ -165,9 +166,9 @@ await describe({
       name: memoryGiBArgument.name,
       children: [
         it({
-          name: 'keeps absent and reads a positive whole number',
+          name: 'answers NO_NUMBER when absent and reads a positive whole number',
           fn: async () => {
-            expect(memoryGiBArgument(undefined,),).toBeUndefined();
+            expect(memoryGiBArgument(undefined,),).toBe(NO_NUMBER,);
             expect(memoryGiBArgument(FOUR_GIB,),).toBe(FOUR_GIB,);
           },
         },),

@@ -142,6 +142,7 @@ export {
   describeFlavor,
   flavorsThatFit,
   largestFlavor,
+  NO_FLAVOR,
   NoFlavorInStockError,
   orderFlavors,
   resolveFlavor,

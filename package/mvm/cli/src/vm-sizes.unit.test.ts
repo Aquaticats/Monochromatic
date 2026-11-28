@@ -81,52 +81,44 @@ await describe({
           name: 'reads back the two numbers the metadata was written with',
           fn: async () => {
             const vmDir = await makeVmDir();
-            try {
-              await writeVmMeta({
-                guest: GUEST,
-                image: 'ubuntu',
-                memoryGiB: FOUR_GIB,
-                vmDir,
-                vcpus: TWO_VCPUS,
-              },);
-              expect(await readVmSizes({ vmDir, },),).toEqual({
-                memoryGiB: FOUR_GIB,
-                vcpus: TWO_VCPUS,
-              },);
-            }
-            finally {
-              await rm(
-                vmDir,
-                {
-                  force: true,
-                  recursive: true,
-                },
-              );
-            }
+            await writeVmMeta({
+              guest: GUEST,
+              image: 'ubuntu',
+              memoryGiB: FOUR_GIB,
+              vmDir,
+              vcpus: TWO_VCPUS,
+            },);
+            expect(await readVmSizes({ vmDir, },),).toEqual({
+              memoryGiB: FOUR_GIB,
+              vcpus: TWO_VCPUS,
+            },);
+            await rm(
+              vmDir,
+              {
+                force: true,
+                recursive: true,
+              },
+            );
           },
         },),
         it({
           name: 'reports only the one number a record carries',
           fn: async () => {
             const vmDir = await makeVmDir();
-            try {
-              await writeVmMeta({
-                guest: GUEST,
-                image: 'ubuntu',
-                vmDir,
-                vcpus: TWO_VCPUS,
-              },);
-              expect(await readVmSizes({ vmDir, },),).toEqual({ vcpus: TWO_VCPUS, },);
-            }
-            finally {
-              await rm(
-                vmDir,
-                {
-                  force: true,
-                  recursive: true,
-                },
-              );
-            }
+            await writeVmMeta({
+              guest: GUEST,
+              image: 'ubuntu',
+              vmDir,
+              vcpus: TWO_VCPUS,
+            },);
+            expect(await readVmSizes({ vmDir, },),).toEqual({ vcpus: TWO_VCPUS, },);
+            await rm(
+              vmDir,
+              {
+                force: true,
+                recursive: true,
+              },
+            );
           },
         },),
 
@@ -138,78 +130,66 @@ await describe({
           name: 'reports nothing for a VM made before the numbers were recorded',
           fn: async () => {
             const vmDir = await makeVmDir();
-            try {
-              await mkdir(
-                vmDir,
-                { recursive: true, },
-              );
-              await writeVmMeta({
-                guest: GUEST,
-                image: 'ubuntu',
-                vmDir,
-              },);
-              expect(await readVmSizes({ vmDir, },),).toEqual({},);
-            }
-            finally {
-              await rm(
-                vmDir,
-                {
-                  force: true,
-                  recursive: true,
-                },
-              );
-            }
+            await mkdir(
+              vmDir,
+              { recursive: true, },
+            );
+            await writeVmMeta({
+              guest: GUEST,
+              image: 'ubuntu',
+              vmDir,
+            },);
+            expect(await readVmSizes({ vmDir, },),).toEqual({},);
+            await rm(
+              vmDir,
+              {
+                force: true,
+                recursive: true,
+              },
+            );
           },
         },),
         it({
           name: 'reports nothing for a directory with no metadata at all',
           fn: async () => {
             const vmDir = await makeVmDir();
-            try {
-              expect(await readVmSizes({ vmDir, },),).toEqual({},);
-            }
-            finally {
-              await rm(
-                vmDir,
-                {
-                  force: true,
-                  recursive: true,
-                },
-              );
-            }
+            expect(await readVmSizes({ vmDir, },),).toEqual({},);
+            await rm(
+              vmDir,
+              {
+                force: true,
+                recursive: true,
+              },
+            );
           },
         },),
         it({
           name: 'reports nothing for a metadata record whose size fields are not whole positive numbers',
           fn: async () => {
             const vmDir = await makeVmDir();
-            try {
-              await writeFile(
-                join(
-                  vmDir,
-                  'meta.json',
-                ),
-                JSON.stringify({
-                  createdAt: '2026-11-28T00:00:00.000Z',
-                  defaultUser: 'ubuntu',
-                  image: 'ubuntu',
-                  memoryGiB: 'four',
-                  osFamily: 'linux',
-                  shell: '/bin/bash',
-                  vcpus: 2.5,
-                },),
-              );
-              expect(await readVmSizes({ vmDir, },),).toEqual({},);
-            }
-            finally {
-              await rm(
+            await writeFile(
+              join(
                 vmDir,
-                {
-                  force: true,
-                  recursive: true,
-                },
-              );
-            }
+                'meta.json',
+              ),
+              JSON.stringify({
+                createdAt: '2026-11-28T00:00:00.000Z',
+                defaultUser: 'ubuntu',
+                image: 'ubuntu',
+                memoryGiB: 'four',
+                osFamily: 'linux',
+                shell: '/bin/bash',
+                vcpus: 2.5,
+              },),
+            );
+            expect(await readVmSizes({ vmDir, },),).toEqual({},);
+            await rm(
+              vmDir,
+              {
+                force: true,
+                recursive: true,
+              },
+            );
           },
         },),
       ],

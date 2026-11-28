@@ -22,17 +22,17 @@ const l = tagged({ tag: 'mvm', },);
  Single VM entry with its display name and current libvirt state.
  */
 export type VmInfo = {
-  name: string;
-  state: string;
+  readonly name: string;
+  readonly state: string;
   /**
    Memory the guest was given, in gibibytes, or absent when the backend cannot
    tell.
    */
-  memoryGiB?: number;
+  readonly memoryGiB?: number;
   /**
    Virtual CPUs the guest was given, or absent when the backend cannot tell.
    */
-  vcpus?: number;
+  readonly vcpus?: number;
 };
 
 /**

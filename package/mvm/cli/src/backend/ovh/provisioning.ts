@@ -22,6 +22,7 @@ import {
   describeSizeRequest,
   isEmptySizeRequest,
   type SizeRequest,
+  NoSizeFitsError
 } from '../size-request.ts';
 import {
   createInstance,
@@ -34,7 +35,6 @@ import {
   resolveFlavor,
   resolveFlavorsThatFit,
 } from './flavors.ts';
-import { NoSizeFitsError, } from '../size-request.ts';
 import {
   resolveImage,
   selectImage,
@@ -132,11 +132,18 @@ async function provisionInRegion({
     ...((serverType === undefined) ? {} : { override: serverType, }),
   },);
   rl.info(
-    `creating ${name} (flavor ${chosen.flavor.name} with ${String(chosen.flavor.vcpus,)} vCPUs, ${String(chosen.flavor.ram,)} GiB of memory and ${String(chosen.flavor.disk,)} GB of disk, image ${chosen.image.name}) in ${region}`,
+    `creating ${name} (flavor ${chosen.flavor
+      .name} with ${String(chosen.flavor
+        .vcpus,)} vCPUs, ${String(chosen.flavor
+          .ram,)} GiB of memory and ${String(chosen.flavor
+            .disk,)} GB of disk, image ${chosen.image
+              .name}) in ${region}`,
   );
   return createInstance({
-    flavorId: chosen.flavor.id,
-    imageId: chosen.image.id,
+    flavorId: chosen.flavor
+      .id,
+    imageId: chosen.image
+      .id,
     name,
     region,
     sshKeyId,
@@ -224,9 +231,10 @@ async function chooseFlavorAndImage({
     ...((override === undefined) ? {} : { override, }),
   },);
   /**
-   First refusal an image made, reported when no candidate could boot one.
+   Refusals the image walk made, in candidate order; the first is reported when
+   no candidate could boot one.
    */
-  let firstRefusal: unknown;
+  const refusals: unknown[] = [];
   for (const flavor of fit.flavors) {
     try {
       /**
@@ -247,13 +255,19 @@ async function chooseFlavorAndImage({
       };
     }
     catch (error: unknown) {
-      firstRefusal ??= error;
+      refusals.push(error,);
     }
   }
-  if (firstRefusal !== undefined) {
+  /**
+   Refusal the smallest candidate earned, which is the one a create would hit.
+   */
+  const [firstRefusal,] = refusals;
+  if (Error.isError(firstRefusal,)) {
     throw firstRefusal;
   }
-  throw new Error(`no size in ${region} boots an image matching "${shorthand}"`,);
+  throw new Error(
+    `no size in ${region} boots an image matching "${shorthand}": ${refusals.length === 0 ? 'no size that fits was in stock' : 'every candidate was refused'}`,
+  );
 }
 
 /**
@@ -340,9 +354,10 @@ export async function provisionInstance({
   if (refusals.length > 0) {
     throw new Error(
       `no region among ${regions.join(', ',)} can give ${describeSizeRequest({ request, },)}: ${
-        refusals.map(function oneRefusal(refusal,) {
-        return refusal.message;
-      },).join(' | ')}`,
+        refusals.map(function oneRefusal(refusal: { readonly message: string; },) {
+          return refusal.message;
+        },)
+          .join(' | ')}`,
     );
   }
   throw new Error(

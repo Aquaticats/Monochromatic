@@ -18,16 +18,20 @@
  3. `GET .../region/<name>/flavor` and `GET .../image?region=<name>` in the first
     region that has a flavor in stock, to pick the smallest one and the image.
  4. `GET .../sshkey`, and `POST .../sshkey` when this key is not there yet.
- 5. `POST .../instance` with `monthlyBilling: false`, then `GET .../instance/<id>`
-    every three seconds until the instance reports `ACTIVE`.
+ 5. `POST .../instance` with `monthlyBilling: false`, after the backend chose the
+    smallest general-purpose size with at least two vCPUs and 4 GiB of memory,
+    then `GET .../instance/<id>` every three seconds until the instance reports
+    `ACTIVE`.
  6. `ssh` probes until the login account the image names answers, then one
     `uname -a`, then one `scp` in and one `scp` out of `/tmp/mvm-live.txt`.
  7. `DELETE .../instance/<id>`, which is what stops the meter.
- 8. `GET .../instance`, and the test fails if any instance still carries mvm's
-    name prefix.
+ 8. `GET .../instance`, and the test fails if the project still lists the machine
+    this run made.
 
- A disposable guard runs `destroyAll` on scope exit, so a failed assertion still
- deletes what the run made.
+ A disposable guard destroys that one machine on scope exit, so a failed
+ assertion still deletes what the run made. Neither the guard nor the last check
+ sweeps the project: other rounds hold machines in the same project at the same
+ time, and a sweep of every `mvm-` name would delete theirs.
 
  @module
  */
@@ -75,6 +79,17 @@ const HAS_NAMES = REQUIRED_NAMES.every(function isSet(name,) {
  */
 const GUEST_PATH = '/tmp/mvm-live.txt';
 
+/**
+ Fewest virtual CPUs this run asks for, which is what a guest building this
+ repository's Rust code needs.
+ */
+const ASKED_VCPUS = 2;
+
+/**
+ Least memory this run asks for, in gibibytes.
+ */
+const ASKED_MEMORY_GIB = 4;
+
 //endregion Names
 
 await describe({
@@ -95,16 +110,49 @@ await describe({
           .toString('hex',);
         const name = `live-${suffix}`;
 
-        // Safety net: tear down every mvm-owned instance on scope exit, even on a
+        // Safety net: destroy this run's own machine on scope exit, even on a
         // thrown assertion, so a failed run does not leave a billed instance.
+        // It names that machine and never sweeps the project: other rounds hold
+        // machines in the same project, and a sweep would delete theirs.
         await using _teardown = {
           async [Symbol.asyncDispose](): Promise<void> {
-            await backend.destroyAll();
+            /**
+             Names the project still lists, which include this run's machine
+             until it is gone and may include another round's machines.
+             */
+            const listed = (await backend.list())
+              .map(function vmName(vm,) {
+                return vm.name;
+              },);
+            if (listed.includes(name,)) {
+              await backend.destroy({ name, },);
+            }
           },
         };
 
-        // Create makes the smallest flavor the first Canadian region has in stock.
-        await backend.create({ name, },);
+        // Create asks for a floor of two vCPUs and 4 GiB, so the smallest
+        // general-purpose size that meets both wins rather than the smallest in
+        // stock. The backend prints the size it picked before it creates.
+        await backend.create({
+          memoryGiB: ASKED_MEMORY_GIB,
+          name,
+          vcpus: ASKED_VCPUS,
+        },);
+
+        /**
+         The machine as the backend lists it, which is where the size it was
+         actually given can be read back.
+         */
+        const sized = (await backend.list())
+          .find(function ours(vm,) {
+            return vm.name === name;
+          },);
+        // Exact terminal output this run reports; no logger is configured here.
+        console.log(
+          `live: asked at least ${String(ASKED_VCPUS,)} vCPUs and ${String(ASKED_MEMORY_GIB,)} GiB; the backend lists ${String(sized?.vcpus,)} vCPUs and ${String(sized?.memoryGiB,)} GiB`,
+        );
+        expect(sized?.vcpus,).toBeGreaterThanOrEqual(ASKED_VCPUS,);
+        expect(sized?.memoryGiB,).toBeGreaterThanOrEqual(ASKED_MEMORY_GIB,);
 
         /**
          Result of one command run inside the instance.
@@ -161,12 +209,16 @@ await describe({
 
         await backend.destroy({ name, },);
         /**
-         Instances still carrying the tool's prefix, which must be none.
+         This run's machine as the project lists it, which must be gone. Other
+         rounds hold machines in the same project, so the check names this one
+         rather than wanting the whole listing empty.
          */
         const remaining = (await backend.list()).map(function vmName(vm,) {
           return vm.name;
         },);
-        expect(remaining,).toEqual([],);
+        // Exact terminal output this run reports.
+        console.log(`live: the project lists no ${name}: ${String(!remaining.includes(name,),)}`,);
+        expect(remaining,).not.toContain(name,);
       },
       timeout: 900_000,
     },),

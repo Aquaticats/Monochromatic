@@ -321,7 +321,14 @@ await describe({
           method: 'POST',
           path: cloudPath('/instance',),
         },);
-        expect((created?.body as { readonly flavorId: string; }).flavorId,).toBe('c3-4',);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as { readonly flavorId: string; };
+        expect(body.flavorId,).toBe('c3-4',);
       },
     },),
     it({
@@ -368,7 +375,9 @@ await describe({
       name: 'a create that names a flavor outright and also sets a floor refuses before reading anything',
       fn: async () => {
         await using _env = await installEnv();
-        using standIn = installStandIn(routed(createRoutes(),),);
+        using standIn = installStandIn(
+          routed(createRoutes(),),
+        );
         const error = await errorFrom({
           run: () => ovhCreate({
             name: 'dev',
@@ -406,7 +415,7 @@ await describe({
               vcpus: 2,
             },),
           ],),],
-          [`GET ${cloudPath('/image',)}?region=gra9`]: [jsonAnswer([imageAnswer({ region: 'gra9', },),],),],
+          [`GET ${cloudPath('/image',)}?region=gra9`]: [jsonAnswer([imageAnswer({},),],),],
           [`POST ${cloudPath('/instance',)}`]: [jsonAnswer(instanceAnswer({
             region: 'gra9',
             status: 'BUILD',

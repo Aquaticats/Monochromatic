@@ -254,7 +254,7 @@ function requiredText({
 
  @param parsed - parsed record
 
- @returns the field's number, or `undefined` when the record does not carry it
+ @returns the field's number in a list of one, or an empty list when the record does not carry it
 
  @throws {@link InvalidVmMetaError} when the field is present but not a whole number of at least one
 
@@ -271,7 +271,7 @@ function optionalWholeNumber({
   readonly field: string;
   readonly metaPath: string;
   readonly parsed: object;
-},): number | undefined {
+},): readonly number[] {
   /**
    Value the record carries under this field, if any.
    */
@@ -282,15 +282,16 @@ function optionalWholeNumber({
     )
     : undefined;
   if (value === undefined) {
-    return undefined;
+    return [];
   }
-  if ((typeof value !== 'number') || (!Number.isInteger(value,)) || (value < 1)) {
+  if (((typeof value) !== 'number') || (!Number.isInteger(value,))
+    || (value < 1)) {
     throw new InvalidVmMetaError({
       metaPath,
       problem: `the field \`${field}\` is ${JSON.stringify(value,)}, not a whole number of at least one`,
     },);
   }
-  return value;
+  return [value,];
 }
 
 /**
@@ -397,7 +398,7 @@ function vmMetaRecord({
    Memory the record carries, absent in metadata written before mvm recorded a
    guest's size.
    */
-  const memoryGiB = optionalWholeNumber({
+  const [memoryGiB,] = optionalWholeNumber({
     field: 'memoryGiB',
     metaPath,
     parsed,
@@ -406,7 +407,7 @@ function vmMetaRecord({
    Virtual CPUs the record carries, absent in metadata written before mvm
    recorded a guest's size.
    */
-  const vcpus = optionalWholeNumber({
+  const [vcpus,] = optionalWholeNumber({
     field: 'vcpus',
     metaPath,
     parsed,

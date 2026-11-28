@@ -79,6 +79,14 @@ const OVH_OVERRIDE_OPTIONS = '--server-type or MVM_OVH_FLAVOR';
 const FLEX_SUFFIX = '-flex';
 
 /**
+ Answer for a search that found no flavor, so absence travels as a distinct value
+ rather than a nullish union.
+ */
+export const NO_FLAVOR: unique symbol = Symbol(
+  'returned for a search that found no flavor',
+);
+
+/**
  Whether a flavor's name is the flex variation of a size.
  
  OVHcloud documents flex instances as the ones whose local disk stays at 50 GB so
@@ -302,9 +310,9 @@ export type FlavorFit = {
   readonly leftOut: number;
   /**
    The largest size the family rule left out, so a refusal can name what it
-   declined to use, or `undefined` when it left none out.
+   declined to use, or {@link NO_FLAVOR} when it left none out.
    */
-  readonly largestLeftOut: OvhFlavor | undefined;
+  readonly largestLeftOut: OvhFlavor | typeof NO_FLAVOR;
 };
 
 /**
@@ -366,7 +374,7 @@ export function flavorsThatFit({
  
  @param flavors - flavors to search
  
- @returns the largest of them, or `undefined` when there are none
+ @returns the largest of them, or {@link NO_FLAVOR} when there are none
  
  @example
  ```ts
@@ -377,17 +385,18 @@ export function largestFlavor({
   flavors,
 }: {
   readonly flavors: readonly OvhFlavor[];
-},): OvhFlavor | undefined {
+},): OvhFlavor | typeof NO_FLAVOR {
   return orderFlavors({ flavors, },)
-    .at(-1,);
+    .at(-1,)
+    ?? NO_FLAVOR;
 }
 
 /**
  Builds the refusal for a region whose kept sizes all miss the request.
  
- @param kept - the region's in-stock kept sizes, before the floors
+ @param fit - the sizes a request may use, and what the family rule left out
  
- @param leftOut - how many in-stock sizes the family rule left out
+ @param kept - the region's in-stock kept sizes, before the floors
  
  @param region - region the search ran in
  
@@ -417,8 +426,8 @@ function noSizeFits({
   const largest = largestFlavor({ flavors: kept, },);
   return new NoSizeFitsError({
     asked: describeSizeRequest({ request, },),
-    largest: (largest === undefined) ? '' : describeFlavor(largest,),
-    largestLeftOut: (fit.largestLeftOut === undefined) ? '' : describeFlavor(fit.largestLeftOut,),
+    largest: (largest === NO_FLAVOR) ? '' : describeFlavor(largest,),
+    largestLeftOut: (fit.largestLeftOut === NO_FLAVOR) ? '' : describeFlavor(fit.largestLeftOut,),
     leftOut: fit.leftOut,
     overrideOptions: OVH_OVERRIDE_OPTIONS,
     place: `region ${region} on OVHcloud`,
@@ -471,13 +480,16 @@ export async function resolveFlavorsThatFit({
     flavors,
     request,
   },);
-  if (fit.flavors.length === 0) {
+  if (fit.flavors
+    .length
+    === 0) {
     throw noSizeFits({
       fit,
       kept: flavorsThatFit({
         flavors,
         request: {},
-      },).flavors,
+      },)
+        .flavors,
       region,
       request,
     },);

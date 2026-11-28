@@ -20,8 +20,10 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { VM_PREFIX, } from '../../config.ts';
 import type { VmInfo, } from '../../list.ts';
 import {
+  memoryGiBArgument,
   refuseSizeAndOverride,
   sizeRequest,
+  vcpusArgument,
   type SizeRequest,
 } from '../size-request.ts';
 import {
@@ -114,8 +116,8 @@ export async function ovhCreate({
    size in stock the walk it has always been.
    */
   const request: SizeRequest = sizeRequest({
-    memoryGiB,
-    vcpus,
+    memoryGiB: memoryGiBArgument(memoryGiB,),
+    vcpus: vcpusArgument(vcpus,),
   },);
   refuseSizeAndOverride({
     override: flavorOverride(serverType,),
@@ -352,9 +354,14 @@ export async function ovhList(): Promise<readonly VmInfo[]> {
   /**
    Each region's flavors, by region name, so an instance's flavor id resolves.
    */
-  const flavorsByRegion = new Map(await Promise.all(regions.map(async function readRegion(region,) {
-    return [region, await listFlavors({ region, },),] as const;
-  },),),);
+  const flavorsByRegion = new Map(
+    await Promise.all(regions.map(async function readRegion(region,) {
+      return [
+        region,
+        await listFlavors({ region, },),
+      ] as const;
+    },),),
+  );
   return owned.map(function toVmInfo(instance,) {
     /**
      Flavor the instance names, when its region still lists it.

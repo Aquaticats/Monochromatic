@@ -30,6 +30,14 @@ export const MINIMUM_MEMORY_GIB = 1;
  */
 const NOTHING_ASKED = 'nothing';
 
+/**
+ Answer for a number that was not given, so absence travels as a distinct value
+ rather than a nullish union.
+ */
+export const NO_NUMBER: unique symbol = Symbol(
+  'returned for a number the caller did not give',
+);
+
 //endregion Names
 
 //region The request
@@ -57,27 +65,27 @@ export type SizeRequest = {
  Builds a request from two possibly absent numbers, so a caller never writes the
  same spread three times.
  
- @param vcpus - fewest virtual CPUs asked for, or `undefined` when none was
+ @param vcpus - fewest virtual CPUs asked for, or {@link NO_NUMBER}
  
- @param memoryGiB - least memory asked for in gibibytes, or `undefined` when none was
+ @param memoryGiB - least memory asked for in gibibytes, or {@link NO_NUMBER}
  
  @returns the request, carrying only the numbers that were given
  
  @example
  ```ts
- sizeRequest({ vcpus: 2, memoryGiB: undefined }); // { vcpus: 2 }
+ sizeRequest({ memoryGiB: NO_NUMBER, vcpus: 2 }); // { vcpus: 2 }
  ```
  */
 export function sizeRequest({
   memoryGiB,
   vcpus,
 }: {
-  readonly memoryGiB: number | undefined;
-  readonly vcpus: number | undefined;
+  readonly memoryGiB: number | typeof NO_NUMBER;
+  readonly vcpus: number | typeof NO_NUMBER;
 },): SizeRequest {
   return {
-    ...((memoryGiB === undefined) ? {} : { memoryGiB, }),
-    ...((vcpus === undefined) ? {} : { vcpus, }),
+    ...((memoryGiB === NO_NUMBER) ? {} : { memoryGiB, }),
+    ...((vcpus === NO_NUMBER) ? {} : { vcpus, }),
   };
 }
 
@@ -150,7 +158,7 @@ export function describeSizeRequest({
  
  @param minimum - the smallest value the number may carry
  
- @returns the number
+ @returns the number, in a list of one, or an empty list when the value was absent
  
  @throws Error when the value is absent from the type, not a number, not whole, or below the minimum
  
@@ -167,16 +175,17 @@ function positiveWholeNumber({
   readonly minimum: number;
   readonly name: string;
   readonly value: unknown;
-},): number | undefined {
+},): readonly number[] {
   if (value === undefined) {
-    return undefined;
+    return [];
   }
-  if ((typeof value !== 'number') || (!Number.isInteger(value,)) || (value < minimum)) {
+  if (((typeof value) !== 'number') || (!Number.isInteger(value,))
+    || (value < minimum)) {
     throw new Error(
-      `${name} must be a whole number of at least ${String(minimum,)}, and ${String(value,)} is not`,
+      `${name} must be a whole number of at least ${String(minimum,)}, and ${JSON.stringify(value,)} is not`,
     );
   }
-  return value;
+  return [value,];
 }
 
 /**
@@ -184,7 +193,7 @@ function positiveWholeNumber({
  
  @param value - the value as it arrived, or `undefined` when it was not given
  
- @returns the number of virtual CPUs, or `undefined`
+ @returns the number, in a list of one, or an empty list when the value was absent of virtual CPUs, or {@link NO_NUMBER}
  
  @throws Error when the value is not a whole number of at least {@link MINIMUM_VCPUS}
  
@@ -194,12 +203,16 @@ function positiveWholeNumber({
  vcpusArgument(0); // throws
  ```
  */
-export function vcpusArgument(value: unknown,): number | undefined {
-  return positiveWholeNumber({
+export function vcpusArgument(value: unknown,): number | typeof NO_NUMBER {
+  /**
+   The number the value carried, or none.
+   */
+  const [vcpus,] = positiveWholeNumber({
     minimum: MINIMUM_VCPUS,
     name: 'vcpus',
     value,
   },);
+  return vcpus ?? NO_NUMBER;
 }
 
 /**
@@ -207,7 +220,7 @@ export function vcpusArgument(value: unknown,): number | undefined {
  
  @param value - the value as it arrived, or `undefined` when it was not given
  
- @returns the memory in gibibytes, or `undefined`
+ @returns the memory in gibibytes, or {@link NO_NUMBER}
  
  @throws Error when the value is not a whole number of at least {@link MINIMUM_MEMORY_GIB}
  
@@ -217,12 +230,16 @@ export function vcpusArgument(value: unknown,): number | undefined {
  memoryGiBArgument(0); // throws
  ```
  */
-export function memoryGiBArgument(value: unknown,): number | undefined {
-  return positiveWholeNumber({
+export function memoryGiBArgument(value: unknown,): number | typeof NO_NUMBER {
+  /**
+   The number the value carried, or none.
+   */
+  const [memoryGiB,] = positiveWholeNumber({
     minimum: MINIMUM_MEMORY_GIB,
     name: 'memory',
     value,
   },);
+  return memoryGiB ?? NO_NUMBER;
 }
 
 //endregion Reading the numbers a caller gave
@@ -299,9 +316,9 @@ export class NoSizeFitsError extends Error {
  
    @param largest - the largest size the backend could have used, described, or `''` when it had none
  
-   @param leftOut - how many sizes in stock the family rule left out
- 
    @param largestLeftOut - the largest such size, described, or `''` when none was left out
+ 
+   @param leftOut - how many sizes in stock the family rule left out
  
    @param overrideOptions - how a caller names a size on this backend
  

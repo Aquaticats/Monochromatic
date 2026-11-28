@@ -14,7 +14,9 @@ import {
 import {
   describeSizeRequest,
   isEmptySizeRequest,
+  memoryGiBArgument,
   sizeRequest,
+  vcpusArgument,
   type SizeRequest,
 } from './backend/size-request.ts';
 import { parser, } from './index-parsers.ts';
@@ -174,8 +176,8 @@ async function dispatch(): Promise<void> {
      The floors this create set, empty when it set none.
      */
     const request: SizeRequest = sizeRequest({
-      memoryGiB: args.memoryGiB,
-      vcpus: args.vcpus,
+      memoryGiB: memoryGiBArgument(args.memoryGiB,),
+      vcpus: vcpusArgument(args.vcpus,),
     },);
     if (args.from
       === undefined) {

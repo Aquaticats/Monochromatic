@@ -18,8 +18,10 @@ import type { VmInfo, } from '../../list.ts';
 import {
   describeSizeRequest,
   isEmptySizeRequest,
+  memoryGiBArgument,
   refuseSizeAndOverride,
   sizeRequest,
+  vcpusArgument,
   type SizeRequest,
 } from '../size-request.ts';
 import {
@@ -46,9 +48,10 @@ import {
 } from './config.ts';
 import { resolveHetznerImage, } from './images.ts';
 import {
+  chooseServerTypeName,
   describeServerType,
+  NOT_SIZED,
   resolveCheapestServerType,
-  resolveServerType,
 } from './server-types.ts';
 import { ensureSshKeyId, } from './ssh-key.ts';
 import { waitForSsh, } from './ssh.ts';
@@ -272,8 +275,8 @@ export async function hetznerCreate(
    type the walk it has always been.
    */
   const request: SizeRequest = sizeRequest({
-    memoryGiB,
-    vcpus,
+    memoryGiB: memoryGiBArgument(memoryGiB,),
+    vcpus: vcpusArgument(vcpus,),
   },);
   refuseSizeAndOverride({
     override: explicitType,
@@ -285,25 +288,15 @@ export async function hetznerCreate(
    floors, or the cheapest non-deprecated type offered in the target locations
    (the image is by name, so any architecture matches).
    */
-  let serverTypeName: string;
-  if (explicitType !== '') {
-    serverTypeName = explicitType;
-  }
-  else if (isEmptySizeRequest({ request, },)) {
-    serverTypeName = await resolveCheapestServerType({ locations, },);
-  }
-  else {
-    /**
-     Smallest type that meets the request and is offered in a requested location.
-     */
-    const sized = await resolveServerType({
-      locations,
-      request,
-    },);
+  const chosen = await chooseServerTypeName({
+    explicitType,
+    locations,
+    request,
+  },);
+  if (chosen.sized !== NOT_SIZED) {
     rl.info(
-      `size ${describeSizeRequest({ request, },)} fits ${describeServerType(sized,)}`,
+      `size ${describeSizeRequest({ request, },)} fits ${describeServerType(chosen.sized,)}`,
     );
-    serverTypeName = sized.name;
   }
   /**
    Created server plus boot action, after location fallback.
@@ -313,7 +306,7 @@ export async function hetznerCreate(
     image: imageSlug,
     locations,
     rl,
-    serverType: serverTypeName,
+    serverType: chosen.serverTypeName,
     sshKeyId,
   },);
   await waitForAction({ id: created.action
@@ -629,8 +622,14 @@ export async function hetznerList(): Promise<readonly VmInfo[]> {
        Size the server was made with, when the response embeds it; a response
        that does not is one mvm cannot tell the size from, so it says nothing.
        */
-      ...((server.server_type.memory === undefined) ? {} : { memoryGiB: server.server_type.memory, }),
-      ...((server.server_type.cores === undefined) ? {} : { vcpus: server.server_type.cores, }),
+      ...((server.server_type
+        .memory
+        === undefined) ? {} : { memoryGiB: server.server_type
+          .memory, }),
+      ...((server.server_type
+        .cores
+        === undefined) ? {} : { vcpus: server.server_type
+          .cores, }),
     };
   },);
 }

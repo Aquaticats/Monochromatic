@@ -20,11 +20,11 @@
  Left out:
 
  - GPU and accelerator families, which the same guide names as
-   `GPU (T2-*, L4-*, L40S-*)` ([its GPU row][kube-gpu]) and which the catalogue
-   itself lists as the families an accelerator image may boot on: the image
-   `Ubuntu 26.04 - NVIDIA - v595` carries the `flavorType`
-   `g1,g2,g3,t1,t2,i1,a100,l4,rtx5000,l40s` (read from a live `BHS5` image list
-   on 2026-11-28);
+   `GPU (T2-*, L4-*, L40S-*)` ([its GPU row][kube-gpu]), and the `t1` family the
+   catalogue files under `ovh.raid-nvme.t1`. The region's image list also
+   carries one image whose `flavorType` restricts it to
+   `g1,g2,g3,t1,t2,i1,a100,l4,rtx5000,l40s` (read from a live `BHS5` list on
+   2026-11-28, which recorded the value and not which image carries it);
  - the storage shaped family `i1`, which OVHcloud's own concepts page calls
    [Storage Optimized][storage-optimized] and sells for NVMe input/output rather
    than for memory;

@@ -22,6 +22,7 @@
 
 import {
   describeSizeRequest,
+  isEmptySizeRequest,
   NoSizeFitsError,
   type SizeRequest,
 } from '../size-request.ts';
@@ -223,9 +224,10 @@ function offeredIn({
   readonly locations: readonly string[];
   readonly type: HetznerServerType;
 },): boolean {
-  return type.prices.some(function pricedIn(price,) {
-    return locations.includes(price.location,);
-  },);
+  return type.prices
+    .some(function pricedIn(price,) {
+      return locations.includes(price.location,);
+    },);
 }
 
 /**
@@ -364,3 +366,85 @@ export async function resolveServerType({
 }
 
 //endregion Sizes a request may use
+
+//region Choosing the type a create provisions
+
+/**
+ Server type a create provisions, with the record the size walk chose when it
+ chose one.
+ */
+export type ChosenServerType = {
+  /**
+   Type slug to provision.
+   */
+  readonly serverTypeName: string;
+  /**
+   The record the size walk chose, or {@link NOT_SIZED} when the create named a
+   type outright or asked for no floors.
+   */
+  readonly sized: HetznerServerType | typeof NOT_SIZED;
+};
+
+/**
+ Answer for a create that did not run the size walk, so absence travels as a
+ distinct value rather than a nullish union.
+ */
+export const NOT_SIZED: unique symbol = Symbol(
+  'tells a caller the plan was named outright, so no floor walk ran',
+);
+
+/**
+ Chooses the server type a create provisions, from the three ways a caller may
+ have sized the machine: a type named outright, the cheapest offered type, or
+ the smallest type that meets the floors.
+ 
+ @param explicitType - the type named by `--server-type` or its environment variable, `''` for none
+ 
+ @param locations - location codes the type must be offered in
+ 
+ @param request - the floors the caller set, empty when it set none
+ 
+ @returns the slug to provision and, when the size walk chose it, the record
+ 
+ @throws {@link NoSizeFitsError} when no type the locations offer meets the request
+ 
+ @example
+ ```ts
+ const chosen = await chooseServerTypeName({ explicitType: '', locations: ['fsn1'], request: { vcpus: 2 } });
+ ```
+ */
+export async function chooseServerTypeName({
+  explicitType,
+  locations,
+  request,
+}: {
+  readonly explicitType: string;
+  readonly locations: readonly string[];
+  readonly request: SizeRequest;
+},): Promise<ChosenServerType> {
+  if (explicitType !== '') {
+    return {
+      serverTypeName: explicitType,
+      sized: NOT_SIZED,
+    };
+  }
+  if (isEmptySizeRequest({ request, },)) {
+    return {
+      serverTypeName: await resolveCheapestServerType({ locations, },),
+      sized: NOT_SIZED,
+    };
+  }
+  /**
+   Smallest type that meets the request and is offered in a requested location.
+   */
+  const sized = await resolveServerType({
+    locations,
+    request,
+  },);
+  return {
+    serverTypeName: sized.name,
+    sized,
+  };
+}
+
+//endregion Choosing the type a create provisions
