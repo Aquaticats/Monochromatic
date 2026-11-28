@@ -540,8 +540,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   that is issue 6644 and has its round ("Rounds running").
   The round of issue 6615 is live ("Rounds running");
 - the linter,
-  whose round on what the read of `0.5.2-alpha.22` found
-  ("What the linter's alpha.22 read found"),
+  whose round on what the read of `0.5.2-alpha.22` found,
   `monochromatic-lint-alpha-22-release-pass-a-list-lines-sentence-is-true-for-the-name-it-wrote-and-its-controls-can-fail`,
   ended 2026-11-27T19:09:36-05:00 with its report read whole.
   Its branch is merged (`f7b79c5aa8`),
@@ -583,8 +582,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The package's tests ran 1172 and passed 1172,
   and its binary reports the same 19 findings on the wrapper's package as the locked release.
   The choices its brief did not decide wait in `doc/handover/questions-for-the-owner.md`.
-  The round for the Claude Sonnet read of `0.5.2-alpha.21`
-  ("What the linter's alpha.21 read found") is merged (`83d10dd296`),
+  The round for the Claude Sonnet read of `0.5.2-alpha.21` is merged (`83d10dd296`),
   and `0.5.2-alpha.22` is released
   (release commit `f10132d60f`,
   published by the follower's log,
@@ -637,8 +635,7 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   `a-hunk-a-side-also-wrote-into-keeps-no-line-a-side-removed`,
   `two-unwired-sentences-show-a-name-safely-and-three-records-say-what-holds`,
   `the-surface-control-reads-associated-constants-and-long-headers`,
-  and `each-list-guard-says-what-it-matches-and-an-excuse-names-its-use`
-  ("What the wrapper's alpha.50 reads found").
+  and `each-list-guard-says-what-it-matches-and-an-excuse-names-its-use`.
   All change `package/git-policy/cli`,
   each brief names the others' files,
   and the published-surface list is where their merges meet.
