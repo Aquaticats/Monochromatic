@@ -3,7 +3,7 @@
 Status:
 first written 2026-11-27 by the round that fixed issue 6642
 (`fix/monochromatic-lint-issue-6642-the-line-break-fix-joins-what-the-old-wrap-cut-and-leaves-no-lone-word`)
-and revised the same day by the round that reran its survey
+and revised in the same session by the round that reran its survey
 (`docs/planning-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept`)
 after a same-vendor gate read.
 **Unapproved and non-final:**
