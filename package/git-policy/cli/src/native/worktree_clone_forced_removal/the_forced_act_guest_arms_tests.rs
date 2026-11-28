@@ -1522,22 +1522,9 @@ fn phase_taskless(fixture: &Fixture) -> String {
     let handle: RecordedHandle = name_the_handle(&underlay)
         .expect("the underlay's handle is taken before the clone is mounted");
     mount_the_clone(fixture, slot.as_path());
-    // What: how many taskless namespaces held this copy before this phase made one.
-    // Why: the walk must answer none here, or the one it finds after would prove nothing.
-    let before: usize =
-        find_the_taskless_namespaces_holding(Path::new("/proc"), dataset.as_str(), slot.as_path())
-            .expect("the walk answers on this kernel")
-            .len();
-    let holding: std::fs::File = a_namespace_no_task_holds(checkout.as_path());
-    let identity_of_the_holder: String = format!(
-        "mnt:[{}]",
-        std::os::unix::fs::MetadataExt::ino(
-            &holding
-                .metadata()
-                .expect("the holder's descriptor is described")
-        )
-    );
-    // The walk's first half on this kernel, which is what a kernel of 6.18 or older refuses outright.
+    // The walk's first half on this kernel, which is what a kernel of 6.18 or older refuses outright. It is asked
+    // before any namespace is made, because a kernel without the call ends the phase here and there is then nothing
+    // to make.
     let listed: Vec<u64> = match the_mount_namespaces_on_this_machine() {
         Ok(ids) => ids,
         Err(refusal) => {
@@ -1561,13 +1548,8 @@ fn phase_taskless(fixture: &Fixture) -> String {
                     _ => "other",
                 },
             ));
-            fields.push((
-                "holder-identity",
-                Box::leak(identity_of_the_holder.into_boxed_str()),
-            ));
             let alive: bool = caller_job.alive();
             fields.push(("caller-job", if alive { "alive" } else { "gone" }));
-            drop(holding);
             caller_job.end();
             assert!(
                 alive,
@@ -1576,6 +1558,21 @@ fn phase_taskless(fixture: &Fixture) -> String {
             return phase_line("taskless-namespace-unlistable", fields.as_slice());
         }
     };
+    // What: how many taskless namespaces held this copy before this phase made one.
+    // Why: the walk must answer none here, or the one it finds after would prove nothing.
+    let before: usize =
+        find_the_taskless_namespaces_holding(Path::new("/proc"), dataset.as_str(), slot.as_path())
+            .expect("the walk answers on this kernel")
+            .len();
+    let holding: std::fs::File = a_namespace_no_task_holds(checkout.as_path());
+    let identity_of_the_holder: String = format!(
+        "mnt:[{}]",
+        std::os::unix::fs::MetadataExt::ino(
+            &holding
+                .metadata()
+                .expect("the holder's descriptor is described")
+        )
+    );
     let held: std::collections::BTreeSet<u64> =
         the_ids_this_machines_tasks_hold(Path::new("/proc")).expect("this guest's own /proc reads");
     let taskless: Vec<u64> = the_ids_no_task_holds(listed.as_slice(), &held);
