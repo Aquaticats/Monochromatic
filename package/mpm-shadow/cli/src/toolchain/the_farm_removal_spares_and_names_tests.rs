@@ -97,7 +97,8 @@ const A_SECOND_ORPHAN: &str = "orphan-d";
 /// which a `current` link beside it names.
 const ANOTHER_TOOLS_VERSION: &str = "1.0.0";
 
-/// The directory another tool's install sits in, below the toolchain root,
+/// The directory another tool's install sits in,
+/// below the toolchain root,
 /// which is what tells it from this program's own install.
 const ANOTHER_TOOLS_DIRECTORY: &str = "fixtool";
 
@@ -318,7 +319,8 @@ fn a_cargo_install_of_the_shadow(rig: &Rig) -> PathBuf {
 }
 
 /// What:
-/// A link in the farm called after this program, pointing where `target` names.
+/// A link in the farm called after this program,
+/// pointing where `target` names.
 /// Why:
 /// One name of the farm carries the rule the controls here are about,
 /// and only its target differs between them.

@@ -366,9 +366,11 @@ const THE_PROGRAMS_CRATE: &str = env!("CARGO_PKG_NAME");
 /// A link whose target no longer resolves is not kept:
 /// with nothing installed there the name reaches nothing,
 /// and a scope that has the program installed nowhere removes it as a link no row declares.
-/// Neither is a link that resolves into another tool's install directory, or into a superseded version,
+/// Neither is a link that resolves into another tool's install directory,
+/// or into a superseded version,
 /// or into a dead installer's staging directory:
-/// that is not an install of this program, and the name is meant for the one that is.
+/// that is not an install of this program,
+/// and the name is meant for the one that is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

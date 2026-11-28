@@ -244,7 +244,8 @@ fn take_the_plant_for(
 /// Why:
 /// A rebuild lists the folder first and reads each entry after that,
 /// so another install can remove the name between those two steps;
-/// the state is what the claim "no failure here" is about, and no fixture can make it happen on demand.
+/// the state is what the claim "no failure here" is about,
+/// and no fixture can make it happen on demand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
