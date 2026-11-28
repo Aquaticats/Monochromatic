@@ -1,5 +1,5 @@
 //! What:
-//!  The removal-side half of the ZFS worktree plan that needs no command to reach it yet:
+//!  The removal-side half of the ZFS worktree plan:
 //!  the lineage proof a removal makes before its first delete,
 //!  the inventory and bookmark rule that proof applies,
 //!  the persisted destruction plan it writes,
@@ -24,13 +24,9 @@
 //!  and the decided bookmark rule `A: Live or planned`
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Bookmarks on a clone being removed").
-//!  This folder is built ahead of the plan's order and is wired by no command:
-//!  step 14's own wiring calls it,
-//!  and no `git` command,
-//! `doctor`,
-//! mount handler or boot unit reaches it
-//!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
-//!  "Building later pieces ahead of the plan's order").
+//!  This folder is the removal that a person's `git worktree remove` runs,
+//!  over the live seams `removal_command_path.rs` hands in,
+//!  and `doctor` reads its records without calling any of it.
 //!
 //! Files in this folder,
 //! each using only files listed before it:

@@ -323,7 +323,7 @@ fn a_whole_worktree_refuses_its_removal() {
         RemovalReads::Unreadable("this control reads no pool"),
     );
     assert!(
-        stderr.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        stderr.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
         "{stderr}"
     );
     assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
@@ -386,7 +386,7 @@ fn every_spelling_of_a_bound_slots_removal_is_refused() {
     facts.remove_plan = None;
     let stderr: String = refusal_of(&facts, RemovalReads::Scripted(&pool));
     assert!(
-        stderr.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        stderr.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
         "{stderr}"
     );
     assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
@@ -782,10 +782,11 @@ fn the_refusal_asks_the_intent_reader_it_was_given() {
 ///  and writes no record,
 ///  no intent and no plan.
 /// Why:
-///  This release removes no clone,
-///  so the printed proof and loss are what a person gets,
+///  This control answers the pool itself,
+///  so the printed proof and loss are what a person gets from the release's
+///  path without the device,
 ///  and the unchanged tree is the promise that nothing was unmounted or
-///  recorded for a step this release cannot finish.
+///  recorded for a step the control cannot finish.
 #[test]
 fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
     let fixture: RemovalFixture = RemovalFixture::healthy("command-path-healthy");
@@ -798,7 +799,7 @@ fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
     // The refusal a person reads is this whole block, so a log of one run keeps its shape beside the assertions.
     println!("{stderr}");
     assert!(
-        stderr.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        stderr.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
         "{stderr}"
     );
     assert!(stderr.contains("state: known unmounted clone"), "{stderr}");
@@ -821,7 +822,7 @@ fn a_bound_clone_prints_the_proof_and_the_loss_and_writes_nothing() {
         "{stderr}"
     );
     assert!(
-        stderr.contains("this release does not remove a clone yet"),
+        stderr.contains("the removal itself did not run here"),
         "{stderr}"
     );
     assert_eq!(

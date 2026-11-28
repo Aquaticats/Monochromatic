@@ -33,7 +33,6 @@ use super::check_outcome::{
     pass,
     unknown,
 };
-use crate::worktree_clone_binding_record::add_state_commands::NO_REMOVAL_WORDS;
 use crate::worktree_clone_mount_protocol::dataset_guid::DatasetGuid;
 use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
 use crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome;
@@ -228,7 +227,7 @@ pub fn check_removal_plan(facts: &RemovalPlanFacts) -> CheckOutcome {
             return finding(
                 "plan",
                 format!(
-                    "a destruction plan for `{clone}` stands at {}: started {}, written by {}, {head}, {snapshots}. A name's state is the outcome on its highest attempt number, so a name the plan calls `destroyed` is gone and cannot be restored, and a name it calls `planned`, `intact` or `unknown` may still stand on the pool. The removal that wrote this plan is the one that resumes from it, and {NO_REMOVAL_WORDS}.",
+                    "a destruction plan for `{clone}` stands at {}: started {}, written by {}, {head}, {snapshots}. A name's state is the outcome on its highest attempt number, so a name the plan calls `destroyed` is gone and cannot be restored, and a name it calls `planned`, `intact` or `unknown` may still stand on the pool. The removal that wrote this plan is the one that resumes from it, and no command of this release runs that removal while the plan stands: a `git worktree remove` of this slot is Git's own removal, which drops the registration and the slot folder while the clone stands, so do not run it.",
                     path.display(),
                     plan.facts.started,
                     plan.facts.owner
