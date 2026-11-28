@@ -20,6 +20,20 @@
 //! preset or default anything,
 //! and speaks to the manager only with the
 //!  members on the list below.
+//! What this reading does not see,
+//! and what a reader therefore checks by hand:
+//!  a start whose program is a value rather than a literal
+//!  (`Command::new(EXECUTABLE_SYSTEMCTL)`,
+//!  whose path `checkout_boot_units/boot_unit_names.rs` holds),
+//!  a `member:` whose name is a constant or whose literal a line break separates from its key,
+//!  a unit text or an install line that a macro of another file expands to,
+//!  and a release file whose name this guard reads as test code
+//!  (`testing/`,
+//!  `binary/`,
+//!  a name ending `_tests.rs` or holding `test_support`),
+//!  which `lib.rs` gates with `#[cfg(test)]` today.
+//!  A comment is a line whose first characters are `//`,
+//!  so a banned text written after code on a line is a finding.
 //! Why:
 //!  Owner,
 //! 2026-11-07:
@@ -88,6 +102,8 @@ const ALLOWED_MEMBERS: &[&str] = &[
 /// the manager's calls that make a unit start at startup or login,
 /// and the program
 ///  that makes them from a shell.
+/// The manager's own program is read by `starts_the_manager_s_program` instead of by a text,
+/// because a start may spell its path (`Command::new("/usr/bin/systemctl")`).
 const FORBIDDEN_IN_CODE: &[&str] = &[
     "EnableUnitFiles",
     "LinkUnitFiles",
@@ -95,7 +111,6 @@ const FORBIDDEN_IN_CODE: &[&str] = &[
     "PresetUnitFiles",
     "SetDefaultTarget",
     "MaskUnitFiles",
-    "Command::new(\"systemctl",
     "WantedBy=",
     "RequiredBy=",
     "[Install]",
@@ -162,6 +177,37 @@ fn the_entry_of_a_wants_line(
             && line.contains(allowed_text)
             && line.trim() == *written;
     });
+}
+
+/// Whether this release code line starts the system manager's own program,
+/// however the literal is spelled:
+/// the bare name,
+/// a path that ends in it,
+/// or a raw literal.
+/// Why:
+///  the ban read one literal (`Command::new("systemctl`),
+///  so `Command::new("/usr/bin/systemctl").arg("enable")` passed it,
+///  and `checkout_boot_units/boot_unit_names.rs` holds the path as `EXECUTABLE_SYSTEMCTL`.
+///  A start whose program is a value names no literal here,
+///  which this guard's top doc says.
+fn starts_the_manager_s_program(line: &str) -> bool {
+    let Some(at) = line.find("Command::new") else {
+        return false;
+    };
+    let named: &str = line[at + "Command::new".len()..].trim_start();
+    let Some(inside_the_call) = named.strip_prefix('(') else {
+        return false;
+    };
+    let arguments: &str = inside_the_call.trim_start();
+    let literal: &str = if let Some(after) = arguments.strip_prefix("r\"") {
+        after
+    } else if let Some(after) = arguments.strip_prefix('"') {
+        after
+    } else {
+        return false;
+    };
+    let spelled: &str = literal.split('"').next().unwrap_or("");
+    return spelled == "systemctl" || spelled.ends_with("/systemctl");
 }
 
 /// The unit texts the one-time ZFS setup installs under `multi-user.target`,
@@ -378,6 +424,30 @@ fn the_detector_finds_every_install_line_and_skips_comments() {
     assert!(lines_that_start_at_login("[Unit]\n# WantedBy=default.target is not written\n; [Install]\n[Socket]\nListenStream=%t/x.sock\n").is_empty());
 }
 
+/// The manager's own program is read however its literal is spelled,
+/// and a start of another program,
+/// a sentence that mentions the program,
+/// or the constant that holds its path is none.
+#[test]
+fn the_manager_s_program_is_read_however_the_literal_spells_it() {
+    for planted in [
+        "let _ = Command::new(\"systemctl\").arg(\"enable\");",
+        "let _ = Command::new(\"/usr/bin/systemctl\").arg(\"enable\");",
+        "let _ = Command::new(r\"systemctl\").arg(\"enable\");",
+    ] {
+        assert!(starts_the_manager_s_program(planted), "{planted}");
+    }
+    for fine in [
+        "let _ = Command::new(git);",
+        "let _ = Command::new(\"git\");",
+        "let _ = Command::new(EXECUTABLE_SYSTEMCTL).arg(\"enable\");",
+        "pub const EXECUTABLE_SYSTEMCTL: &str = \"/usr/bin/systemctl\";",
+        "let advice = format!(\"stop it with `systemctl --user stop {unit}` and run again\");",
+    ] {
+        assert!(!starts_the_manager_s_program(fine), "{fine}");
+    }
+}
+
 /// What:
 ///  The walk skips a `uses` link that names a folder below its root,
 ///  and refuses every other link,
@@ -451,6 +521,11 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
                 if line.contains(forbidden) && !boot_start {
                     found.push(format!("{relative}:{number}: {forbidden}"));
                 }
+            }
+            if starts_the_manager_s_program(line) {
+                found.push(format!(
+                    "{relative}:{number}: a start of the manager's own program"
+                ));
             }
             let wants: bool = line.contains(".wants") || line.contains(".requires");
             if !wants {

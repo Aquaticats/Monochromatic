@@ -97,6 +97,11 @@ mod the_publishes_that_fail_or_race_tests;
 #[path = "archive_staging_tests/the_copies_a_recovery_may_not_publish_tests.rs"]
 mod the_copies_a_recovery_may_not_publish_tests;
 
+/// The words a failed publish prints,
+/// and what the install that follows does with the copy those words name.
+#[path = "archive_staging_tests/the_words_a_failed_publish_prints_tests.rs"]
+mod the_words_a_failed_publish_prints_tests;
+
 /// The controls of what a hidden name's boot and its process record decide:
 /// a record `/proc` hides,
 /// a name written by a run that could not read its boot,

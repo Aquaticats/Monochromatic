@@ -37,6 +37,9 @@
 //! so a rename's import (`use std::os::unix::fs::symlink as make_link;`,
 //! and the braced `use std::os::unix::fs::{symlink as make_link};`) and a function taken as a value
 //! are findings too.
+//! A syscall entry is banned as the call that makes it (`libc::syscall`),
+//! and never by the constant that numbers it,
+//! because `libc::SYS_symlinkat` writes the system call's name inside a longer one.
 //! What this ban does not see is a call a macro of another file expands to,
 //! a name a glob import (`use super::*;`) or a type alias brings into scope,
 //! and a call whose name and `(` a line break separates;
@@ -227,7 +230,10 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
 ///  the call behind its path,
 ///  the bare call of an imported name,
 ///  the `at` form a directory descriptor goes through,
-///  and the name any other crate gives the same system call (`rustix::fs::linkat`).
+///  the name any other crate gives the same system call (`rustix::fs::linkat`),
+///  and the syscall entry itself,
+///  because `libc::syscall(libc::SYS_symlinkat, ...)` writes the system call's name inside a longer constant
+///  (`SYS_symlinkat`) where no name boundary reads it.
 ///  A name is read here where no longer name touches it,
 ///  so `link` is a finding and `hard_link`,
 ///  `read_link`,
@@ -236,9 +242,16 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const LINKS_A_FILE_MAY_NOT_MAKE = ['symlink', 'symlinkat', 'hard_link', 'link', 'linkat'];
+/// const LINKS_A_FILE_MAY_NOT_MAKE = ['symlink', 'symlinkat', 'hard_link', 'link', 'linkat', 'syscall'];
 /// ```
-const LINKS_A_FILE_MAY_NOT_MAKE: &[&str] = &["symlink", "symlinkat", "hard_link", "link", "linkat"];
+const LINKS_A_FILE_MAY_NOT_MAKE: &[&str] = &[
+    "symlink",
+    "symlinkat",
+    "hard_link",
+    "link",
+    "linkat",
+    "syscall",
+];
 
 /// What:
 ///  `MAY_HOLD` is the two commit-path files that make a link for a reason that is not a hook,
@@ -470,6 +483,8 @@ const SPELLINGS_OF_A_LINK: &[&str] = &[
     "let _ = std::fs::hard_link(from, to);",
     "let _ = std::fs::link(from, to);",
     "let _ = libc::linkat(from, to, at);",
+    "let _ = libc::syscall(libc::SYS_symlinkat, from, to);",
+    "let _ = libc::syscall(libc::SYS_linkat, from, to, at);",
     "let _ = std::os::unix::fs::symlink::<_, _>(from, to);",
     "let _ = symlink::<_, _>(from, to);",
     "let _ = std::os::unix::fs::symlink (from, to);",

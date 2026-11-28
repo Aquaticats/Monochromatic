@@ -203,6 +203,31 @@ fn install_below_root(
 }
 
 /// What:
+/// Whether `program` belongs to an installed tool of either toolchain root,
+/// read the same way the search for the newest installed `mpm-shadow` reads the running program.
+/// Why:
+/// The exposure farm keeps the program's own link while an install of it exists,
+/// and which programs belong to an install is this module's question everywhere else too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function belongsToAnInstall(scope: Scope, program: string): boolean
+/// ```
+pub(crate) fn belongs_to_an_install(
+    scope: &Scope,
+    program: &Path,
+) -> bool {
+    // What: the path below the toolchain root that holds the program's install, or nothing when it belongs to none.
+    // Why: an install is the only thing below a root that carries a `current` link beside its versions.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return installBelowRoot(scope, program) !== undefined;
+    // ```
+    return install_below_root(scope, program).is_some();
+}
+
+/// What:
 /// The name of the program file,
 /// without the kernel's ` (deleted)` note on a running program whose file was removed.
 /// Why:

@@ -1057,7 +1057,7 @@ fn a_release_archive_tool_installed_only_in_the_other_root_is_found_and_observed
     finish_archive(&global.toolchain_root, "0.2.1");
     point_current_at_newest_archive(&global.toolchain_root, ARCHIVE_ID, ARCHIVE_BIN)
         .expect("point current");
-    let found = find_tool_bin(&tool, ARCHIVE_BIN, &rig.scope, &rig.env, &[])
+    let found = find_tool_bin(&tool, ARCHIVE_BIN, &rig.scope, &rig.env, &[], None)
         .expect("found in the other root");
     assert_eq!(
         found,

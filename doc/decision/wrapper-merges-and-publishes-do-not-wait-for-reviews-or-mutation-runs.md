@@ -78,6 +78,22 @@ no gates".
 A round runs no whole gate of its own;
 it runs the host checks of the modules it touched.
 
+A release may be dispatched from a tree newer than the gate's commit
+while nothing under the paths it depends on moved since that commit:
+the package being released,
+the sources of the crates it names by path
+(the ZFS request crate,
+`jsonc-edit`,
+`catalog-specifier`,
+the scanner's `src/` and the linter),
+`package/crate-release`
+and the release workflow.
+Measured on 2026-11-27 against `main` at `af1647ef36`,
+before `0.6.1-alpha.51`'s dispatch,
+so the tree that dispatch built was the gated one.
+That reading of the gate is the coordinating session's practice and not the owner's answer,
+with the owner's veto open.
+
 Designs.
 The project chose "A:
 merge designs as proposals (Recommended)":
