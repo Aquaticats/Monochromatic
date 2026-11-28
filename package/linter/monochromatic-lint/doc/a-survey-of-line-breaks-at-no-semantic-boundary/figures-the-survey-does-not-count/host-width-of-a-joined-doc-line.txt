@@ -1,0 +1,71 @@
+Host width of a doc line the shipped join writes, at three indents.
+Run 2026-11-28T03:17:11-05:00 with monochromatic-lint 0.5.2-alpha.24 0.5.2-alpha.24,
+in a systemd user scope (MemoryMax 1G, CPUQuota 100%, TasksMax 64, IOWeight 1, RuntimeMaxSec 120).
+
+The fixture's second doc line holds 115 characters; the fragment 'the ' joins it, so the joined virtual line is 119 characters (3 + 1 + 115).
+Each of the three items carries the same doc paragraph at its own indent.
+
+command:
+  /home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint --config <one-rule configuration> --fix <copy of the fixture>
+
+settings of the one-rule configuration:
+[
+  {
+    "name": "host-width-probe",
+    "files": ["**/*.md", "**/*.rs/*.md"],
+    "rules": {
+      "markdown/semantic-line-breaks": {
+        "severity": "error"
+      }
+    }
+  },
+]
+
+fixture (unchanged copy was fixed in the scratch folder, never a file of the repository):
+
+/// Alpha, the
+/// abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh.xxxxxx.
+fn toplevel() {}
+
+impl Foo {
+    /// Alpha, the
+    /// abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh.xxxxxx.
+    fn item() {}
+}
+
+mod deeper {
+    impl Bar {
+        /// Alpha, the
+        /// abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh.xxxxxx.
+        fn nested() {}
+    }
+}
+output: the fix exited 0; every doc paragraph was broken after 'Alpha,' and the fragment joined to its next line.
+
+--- widths of doc lines in the fixed copy (indent, host characters) ---
+0 10
+0 123
+4 14
+4 127
+8 18
+8 131
+
+--- fixed copy ---
+
+/// Alpha,
+/// the abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh.xxxxxx.
+fn toplevel() {}
+
+impl Foo {
+    /// Alpha,
+    /// the abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh.xxxxxx.
+    fn item() {}
+}
+
+mod deeper {
+    impl Bar {
+        /// Alpha,
+        /// the abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh.xxxxxx.
+        fn nested() {}
+    }
+}

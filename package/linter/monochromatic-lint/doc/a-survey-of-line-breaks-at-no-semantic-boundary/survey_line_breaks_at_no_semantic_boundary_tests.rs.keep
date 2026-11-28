@@ -2,9 +2,12 @@
 //! Why:
 //!  The proposal on whether the rule should report such a break needs counts that add up,
 //!  a class for every break, a positive control that the reader can see each class,
-//!  and a removal count taken from the shipped join rather than from a model.
+//!  a removal count taken from the shipped join rather than from a model,
+//!  each option's counts in its own population,
+//!  the reported paragraphs measured after the shipped fix has run on copies,
+//!  and the counts split by the family of file a finding sits in.
 //! How to run it:
-//!  `README.md` in this folder names the two temporary source edits and the command.
+//!  `README.md` in this folder names the temporary source edits, the three environment variables and the command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -87,6 +90,33 @@ const CONJUNCTIONS: &[&str] = &[
 /// The most characters MD1 asks a line to stay under.
 const LINE_LIMIT: usize = 120;
 
+/// The one-rule configuration the after-the-fix measurement lints its copies with.
+///  It names the Markdown paths and the Rust doc-comment paths the repository configuration also names,
+///  so a copy is read exactly as the rule reads the file it came from.
+const M13_CONFIGURATION: &str = "\
+[
+  {
+    \"name\": \"survey-reported-paragraphs-after-the-fix\",
+    \"files\": [\"**/*.md\", \"**/*.mdx\", \"**/*.rs/*.md\"],
+    \"rules\": {
+      \"markdown/semantic-line-breaks\": {
+        \"severity\": \"error\"
+      }
+    }
+  },
+]
+";
+
+/// A paragraph the rule reports, as the shipped fix is asked about it.
+///  The positive control shows that a fix run can be seen at all:
+///  its fixed copy holds this many breaks at no boundary,
+///  and the unfixed copy holds more, so an unfixed control cannot pass.
+const M13_CONTROL: &str = "Aaa bbb, the\nccc ddd eee.\n";
+
+/// The breaks the control's fixed copy holds at no boundary.
+///  The unfixed copy holds one, which the fix joins away.
+const M13_CONTROL_BREAKS: usize = 0;
+
 /// Whether the line's last visible character closes a bracket or a quote,
 ///  which the survey reports apart because it reads as a boundary of its own.
 fn closes_at_the_end(text: &str) -> bool {
@@ -107,6 +137,19 @@ fn holds_hard_break(raw: &str, trimmed: &str) -> bool {
 fn ends_inside_emphasis(text: &str) -> bool {
     let stripped: &str = text.trim_end_matches(['*', '_', '~']);
     return stripped.len() != text.len() && ends_at_break_point(stripped);
+}
+
+/// The line's own text after any quote markers,
+///  because a quotation's `>` is the container's syntax and not a word of the prose.
+fn without_quote_markers(text: &str) -> &str {
+    let mut rest: &str = text;
+    loop {
+        let trimmed: &str = rest.trim_start();
+        if !trimmed.starts_with('>') {
+            return trimmed;
+        }
+        rest = trimmed[1..].strip_prefix(' ').unwrap_or(&trimmed[1..]);
+    }
 }
 
 /// Whether a following line opens a block marker a whitespace-only join may not move.
@@ -165,6 +208,25 @@ fn first_token_class(
         return "dash";
     }
     return "ordinary";
+}
+
+/// The family of file a finding sits in,
+///  so the owner can weigh a sweep by where it would land.
+fn file_family(host: &str) -> String {
+    if let Some(rest) = host.strip_prefix("doc/") {
+        return match rest.split_once('/') {
+            Some((folder, _)) => format!("doc/{folder}"),
+            None => String::from("doc (top level)"),
+        };
+    }
+    if host.starts_with("package/") {
+        return if host.ends_with(".rs") {
+            String::from("package (Rust doc comments)")
+        } else {
+            String::from("package (Markdown)")
+        };
+    }
+    return String::from("the rest");
 }
 
 /// Map a virtual rustdoc line to its host line,
@@ -264,9 +326,11 @@ impl Configurations {
 struct Line {
     /// First byte of the line.
     from: usize,
-    /// The line with trailing spacing removed.
+    /// The line with trailing spacing removed, as the author wrote it.
     visible: String,
-    /// How many words the line holds.
+    /// The line after any quote markers, which is the prose the rule reads.
+    text: String,
+    /// How many words the line's prose holds.
     words: usize,
     /// Whether the line ends in an authored hard break.
     hard: bool,
@@ -276,6 +340,15 @@ struct Line {
     closer: bool,
     /// Whether the rule would break after an emphasis delimiter at this ending.
     emphasis: bool,
+}
+
+/// One host file's before-the-fix counts, for the reported-paragraph measurement.
+#[derive(Default)]
+struct HostCounts {
+    /// No-boundary non-hard breaks in paragraphs the rule reports nothing for.
+    quiet: usize,
+    /// No-boundary breaks in paragraphs the rule already reports.
+    reported: usize,
 }
 
 /// The survey's running counts.
@@ -319,15 +392,25 @@ struct Tally {
     forced_breaks: usize,
     /// Quiet non-hard clauses at or over the line limit.
     forced_clauses: usize,
+    /// Quiet non-hard breaks held by the clauses at or over the line limit.
+    forced_clause_breaks: usize,
     /// Counts by first-token class, quiet and non-hard.
     class: BTreeMap<&'static str, usize>,
     /// Counts by first-token class whose clause reaches the line limit.
     class_forced: BTreeMap<&'static str, usize>,
     /// Counts by first-token class the shipped join would remove.
     class_removable: BTreeMap<&'static str, usize>,
+    /// Quiet one-or-two-word lines that end at a break point.
+    short_boundary: usize,
+    /// Quiet one-or-two-word lines that end at no boundary.
+    short_no_boundary: usize,
+    /// Breaks whose next line opens a quote marker before the marker is stripped.
+    quoted_next: usize,
     /// Option A findings and files.
     option_a: usize,
     option_a_files: BTreeSet<String>,
+    /// Option A files holding a break that does not end inside emphasis.
+    option_a_durable_files: BTreeSet<String>,
     /// Option B findings and files.
     option_b: usize,
     option_b_files: BTreeSet<String>,
@@ -341,24 +424,49 @@ struct Tally {
     /// Option D2 clauses and files.
     option_d2: usize,
     option_d2_files: BTreeSet<String>,
+    /// Option D findings counted in breaks.
+    d_breaks: usize,
+    /// Option D2 findings counted in breaks.
+    d2_breaks: usize,
+    /// Option D clauses by the class of the clause's first break.
+    d_class: BTreeMap<&'static str, usize>,
+    /// Option D2 clauses by the class of the clause's first break.
+    d2_class: BTreeMap<&'static str, usize>,
+    /// Option D breaks by class, over every break of a reported clause.
+    d_break_class: BTreeMap<&'static str, usize>,
+    /// Option D2 breaks by class, over every break of a reported clause.
+    d2_break_class: BTreeMap<&'static str, usize>,
     /// Option F1 breaks and files.
     option_f1: usize,
     option_f1_files: BTreeSet<String>,
     option_f1_removable: usize,
+    /// Option F1 breaks by class.
+    f1_class: BTreeMap<&'static str, usize>,
+    /// Option F1 breaks whose clause reaches the line limit.
+    f1_forced: usize,
     /// Option F2 breaks and files.
     option_f2: usize,
     option_f2_files: BTreeSet<String>,
     option_f2_removable: usize,
+    /// Option F2 breaks that end inside emphasis, removable or not.
     option_f2_emphasis: usize,
-    /// Option F2 files after the emphasis endings are excluded.
+    /// Option F2 files holding a break that does not end inside emphasis.
     option_f2_durable_files: BTreeSet<String>,
+    /// Option F2 breaks by class.
+    f2_class: BTreeMap<&'static str, usize>,
+    /// Option F2 breaks whose clause reaches the line limit.
+    f2_forced: usize,
     /// Option G's scoped class inside the wrapper package.
     option_g: usize,
     option_g_files: BTreeSet<String>,
+    /// Findings of each option, by file family.
+    family_option: BTreeMap<&'static str, BTreeMap<String, usize>>,
     /// Files holding at least one quiet no-boundary break.
     quiet_files: BTreeSet<String>,
     /// Files holding at least one break at all.
     all_files: BTreeSet<String>,
+    /// Per-host before-the-fix counts.
+    host_counts: BTreeMap<String, HostCounts>,
     /// Ignored and rule-off paths, for the netting record.
     ignored: BTreeSet<String>,
     rule_off: BTreeSet<String>,
@@ -366,6 +474,18 @@ struct Tally {
     parse_failures: BTreeSet<String>,
     /// One whole example per class, first in sorted path order.
     examples: BTreeMap<&'static str, String>,
+    /// Host files the after-the-fix measurement ran over.
+    m13_hosts: usize,
+    /// No-boundary breaks those files hold after the fix.
+    m13_post_total: usize,
+    /// Reported breaks those files still hold after the fix.
+    m13_remaining: usize,
+    /// Files whose post-fix count fell below the pre-fix quiet count.
+    m13_below_quiet: usize,
+    /// Copies whose bytes the fix changed.
+    m13_changed: usize,
+    /// Copies the measurement could not read back.
+    m13_unreadable: usize,
 }
 
 /// One clause of a paragraph:
@@ -377,14 +497,31 @@ struct ClauseStat {
     hard: bool,
     /// Whether any line in the clause ends inside emphasis.
     emphasis: bool,
+    /// Whether any break in the clause follows a line ending in a dash.
+    after_dash: bool,
     /// Width if the whole clause were joined with single spaces.
     width: usize,
     /// Number of no-boundary breaks inside the clause.
     breaks: usize,
     /// Class of the clause's first no-boundary break.
     first_class: &'static str,
-    /// Whether the line before the clause's first break ends in a dash.
-    first_after_dash: bool,
+    /// Every break of the clause, counted by class.
+    classes: BTreeMap<&'static str, usize>,
+}
+
+/// Count one finding of an option in its file family.
+fn count_option_family(
+    tally: &mut Tally,
+    option: &'static str,
+    host: &str,
+) {
+    let family: String = file_family(host);
+    *tally
+        .family_option
+        .entry(option)
+        .or_default()
+        .entry(family)
+        .or_insert(0) += 1;
 }
 
 /// Keep the first whole example for a class.
@@ -426,10 +563,12 @@ fn paragraph_lines(slice: &str) -> Vec<Line> {
         let raw: &str = &slice[from..to];
         let visible: &str = raw.trim_end_matches([' ', '\t']);
         let hard: bool = holds_hard_break(raw, visible);
+        let text: &str = without_quote_markers(visible);
         lines.push(Line {
             from,
             visible: String::from(visible),
-            words: visible.split_whitespace().count(),
+            text: String::from(text),
+            words: text.split_whitespace().count(),
             hard,
             boundary: ends_at_break_point(visible),
             closer: closes_at_the_end(visible),
@@ -471,14 +610,20 @@ fn survey_source(
             if number + 1 == lines.len() {
                 continue;
             }
-            if line.visible.trim().is_empty() {
+            if line.text.trim().is_empty() {
                 continue;
             }
             let next: &Line = &lines[number + 1];
             tally.breaks += 1;
             tally.all_files.insert(String::from(host));
+            if next.visible.trim_start().starts_with('>') {
+                tally.quoted_next += 1;
+            }
             if line.boundary {
                 tally.boundary += 1;
+                if !touched && !line.hard && line.words <= 2 {
+                    tally.short_boundary += 1;
+                }
                 continue;
             }
             tally.no_boundary += 1;
@@ -493,6 +638,7 @@ fn survey_source(
             }
             if touched {
                 tally.reported += 1;
+                tally.host_counts.entry(String::from(host)).or_default().reported += 1;
                 if line.closer {
                     tally.reported_closer += 1;
                 } else {
@@ -504,7 +650,11 @@ fn survey_source(
                 continue;
             }
             tally.quiet += 1;
+            tally.host_counts.entry(String::from(host)).or_default().quiet += 1;
             tally.quiet_files.insert(String::from(host));
+            if line.words <= 2 {
+                tally.short_no_boundary += 1;
+            }
             if line.emphasis {
                 tally.quiet_emphasis += 1;
             }
@@ -536,9 +686,9 @@ fn survey_source(
                 if offset > 0 {
                     width += 1;
                 }
-                width += clause_line.visible.trim().chars().count();
+                width += clause_line.text.chars().count();
             }
-            let class: &'static str = first_token_class(line.visible.as_str(), next.visible.as_str());
+            let class: &'static str = first_token_class(line.text.as_str(), next.text.as_str());
             *tally.class.entry(class).or_insert(0) += 1;
             if width >= LINE_LIMIT {
                 tally.forced_breaks += 1;
@@ -583,10 +733,15 @@ fn survey_source(
             // Option A: every quiet, non-hard break at no boundary.
             tally.option_a += 1;
             tally.option_a_files.insert(String::from(host));
+            count_option_family(tally, "A", host);
+            if !line.emphasis {
+                tally.option_a_durable_files.insert(String::from(host));
+            }
             // Option B: every quiet removal the shipped join allows.
             if removable {
                 tally.option_b += 1;
                 tally.option_b_files.insert(String::from(host));
+                count_option_family(tally, "B", host);
                 if line.emphasis {
                     tally.option_b_emphasis += 1;
                 } else {
@@ -595,10 +750,15 @@ fn survey_source(
             } else if width >= LINE_LIMIT {
                 remember_example(&mut tally.examples, "refused-width", named.as_str(), line.visible.as_str(), next.visible.as_str());
             }
-            // Options F1 and F2.
+            // Options F1 and F2, each with the class of its own break and its own clause width.
             if next.words <= 2 {
                 tally.option_f1 += 1;
                 tally.option_f1_files.insert(String::from(host));
+                count_option_family(tally, "F1", host);
+                *tally.f1_class.entry(class).or_insert(0) += 1;
+                if width >= LINE_LIMIT {
+                    tally.f1_forced += 1;
+                }
                 if removable {
                     tally.option_f1_removable += 1;
                 }
@@ -606,54 +766,80 @@ fn survey_source(
             if line.words <= 2 {
                 tally.option_f2 += 1;
                 tally.option_f2_files.insert(String::from(host));
+                count_option_family(tally, "F2", host);
+                *tally.f2_class.entry(class).or_insert(0) += 1;
+                if width >= LINE_LIMIT {
+                    tally.f2_forced += 1;
+                }
+                if line.emphasis {
+                    tally.option_f2_emphasis += 1;
+                } else {
+                    tally.option_f2_durable_files.insert(String::from(host));
+                }
                 if removable {
                     tally.option_f2_removable += 1;
-                    if line.emphasis {
-                        tally.option_f2_emphasis += 1;
-                    } else {
-                        tally.option_f2_durable_files.insert(String::from(host));
-                    }
                 }
                 if host.starts_with("package/git-policy/cli/") {
                     tally.option_g += 1;
                     tally.option_g_files.insert(String::from(host));
                 }
             }
+            let after_dash: bool = line.visible.trim_end().ends_with("--")
+                || line.visible.trim_end().ends_with('\u{2014}')
+                || line.visible.trim_end().ends_with('\u{2013}');
             let clause = clauses.entry((first_line, last_line)).or_insert(ClauseStat {
                 quiet: true,
                 hard: false,
                 emphasis: false,
+                after_dash: false,
                 width,
                 breaks: 0,
                 first_class: class,
-                first_after_dash: line.visible.trim_end().ends_with("--")
-                    || line.visible.trim_end().ends_with('\u{2014}')
-                    || line.visible.trim_end().ends_with('\u{2013}'),
+                classes: BTreeMap::<&'static str, usize>::new(),
             });
             clause.breaks += 1;
             clause.hard = clause.hard || line.hard;
             clause.emphasis = clause.emphasis || line.emphasis;
+            clause.after_dash = clause.after_dash || after_dash;
             clause.quiet = clause.quiet && !touched;
+            *clause.classes.entry(class).or_insert(0) += 1;
             if width >= LINE_LIMIT {
                 // One forced-clause example is enough; the counters hold the size.
                 remember_example(&mut tally.examples, "forced-clause", named.as_str(), line.visible.as_str(), next.visible.as_str());
             }
         }
         for clause in clauses.values() {
-            if !clause.quiet || clause.hard || clause.emphasis || clause.breaks == 0 {
-                continue;
-            }
             if clause.width >= LINE_LIMIT {
                 tally.forced_clauses += 1;
+                tally.forced_clause_breaks += clause.breaks;
+                continue;
+            }
+            if !clause.quiet || clause.hard || clause.emphasis || clause.breaks == 0 {
                 continue;
             }
             tally.option_d += 1;
             tally.option_d_files.insert(String::from(host));
-            let opens_structural: bool = clause.first_class == "parenthesis"
-                || clause.first_class == "inline-span";
-            if !opens_structural && !clause.first_after_dash {
+            count_option_family(tally, "D", host);
+            tally.d_breaks += clause.breaks;
+            *tally.d_class.entry(clause.first_class).or_insert(0) += 1;
+            for (class, count) in &clause.classes {
+                *tally.d_break_class.entry(class).or_insert(0) += count;
+            }
+            // A clause is left out when any of its breaks opens a parenthesis or an inline span,
+            //  or when the line before any break ends in a dash: those are the edges MD8 and a dash may permit.
+            let opens_structural: bool = clause
+                .classes
+                .keys()
+                .any(|class| *class == "parenthesis" || *class == "inline-span");
+            if !opens_structural && !clause.after_dash {
                 tally.option_d2 += 1;
                 tally.option_d2_files.insert(String::from(host));
+                count_option_family(tally, "D2", host);
+                tally.d2_breaks += clause.breaks;
+                *tally.d2_class.entry(clause.first_class).or_insert(0) += 1;
+                for (class, count) in &clause.classes {
+                    *tally.d2_break_class.entry(class).or_insert(0) += count;
+                }
             }
         }
     }
@@ -684,6 +870,12 @@ last line of the probe paragraph.
 
 a short second paragraph line that runs on
 and ends here under the limit.
+
+a line that ends before a hash tag
+#tag continues this paragraph here
+
+> a quoted paragraph line that runs on
+> and ends here.
 ";
 
 /// Read one source from the fixture and check that every class is visible.
@@ -693,7 +885,7 @@ fn survey_probe_sees_every_class_on_its_fixture() {
         .expect("the probe fixture parses as Markdown");
     let mut tally: Tally = Tally::default();
     survey_source(&context, "probe.md", true, &mut tally);
-    for class in ["ordinary", "conjunction", "parenthesis", "inline-span", "dash"] {
+    for class in ["ordinary", "conjunction", "parenthesis", "inline-span", "dash", "block-marker"] {
         assert!(
             tally.class.get(class).copied().unwrap_or(0) > 0,
             "the probe must see the {class} class: {:?}",
@@ -701,6 +893,7 @@ fn survey_probe_sees_every_class_on_its_fixture() {
         );
     }
     assert!(tally.no_boundary > 0, "the probe must see a break at no boundary");
+    assert!(tally.quoted_next > 0, "the probe must see a quoted continuation line");
     assert!(tally.closer > 0, "the probe must see a closer-ended break");
     assert!(tally.emphasis > 0, "the probe must see an emphasis-ended break");
     assert!(tally.hard > 0, "the probe must see an authored hard break");
@@ -711,9 +904,10 @@ fn survey_probe_sees_every_class_on_its_fixture() {
     assert!(tally.option_b > 0, "the probe must see a removal the shipped join allows");
     assert!(tally.option_a > tally.option_b, "the probe must see a removal the join refuses");
     println!(
-        "PROBE classes={:?} no_boundary={} closer={} emphasis={} hard={} f1={} f2={} forced_breaks={} forced_clauses={} A={} B={} D={} D2={}",
+        "PROBE classes={:?} no_boundary={} quoted_next={} closer={} emphasis={} hard={} f1={} f2={} forced_breaks={} forced_clauses={} A={} B={} D={} D2={}",
         tally.class,
         tally.no_boundary,
+        tally.quoted_next,
         tally.closer,
         tally.emphasis,
         tally.hard,
@@ -726,6 +920,263 @@ fn survey_probe_sees_every_class_on_its_fixture() {
         tally.option_d,
         tally.option_d2,
     );
+}
+
+/// A quotation's line is classed by the text after its own quote marker.
+///  The marker is the container's syntax, so the break opens on `and`, not on `>`.
+const QUOTE_FIXTURE: &str = "\
+> a quoted paragraph line that runs on
+> and ends here.
+";
+
+/// A clause whose first break is ordinary and whose second opens a parenthesis:
+///  D reports the clause and D2 leaves it, so the two predicates differ on a line the reader can see.
+const PARENTHESIS_EDGE_FIXTURE: &str = "\
+alpha beta gamma delta
+continuation words begin here
+(parenthesis opens this line
+and this is the last line.
+";
+
+/// A paragraph the rule already reports, which the quiet/reported split must see as reported.
+const REPORTED_FIXTURE: &str = "\
+Aaa bbb, ccc ddd eee
+the
+fff ggg hhh.
+";
+
+/// Check that a quoted line is classed by its prose, not by its quote marker.
+#[test]
+fn survey_classes_a_quoted_line_after_its_marker() {
+    let context: MarkdownSource = MarkdownSource::new(String::from("quote.md"), String::from(QUOTE_FIXTURE), false)
+        .expect("the quote fixture parses as Markdown");
+    let mut tally: Tally = Tally::default();
+    survey_source(&context, "quote.md", true, &mut tally);
+    assert_eq!(tally.no_boundary, 1, "the quotation holds one break at no boundary");
+    assert_eq!(tally.quoted_next, 1, "the break's next line opens a quote marker");
+    assert_eq!(
+        tally.class.get("conjunction").copied().unwrap_or(0),
+        1,
+        "the break opens on `and` once the marker is stripped: {:?}",
+        tally.class,
+    );
+    assert_eq!(
+        tally.class.get("block-marker").copied().unwrap_or(0),
+        0,
+        "a quote marker is not the block-marker class: {:?}",
+        tally.class,
+    );
+    println!(
+        "QUOTE CONTROL classes={:?} no_boundary={} quoted_next={}",
+        tally.class,
+        tally.no_boundary,
+        tally.quoted_next,
+    );
+}
+
+/// Check that D2 leaves a clause D reports once the clause holds a parenthesis edge further in.
+#[test]
+fn survey_d2_leaves_a_clause_with_a_later_parenthesis_edge() {
+    let context: MarkdownSource = MarkdownSource::new(
+        String::from("parenthesis-edge.md"),
+        String::from(PARENTHESIS_EDGE_FIXTURE),
+        false,
+    )
+    .expect("the parenthesis-edge fixture parses as Markdown");
+    let mut tally: Tally = Tally::default();
+    survey_source(&context, "parenthesis-edge.md", true, &mut tally);
+    assert_eq!(tally.no_boundary, 3, "the clause holds three breaks at no boundary");
+    assert_eq!(
+        tally.class.get("ordinary").copied().unwrap_or(0),
+        1,
+        "the clause's first break is ordinary: {:?}",
+        tally.class,
+    );
+    assert_eq!(
+        tally.class.get("parenthesis").copied().unwrap_or(0),
+        1,
+        "the clause's second break opens a parenthesis: {:?}",
+        tally.class,
+    );
+    assert_eq!(tally.option_d, 1, "D reports the clause");
+    assert_eq!(tally.d_breaks, 3, "D's one finding covers the clause's three breaks");
+    assert_eq!(tally.option_d2, 0, "D2 leaves the clause, so D and D2 differ");
+    println!(
+        "PARENTHESIS EDGE CONTROL classes={:?} D={} D2={} d_breaks={}",
+        tally.class,
+        tally.option_d,
+        tally.option_d2,
+        tally.d_breaks,
+    );
+}
+
+/// Check that a paragraph the rule reports is counted apart from the quiet population.
+#[test]
+fn survey_counts_a_reported_paragraph_apart() {
+    let context: MarkdownSource = MarkdownSource::new(
+        String::from("reported.md"),
+        String::from(REPORTED_FIXTURE),
+        false,
+    )
+    .expect("the reported fixture parses as Markdown");
+    let mut tally: Tally = Tally::default();
+    survey_source(&context, "reported.md", false, &mut tally);
+    assert_eq!(tally.no_boundary, 2, "the paragraph holds two breaks at no boundary");
+    assert_eq!(tally.reported, 2, "the rule reports the paragraph, so both breaks are reported");
+    assert_eq!(tally.quiet, 0, "no break of a reported paragraph is quiet");
+    println!(
+        "REPORTED CONTROL no_boundary={} reported={} quiet={}",
+        tally.no_boundary,
+        tally.reported,
+        tally.quiet,
+    );
+}
+
+/// Count the breaks at no boundary one parsed source holds.
+fn count_no_boundary(context: &MarkdownSource) -> usize {
+    let mut total: usize = 0;
+    for id in context.visible_nodes() {
+        if context.kind(*id) != MdastNodeType::Paragraph {
+            continue;
+        }
+        let (start, end): (usize, usize) = context.offsets(*id);
+        let lines: Vec<Line> = paragraph_lines(&context.source[start..end]);
+        for (number, line) in lines.iter().enumerate() {
+            if number + 1 == lines.len() {
+                continue;
+            }
+            if line.text.trim().is_empty() || line.hard || line.boundary {
+                continue;
+            }
+            total += 1;
+        }
+    }
+    return total;
+}
+
+/// Count the breaks at no boundary one host file's text holds,
+///  read the way the linter reads it.
+fn count_no_boundary_in_host(
+    host: &str,
+    text: String,
+) -> Option<usize> {
+    if host.ends_with(".md") || host.ends_with(".mdx") {
+        let mdx: bool = host.ends_with(".mdx");
+        let context: MarkdownSource = MarkdownSource::new(String::from(host), text, mdx).ok()?;
+        return Some(count_no_boundary(&context));
+    }
+    let virtuals = extract(String::from(host), text, ProcessorLanguage::Rust).ok()?;
+    let mut total: usize = 0;
+    for virtual_source in virtuals {
+        if !virtual_source.is_rustdoc() {
+            continue;
+        }
+        let name: String = String::from(virtual_source.filename());
+        let body: String = String::from(virtual_source.source());
+        if let Ok(context) = MarkdownSource::new(name, body, false) {
+            total += count_no_boundary(&context);
+        }
+    }
+    return Some(total);
+}
+
+/// Run the shipped fix over copies of every host file that holds a reported break,
+///  then count the breaks the reported paragraphs still hold.
+///  The copies live outside the repository; no file of the repository is written.
+fn measure_reported_paragraphs_after_the_fix(
+    root: &Path,
+    commit: &str,
+    tally: &mut Tally,
+) {
+    let hosts: Vec<String> = tally
+        .host_counts
+        .iter()
+        .filter(|(_, counts)| counts.reported > 0)
+        .map(|(host, _)| String::from(host))
+        .collect();
+    tally.m13_hosts = hosts.len();
+    if hosts.is_empty() {
+        return;
+    }
+    let scratch: PathBuf = std::env::var("SURVEY_M13_DIR")
+        .expect("SURVEY_M13_DIR names a folder outside the repository for the fix copies")
+        .into();
+    let binary: PathBuf = std::env::var("SURVEY_LINT_BIN")
+        .expect("SURVEY_LINT_BIN names the installed monochromatic-lint")
+        .into();
+    let copies: PathBuf = scratch.join("copies");
+    let configuration: PathBuf = scratch.join("config.jsonc");
+    std::fs::create_dir_all(copies.as_path()).expect("the copies folder is made");
+    std::fs::write(configuration.as_path(), M13_CONFIGURATION).expect("the one-rule configuration is written");
+    std::fs::write(copies.join("control.md"), M13_CONTROL).expect("the control copy is written");
+    // The control goes through the same invocation as the copies, so a control that misses the fix fails here.
+    let mut written: Vec<PathBuf> = vec![copies.join("control.md")];
+    for host in &hosts {
+        let Some(text): Option<String> = read_at_commit(root, commit, host.as_str()) else {
+            tally.m13_unreadable += 1;
+            continue;
+        };
+        let target: PathBuf = copies.join(host);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).expect("the copy's folder is made");
+        }
+        std::fs::write(target.as_path(), text).expect("the copy is written");
+        written.push(target);
+    }
+    // One invocation handles a batch, so the fix runs once per copy and not once per process.
+    for batch in written.chunks(200) {
+        let mut command: std::process::Command = std::process::Command::new(binary.as_path());
+        command.current_dir(root);
+        command.arg("--config").arg(configuration.as_path());
+        command.arg("--fix").arg("--no-ignore").arg("--concurrency").arg("2");
+        for path in batch {
+            command.arg(path.as_path());
+        }
+        let output = command.output().expect("the installed linter runs over the copies");
+        if !output.status.success() {
+            let reported: usize = String::from_utf8_lossy(&output.stderr).lines().count();
+            println!(
+                "M13 batch exit={:?} finding lines={reported}",
+                output.status.code(),
+            );
+        }
+    }
+    let control: String = std::fs::read_to_string(copies.join("control.md")).expect("the fixed control is readable");
+    assert_ne!(
+        control, M13_CONTROL,
+        "the measurement must see the fix write the control copy",
+    );
+    let control_breaks: usize = count_no_boundary_in_host("control.md", control).expect("the fixed control parses");
+    assert_eq!(
+        control_breaks, M13_CONTROL_BREAKS,
+        "the measurement must see a fix run change a copy: {} breaks",
+        control_breaks,
+    );
+    for host in &hosts {
+        let target: PathBuf = copies.join(host);
+        let Ok(fixed): Result<String, std::io::Error> = std::fs::read_to_string(target.as_path()) else {
+            tally.m13_unreadable += 1;
+            continue;
+        };
+        let Some(before): Option<String> = read_at_commit(root, commit, host.as_str()) else {
+            tally.m13_unreadable += 1;
+            continue;
+        };
+        if before != fixed {
+            tally.m13_changed += 1;
+        }
+        let Some(after_fix): Option<usize> = count_no_boundary_in_host(host.as_str(), fixed) else {
+            tally.m13_unreadable += 1;
+            continue;
+        };
+        let quiet: usize = tally.host_counts.get(host).map(|counts| counts.quiet).unwrap_or(0);
+        tally.m13_post_total += after_fix;
+        if after_fix < quiet {
+            tally.m13_below_quiet += 1;
+            continue;
+        }
+        tally.m13_remaining += after_fix - quiet;
+    }
 }
 
 /// Print a count with its label, so the kept output reads on its own.
@@ -756,6 +1207,12 @@ fn survey_breaks_at_no_semantic_boundary() {
         .unwrap_or_default();
     let list: String = std::fs::read_to_string(list_path.as_path()).expect("the kept list is readable");
     let paths: Vec<&str> = list.lines().filter(|line| !line.trim().is_empty()).collect();
+    assert_eq!(
+        commit.len(),
+        40,
+        "SURVEY_ROOT must name a git worktree at the commit to survey: {commit:?}",
+    );
+    assert!(!paths.is_empty(), "the kept list names at least one path");
     let mut configurations: Configurations = Configurations {
         root: root.clone(),
         prepared: BTreeMap::<PathBuf, PreparedConfiguration>::new(),
@@ -841,6 +1298,8 @@ fn survey_breaks_at_no_semantic_boundary() {
             }
         }
     }
+    measure_reported_paragraphs_after_the_fix(root.as_path(), commit.as_str(), &mut tally);
+    assert!(surveyed.len() > 0, "the survey must read at least one path at the commit");
     println!("SURVEY_ROOT={}", root.display());
     println!("SURVEY_LIST={}", list_path.display());
     println!("SURVEY_COMMIT={commit}");
@@ -902,6 +1361,11 @@ fn survey_breaks_at_no_semantic_boundary() {
     row("  of the reported, ending inside emphasis", tally.emphasis - tally.quiet_emphasis);
     row("files holding at least one break", tally.all_files.len());
     row("files holding at least one quiet no-boundary break", tally.quiet_files.len());
+    println!("SHORT LINES");
+    row("quiet one-or-two-word lines ending at a break point", tally.short_boundary);
+    row("quiet one-or-two-word lines ending at no boundary", tally.short_no_boundary);
+    println!("QUOTED");
+    row("breaks whose next line opens a quote marker", tally.quoted_next);
     println!("CLASSES");
     let mut class_total: usize = 0;
     for (class, count) in &tally.class {
@@ -915,11 +1379,16 @@ fn survey_breaks_at_no_semantic_boundary() {
     assert_eq!(class_total, tally.quiet - tally.quiet_hard, "every quiet non-hard break has one class");
     row("quiet non-hard breaks whose clause reaches the limit", tally.forced_breaks);
     row("quiet non-hard clauses that reach the limit", tally.forced_clauses);
+    row("quiet non-hard breaks held by those clauses", tally.forced_clause_breaks);
+    println!("FORCED BY CLASS");
+    for (class, count) in &tally.class_forced {
+        println!("forced class {class}: {count}");
+    }
     println!("OPTIONS");
     row("A findings (quiet non-hard breaks at no boundary)", tally.option_a);
     row("A durable findings (A minus the quiet emphasis ending)", tally.option_a - tally.quiet_emphasis);
-    row("A durable files", tally.option_a_files.len());
     row("A files", tally.option_a_files.len());
+    row("A durable files", tally.option_a_durable_files.len());
     row("B findings (A findings the shipped join removes)", tally.option_b);
     row("B files", tally.option_b_files.len());
     row("B findings that end inside emphasis, which the rule breaks again", tally.option_b_emphasis);
@@ -927,20 +1396,63 @@ fn survey_breaks_at_no_semantic_boundary() {
     row("B durable files", tally.option_b_durable_files.len());
     row("D findings (quiet clauses under the limit)", tally.option_d);
     row("D files", tally.option_d_files.len());
+    row("D findings counted in breaks", tally.d_breaks);
     row("D2 findings (D without a span, parenthesis or dash edge)", tally.option_d2);
     row("D2 files", tally.option_d2_files.len());
+    row("D2 findings counted in breaks", tally.d2_breaks);
     row("F1 findings (break before a one-or-two-word line)", tally.option_f1);
     row("F1 files", tally.option_f1_files.len());
     row("F1 of those the shipped join removes", tally.option_f1_removable);
+    row("F1 findings whose clause reaches the limit", tally.f1_forced);
     row("F2 findings (one-or-two-word line at no boundary)", tally.option_f2);
     row("F2 files", tally.option_f2_files.len());
     row("F2 of those the shipped join removes", tally.option_f2_removable);
-    row("F2 of those that end inside emphasis", tally.option_f2_emphasis);
+    row("F2 of those that end inside emphasis, removable or not", tally.option_f2_emphasis);
     row("F2 durable findings (F2 minus the emphasis ending)", tally.option_f2 - tally.option_f2_emphasis);
-    row("F2 durable of those the shipped join removes", tally.option_f2_removable - tally.option_f2_emphasis);
     row("F2 durable files", tally.option_f2_durable_files.len());
+    row("F2 findings whose clause reaches the limit", tally.f2_forced);
     row("G findings (F2 inside package/git-policy/cli)", tally.option_g);
     row("G files", tally.option_g_files.len());
+    println!("OPTIONS BY CLASS");
+    for (label, counts) in [
+        ("F1", &tally.f1_class),
+        ("F2", &tally.f2_class),
+        ("D (clause's first break)", &tally.d_class),
+        ("D2 (clause's first break)", &tally.d2_class),
+        ("D (every break of a reported clause)", &tally.d_break_class),
+        ("D2 (every break of a reported clause)", &tally.d2_break_class),
+    ] {
+        for (class, count) in counts {
+            println!("{label} class {class}: {count}");
+        }
+    }
+    println!("OPTIONS BY FAMILY");
+    let mut families: BTreeSet<String> = BTreeSet::<String>::new();
+    for counts in tally.family_option.values() {
+        for family in counts.keys() {
+            families.insert(family.clone());
+        }
+    }
+    for family in &families {
+        let mut line: String = String::from(family);
+        for option in ["A", "B", "D", "D2", "F1", "F2"] {
+            let count: usize = tally
+                .family_option
+                .get(option)
+                .and_then(|counts| counts.get(family))
+                .copied()
+                .unwrap_or(0);
+            line.push_str(format!(" {option}={count}").as_str());
+        }
+        println!("{line}");
+    }
+    println!("REPORTED PARAGRAPHS AFTER THE SHIPPED FIX");
+    row("host files holding a reported break", tally.m13_hosts);
+    row("copies the shipped fix changed", tally.m13_changed);
+    row("files the measurement could not read back", tally.m13_unreadable);
+    row("files whose post-fix count fell below the pre-fix quiet count", tally.m13_below_quiet);
+    row("no-boundary breaks those files hold after the fix", tally.m13_post_total);
+    row("reported no-boundary breaks those files still hold", tally.m13_remaining);
     println!("IGNORED");
     for path in &tally.ignored {
         println!("IGNORED {path}");

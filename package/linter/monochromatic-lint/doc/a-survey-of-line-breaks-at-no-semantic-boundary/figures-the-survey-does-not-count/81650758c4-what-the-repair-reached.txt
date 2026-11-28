@@ -1,0 +1,19 @@
+81650758c4c3e089dc86ea15ec61d17cfc94aa4f
+2026-11-27T22:54:08-05:00
+docs(linter-monochromatic-lint): a join hangs on a break the same pass plans
+
+The README said the fix joins "the fragment an old hard wrap cut off", which
+reads as any old fragment. The source attaches each join to a break that one
+pass plans (`markdown_semantic_breaks.rs`, the `breaks` list that feeds
+`fragment_joins`), so a line already alone in the input is never joined by
+itself.
+
+The wrapper's round on issue 6642 measured the difference: of the 548 one- and
+two-word doc lines that ended at no break point in the 471 files of
+`package/git-policy/cli/src` the 2026-11-27 sweep changed, the fixed fix
+repaired exactly the 90 the sweep itself had cut, and the 458 that were already
+alone before the sweep stay where they are. The same count over the whole
+package leaves 3,367 such lines that prose follows with room under 120
+characters, and no pass plans a break above any of them.
+
+The round is unapproved and non-final; the owner declares completion.

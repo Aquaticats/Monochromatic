@@ -1,0 +1,21 @@
+
+#### The Markdown the line-break sweep left out
+
+`monochromatic-lint`'s `markdown/semantic-line-breaks` still reports in the files the whitespace-only
+sweep of 2026-11-23 left out,
+because the branches that were changing them could not take the diff:
+`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` alone reports 683 findings on
+`main`,
+and everything under `package/git-policy/cli` was the same.
+Both are fixed (`beb61ec46b`):
+4,062 findings in 480 files,
+with `bin/` and `e2e/` left as they were while the round of issue 6612 worked there;
+that round fixed the two findings one file kept.
+The installed linter applies that fix itself with `--fix`,
+which changes whitespace only,
+so the scratch script of 2026-11-23 is not needed.
+On 2026-11-27 it took 76 findings out of `package/mpm-shadow/cli` (`ee8871b190`)
+and 11 out of `package/cargo-shadow/cli` (`f6b4dc0947`),
+every one in a Rust doc comment,
+and 778 out of five Markdown files of `package/pi-shared/subagent-driver` (`e6026dbd46`),
+whose six Markdown files render to the same text as before,
