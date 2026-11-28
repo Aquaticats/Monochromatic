@@ -1,0 +1,16 @@
+               total        used        free      shared  buff/cache   available
+Mem:         8131780      641576     4323976        1004     3481292     7490204
+Swap:              0           0           0
+Setting up swapspace version 1, size = 6 GiB (6442446848 bytes)
+no label, UUID=d404ec03-8eb3-4676-ab7c-7ee5ff51b095
+               total        used        free      shared  buff/cache   available
+Mem:         8131780      643828     4320448        1004     3482728     7487952
+Swap:        6291452           0     6291452
+build-started 2026-11-28T12:21:52+00:00
+build-ended 2026-11-28T12:34:03+00:00
+   Compiling sha1 v0.11.0
+   Compiling sysinfo v0.40.3
+   Compiling similar v3.2.1
+   Compiling monochromatic-git-policy-cli v0.6.1-alpha.52 (/opt/git-policy-cli-lock/package/git-policy/cli)
+    Finished `release` profile [optimized] target(s) in 12m 10s
+DONE=0

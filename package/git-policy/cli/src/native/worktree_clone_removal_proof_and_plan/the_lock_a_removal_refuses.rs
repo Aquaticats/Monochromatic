@@ -1,6 +1,6 @@
 //! What:
 //!  The refusal a removal owes a lock whose words are not its add's,
-//!  read before anything is written.
+//!  read before the removal unmounts or destroys anything.
 //! Why:
 //!  Git refuses a locked registration to its own removal and refuses it to one force,
 //!  so Git's own message names `-f -f` as the spelling that gets past a lock
@@ -19,9 +19,17 @@
 //!  the origin snapshot and the head,
 //!  and only then refused.
 //!  The entry therefore reads the lock under the slot's claim,
-//!  before its first write,
+//!  before the unmount,
+//!  the plan and every destroy,
 //!  and words this add did not write refuse the removal as the add's own resume
 //!  refuses them.
+//!  The order's first write is the slot's claim file,
+//!  which stopping gives back:
+//!  the claim is the one record a refusal leaves behind,
+//!  and no sentence here promises a removal that wrote nothing.
+//!  The resumed path whose clone is already gone reads the lock too,
+//!  first of its own steps,
+//!  because it publishes the plan's lines and destroys the origin snapshot.
 //!  The read is the lock design's own,
 //!  so the removal and the add's resume cannot disagree about whose a lock is.
 //!

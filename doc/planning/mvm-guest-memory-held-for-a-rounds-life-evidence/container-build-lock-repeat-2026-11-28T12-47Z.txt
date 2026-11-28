@@ -1,0 +1,11 @@
+# The lock driver's container build repeated on unchanged input, 2026-11-28T12:47Z
+#
+# The same image, the same snapshot, the same flags and the same scope as container-build-lock-2026-11-28T11-49Z.txt,
+# run again so the container build has a run-to-run spread.
+
+Running as unit: run-p3950105-i104532820.scope; invocation ID: bb258c5e5f744e3992e4b26aacd2571c
+2026-11-28T07:39:12-05:00
+== the image and its glibc
+PRETTY_NAME=Ubuntu 24.04.5 LTS
+ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39
+== the packages the crate's build needs
