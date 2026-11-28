@@ -846,6 +846,44 @@ Unapproved and non-final.
 - At 06:49:21 a round read 106 MiB available on the host with the guests' unit under its raised cap,
   which is the state the move to OVHcloud is for.
 
+#### Started and done between 06:58 and 07:15
+
+Unapproved and non-final.
+
+- The billed OVHcloud test's cleanup ran `destroyAll`,
+  which deletes every machine named `mvm-*` in the project,
+  and its last check wanted the whole listing empty,
+  while three rounds worked against that one project.
+  The three were warned through their inboxes at about 07:03.
+  Merge `945adbef05` makes the test destroy and look for only the machine it made,
+  and the three were told at about 07:09.
+  A round never runs `mvm --backend ovh destroy --all`,
+  and the session's own look before it ends a turn only lists while a round can hold a machine.
+  The Hetzner live test has the same shape and is unchanged.
+- The owner chose the cheapest size that fits for `mvm` on OVHcloud
+  (`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "The size taken among those that fit,
+  2026-11-28");
+  the sizing round has the prices,
+  the family rule and that decision in its inbox.
+- The owner declined a new rule about waiting on a fault:
+  "normal,
+  never an excuse" already means working with the condition
+  (`doc/philosophy/agents.md`,
+  "what "normal here,
+  never an excuse" asks for").
+- Merged after their reports were read whole:
+  the `mvm` sizes proposal's revision (`4217d02664`)
+  and the crate split round 4 proposal's revision (`39d9ec0b51`).
+  Each has a second gate read by Claude Sonnet running since about 07:13,
+  writing to `~/temp/agent/second-gate-review-of-the-mvm-sizes-proposal-2026-11-28/keep/review.md`
+  and `~/temp/agent/second-gate-review-of-the-crate-split-round-4-signatures-proposal-2026-11-28/keep/review.md`.
+- Issues filed:
+  6658 (a batch entry whose `sessionOf` is a path),
+  6659 (the `mvm` unit case that depends on order)
+  and 6660 (twenty commands and `mvm-mcp` that can run a build older than their source).
+  Issue 6655 is closed.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
