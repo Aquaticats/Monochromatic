@@ -505,7 +505,10 @@ fn the_answer_one_question_got(
     // `.into_owned()` copies the lossy text so the answer outlives the child's buffer.
     let printed: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     // `.to_owned()` copies the trimmed text into the value this function returns.
-    return (output.status.success(), printed.trim_end_matches('\n').to_owned());
+    return (
+        output.status.success(),
+        printed.trim_end_matches('\n').to_owned(),
+    );
 }
 
 /// What:
@@ -519,10 +522,8 @@ fn the_answer_one_question_got(
 /// const answersIn = (directory: string): AnswersInOnePlace => ({ ... });
 /// ```
 fn answers_in(directory: &Path) -> AnswersInOnePlace {
-    let alias: Output = crate::test_support::git(
-        directory,
-        &["-c", ALIAS_PRINTS_ITS_DIRECTORY, "where"],
-    );
+    let alias: Output =
+        crate::test_support::git(directory, &["-c", ALIAS_PRINTS_ITS_DIRECTORY, "where"]);
     // `.trim_end_matches('\n')` drops the one newline the shell's answer ends with.
     let printed: String = String::from_utf8_lossy(alias.stdout.as_slice()).into_owned();
     let shell_directory: PathBuf = PathBuf::from(printed.trim_end_matches('\n'));
@@ -729,7 +730,8 @@ fn git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository() 
             place.display()
         );
         assert_eq!(
-            answers.the_question_the_reader_asks.0, true,
+            answers.the_question_the_reader_asks.0,
+            true,
             "both questions answer at {}",
             place.display()
         );
@@ -754,7 +756,8 @@ fn git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository() 
             place.display()
         );
         assert_eq!(
-            answers.the_question_the_reader_asks.0, false,
+            answers.the_question_the_reader_asks.0,
+            false,
             "the question the reading asks fails at {}",
             place.display()
         );
@@ -777,7 +780,8 @@ fn git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository() 
     }
     // `.expect(...)` unwraps the canonical path or fails with this sentence.
     let the_repositorys_git_directory: PathBuf =
-        std::fs::canonicalize(shapes.repository.join(".git")).expect("the repository's Git directory reads");
+        std::fs::canonicalize(shapes.repository.join(".git"))
+            .expect("the repository's Git directory reads");
     for place in [
         &shapes.repository,
         &shapes.below_the_top,

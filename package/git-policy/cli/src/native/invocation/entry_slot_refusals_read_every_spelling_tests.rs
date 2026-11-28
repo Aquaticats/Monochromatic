@@ -2902,8 +2902,6 @@ fn a_slot_command_the_wrapper_could_not_place_is_refused_at_the_command() {
     );
 }
 
-
-
 /// What:
 ///  One fixture bare repository with one real registration of one slot beside it,
 ///  made the way an add makes one:
@@ -3094,11 +3092,8 @@ fn the_refusal_of_the_removal(
     words: &[OsString],
     bound: &RegisteredSlot,
 ) -> String {
-    let facts: CopyFacts = settled_facts(plan_invocation(
-        words,
-        &[],
-        &inputs(bound.root.as_path()),
-    ));
+    let facts: CopyFacts =
+        settled_facts(plan_invocation(words, &[], &inputs(bound.root.as_path())));
     assert_eq!(
         facts.common_dir.as_deref(),
         Some(bound.common.as_path()),
@@ -3149,11 +3144,7 @@ fn the_stop_of_the_move(
     words: &[OsString],
     bound: &RegisteredSlot,
 ) -> (i32, String) {
-    return stopped(plan_invocation(
-        words,
-        &[],
-        &inputs(bound.root.as_path()),
-    ));
+    return stopped(plan_invocation(words, &[], &inputs(bound.root.as_path())));
 }
 
 /// What:
@@ -3188,7 +3179,8 @@ fn a_removals_refusal_is_reached_apart_from_a_top(
     let expected: String = the_removal_refusal_at_the_top(&bound);
     let report: String = the_refusal_of_the_removal(words.as_slice(), &bound);
     assert_eq!(
-        report, expected,
+        report,
+        expected,
         "the removal typed in {} is refused with the words the top gets, tried as {typed:?}",
         typed_in.display()
     );
@@ -3218,8 +3210,7 @@ fn a_moves_refusal_is_reached_apart_from_a_top(
     let bound: RegisteredSlot = make(name);
     let typed_in: PathBuf = bound.common.clone();
     let operand: String = the_slots_path_from(typed_in.as_path(), bound.root.as_path(), "one");
-    let elsewhere: String =
-        the_slots_path_from(typed_in.as_path(), bound.root.as_path(), "moved");
+    let elsewhere: String = the_slots_path_from(typed_in.as_path(), bound.root.as_path(), "moved");
     let words: Vec<OsString> = typed_apart_from_a_top(
         typed_in.as_path(),
         typed,
@@ -3235,7 +3226,8 @@ fn a_moves_refusal_is_reached_apart_from_a_top(
     let expected: (i32, String) = the_stop_of_the_move(at_the_top.as_slice(), &bound);
     let reported: (i32, String) = the_stop_of_the_move(words.as_slice(), &bound);
     assert_eq!(
-        reported, expected,
+        reported,
+        expected,
         "the move typed in {} is refused with the words the top gets, tried as {typed:?}",
         typed_in.display()
     );
