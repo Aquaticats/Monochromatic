@@ -1590,54 +1590,10 @@ a recovery that puts an unfinished copy back now also points `current` at the ne
 which the round holds with a control and writes into the README,
 and which waits for the owner in `doc/handover/questions-for-the-owner.md`.
 
-What `mpm-shadow`'s alpha.15 read found
-(`~/temp/agent/mpm-shadow-alpha-15-release-review-2026-11-27/keep/review.md`,
-a same-vendor second pass that a second agent finished from the first one's transcripts,
-rerunning three of them):
-no High,
-three Medium and nine Low.
-Shown with both released binaries on fixtures with real kills:
-a claimed finished copy that could not be published stays for the next install,
-which publishes it with no download;
-the copy a kill moved aside is not put back beside a live claim or a live staging name;
-a recovery never publishes an older version beside a newer one in either toolchain root;
-and each of the launcher's five start messages names the file that is missing or busy.
-With no killed install behind a run,
-nothing differs between the two releases but the version and the marker's text.
-Its Medium findings,
-all in what alpha.15 added:
-
-- a recovery removes the older version before it moves `current`,
-  so a start in between exits 127,
-  and a kill there leaves `current` naming a version that is gone until the next `install`;
-  alpha.14 removed nothing after a recovery;
-- alpha.15 never judges a name in the shape alpha.14 wrote:
-  after a kill under alpha.14 an offline `install` leaves the version's name empty,
-  says only "download failed",
-  and no command ever removes the finished copy that sits hidden;
-- the copy a kill moved aside waits for ever for an installer that died in another process namespace
-  (shown with a hand-made name),
-  the sentence printed claims a live install and names no path,
-  and the deletion `prune --toolchain` advises loses the only finished copy.
-
-Its Low findings are sentences that say more than the run knew,
-a publish raced between its two renames that fails where the file system has no exchange
-(alpha.14 did the same),
-what "vouched" means to `prune` against what it means to the recovery,
-one checkout's install removing a finished copy another checkout's lock vouches for,
-names this release cannot judge when it cannot read the boot identifier,
-and four edits no control catches.
-It found two changes no claim listed:
-a warning when the exchange call is refused,
-which the README documents,
-and an `install` that ends 0 after a failed recovery where alpha.14 ended 1.
 The rules on which names are judged,
-held or removed stay as the joining round picked them,
+held or removed stay as the round that joined two `mpm-shadow` rounds picked them,
 with the owner's veto open and the read's costs written beside them
-(`doc/handover/questions-for-the-owner.md`);
-the three rounds change the order of one step,
-the sentences,
-the README and the controls.
+(`doc/handover/questions-for-the-owner.md`).
 
 What `cargo-shadow`'s alpha.16 read found
 (`~/temp/agent/cargo-shadow-alpha-16-release-review-2026-11-27/keep/review.md`,
