@@ -2157,6 +2157,9 @@ and what the messages say.
   only while the words joined with one space named another folder the tree held,
   and answered the others with that sentence;
   it named a folder whose own name begins with whitespace only while the character beside it was one.
+  Over the 1,296 lines the `0.5.2-alpha.21` read wrote,
+  the release of `0.5.2-alpha.22` named the folder in 1,152 where `0.5.2-alpha.21` named 324,
+  and the other 144 name a folder that holds no whitespace and read as an entry.
   This release reads the line's own arrow as the last one whitespace sets off,
   takes the whitespace a doubled gap left off one character at a time at the start and as a whole run before the file,
   names such a folder in both shapes,
@@ -2198,6 +2201,16 @@ and what the messages say.
   where alpha.19 told it to keep no arrow word at its beginning or its end and left the middle one in place,
   and an entry of a `uses` folder is named as that entry of a `uses` folder,
   where alpha.19 called it a file.
+
+`0.5.2-alpha.22`,
+reading a list written for `0.5.2-alpha.21`,
+moved no line between read and refused over 6,293 lists,
+with a byte-identical copy of `0.5.2-alpha.21` as the control;
+`0.5.2-alpha.23`,
+reading a list written for `0.5.2-alpha.22`,
+moved none over 10,081 lists against `0.5.2-alpha.22` and a byte-identical copy of it,
+and changed no list's exit status or set of findings.
+Both measured on 2026-11-27.
 
 What the second passes over these three releases measured with the released
 binaries
@@ -2433,6 +2446,8 @@ or how `package/git-policy/cli` uses this library.
   `Cc` and `Default_Ignorable_Code_Point`,
   and no one of them names U+2800,
   so the quote keeps it and no sentence calls it unseen.
+  `0.5.2-alpha.22` spells every one of the 4,266 candidates of Unicode 17.0.0 among those three sets,
+  where `0.5.2-alpha.21` spelled 7.
 - A folder name that holds two arrow shapes needs a rename for each,
   and it stays so:
   each sentence such a name gets is true,
@@ -2567,6 +2582,10 @@ The grouped editor refuses a nonempty-to-empty file rewrite.
 
 Pipe-table conversion and semantic line breaks are implemented.
 Production Rust and Markdown commands have not been replaced.
+A probe of `0.5.2-alpha.21` on 2026-11-27 found no `markdown/semantic-line-breaks` finding
+for a comma inside an inline code span,
+beside two findings for a plain sentence on the next line,
+so a report that the rule broke an inline code span was not reproduced.
 
 The semantic break fix also joins the fragment an old hard wrap cut off.
 When the rest of the author's line holds one or two words that do not end at a break-point

@@ -340,77 +340,10 @@ pinned to no member
 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
 whose members the owner changed on 2026-11-27 at about 16:15 -05:00:
 "Change writer's list to match the reviewer's list."
-On `main` the reviewer asks the qwen plan,
-then Synthetic,
-then `opencode-go`,
-then Neuralwatt's flex lane,
-and the writer asks those without Synthetic
-(`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`);
-the round `the-virtual-writer-asks-the-members-the-virtual-reviewer-asks` built that
-and measured what it costs:
-a pool advertises the smallest window among its registered members,
-Synthetic's member has 524,288 tokens where the others have about 1,000,000,
-so the writer's window would fall from 1,000,000 to 524,288 and its output limit from 384,000 to 65,536.
-Asked with those figures through the question tool at about 16:46 -05:00,
-the owner chose "Skip too-small member (Recommended)":
-the shared list stays,
-the router passes over a member whose own window cannot hold the request,
-and the pool advertises its head member's window,
-so the writer keeps 1,000,000 and the reviewer rises to it.
-Not chosen:
-"Keep three members" and "Live as built".
-The round `the-router-passes-over-a-member-too-small-for-the-request-and-the-pool-advertises-its-heads-window`
-built that on top of the first branch and is merged (`45b9aaeb94`),
-with the first branch inside it.
-Pi loads that extension from the main checkout's built copy,
-which the coordinator rebuilt at 2026-11-27T17:28:33-05:00
-(`mise run //package/pi-plugin/rate-limit-fallback:build`),
-so the change is live for every Pi run started after that,
-and a run started before it keeps the list it loaded.
-Asked before and after the rebuild,
-that built copy answered:
-before,
-the writer asks three members and the reviewer advertises 524,288 and 65,536;
-after,
-both pools ask the four members and advertise 1,000,000 tokens of window and 384,000 of output,
-and with the head member unregistered both advertise the next member's 524,288 and 65,536.
-The head is the first member of the pool's order that the session's registry resolves.
-The size of a request is Pi's own estimate,
-which the round measured against the counts real providers reported:
-over 200 sessions and 48,805 requests the estimate divided by the reported count had a median of 1.000,
-with 0.999 at the 5th percentile and 1.002 at the 95th.
-The router compares the input alone with a member's window,
-because Pi fits the answer into what the window leaves,
-and it keeps no margin.
-Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
-A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
-issue 6631,
-whose round is merged (`ae937863bc`) and whose issue is closed.
-One timed whole run showed the case's bound,
-three polls,
-left 177 ms of room while its own process was held up for as long as 94 ms by its sibling cases.
-With one named step made a poll slower,
-the case ended on its wall clock,
-which is the failure the issue quotes.
-The cases of that file that end on an event now take their bound from the looks they need,
-each look counted with the longest wait a look can be handed,
-so no loaded host decides them;
-the cost is that a watch that never reaches its event is reported after as long as 181.8 s.
-The watch itself is unchanged.
-The cases that assert the wall clock keep their bounds,
-and one of them still fails if a timer fires about 285 ms late.
-The suite's 228 lines passed after the merge of `main`.
-Three things of that round wait for the owner in `doc/handover/questions-for-the-owner.md`.
-The rounds started at that minute are the first on the rebuilt copy.
-The first of them to end,
-the round of issue 6630,
-recorded a context window of 1,000,000 tokens in its `summary.json`,
-with no retry and no rate-limit error,
-which closes the check of the owner's change at a real run.
-The owner also wrote,
-of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
-"nw-large is advisor,
-and that's fine."
+Three picks inside the router the owner chose for the writer's list
+wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+Three things the round on the driver's watch cases chose
+wait for the owner in `doc/handover/questions-for-the-owner.md`.
 The rounds run
 under the owner's "Up to 64 rounds at once."
 (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
@@ -421,99 +354,8 @@ the unit `pi-<round>`,
 the worktree `.claude/worktrees/pi-<round>`
 and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
 
-- rounds started from the lists of 2026-11-27T15:47:54-05:00,
-  2026-11-27T15:51:32-05:00 and 2026-11-27T16:01:42-05:00,
-  each for one tracked piece of work and each named under its tool:
-  the linter's alpha.21 read,
-  the `mpm-shadow` sentences,
-  issue 6623 (`cargo-shadow`),
-  and the rounds of the wrapper's alpha.50 reads.
-  The router's round is merged (`45b9aaeb94`),
-  and the passage on the writer's members says what is live.
-  The round for issue 6622 is merged (`e56b8abaec`) and the issue is closed.
-  Nothing warns about bytes that end with one line feed:
-  on `main`'s code,
-  in each state it built,
-  the `final-newline` check read the bytes the commit writes,
-  and the released alpha.44 and alpha.50 answered the same,
-  each through its own service in a fixture,
-  since a fixture without a manager refuses a commit before any finding is printed.
-  The recorded line carries the hint a lifecycle prints when it corrects nothing,
-  which is what `git add` prints,
-  and the commit that follows corrects the file;
-  so the warning was most likely true when it was read.
-  The branch added controls and no release code.
-  That hint tells a person to edit a file the next commit corrects,
-  which is issue 6627;
-  its round is merged (`0f69dbfe93`) and the issue is closed.
-  At an `add` and at a direct check the hint now says a commit that takes the file corrects the ending,
-  and names the `fix` command for correcting it now;
-  the sentence that says to edit the file stays for a commit whose selection is read-only,
-  a landed commit and a manual push,
-  where nothing corrects the bytes.
-  The round measured both steps on fixtures,
-  and found no `add` at which nothing corrects the file,
-  which the brief had asked a control for.
-  The push of that merge was refused by GitHub with `GH009` and cleared by one push by hand,
-  as `doc/troubleshooting/github-lfs-integrity-rejection.md` records with the others.
-  Every round of the list of 2026-11-27T14:54:37-05:00 is merged:
-  issue 6620 (`bc24b2e688`),
-  issue 6619 (`1ef6287246`),
-  issue 6621 (`71f1c34d94`),
-  and the rounds of the `mpm-shadow` alpha.15 read.
-  Issue 6621's round changed no release code.
-  Its controls show the bound-slot refusal for a removal and for a move typed below the top behind a shell alias,
-  with `policies.require-root` at `off`,
-  at `warn`,
-  and behind `--no-enforce-require-root`,
-  each shown red by handing the planning the typed directory;
-  `SPEC.md` says what such a command meets.
-  It found that a refused move drops the root rule's `warn` lines,
-  which a refused removal prints (issue 6624);
-  the wrapper round on a bare shell alias takes that issue,
-  because both change `move_refusal_of`.
-  A command standing in the repository's Git directory or in a bare repository has no such control:
-  the round's plant changes nothing there,
-  so a control of those shapes needs another plant to be shown red
-  (issue 6625,
-  which starts when the wrapper round on a bare shell alias has merged,
-  because both change one test file).
-  The round's first edits went to the main checkout's copy of its test file,
-  by a path written without the worktree's prefix;
-  it reversed them,
-  and the main checkout shows only the files other sessions modified.
 - the guest drivers.
-  Issue 6612's round is merged (`98996296fb`) and the issue is closed:
-  the three sets of shared guest-step helpers are one,
-  `bin/mvm-guest-*.ts`,
-  with `bin/guest-route-*` and `e2e/guest-host/` deleted and every case their tests held restated against the survivor.
-  A stand-in `mvm` and `node` recorded every step of the eleven drivers on `main` and on the branch:
-  of 44 recordings 41 are identical line for line,
-  and three differ on purpose.
-  The managed-lock driver builds only the target its arm runs
-  (11m 31s where it took 22m 22s,
-  and a guest peak of 2.83 GiB where it was 6.70 GiB),
-  and two drivers build the library's test binary at one job,
-  since two left under half a gibibyte available in a guest of 8 GiB.
-  Every driver's main step ran in a guest and passed with its own lines,
-  and the start probe's three arms nobody had run after the rewrite ran once each and passed.
-  The merged tree passed `lint:types`,
-  oxlint and the package's unit suite (177 suites) in a worktree of its own before the merge.
-  Three rounds followed it from one list.
-  Issue 6639's is merged (`5d91792960`) and the issue is closed:
-  the start probe's guest build runs as a detached script,
-  the host learns its end from the log's own `DONE=<status>` line and pulls the log,
-  and no guest command's return carries the result.
-  In one guest `probe-dataset` exited 0 and `green` built and ran its arm in 7m 11s;
-  a stand-in `mvm` shows the steps that do not build unchanged line for line,
-  and the script the guest runs the same text on both sides.
-  A build that fails is reported with its own status and the tail of its own log,
-  shown against a stand-in and held by unit tests.
-  The round listed every other plain guest command bounded past five minutes
-  (`package/git-policy/cli/e2e/README.md`,
-  "Guest work that runs longer than the agent's safe length")
-  and changed none.
-  Its four open points wait in `doc/handover/questions-for-the-owner.md`.
+  Four points issue 6639's round left wait in `doc/handover/questions-for-the-owner.md`.
   Issue 6638's is merged (`1471bdf6ad`) and the issue is closed.
   Measured in the recipe's own guest before any edit,
   a second `prepare` alone exits 0;
@@ -855,153 +697,23 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and of the two merges on guards and reach since 2026-11-27T15:02:41-05:00,
   writing `~/temp/agent/git-policy-cli-alpha-50-release-review-reach-and-guards-2026-11-27/keep/review.md`.
   A merge that lands after that commit and changes only the package's TypeScript,
+- the linter:
+  The choices the alpha.22 fix round's brief did not decide
+  wait in `doc/handover/questions-for-the-owner.md`.
+  Four picks of the linter round on `file-uses` lines and characters a reader cannot see
+  wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+- rounds for the wrapper's `0.6.1-alpha.50` reads:
+  Three picks of the round on a shell alias wait in `doc/handover/questions-for-the-owner.md`.
+  The next gate on `main` is the first to run issue 6625's controls in the container.
+  The hunk round's and the surface-control round's picks
+  wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+  The two-unwired-sentences round's picks
+  wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+  A merge that lands after the gated commit and changes only the package's TypeScript,
   its guide or test code leaves the gate standing,
   as one did for alpha.49 ("Releases of 2026-11-27"),
   with the tip checks run again on the pinned tree;
   issue 6612's branch changes only `bin/` and `e2e/`.
-  The round on the four small points is merged (`203bd65854`):
-  the four reads of the session's runtime directory and bus address go through the one file,
-  so a test build handed the process's whole environment cannot reach the account's manager;
-  the repository link's sentence is said once a command;
-  a failed start is held by a control at each place that answers it,
-  and the scan of `exec` calls judges each call;
-  and a control holds what a failed memory reading does today,
-  with no change to it.
-  The round on shell aliases is merged (`a137924570`):
-  a slot removal or move behind a shell alias reads its operand from the top of the working tree,
-  where Git runs the alias,
-  and the same one line fixed the move;
-  the five unread spellings are read
-  (a shell alias naming another to four deep,
-  `! git`,
-  a tab after `!git`,
-  a bare `!git` before the caller's own global option,
-  and a chain of plain aliases to 64 where it was 16);
-  a chain past either bound is passed to Git as an alias the wrapper cannot follow was before,
-  with no new refusal;
-  and `SPEC.md` says which spellings are read.
-  The read's subdirectory case never reaches the slot rule:
-  the wrapper's own rule that a command runs at the top of its repository refuses it first,
-  and a control pins that.
-  The guest arm gained one alias case,
-  and one guest run of that arm passed on the tree at `203bd65854`,
-  whose wrapper source is that of `0.6.1-alpha.50`
-  (`mise run //package/git-policy/cli:e2e:zfs-slot-state -- all`,
-  from 2026-11-27T14:45:24-05:00 to 2026-11-27T15:08:52-05:00):
-  the arm printed `REMOVAL-REFUSAL wrapper-through-a-shell-alias status=refused` among its lines,
-  skipped none,
-  and ended `Summary [ 0.753s] 1 test run: 1 passed, 1369 skipped`;
-  the driver destroyed its guest.
-  A repository can switch the root rule off
-  (`policies.require-root` takes `off`,
-  `warn` or `error`),
-  and controls now show the slot refusal holding below the top then
-  (issue 6621,
-  merged as `71f1c34d94`).
-  The round on process names is merged (`946cbeb0a2`):
-  it found eighteen places that printed a name another program chose with no escape,
-  where the read named five,
-  and each now escapes for what wraps the name in its sentence,
-  parentheses or backticks,
-  through one function;
-  the weaker second escaper is gone,
-  and its masking of a URL's user name stays as its own function;
-  a guard lists the eighteen sentences and fails on a `format!` that reads such a name without the escape.
-  With a program named to close the parenthesis and erase the line,
-  the released alpha.49 printed the name raw in one of two sentences of one wait,
-  and the branch's build escapes it in both.
-  The whole `source_guard` module passed on the pinned tree at `946cbeb0a2`,
-  203 of 203,
-  which is the first run of the three merged rounds' guards together.
-  The round on the merge pass is merged (`739bccb167`):
-  the merge pass no longer writes back a line a side removed when both sides only deleted lines.
-  It refuses an answer that holds more copies of a line than both sides hold,
-  or whose lines are in an order one side does not hold,
-  and keeps both sides between markers.
-  The read's three searches reproduced on `main` to the case
-  (6 of 75,
-  32 of 199 and 47 of 521 resolved answers out of bounds);
-  with the fix 82 of them became conflicts,
-  none moved the other way,
-  and no answer within bounds became a conflict.
-  The three left over are Git's own answers,
-  where no conflict reaches the pass.
-  The cause was the rule's shape:
-  it fired only where one side held the line as often as the base did,
-  and it counted inside the region Git left.
-  No timing was taken;
-  `native:check` passed on the pinned tree after the merge;
-- nothing for the wrapper's `0.6.1-alpha.49` structure pass:
-  both rounds are merged.
-  The round on the surface control (`b929e8c39b`) first planted the read's five shapes against the Rust control on `main`,
-  and each passed unseen while a plain `struct` failed.
-  The control now reads a function whatever qualifies it,
-  fields and methods of a published type,
-  and a `pub use` over any count of lines,
-  each keyed by the module path that publishes it;
-  its list went from 6,695 entries to 12,395;
-  four names a split had widened are narrowed,
-  and none of the rest;
-  and its top doc states the five shapes it still cannot see.
-  The merge restored seven platform gates,
-  counted in its diff.
-  The round on the list guards is merged (`e8d3ba3736`):
-  the hook ban fails on every spelling of a call that makes a link,
-  and on no call that only reads one;
-  an excuse names how many uses of its text its file holds,
-  so a use added to an excused file fails;
-  two guards read a whole folder where they read a name prefix;
-  each guard's top doc says what a file would have to look like to be missed;
-  the package guide holds the rules the two merges brought;
-  and the README says which targets the release builds.
-  Each of the read's plants was first run against the Rust guards on `main`,
-  and each finding held.
-  Two scopes stay open by the round's own account:
-  a link written outside `commit/`,
-  `landing/` and the three named files is no finding,
-  and the commit path's notes guard is chosen by the words a file names.
-  On the pinned tree at `203bd65854`,
-  all six merged rounds together,
-  `native:check`,
-  the four Clippy tasks and the whole `source_guard` module (212 of 212) passed,
-  and `native:ts-checks` passed with 90 unit test files and 189 suites.
-  That last run reached the account's service manager (issue 6620):
-  a unit test commits in fixture checkouts through whichever `git` the worktree's launcher names,
-  which there was the locked `0.6.1-alpha.44`,
-  so four commit services started for fixtures at 2026-11-27T14:31:32-05:00
-  and the shared program link named that release until 14:33:15.
-  Nothing was left:
-  the four instances read inactive and the fixtures were gone.
-  The pinned tree's launcher link names the reviewed build since then,
-  as the main checkout's does,
-  so the shared link stays where it is;
-  issue 6620's merge ended the services as well.
-  The task cannot be kept off the manager from outside,
-  because it starts each check in a scope of its own:
-  with a fixture runtime directory both checks ended `exit 1` before running anything.
-  The whole gate named under the behaviour pass covers these too;
-- no round is left for the wrapper's two alpha.48 release passes ("Releases of 2026-11-27").
-  Every finding of the two passes that earned a fix is merged:
-  the guards that named a file code had left now read the folders the splits made,
-  ten pairs in eight files,
-  and no plant found a violation in release code (`97d9afb21c`);
-  the slot refusals read every shell alias the guard can follow (`cd62517318`);
-  the merge pass reaches a last line with no line end (`f583a0d9bf`),
-  where a generated control also found and fixed a correct merge that was refused;
-  a notice's record stays until its line is known written (`be93c14734`),
-  kept in 20 of 20 runs with the reader gone against none of 20 on `main`;
-  the README's layout sentences say how to count each list in place of seven stale counts (`0e7297a9fd`);
-  the items a split had made bare `pub` are narrowed,
-  seven platform gates are back over the 35 items they reached before the splits,
-  the seven platform gates the splits dropped are back,
-  and a control with a list beside it fails when a name becomes nameable from outside the crate (`02d0a6e8e6`);
-  a merge record that cannot be read says which file to remove,
-  each batch of the service's work reads the room it has when it starts
-  (its width is decided once,
-  so every wave of that batch runs on the room of its start),
-  and a holder's name cannot rewrite the line that prints it (`14e54207de`).
-  The gate on `main` at `97d9afb21c` passed and `0.6.1-alpha.49` is released ("Releases of 2026-11-27");
-  both reads of it have returned.
 - rounds for `cargo-shadow`:
   The ten failures of 2026-11-27 came after the reexec had ended,
   no measurement reproduced them,

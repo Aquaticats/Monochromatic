@@ -2793,6 +2793,30 @@ and none of it is in the repository;
 the counts above are the durable record,
 and `src/native/merge/word_merge_refusals/` holds the two real shapes as controls.
 
+## 2026-11-27T13:49:49-05:00: a line a side removed is never written back, whatever the region's shape
+
+Recorded 2026-11-27T13:49:49-05:00,
+the time of the merge that carried it (`739bccb167`).
+Unapproved and non-final:
+only the owner declares work complete.
+
+The alpha.49 release pass on the word merge's deletions
+reproduced its read's three searches on `main` to the case:
+6 of 75,
+32 of 199 and 47 of 521 resolved answers wrote back more copies of a line than the two sides leave.
+With the rule read for every shape of region,
+82 of them became conflicts,
+none moved the other way,
+and no answer inside the bound became a conflict.
+The three left over are Git's own answers,
+where no conflict reaches the pass.
+The cause was the rule's shape:
+it fired only where one side held the line as often as the base did,
+and it counted inside the region Git left.
+No timing was taken.
+The section of 2026-11-27T16:51:13-05:00 records the shape the rule still had,
+which the alpha.50 review found.
+
 ## 2026-11-27T16:51:13-05:00: a hunk one side also wrote a line into reads the copies bound too
 
 Recorded 2026-11-27T16:51:13-05:00.
