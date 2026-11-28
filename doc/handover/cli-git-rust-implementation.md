@@ -1141,6 +1141,53 @@ Unapproved and non-final.
 - Ended and not yet read:
   the Dylint proposal's third revision and the crate split proposal's second.
 
+#### Started and done between 08:24 and 08:38
+
+Unapproved and non-final.
+
+- The wrapper's `0.6.1-alpha.54` is published (release commit `b35e62237f`),
+  after one whole gate on `main` at `ce0d52a686` passed;
+  the gate is recorded in `doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`.
+  It is unpacked under `.cache/wrapper-release-0.6.1-alpha.54/`,
+  and neither locked nor installed.
+  Two second passes by Claude Sonnet read it:
+  one on the removal that reads force and the forced arm,
+  one on the merges that claim to change nothing a person can reach.
+- The crate split proposal's second revision (`59b7e274be`) and the Dylint proposal's third (`88980bc4bb`) are merged,
+  each report read whole.
+  The crate split has a third gate read running;
+  the Dylint proposal has a read narrowed to the three High findings of the read before it,
+  its new measurements and its first screen.
+- The two-forces design's gate read came back not ready,
+  with six High findings:
+  no table of holder classes against one force and two,
+  the unit route silent on whose identity the root handler checks,
+  what is built misdescribed,
+  the waits' values carried over as round numbers,
+  refusals that survive two forces not put to the owner,
+  and no first screen.
+  The round `zfs-two-forces-design-revised-against-its-gate-read-with-one-table-of-holders-and-the-settling-runs-made`
+  revises it and may make the settling runs on OVHcloud.
+- Issue 6667:
+  a lint run whose Dylint driver check cannot be made checks a package,
+  gets no report from the compiler,
+  prints no record and exits `0`.
+  The round `monochromatic-lint-a-package-the-closure-rule-did-not-check-never-ends-as-clean` first finds the cause.
+- Two more linter rounds answer the eight Low points of the read of `0.5.2-alpha.25`:
+  `monochromatic-lint-alpha-25-read-a-spaced-folder-is-listed-once-and-each-unseen-character-gets-its-own-advice`
+  and `monochromatic-lint-alpha-25-read-a-star-that-closes-nothing-declines-no-join-and-the-limit-says-what-it-bounds`.
+- The round `zfs-removal-that-reads-force-guest-arms-against-a-real-pool` runs,
+  on an OVHcloud guest,
+  what the round that built force on a removal could not show without a pool.
+- Issue 6665:
+  `a_wrapper_whose_git_cannot_start_ends_with_status_two_and_its_words` fails only in a threaded run.
+- A reader left a stray file,
+  `/tmp/null`,
+  holding a list of commit hashes.
+  It stays:
+  the deletion guard refuses a path with a segment named `null`,
+  and a reboot clears that folder.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
