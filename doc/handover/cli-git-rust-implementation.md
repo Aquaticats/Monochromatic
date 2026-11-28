@@ -1576,15 +1576,6 @@ of the linter's `0.5.2-alpha.23` and of `mpm-shadow`'s `0.2.7-alpha.18` returned
 ("What the wrapper's alpha.51 reads found",
 "What the linter's alpha.23 read found",
 "What `mpm-shadow`'s alpha.18 read found").
-The reads of the linter's `0.5.2-alpha.22`,
-of `mpm-shadow`'s `0.2.7-alpha.17` and of `cargo-shadow`'s `0.1.5-alpha.16` returned and were read whole
-("What the linter's alpha.22 read found",
-"What `mpm-shadow`'s alpha.17 read found",
-"What `cargo-shadow`'s alpha.16 read found").
-Both Claude Sonnet reads of the wrapper's `0.6.1-alpha.50` returned and were read whole
-("What the wrapper's alpha.50 reads found"),
-as was the linter's
-("What the linter's alpha.21 read found").
 Each was a same-vendor second pass and not an independent review.
 The coordinator rewrites what lasts from each into this file before scratch expires.
 
