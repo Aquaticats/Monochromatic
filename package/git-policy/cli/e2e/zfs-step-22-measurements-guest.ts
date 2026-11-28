@@ -23,6 +23,11 @@
  The guest's own steps are in `e2e/step-22-arms/`: the build, the two pools, the measurement arm and the holder scan
  beside it.
  */
+import {
+  guestBackend,
+  refuseAStepWhoseArmsCannotRun,
+  STEPS_THAT_RUN_NO_ARM,
+} from '../bin/mvm-guest-backend.ts';
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
@@ -367,4 +372,12 @@ const words: readonly string[] = process.argv
  The step and the values the command line gave it.
  */
 const chosen: Options = options({ argumentsRead: runArguments({ argv: words, },), },);
+// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
+// makes anything. The three that only make, prepare and take away a guest run on either backend.
+refuseAStepWhoseArmsCannotRun({
+  backend: guestBackend(),
+  step: chosen.step,
+  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
+});
+
 await runTheStep(chosen,);

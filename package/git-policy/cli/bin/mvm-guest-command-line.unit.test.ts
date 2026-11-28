@@ -23,6 +23,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { GUEST_BACKENDS, } from './mvm-guest-backend.ts';
 import { GUEST_TIMEOUT_MARGIN_SECONDS, } from './mvm-guest-bounds.ts';
 import { createGateScratchDirectory, } from './stand-in-gate-programs-for-tests.ts';
 import {
@@ -345,6 +346,19 @@ await describe({
           },
         },),
         it({
+          name: 'asks for root and names the instance hostname on a backend that reaches its guest over ssh',
+          fn: async () => {
+            expect(guestCommandLine({
+              name: GUEST,
+              timeoutMilliseconds: 1_800_000,
+              script: 'zpool list',
+              backend: GUEST_BACKENDS.ovh,
+            },),).toBe(
+              `test "$(hostname)" = mvm-${GUEST} && sudo --non-interactive -- timeout 1740 sh -ec 'zpool list'`,
+            );
+          },
+        },),
+        it({
           name: 'sizes the guest timeout even when the bound the caller gave is below the margin',
           fn: async () => {
             // The drivers pass a bound of minutes, so this boundary is only about the arithmetic staying the one they
@@ -377,6 +391,22 @@ await describe({
             },);
             expect(files.launch.startsWith(`test "$(hostname)" = ${GUEST} || exit 1\n`,),).toBe(true,);
             expect(files.step.includes('hostname',),).toBe(false,);
+          },
+        },),
+        it({
+          name: 'keeps both files in the account home, and starts them as root, on a backend without a share',
+          fn: async () => {
+            const files = detachedScriptFiles({
+              name: GUEST,
+              script: 'echo one',
+              log: 'arm.log',
+              timeoutMilliseconds: 900_000,
+              nameCheck: 'launcher',
+              backend: GUEST_BACKENDS.ovh,
+            },);
+            expect(files.launch,).toContain('setsid nohup sudo --non-interactive -- sh /home/ubuntu/arm.log.step.sh',);
+            expect(files.step,).toContain('sudo --non-interactive -- timeout 840 sh -ec',);
+            expect(files.step,).toContain('> /home/ubuntu/arm.log 2>&1',);
           },
         },),
         it({

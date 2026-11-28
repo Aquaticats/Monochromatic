@@ -44,6 +44,11 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+  refuseAStepWhoseArmsCannotRun,
+  STEPS_THAT_RUN_NO_ARM,
+} from '../bin/mvm-guest-backend.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -75,6 +80,11 @@ import {
 import {
   measureTheStop,
 } from './forced-act-guest-measurement.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  Milliseconds the guest's build of the library and its tests may take.
@@ -191,12 +201,11 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz'),
     ],
     log: 'guest-push.log',
   },);
@@ -369,4 +378,12 @@ await mkdir(
     mode: FOLDER_MODE,
   },
 );
+// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
+// makes anything. The three that only make, prepare and take away a guest run on either backend.
+refuseAStepWhoseArmsCannotRun({
+  backend: guestBackend(),
+  step: chosen.step,
+  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
+});
+
 await step(chosen,);
