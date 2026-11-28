@@ -1055,6 +1055,16 @@ and one on the unedited tree as a control:
   The linter's help line names the link the round would create:
   `mkdir --parents src/native/transaction/uses && ln --symbolic ../../lock src/native/transaction/uses/lock`.
 
+What survives either option,
+and is not part of it:
+both one-shot files call `crate::lock_holder_records::note_child_started(child.id())`
+(`package/git-policy/cli/src/native/push/child_watch_one_shot_run.rs:249` and
+`package/git-policy/cli/src/native/push/child_watch_output_watched_on_the_runtime.rs:251`),
+and the target tree has no row for `lock_holder_records.rs`,
+so the watcher library goes on naming the lock area after either option.
+Taking that use out is a second change,
+which neither option makes,
+and the library lift needs it as much as it needs this one.
 The decision record says such a finding has an empty key,
 "so no line of the list can record it"
 (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md:115-119`),
