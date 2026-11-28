@@ -15,7 +15,8 @@
 //!  and the two directions are told apart by a direct spelling that is refused in one and runs in the
 //!  other.
 //!  Two more places the nested Git acts in reach that reading (issue 6641):
-//!  the `--git-dir`, `--work-tree` and `-c` a caller types before the alias name,
+//!  the `--git-dir`,
+//!  `--work-tree` and `-c` a caller types before the alias name,
 //!  which Git exports to the shell and are dropped from the facts no longer,
 //!  and the `GIT_DIR` Git gives the shell from a linked worktree,
 //!  which makes a nested `-C` write one worktree's files with another repository's index.
@@ -283,7 +284,8 @@ fn directly(
 ///  because the facts were asked of the caller and never of the words' target.
 ///  From the main checkout Git exports no `GIT_DIR` to the alias's shell,
 ///  so the nested Git finds the repository of the directory the words name and the two spellings act in one state;
-///  a caller in a linked worktree does not, and the control below holds that direction.
+/// a caller in a linked worktree does not,
+///  and the control below holds that direction.
 ///  The fixture's two worktrees are asserted before the rows read it:
 ///  the direct spelling of a hard reset is refused for the dirty main checkout and runs for the
 ///  clean linked worktree.
@@ -432,7 +434,9 @@ fn a_place_before_the_alias(
 }
 
 /// What:
-///  The same place options, the same target and the same command, spelled directly,
+/// The same place options,
+///  the same target and the same command,
+///  spelled directly,
 ///  for the comparison each row makes.
 /// Why:
 ///  The wrapper sees the caller's options in both spellings and has to judge them the same way;
@@ -456,7 +460,8 @@ fn the_same_place_directly(
 }
 
 /// What:
-///  A bare `!git` whose caller typed `--git-dir`, `--work-tree` or `-c` before the alias name
+/// A bare `!git` whose caller typed `--git-dir`,
+///  `--work-tree` or `-c` before the alias name
 ///  is refused exactly where the direct spelling of the same words is,
 ///  in every guarded form,
 ///  both against the dirty main checkout and against the clean linked worktree.
@@ -705,7 +710,8 @@ fn a_shell_alias_is_judged_as_the_state_its_nested_git_acts_in() {
         caller: &'a Path,
         /// The words after the alias name.
         target: &'a Vec<OsString>,
-        /// The state the nested Git acts in there, spelled directly.
+        /// The state the nested Git acts in there,
+        ///  spelled directly.
         state: Vec<OsString>,
         /// Whether a hard reset of that target alone is refused.
         the_target_alone_is_refused: bool,

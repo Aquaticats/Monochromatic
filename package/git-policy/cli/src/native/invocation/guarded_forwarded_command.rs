@@ -38,7 +38,7 @@
 /// ```
 use crate::child_environment::environment_value;
 /// The Git directory Git gives the Git inside a `!` alias's shell.
-use crate::external_git_command::the_git_dir_the_alias_shell_reads;
+use crate::external_git_command_the_git_dir_the_shell_reads::the_git_dir_the_alias_shell_reads;
 use crate::forwarded_command::{
     ResolvedCommand,
     Route,
@@ -256,7 +256,8 @@ pub fn decide_guarded_forwarded(
 ///  or nothing when that command names no place of its own or that directory was not read.
 ///  `&[OsString]` borrows the command's own globals before its subcommand;
 ///  the other slice borrows the caller's globals before the alias name;
-///  `Option<&OsStr>` is what Git gives the shell's Git as `GIT_DIR`, and nothing when it gives none.
+///  `Option<&OsStr>` is what Git gives the shell's Git as `GIT_DIR`,
+///  and nothing when it gives none.
 /// Why:
 ///  The nested Git starts where the shell runs,
 ///  keeps the `GIT_DIR` Git exported to that shell,
@@ -307,7 +308,8 @@ pub(crate) fn globals_that_place_the_command(
 
 /// What:
 ///  Whether the caller's own words or environment named the repository the Git inside a `!` alias's shell reads:
-///  a Git directory, or a work tree.
+/// a Git directory,
+///  or a work tree.
 /// Why:
 ///  Git exports `GIT_DIR` to such a shell whenever either was named (`setup.c:1657` to `:1662`),
 ///  because both make it take the explicit path through `setup_explicit_git_dir`,
@@ -326,7 +328,8 @@ fn the_place_was_named(
             return true;
         }
     }
-    /// The globals that store a Git directory or a work tree, in both spellings Git accepts.
+    /// The globals that store a Git directory or a work tree,
+    ///  in both spellings Git accepts.
     const NAMED: &[&[u8]] = &[b"--git-dir", b"--git-dir=", b"--work-tree", b"--work-tree="];
     return option_tokens(callers_globals).iter().any(|token| {
         let bytes: &[u8] = token.as_encoded_bytes();

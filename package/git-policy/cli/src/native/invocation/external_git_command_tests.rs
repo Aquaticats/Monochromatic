@@ -4,6 +4,9 @@
 //!  and the real-Git comparison of each answer.
 
 use super::*;
+///  The reading of the Git directory Git gives a `!` alias's shell,
+///  which lives beside this module.
+use crate::external_git_command_the_git_dir_the_shell_reads::the_git_dir_the_alias_shell_reads;
 use crate::test_support::{
     executable,
     fixture,
@@ -858,10 +861,12 @@ fn the_git_dir_the_shell_was_given(place: &Path) -> String {
 ///  at the top of a worktree,
 ///  below that top,
 ///  and inside a Git directory,
-///  a folder of it and a bare repository, where Git names no top at all.
-/// Why:
+/// a folder of it and a bare repository,
+///  where Git names no top at all.
+///  Why:
 ///  Issue 6641's second class:
-///  from a linked worktree Git exports `GIT_DIR`, so the nested `git -C <elsewhere>` writes the caller's index over
+/// from a linked worktree Git exports `GIT_DIR`,
+///  so the nested `git -C <elsewhere>` writes the caller's index over
 ///  another directory's files,
 ///  while in a plain main checkout it exports nothing and the nested Git finds the repository itself.
 ///  A reading that exported the directory in the main checkout too would judge a nested `-C` into a subdirectory
@@ -901,11 +906,11 @@ fn the_git_dir_the_alias_shell_reads_is_the_one_git_gives_it() {
             "the reading says whether Git gives an alias's shell a Git directory at {}",
             place.display()
         );
-        let Some(read) = read else {
+        let Some(read_by_the_guard) = read else {
             continue;
         };
         // Both answers are read from the place the command was typed in, as Git reads one.
-        let read_path: PathBuf = std::fs::canonicalize(place.join(read.as_os_str()))
+        let read_path: PathBuf = std::fs::canonicalize(place.join(read_by_the_guard.as_os_str()))
             .expect("the Git directory the reading names reads");
         let git_path: PathBuf = std::fs::canonicalize(place.join(git_gives_it.as_str()))
             .expect("the Git directory Git named reads");
