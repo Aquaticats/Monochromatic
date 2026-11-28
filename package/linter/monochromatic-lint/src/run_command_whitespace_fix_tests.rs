@@ -13,6 +13,7 @@
 //! ```
 
 /// Import the shared invocation fixtures.
+use crate::markdown_fragment_joins::JOINED_LINE_LIMIT;
 use crate::markdown_source::{
     MarkdownSource,
     block_containers,
@@ -235,6 +236,76 @@ fn a_blockquote_break_keeps_the_marker_at_the_same_depth() {
         }
     }
     assert_eq!(root_children, [MdastNodeType::Blockquote]);
+}
+
+/// The following word that makes one line of a doc comment as wide as it is asked to be in its host file.
+///  The host writes the comment marker and the indentation before the text,
+///  the fragment stands first and the join writes one space beside it.
+fn following_word_for_host_width(
+    host_width: usize,
+    host_prefix: &str,
+    fragment: &str,
+) -> String {
+    return "x".repeat(host_width - host_prefix.len() - fragment.len() - 1);
+}
+
+/// A joined Rust doc line stays under the limit in its host file:
+///  the width counts the comment marker and the indent the host writes before the text,
+///  so a line the projection alone would let pass is declined where the host does not.
+#[test]
+fn a_joined_doc_line_stays_under_the_limit_in_its_host_file() {
+    // A one-word fragment of a doc comment, whose join writes one space and the following word.
+    let fragment: &str = "the";
+    for host_prefix in ["//! ", "    //! ", "            //! "] {
+        let under: String =
+            following_word_for_host_width(JOINED_LINE_LIMIT - 1, host_prefix, fragment);
+        let source: String = format!(
+            "{host_prefix}What:\n{host_prefix}Line one, {fragment}\n{host_prefix}{under}\n"
+        );
+        let (fixed, remaining): (String, Vec<String>) =
+            fix_file("a.rs", source.as_str(), EVERY_FIXABLE_RULE);
+        assert!(remaining.is_empty(), "{host_prefix:?}: {remaining:?}");
+        assert!(
+            fixed.contains(&format!("{host_prefix}{fragment} {under}")),
+            "{host_prefix:?}: {fixed}"
+        );
+        assert!(
+            fixed
+                .lines()
+                .all(|line| line.chars().count() <= JOINED_LINE_LIMIT),
+            "{host_prefix:?}: {fixed}"
+        );
+        // The same width one character further, so the host line would pass the limit: the join is declined.
+        let over: String = following_word_for_host_width(JOINED_LINE_LIMIT, host_prefix, fragment);
+        let long: String =
+            format!("{host_prefix}What:\n{host_prefix}Line one, {fragment}\n{host_prefix}{over}\n");
+        let (kept, remaining): (String, Vec<String>) =
+            fix_file("a.rs", long.as_str(), EVERY_FIXABLE_RULE);
+        assert!(remaining.is_empty(), "{host_prefix:?}: {remaining:?}");
+        assert!(
+            kept.contains(&format!("{host_prefix}{fragment}\n")),
+            "{host_prefix:?}: {kept}"
+        );
+        assert!(
+            kept.lines()
+                .all(|line| line.chars().count() <= JOINED_LINE_LIMIT),
+            "{host_prefix:?}: {kept}"
+        );
+    }
+}
+
+/// A fragment ending inside a closing emphasis delimiter is where the rule wants the line to end,
+///  so the fix leaves it on its line and one run settles.
+#[test]
+fn a_fragment_ending_inside_closing_emphasis_keeps_its_line() {
+    let source: &str = "One two, *held,*\nfour five.\n";
+    let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, EVERY_FIXABLE_RULE);
+    assert_eq!(fixed, "One two,\n*held,*\nfour five.\n");
+    assert!(remaining.is_empty(), "{remaining:?}");
+    let (again, remaining): (String, Vec<String>) =
+        fix_file("a.md", fixed.as_str(), EVERY_FIXABLE_RULE);
+    assert_eq!(again, fixed);
+    assert!(remaining.is_empty(), "{remaining:?}");
 }
 
 /// Every fixture keeps its token sequence under plain `--fix` with every fixable Markdown rule enabled,

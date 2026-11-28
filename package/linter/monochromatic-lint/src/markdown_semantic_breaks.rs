@@ -144,6 +144,7 @@ pub fn semantic_line_breaks(
             paragraph_end,
             fragments.as_slice(),
             prefix.chars().count(),
+            context.host_prefix_chars,
         );
         for (index, (at, separator)) in breaks.iter().enumerate() {
             // The fix consumes at most the one separating space; the grouped editor resolves competing fixes.

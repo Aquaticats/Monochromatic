@@ -50,6 +50,21 @@ fn closing(character: char) -> bool {
     return ['"', '\'', ')', ']', '}', '”', '’', '»', '›'].contains(&character);
 }
 
+/// What:
+///  Whether a character closes an emphasis,
+///  a strong emphasis or a strikethrough run.
+/// Why:
+///  A text node inside one of those delimiters is read through its closing delimiter,
+///  so the rule's break lands after the delimiter and never before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function closingEmphasis(character: string): boolean { return ['*', '_', '~'].includes(character); }
+/// ```
+fn closing_emphasis(character: char) -> bool {
+    return ['*', '_', '~'].contains(&character);
+}
+
 /// The punctuation characters this rule breaks after,
 ///  which is the same list a fragment join must leave ending its line.
 fn is_break_point(character: char) -> bool {
@@ -58,18 +73,27 @@ fn is_break_point(character: char) -> bool {
 
 /// What:
 ///  Whether written prose ends at a break-point character,
-///  past any closing delimiter a break moves over.
+///  past every closing delimiter a break moves over.
 /// Why:
 ///  The rule breaks after such a character the moment prose follows it on the same line,
 ///  so a fragment that ends there is where the rule wants the line to end;
 ///  a fix that joined it would break it again on the next pass.
+///  The closing delimiters include the emphasis families,
+///  because `delimiter_tail` reads a text node inside `*`, `_` or `~`
+///  through that closing delimiter,
+///  so `*held,*` is where the rule wants a line to end just as `held,` is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function endsAtBreakPoint(text: string): boolean;
+/// function endsAtBreakPoint(text: string): boolean {
+///   const stripped = text.replace(/["')\]}”’»›*_~]+$/, '');
+///   return [',', '.', ';', ':', '?', '!'].includes(stripped.at(-1) ?? '');
+/// }
 /// ```
 pub(crate) fn ends_at_break_point(text: &str) -> bool {
-    let stripped: &str = text.trim_end_matches(closing);
+    // One reverse trim over both delimiter families, so `"4."`, `*held,*` and `~~held,~~` all end where they look.
+    let stripped: &str =
+        text.trim_end_matches(|character: char| closing(character) || closing_emphasis(character));
     return stripped.chars().next_back().is_some_and(is_break_point);
 }
 

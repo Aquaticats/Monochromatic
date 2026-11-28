@@ -39,8 +39,23 @@ fn joined(
     fragments: &[usize],
     indent_width: usize,
 ) -> String {
-    let answers: Vec<Option<FragmentJoin>> =
-        fragment_joins(source, source.len(), fragments, indent_width);
+    return joined_under_host(source, fragments, indent_width, 0);
+}
+
+/// Apply the answers as a host file of its own prefix width would show them.
+fn joined_under_host(
+    source: &str,
+    fragments: &[usize],
+    indent_width: usize,
+    host_prefix_chars: usize,
+) -> String {
+    let answers: Vec<Option<FragmentJoin>> = fragment_joins(
+        source,
+        source.len(),
+        fragments,
+        indent_width,
+        host_prefix_chars,
+    );
     let mut edits: Vec<Edit> = Vec::<Edit>::new();
     for answer in answers.into_iter().flatten() {
         edits.push(Edit {
@@ -54,6 +69,14 @@ fn joined(
         edits,
     };
     return apply_fixes(source, &[fix]).expect("apply").source;
+}
+
+/// The following word that makes a line holding this fragment as wide as it is asked to be,
+///  counted as the join counts it: the fragment, one space and the word.
+fn following_word_of_width(width: usize) -> String {
+    // The fragment every width fixture joins, and the one space the join writes beside it.
+    let fragment: &str = "the";
+    return "x".repeat(width - fragment.len() - 1);
 }
 
 /// A word the old wrap cut off joins the line that continues its clause.
@@ -140,6 +163,154 @@ fn a_join_that_would_pass_the_limit_is_declined() {
     );
 }
 
+/// A line exactly as wide as the limit is over it,
+///  because the limit is the widest line the rule may write: `width >= JOINED_LINE_LIMIT` declines.
+#[test]
+fn a_joined_line_exactly_at_the_limit_is_declined() {
+    let at_limit: String = format!(
+        "Owns the record family, the\n{}\n",
+        following_word_of_width(JOINED_LINE_LIMIT)
+    );
+    assert_eq!(
+        joined(
+            at_limit.as_str(),
+            &[fragment_at(at_limit.as_str(), "the\n")],
+            0
+        ),
+        at_limit
+    );
+    let under: String = format!(
+        "Owns the record family, the\n{}\n",
+        following_word_of_width(JOINED_LINE_LIMIT - 1)
+    );
+    assert_ne!(
+        joined(under.as_str(), &[fragment_at(under.as_str(), "the\n")], 0),
+        under
+    );
+}
+
+/// The indent the fix writes is part of the width,
+///  so a line the same length would pass at column zero passes this limit only by that indent.
+#[test]
+fn the_indent_the_fix_writes_is_part_of_the_width() {
+    let at_limit: String = format!(
+        "Owns the record family, the\n{}\n",
+        following_word_of_width(JOINED_LINE_LIMIT - 1)
+    );
+    assert_eq!(
+        joined(
+            at_limit.as_str(),
+            &[fragment_at(at_limit.as_str(), "the\n")],
+            1
+        ),
+        at_limit
+    );
+    let under: String = format!(
+        "Owns the record family, the\n{}\n",
+        following_word_of_width(JOINED_LINE_LIMIT - 2)
+    );
+    assert_ne!(
+        joined(under.as_str(), &[fragment_at(under.as_str(), "the\n")], 1),
+        under
+    );
+}
+
+/// The characters the host writes before the line's text are part of the width,
+///  so a Rust doc comment's marker and indent count as the reader counts them.
+#[test]
+fn the_host_prefix_is_part_of_the_width() {
+    // The four characters `//! ` stand before every line of a doc comment written at column zero.
+    let host_prefix_chars: usize = 4;
+    let at_limit: String = format!(
+        "Owns the record family, the\n{}\n",
+        following_word_of_width(JOINED_LINE_LIMIT - host_prefix_chars)
+    );
+    assert_eq!(
+        joined_under_host(
+            at_limit.as_str(),
+            &[fragment_at(at_limit.as_str(), "the\n")],
+            0,
+            host_prefix_chars
+        ),
+        at_limit
+    );
+    let under: String = format!(
+        "Owns the record family, the\n{}\n",
+        following_word_of_width(JOINED_LINE_LIMIT - 1 - host_prefix_chars)
+    );
+    assert_ne!(
+        joined_under_host(
+            under.as_str(),
+            &[fragment_at(under.as_str(), "the\n")],
+            0,
+            host_prefix_chars
+        ),
+        under
+    );
+}
+
+/// One line ending takes one join:
+///  two breaks on one line leave two fragments that answer the same range,
+///  and the grouped editor refuses a whole fix that starts where an accepted one starts.
+#[test]
+fn two_fragments_ending_at_one_line_ending_give_one_join() {
+    let source: &str = "clause one, x, y\nnext line here.\n";
+    let fragments: [usize; 2] = [fragment_at(source, "x, y\n"), fragment_at(source, "y\n")];
+    let answers: Vec<Option<FragmentJoin>> = fragment_joins(source, source.len(), &fragments, 0, 0);
+    assert_eq!(answers.len(), 2);
+    let first: &FragmentJoin = answers[0].as_ref().expect("the first fragment joins");
+    assert!(answers[1].is_none(), "one line ending takes one join");
+    assert_eq!(&source[first.start..first.end], "\n");
+    assert_eq!(
+        joined(source, &fragments, 0),
+        "clause one, x, y next line here.\n"
+    );
+}
+
+/// A fragment the rule wants to end its line stays alone even inside closing emphasis,
+///  because the break lands after that delimiter and joining it would break it again.
+#[test]
+fn an_emphasis_closed_break_point_ends_its_line() {
+    for written in [
+        "*held,*\n",
+        "**held,**\n",
+        "_held,_\n",
+        "~~held,~~\n",
+        "*a b,*\n",
+    ] {
+        let source: String = format!("One two, {written}four five.\n");
+        let fragment: usize = fragment_at(source.as_str(), written);
+        assert_eq!(joined(source.as_str(), &[fragment], 0), source, "{written}");
+    }
+}
+
+/// A fragment holding two words is one the old wrap cut,
+///  and one holding three is a whole clause the rule leaves alone.
+#[test]
+fn two_words_are_a_fragment_and_three_are_a_clause() {
+    let two: &str = "Owns the record family, two words\nmanaged lock's words and the finder.\n";
+    assert_eq!(
+        joined(two, &[fragment_at(two, "two words\n")], 0),
+        "Owns the record family, two words managed lock's words and the finder.\n"
+    );
+    let three: &str = "Owns the record family, three whole words\nmanaged lock's words.\n";
+    assert_eq!(
+        joined(three, &[fragment_at(three, "three whole words\n")], 0),
+        three
+    );
+}
+
+/// One trailing space is not a hard break,
+///  so the fragment joins and the join takes that space with the ending.
+#[test]
+fn one_trailing_space_still_joins() {
+    let source: &str = "Owns the record family, the \nmanaged lock's words.\n";
+    assert_eq!(
+        joined(source, &[fragment_at(source, "the \n")], 0),
+        "Owns the record family, the managed lock's words.\n"
+    );
+}
+
 /// One answer arrives per fragment,
 ///  and a CRLF ending loses both of its bytes.
 #[test]
@@ -149,7 +320,7 @@ fn each_answer_belongs_to_its_fragment_and_crlf_is_removed_whole() {
     let first: usize = fragment_at(source, "the\r");
     let second: usize = fragment_at(&source[first + 1..], "the\r") + first + 1;
     let answers: Vec<Option<FragmentJoin>> =
-        fragment_joins(source, source.len(), &[first, second], 0);
+        fragment_joins(source, source.len(), &[first, second], 0, 0);
     assert_eq!(answers.len(), 2);
     let joined_first: &FragmentJoin = answers[0].as_ref().expect("the first fragment joins");
     assert_eq!(&source[joined_first.start..joined_first.end], "\r\n");
