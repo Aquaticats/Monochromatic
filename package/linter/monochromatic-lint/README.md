@@ -2202,10 +2202,12 @@ and what the messages say.
   and an entry of a `uses` folder is named as that entry of a `uses` folder,
   where alpha.19 called it a file.
 
-`0.5.2-alpha.22`, reading a list written for `0.5.2-alpha.21`,
+`0.5.2-alpha.22`,
+reading a list written for `0.5.2-alpha.21`,
 moved no line between read and refused over 6,293 lists,
 with a byte-identical copy of `0.5.2-alpha.21` as the control;
-`0.5.2-alpha.23`, reading a list written for `0.5.2-alpha.22`,
+`0.5.2-alpha.23`,
+reading a list written for `0.5.2-alpha.22`,
 moved none over 10,081 lists against `0.5.2-alpha.22` and a byte-identical copy of it,
 and changed no list's exit status or set of findings.
 Both measured on 2026-11-27.

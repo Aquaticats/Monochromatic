@@ -8010,7 +8010,9 @@ in order:
     and their splits run after the crate's move as the note above says.
     Whether that line stays is the owner's
     (`doc/handover/questions-for-the-owner.md`,
-    "The wrapper: one more line in the folder rule's allow list, and two more files over the line budget").
+    "The wrapper:
+    one more line in the folder rule's allow list,
+    and two more files over the line budget").
 3.  `refactor/git-policy-cli-split-loop-breaks`:
     step 3,
     one commit per loop of the list above,
