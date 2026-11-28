@@ -4355,8 +4355,9 @@ and each can be undone.
   because its Dylint driver is absent and the linter downloads none.
   Who puts the driver on a machine,
   and whether a skipped rule fails a check,
-  is undecided,
-  and no issue is filed.
+  is undecided:
+  issue 6643,
+  whose round writes the proposal and builds nothing.
 - `mpm-shadow`,
   from the alpha.18 read:
   a temporary link whose installer is alive stays and one whose installer is gone is removed and named;
