@@ -5094,3 +5094,50 @@ from the build's report and the proposal's second gate read:
 Guest rounds meanwhile name a size outright,
 `b3-16`,
 which is the session's pick.
+
+## Veto open: what the round that made the removal read force chose (recorded 2026-11-28T08:02:12-05:00)
+
+Merge `7c4962988d` built the owner's answers of 2026-11-28 on forces at a ZFS removal.
+Where the round went past what was decided,
+each with the way not taken in its report,
+whose scratch expires a day after its last change:
+
+- two forces do not loosen four refusals:
+  the transferred-history refusal,
+  the origin-side hit,
+  the deferred-origin checks and the holder scans.
+  The owner's words were that force "overrides anything and delete and destroy no matter what";
+  no design says what destroying inherited history or a marked origin should do,
+  and the two-forces design asks about holders;
+- a forced removal whose plan cannot be read and whose clone no longer answers refuses,
+  with one force and with two,
+  because deleting that plan would delete the only record of what an earlier run destroyed.
+  The settling command refuses such a plan too,
+  so a person has no way out of that state in this build;
+- a worktree with modified or untracked files refuses without force and passes one force,
+  which is Git's own gradation.
+  Before this merge the clone was destroyed with no force at all;
+- the bookmark rule is waived whenever a force was given,
+  and the report names each bookmark that went;
+- a spelling Git itself refuses counts as no force;
+- a clone mounted somewhere that is no staging folder stays Git's,
+  with or without force.
+
+## Veto open: what the private propagation step's round chose (recorded 2026-11-28T08:02:12-05:00)
+
+Merge `ce0d52a686` built the step ahead of its wiring:
+
+- on a kernel that reports no namespace number for a mount (before Linux 6.9),
+  the step does not refuse for want of it and the record's field reads `none`;
+- the record gains one step word the accepted design did not list,
+  `record`,
+  for a run whose answer could not be filed;
+- every item of the step is published from the crate,
+  with its names in the list of published names,
+  because an unwired piece's private items fail the build as dead code;
+- the trigger measurement read:
+  ten of ten replacements at a person's pace seen once each,
+  no loop,
+  and a burst of eight held to three starts.
+  On that reading the provisional systemd trigger stays;
+  the decision is the owner's.
