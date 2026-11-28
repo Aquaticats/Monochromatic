@@ -6089,8 +6089,6 @@ What this release does not do:
   (`worktree_clone_origin_cleanup::origin_cleanup_look`)
   is reached from the removal's own step of that order,
   and the other four commands' look is not yet called.
-- It settles no record of a slot from a command:
-  the settling command is built and no management grammar admits it in this release.
 - It adopts a plan from no command but the removal of that clone:
   a removal that finds one adopts it and continues,
   and no other command runs one.
@@ -6116,7 +6114,8 @@ The management grammar admits it in this release,
 and no other command reaches it:
 `doctor`,
 the mount handler and the boot units do not,
-and the round that switches the removal's command path on calls it from there as well.
+and the removal's command path asks the same reversal at its stop points through
+`worktree_clone_removal_proof_and_plan::the_self_cancelling_seam`.
 
 - A slot no removal has touched refuses with the command's own sentence and exit `2`,
   because nothing about the slot is a removal to cancel.
@@ -8713,11 +8712,13 @@ The first gap,
 the longest gap and a waiting command's own nudge delay are measurement M8's,
 and `the_gaps` answers nothing until step 22 states them,
 so a build with the switch on still nudges nothing.
-Until then the check has no call site in the shipped build:
+The check has no call site in the shipped build yet:
 a use of the protocol folder by `invocation/` is a new use inside a loop the
 layout allow list tolerates,
 which no line of that list may record,
-so the forwarded path gains its one line once that loop is untangled
+and the round that built the check left the call out for that reason.
+The same record's amendment of 2026-11-28 lets the wiring of a built piece merge with that finding unrecorded,
+so the forwarded path's one line is owed together with the measurement of its cost
 (`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
 
 ### Unmount, staging and reattach of a ZFS worktree clone

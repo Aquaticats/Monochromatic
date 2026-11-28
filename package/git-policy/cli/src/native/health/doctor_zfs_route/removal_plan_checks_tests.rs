@@ -120,7 +120,10 @@ fn a_standing_plan_names_every_field() {
             "{snapshot:?} is missing from {detail}"
         );
     }
-    assert!(detail.contains("no removal for a clone"), "{detail}");
+    assert!(
+        detail.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        "{detail}"
+    );
 }
 
 /// A name settled by a later line prints the later outcome,

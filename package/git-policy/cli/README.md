@@ -2776,7 +2776,9 @@ and has no call site yet:
 a use of that folder by `invocation/` is a new use inside a loop the layout
 allow list tolerates,
 and no line of that list may be added,
-so the forwarded path gains its one line once the loop is untangled.
+so the round that built the check left the call out.
+Such a wiring use may now merge with its layout finding unrecorded,
+and the forwarded path's one line is owed together with the measurement of its cost.
 
 The nudge on Git commands is off.
 It stands behind the compiled switch `zfs-lost-event-nudge`,

@@ -156,7 +156,10 @@ fn an_intent_without_a_plan_is_a_finding() {
         detail.contains("no destruction plan was written"),
         "{detail}"
     );
-    assert!(detail.contains("no removal for a clone"), "{detail}");
+    assert!(
+        detail.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        "{detail}"
+    );
 }
 
 /// A plan no holder blocks passes,
