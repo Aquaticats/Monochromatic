@@ -129,7 +129,7 @@ fn the_merge_device_names_neither_the_device_nor_the_gate() {
     let stale: Vec<String> = anchors_the_scope_no_longer_holds(
         sources.as_slice(),
         &[(
-            "pub fn run_a_merge_pass(",
+            "pub fn run_a_merge_pass<F>(",
             "the device's taker is the code this ban is about",
         )],
     );
