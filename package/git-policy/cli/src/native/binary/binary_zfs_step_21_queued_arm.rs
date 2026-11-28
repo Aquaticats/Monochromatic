@@ -27,6 +27,7 @@
 #![cfg(target_os = "linux")]
 
 use super::zfs_step_21_dependency_arms::{
+    RESOLVED,
     the_cargo_workspace,
     the_node_project,
     the_repair_line,
@@ -328,7 +329,10 @@ fn queued_after_an_add(
     let slot: PathBuf = fixture.slot(name.as_str());
     let resolved: std::process::Output = fixture.run(
         Path::new("/usr/bin/node"),
-        &["--print", "require.resolve('is-odd')"],
+        &[
+            "--print",
+            format!("require.resolve('{RESOLVED}')").as_str(),
+        ],
         slot.as_path(),
     );
     let answer: String = String::from_utf8_lossy(resolved.stdout.as_slice())
@@ -408,7 +412,10 @@ fn inline_after_an_add(
     let slot: PathBuf = fixture.slot(name.as_str());
     let resolved: std::process::Output = fixture.run(
         Path::new("/usr/bin/node"),
-        &["--print", "require.resolve('is-odd')"],
+        &[
+            "--print",
+            format!("require.resolve('{RESOLVED}')").as_str(),
+        ],
         slot.as_path(),
     );
     let answer: String = String::from_utf8_lossy(resolved.stdout.as_slice())

@@ -89,9 +89,9 @@ const VENDOR_TARBALL: &str = "is-odd-local-1.0.0.tgz";
 /// so the archive never sits inside the tree it reads.
 const VENDOR_PACKED: &str = "/root/step21-is-odd-local.tgz";
 
-/// The one dependency the pnpm arm resolves after its install,
+/// The one dependency the pnpm and queued arms resolve after their install,
 /// so a relink that never ran is a failure and not a silence.
-const RESOLVED: &str = "is-odd-local";
+pub(super) const RESOLVED: &str = "is-odd-local";
 
 /// The workspace manifest the Cargo arm's fixture holds.
 const WORKSPACE_MANIFEST: &str =
