@@ -2827,32 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- `cargo-shadow` alpha.11:
-  issue 6528's change alters what is said and not what is decided
-  (`stop_everything` still answers `Ok` only when the program was reaped and the scope is empty),
-  and its test-only switch cannot fire in a release build.
-  The reformat is rustfmt's own output on its parent,
-  byte for byte;
-  the splits match every old item once and lose no `cfg`;
-  all 892 test names survive.
-  Routed to three rounds:
-  the refusal can say "no member it listed can still write" when it listed none,
-  which is wrong for a process in a group below the scope,
-  with four smaller points about the report's words and its listing;
-  the guard `no_lean_source_starts_cargo_or_itself` reads only the top of `src/`
-  and so stopped reading 18 lean files the splits moved into subfolders;
-  and a test-only feature of `rustix` in `[dependencies]`,
-  48 public paths the splits added to the library,
-  and a record that names a file that never existed.
-  Two issues recorded as test fixes changed release code:
-  issue 6550 made the unready-journal recovery carry paths as bytes,
-  which fixes a manifest with a non-UTF-8 name being skipped while its journal was removed,
-  and issue 6552 threads a byte-count function through 18 items with every production call passing the same one.
-  The package's `test` task exits 0 on a host that cannot delegate a control group,
-  leaving out the tests it cannot run and saying so;
-  whether the release workflow's runner is such a host is not yet known,
-  and the third round reads the workflow's log for it.
-
 What the wrapper's alpha.48 behaviour pass found,
 with no High finding:
 
