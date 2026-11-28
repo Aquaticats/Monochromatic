@@ -1583,46 +1583,12 @@ The alpha.50 behaviour read's merge finding is taken as a fix,
 by the owner's request of 2026-11-10 that wrong text land less often,
 and its round returns the pick and the other way for the owner.
 
-What `mpm-shadow`'s alpha.16 read found
-(`~/temp/agent/mpm-shadow-alpha-16-release-review-2026-11-27/keep/review.md`,
-a same-vendor second pass):
-no High,
-no Medium and ten Low.
-Shown with both released binaries on fixtures with real kills:
-the order of a recovery's last two steps,
-where a start in the window exits 127 on alpha.15 and runs the newer version on alpha.16;
-the raced publish,
-where alpha.15 ends 1 with both hidden copies kept and alpha.16 ends 0 with the other install's copy as the version;
-every message of the round on a hidden name nobody can judge;
-and all twelve text blocks of the README's section,
-byte for byte.
-On input with nothing left behind,
-38 commands compared between the two binaries differ in the version string alone.
-Each point of the alpha.15 read is closed,
-or open on purpose with its entry in `doc/handover/questions-for-the-owner.md`.
-The ten Low points,
-each weighed by the coordinating session and each taken by one of the two rounds:
-one sentence still says "a killed install",
-for a directory listing that failed;
-the README lacks five sentences the code prints;
-"nothing was lost with that copy" is printed while the program at the version's name is cut short under its marker;
-the advice to move a finished copy by hand nests it when the version's name already holds a directory;
-the failed-download sentence promises a download where the failure was a digest mismatch;
-`prune --toolchain` says "a finished copy" from the marker alone for a tool no lock names,
-and says a deletion loses a copy the version does not need;
-a move of `current` that fails once ends the run 1 although a later step of the same run moves it,
-and the older version then stays until `prune`;
-a warning after a failed listing speaks of a copy that does not exist;
-and one decision no claim named:
+Each point of the `mpm-shadow` alpha.15 read is closed,
+or open on purpose with its entry in `doc/handover/questions-for-the-owner.md`:
+one decision no claim named,
 a recovery that puts an unfinished copy back now also points `current` at the newest finished version,
 which the round holds with a control and writes into the README,
 and which waits for the owner in `doc/handover/questions-for-the-owner.md`.
-The read also named edits every test would still pass,
-which the rounds turn into controls:
-the `return` after a failed move of `current` deleted,
-the namespace compared before the boot,
-a second copy decided by whether the directory is there,
-and each filter of the failed-download sentence dropped.
 
 What `mpm-shadow`'s alpha.15 read found
 (`~/temp/agent/mpm-shadow-alpha-15-release-review-2026-11-27/keep/review.md`,
