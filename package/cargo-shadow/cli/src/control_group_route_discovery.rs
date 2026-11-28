@@ -702,13 +702,14 @@ pub(crate) fn the_manager_answered_a_start(
     // const afterTheVerb = reason.split(`Failed to start ${slice}: `)[1] ?? ''
     // ```
     let opening: String = format!("Failed to start {slice}: ");
-    let Some(after_the_verb) = reason.split_once(&opening).map(|(_, rest)| rest) else {
-        return false;
+    let after_the_verb: &str = match reason.split_once(&opening) {
+        Some((_, rest)) => rest,
+        None => return false,
     };
-    return after_the_verb.contains(slice)
-        && !THE_WORDS_OF_A_TRANSPORT_THAT_WENT_AWAY
-            .iter()
-            .any(|words| reason.contains(words));
+    let carries_a_transports_words: bool = THE_WORDS_OF_A_TRANSPORT_THAT_WENT_AWAY
+        .iter()
+        .any(|words| return reason.contains(words));
+    return after_the_verb.contains(slice) && !carries_a_transports_words;
 }
 
 /// What:

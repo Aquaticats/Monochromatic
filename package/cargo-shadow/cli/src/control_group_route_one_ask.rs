@@ -155,11 +155,11 @@ fn what_the_manager_reported(answered: &str) -> WhereTheSliceIs {
     let mut a_job_is_queued: bool = false;
     let mut a_name_was_read: bool = false;
     for line in answered.lines() {
-        let Some((name, value)) = line.split_once('=') else {
+        let Some((name, written)) = line.split_once('=') else {
             continue;
         };
         a_name_was_read = true;
-        let value: &str = value.trim();
+        let value: &str = written.trim();
         match name.trim() {
             "ControlGroup" => reported = value.to_string(),
             "Job" => a_job_is_queued = !value.is_empty(),
