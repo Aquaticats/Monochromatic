@@ -156,13 +156,6 @@ The sections above are the `0.6.1-alpha.48` passes;
 this one is the read of `0.6.1-alpha.52`
 that the session then weighed,
 and the rounds that answered two of its Low findings.
-## The read of `0.6.1-alpha.52`: the guest drivers' shared steps
-
-Round of 2026-11-28,
-unapproved and non-final.
-This file also holds the passes over `0.6.1-alpha.48`;
-the section here is one read of `0.6.1-alpha.52` that the session weighed,
-and the round that answered four of its findings and checked the fifth.
 Only the owner declares it complete.
 
 The read is a second pass by another agent of the same vendor as some of the authors,
@@ -395,6 +388,7 @@ a literal further than the next code line from its call's `(`.
 
 The guide's section on the published surface and its section on a guard's scope,
 excuses and anchor now say the same things as those docs.
+
 ## The alpha.52 second pass: the `final-newline` hints
 
 Round of 2026-11-28,
@@ -638,6 +632,19 @@ These controls read `observe_raw` instead and drop only the lines a wait prints.
   told a direct check apart.
   A reader who wants the answer named after the bytes rather than after the commit has an easy rename here.
   Nothing in this round's findings needs it.
+
+## The read of `0.6.1-alpha.52`: the guest drivers' shared steps
+
+Round of 2026-11-28,
+unapproved and non-final.
+This file also holds the passes over `0.6.1-alpha.48`;
+the section here is one read of `0.6.1-alpha.52` that the session weighed,
+and the round that answered four of its findings and checked the fifth.
+Only the owner declares it complete.
+
+The read is a second pass by another agent of the same vendor as some of the authors,
+so it is no independent review.
+Its limits are the ones it states:
 it started no guest,
 it built no binary,
 and it drove the drivers of the package against a stand-in `mvm`,
