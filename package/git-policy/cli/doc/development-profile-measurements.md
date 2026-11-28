@@ -1160,7 +1160,8 @@ which is about 1,200 such trees without incremental data and 400 with it.
 
 Nothing of a build.
 `cargo-shadow` sets `CARGO_BUILD_BUILD_DIR` for the child Cargo to
-(erratum below: only when `RUSTUP_TOOLCHAIN` or `+toolchain` is present)
+(erratum below:
+only when `RUSTUP_TOOLCHAIN` or `+toolchain` is present)
 `<base>/toolchain/<toolchain>/<two hex>/<fourteen hex>`,
 where the key is SHA-256 of the canonical workspace root
 (`package/cargo-shadow/cli/src/lean_keyed_folder.rs`,
@@ -1197,7 +1198,8 @@ before this crate's own unit starts.
 It shares no unit,
 no `rmeta`,
 no incremental data and no final artifact.
-(Erratum below: this is the case with no prewarmed clone in the keyed folder.)
+(Erratum below:
+this is the case with no prewarmed clone in the keyed folder.)
 
 Sharing the dependencies' builds across worktrees would save
 572 MiB per tree and that dependency phase,
@@ -1663,7 +1665,9 @@ the counter that measured it and the samples it was measured in.
 Cargo prints a build script's own run only at `-vv`.
 In the first command of both `-vv` rounds,
 the detector finds 21 and 20 build-script run lines and 33 build-script compile lines,
-(erratum below: the true count is 33 compile lines, 36 run tokens and 33 distinct run paths)
+(erratum below:
+the true count is 33 compile lines,
+36 run tokens and 33 distinct run paths)
 which is the positive control:
 it can see a run it should see.
 In the second command:
@@ -1677,7 +1681,9 @@ In the second command:
 - form C (`round-c-both-commands-vv`):
   two build-script run lines,
   `monochromatic-catalog-specifier`'s and `forbidden-strings`'s
-  (erratum below: one run line, `forbidden-strings`'s,
+  (erratum below:
+  one run line,
+  `forbidden-strings`'s,
   and `monochromatic-catalog-specifier` has no build script)
   (it reads `.../build/forbidden-strings/c65731ebdc1d74a6/out/build_script_build`
   with `CARGO_PKG_NAME=forbidden-strings`),
@@ -1718,7 +1724,9 @@ the path dependencies hold no incremental data under D and do hold it under C.
 
 Apparent bytes,
 which on this filesystem equal the block count the same `du` reports
-(erratum below: the equality is the flag's, not the filesystem's):
+(erratum below:
+the equality is the flag's,
+not the filesystem's):
 
 - a first library build:
   788 MiB for form A,
@@ -1757,7 +1765,8 @@ never a walk of the base:
   and an `incremental` directory that is empty (0 bytes) in all 23.
   No tree holds `deps` or `.fingerprint`,
   so the compiled units a first build makes are not in a build directory at all.
-  (Corrected in the erratum below: `debug/build` holds the compiled units.)
+  (Corrected in the erratum below:
+  `debug/build` holds the compiled units.)
 - none of the 29 reports a `toolchain/<toolchain>/` path,
   which is the layout the two trees above were measured in;
   the main checkout now reports `<base>/f6/26ded3a61dae16`,
@@ -1780,13 +1789,15 @@ only what they were said to mean changes.
 
 ### What `debug/build` holds
 
-The heading "What a live tree holds now, and what removes it" says
+The heading "What a live tree holds now,
+and what removes it" says
 "every one of those trees holds only `debug/build` and `release/build`:
 the build scripts' outputs ...
 No tree holds `deps` or `.fingerprint`,
 so the compiled units a first build makes are not in a build directory at all".
 
-That is wrong, and the survey behind it never looked inside a tree.
+That is wrong,
+and the survey behind it never looked inside a tree.
 Cargo's nightly build-cache reference describes `<build-dir>/debug/build/` as
 "Build step results including compilation artifacts and build script output",
 and `doc/decision/cargo-build-dir-host-cache.md`
@@ -1800,15 +1811,19 @@ and the test command's `Executable` line is
 
 Two further corrections follow in the same list:
 the `deps=-1` in every row of the survey is an absence of evidence
-(the survey looked for `debug/deps`, which this layout does not use),
+(the survey looked for `debug/deps`,
+which this layout does not use),
 and the field that reads `incremental=true` records that the directory exists,
 not that it is empty:
-22 of the 23 hold one and one does not, and no size was taken of any of them.
+22 of the 23 hold one and one does not,
+and no size was taken of any of them.
 
 ### Apparent bytes
 
-The heading "Disk, from this round's trees" says the figures are
-"Apparent bytes, which on this filesystem equal the block count the same `du` reports".
+The heading "Disk,
+from this round's trees" says the figures are
+"Apparent bytes,
+which on this filesystem equal the block count the same `du` reports".
 That equality is the flag's:
 the harness runs `du --summarize --bytes`,
 and GNU `du` documents `--bytes` as "equivalent to '--apparent-size --block-size=1'".
@@ -1825,21 +1840,26 @@ and that the second command of the form C round has "two build-script run lines,
 
 The counts this round re-took from the same four logs:
 
-- first command, both rounds:
+- first command,
+  both rounds:
   33 compile lines (`--crate-name build_script_build`),
   36 run tokens of `debug/build/<package>/<hash>/out/build_script_build`,
   and 33 distinct run paths.
-- second command, form C:
+- second command,
+  form C:
   one compile line and one run token,
   both `forbidden-strings` (`CARGO_PKG_NAME=forbidden-strings`,
   run path ending `forbidden-strings/c65731ebdc1d74a6/out/build_script_build`);
   `monochromatic-catalog-specifier` is one of the seven compiled units and has no `build.rs`.
-- second command, form D:
+- second command,
+  form D:
   none of either.
 
 So the conclusion stands (under form C the test command compiles the build script again and runs it again,
 and under form D it does neither)
-and what changes is the count: one build script, not two.
+and what changes is the count:
+one build script,
+not two.
 The detector in the arm harness was `/Running .*build-script-build/`,
 which never matched Cargo's `build_script_build`,
 so `scriptRuns` is 0 in every arm record and the control the earlier text claimed is not in those records.
@@ -1851,16 +1871,20 @@ The heading "What the worktrees of this repository share today" says
 `<base>/toolchain/<toolchain>/<two hex>/<fourteen hex>`.
 `apply_keyed_build_dir` (`package/cargo-shadow/cli/src/lean_keyed_folder.rs`)
 does that only when `RUSTUP_TOOLCHAIN` or a `+toolchain` argument is present;
-otherwise the folder is keyed by workspace, `<base>/<two hex>/<fourteen hex>`,
+otherwise the folder is keyed by workspace,
+`<base>/<two hex>/<fourteen hex>`,
 which is what the 2026-11-28 survey found for all 29 workspaces
-(`build-directories.txt`: `toolchain-keyed: 0`).
+(`build-directories.txt`:
+`toolchain-keyed: 0`).
 
 ### What a worktree shares
 
 The same heading says a second worktree's first build
 "compiles again every one of the crate's 4,012 Rust files and every dependency:
 266 to 271 dependency units in 64.3 to 78.8 s ...
-It shares no unit, no `rmeta`, no incremental data and no final artifact."
+It shares no unit,
+no `rmeta`,
+no incremental data and no final artifact."
 
 That is true of a worktree with no prewarmed clone in its keyed folder,
 which is what that measurement built.
@@ -1868,5 +1892,7 @@ A worktree the prewarm filled starts with the registry and git dependencies' com
 because the clone carries them and the job's clean removes only the worktree's own members,
 and what it compiles is this crate and the six repository path crates outside its workspace,
 whose absolute paths are hashed into their unit hashes
-(`SourceId::stable_hash`, `src/workspace/source_id.rs`, unless `trim-paths` is set).
+(`SourceId::stable_hash`,
+`src/workspace/source_id.rs`,
+unless `trim-paths` is set).
 What that first build costs was not measured.

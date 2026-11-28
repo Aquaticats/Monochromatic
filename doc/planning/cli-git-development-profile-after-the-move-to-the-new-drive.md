@@ -17,16 +17,17 @@ The commit each read saw and the count of each severity are in "The gate reads t
 below the questions.
 All three were same-vendor second passes,
 not one of them an independent review,
-and the third stood in scratch that expires a day after its last change,
-so every fact taken from it here is either quoted from it or traced to a record in this repository.
+so every fact taken from the third here is either quoted from it or traced to a record in this repository.
 No gate read has seen this revision.
 
-What is measured here, and what is not:
+What is measured here,
+and what is not:
 form D's rebuild and peak cells are measurements of this package's own builds in this round,
 beside form A's;
 the form B cells are the 2026-11-28 arms' own measurements;
 form C's rebuild cells and form D2's cells are inferred from form D's;
-form Z's cells are the 2026-11-13 page's, on the old drive;
+form Z's cells are the 2026-11-13 page's,
+on the old drive;
 no arm measured a round's two commands in one empty build folder for form A,
 and no arm built in a worktree born by the prewarm;
 the days-to-fill figures are a multiplication of a proxy rate.
@@ -36,7 +37,8 @@ under its heading dated 2026-11-28 and its heading "The recommended form measure
 and each heading names the command behind each figure.
 The machine's state figures were read on 2026-11-28,
 between 07:30 and 08:10 -05:00 for the build trees and the free space,
-and at 09:04 and 09:08 -05:00 for the cleanup service, the unit files and the free space;
+and at 09:04 and 09:08 -05:00 for the cleanup service,
+the unit files and the free space;
 each is named where it is used.
 
 The setting this file is about is in `package/git-policy/cli/Cargo.toml`:
@@ -123,7 +125,8 @@ What D and B add there is wall time:
 24% and 22% more on the library test build in an empty build folder,
 so a wave of first builds holds the machine longer.
 
-Where a first build is measured, and where it is not:
+Where a first build is measured,
+and where it is not:
 every first-build cell in this file is of an empty build folder.
 A worktree born by the prewarm does not start empty,
 because the commit service clones the source checkout's build directory into it
@@ -176,7 +179,8 @@ dependency builds are shared by the prewarm the owner chose on 2026-11-03;
 how many builds may run at once is bounded by guests alive and by the memory share the owner set on 2026-11-28;
 `debug = false` was rejected and is not reopened;
 compiling less of the crate per round is the project's already-decided route to a smaller peak;
-and which tool keeps the build folders lean, which the owner chose on 2026-11-07 and 2026-11-11.
+and which tool keeps the build folders lean,
+which the owner chose on 2026-11-07 and 2026-11-11.
 One further thing is a recorded default with the owner's veto open rather than a question,
 because two of its three values restate forms the fourth question already offers:
 a round passes no `CARGO_INCREMENTAL` of its own,
@@ -196,11 +200,13 @@ and the round that measured them wrote them into the manifest with this comment:
 ```
 
 Its first sentence is the premise that every answer except A's falsifies:
-a yes that sets a profile line, in either direction,
+a yes that sets a profile line,
+in either direction,
 leaves "a build tree is what limits how many agents work on this package at once"
 standing for a machine whose home is on a 3.5 TB drive.
 That comment is in a source file this round does not change,
-so whichever answer the owner gives, the comment needs an edit of its own.
+so whichever answer the owner gives,
+the comment needs an edit of its own.
 
 Three things have changed since.
 
@@ -244,7 +250,8 @@ What the words of 2026-11-04 were said about,
 checked with `git show`:
 the crate's manifest at `a5a804df00`,
 the last commit that touched it on that day,
-held `[profile.release]`, `[profile.release.build-override]` and `[profile.dev.build-override]`
+held `[profile.release]`,
+`[profile.release.build-override]` and `[profile.dev.build-override]`
 and no `debug` and no `incremental` line under `[profile.dev]` at all.
 Both lines were added on 2026-11-13 by `bf9c397cf2` (2026-11-13T16:43:49-05:00),
 which is why the words were said about Cargo's own default profile,
@@ -273,7 +280,8 @@ it deletes every session directory that has no lock file,
 and of those that have one it deletes each finalized directory whose lock it can take,
 skipping a directory it cannot lock (the source's debug line for that branch reads "not collecting,
 still in use") and leaving the previous session alone while it is being read.
-So one `<crate>-<hash>` directory holds one session's data, not one per rebuild.
+So one `<crate>-<hash>` directory holds one session's data,
+not one per rebuild.
 The `<hash>` is what makes that a bound per compiler and not per tree:
 `StableCrateId::new` hashes the rustc version string
 (`compiler/rustc_span/src/def_id.rs`,
@@ -285,8 +293,11 @@ lines 4 to 8:
 "A nightly update dirties every unit of a build folder in place and Cargo never removes the old ones").
 This machine keeps dated nightlies and runs `toolchain-daily-update.service`,
 so a long-lived tree can hold one session's data for every compiler it has seen.
-What removes one compiler's set is `cargo clean --package <the crate>`,
-which removes that crate's incremental directories only
+What removes them is `cargo clean --package <the crate>`,
+which removes that crate's own build outputs and leaves every other package's alone:
+its fingerprint entries,
+its `build/<package>/<hash>` directories,
+its compiled units and its `incremental/<crate>-*` directories
 (`src/ops/cargo_clean.rs`,
 read 2026-11-28),
 or deleting the tree.
@@ -367,8 +378,12 @@ So the arms measure the form the owner would get,
 not the everywhere form,
 and the earlier measurements of form B are marked wherever they are used.
 
-The environment names an arm recorded are `CARGO_BUILD_BUILD_DIR`, `CARGO_BUILD_JOBS`, `CARGO_INCREMENTAL`,
-`CARGO_PROFILE_DEV_INCREMENTAL`, `CARGO_PROFILE_TEST_INCREMENTAL`, `CARGO_TARGET_DIR` and `RUSTFLAGS`.
+The environment names an arm recorded are `CARGO_BUILD_BUILD_DIR`,
+`CARGO_BUILD_JOBS`,
+`CARGO_INCREMENTAL`,
+`CARGO_PROFILE_DEV_INCREMENTAL`,
+`CARGO_PROFILE_TEST_INCREMENTAL`,
+`CARGO_TARGET_DIR` and `RUSTFLAGS`.
 Four names that change what a round builds are not among them,
 and no record here says whether a round's own environment sets them:
 `CI` and `TF_BUILD`,
@@ -568,7 +583,9 @@ in a prewarmed one the pair was not measured at all.
 How many rebuilds a round makes is not recorded anywhere:
 no count of `cargo build` or `cargo test` scopes per round exists,
 and this round searched `doc/` and the package's own docs for one rather than guessing.
-A count of build scopes in the journal, one per round, is the read that would settle it.
+A count of build scopes in the journal,
+one per round,
+is the read that would settle it.
 It is the one input the ranking cannot settle from these arms.
 
 ## Peak memory, per phase and per reading
@@ -664,7 +681,9 @@ in the form D round the `forbidden-strings` build script's run line is at 38.7 s
 and that crate's library compiles at 68.5 s,
 with no `rustc` in the scope from 54.1 s and the scope's peak climbing from 2,439 to 3,792 MiB across those samples;
 the form C round reads 40.1 s and 71.7 s with the same climb.
-So the only unit in flight through the quiet stretch, by the log, is that build script's run,
+So the only unit in flight through the quiet stretch,
+by the log,
+is that build script's run,
 and naming the process from the kernel is what is still not read.
 
 ### What that leaves for the builds, now that the guests hold three quarters
@@ -727,7 +746,8 @@ never a walk of the base:
 - those 23 trees total 37,653,572,191 bytes (35.1 GiB),
   the smallest 506,154,628 bytes (483 MiB) and the largest 3,692,305,893 bytes (3.44 GiB),
   1,637,111,834 bytes (1561 MiB) at the mean.
-- what a tree holds is the compiled units and their build scripts, not only the scripts.
+- what a tree holds is the compiled units and their build scripts,
+  not only the scripts.
   Cargo's nightly build-cache reference describes `<build-dir>/debug/build/` as
   "Build step results including compilation artifacts and build script output",
   and the repository's own decision record lists the layout as
@@ -743,9 +763,11 @@ never a walk of the base:
   so what each holds is the layout above and not a listing of its children.
   What the survey recorded is that 22 of the 23 hold an `incremental` directory and one does not,
   and it recorded no size for any of them:
-  the field reading `incremental=true` says the directory exists, and nothing more.
+  the field reading `incremental=true` says the directory exists,
+  and nothing more.
   The `deps=-1` in every row is the same kind of absence:
-  the survey looked for `debug/deps`, which this layout has no use for,
+  the survey looked for `debug/deps`,
+  which this layout has no use for,
   so it says nothing about compiled units either way.
 - none of the 29 reports a `toolchain/<toolchain>/` path.
   The earlier version of this file measured two trees in that layout (2.03 and 3.01 GiB)
@@ -821,13 +843,15 @@ Nothing removes a tree by itself on this machine today:
   and the unit file carries `[Install] WantedBy=default.target`,
   so enabling and starting it is one command for whoever keeps the machine;
 - the unit's own journal holds no entry at all (`journalctl --user --unit=cargo-shadow-lean.service`),
-  the user journal holds nothing for the day the unit file was written (2026-11-17T12:32-05:00),
-  and no record in `doc/` says why it is off.
+  and the user journal on this machine holds one boot only (2026-11-28T05:53:37-05:00 to the time of reading),
+  so it cannot say what happened on 2026-11-17T12:32-05:00,
+  the day the unit file was written;
+  no record in `doc/` says why it is off either.
   The last record of anyone switching it on is about the daily timer it replaced
   (`doc/decision/owner-answers-of-2026-11-15-machine-housekeeping-and-tooling.md`,
   "`cargo-shadow-lean.timer` is running again"),
-  and the handover's "Timer off until the moved checkouts are checked, recorded 2026-11-08T12:43:37-05:00"
-  is about that same older timer and an earlier move.
+  and the handover's "Timer off until the moved checkouts are checked,
+  recorded 2026-11-08T12:43:37-05:00" is about that same older timer and an earlier move.
   So why the service reads disabled is unrecorded,
   which is a finding for whoever keeps this machine and not a question this file can answer.
 
@@ -838,7 +862,8 @@ and the words are in `doc/planning/lean-build-dirs.md`:
   "The real fix is to make sure every build dir is always lean.
   That's not the wrapper's responsibility,
   but I'm assigning this to you to."
-- 2026-11-07, in the question tool:
+- 2026-11-07,
+  in the question tool:
   "A to F,
   B allowed (Recommended)",
   where F is "the service that keeps the cleanups running".
@@ -848,8 +873,13 @@ and the words are in `doc/planning/lean-build-dirs.md`:
 The service installed from that last word runs one `cargo-shadow lean run` pass,
 kills a pass that outlasts `RuntimeMaxSec=19800`,
 starts the next pass 60 s after the last one ended,
-and carries `CPUQuota=200%`, `MemoryMax=4G`, `TasksMax=512`, `IOWeight=5`, `Nice=15` and `IOSchedulingClass=idle`.
-Its size caps and graces, as the owner-question record holds them with the owner's veto open,
+and carries `CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=512`,
+`IOWeight=5`,
+`Nice=15` and `IOSchedulingClass=idle`.
+Its size caps and graces,
+as the owner-question record holds them with the owner's veto open,
 are 12 GiB in a checkout and 24 GiB in the shared build folder,
 with a 7-day grace for a tree and 21 days for one the tool cannot identify.
 
@@ -865,7 +895,9 @@ and today's base holds at least the 23 trees of 35.1 GiB this round read,
 beside whatever the older layout still holds.
 
 What a pass costs a build running beside it is not measured either.
-The unit's own caps bound it (two cores of CPU, 4 GiB of memory, idle I/O class),
+The unit's own caps bound it (two cores of CPU,
+4 GiB of memory,
+idle I/O class),
 a pass that finds nothing costs about a minute on this machine by the plan's own measurement of 2026-11-11,
 and a 56-minute pass of this service is one of the load suspects the 2026-11-14 record names,
 with no cause established there.
@@ -875,7 +907,8 @@ What a person does,
 whichever form the owner picks and whether or not the service runs:
 
 - the data going stale:
-  `cargo clean --package <the crate>` removes that crate's incremental directories alone,
+  `cargo clean --package <the crate>` removes that crate's own outputs,
+  its incremental directories among them,
   `cargo clean` in the package clears that workspace's whole build directory,
   and deleting `<base>/<2 hex>/<14 hex>/` for a workspace no longer built removes a tree;
 - the disk filling:
@@ -904,7 +937,8 @@ and what each still shows:
   It does not show a tree growing without bound across rebuilds:
   the compiler keeps one finalized session in each `<crate>-<hash>` directory,
   and what grew there was one session's own size,
-  across the crate's several profiles, its path dependencies and the compilers it had seen.
+  across the crate's several profiles,
+  its path dependencies and the compilers it had seen.
 - the 33,804 trees and the 10,475 s pass above were measured on 2026-11-10,
   before the home moved;
   they show the base's population and the cost of a full pass at that size,
@@ -940,7 +974,7 @@ which holds the compiled units of every registry and git dependency as well as t
 That is the layout the section above reads out of Cargo's reference and the repository's decision record,
 `debug/build/<package>/<meta-hash>/out` and `.../fingerprint`,
 and the same `-vv` logs that put the test binary's `Executable` line there put a registry crate's `--out-dir` there too.
-The job's clean removes the worktree's own members' units and their incremental directories only
+The job's clean removes the worktree's own members' outputs and nothing of any other package's
 (`src/ops/cargo_clean.rs` removes the named packages' `.fingerprint` entries and `incremental/<crate>-*`),
 so what the clone leaves is every other package's units.
 Cargo reuses those because a registry or git package's unit hash carries no path,
@@ -970,9 +1004,11 @@ What is still not shared:
 this crate's own units,
 which the job cleans out of the copy,
 and the units of the six repository path crates outside this crate's workspace
-(`forbidden-regex`, `monochromatic-jsonc-edit`,
+(`forbidden-regex`,
+`monochromatic-jsonc-edit`,
 `monochromatic-zfs-request-to-openzfs-kernel-device`,
-`monochromatic-catalog-specifier`, `monochromatic-lint` and `forbidden-strings`),
+`monochromatic-catalog-specifier`,
+`monochromatic-lint` and `forbidden-strings`),
 whose absolute paths are hashed into their own unit hashes,
 so a worktree at another path finds them stale and compiles them again.
 So a prewarmed worktree compiles seven units:
@@ -1012,7 +1048,8 @@ what lands on disk and what removes it,
 the loop and the first build in the arms' own numbers,
 and what a yes would still leave undecided.
 
-The six forms, one line each:
+The six forms,
+one line each:
 
 - form A,
   the setting as it is:
@@ -1061,7 +1098,8 @@ and the compiler's 16 code generation units stay 16.
 What lands where:
 a first library build's tree is 788 MiB and a first library test build's 897 MiB,
 which are the compiled units and their build scripts;
-no incremental data at all, in any directory.
+no incremental data at all,
+in any directory.
 A tree per worktree stays until the sweep (Question 5) or a person removes it.
 
 What it gives:
@@ -1093,15 +1131,18 @@ with no `[profile.dev]` table at all:
 What it does:
 this crate and the six path crates are compiled with full debug information and with incremental data,
 because a path source is local as far as Cargo is concerned,
-while every registry and git dependency stays non-incremental, as it does under every form;
-the compiler's code generation units are its own default, 16 without incremental data and 256 with it,
+while every registry and git dependency stays non-incremental,
+as it does under every form;
+the compiler's code generation units are its own default,
+16 without incremental data and 256 with it,
 and the debuginfo level is the default of a full build.
 
 What lands where:
 `debug/incremental/<crate>-<hash>/s-<session>/` for this crate and the six path crates,
 full debug information in every executable,
 and a tree per worktree that the sweep or a person removes.
-The only figures are the 2026-11-13 page's, on the old drive,
+The only figures are the 2026-11-13 page's,
+on the old drive,
 after the build and the two test compiles an agent of this package runs:
 a tree of 5885 MiB of which 2813 MiB is incremental data,
 a build of 124.8 s wall and 512.5 s CPU,
@@ -1109,16 +1150,21 @@ and the library test compile at 105.1 s wall and 144.0 s CPU.
 Nothing on this drive was measured for it.
 
 What it gives:
-the richest backtraces of the six, because every executable carries full debug information,
+the richest backtraces of the six,
+because every executable carries full debug information,
 and the incremental loop for this crate and the path crates,
 which no arm in this round measured.
 It also leaves every setting as it was on 2026-11-04,
 which is the state the owner's words were said about;
-every other form, A included, has moved one of the settings those words name.
+every other form,
+A included,
+has moved one of the settings those words name.
 
 What it costs:
 4323 MiB (4.2 GiB) more per tree than the same page's 1562 MiB for A over the same three commands,
-and the same page's 124.8 s against A's 83.2 s for the build, which is 1.5 times, on the old drive.
+and the same page's 124.8 s against A's 83.2 s for the build,
+which is 1.5 times,
+on the old drive.
 The 2026-11-13 page's own conclusion was that the tree size was what limited how many agents worked here,
 and the home has moved to a 3.5 TB drive since.
 
@@ -1156,7 +1202,7 @@ a first library tree 1551 MiB of which 808 MiB incremental,
 a first library test tree 2705 MiB of which 1824 MiB incremental,
 1,616 MiB of that this crate's own and 161 MiB the path dependencies'.
 The tree and its nine directories stay until the sweep (Question 5) or a person removes them,
-and `cargo clean --package <the crate>` removes one crate's set only.
+and `cargo clean --package <the crate>` removes that crate's own outputs and no other package's.
 
 What it gives:
 form B's measured cells,
@@ -1212,7 +1258,8 @@ and compiled and ran the `forbidden-strings` build script again,
 against form D's one compiled unit,
 two directories and no build-script line at all.
 `monochromatic-catalog-specifier` is one of the seven compiled units and has no build script;
-its line in the log is a rustc compile, not a run.
+its line in the log is a rustc compile,
+not a run.
 The build-script *run* unit is not doubled by the graph,
 because Cargo strips its profile to fields that carry no `incremental` (`get_profile_run_custom_build`),
 and the run repeats anyway when the compiled script's unit changes,
@@ -1224,7 +1271,7 @@ the test command's data:
 in nine directories,
 and none for the library build.
 The tree and its nine directories stay until the sweep (Question 5) or a person removes them,
-and `cargo clean --package <the crate>` removes one crate's set only.
+and `cargo clean --package <the crate>` removes that crate's own outputs and no other package's.
 
 What it gives:
 the library test build's loop,
@@ -1283,7 +1330,7 @@ each named `git_policy_cli-<hash>` and no other crate's.
 Nothing for the dependencies,
 which this round confirmed by listing the directories.
 The tree and its directories stay until the sweep (Question 5) or a person removes them,
-and `cargo clean --package monochromatic-git-policy-cli` removes this crate's set.
+and `cargo clean --package monochromatic-git-policy-cli` removes this crate's own outputs.
 
 What it gives:
 the loops measured on this form in this round,
@@ -1355,7 +1402,8 @@ What lands where:
 1674 MiB of this crate's data on a first library test tree,
 nothing for the library build and nothing for the dependencies,
 which is the smallest of the forms that write any data:
-1674 MiB against D's 2325 MiB, C's 1836 MiB and B's 1824 MiB,
+1674 MiB against D's 2325 MiB,
+C's 1836 MiB and B's 1824 MiB,
 and against Z's 2813 MiB on the 2026-11-13 page.
 The tree and its data stay until the sweep (Question 5) or a person removes them.
 
@@ -1389,7 +1437,9 @@ So `1` is form B whatever the manifest holds,
 data for the six path crates included,
 and `0` is form A.
 Only the literal `1` turns it on;
-any other value, `true` included, means off.
+any other value,
+`true` included,
+means off.
 Nothing in the manifest affects either,
 and a round that forgets the variable gets whatever the manifest holds.
 Cargo's reference names two more routes to the same flag,
@@ -1410,16 +1460,21 @@ A global override beats every `incremental` line of every manifest,
 so under form D a round whose environment carries `CI` builds as form A without a word,
 and the warning about an unmatched package spec does not fire either.
 No record here says whether any round's environment sets `CI` or `TF_BUILD`:
-this round's arms recorded neither name and wrote incremental data, which says theirs did not.
+this round's arms recorded neither name and wrote incremental data,
+which says theirs did not.
 
-Recorded default, with the owner's veto open:
+Recorded default,
+with the owner's veto open:
 no round passes the variable,
 and a round that wants form A's build for one run types `0`.
 It is not one of the questions because two of its three values restate forms the form question offers,
 and because `0` stays reachable without a decision.
 What that leaves open:
 what a round that needs the escape does when it is not allowed one,
-and who notices a round's environment carrying the variable, or `CI`, or `TF_BUILD`, from elsewhere.
+and who notices a round's environment carrying the variable,
+or `CI`,
+or `TF_BUILD`,
+from elsewhere.
 
 ## Combinations that cannot be built
 
@@ -1429,7 +1484,8 @@ and who notices a round's environment carrying the variable, or `CI`, or `TF_BUI
   C,
   D and D2 move `codegen-units` for the units they touch from 16 to 256 by the compiler's own default,
   which the words put off-limits.
-- Z beside the words' dependency clause, read as covering this repository's six path crates:
+- Z beside the words' dependency clause,
+  read as covering this repository's six path crates:
   Z is the state the words were said about,
   and it writes incremental data for those six,
   because Cargo treats a path package as local.
@@ -1521,7 +1577,8 @@ D > B > Z > D2 > C > A.
   on the wide edit the two rounds disagree and both readings stand:
   B's test wall read 1.00 against the control that ran before it and 0.35 against the one after it,
   which the measurement page explains by the second control having run while the machine slowed every build by about
-  2.7 times, so only the first pairing is worth reading,
+  2.7 times,
+  so only the first pairing is worth reading,
   and D's read 0.44 against two controls 18.3% apart.
   So B's wide-edit wall is not established and D's is.
   D also writes 1674 MiB on a first test tree against B's 1824 MiB,
@@ -1532,7 +1589,8 @@ D > B > Z > D2 > C > A.
 - B over Z:
   B gives the same incremental data with line tables only,
   where Z carries full debug information in every executable
-  (the 2026-11-13 page's 5885 MiB tree, 2813 MiB of it incremental),
+  (the 2026-11-13 page's 5885 MiB tree,
+  2813 MiB of it incremental),
   and B's cells are measured on this drive while Z's are the old drive's.
   What B gives up is Z's full debug information in a backtrace.
 - Z over D2:
@@ -1545,8 +1603,10 @@ D > B > Z > D2 > C > A.
   where C writes 161 MiB of that data,
   splits their units between the two commands
   (seven units compiled in the test command in the `-vv` round,
-  263.4 s of processor time against D's 140.7 s in the same round, 1.87;
-  268.4 s against 133.2 s in the `-v` round, 2.02),
+  263.4 s of processor time against D's 140.7 s in the same round,
+  1.87;
+  268.4 s against 133.2 s in the `-v` round,
+  2.02),
   and compiles and runs the `forbidden-strings` build script a second time each round.
 - C over A:
   C gives the library test build's loop for 1836 MiB of data a tree,
@@ -1600,7 +1660,9 @@ On 2026-11-04 the manifest held neither line,
 so both were added on 2026-11-13 by `bf9c397cf2`,
 by a round that made them to keep build trees small.
 
-The owner's words of 2026-11-04 are recorded in `doc/planning/lean-build-dirs.md`,
+The owner's words of 2026-11-04,
+and the page's own conclusion from them,
+are recorded in `doc/planning/lean-build-dirs.md`,
 "Owner requirements that bound this":
 
 > "(debuginfo level,
@@ -1612,11 +1674,11 @@ The owner's words of 2026-11-04 are recorded in `doc/planning/lean-build-dirs.md
 
 > So no build profile setting is changed or proposed here,
 
-So one of the two lines moved the debuginfo level those words name,
-their first clause names incremental compilation as a subject,
-and their second quote puts `codegen-units` off-limits,
+One of the two lines moved the debuginfo level those words name.
+Their first clause names incremental compilation as a subject.
+The second quoted passage puts `codegen-units` off-limits,
 which is the third question.
-Both are carried as standing rules for the wrapper's work by two later records,
+Both quotations are carried as standing rules for the wrapper's work by two later records,
 `doc/planning/git-policy-cli-full-tokio.md`
 (under "Standing rules that bind every step",
 last changed 2026-11-25T22:06:53-05:00)
@@ -1625,14 +1687,16 @@ and `doc/research/wrapper-git-free-jobs-and-published-crates.md`
 so the reading that the words bounded that planning pass alone
 is weaker than the records this file cited before made it look.
 
-Three answers, and they are exclusive:
+Three answers,
+and they are exclusive:
 
 - the two lines stand:
   the debuginfo line is this crate's own choice of detail for its backtraces,
   and the words' debuginfo clause is read as about that planning pass,
   so nothing changes from today;
 - the words bind and the settings return to what they were:
-  that is form Z, no `[profile.dev]` line at all,
+  that is form Z,
+  no `[profile.dev]` line at all,
   which carries full debug information and incremental data for this crate and the six path crates,
   and the 2026-11-13 page prices it at 5885 MiB a tree and 124.8 s a build against A's 1562 MiB and 83.2 s;
 - the words are lifted for this crate from now on,
@@ -1644,7 +1708,8 @@ because the second pays 4323 MiB a tree and 41.6 s a build for what the 2026-11-
 on figures measured before the home moved,
 and nothing measured since shows the tree size straining the new drive.
 
-What the records also hold, and it is not an answer:
+What the records also hold,
+and it is not an answer:
 the old handover at `342d6c5a59` records the 2026-11-13 change as merged and "not released by itself"
 under "Adopted while the owner was away",
 with "No record settles this one;
@@ -1658,8 +1723,10 @@ What a yes to each answer leaves undecided:
   whether the six path crates are "dependencies" (question 2),
   and whether the compiler's own 256 code generation units count as the change the words forbid (question 3);
 - the settings return:
-  nothing about the form, since Z is then the only form that leaves the settings as they were,
-  and whether the tree size is acceptable on the new drive, which nobody has measured for Z;
+  nothing about the form,
+  since Z is then the only form that leaves the settings as they were,
+  and whether the tree size is acceptable on the new drive,
+  which nobody has measured for Z;
 - the words are lifted:
   the same two questions as the first answer,
   and what the words still bind elsewhere.
@@ -1673,15 +1740,19 @@ read 2026-11-28),
 and Cargo's reference says the same.
 So the only dependencies that clause can bite on are path dependencies,
 and six of those sit outside this crate's own workspace:
-`forbidden-regex`, `monochromatic-jsonc-edit`,
+`forbidden-regex`,
+`monochromatic-jsonc-edit`,
 `monochromatic-zfs-request-to-openzfs-kernel-device`,
-`monochromatic-catalog-specifier`, `monochromatic-lint` and `forbidden-strings`.
+`monochromatic-catalog-specifier`,
+`monochromatic-lint` and `forbidden-strings`.
 
 Two answers:
 
 - they count:
-  then B and C are out, because they write those six crates' data,
-  and so is Z, because the state the words were said about already wrote data for them,
+  then B and C are out,
+  because they write those six crates' data,
+  and so is Z,
+  because the state the words were said about already wrote data for them,
   which leaves no form meeting both clauses and makes this question decide which clause yields;
 - they do not count:
   the clause is about third-party crates,
@@ -1697,7 +1768,8 @@ The owner's meaning is his to settle.
 What a yes leaves undecided:
 
 - they count:
-  that the words' debuginfo clause has to yield instead, and which form loses less when it does;
+  that the words' debuginfo clause has to yield instead,
+  and which form loses less when it does;
 - they do not count:
   what the clause was about if not these six,
   and whether it binds anything at all in this repository.
@@ -1715,9 +1787,11 @@ The arms' `-vv` logs show no `-C codegen-units=` in any rustc line,
 so that is what happens in a real build here,
 and the move from 16 to 256 is what every incremental form does to the units it touches.
 
-Three answers, and they are exclusive:
+Three answers,
+and they are exclusive:
 
-- it is a change the words reach, so the count is pinned:
+- it is a change the words reach,
+  so the count is pinned:
   `codegen-units = 16` beside the incremental form keeps the setting and part of the data,
   and nothing measured here says how much of the gain survives,
   because no arm measured a pinned form;
@@ -1725,7 +1799,8 @@ Three answers, and they are exclusive:
   because they name a manifest setting and this is the compiler's own default,
   which is what the incremental forms measured here do;
 - it is a change and no form may make it:
-  then A or Z only, and the form question loses every measured option.
+  then A or Z only,
+  and the form question loses every measured option.
 
 This file reads it as the second,
 because the words name manifest settings and the manifest names no count,
@@ -1735,30 +1810,42 @@ The owner's meaning is his to settle.
 What a yes to each answer leaves undecided:
 
 - pinned at 16:
-  what the loop costs then, which nobody has measured,
+  what the loop costs then,
+  which nobody has measured,
   and whether the pin is wanted on every incremental form or only on D;
 - not a change:
   whether a future manifest line that did set a count would need its own answer;
 - no form may make it:
-  everything the arms measured, and what remains for the memory pressure of 2026-11-27 besides the crate split.
+  everything the arms measured,
+  and what remains for the memory pressure of 2026-11-27 besides the crate split.
 
 ### Question 4. Which form do the dev and test profiles take?
 
 Six forms,
 each described by what it sets and does in "The options" above,
-where each also carries its disk, its loop, its cost and what a yes leaves undecided:
+where each also carries its disk,
+its loop,
+its cost and what a yes leaves undecided:
 
-- A, the setting as it is:
-  line-tables-only debug information and no incremental data anywhere, unchanged;
-- Z, Cargo's default:
-  no `[profile.dev]` line, so full debug information and incremental data for this crate and the six path crates;
-- B, incremental compilation for everything:
+- A,
+  the setting as it is:
+  line-tables-only debug information and no incremental data anywhere,
+  unchanged;
+- Z,
+  Cargo's default:
+  no `[profile.dev]` line,
+  so full debug information and incremental data for this crate and the six path crates;
+- B,
+  incremental compilation for everything:
   `incremental = true` under `[profile.dev]`;
-- C, incremental compilation in the test profile alone:
+- C,
+  incremental compilation in the test profile alone:
   `[profile.test] incremental = true` beside the two lines;
-- D, incremental compilation for this crate's own units under both commands,
+- D,
+  incremental compilation for this crate's own units under both commands,
   which is the recommended one;
-- D2, incremental compilation for this crate's test build alone.
+- D2,
+  incremental compilation for this crate's test build alone.
 
 The three facts the decision turns on,
 with what each rests on:
@@ -1768,10 +1855,12 @@ with what each rests on:
   on both edits and both commands (measured this round);
 - a first build under D costs 1.24 of today's wall on the library test build in an empty build folder,
   and moves the peak not at all (measured this round),
-  while a worktree born by the prewarm would pay the same premium on a smaller first build (inferred, not measured);
+  while a worktree born by the prewarm would pay the same premium on a smaller first build (inferred,
+  not measured);
 - a round's tree under D grows by 2325 MiB,
   and 24 to 166 such trees a day would spend the 1442 GiB free in 3.8 to 26 days
-  (a multiplication of a proxy rate, not a count of trees).
+  (a multiplication of a proxy rate,
+  not a count of trees).
 
 The ranking under each answer to questions 1 to 3 is in "Ranking",
 and the recommendation is D.
@@ -1779,7 +1868,9 @@ and the recommendation is D.
 A yes to a form leaves undecided:
 is the cleanup service switched on (question 5),
 what the units this file never measured cost (`--all-targets`,
-`--bin`, clippy, `cargo check`),
+`--bin`,
+clippy,
+`cargo check`),
 whether `codegen-units` may move as it does (question 3),
 and,
 for D and D2,
@@ -1796,15 +1887,18 @@ The service that word produced is `cargo-shadow-lean.service`:
 one unit,
 a `cargo-shadow lean run` pass starting 60 s after the last one ended,
 `RuntimeMaxSec=19800` for one pass,
-and its own caps of two cores, 4 GiB of memory and idle I/O.
+and its own caps of two cores,
+4 GiB of memory and idle I/O.
 
-What is true now, read on 2026-11-28 at 09:04 -05:00:
+What is true now,
+read on 2026-11-28 at 09:04 -05:00:
 the unit is installed and disabled,
 inactive,
 has not been active since this boot,
 and no cargo-shadow timer exists.
 No record in `doc/` says why it is off,
-and the unit's own journal holds no entry at all,
+the unit's own journal holds no entry at all,
+and the user journal on this machine covers one boot (2026-11-28T05:53:37-05:00 onward),
 so the reason is a gap in the machine's records and not a decision anyone can point to.
 That gap is a finding for whoever keeps the machine,
 and it is not what this question asks.
@@ -1812,9 +1906,11 @@ and it is not what this question asks.
 What a first pass would remove is not counted,
 because a walk of the base is closed to agent runs.
 Two earlier passes of the same tool over other populations are recorded:
-a dry run of 2026-11-08 read 6,923 trees and would remove 18 (26.31 GiB), keeping 6,905,
+a dry run of 2026-11-08 read 6,923 trees and would remove 18 (26.31 GiB),
+keeping 6,905,
 and the pass that ended 2026-11-10T07:37:24-05:00 judged 14,850 of 33,804 trees
-and removed 278 for 511.49 GiB, 0.71 s per tree.
+and removed 278 for 511.49 GiB,
+0.71 s per tree.
 Today's base holds at least the 23 trees of 35.1 GiB this round read.
 
 What a pass costs a build running beside it is not measured:
@@ -1823,7 +1919,8 @@ a pass that finds nothing costs about a minute on this machine,
 and a 56-minute pass of this service is one of the load suspects the 2026-11-14 record names,
 with no cause established there.
 
-Three answers, and they are exclusive:
+Three answers,
+and they are exclusive:
 
 - leave it off:
   nothing runs a pass,
@@ -1834,8 +1931,12 @@ Three answers, and they are exclusive:
   the first pass starts at once and may remove any tree whose workspace is gone and which has been idle seven days,
   and the unit keeps running a pass every 60 s thereafter under its own caps;
 - switch it on with a bound:
-  the same, with the deadline, the idle rule and the caps set now rather than left as they are,
-  which today are `RuntimeMaxSec=19800`, seven days idle, 12 GiB in a checkout and 24 GiB in the shared build folder.
+  the same,
+  with the deadline,
+  the idle rule and the caps set now rather than left as they are,
+  which today are `RuntimeMaxSec=19800`,
+  seven days idle,
+  12 GiB in a checkout and 24 GiB in the shared build folder.
 
 The recommendation is the second,
 because the owner's words of 2026-11-07 and 2026-11-11 are the only recorded decision on this,
@@ -1845,12 +1946,16 @@ and because leaving it off continues a state no record asks for.
 A yes to each answer leaves undecided:
 
 - leave it off:
-  what triggers a pass at all, and who notices when the disk fills;
+  what triggers a pass at all,
+  and who notices when the disk fills;
 - switch it on:
   whether the first pass is watched,
-  and what the pass does to a build that runs beside it, which nobody has measured;
+  and what the pass does to a build that runs beside it,
+  which nobody has measured;
 - switch it on with a bound:
-  which deadline, which idle rule and which caps, and whether a bound set now has to be measured again on the new drive.
+  which deadline,
+  which idle rule and which caps,
+  and whether a bound set now has to be measured again on the new drive.
 
 ## What is not asked, and why
 
@@ -1858,7 +1963,8 @@ A yes to each answer leaves undecided:
   The owner chose the prewarm on 2026-11-03,
   it runs (27 of 29 live workspaces named,
   23 holding a filled tree),
-  and it carries the dependency units, so the question is answered.
+  and it carries the dependency units,
+  so the question is answered.
   What remains inside it is a design question for a later round:
   the clone also carries the six path crates' units at the source checkout's absolute paths,
   which no build in the new worktree can read.
@@ -1900,11 +2006,16 @@ Named so that no reader takes its absence for a result:
   Neither the wall nor the memory of that population was measured.
 - Form A's two commands in one build folder:
   no arm ran them,
-  so what a round's pair costs under A, and how much of a pair's wall goes to the dependency phase, is unknown.
+  so what a round's pair costs under A,
+  and how much of a pair's wall goes to the dependency phase,
+  is unknown.
   Two form D pairs were measured (161.8 s and 168.4 s of wall for the two commands).
 - Form Z on this drive:
-  the only figures for Cargo's default are the 2026-11-13 page's, on the old drive, over three commands.
-  Nothing of its loop, its peak or its tree here has been measured.
+  the only figures for Cargo's default are the 2026-11-13 page's,
+  on the old drive,
+  over three commands.
+  Nothing of its loop,
+  its peak or its tree here has been measured.
 - Form B's cells in this round:
   the 2026-11-28 arms measured B,
   and every B figure here is theirs,
@@ -1917,7 +2028,8 @@ Named so that no reader takes its absence for a result:
   What was measured for C is two rounds of both commands,
   and what it writes and runs.
 - `codegen-units` pinned to 16 beside an incremental form.
-- One build under `CI=1` beside each form's manifest, which is the trial that would show the override closing the form.
+- One build under `CI=1` beside each form's manifest,
+  which is the trial that would show the override closing the form.
 - The units this crate builds besides the library and its test unit:
   `--all-targets`,
   the `native_binary` consumer target,
@@ -1934,7 +2046,8 @@ Named so that no reader takes its absence for a result:
   so nothing here says what the ZFS pool compresses or what a snapshot retains.
 - How many rebuilds a round makes,
   and how many builds by kind run on this host:
-  no record holds either, and a count of build scopes in the journal was not run.
+  no record holds either,
+  and a count of build scopes in the journal was not run.
 - The base's population today:
   a walk of it is closed to agent runs,
   so what a first `cargo-shadow lean run` pass would remove now is unknown.
