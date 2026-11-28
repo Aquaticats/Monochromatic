@@ -357,27 +357,6 @@ export function createSshKey({
   },);
 }
 
-/**
- Deletes one SSH key, from `DELETE /cloud/project/{serviceName}/sshkey/{keyId}`.
- 
- @param keyId - key identifier
- 
- @example
- ```ts
- await deleteSshKey({ keyId: 'abc' });
- ```
- */
-export function deleteSshKey({
-  keyId,
-}: {
-  readonly keyId: string;
-},): Promise<void> {
-  return ovhRequest<void>({
-    method: 'DELETE',
-    path: projectPath(`/sshkey/${encodeURIComponent(keyId,)}`,),
-  },);
-}
-
 //endregion SSH keys
 
 //region Snapshots

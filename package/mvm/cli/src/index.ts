@@ -99,7 +99,6 @@ export {
   createSshKey,
   deleteInstance,
   deleteSnapshot,
-  deleteSshKey,
   getImage,
   getInstance,
   getRegion,

@@ -5,8 +5,10 @@
  from OVHcloud's own schema of that API, `https://ca.api.ovh.com/v1/cloud.json`
  (and its European twin `https://eu.api.ovh.com/v1/cloud.json`), read on
  2026-11-28. The schema's model name is named beside each type, so a reader can
- look the shape up again. Only the fields this backend reads are modelled;
- responses carry more.
+ look the shape up again. Every field this backend reads is here, with the
+ neighbouring fields of the same model that a stand-in answer carries to look
+ like a whole one; nothing here claims to be a complete model, and responses
+ carry more.
 
  @module
  */
