@@ -132,11 +132,15 @@ fn the_propagation_guest_arm_tests() {
         return;
     };
     make_the_pool_and_the_datasets(&fixture);
-    for state in ["shared", "shared+slave", "private", "slave", "unbindable"] {
+    for state in ["shared", "private", "unbindable"] {
         in_a_private_namespace(&|| {
             return one_state(&fixture, state);
         });
     }
+    // A mount reaches a namespace whose root is a slave only as a copy the kernel makes there, so the shared and
+    // slave set is read across two namespaces: one holds the checkout as a slave, and the other mounts the dataset.
+    let delivered: String = a_checkout_delivered_into_a_slave_namespace(&fixture);
+    say(delivered.as_str());
     in_a_private_namespace(&|| {
         return a_mount_that_is_not_the_checkout(&fixture);
     });
@@ -245,17 +249,6 @@ fn one_state(
             mount_the_checkout(fixture, dataset.as_str());
             change_the_propagation(checkout, libc::MS_UNBINDABLE);
         }
-        "slave" => {
-            make_the_parent_a_slave(fixture);
-            mount_the_checkout(fixture, dataset.as_str());
-        }
-        "shared+slave" => {
-            // A mount made under a slave parent receives that parent's master, and making it shared again keeps the
-            // master: that is the set a machine inside a container has.
-            make_the_parent_a_slave(fixture);
-            mount_the_checkout(fixture, dataset.as_str());
-            change_the_propagation(checkout, libc::MS_SHARED);
-        }
         other => panic!("a state this arm does not know: {other}"),
     }
     let before: String = propagation_of(fixture, checkout);
@@ -268,9 +261,7 @@ fn one_state(
     let record: PropagationRecord = read_the_record(&places);
     let expected: (&str, &str) = match state {
         "shared" => ("applied", "private"),
-        "shared+slave" => ("applied", "private"),
         "private" => ("already-private", "private"),
-        "slave" => ("left", "slave"),
         _ => ("left", "unbindable"),
     };
     assert_eq!(
@@ -297,14 +288,153 @@ fn one_state(
         Some(before.as_str()),
         "the record's set before the step is the kernel's own answer"
     );
-    if state == "shared+slave" {
-        assert!(
-            record.master.is_some(),
-            "a shared and slave mount's master is recorded, because setting it private detaches that master"
-        );
-    }
     return format!(
         "state={state} before={before} outcome={} after={after} instance={instance_before}",
+        record.outcome.word()
+    );
+}
+
+/// What:
+///  The shared and slave set, read on a copy the kernel delivered into a namespace whose root is a slave:
+///  the child makes this namespace's root a slave of its own,
+///  this process mounts the checkout,
+///  and the child reads the copy that arrives,
+///  runs the step on it,
+///  and says what it found.
+/// Why:
+///  A mount made under a slave parent is private in this kernel: the copy that carries a master is the one
+///  propagation makes in the slave's namespace
+///  (`fs/namespace.c`,
+///  `attach_recursive_mnt`,
+///  which copies only for a shared destination,
+///  and `propagate_one`'s `CL_SLAVE | CL_MAKE_SHARED` for the slave's copy),
+///  which is the set the design's F30 measured as `shared,slave`.
+///  So the two namespaces are one phase: the child waits for the copy, and this process makes the mount.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = fork(() => { unshare(); makeSlave('/'); signal(); await(copy); runTheStep(); });
+/// await(signal); zfs mount checkout; await(child); zfs unmount checkout;
+/// ```
+fn a_checkout_delivered_into_a_slave_namespace(fixture: &Fixture) -> String {
+    let dataset: String = format!("{}/{CHECKOUT_DATASET_LEAF}", fixture.pool);
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `ends` is a live two-element array the call fills with the two descriptors it makes.
+    let piped: libc::c_int = unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) };
+    assert_eq!(
+        piped,
+        0,
+        "the phase's pipe: {}",
+        std::io::Error::last_os_error()
+    );
+    let read_end: libc::c_int = ends[0];
+    let write_end: libc::c_int = ends[1];
+    // SAFETY: `fork` takes no argument and the child below returns through `exit` only.
+    let child: libc::pid_t = unsafe { libc::fork() };
+    assert!(
+        child >= 0,
+        "the phase's child: {}",
+        std::io::Error::last_os_error()
+    );
+    if child == 0 {
+        // SAFETY: the read end is this process's own and it closes the copy it does not use.
+        unsafe { libc::close(read_end) };
+        // SAFETY: the child unshares its own mount namespace and touches no memory of the parent's.
+        let unshared: libc::c_int = unsafe { libc::unshare(libc::CLONE_NEWNS) };
+        assert_eq!(
+            unshared,
+            0,
+            "the phase's namespace: {}",
+            std::io::Error::last_os_error()
+        );
+        change_the_propagation(Path::new("/"), libc::MS_SLAVE);
+        // SAFETY: the byte is this phase's own and the descriptor is open on its own write end.
+        let _told: isize =
+            unsafe { libc::write(write_end, b"1".as_ptr().cast::<libc::c_void>(), 1) };
+        // SAFETY: the write end is this process's own and it closes it once.
+        unsafe { libc::close(write_end) };
+        let line: String = one_delivered_copy(fixture);
+        say(line.as_str());
+        std::process::exit(0);
+    }
+    // SAFETY: the write end belongs to the child and this process closes its own copy.
+    unsafe { libc::close(write_end) };
+    let mut byte: [u8; 1] = [0; 1];
+    // SAFETY: the buffer holds one byte and the read end is open in this process.
+    let _told: isize = unsafe { libc::read(read_end, byte.as_mut_ptr().cast::<libc::c_void>(), 1) };
+    // SAFETY: the read end is this process's own and it closes it once.
+    unsafe { libc::close(read_end) };
+    mount_the_checkout(fixture, dataset.as_str());
+    let mut status: libc::c_int = 0;
+    // SAFETY: the number is this phase's own child and the status word is this call's own.
+    let _waited: libc::pid_t = unsafe { libc::waitpid(child, &mut status, 0) };
+    let _unmounted: (bool, String) = fixture.ask("zfs", &["unmount", dataset.as_str()]);
+    assert_eq!(
+        status, 0,
+        "the phase's own child ended well: {status} (its line is above)"
+    );
+    return String::from("state=shared+slave");
+}
+
+/// What:
+///  The child's half of the delivered copy:
+///  wait, bounded, for the copy to arrive at the checkout path,
+///  read its set,
+///  and run the step on it.
+/// Why:
+///  The copy is made by the kernel while the other namespace mounts the dataset,
+///  so the wait is on the table's own row rather than on a pause,
+///  and a copy that never arrives fails the phase with what the table held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const row = await untilMounted(checkout, 10_000); expect(row.propagation).toBe('shared,slave');
+/// ```
+fn one_delivered_copy(fixture: &Fixture) -> String {
+    let checkout: &Path = fixture.checkout.as_path();
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        let (read, read_said) = fixture.ask(
+            "findmnt",
+            &[
+                "--noheadings",
+                "--output",
+                "PROPAGATION",
+                "--target",
+                checkout.to_str().expect("a text path"),
+            ],
+        );
+        if read && !read_said.trim().is_empty() {
+            break;
+        }
+        assert!(
+            began.elapsed() < std::time::Duration::from_millis(SEEN_WINDOW_MILLISECONDS),
+            "no copy of the checkout arrived in this slave namespace inside the reading window: {read_said}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let before: String = propagation_of(fixture, checkout);
+    assert_eq!(
+        before, "shared+slave",
+        "the kernel's copy carries the master and a peer group of its own"
+    );
+    let places: PropagationPlaces = a_place();
+    let answer: Result<PropagationDone, PropagationRefusal> =
+        run_the_step(&places, &resolution(fixture), &TheKernelsCalls);
+    assert!(
+        answer.is_ok(),
+        "the step the mode would run did not set the delivered copy private: {answer:?}"
+    );
+    let after: String = propagation_of(fixture, checkout);
+    let record: PropagationRecord = read_the_record(&places);
+    assert_eq!(record.outcome.word(), "applied");
+    assert!(
+        record.master.is_some(),
+        "the master the set detached is recorded, which is the cost the project stated with this answer"
+    );
+    assert_eq!(after, "private", "the copy reads private after the step");
+    return format!(
+        "state=shared+slave before={before} outcome={} after={after}",
         record.outcome.word()
     );
 }
@@ -632,9 +762,11 @@ fn count_service_starts(fixture: &Fixture) -> u32 {
         // A boot whose journal has no line for the unit yet reads no start at all.
         return 0;
     }
+    // systemd's own start line begins with the unit's name and then its description, so the unit is what it is
+    // searched for.
     return u32::try_from(
         said.lines()
-            .filter(|line| return line.contains("Starting Ask the boot unit"))
+            .filter(|line| return line.contains("Starting checkout-propagation.service"))
             .count(),
     )
     .unwrap_or(0);
@@ -698,13 +830,33 @@ fn propagation_of(
         read,
         "the mount's propagation could not be read: {read_said}"
     );
+    // `findmnt` lists the flags a mount carries, comma-separated, and it names a slave mount `private,slave`: the
+    // record names the set it read from the kernel, so this reader answers the same five words.
     let word: &str = read_said.trim();
-    // `findmnt` lists the flags a mount carries, comma-separated, and a private mount carries none; the record names
-    // the same set joined by `+`, so one spelling compares with the other.
-    return match word {
-        "" => String::from("private"),
-        other => String::from(other).replace(',', "+"),
-    };
+    let mut shared: bool = false;
+    let mut slave: bool = false;
+    let mut unbindable: bool = false;
+    for flag in word.split(',') {
+        match flag.trim() {
+            "shared" => shared = true,
+            "slave" => slave = true,
+            "unbindable" => unbindable = true,
+            _ => {}
+        }
+    }
+    if unbindable {
+        return String::from("unbindable");
+    }
+    if shared && slave {
+        return String::from("shared+slave");
+    }
+    if shared {
+        return String::from("shared");
+    }
+    if slave {
+        return String::from("slave");
+    }
+    return String::from("private");
 }
 
 /// The unique number of the mount the checkout path is on,
@@ -775,19 +927,6 @@ fn make_the_tree_private(_fixture: &Fixture) {
 /// ```
 fn make_the_root_shared(_fixture: &Fixture) {
     change_the_propagation(Path::new("/"), libc::MS_SHARED);
-}
-
-/// Make the folder the checkout is mounted in a slave of the namespace the arm came from,
-/// which is what makes a mount beneath it a slave rather than a shared mount.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// exec('mount --make-slave /root');
-/// ```
-fn make_the_parent_a_slave(_fixture: &Fixture) {
-    // This namespace's root is a peer of the guest's own, so the kernel makes it a slave of that group, and a mount
-    // made under it receives that master and passes nothing on.
-    change_the_propagation(Path::new("/"), libc::MS_SLAVE);
 }
 
 /// Mount the checkout's dataset at the checkout path,

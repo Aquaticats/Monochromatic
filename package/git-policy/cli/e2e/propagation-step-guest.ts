@@ -144,10 +144,9 @@ const BUILD_BOUNDS = 3;
 const EXPECTED_MARKERS = [
   'PROPAGATION fixture guest=',
   'PROPAGATION state=shared',
-  'PROPAGATION state=shared+slave',
   'PROPAGATION state=private',
-  'PROPAGATION state=slave',
   'PROPAGATION state=unbindable',
+  'PROPAGATION state=shared+slave',
   'PROPAGATION refused=source',
   'PROPAGATION trigger arming=',
   'PROPAGATION done',
