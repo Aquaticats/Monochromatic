@@ -141,7 +141,9 @@ export function buildScript({ fresh, }: { readonly fresh: boolean; },): string {
     // a compile failure. One job and a swap file are what make the build fit.
     `if ! swapon --show | grep --quiet /swapfile; then fallocate --length ${SWAP_GIBIBYTES} /swapfile; chmod 600 /swapfile; mkswap /swapfile; swapon /swapfile; fi`,
     'free',
-    'cargo build --release --tests --locked --features test-only-switches --jobs 1',
+    // Only the executable and the one test target the arms run: `--tests` builds every target of this crate, which is
+    // minutes of linking a rebuilt plant does not need.
+    'cargo build --release --locked --features test-only-switches --jobs 1 --test native_binary',
   ].join('\n',);
 }
 
