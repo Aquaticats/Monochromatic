@@ -2241,13 +2241,13 @@ and what the messages say.
   A folder name holding a tab,
   a no-break space or a doubled space is refused the same way,
   and the refusal spells that character and says what renaming must give.
-  A six-word line whose first folder word is absolute or holds a backslash is refused for that cause,
-  as a five-word line is,
-  so its reader is never sent to rename a folder for a space.
   That sentence is for the words that name such a folder,
   so a six-word line whose words between the folder's place and the arrow name no folder
   is a third file name or a doubled arrow,
   and it is refused as the misspelling of the shape it is.
+  A six-word line whose first folder word is absolute or holds a backslash is refused for that cause,
+  as a five-word line is,
+  so its reader is never sent to rename a folder for a space.
   Three readings of one line decide that,
   in this order:
   the name the line writes between the word and the file before its arrow,
