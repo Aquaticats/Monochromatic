@@ -4227,3 +4227,60 @@ these are what it chose beyond them.
 - Open:
   whether the README should say that a plan may declare `rustup` on purpose,
   for a machine whose cargo bin directory holds rustup's own programs.
+
+## Veto open: what four more rounds of 2026-11-27 left (recorded 2026-11-27T19:45:16-05:00)
+
+### The test tasks: `depends` against the root rule
+
+The root `mise.toml` says of tasks:
+"never use depends or post depends,
+use run only because it's the easiest to understand."
+The round of issue 6635 used `depends = ["build"]` on the driver's `test:unit`,
+as other packages do for the same need,
+and as the root's own `lint:monochromatic-lint` does with its reason beside it:
+a `run` list hands the words after `--` to every entry,
+and a test task takes test file names there.
+Ranking:
+say in the root sentence when `depends` is right > leave the sentence > forbid `depends` everywhere,
+because the first makes the rule match what works,
+the second leaves a rule that 90 package files contradict,
+and the third breaks `test:unit -- <file>` wherever a build must come first.
+
+### The test tasks: packages whose tests read a built copy the task does not build
+
+96 more packages are in the state issue 6635 cured for the driver
+(issue 6637 lists them),
+and the root aggregate `test:unit` builds nothing.
+Ranking:
+give each package's `test:unit` the same line > make the root aggregate build > leave,
+because the fault is quiet wherever the stale copy still exports every name a test asks for,
+and a per-package line keeps a package's own task right when it is run alone.
+The cost is one build per run of each such task.
+No round runs on it:
+it changes packages this work does not own.
+
+### The store fixture's deadline
+
+- The value.
+  15,000 ms is 3.26 times the slowest call measured under the small cap,
+  and equals the reader's own deadline for the same tool.
+  Not taken:
+  about 5,000 ms,
+  which still clears that call and makes a true hang cost a third as much.
+- The equality with the reader's `SOPS_TIMEOUT_MS` is a comment and not an import,
+  so the two can drift.
+- The test runner's worker count ignores the control group's `cpu.max`.
+  Ranking:
+  leave it > cap the workers at the quota,
+  because the suite now passes at the small cap in about 150 s,
+  and capping would make that several times longer without making any call faster.
+
+### The wrapper: a slot command at a directory that is no repository
+
+A removal,
+a move or a prune typed with `-C` at a directory that resolves to no repository reaches Git unchanged,
+and Git answers in its own words.
+Left as it is.
+Not taken:
+refuse every slot command whose directory Git cannot resolve,
+which would also refuse `git worktree prune` typed where there is no repository at all.

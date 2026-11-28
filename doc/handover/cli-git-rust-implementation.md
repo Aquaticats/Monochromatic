@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T19:34:10-05:00
+## The state at 2026-11-27T19:45:16-05:00
 
-`main` was `39e60f48cc`.
+`main` was `8e4a0505bf`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 295 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 300 more by this time.
 
 ### Rounds running
 
@@ -292,13 +292,17 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which changes version rows in eight files,
   the wrapper's and its fuzz crate's among them,
   and `main` is fast-forwarded to it.
-  Its publish waits behind the wrapper's in the publish workflow's one `concurrency` group;
-  the follower's log is `~/temp/agent/release-followers-of-2026-11-27/keep/monochromatic-lint-0.5.2-alpha.23-release-wait.log`.
-  After it publishes:
-  lock `cargo:monochromatic-lint`,
-  install,
-  put the session's `git` link back,
-  and start its Claude Sonnet second pass.
+  It is published
+  (publish run 46087537570;
+  the follower's log holds `PUBLISHED monochromatic-lint-v0.5.2-alpha.23`),
+  locked (`6d99c6a2da`) and installed here,
+  where `.cache/toolchain-bin/monochromatic-lint --version` says `0.5.2-alpha.23`;
+  the install named no unresolved bin,
+  and the session's `git` link was put back at 2026-11-27T19:39:58-05:00.
+  Its Claude Sonnet second pass runs as a background agent of the coordinating session,
+  a same-vendor read,
+  with its brief at `~/temp/agent/briefs-for-release-reads-written-2026-11-27/monochromatic-lint-alpha-23-read.md`
+  and its review at `~/temp/agent/monochromatic-lint-alpha-23-release-review-2026-11-27/keep/review.md`.
   It took Lows 5,
   7,
   8,
@@ -464,10 +468,26 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   their briefs stand in `~/temp/agent/briefs-for-release-reads-written-2026-11-27/`,
   and their reviews go to `~/temp/agent/git-policy-cli-alpha-51-release-review-behaviour-2026-11-27/keep/review.md`
   and `~/temp/agent/git-policy-cli-alpha-51-release-review-no-change-merges-2026-11-27/keep/review.md`.
-  The round of issue 6625,
-  started 2026-11-27T18:38:26-05:00,
-  merges when it ends:
-  the bump commit it waited for has landed.
+  The round of issue 6625 is merged (`3caae5b48d`) and the issue is closed.
+  It changed no release code:
+  measured with Git 2.56.1 at a repository's top,
+  in a folder below it,
+  in its Git directory,
+  in a folder inside that,
+  in a bare repository,
+  in a folder inside it and at a linked worktree's top,
+  the directory the shell of a `!` alias prints
+  and the directory `alias_run_directory` answers are the same everywhere.
+  Its controls hold the bound-slot refusal for a removal,
+  a move and a prune,
+  typed directly and behind a shell alias,
+  in a Git directory and in a bare repository,
+  each removal and move compared word for word with the spelling typed at the top;
+  three plants turned them red.
+  `SPEC.md` says what a bare repository's records are.
+  One shape is left to Git as before:
+  a slot command typed with `-C` at a directory that resolves to no repository.
+  The next gate on `main` is the first to run these controls in the container.
   Nine planted spellings passed their guard on `main`:
   a renamed import,
   a function taken as a value,
@@ -1115,13 +1135,23 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   its release commit is `39e60f48cc`,
   which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
   and `main` is fast-forwarded to it.
-  Its publish waits behind the linter's;
-  the follower's log is `~/temp/agent/release-followers-of-2026-11-27/keep/mpm-shadow-0.2.7-alpha.18-release-wait.log`.
-  After it publishes:
-  lock `mpm-shadow`,
-  install,
-  put the session's `git` link back,
-  and start its Claude Sonnet second pass.
+  It is published
+  (publish run 46088436580;
+  the follower's log holds `PUBLISHED monochromatic-mpm-shadow-v0.2.7-alpha.18`),
+  locked (`e7bf60a263`) and installed here.
+  The install ran twice,
+  so that the second run was the new release's own:
+  each said `0 installed, 67 unchanged, 0 failed`,
+  and named no unresolved bin and no removed link;
+  the exposure folder held the same 174 names before and after,
+  with no link that does not resolve,
+  and `rustc` through it is the pin's (`5f4effd57 2026-11-13`).
+  The session's `git` link was put back at 2026-11-27T19:42:39-05:00.
+  Its Claude Sonnet second pass runs as a background agent of the coordinating session,
+  a same-vendor read,
+  with its brief at `~/temp/agent/briefs-for-release-reads-written-2026-11-27/mpm-shadow-alpha-18-read.md`
+  and its review at `~/temp/agent/mpm-shadow-alpha-18-release-review-2026-11-27/keep/review.md`;
+  it runs a real `rustup` in a container and tries the removal as an adversary.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -1335,8 +1365,10 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-The reads of the wrapper's `0.6.1-alpha.51` run as background agents of the coordinating session,
-at the paths its release's passage gives.
+The reads of the wrapper's `0.6.1-alpha.51`,
+of the linter's `0.5.2-alpha.23` and of `mpm-shadow`'s `0.2.7-alpha.18`
+run as background agents of the coordinating session,
+each at the path its release's passage gives.
 The reads of the linter's `0.5.2-alpha.22`,
 of `mpm-shadow`'s `0.2.7-alpha.17` and of `cargo-shadow`'s `0.1.5-alpha.16` returned and were read whole
 ("What the linter's alpha.22 read found",
@@ -3027,29 +3059,53 @@ and the two `truepeak` files wait on their branch.
   with eight children in flight and 80 waits per arm:
   joined at `exit` the whole document arrived in 0 of 80 waits,
   joined at `close` in 80 of 80.
-  The issue stays open for one thing:
-  the default deadline of 2,000 ms failed four `sops --encrypt` calls falsely
+  The default deadline of 2,000 ms then failed four `sops --encrypt` calls falsely
   when the driver's unit suite ran under `CPUQuota=400%`,
-  where the suite starts 32 test files whatever the cap,
-  and passed at 700%.
-  The round
-  `issue-6410-the-sops-fixtures-default-deadline-is-sized-from-its-slowest-call-under-the-caps-its-users-run-in`
-  (its first feed line written 2026-11-27T19:10:18-05:00)
-  sizes the default from a measurement under those caps.
-  What its report left waits in `doc/handover/questions-for-the-owner.md`.
-- The driver package's unit test task runs its tests against the built copy and does not build first:
-  issue 6635.
-  Measured on `main` at `25dec7b462`,
-  74 of its 76 unit test files import `dist/final/node/index.mjs`;
-  with a built copy older than its sources two failed to load and the others ran against the stale copy.
-  The rounds of issues 6631 and 6410 each lost a suite run to it.
-  The round
-  `issue-6635-the-drivers-unit-test-task-never-runs-against-a-built-copy-older-than-its-sources`
-  (2026-11-27T19:10:29-05:00)
-  makes the task build first or refuse.
-  The main checkout's built copy is still the stale one of 2026-11-27T04:59:02:
-  no rebuild was made there,
-  because two processes named that copy when it was tried.
+  so a second round sized it from a measurement and is merged (`e948095a53`);
+  the issue is closed.
+  With the deadline lifted by a loader that rewrote the fixture module in memory,
+  one run of the driver's suite per cap logged every fixture call:
+  at `CPUQuota=400%`,
+  36 calls,
+  median 104.2 ms,
+  slowest 4,597.5 ms;
+  at `CPUQuota=1000%`,
+  36 calls,
+  median 39.3 ms,
+  slowest 513.7 ms.
+  The default is 15,000 ms,
+  the deadline the reader gives the same `sops` child,
+  and the suite then passed whole at `CPUQuota=400%` with the shipped default
+  (228 `[PASS]` lines and no `[FAIL]`).
+  A true hang costs 15 s once where it cost 2 s.
+  Why 32 test files run under a 400% cap:
+  the repository's own test runner sizes its workers from `availableParallelism()`,
+  which reads the affinity mask and not the control group's `cpu.max`;
+  the cure and its cost are in `doc/troubleshooting/subagent-driver-suite-fails-under-host-load.md`.
+  What both reports left waits in `doc/handover/questions-for-the-owner.md`.
+- The driver package's unit test task ran its tests against the built copy and did not build first:
+  issue 6635,
+  whose round is merged (`8e4a0505bf`) and whose issue is closed.
+  The task declares `depends = ["build"]`,
+  as `package/zip-writer/core` and other packages already do,
+  so mise builds before the first test file starts;
+  a test asks mise for the task's dependency list and was red before the declaration.
+  Shown before the change,
+  with no edit:
+  a built copy older than a source file ended the task with status 1,
+  two files failing to load while 72 ran against the stale copy and passed;
+  with no built copy 75 files failed to load.
+  After it both states print 229 `[PASS]` lines and no `[FAIL]`.
+  The cost is the build's own 5.053 s per run.
+  `depends` and not a `run` list,
+  because a `run` entry is handed the words after `--`,
+  which name test files here;
+  the root `mise.toml` says never to use `depends`,
+  and that sentence against the tree is a question for the owner.
+  The round counted 96 more packages whose unit tests import a built copy their task does not build,
+  and the root aggregate `test:unit` builds nothing:
+  issue 6637 holds the list,
+  and none was changed.
 - Rounds wrote edits into the main checkout on 2026-11-27:
   the round of issue 6632 by its own report,
   and the round of issue 6625 as the coordinating session found
