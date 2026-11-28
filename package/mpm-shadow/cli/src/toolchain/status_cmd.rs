@@ -8,6 +8,11 @@
 //! Why:
 //! `list` is the read-only half of `install`;
 //! it never installs and never touches the network.
+//! It starts `rustup` for a `rustup-toolchain` row twice: once for the toolchain the row's channel
+//! is, and once for the components that toolchain holds,
+//! whose `rust-std-<triple>` lines are the targets as well.
+//! It waits for each answer with no bound of its own, so a `rustup` that never answers makes it wait
+//! (release read L-7; measured 2026-11-27 at the release report).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -93,7 +98,7 @@ pub fn run_status(
     let mut observations = observe_all(&context, &lock.tools);
     // What:
     // the same observations, with each `rustup-toolchain` row that is otherwise at its version asked
-    // which declared components and targets its toolchain lacks.
+    // which declared components and targets its toolchain lacks, from the one component listing.
     // Why:
     // `install` adds a declared part the toolchain does not have, so a toolchain without one is drift;
     // `list` said `ok` and `1 tools in sync` while the declared `rustfmt` component was missing

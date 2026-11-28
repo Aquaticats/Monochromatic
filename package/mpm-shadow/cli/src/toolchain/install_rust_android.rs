@@ -132,31 +132,36 @@ pub fn install_rust_components(
 }
 
 /// What:
-/// The names `rustup <listing subcommand> list --installed --toolchain <channel>` prints,
-/// one per line with the empty lines dropped,
-/// for the `component` row or the `target` row of a toolchain.
+/// What:
+/// The names `rustup component list --installed --toolchain <channel>` prints,
+/// one per line with the empty lines dropped.
 /// Why:
-/// Asking `rustup` what it holds is what lets a sync on a complete machine add nothing.
+/// Asking `rustup` what it holds is what lets a sync on a complete machine add nothing,
+/// and the components are the one listing that answers both questions:
+/// `rustup target list --installed` prints exactly the targets whose `rust-std-<target>` component it
+/// holds (`list_targets` in rustup 1.29.3's `src/cli/rustup_mode.rs` keeps the components whose
+/// `short_name()` is `rust-std`),
+/// and `rustup target add` installs that component.
+/// So a toolchain's targets are read from its component lines and the second listing is not asked for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function installedNames(ctx: Context, tool: LockedTool, listing: 'component' | 'target'): string[]
+/// function installedComponents(ctx: Context, tool: LockedTool): string[]
 /// ```
-fn installed_names(
+fn installed_components(
     ctx: &Context,
     tool: &LockedTool,
-    listing: &str,
 ) -> Result<Vec<String>, ToolchainError> {
     // What: a `rustup_query`, so the question cannot install the toolchain it asks about.
     // Why: see `Context::rustup_query`; a query that installs answers as if the parts were always there.
     let request: RunRequest = ctx.rustup_query(&[
-        listing,
+        "component",
         "list",
         "--installed",
         "--toolchain",
         tool.rustup_channel(),
     ]);
-    let what: String = format!("rustup {listing} list --installed");
+    let what: String = "rustup component list --installed".to_string();
     // What: `run_checked` starts `rustup` and turns a non-zero exit into an error naming this step.
     // Why: a listing that fails cannot prove which parts are installed, so the tool is reported as failed
     // rather than as unchanged.
@@ -207,9 +212,63 @@ fn installed_names(
 }
 
 /// What:
+/// The target triples whose standard library this toolchain holds,
+/// read from the `rust-std-<triple>` lines of `rustup component list --installed`.
+/// Why:
+/// `rustup target list --installed` prints exactly those triples
+/// (`list_targets` in rustup 1.29.3's `src/cli/rustup_mode.rs` keeps the installed components whose
+/// `short_name()` is `rust-std`),
+/// and `rustup target add` installs the `rust-std-<triple>` component,
+/// so the component lines already answer the target question and one listing is enough.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theTargetsWhoseStandardLibraryItHolds(components: string[]): string[]
+/// ```
+fn the_targets_whose_standard_library_it_holds(components: &[String]) -> Vec<String> {
+    // What:
+    // the prefix every such component line starts with, and the triples being collected.
+    // Why:
+    // The triple is the rest of the line, and a component of another name installs no standard library.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const prefix = 'rust-std-';
+    // const targets: string[] = [];
+    // ```
+    let prefix: &str = "rust-std-";
+    let mut targets: Vec<String> = Vec::new();
+    for component in components {
+        // What:
+        // `.strip_prefix` is the text after the prefix as an `Option`, present only for such a line.
+        // Why:
+        // Every other component name is not a target, and the present branch is the one to keep.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const triple = component.startsWith(prefix) ? component.slice(prefix.length) : undefined;
+        // ```
+        let Some(triple) = component.strip_prefix(prefix) else {
+            continue;
+        };
+        // What:
+        // `.push(triple.to_string())` adds an owned copy of the borrowed triple.
+        // Why:
+        // The answer outlives this loop's borrow of the listing.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // targets.push(triple);
+        // ```
+        targets.push(triple.to_string());
+    }
+    return targets;
+}
+
+/// What:
 /// Whether `installed` holds `name` as that exact text.
 /// Why:
-/// `rustup target list --installed` prints one bare triple per line,
+/// The targets are the `rust-std-<triple>` component lines,
 /// so a longer name that merely starts with a declared one
 /// (`wasm32-wasip1-threads` for a declared `wasm32-wasip1`)
 /// is a different standard library and must not count as the declared target.
@@ -381,41 +440,41 @@ pub fn reconcile_rust_parts(
         return Ok(());
     }
     // What: `?` returns early with the error when the listing fails.
-    // Why: a toolchain whose listings cannot be read is a failed tool, not an unchanged one.
+    // Why: a toolchain whose listing cannot be read is a failed tool, not an unchanged one.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // let installedTargets = installedNames(ctx, tool, 'target');  // throws
+    // let heldComponents = heldComponents(ctx, tool);  // throws
+    // let heldTargets = theTargetsWhoseStandardLibraryItHolds(heldComponents);
     // ```
-    let mut installed_targets: Vec<String> = installed_names(ctx, tool, "target")?;
-    // The components come second only because the check for them needs the toolchain's targets.
-    if !components.is_empty() {
-        let mut installed_components: Vec<String> = installed_names(ctx, tool, "component")?;
-        let mut added_component: bool = false;
-        for name in components {
-            if lists_component(&installed_components, &name, &installed_targets) {
-                continue;
-            }
-            add_part(ctx, tool, "component", &name, added)?;
-            // A successful add leaves that component installed, so a later declaration naming the same
-            // component (the same text, or the same part under another spelling) is not added again.
-            installed_components.push(name.clone());
-            added_component = true;
+    let mut held_components: Vec<String> = installed_components(ctx, tool)?;
+    let mut held_targets: Vec<String> =
+        the_targets_whose_standard_library_it_holds(&held_components);
+    let mut added_component: bool = false;
+    for name in components {
+        if lists_component(&held_components, &name, &held_targets) {
+            continue;
         }
-        // A component add can bring a target's standard library with it (`rust-std-<triple>`), so the target
-        // listing is read again before any target is judged missing.
-        if added_component && !targets.is_empty() {
-            installed_targets = installed_names(ctx, tool, "target")?;
-        }
+        add_part(ctx, tool, "component", &name, added)?;
+        // A successful add leaves that component installed, so a later declaration naming the same
+        // component (the same text, or the same part under another spelling) is not added again.
+        held_components.push(name.clone());
+        added_component = true;
+    }
+    // A component add can bring a target's standard library with it (`rust-std-<triple>`), so the listing is
+    // read again, and the targets derived from it again, before any target is judged missing.
+    if added_component && !targets.is_empty() {
+        held_components = installed_components(ctx, tool)?;
+        held_targets = the_targets_whose_standard_library_it_holds(&held_components);
     }
     for name in targets {
-        if lists_exactly(&installed_targets, &name) {
+        if lists_exactly(&held_targets, &name) {
             continue;
         }
         add_part(ctx, tool, "target", &name, added)?;
-        // Same reason as the components above: the triple is installed now, and a duplicate declaration of it
-        // must not add it twice.
-        installed_targets.push(name.clone());
+        // Same reason as the components above: the triple's standard library is installed now, and a
+        // duplicate declaration of it must not add it twice.
+        held_targets.push(name.clone());
     }
     return Ok(());
 }
@@ -446,17 +505,20 @@ pub fn missing_rust_parts(
         return Ok(Vec::new());
     }
     // What:
-    // the targets `rustup` lists as installed for this toolchain, read first because the component
-    // check needs them.
+    // the component names `rustup component list --installed` prints for this toolchain,
+    // and the target triples whose standard library those lines hold.
     // Why:
-    // `rustup component list --installed` spells a component with its target triple,
-    // and `install` reads the two listings in this same order.
+    // One question answers both:
+    // the targets are the `rust-std-<triple>` lines,
+    // and the component check needs the targets to read a component spelled with one.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const installedTargets = installedNames(ctx, tool, 'target');
+    // const heldComponents = heldComponents(ctx, tool);
+    // const heldTargets = theTargetsWhoseStandardLibraryItHolds(heldComponents);
     // ```
-    let installed_targets: Vec<String> = installed_names(ctx, tool, "target")?;
+    let held_components: Vec<String> = installed_components(ctx, tool)?;
+    let held_targets: Vec<String> = the_targets_whose_standard_library_it_holds(&held_components);
     // What:
     // the sentences being collected, one per part the toolchain lacks.
     // Why:
@@ -467,17 +529,14 @@ pub fn missing_rust_parts(
     // const missing: string[] = [];
     // ```
     let mut missing: Vec<String> = Vec::new();
-    if !components.is_empty() {
-        let installed_components: Vec<String> = installed_names(ctx, tool, "component")?;
-        for name in components {
-            if lists_component(&installed_components, &name, &installed_targets) {
-                continue;
-            }
-            missing.push(format!("the toolchain lacks the declared component {name}"));
+    for name in components {
+        if lists_component(&held_components, &name, &held_targets) {
+            continue;
         }
+        missing.push(format!("the toolchain lacks the declared component {name}"));
     }
     for name in targets {
-        if lists_exactly(&installed_targets, &name) {
+        if lists_exactly(&held_targets, &name) {
             continue;
         }
         missing.push(format!("the toolchain lacks the declared target {name}"));

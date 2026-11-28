@@ -226,12 +226,8 @@ impl Context<'_> {
         if tool.declaration.route != Route::RustupToolchain {
             return None;
         }
-        let outcome: RunOutcome = self.run(&self.rustup_query(&[
-            "which",
-            "--toolchain",
-            tool.rustup_channel(),
-            "rustc",
-        ]));
+        let outcome: RunOutcome =
+            self.run(&self.rustup_query(&["which", "--toolchain", tool.rustup_channel(), "rustc"]));
         // A question that failed or printed no path proves nothing about where the toolchain is.
         if !outcome.succeeded() {
             return None;
@@ -243,12 +239,10 @@ impl Context<'_> {
         let program: PathBuf = PathBuf::from(printed);
         // What:
         // `program.parent()` is the directory holding the program, which is the toolchain's `bin`,
-        // or `None` for a path with no directory in it.
+        // or `None` for a path with no directory in it; the `?` returns `None` for that case.
         // Why:
         // The search adds file names to a directory, so the parent is the value it needs.
-        let Some(bin) = program.parent() else {
-            return None;
-        };
+        let bin: &std::path::Path = program.parent()?;
         return Some(bin.to_path_buf());
     }
 

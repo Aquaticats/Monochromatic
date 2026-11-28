@@ -241,12 +241,22 @@ or a Java major line such as `21`).
   The route is how a tool installs;
   the request is where its versions come from.
 - A `rustup-toolchain` row's `bins` are the programs the toolchain the row's channel names holds:
-  that toolchain's own `bin` directory under `~/.rustup/toolchains`,
-  and never another installed toolchain's,
-  whatever the directory names sort like
+  the `bin` directory of the toolchain `rustup which --toolchain <channel> rustc` prints a path in,
+  and never another installed toolchain's.
+  Which installed toolchain a channel is belongs to `rustup`:
+  its host triple is the kernel's own answer plus its build's C library,
+  or the `default_host_tuple` of its settings,
+  and a custom linked toolchain's directory is the link's own name,
+  so `mpm-shadow` asks rather than reading the directory names.
+  The names in `~/.rustup/toolchains` sorted like anything else are not read at all
   (a second toolchain beside the pin answered for the farm's `rustc`,
-  `cargo` and `rustfmt` before issue 6634);
-  and rustup's own proxies in the cargo bin directory where `rustup` itself was installed there.
+  `cargo` and `rustfmt` before issue 6634,
+  a neighbour whose name extends the channel answered for the programs the channel's own toolchain
+  lacked,
+  and so did a custom link whose name extends the pin and the same channel installed for a second
+  host triple).
+  The row also searches rustup's own proxies in the cargo bin directory where `rustup` itself was
+  installed there.
   `rustup` is never one of them:
   it is the manager,
   which `rustup-init` or the distribution's package installs before the first `mpm-shadow` run,
@@ -258,11 +268,20 @@ or a Java major line such as `21`).
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
   `list` reads the same declarations:
-  it asks `rustup component list --installed` and `rustup target list --installed` about the row's
-  toolchain,
-  and a component or target it does not list is drift,
+  it asks `rustup` which toolchain the row's channel is,
+  then `rustup component list --installed` for what that toolchain holds,
+  and a declared component or target whose line is missing is drift,
   named in the `drift` line,
   which is what the next `install` would add.
+  A target is a `rust-std-<triple>` line of that same listing,
+  which is the listing `rustup target list --installed` filters for
+  (`list_targets` in rustup 1.29.3's `src/cli/rustup_mode.rs`),
+  so the two questions are one.
+  When the listing itself fails,
+  the row is drift too and the line carries the failure's words
+  (`its components and targets could not be read: ...`),
+  which is not what the next `install` would add:
+  nothing is known about the parts until a listing answers.
   Every program a row lists that no component it declares and no profile installs is not in
   the toolchain at all,
   so such a program is named as an unresolved bin on a machine whose rustup keeps no proxy of
@@ -713,6 +732,22 @@ llama-cpu-cli \
   Exits 1 on drift.
   Also names the old copies of this repository's tools that `install` would retire,
   which are not drift.
+  It starts `rustup` twice for each `rustup-toolchain` row whose toolchain is at its version
+  (see "The plan" for those two questions),
+  and waits for each answer with no bound of its own,
+  so a `rustup` that never answers makes it wait for ever.
+  What that costs when `rustup` answers:
+  measured on 2026-11-27 with this account's own `rustup 1.29.3`
+  and a hard-linked copy of this machine's pinned toolchain,
+  seven interleaved rounds,
+  `list` took 33.4 to 47.5 ms with the row's components and targets declared,
+  against 9.2 to 14.7 ms for a row that declares none and so asks only which toolchain the channel
+  is;
+  each question alone was 5.5 to 36.5 ms.
+  No deadline is shipped for those waits:
+  the measurement says what an answer costs, not what a late one should be cut off at,
+  and a cut-off would tell a person a toolchain's parts could not be read when `rustup` was merely
+  slow.
 - `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...`:
   deletes the cargo tool versions no known lock names
   and the superseded versions of this repository's release archives (see "Cleanup").
@@ -1070,12 +1105,18 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   A toolchain that is already at the locked version,
   which another program installed,
   is not skipped:
-  `install` asks `rustup component list --installed` and `rustup target list --installed` for that
-  toolchain,
+  `install` asks `rustup component list --installed` for that toolchain,
   adds only the declared parts `rustup` does not list,
   and reports the tool as installed with
   one line per part it added.
+  A target counts as installed when its `rust-std-<triple>` line is in that listing,
+  which is the listing `rustup target list --installed` filters for,
+  so the target question costs no second start.
   A listing or an add that fails fails that tool rather than counting it unchanged.
+  `install` then asks `rustup which --toolchain <channel> rustc` once for the row,
+  after the installers ran,
+  to learn the directory the farm links from (see "The plan");
+  `list` does not build the farm and never asks that question of an install.
 - `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<locked> --version <locked> <crate>`
   (see "Cargo tool installs").
 - `pnpm add --global <package>@<locked>`,

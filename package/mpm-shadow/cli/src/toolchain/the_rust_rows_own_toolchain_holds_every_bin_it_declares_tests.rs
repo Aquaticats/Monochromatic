@@ -1337,7 +1337,7 @@ fn the_targets_the_row_declares(row: &LockedTool) -> Vec<String> {
 // ```
 fn the_component_listing_of(
     held: &[String],
-    row: &LockedTool,
+    installed_targets: &[String],
 ) -> Vec<String> {
     // What:
     // `let mut lines: Vec<String> = Vec::new()` is the listing being collected.
@@ -1352,12 +1352,13 @@ fn the_component_listing_of(
     for name in held {
         lines.push(component_named(name).listed_as());
     }
-    for target in the_targets_the_row_declares(row) {
+    for target in installed_targets {
         // What:
-        // `format!("rust-std-{target}")` builds the component name a declared target installs.
+        // `format!("rust-std-{target}")` builds the component name a target's standard library has.
         // Why:
-        // The standard library of a non-host target is its own component,
-        // and rustup lists it under exactly this name.
+        // `rustup target add` installs the `rust-std-<triple>` component and `rustup target list
+        // --installed` prints those components' triples,
+        // so a target is held exactly when this line is in the listing.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -1401,9 +1402,8 @@ fn answer_the_listings_of_the_installed_toolchain(
     // ```ts
     // const targets = [theFixtureHostTriple, ...theTargetsTheRowDeclares(row)];
     // ```
-    let mut targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
-    targets.extend(the_targets_the_row_declares(&row));
-    answer_the_listings_of_a_toolchain_holding(rig, held, &targets);
+    let installed_targets: Vec<String> = the_targets_the_row_declares(&row);
+    answer_the_listings_of_a_toolchain_holding(rig, held, &installed_targets);
 }
 
 // What:
@@ -1423,7 +1423,7 @@ fn answer_the_listings_of_the_installed_toolchain(
 fn answer_the_listings_of_a_toolchain_holding(
     rig: &Rig,
     held: &[String],
-    targets: &[String],
+    installed_targets: &[String],
 ) {
     let row: LockedTool = the_repository_rust_row();
     // What:
@@ -1437,7 +1437,7 @@ fn answer_the_listings_of_a_toolchain_holding(
     // const listing = theComponentListingOf(held, row).join('\n') + '\n';
     // ```
     let mut listing: String = String::new();
-    for line in the_component_listing_of(held, &row) {
+    for line in the_component_listing_of(held, installed_targets) {
         listing.push_str(&line);
         listing.push('\n');
     }
@@ -1472,24 +1472,13 @@ fn answer_the_listings_of_a_toolchain_holding(
         0,
     );
     // What:
-    // the text `rustup target list --installed` prints: one target per line, ended by a newline.
+    // nothing: `rustup target list --installed` is not answered at all.
     // Why:
-    // Both `install`'s reconciler and `list` read it line by line,
-    // the host target's spelling is what lets a component listed as `clippy-<triple>` count as the
-    // declared `clippy`,
-    // and a real listing ends each line.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // rig.runner.answer('rustup target list --installed', targets.map((target) => `${target}\n`).join(''), 0);
-    // ```
-    let mut listed_targets: String = String::new();
-    for target in targets {
-        listed_targets.push_str(target);
-        listed_targets.push('\n');
-    }
-    rig.runner
-        .answer("rustup target list --installed", &listed_targets, 0);
+    // The targets are the `rust-std-<triple>` lines of the component listing,
+    // so a run that asked the target question would meet no rule here,
+    // and its answer would name no target and call every declared one missing.
+    // That is the tripwire this absence is: one question, not two.
+    let _ = row;
 }
 
 // What:
@@ -1511,15 +1500,26 @@ fn the_component_listing_the_stand_in_answers_is_the_one_this_machines_rustup_pr
     let row: LockedTool = the_repository_rust_row();
     let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
     // What:
+    // the targets the toolchain this machine holds is in sync for: the ones the row declares.
+    // Why:
+    // The capture below is that toolchain's own listing,
+    // so the stand-in is built for the same state.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const installedTargets = theTargetsTheRowDeclares(row);
+    // ```
+    let installed_targets: Vec<String> = the_targets_the_row_declares(&row);
+    // What:
     // the lines this file's stand-in would print, sorted.
     // Why:
     // They are the subject of the comparison.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const derived = theComponentListingOf(held, row);
+    // const derived = theComponentListingOf(held, installedTargets);
     // ```
-    let derived: Vec<String> = the_component_listing_of(&held, &row);
+    let derived: Vec<String> = the_component_listing_of(&held, &installed_targets);
     // What:
     // the captured lines as owned strings, sorted the same way.
     // Why:
@@ -2189,20 +2189,21 @@ fn an_install_removes_the_farm_link_no_row_declares_and_names_it() {
 }
 
 // What:
-// `const A_COMPONENT_LISTING_OF_THREE_QUESTIONS: usize = 3` is how many `rustup` questions a `list`
+// `const THE_QUESTIONS_A_LIST_ASKS: usize = 2` is how many `rustup` questions a `list`
 // on a machine that is in sync asks about this row.
 // The integer siblings a reader might expect are `u32` and `i32`;
 // `usize` is the width `Vec::len` answers, so the comparison needs no cast.
 // Why:
-// Issue 6634's Low point 5 prices the extra question:
-// `list` asked one (`rustup which`), and asking the two listings makes three.
-// The number is written here so a run that asks more or fewer fails loudly.
+// Issue 6634's Low point 5 prices the questions, and the release read's L-7 counts them:
+// `list` asked one (`rustup which`) and then three (that question and two listings).
+// The targets are the `rust-std-<triple>` lines of the component listing, so one listing is enough,
+// and two is the number a run that asks more or fewer has to fail loudly.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// const aComponentListingOfThreeQuestions = 3;
+// const theQuestionsAListAsks = 2;
 // ```
-const THE_QUESTIONS_A_LIST_ASKS: usize = 3;
+const THE_QUESTIONS_A_LIST_ASKS: usize = 2;
 
 // What:
 // `fn write_a_plan_and_lock_of_the_rows_rust_row(rig: &Rig, row: &LockedTool)` writes the fixture's
@@ -2342,9 +2343,8 @@ fn list_calls_a_toolchain_that_lacks_a_declared_component_drift_and_names_it() {
     held.retain(|name| return name != THE_COMPONENT_THIS_ISSUE_DECLARES);
     let rig: Rig = rig_holding_the_programs_of(&held);
     write_a_plan_and_lock_of_the_rows_rust_row(&rig, &row);
-    let mut targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
-    targets.extend(the_targets_the_row_declares(&row));
-    answer_the_listings_of_a_toolchain_holding(&rig, &held, &targets);
+    let installed_targets: Vec<String> = the_targets_the_row_declares(&row);
+    answer_the_listings_of_a_toolchain_holding(&rig, &held, &installed_targets);
     let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
     let text: String = report.text.clone();
     assert!(report.drifted, "{text}");
@@ -2394,15 +2394,17 @@ fn list_calls_a_toolchain_that_lacks_a_declared_target_drift_and_names_it() {
         "the repository's row declares a target, or this control has no subject"
     );
     // What:
-    // the targets such a toolchain holds: the host's own, and none of the declared ones.
+    // the targets such a toolchain holds beyond the host's own: none.
     // Why:
-    // That is the state a machine reaches when it never ran `rustup target add` for the row.
+    // That is the state a machine reaches when it never ran `rustup target add` for the row,
+    // and the host's own standard library is the `rust-std-<host triple>` component the listing
+    // already holds.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const heldTargets = [theFixtureHostTriple];
+    // const heldTargets: string[] = [];
     // ```
-    let held_targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
+    let held_targets: Vec<String> = Vec::new();
     answer_the_listings_of_a_toolchain_holding(&rig, &held, &held_targets);
     let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
     let text: String = report.text.clone();
@@ -2426,7 +2428,7 @@ fn list_calls_a_toolchain_that_lacks_a_declared_target_drift_and_names_it() {
 }
 
 // What:
-// `#[test] fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_questions()`
+// `#[test] fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_two_questions()`
 // runs `list` against a toolchain holding everything the row declares and counts the `rustup`
 // requests the run made.
 // Why:
@@ -2439,7 +2441,7 @@ fn list_calls_a_toolchain_that_lacks_a_declared_target_drift_and_names_it() {
 // test('list on a toolchain that holds every declared part asks the manager three questions', () => { ... });
 // ```
 #[test]
-fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_questions() {
+fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_two_questions() {
     let row: LockedTool = the_repository_rust_row();
     let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
     let rig: Rig = rig_holding_the_programs_of(&held);
@@ -2452,7 +2454,7 @@ fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_que
         "a machine holding every declared part is in sync; {text}"
     );
     // What:
-    // every `rustup` request the run made, which is what the extra question costs.
+    // every `rustup` request the run made, which is what the questions cost.
     // Why:
     // The count is the whole of what Low point 5 asks this control to show,
     // and the lines themselves say which questions they are.
@@ -2460,33 +2462,29 @@ fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_que
     // In TS you'd write (pseudocode):
     // ```ts
     // const asked = theQuestionsAListAsks(rig);
-    // expect(asked.length).toBe(3);
+    // expect(asked.length).toBe(2);
     // ```
     let asked: Vec<String> = the_questions_a_list_asks(&rig);
     assert_eq!(
         asked.len(),
         THE_QUESTIONS_A_LIST_ASKS,
-        "a `list` on a machine in sync asks three questions: which toolchain, its components and its targets; {asked:?}"
+        "a `list` on a machine in sync asks two questions: which toolchain, and what components it holds; {asked:?}"
     );
     // What:
-    // the three questions by their own words: the channel's compiler, the components, the targets.
+    // the two questions by their own words: the channel's compiler, and the toolchain's components.
     // Why:
-    // The count alone would pass for three questions about nothing.
+    // The count alone would pass for two questions about nothing,
+    // and the target question is the one this asks not to be there.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // expect(asked[0]).toBe(`rustup which --toolchain ${row.rustupChannel()} rustc`);
     // expect(asked[1]).toBe(`rustup component list --installed --toolchain ${row.rustupChannel()}`);
-    // expect(asked[2]).toBe(`rustup target list --installed --toolchain ${row.rustupChannel()}`);
     // ```
     assert_eq!(
         asked,
         vec![
             format!("rustup which --toolchain {} rustc", row.rustup_channel()),
-            format!(
-                "rustup target list --installed --toolchain {}",
-                row.rustup_channel()
-            ),
             format!(
                 "rustup component list --installed --toolchain {}",
                 row.rustup_channel()
@@ -2702,10 +2700,13 @@ fn an_install_links_a_custom_linked_channels_programs_from_that_link_and_not_fro
     // answerWhich(rig, aCustomLinkedChannel, pathJoin(mine, 'bin', 'rustc'));
     // answerTheListingsOfAToolchainHolding(rig, held, [hostTriple, ...targets]);
     // ```
-    answer_which(&rig, A_CUSTOM_LINKED_CHANNEL, &mine.join("bin").join("rustc"));
-    let mut targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
-    targets.extend(the_targets_the_row_declares(&row));
-    answer_the_listings_of_a_toolchain_holding(&rig, &held, &targets);
+    answer_which(
+        &rig,
+        A_CUSTOM_LINKED_CHANNEL,
+        &mine.join("bin").join("rustc"),
+    );
+    let installed_targets: Vec<String> = the_targets_the_row_declares(&row);
+    answer_the_listings_of_a_toolchain_holding(&rig, &held, &installed_targets);
     let report = sync_tools(&rig.context(), None);
     let text: String = format_sync_report(&report);
     // What:
@@ -2800,7 +2801,8 @@ fn an_install_links_a_custom_linked_channels_programs_from_that_link_and_not_fro
 // test('an install links the rows programs from the toolchain rustup names and not a linked name that extends the pin', () => { ... });
 // ```
 #[test]
-fn an_install_links_the_rows_programs_from_the_toolchain_rustup_names_and_not_a_linked_name_that_extends_the_pin() {
+fn an_install_links_the_rows_programs_from_the_toolchain_rustup_names_and_not_a_linked_name_that_extends_the_pin()
+ {
     let row: LockedTool = the_repository_rust_row();
     let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
     let rig: Rig = rig_holding_only(&row);
@@ -2901,7 +2903,8 @@ fn an_install_links_the_rows_programs_from_the_toolchain_rustup_names_and_not_a_
 // test('an install links the rows programs from the toolchain rustup names and not a second host triple', () => { ... });
 // ```
 #[test]
-fn an_install_links_the_rows_programs_from_the_toolchain_rustup_names_and_not_a_second_host_triple() {
+fn an_install_links_the_rows_programs_from_the_toolchain_rustup_names_and_not_a_second_host_triple()
+{
     let row: LockedTool = the_repository_rust_row();
     let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
     let rig: Rig = rig_holding_only(&row);
@@ -2949,7 +2952,8 @@ fn an_install_links_the_rows_programs_from_the_toolchain_rustup_names_and_not_a_
 
 // What:
 // `#[test] fn list_says_the_parts_could_not_be_read_when_a_listing_fails()`
-// runs `list` on a toolchain the row is in sync with while `rustup target list --installed` fails,
+// runs `list` on a toolchain the row is in sync with while
+// `rustup component list --installed` fails,
 // and reads the lines a person reads.
 // Why:
 // `list` asks `rustup` what the toolchain holds.
@@ -2980,17 +2984,17 @@ fn list_says_the_parts_could_not_be_read_when_a_listing_fails() {
     // ```
     let the_failures_words: &str = "error: the manifest is unreadable";
     // What:
-    // the failing answer, registered before the two listings that succeed.
+    // the failing answer, registered before the answers that succeed.
     // Why:
     // The fake answers from the first rule whose prefix matches,
-    // so this rule is what the target question meets.
+    // so this rule is what the component question meets.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // rig.runner.fail('rustup target list --installed', `${theFailuresWords}\n`);
+    // rig.runner.fail('rustup component list --installed', `${theFailuresWords}\n`);
     // ```
     rig.runner.fail(
-        "rustup target list --installed",
+        "rustup component list --installed",
         &format!("{the_failures_words}\n"),
     );
     answer_the_listings_of_the_installed_toolchain(&rig, &held);
