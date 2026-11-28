@@ -815,10 +815,9 @@ fn zfs_removal_refusal_guest() {
     );
     assert!(
         said.contains(&format!(
-            "the ZFS worktree clone at `{}` (dataset `{clone}`) is destroyed",
-            shown(slot.as_path())
+            "the ZFS worktree clone at `{SLOT}` (dataset `{clone}`) is destroyed"
         )),
-        "the loss is printed in the same invocation: {said}"
+        "the loss names the slot, its dataset and the destroy, in the same invocation: {said}"
     );
     assert!(
         said.contains(&format!("destroyed snapshot {clone}@{OWN_SNAPSHOT}")),
