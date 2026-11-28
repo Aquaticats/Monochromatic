@@ -53,7 +53,8 @@ use crate::policy_test_support::{
     scripted_facts,
 };
 use crate::policy_trigger::Trigger;
-/// Whether a command's output is read by a program, which is what the record's silence is about.
+/// Whether a command's output is read by a program,
+/// which is what the record's silence is about.
 use crate::push::push_failure_notice_machine_output::is_machine_read;
 use crate::repository_location::RepositoryLocation;
 use crate::rule_add_explicit::{
@@ -934,7 +935,8 @@ fn a_waiting_entry() -> RequestEntry {
     };
 }
 
-/// The folder the check reads, in a fixture repository's common directory,
+/// The folder the check reads,
+/// in a fixture repository's common directory,
 /// written the way a wait writes its own entry.
 fn plant_a_waiting_entry(common: &Path) -> UnansweredRequests {
     let requests: UnansweredRequests =
@@ -1006,8 +1008,7 @@ fn a_forwarded_command_checks_the_folder_of_unanswered_requests_once() {
         "a command the wrapper answers itself never reaches the forwarded path"
     );
     let before_placed_nowhere: usize = checks_this_thread_made();
-    let _outside: (WrappedOutcome, Vec<String>) =
-        run(forwarded, located(outside_worktree()), &[]);
+    let _outside: (WrappedOutcome, Vec<String>) = run(forwarded, located(outside_worktree()), &[]);
     assert_eq!(
         checks_this_thread_made() - before_placed_nowhere,
         0,
