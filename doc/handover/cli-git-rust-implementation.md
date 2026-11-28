@@ -554,96 +554,11 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   which still loads with `modprobe --quiet zfs 2>/dev/null || true`
   and has no round yet.
   The round of issue 6615 is live ("Rounds running");
-- the linter,
-  whose round on what the read of `0.5.2-alpha.22` found
-  ("What the linter's alpha.22 read found"),
-  `monochromatic-lint-alpha-22-release-pass-a-list-lines-sentence-is-true-for-the-name-it-wrote-and-its-controls-can-fail`,
-  ended 2026-11-27T19:09:36-05:00 with its report read whole.
-  Its branch is merged (`f7b79c5aa8`),
-  after the wrapper's bump commit,
-  because the wrapper names the linter by path.
-  The release run of `0.5.2-alpha.23` was started at 2026-11-27T19:21:22-05:00
-  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46087442769>);
-  its release commit is `9fc0e387c3`,
-  which changes version rows in eight files,
-  the wrapper's and its fuzz crate's among them,
-  and `main` is fast-forwarded to it.
-  It is published
-  (publish run 46087537570;
-  the follower's log holds `PUBLISHED monochromatic-lint-v0.5.2-alpha.23`),
-  locked (`6d99c6a2da`) and installed here,
-  where `.cache/toolchain-bin/monochromatic-lint --version` says `0.5.2-alpha.23`;
-  the install named no unresolved bin,
-  and the session's `git` link was put back at 2026-11-27T19:39:58-05:00.
-  Its Claude Sonnet second pass,
-  a same-vendor read,
-  returned and was read whole
-  ("What the linter's alpha.23 read found").
-  It took Lows 5,
-  7,
-  8,
-  9,
-  1 and 2,
-  the absolute-path half of Low 4 and the dead-line help of Low 6.
-  Measured by the round with the read's own generators,
-  against the released `0.5.2-alpha.22` and a byte-identical copy of it:
-  of 10,081 lists none moved between read and refused,
-  and none changed its exit status or its set of findings;
-  of the read's 5,600 matrix lines,
-  the 600 written for an arrow-named folder whose own arrow a tab,
-  a no-break space or two spaces sets off now name that folder,
-  where none did,
-  and the 200 for a folder whose name begins with a space all name it,
-  where 72 did.
-  The package's tests ran 1172 and passed 1172,
-  and its binary reports the same 19 findings on the wrapper's package as the locked release.
-  The choices its brief did not decide wait in `doc/handover/questions-for-the-owner.md`.
-  The round for the Claude Sonnet read of `0.5.2-alpha.21`
-  ("What the linter's alpha.21 read found") is merged (`83d10dd296`),
-  and `0.5.2-alpha.22` is released
-  (release commit `f10132d60f`,
-  published by the follower's log,
-  whose run ended 2026-11-27T17:21:26-05:00),
-  locked (`0b90e1d87e`) and installed,
-  with the session's `git` link put back at 2026-11-27T17:23:24-05:00.
-  Its Claude Sonnet read,
-  a same-vendor second pass,
-  started 2026-11-27T17:21:51-05:00 and wrote its review at 2026-11-27T18:12:31-05:00:
-  `~/temp/agent/monochromatic-lint-alpha-22-release-review-2026-11-27/keep/review.md`.
-  A `file-uses` line of six words now names the folder its words name for every spelling of its gaps:
-  1,152 of the read's 1,296 lines,
-  against 324 in alpha.21,
-  and the other 144 name a folder that holds no whitespace and read as an entry.
-  A five-word line with another word in the arrow's place is told which word belongs there.
-  Every character that prints as nothing is spelled in a message:
-  4,266 of 4,266 candidates of Unicode 17.0.0,
-  against 7 in alpha.21,
-  decided by general category and by ranges of `Default_Ignorable_Code_Point`,
-  with a control that fails when the linked tables move to another release.
-  A character's place is a column of the line.
-  Over 6,293 lists no line moved between read and refused,
-  with a byte-identical copy of alpha.21 as the control.
-  Its whole suite passed 1,158 of 1,158 after its last merge of `main`,
-  and its four picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
-  The round for the `0.5.2-alpha.20` read is merged (`2261d05b14`),
-  and `0.5.2-alpha.21` is released
-  (release commit `117514dfd7`,
-  locked `6e3314812e`,
-  installed).
-  What that merged round did,
-  as its report gave it and before the alpha.21 read qualified the first point:
-  A `file-uses` line for a folder named with a tab,
-  a no-break space or two spaces names the folder again;
-  each of the five behaviours the read named has a test shown red by the edit it guards;
-  a byte order mark or a zero-width space is spelled,
-  with its place and the edit that takes it out;
-  the dead-line help names the one edit;
-  each shape of arrow name gets a fix that fits it;
-  a mistyped `file-uses` line says what is wrong with it;
-  and three README sentences say what the releases did.
-  The reader does not take a byte order mark off by itself,
-  which the README's known limits record;
-  `test:layout` passed 326 of 326;
+- the linter:
+  The choices the alpha.22 fix round's brief did not decide
+  wait in `doc/handover/questions-for-the-owner.md`.
+  Four picks of the linter round on `file-uses` lines and characters a reader cannot see
+  wait in `doc/handover/questions-for-the-owner.md` with the veto open.
 - rounds for the wrapper's `0.6.1-alpha.50` reads:
   Three picks of the round on a shell alias wait in `doc/handover/questions-for-the-owner.md`.
   The next gate on `main` is the first to run issue 6625's controls in the container.
