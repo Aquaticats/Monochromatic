@@ -62,9 +62,12 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_fixtures::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_fixtures::{
     CLONE,
+    OWN_SNAPSHOT,
     RemovalFixture,
+    SANOID_SNAPSHOT,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_report::OriginCleanupDone;
+use crate::worktree_clone_removal_proof_and_plan::removal_settle::TheLiveSettle;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_removal_deferred_origin_check::fixtures::Pool;
 use monochromatic_zfs_request_to_openzfs_kernel_device::NvList;
@@ -72,9 +75,17 @@ use std::cell::{
     Cell,
     RefCell,
 };
+use std::path::PathBuf;
 use std::rc::Rc;
 
 //endregion
+
+/// The bytes a person's `git worktree lock --reason 'ZFS test underlay'` leaves,
+/// which is the reason measurement item 6's guest gave and the newline Git's `write_file`
+/// completes it with (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+/// "Where the lock lives,
+/// and what Git reads it for").
+const PERSON_LOCK_WORDS: &[u8] = b"ZFS test underlay\n";
 
 #[test]
 fn a_healthy_removal_destroys_the_snapshots_the_head_and_the_origin_and_frees_the_slot() {
@@ -565,6 +576,104 @@ fn an_incomplete_namespace_read_is_carried_into_the_report() {
             .contains("namespace read(s) of the fresh scans could not be completed"),
         "{}",
         done.text()
+    );
+}
+
+/// What:
+///  The order a removal meets a lock a person wrote,
+///  measured through the scripted seams:
+///  every request it sends,
+///  and the step that first names the lock.
+/// Why:
+///  Git refuses its own removal for a lock and steers a person to the double force,
+///  which here runs this wrapper's removal and destroys a clone and its snapshots
+///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+///  "What Git 2.56.1 does").
+///  The settle is the only step of the removal's order that reads `locked`,
+///  and it refuses words that are not the sentence recomposed from the add's nonce
+///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+///  "How doctor and removal tell the states apart",
+///  S3),
+///  so this control answers what stands when that refusal is reached:
+///  the clone's own snapshots,
+///  the origin snapshot and the head are gone,
+///  and the person's lock and the registration still stand.
+#[test]
+fn a_persons_lock_is_met_after_the_snapshots_the_head_and_the_origin_are_destroyed() {
+    let fixture: RemovalFixture = a_fixture("completion-persons-lock");
+    let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+    let check: Pool = the_checks_pool();
+    let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let probe: EpochProbe = EpochProbe {
+        pool: check,
+        hidden: Rc::clone(&hidden),
+    };
+    let device: ClearingDevice = ClearingDevice::over(&pool);
+    let head: ScriptedHead = ScriptedHead::succeeding(
+        fixture.plan_folder(),
+        fixture.recorded().clone_guid,
+        Rc::clone(&hidden),
+    );
+    let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+    // The reason item 6's guest gave `git worktree lock --reason`, which Git's `write_file`
+    // completes with one newline (the lock design, "Where the lock lives").
+    let locked: PathBuf = fixture.registration.join("locked");
+    std::fs::write(locked.as_path(), PERSON_LOCK_WORDS).expect("the person's lock");
+    let settle: TheLiveSettle = TheLiveSettle;
+    let stopped = complete(&TheCompletion {
+        fixture: &fixture,
+        pool: &pool,
+        check: &probe,
+        probe: &probe,
+        device: &device,
+        head: &head,
+        holders: &holders,
+        settle: &settle,
+        cancelling: None,
+        budget: the_budget(),
+    });
+    let stop: RemovalStop = match stopped {
+        Ok(done) => panic!(
+            "the settle releases no lock a person wrote, so the removal stops there: {}",
+            done.text()
+        ),
+        Err(stop) => stop,
+    };
+    assert_eq!(
+        device.sent.borrow().clone(),
+        vec![
+            vec![
+                format!("{CLONE}@{SANOID_SNAPSHOT}"),
+                format!("{CLONE}@{OWN_SNAPSHOT}"),
+            ],
+            vec![the_origin_full_name()],
+        ],
+        "the clone's own snapshots and then the origin snapshot were destroyed before anything named the lock, in the split rule's ascending order"
+    );
+    assert_eq!(
+        head.sent.borrow().clone(),
+        vec![String::from(CLONE)],
+        "the head was destroyed before anything named the lock"
+    );
+    match &stop {
+        RemovalStop::TheSettleRefused {
+            step,
+            said,
+        } => {
+            assert_eq!(step, "the managed lock", "the settle stopped at the lock");
+            assert!(said.contains("the lock is not this add's"), "{said}");
+        }
+        other => panic!("the settle's own refusal, not {other:?}"),
+    }
+    assert!(
+        locked.is_file(),
+        "the person's lock stands where it was, and the removal never rewrote it"
+    );
+    assert!(
+        plans_folder(fixture.common())
+            .join(fixture.recorded().clone_guid.file_name())
+            .is_file(),
+        "the plan keeps the record of what was destroyed"
     );
 }
 
