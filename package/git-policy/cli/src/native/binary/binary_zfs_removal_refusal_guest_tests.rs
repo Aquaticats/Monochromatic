@@ -20,7 +20,12 @@
 //!  so only this arm shows the order's own writes on the answers a kernel gives,
 //!  and the removal's readiness proof is the handler's own:
 //!  a sweeper runs beside the wrapper and files the `unmount` receipt the removal
-//!  waits for.
+//!  waits for,
+//!  and the fixture gives the handler what it opens before that receipt:
+//!  the account's `.cache` as a dataset of the guest's pool and the root-owned
+//!  `user-cache` pin that records it,
+//!  because the handler opens the checkout owner's `.cache` and checks the pin
+//!  before it moves the clone.
 //!  It runs where `CLI_GIT_ZFS_REMOVAL_REFUSAL_GUEST` names a disposable guest,
 //!  printing `SKIP` everywhere else.
 //!  A refusing arm asserts what a refusal leaves:
@@ -73,6 +78,7 @@ use git_policy_cli::worktree_clone_binding_record::registration_home::{
 };
 use git_policy_cli::worktree_clone_mount_protocol::DatasetGuid;
 use git_policy_cli::worktree_clone_mount_protocol::clone_mount_property_names::DESIRED_STATE_PROPERTY;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{
     Path,
     PathBuf,
@@ -88,6 +94,13 @@ const SLOT: &str = "fix-flaky-test";
 /// The clone's own snapshot,
 /// which is the design's example name for the loss a removal prints.
 const OWN_SNAPSHOT: &str = "worktree-own";
+
+/// The account's home,
+/// which is the checkout owner's in this guest and the home the handler reads.
+const ACCOUNT_HOME: &str = "/root";
+
+/// The root-owned pin the handler checks the account's `.cache` against.
+const PIN: &str = "/var/lib/monochromatic-git-policy-cli/user-cache-pin";
 
 /// The wrapper program the driver built,
 /// which the arm reaches through a `git` link so it runs as the person's `git`.
@@ -437,6 +450,56 @@ fn the_plan_folder_holds(common: &Path) -> usize {
 }
 
 /// What:
+///  The account's `.cache` as a dataset of the guest's pool,
+///  and the root-owned pin that records it.
+/// Why:
+///  The handler opens the checkout owner's `.cache` and refuses with the
+///  `user-cache` step when no dataset stands there,
+///  and it reads the pin to prove the mount at `.cache` is that dataset's root
+///  (`worktree_clone_unmount/user_cache_pin.rs`,
+///  `open_cache` and `read_pin`).
+///  The wrapper makes the per-clone staging folder under this dataset before it
+///  asks for the unmount,
+///  so the folder the wrapper writes and the mount the handler reads are the
+///  same one.
+fn make_the_cache_and_pin(
+    sbin: &str,
+    pool: &str,
+) -> String {
+    let cache_dataset: String = format!("{pool}/cache");
+    let _destroyed: (bool, String, String) = zfs(
+        sbin,
+        "zfs",
+        &["destroy", "-r", "-f", cache_dataset.as_str()],
+        None,
+    );
+    std::fs::create_dir_all(ACCOUNT_HOME).expect("the account's home is made");
+    zfs_ok(
+        sbin,
+        &[
+            "create",
+            "-p",
+            "-o",
+            format!("mountpoint={ACCOUNT_HOME}/.cache").as_str(),
+            cache_dataset.as_str(),
+        ],
+    );
+    let facts: std::fs::Metadata =
+        std::fs::metadata(format!("{ACCOUNT_HOME}/.cache")).expect("the cache's metadata reads");
+    let pin: String = format!(
+        "{{\"version\":\"v1\",\"kind\":\"user-cache-pin\",\"source\":\"{cache_dataset}\",\"root-inode\":\"{}\",\"device\":\"{}\"}}\n",
+        std::os::unix::fs::MetadataExt::ino(&facts),
+        std::os::unix::fs::MetadataExt::dev(&facts)
+    );
+    let directory: &Path = Path::new(PIN).parent().expect("the pin has a folder");
+    std::fs::create_dir_all(directory).expect("the pin's folder is made");
+    std::fs::write(PIN, pin).expect("the pin is written");
+    std::fs::set_permissions(PIN, std::fs::Permissions::from_mode(0o644))
+        .expect("the pin holds its mode");
+    return cache_dataset;
+}
+
+/// What:
 ///  Plan step 14's refusal arms on a real pool,
 ///  through the wrapper's own `git worktree remove`:
 ///  the healthy proof and its loss,
@@ -499,6 +562,9 @@ fn zfs_removal_refusal_guest() {
     write_passing_probe_record();
     prepare_the_store(checkout.as_path());
     write_configuration(checkout.as_path(), None, None);
+    // The handler reads the account's home from the checkout's owner, so the fixture's cache and its pin are made for
+    // that account: the wrapper runs as root here, and root owns the checkout this arm just made.
+    let cache: String = make_the_cache_and_pin(sbin.as_str(), pool.as_str());
     let clone: String = clone_the_checkouts_snapshot(
         sbin.as_str(),
         checkout_dataset.as_str(),
@@ -830,6 +896,7 @@ fn zfs_removal_refusal_guest() {
         sbin.as_str(),
         &["destroy", "-r", "-f", format!("{pool}/step8").as_str()],
     );
+    zfs_ok(sbin.as_str(), &["destroy", "-r", "-f", cache.as_str()]);
     let _cleared: std::io::Result<()> = std::fs::remove_dir_all(checkout.as_path());
     println!("REMOVAL-ARMS done");
 }
