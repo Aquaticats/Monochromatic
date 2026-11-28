@@ -80,7 +80,8 @@ const PUBLIC_KEY_COMMENT_START = '#';
  The same suite at `CPUQuota=1000%` made 36 calls between
  2026-11-27T19:20:22-05:00 and 2026-11-27T19:20:59-05:00: median 39.3 ms,
  slowest 513.7 ms. Load average stood at 23.23 and 12.94 when those runs
- started, with 11 and 29 other Pi runs and two Claude runs in the process list.
+ started, with 10 and 28 other Pi runs and two Claude runs in the process
+ list, counted by a command that matches its own `grep`, with one taken off.
 
  Fifteen seconds is 3.3 times that slowest capped call and 29 times the slowest
  call at 1000%, and the 2564 ms stall a 4 KiB write-and-sync probe saw on
