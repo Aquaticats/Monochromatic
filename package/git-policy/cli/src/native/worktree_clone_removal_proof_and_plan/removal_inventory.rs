@@ -118,6 +118,37 @@ impl LiveInventory {
     }
 
     /// What:
+    ///  Every snapshot of the list,
+    ///  the one the clone inherited included,
+    ///  as the plan records a name.
+    /// Why:
+    ///  A forced removal destroys what the pool lists for the clone and not what a
+    ///  proof of lineage selected,
+    ///  because the owner answered on 2026-11-28 that it "destroys the clone and
+    ///  its snapshots from the pool's own list"
+    ///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const every = inventory.everySnapshot().map(toPlanSnapshot);
+    /// ```
+    pub fn every_snapshot(&self) -> Vec<PlanSnapshot> {
+        let mut every: Vec<PlanSnapshot> = self
+            .snapshots()
+            .into_iter()
+            .map(|snapshot| {
+                return PlanSnapshot {
+                    name: snapshot.full_name(),
+                    guid: snapshot.guid,
+                    createtxg: snapshot.createtxg,
+                };
+            })
+            .collect();
+        every.sort_by(|left, right| return left.name.cmp(&right.name));
+        return every;
+    }
+
+    /// What:
     ///  The snapshots this clone made itself:
     ///  those whose creation transaction group is strictly above the clone's own.
     /// Why:

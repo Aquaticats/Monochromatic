@@ -256,17 +256,29 @@ pub(crate) fn io_error(error: impl fmt::Display) -> InstallError {
 }
 
 /// What:
-/// `pub(crate) fn io_message(message) -> InstallError` wraps a message text as the `Io` variant.
+/// `pub(crate) fn io_message(message) -> InstallError` wraps a message text as the `Io` variant,
+/// or as the `Refused` variant where the message is a refusal that must stop the command.
 /// Why:
 /// Helpers that already return text (`Result<_, String>`) convert with `.map_err(io_message)`.
+/// Two refusals travel as text and stop the command rather than adding `--locked`:
+/// a lockfile that holds a registry the policy cannot judge,
+/// and a route to a delegated control group that no wait of this tool ends (`ROUTE_REFUSED_OPENING`),
+/// which the real cargo's runner leaves where the run found no scope before it started anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ioMessage = (message: string) => new InstallError("io", message)
+/// const ioMessage = (message: string) => message.startsWith(ROUTE_REFUSED_OPENING) ? new InstallError('refused', message) : new InstallError('io', message)
 /// ```
 pub(crate) fn io_message(message: String) -> InstallError {
     // A registry other than crates.io is a refusal of the policy, not an operational failure.
     if message.contains(UNSUPPORTED_REGISTRY_MARK) {
+        return InstallError::Refused {
+            message,
+        };
+    }
+    // A refused route is the run's containment missing for a reason no wait of this tool ends, and running the command on a
+    // process group behind another unit's stop is what the refusal exists to prevent.
+    if message.starts_with(crate::bounded_run::ROUTE_REFUSED_OPENING) {
         return InstallError::Refused {
             message,
         };

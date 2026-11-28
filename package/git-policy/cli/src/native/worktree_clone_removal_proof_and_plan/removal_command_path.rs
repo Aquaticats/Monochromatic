@@ -44,6 +44,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_clock::{
 use crate::worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
+use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::read_the_recorded_binding;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::TheLiveSettle;
@@ -109,6 +110,7 @@ pub fn complete_the_bound_clones_removal(
     common_dir: &Path,
     slot: &str,
     cancelling: &dyn TheRemovalCancelling,
+    force: RemovalForce,
 ) -> TheRemovalAnswer {
     let entry: RemovalEntry<'_> = RemovalEntry {
         common_dir,
@@ -169,6 +171,7 @@ pub fn complete_the_bound_clones_removal(
         cancelling: Some(cancelling),
         budget: the_removals_request_budget(),
         now: now.as_str(),
+        force,
     };
     return match complete_the_removal(&input) {
         Ok(done) => TheRemovalAnswer {

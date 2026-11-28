@@ -40,13 +40,20 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::HeadWord;
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
+    EnteringTheRemoval,
     PreparedRemoval,
     RemovalEntry,
-    enter_the_removal,
-    facts_of,
+    ThePreparedInputs,
+    enter_the_removal_with_force,
     prepare_the_removal_over_a_plan,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_entry_facts::{
+    facts_of,
     refuse_a_plan_of_another_clone,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
+use crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs;
+use crate::worktree_clone_removal_proof_and_plan::removal_forced_start::the_forced_start_past_a_plan;
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::{
     CloneAbsence,
     the_clone_absence,
@@ -57,6 +64,10 @@ use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_snapshot_settlement::settle_the_recorded_names;
+use crate::worktree_clone_removal_proof_and_plan::removal_start_inputs::{
+    TheStart,
+    TheStartingRemoval,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
     ExpectedUnmount,
@@ -66,41 +77,6 @@ use crate::worktree_clone_removal_proof_and_plan::unmount_request::{
     verify_the_answer,
 };
 use std::path::PathBuf;
-
-/// What:
-///  Where one removal starts,
-///  and what the rest of it needs from that start.
-/// Why:
-///  The two paths take different steps:
-///  the head-present one unmounts,
-/// proves and submits,
-///  and the head-gone one settles and finishes without a clone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Start = { kind: 'present'; entered } | { kind: 'gone'; plan; planPath; lost; pool };
-/// ```
-pub enum TheStart {
-    /// The clone stands,
-    /// so the removal may destroy what its plan holds.
-    Present {
-        /// The plan this run writes or adopted,
-        /// with the names it printed.
-        entered: EnteredRemoval,
-    },
-    /// The clone is proved gone and its plan's head word says a destroy may have been sent.
-    Gone {
-        /// The plan,
-        /// which every one of its names still records.
-        plan: DestructionPlan,
-        /// The plan's file.
-        plan_path: PathBuf,
-        /// The names a removal would lose.
-        lost: NamesToBeLost,
-        /// The pool its dataset names stand in.
-        pool: String,
-    },
-}
 
 /// What:
 ///  Where one removal starts,
@@ -129,52 +105,96 @@ pub fn start_the_removal(
     clock: &dyn RemovalClock,
     probe: &dyn DatasetReader,
 ) -> Result<TheStart, RemovalStop> {
+    return start_the_removal_with_force(&TheStartingRemoval {
+        entry,
+        reads,
+        unmount,
+        clock,
+        probe,
+        force: RemovalForce::none(),
+    });
+}
+
+/// What:
+///  Where one removal starts,
+///  over the force a person's command carried.
+/// Why:
+///  A force changes where a removal starts:
+///  a destruction plan that cannot be read is refused without one and gone past
+///  with one,
+///  and every other step is the same,
+///  so the count travels with the start rather than being read again inside it.
+///  The reader of a documented plan is unchanged:
+///  the plan's own head word and the clone's own absence still decide the path,
+///  and no force decides either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const started = startTheRemovalWithForce({ entry, reads, unmount, clock, probe, force });
+/// ```
+pub fn start_the_removal_with_force(
+    request: &TheStartingRemoval<'_>
+) -> Result<TheStart, RemovalStop> {
+    let entry: &RemovalEntry<'_> = request.entry;
     let recorded = read_the_recorded_binding(entry.common_dir, entry.slot)?;
-    let standing: Option<DestructionPlan> =
-        read_an_existing_plan(entry.common_dir, recorded.clone_guid).map_err(|refusal| {
-            return RemovalStop::PlanUnreadable {
-                path: crate::worktree_clone_binding_record::registration_home::plans_folder(
-                    entry.common_dir,
-                )
-                .join(recorded.clone_guid.file_name()),
-                refusal,
-            };
-        })?;
-    let Some(plan) = standing else {
-        return Ok(TheStart::Present {
-            entered: enter_the_removal(entry, reads, unmount, clock)?,
-        });
-    };
-    refuse_a_plan_of_another_clone(&plan, &recorded)?;
     let plan_path: PathBuf =
         crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir)
             .join(recorded.clone_guid.file_name());
-    let head: HeadWord = plan.head;
-    let absence: CloneAbsence =
-        the_clone_absence(probe, recorded.clone_dataset.as_str(), recorded.clone_guid).map_err(
-            |stop| {
-                // The design asks this refusal to name the plan and the failed read, and the settling command
-                //  for every head word but `gone` (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
-                //  "Which resume path a removal takes").
-                return match stop {
-                    RemovalStop::DoesNotAnswer {
-                        reason,
-                        ..
-                    } => RemovalStop::TheClonesAbsenceCouldNotBeProved {
+    let standing: Option<DestructionPlan> =
+        match read_an_existing_plan(entry.common_dir, recorded.clone_guid) {
+            Ok(standing) => standing,
+            Err(refusal) => {
+                if !request.force.is_given() {
+                    return Err(RemovalStop::PlanUnreadable {
                         slot: String::from(entry.slot),
-                        path: plan_path.clone(),
-                        head: String::from(head.word()),
-                        reason,
-                    },
-                    other => other,
-                };
+                        path: plan_path,
+                        refusal,
+                    });
+                }
+                return the_forced_start_past_a_plan(request, &recorded, plan_path.as_path());
+            }
+        };
+    let Some(plan) = standing else {
+        return Ok(TheStart::Present {
+            entered: enter_the_removal_with_force(&EnteringTheRemoval {
+                entry,
+                reads: request.reads,
+                unmount: request.unmount,
+                clock: request.clock,
+                force: request.force,
+                forced_before: ForcedActs::nothing(),
+            })?,
+        });
+    };
+    refuse_a_plan_of_another_clone(&plan, &recorded)?;
+    let head: HeadWord = plan.head;
+    let absence: CloneAbsence = the_clone_absence(
+        request.probe,
+        recorded.clone_dataset.as_str(),
+        recorded.clone_guid,
+    )
+    .map_err(|stop| {
+        // The design asks this refusal to name the plan and the failed read, and the settling command
+        //  for every head word but `gone` (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+        //  "Which resume path a removal takes").
+        return match stop {
+            RemovalStop::DoesNotAnswer {
+                reason,
+                ..
+            } => RemovalStop::TheClonesAbsenceCouldNotBeProved {
+                slot: String::from(entry.slot),
+                path: plan_path.clone(),
+                head: String::from(head.word()),
+                reason,
             },
-        )?;
+            other => other,
+        };
+    })?;
     return match absence {
         CloneAbsence::There {
             ..
         } => Ok(TheStart::Present {
-            entered: adopt_the_removal(entry, reads, unmount, clock, probe)?,
+            entered: adopt_the_removal(request)?,
         }),
         CloneAbsence::Reused {
             guid,
@@ -193,7 +213,8 @@ pub fn start_the_removal(
                         .iter()
                         .map(|snapshot| return snapshot.name.clone())
                         .collect(),
-                    bookmarks: reads
+                    bookmarks: request
+                        .reads
                         .bookmarks_of(recorded.clone_dataset.as_str(), recorded.clone_guid)
                         .map(|objects| {
                             return objects
@@ -242,26 +263,31 @@ pub fn start_the_removal(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const entered = adoptTheRemoval(entry, reads, unmount, clock, probe);
+/// const entered = adoptTheRemoval(request);
 /// ```
-pub fn adopt_the_removal(
-    entry: &RemovalEntry<'_>,
-    reads: &dyn RemovalPoolReads,
-    unmount: &dyn RemovalUnmount,
-    clock: &dyn RemovalClock,
-    probe: &dyn DatasetReader,
-) -> Result<EnteredRemoval, RemovalStop> {
+pub fn adopt_the_removal(request: &TheStartingRemoval<'_>) -> Result<EnteredRemoval, RemovalStop> {
+    let entry: &RemovalEntry<'_> = request.entry;
     let (prepared, standing): (PreparedRemoval, Option<DestructionPlan>) =
-        prepare_the_removal_over_a_plan(entry, reads, false)?;
+        prepare_the_removal_over_a_plan(
+            &ThePreparedInputs {
+                entry,
+                reads: request.reads,
+                force: request.force,
+                forced_before: ForcedActs::nothing(),
+            },
+            false,
+        )?;
     let Some(mut plan) = standing else {
         return Err(RemovalStop::APlanStands {
             slot: String::from(entry.slot),
             path: PathBuf::new(),
         });
     };
-    refuse_the_live_intent(probe, plan.facts.clone_dataset.as_str())?;
+    refuse_the_live_intent(request.probe, plan.facts.clone_dataset.as_str())?;
     let intent: RemovalIntent = RemovalIntent::fresh()?;
-    let answer = unmount.request_the_unmount(&intent.mount_intent())?;
+    let answer = request
+        .unmount
+        .request_the_unmount(&intent.mount_intent())?;
     let proof: UnmountProof = verify_the_answer(
         &answer,
         &ExpectedUnmount {
@@ -275,11 +301,12 @@ pub fn adopt_the_removal(
         &prepared.proven,
         &proof,
         prepared.registration,
-        clock,
+        request.clock,
     )?;
     settle_the_recorded_names(&mut plan, prepared.proven.inventory.objects.as_slice())?;
     let folder: PlanFolder = PlanFolder::open_or_create(entry.common_dir).map_err(|refusal| {
         return RemovalStop::PlanUnreadable {
+            slot: String::from(entry.slot),
             path: crate::worktree_clone_binding_record::registration_home::plans_folder(
                 entry.common_dir,
             ),
@@ -307,6 +334,7 @@ pub fn adopt_the_removal(
         plan,
         plan_path,
         lost,
+        forced: prepared.forced,
     });
 }
 
