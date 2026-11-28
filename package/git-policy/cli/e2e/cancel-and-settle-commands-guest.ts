@@ -264,7 +264,9 @@ function buildScript(): string {
 /**
  The lines the guest's arm script runs to perform every arm and refuse a log that lacks a claim it made.
 
- @param name - the guest's name, which every guest variable answers
+ @param name - the hostname the guest answers on, which is what every arm's own check compares this variable to; it is
+ not always the run's name, because an OVHcloud instance is called `mvm-<name>` and answers on that, while a libvirt
+ guest answers on the name the run gave it
 
  @returns the script, its lines in the order the guest runs them
 
@@ -323,6 +325,10 @@ function armScript({ name, }: { readonly name: string; },): string {
  ```
  */
 async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void> {
+  /**
+   The backend this run drives, whose hostname form is what each arm's own check compares `/etc/hostname` to.
+   */
+  const backend = guestBackend();
   await pushWorktreeSnapshot({
     chosen,
   },);
@@ -341,7 +347,9 @@ async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
   await startDetachedGuestScript({
     chosen,
     script: armScript({
-      name: chosen.name,
+      // The arms compare this word to `/etc/hostname` themselves, so it takes the hostname form the backend answers on
+      // rather than the run's name; on a libvirt guest the two are the same word.
+      name: backend.hostnameOf(chosen.name,),
     },),
     log: 'grammar-commands-arm-shell.log',
     timeoutMilliseconds: ARM_TIMEOUT_MS,
