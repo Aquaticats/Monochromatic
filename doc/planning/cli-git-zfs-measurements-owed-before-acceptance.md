@@ -3659,7 +3659,7 @@ makes the state its third time and runs the route's own code on it,
 with a `6 GiB` `zpool` of its own rather than a `tmpfs` slot:
 
 ```text
-FORCEDACT phase=locked-holder-stopped-through-its-unit manager=running owner=another unit=forced-act-holder.service way8=holder-locked way7=holder-structural holders-copy=stays stop-wait=refused:T_stop stopped=forced-act-holder.service stopped-namespace=mnt:[4026532400] namespace-after=gone tasks-after=gone hosts-copy=stays unmount-after=accepted destroy-after=gone caller-job=alive ms=8309
+FORCEDACT phase=locked-holder-stopped-through-its-unit manager=running owner=another unit=forced-act-holder.service way8=holder-locked way8-said=umount2: the copy at the handle's dentry way7=holder-structural way7-said=mkdirat: way 7's directory in the checkout holders-copy=stays stop-wait=refused:T_stop stopped=forced-act-holder.service stopped-namespace=mnt:[4026532400] namespace-after=gone tasks-after=gone hosts-copy=stays unmount-after=accepted destroy-after=gone checkout-after=unmounted caller-job=alive ms=1285
 ```
 
 - `manager=running` is the account's own manager answering
@@ -3672,10 +3672,14 @@ FORCEDACT phase=locked-holder-stopped-through-its-unit manager=running owner=ano
 - `way8=holder-locked` is the unmount of the copy by the add's recorded handle,
   refused with the locked holder's word.
 - `way7=holder-structural` is way 7 refusing one stage earlier,
-  at the structural stage that proves the copy and the checkout's own mount,
-  which is a refusal that changes nothing as well;
-  the hand-made holder of the earlier arm refused way 7 at its unmount instead,
+  and `way7-said=mkdirat` says which call refused:
+  way 7's directory in the checkout could not be made inside that unit's
+  namespace,
+  which is a refusal that changes nothing as well.
+  The hand-made holder of the earlier arm refused way 7 at its unmount instead,
   and the two shapes disagree there.
+- `checkout-after=unmounted` is the phase taking its own checkout mount out of the
+  guest's root namespace again, so the pool is not left busy.
 - `stop-wait=refused:T_stop` is `the_stop_wait` refusing,
   because the wait has no value in this build.
 - `stopped=forced-act-holder.service` and `stopped-namespace=mnt:[4026532400]`
@@ -3684,8 +3688,15 @@ FORCEDACT phase=locked-holder-stopped-through-its-unit manager=running owner=ano
 - `hosts-copy=stays` is the root namespace's own row at the slot,
   and `unmount-after=accepted` and `destroy-after=gone` are the removal's own
   calls after the stop.
-- `ms=8309` is the phase's own wall clock,
+- `ms=1285` is the phase's own wall clock,
   which is context and not a finding.
+
+The run that produced this line built the crate in `39m 22s` and the whole arm
+took `34.99 s`, with every one of the eight phases in its log.
+`keep/forced-act-arm-run-final.log` is that log,
+and `keep/forced-act-arm-run-before-the-way-7-assertion-was-widened.log` is the
+run before it,
+whose phase line carried neither the `way7-said` nor the `checkout-after` field.
 
 ### What this does not show
 
