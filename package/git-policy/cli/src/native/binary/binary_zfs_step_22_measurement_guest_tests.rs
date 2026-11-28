@@ -4,7 +4,9 @@
 //!  control and its stages apart,
 //!  the mount request's wait and the unmount's,
 //!  the sweep's own cost and the lost-event behaviour,
+//!  the sweep's cost past 64 clones,
 //!  what expiration and removal free,
+//!  what a snapshot pins of incompressible output,
 //!  the forced arm's three waits,
 //!  and the largest snapshot-destroy request the binding sends.
 //! Why:
@@ -185,17 +187,17 @@ fn nonce(seed: &str) -> String {
 /// the design's layout,
 /// a repository,
 /// and the wrapper's own link.
-struct Fixture {
+pub(super) struct Fixture {
     /// The checkout root.
-    root: PathBuf,
+    pub(super) root: PathBuf,
     /// The pool's name.
-    pool: String,
+    pub(super) pool: String,
     /// The OpenZFS userspace.
-    sbin: String,
+    pub(super) sbin: String,
     /// The checkout dataset the layout made.
-    checkout: String,
+    pub(super) checkout: String,
     /// The clone container the layout made.
-    container: String,
+    pub(super) container: String,
 }
 
 /// What one add round measured.
@@ -256,7 +258,7 @@ impl Fixture {
 
     /// One slot's folder,
     /// which the design keeps under the checkout.
-    fn slot(
+    pub(super) fn slot(
         &self,
         name: &str,
     ) -> PathBuf {
@@ -264,7 +266,7 @@ impl Fixture {
     }
 
     /// One slot's clone dataset.
-    fn clone(
+    pub(super) fn clone(
         &self,
         name: &str,
     ) -> String {
@@ -437,7 +439,7 @@ impl Fixture {
     /// One `zfs` command as root,
     /// with its status,
     /// output and error.
-    fn zfs(
+    pub(super) fn zfs(
         &self,
         arguments: &[&str],
     ) -> (bool, String, String) {
@@ -445,7 +447,7 @@ impl Fixture {
     }
 
     /// One `zfs` command that must succeed.
-    fn zfs_ok(
+    pub(super) fn zfs_ok(
         &self,
         arguments: &[&str],
     ) {
@@ -455,7 +457,7 @@ impl Fixture {
     /// One dataset's property,
     /// in bytes,
     /// where the property is a number.
-    fn bytes(
+    pub(super) fn bytes(
         &self,
         property: &str,
         dataset: &str,
@@ -663,7 +665,7 @@ impl Fixture {
     /// One clone of a fresh checkout snapshot,
     /// asking to be mounted at a slot
     /// Git registered.
-    fn make_a_clone_asking(
+    pub(super) fn make_a_clone_asking(
         &self,
         name: &str,
         seed: &str,
@@ -680,11 +682,37 @@ impl Fixture {
         make_the_slot(self.root.as_path(), name);
     }
 
+    /// What:
+    ///  Take one of the arm's own clones away with the checkout snapshot it was cloned from,
+    ///  and leave its slot folder standing.
+    /// Why:
+    ///  The sweep records a slot folder's identity the first time it attaches a clone there,
+    ///  and refuses a folder whose inode has changed since,
+    ///  so a parent that takes a clone away and later gives it one again has to keep the folder:
+    ///  a first run of the past-64 arm removed the folder with `forget` and the sweep then refused every slot it gave a
+    ///  clone back to.
+    pub(super) fn drop_the_clone(
+        &self,
+        name: &str,
+        seed: &str,
+    ) {
+        let clone: String = self.clone(name);
+        let snapshot: String = format!(
+            "{}@git-worktree-clone-origin-{}",
+            self.checkout,
+            nonce(seed)
+        );
+        let _destroyed: (bool, String, String) = self.zfs(&["destroy", "-r", "-f", clone.as_str()]);
+        let _snapshot: (bool, String, String) = self.zfs(&["destroy", "-f", snapshot.as_str()]);
+        let _inherited: (bool, String, String) =
+            self.zfs(&["inherit", DESIRED_STATE, self.container.as_str()]);
+    }
+
     /// Take one of the arm's own clones away,
     /// with the checkout snapshot it was
     /// cloned from,
     /// without touching a record the arm still reads.
-    fn forget(
+    pub(super) fn forget(
         &self,
         name: &str,
         seed: &str,
@@ -870,7 +898,7 @@ fn intent_says_mount(
 }
 
 /// Whether a mount stands at one path in this process's table.
-fn mounted_at_path(path: &Path) -> bool {
+pub(super) fn mounted_at_path(path: &Path) -> bool {
     let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
     let wanted: String = path.display().to_string();
     return table
@@ -880,7 +908,7 @@ fn mounted_at_path(path: &Path) -> bool {
 
 /// Take one mount down where it stands,
 /// without insisting that it did.
-fn unmount_quiet(folder: &Path) {
+pub(super) fn unmount_quiet(folder: &Path) {
     let _unmounted: Output = Command::new("/usr/bin/umount")
         .arg(folder)
         .output()
@@ -939,7 +967,7 @@ fn copy_tree(
 
 /// The middle reading of a copy,
 /// which is the median of an odd count.
-fn middle(values: &[u128]) -> u128 {
+pub(super) fn middle(values: &[u128]) -> u128 {
     let mut sorted: Vec<u128> = values.to_vec();
     sorted.sort_unstable();
     return sorted[sorted.len() / 2];
@@ -1589,9 +1617,11 @@ fn the_step_22_guest_measurements() {
     );
     add_rounds(&fixture);
     sweep_cost_arm(&fixture);
+    super::zfs_step_22_large_parent::large_parent_sweep_arm(&fixture);
     unmount_arm(&fixture);
     stop_wait_arm();
     retention_arm(&fixture);
+    super::zfs_step_22_pinned_output::pinned_output_arm(&fixture);
     request_budget_arm(&fixture);
     println!("STEP22 done");
 }

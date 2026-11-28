@@ -275,7 +275,16 @@ pub(super) fn prune_hidden_siblings(
                     // ```
                     let read: WhatItRead =
                         what_it_read(&directory, &sibling.path, &sibling.version, first_bin);
-                    eprintln!(
+                    // What: the crate's notice writer says the line about the name this run leaves
+                    //  and drops a write the stream refuses.
+                    // Why: the prune goes on to the next name and ends 0, so this line is a notice about
+                    //  what stays and must not end the command.
+                    //
+                    // In TS you'd write (pseudocode):
+                    // ```ts
+                    // say(`mpm-shadow: ${theLineForANameItCannotJudge(...)}`);
+                    // ```
+                    crate::notices::say(&format!(
                         "mpm-shadow: {}",
                         the_line_for_a_name_it_cannot_judge(
                             &id,
@@ -283,7 +292,7 @@ pub(super) fn prune_hidden_siblings(
                             &sibling.path,
                             read
                         )
-                    );
+                    ));
                     continue;
                 }
                 Liveness::Gone => {}

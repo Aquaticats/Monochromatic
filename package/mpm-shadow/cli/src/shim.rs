@@ -331,12 +331,20 @@ pub fn start_and_wait(
         }
     };
     if retry.refusals > 0 {
-        eprintln!(
+        // What: the crate's notice writer says the line about the retries and drops a write the stream refuses.
+        // Why: the child is then waited for and its exit code is the shadow's,
+        //  so this line is a notice on the way and must not end the run before mpm's own status is known.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // say(`mpm-shadow: starting ${program.display()} was refused ${retry.refusals} times ...`);
+        // ```
+        crate::notices::say(&format!(
             "mpm-shadow: starting {} was refused {} times for lack of processes; it started after {} ms of waiting",
             program.display(),
             retry.refusals,
             retry.paused.as_millis()
-        );
+        ));
     }
     return match child.wait() {
         Ok(status) => ProgramRun::Finished {
@@ -394,7 +402,10 @@ fn prune_after_run() {
             Err(_) => false,
         };
         for line in cleanup_lines(&report, &directory, verbose) {
-            eprintln!("{line}");
+            // What: the crate's notice writer says the cleanup summary lines and drops a write the stream refuses.
+            // Why: the mpm command already ran and its exit code is what the shadow returns,
+            //  so a stream that refuses the summary must not replace that status.
+            crate::notices::say(&line);
         }
     }
 }

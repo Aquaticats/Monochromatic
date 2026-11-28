@@ -104,12 +104,15 @@ pub fn older_lock_warning_lines(
 }
 
 /// Prints `older_lock_warning_lines` on standard error.
+/// The lines warn about a lock this run reads on its way to a result it still prints,
+/// so they go through the crate's notice writer:
+/// a stream that refuses a warning must not end a command that was going to succeed.
 pub(super) fn warn_older_locks(
     verb: &str,
     scope: &Scope,
 ) {
     for line in older_lock_warning_lines(verb, scope, Host::current().family) {
-        eprintln!("{line}");
+        crate::notices::say(&line);
     }
 }
 
