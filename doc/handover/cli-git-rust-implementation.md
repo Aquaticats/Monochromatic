@@ -915,6 +915,39 @@ Unapproved and non-final.
   and the account companion answered past its 100 ms deadline under load in one guest run,
   so that an add fell back to the ordinary Git route.
 
+#### Started and done between 07:30 and 07:55
+
+Unapproved and non-final.
+The clock times in this section's heading and in the one before it are the session's estimates;
+each merge's own time is in `git log --format=%cI`.
+
+- `mpm-shadow` `0.2.7-alpha.21` is published,
+  locked (`c2f93a25dc`) and installed in the main checkout,
+  whose launcher now starts it;
+  the session's `git` link was restored after the install.
+  Its second pass by Claude Sonnet is running and writes to
+  `~/temp/agent/mpm-shadow-alpha-21-release-review-2026-11-28/keep/review.md`.
+- Merge `3ce67273e1` puts the OVHcloud backend's image file into the container-start-sites ledger;
+  the container-limit package's unit task had been red on `main` since that file named `docker` as an image label.
+- Merge `3db7f34154` holds the forced arm's ending for a holder in a mount namespace no task is in:
+  on the step 23 template's kernel the walk lists such a namespace,
+  enters it and takes the copy out,
+  and a kernel without the listing call answers the refusal instead.
+  The owner's condition of 2026-11-26 was a measurement on a kernel of 6.19 or newer,
+  which this is.
+  The step 17 decision record's sentence on that refusal now holds only for a kernel without the listing call
+  and needs a dated note in place;
+  the measurement is in `doc/planning/cli-git-zfs-taskless-namespace-walk-measured-on-the-step-23-template.md`.
+  The forced arm is still reached by no command.
+- The sizing round ended in the middle of a sentence with no report;
+  it was resumed from its own session with the decided order restated.
+- Issue 6661 asks about the account companion answering past its 100 ms deadline under load.
+- Nine readers on Claude Sonnet run:
+  the eight named in the section before this one and the `mpm-shadow` second pass.
+- OVHcloud at 07:22:08 by the clock:
+  two machines active,
+  both created by rounds that are running.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
