@@ -1084,12 +1084,12 @@ Questions 4 and 5 ask what A leaves open.
   `impl Drop for ChildWatch` is at line 474.
 - `package/git-policy/cli/src/native/push/child_watch_task_loop_and_notice.rs:76`:
   `locks: LockLedger,` as a parameter of `watch_loop`,
-  passed to `stop_process` at lines 123 and 180 through two arms,
-  and to `end_for_the_stop(..., locks: &LockLedger, ...)` at line 197,
-  whose body starts at line 314.
+  passed to `stop_process` at lines 162 and 180,
+  and to `end_for_the_stop(..., locks: &LockLedger, ...)` at lines 123 and 197,
+  whose body starts at line 314 and calls `stop_process` again at line 324.
   A watch that is dropped closes its channel,
   and that path sweeps:
-  `stop_process`'s doc says the locks are
+  the comment inside `stop_process` says the locks are
   "swept then,
   or when the watch is dropped,
   whichever comes first".
