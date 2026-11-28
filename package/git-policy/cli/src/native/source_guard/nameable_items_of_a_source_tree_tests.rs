@@ -7,6 +7,10 @@
 //!  and every name a `pub use` publishes that the chain does not already reach:
 //!  a name carried out of a module it does not reach,
 //!  and a name a re-export spells differently from the name it re-exports.
+//!  A shape a split writes is read as well:
+//!  a declaration on the line of the attribute above it (`#[inline] pub fn f() {}`),
+//!  a `#[macro_export(local_inner_macros)] macro_rules!`,
+//!  and a field or an `impl` body whose header runs over several lines.
 //! Why:
 //!  A `mod` line and a `use` line decide reachability in two different ways,
 //!  and a reader of one file sees neither:
@@ -279,6 +283,83 @@ fn declaration_after_pub(rest: &str) -> Option<(String, String)> {
 }
 
 /// What:
+///  `fn leading_attributes(line: &str) -> (Vec<&str>, &str)` splits the attributes a first-column line starts
+///  with from the declaration written after them on the same line.
+///  `Vec<&str>` is a growable list of borrowed views of the line (sibling: `String`, owned).
+/// Why:
+///  An attribute may stand on the declaration's own line (`#[inline] pub fn inlined() {}`),
+///  and a reader that took such a line for an attribute alone published nothing of it
+///  (the alpha.52 read's L1).
+///  An attribute's `]` is found with its square brackets counted and its string literals skipped,
+///  so `#[cfg(all(not(test), unix))]` and a value that holds a bracket end where the attribute ends.
+/// Gotcha:
+///  A line whose attribute is not closed answers the whole line as one attribute and no declaration,
+///  which is the reading this scan gave a line starting with `#[` before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function leadingAttributes(line: string): [string[], string]
+/// ```
+fn leading_attributes(line: &str) -> (Vec<&str>, &str) {
+    let bytes: &[u8] = line.as_bytes();
+    let mut found: Vec<&str> = Vec::new();
+    let mut at: usize = 0;
+    while line[at..].starts_with("#[") {
+        let start: usize = at;
+        let mut depth: usize = 1;
+        let mut index: usize = at + "#[".len();
+        while index < bytes.len() && depth > 0 {
+            match bytes[index] {
+                b'"' => {
+                    index += 1;
+                    while index < bytes.len() && bytes[index] != b'"' {
+                        if bytes[index] == b'\\' {
+                            index += 1;
+                        }
+                        index += 1;
+                    }
+                }
+                b'[' => depth += 1,
+                b']' => depth -= 1,
+                _ => {}
+            }
+            index += 1;
+        }
+        if depth > 0 {
+            found.push(line.trim_end());
+            return (found, "");
+        }
+        found.push(&line[start..index]);
+        at = index;
+        while at < bytes.len() && bytes[at] == b' ' {
+            at += 1;
+        }
+    }
+    return (found, &line[at..]);
+}
+
+/// What:
+///  `fn is_a_macro_export(attribute: &str) -> bool` answers whether an attribute publishes the macro below it
+///  to another crate,
+///  whatever stands inside its parentheses.
+/// Why:
+///  `#[macro_export(local_inner_macros)]` publishes the macro exactly as `#[macro_export]` does,
+///  and a reader that compared the whole attribute with the one text read the first form as no export
+///  (the alpha.52 read's L1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAMacroExport = (attribute: string): boolean => /^#\[macro_export(?:\s*\(.*\))?\]$/.test(attribute)
+/// ```
+fn is_a_macro_export(attribute: &str) -> bool {
+    let Some(rest) = attribute.strip_prefix("#[macro_export") else {
+        return false;
+    };
+    let rest: &str = rest.trim_end();
+    return rest == "]" || (rest.starts_with('(') && rest.ends_with(")]"));
+}
+
+/// What:
 ///  `fn is_a_test_only_attribute(attribute: &str) -> bool` answers whether an attribute keeps the
 ///  declaration below it out of a release build.
 /// Why:
@@ -316,6 +397,10 @@ fn is_a_test_only_attribute(attribute: &str) -> bool {
 /// which `members_in` reads.
 ///  A `#[cfg(test)]` attribute above a declaration keeps it out of the release build,
 ///  so it publishes nothing.
+/// Gotcha:
+///  An attribute and the declaration it gates may share one line,
+///  so the line is read from the first `pub` or `macro_rules!` after its attributes,
+///  and an indented `#[` line is no attribute of a first-column declaration.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -328,13 +413,21 @@ fn first_column_declarations(text: &str) -> Vec<(String, String)> {
         if line.trim_start().starts_with("//") {
             continue;
         }
-        if line.starts_with("#[") {
-            attributes.push(line.trim_end());
+        // What: the attributes a first-column line starts with, and the declaration after them on that line.
+        // Why: a declaration on its attribute's line publishes a name, and a `#[` line one level in is no
+        //      attribute of a first-column declaration.
+        let (written, declaration): (Vec<&str>, &str) = if line.starts_with("#[") {
+            leading_attributes(line)
+        } else {
+            (Vec::new(), line)
+        };
+        attributes.extend(written);
+        if declaration.trim().is_empty() {
             continue;
         }
-        let exported: bool = attributes.iter().any(|attribute| {
-            return *attribute == "#[macro_export]";
-        });
+        let exported: bool = attributes
+            .iter()
+            .any(|attribute| return is_a_macro_export(attribute));
         let only_for_tests: bool = attributes.iter().any(|attribute| {
             return is_a_test_only_attribute(attribute);
         });
@@ -343,17 +436,18 @@ fn first_column_declarations(text: &str) -> Vec<(String, String)> {
             continue;
         }
         if exported {
-            let exported_name: Option<&str> = line.strip_prefix("macro_rules! ").and_then(|rest| {
-                return rest
-                    .split(|character: char| return character == ' ' || character == '{')
-                    .next();
-            });
+            let exported_name: Option<&str> =
+                declaration.strip_prefix("macro_rules! ").and_then(|rest| {
+                    return rest
+                        .split(|character: char| return character == ' ' || character == '{')
+                        .next();
+                });
             if let Some(name) = exported_name {
                 found.push((String::from("macro_rules"), name.to_owned()));
             }
             continue;
         }
-        let Some(rest) = line.strip_prefix("pub ") else {
+        let Some(rest) = declaration.strip_prefix("pub ") else {
             continue;
         };
         if let Some(declared) = declaration_after_pub(rest) {
@@ -509,7 +603,9 @@ fn member_of_body(
 ///  The scan reads a member one level inside the body its declaration opened,
 ///  so a member of a tuple-like struct's parentheses is read by nothing here.
 ///  A declaration whose body opens on a later line is held as the opening it still waits for,
-///  because this crate writes the generics of a type or an `impl` over several lines.
+///  because this crate writes the generics of a type or an `impl` over several lines;
+///  an `impl` whose own generics run over those lines names its type only after them,
+///  so its header is held as one text until its `{` arrives and the type is read from all of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -521,7 +617,8 @@ fn members_of(
 ) -> Vec<(String, String)> {
     let mut found: Vec<(String, String)> = Vec::new();
     let mut body: Option<(String, bool)> = None;
-    let mut opening: Option<(String, bool)> = None;
+    let mut opening: Option<(Option<String>, bool)> = None;
+    let mut header: String = String::new();
     let mut remaining: i32 = 0;
     let mut only_for_tests: bool = false;
     for line in text.lines() {
@@ -532,11 +629,29 @@ fn members_of(
         // first column, because a type's or an `impl`'s generics and `where` clause are written there.
         // Why: Only the line holding the body's `{` opens it, and a header that ends in `;` has no body.
         if let Some((owner, methods)) = opening.take() {
+            let owner: Option<String> = match owner {
+                Some(name) => Some(name),
+                None => {
+                    // What: an `impl` whose generics ran over several lines names its type after them.
+                    // Why: the type is written across the whole header, and the line of the `impl` alone
+                    //      named none of it.
+                    header.push(' ');
+                    header.push_str(line.trim());
+                    self_type_of(header.as_str())
+                }
+            };
             remaining += brace_delta(line);
             if line.contains('{') {
-                body = Some((owner, methods));
-                if remaining <= 0 {
-                    body = None;
+                // What: the body opens here, and only for a type the chain publishes.
+                // Why: a `pub` member of a type no consumer can name publishes nothing.
+                match owner {
+                    Some(name) if published_types.contains(name.as_str()) => {
+                        body = Some((name, methods));
+                        if remaining <= 0 {
+                            body = None;
+                        }
+                    }
+                    _ => {}
                 }
             } else if !(line.contains(';') || remaining < 0) {
                 opening = Some((owner, methods));
@@ -571,10 +686,21 @@ fn members_of(
                         // body waits for a later line.
                         // Why: `pub struct Unit;` writes a `;` and has no body at all.
                         remaining = 0;
-                        opening = Some((owner, methods));
+                        opening = Some((Some(owner), methods));
                     }
                 }
-                _ => {}
+                _ => {
+                    // What: An `impl` whose own generics run over several lines names its type after them,
+                    // so the whole header is held and the type read where the body's `{` arrives.
+                    // Why: `rustfmt` writes that header for a long generic list, and a reader of the `impl`
+                    // line alone published none of the members the body writes.
+                    if line.starts_with("impl") {
+                        header.clear();
+                        header.push_str(line);
+                        remaining = 0;
+                        opening = Some((None, true));
+                    }
+                }
             }
             continue;
         }
