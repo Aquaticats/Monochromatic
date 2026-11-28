@@ -1367,21 +1367,20 @@ fn a_dead_file_use_line_whose_file_name_holds_an_unseen_character_is_told_to_tak
     assert!(help.contains("Take that character out"), "{help}");
 }
 
-/// A character a reader cannot see is placed by its column in the line,
-///  counted in characters from the line's first one,
-///  because that is where a person finds it in an editor:
-///  the entry's own index is off by the indent, and a byte count is off by every two-byte letter before it.
+/// A character a reader cannot see is placed by its character count from the line's first one,
+///  because the entry's own index is off by the indent and a byte count is off by every two-byte letter before it,
+///  while an editor may show a tab as several cells or write one character as more than one byte.
 #[test]
 fn the_place_a_character_a_reader_cannot_see_stands_at_is_a_column_of_the_line() {
-    // What: an indented line, whose mark stands at column 4 but at index 1 of the trimmed entry.
-    // Why: the message said "character 1 of the entry it read", which a person counting in an editor cannot find.
+    // What: an indented line, whose mark stands at character 4 of the line but at index 1 of the trimmed entry.
+    // Why: the message said "character 1 of the entry it read", which no count from the line's first character gives.
     let (indented, _) = one_dead_line("   \u{feff}uses src/a -> src/b\n", &[]);
     assert!(
         indented.contains("at character 4 of the line"),
         "the place is a column of the line: {indented}"
     );
     // What: a refusal whose line holds a two-byte letter before the mark.
-    // Why: counting bytes would answer 13 here where the editor shows 12.
+    // Why: counting bytes would answer 13 here, one past the character the line holds at 12.
     let two_byte: String = error_of("uses src/a\u{e9}\u{200e}-> src/b\n");
     assert!(
         two_byte.contains("at character 12 of the line"),
