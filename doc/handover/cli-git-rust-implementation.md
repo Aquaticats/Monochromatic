@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T19:45:16-05:00
+## The state at 2026-11-27T20:02:01-05:00
 
-`main` was `8e4a0505bf`.
+`main` was `98996296fb`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 300 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 301 more by this time.
 
 ### Rounds running
 
@@ -260,24 +260,36 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   by a path written without the worktree's prefix;
   it reversed them,
   and the main checkout shows only the files other sessions modified.
-  The round for issue 6612 got a note from the coordinator in its inbox at about 15:08 that corrects or adds to its brief;
-  its report is read against the brief and the note.
-- `issue-6612-the-guest-drivers-share-one-set-of-helpers`,
-  started 2026-11-27T12:52:40-05:00:
-  the lint rounds of issue 6581 left three sets of shared guest-step helpers,
-  `bin/guest-route-*.ts`,
-  `bin/mvm-guest-*.ts` and `e2e/guest-host/`,
-  and this round joins them into one,
-  runs every driver's main step in its guest,
-  runs the three start-probe arms nobody ran after the rewrite,
-  narrows the managed-lock driver's build to the target its arm runs,
-  and measures whether two build jobs fit the three guests that use two.
-  Issue 6615
-  (the adoption driver's holder-scan arm cannot run twice in one guest,
-  and its `snapdir` arm's pattern matches any character where it means a dot)
-  has no round:
-  it changes a driver this round moves,
-  so it starts when this round has merged;
+- the guest drivers.
+  Issue 6612's round is merged (`98996296fb`) and the issue is closed:
+  the three sets of shared guest-step helpers are one,
+  `bin/mvm-guest-*.ts`,
+  with `bin/guest-route-*` and `e2e/guest-host/` deleted and every case their tests held restated against the survivor.
+  A stand-in `mvm` and `node` recorded every step of the eleven drivers on `main` and on the branch:
+  of 44 recordings 41 are identical line for line,
+  and three differ on purpose.
+  The managed-lock driver builds only the target its arm runs
+  (11m 31s where it took 22m 22s,
+  and a guest peak of 2.83 GiB where it was 6.70 GiB),
+  and two drivers build the library's test binary at one job,
+  since two left under half a gibibyte available in a guest of 8 GiB.
+  Every driver's main step ran in a guest and passed with its own lines,
+  and the start probe's three arms nobody had run after the rewrite ran once each and passed.
+  The merged tree passed `lint:types`,
+  oxlint and the package's unit suite (177 suites) in a worktree of its own before the merge.
+  Three rounds follow it,
+  started from one list,
+  each holding one guest at a time:
+  `issue-6615-the-adoption-drivers-holder-scan-arm-runs-twice-in-one-guest-and-its-snapdir-pattern-means-a-dot`
+  (its first feed line written 2026-11-27T20:00:25-05:00);
+  `issue-6639-the-start-probes-guest-build-runs-as-a-detached-script`
+  (2026-11-27T20:00:43-05:00),
+  for a build whose result the guest agent lost once in issue 6612's round;
+  and `issue-6638-the-zfs-guest-recipes-prepare-step-ends-well-in-a-guest-already-prepared`
+  (2026-11-27T20:01:03-05:00),
+  for a `prepare` that fails with `Module zfs is in use` in a guest already prepared.
+  When each ends,
+  read `mvm --backend libvirt list` for a guest it left;
 - the linter,
   whose round on what the read of `0.5.2-alpha.22` found
   ("What the linter's alpha.22 read found"),
@@ -2725,7 +2737,8 @@ and the two `truepeak` files wait on their branch.
   `timings`,
   `timings-boot-first`)
   were compared byte for byte and not run in a guest;
-  issue 6612's round runs each once.
+  issue 6612's round ran each once,
+  and each passed.
 - `native:ts-checks` says what a passing check ran (`8dcc43ed1e`,
   issue 6613),
   and refuses a unit test run that reported no suite or fewer suites than the package holds unit test files.
@@ -3411,8 +3424,8 @@ because the branches that were changing them could not take the diff:
 and everything under `package/git-policy/cli` was the same.
 Both are fixed (`beb61ec46b`):
 4,062 findings in 480 files,
-with `bin/` and `e2e/` left as they are while the round of issue 6612 works there,
-where one file keeps two findings.
+with `bin/` and `e2e/` left as they were while the round of issue 6612 worked there;
+that round fixed the two findings one file kept.
 The installed linter applies that fix itself with `--fix`,
 which changes whitespace only,
 so the scratch script of 2026-11-23 is not needed.
@@ -3437,7 +3450,9 @@ and the `source_guard` module (225 of 225) and the two modules whose tests read 
 The same count,
 of changed lines that are no doc comment,
 is zero for the two packages' merges too.
-Do the same for `bin/` and `e2e/` once the round of issue 6612 has merged.
+`bin/` and `e2e/` need no sweep:
+measured on `main` after issue 6612's merge,
+the package holds no `markdown/semantic-line-breaks` finding.
 The driver package's build,
 `lint` and `lint:types` exited 0 in its worktree,
 and its unit suite printed 228 `[PASS]` lines beside one failure that is not the fix's:
