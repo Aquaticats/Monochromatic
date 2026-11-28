@@ -58,6 +58,21 @@ export class CheckoutNotFoundError extends Error {
 }
 
 /**
+ The repository a command was started in, and the worktree it was started in when it was started in one.
+ */
+export type CheckoutAndWorktree = {
+  /**
+   The repository's folder: the folder holding the Git directory every worktree of it shares.
+   */
+  readonly checkoutFolder: string;
+
+  /**
+   The worktree the command was started in, absent when it was started in the repository's own checkout.
+   */
+  readonly worktree?: string;
+};
+
+/**
  Says whether a path is there, without reading it.
 
  @param path - the path to look for
@@ -230,6 +245,27 @@ async function commonDirectoryOf({ gitDirectory, }: { readonly gitDirectory: str
  ```
  */
 export async function checkoutFolderOf({ from }: { readonly from: string },): Promise<string> {
+  return (await checkoutAndWorktreeOf({ from, },)).checkoutFolder;
+}
+
+/**
+ The repository a command was started in, and the worktree it was started in when it was started in one.
+
+ A command started in a run's worktree answers both, which is what tells a run that has a tree of its own from one working in the
+ checkout itself: only the first may not change the checkout.
+
+ @param from - the folder the command was started in
+
+ @returns the repository's folder, and the worktree the command was started in
+
+ @throws CheckoutNotFoundError when no folder from there up to the filesystem root is a checkout
+
+ @example
+ ```ts
+ const { checkoutFolder, worktree } = await checkoutAndWorktreeOf({ from: '/repo/.claude/worktrees/pi-a', },);
+ ```
+ */
+export async function checkoutAndWorktreeOf({ from }: { readonly from: string },): Promise<CheckoutAndWorktree> {
   /**
    The nearest folder that marks itself as a checkout, which is the worktree when a command is run inside one.
    */
@@ -245,7 +281,7 @@ export async function checkoutFolderOf({ from }: { readonly from: string },): Pr
     CHECKOUT_MARKER,
   );
   if ((await stat(marker,)).isDirectory()) {
-    return markedFolder;
+    return { checkoutFolder: markedFolder, };
   }
   /**
    The Git directory this worktree was given, inside the repository's own.
@@ -254,5 +290,8 @@ export async function checkoutFolderOf({ from }: { readonly from: string },): Pr
     marker,
     markedFolder,
   },);
-  return dirname(await commonDirectoryOf({ gitDirectory, },),);
+  return {
+    checkoutFolder: dirname(await commonDirectoryOf({ gitDirectory, },),),
+    worktree: markedFolder,
+  };
 }

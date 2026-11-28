@@ -35,6 +35,7 @@ import {
   type TextMasking,
 } from './secret-value-masking.ts';
 import { maskingExtensionArguments, } from './secret-values-handed-to-pi.ts';
+import { environmentOfARun, } from './environment-of-a-run.ts';
 import {
   DRIVER_USAGE,
   DriverOptionsError,
@@ -230,22 +231,17 @@ export async function supervisePiRun(
     },
   },);
   /**
-   What Pi starts with: the driver's own environment with every credential-named variable removed, except the allow list in
-   `environment-without-credentials.ts`, which names what stays and why. This bounds what an inherited environment holds, not
-   what a command can reach: the credential stores stay where they are.
+   What Pi is started with, and the words that load the extension refusing a change of the main checkout: the run's own
+   environment with every credential-named variable removed, its temporary folder, and the folders its guard holds. The feed says
+   what was taken away and which folders the guard holds, so a reader of a run that left an edit where it should not have can see
+   whether the guard was armed at all.
    */
-  const givenToPi: EnvironmentWithoutCredentials = stripCredentialsFromEnvironment({ environment, },);
-  /**
-   What Pi is started with: the environment above, with the variables that name this run's temporary folder, so no caller passes
-   `TMPDIR` by hand and one run's files live in one folder.
-   */
-  const environmentForPi: NodeJS.ProcessEnv = {
-    ...givenToPi.environment,
-    ...variablesNamingTemporaryFolder({ folder: temporaryFolder, },),
-  };
-  record.note({
-    kind: 'environment',
-    removedNames: givenToPi.removedNames,
+  const started = await environmentOfARun({
+    environment,
+    temporaryFolder,
+    workingFolder: options.workingFolder,
+    folder: import.meta.dirname,
+    note: record.note,
   },);
   /**
    What this machine holds for its secret environment, read once here so every value of it can be masked before it reaches a
@@ -286,6 +282,7 @@ export async function supervisePiRun(
    The words that load the extension masking them, which sit beside the driver's own entry.
    */
   const maskingArguments = await maskingExtensionArguments({ folder: import.meta.dirname, },);
+
   /**
    A session this run resumes is masked before Pi starts, so that no request Pi builds from it, its compaction among them, can carry
    a value an earlier run left in it. Pi's own hooks cover what this run writes, and never what was already there.
@@ -350,9 +347,10 @@ export async function supervisePiRun(
     record,
     inbox,
     deadline,
-    environment: environmentForPi,
+    environment: started.environment,
     secretValues: values,
     maskingArguments,
+    mainCheckoutGuardArguments: started.piArguments,
     standardErrorFile,
     ...(sessionForPi === undefined ? {} : { sessionFile: sessionForPi, }),
     mask: writeMasking.masking,

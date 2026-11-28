@@ -13,6 +13,7 @@ import {
 } from './processes-a-tool-answer-names.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { textOf, } from './read-pi-fields.ts';
+import { wholePathOfACall, } from './whole-path-of-a-call.ts';
 
 /**
  The dialog methods that wait for an answer; the other interface methods need none.
@@ -103,6 +104,14 @@ export function startRunTallies({
         tool,
         (toolHistogram.get(tool,) ?? 0) + 1,
       );
+      /**
+       The path this call names, whole, for the one call that changes a file: the args line below keeps only a preview of the
+       call's arguments, and a long text written before the path puts the path past what a line keeps.
+       */
+      const namedPath = wholePathOfACall({
+        toolName: tool,
+        input: event.args,
+      },);
       note({
         kind: 'tool_start',
         tool,
@@ -110,6 +119,7 @@ export function startRunTallies({
           value: event.args,
           length: FEED_PREVIEW_CHARACTERS.toolArguments,
         },),
+        ...('path' in namedPath ? { path: namedPath.path, } : {}),
       },);
     },
     noteToolEnd: function noteToolEnd(event,) {

@@ -107,28 +107,34 @@ export type StartsOfARun = {
 /**
  Builds Pi's command line. `--session` is its own word, so a path holding spaces stays one argument.
 
- The masking extension's words come first, so an operator's own arguments are read after them: Pi loads an explicitly named
- extension even with `--no-extensions`, so a run cannot be started with the masking left out by the arguments a caller adds.
+ The masking extension's words come first, then the main-checkout guard's, so an operator's own arguments are read after them: Pi
+ loads an explicitly named extension even with `--no-extensions`, so a run cannot be started with either left out by the arguments
+ a caller adds.
 
  @param options - options of this run
 
  @param maskingArguments - the words that load the extension masking this run's secret values
+
+ @param mainCheckoutGuardArguments - the words that load the extension refusing a change of the main checkout
 
  @returns the arguments for Pi
  */
 function piCommandLine({
   options,
   maskingArguments,
+  mainCheckoutGuardArguments,
   sessionFile,
 }: {
   readonly options: DriverOptions;
   readonly maskingArguments: readonly string[];
+  readonly mainCheckoutGuardArguments: readonly string[];
   readonly sessionFile?: string;
 },): readonly string[] {
   return [
     '--mode',
     'rpc',
     ...maskingArguments,
+    ...mainCheckoutGuardArguments,
     '--provider',
     options.provider,
     '--model',
@@ -192,6 +198,8 @@ function stopReasonOf({
 
  @param maskingArguments - the words that load the extension masking those values
 
+ @param mainCheckoutGuardArguments - the words that load the extension refusing a change of the main checkout
+
  @param standardErrorFile - the file Pi's standard error is kept in, for every start
 
  @param mask - the masking Pi's standard error goes through as it is kept
@@ -211,6 +219,7 @@ export async function startsOfARun({
   environment,
   secretValues,
   maskingArguments,
+  mainCheckoutGuardArguments,
   standardErrorFile,
   sessionFile,
   mask,
@@ -222,6 +231,7 @@ export async function startsOfARun({
   readonly environment: NodeJS.ProcessEnv;
   readonly secretValues: readonly SecretValue[];
   readonly maskingArguments: readonly string[];
+  readonly mainCheckoutGuardArguments: readonly string[];
   readonly standardErrorFile: string;
 
   /**
@@ -295,6 +305,7 @@ export async function startsOfARun({
       piArguments: piCommandLine({
         options,
         maskingArguments,
+        mainCheckoutGuardArguments,
         ...(sessionFile === undefined ? {} : { sessionFile, }),
       },),
       workingFolder: options.workingFolder,

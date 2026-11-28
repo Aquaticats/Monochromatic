@@ -1181,11 +1181,14 @@ await describe({
           scenario: 'normal',
           extraOptions: ['--session=/a folder/with spaces.jsonl', '--pi-argument=--extension', '--pi-argument=/a folder/x.ts',],
         },);
-        // The masking extension's own words come first, so the words a caller adds are read after them.
+        // The masking extension's own words come first, then the main-checkout guard's, so the words a caller adds are read after
+        // them.
         expect(run.piArguments.slice(0, 2,),).toEqual(['--mode', 'rpc',],);
         expect(run.piArguments[2],).toBe('--extension',);
         expect(run.piArguments[3],).toContain('secret-value-masking-extension',);
-        expect(run.piArguments.slice(4,),).toEqual([
+        expect(run.piArguments[4],).toBe('--extension',);
+        expect(run.piArguments[5],).toContain('main-checkout-guard-extension',);
+        expect(run.piArguments.slice(6,),).toEqual([
           '--provider',
           'stand-in',
           '--model',
