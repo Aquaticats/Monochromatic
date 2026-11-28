@@ -1764,3 +1764,159 @@ fn a_program_the_rows_own_toolchain_lacks_is_unresolved_though_another_toolchain
         "the farm links no {cut_short}, because the pin holds none; {text}"
     );
 }
+
+// What:
+// `const A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM: &str = "rustup"` is the manager's own name,
+// which the repository's row declared before issue 6626 and declares no longer.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// A machine that installed with `0.2.7-alpha.16`'s row keeps a `rustup` link in the farm,
+// and issue 6634's Low point 3 is that installing the newer row leaves it there.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aLinkAnEarlierRowLeftInTheFarm = 'rustup';
+// ```
+const A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM: &str = "rustup";
+
+// What:
+// `const A_FILE_A_PERSON_PUT_IN_THE_FARM: &str = "a-note-from-me"` is a regular file in the exposure
+// directory whose name no row declares.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// The farm is a directory on a person's machine,
+// so an install's report has to name the links it removed and leave a file alone.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aFileAPersonPutInTheFarm = 'a-note-from-me';
+// ```
+const A_FILE_A_PERSON_PUT_IN_THE_FARM: &str = "a-note-from-me";
+
+// What:
+// `#[test] fn an_install_removes_the_farm_link_no_row_declares_and_names_it()`
+// runs an install on a machine whose farm already holds a link for `rustup` and a person's file,
+// and reads the farm and the printed report.
+// Why:
+// Issue 6634's Low point 3:
+// the manager's link stays after the row stops declaring it,
+// dangles when rustup's proxies go,
+// and nothing says so.
+// The farm holds what the lock declares,
+// and the report names what it removed.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('an install removes the farm link no row declares and names it', () => { ... });
+// ```
+#[test]
+fn an_install_removes_the_farm_link_no_row_declares_and_names_it() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    // What:
+    // the assertion that the row declares no `rustup`, which is what makes the link an orphan.
+    // Why:
+    // A row that declared the name would make the link the plan's, and the control would pass for
+    // another reason.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(row.declaration.bins).not.toContain(aLinkAnEarlierRowLeftInTheFarm);
+    // ```
+    assert!(
+        !row.declaration
+            .bins
+            .contains(&A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM.to_string()),
+        "the row declares no {A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM}"
+    );
+    fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    // What:
+    // the orphan link, standing where an install of the older row left it: a link to a program of the
+    // fixture, under the manager's name.
+    // Why:
+    // The link is what an earlier row made and this row does not declare.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // symlinkSync(pathJoin(pinBin, 'rustc'), pathJoin(rig.scope.exposureDir, aLinkAnEarlierRowLeftInTheFarm));
+    // ```
+    let orphan: PathBuf = rig
+        .scope
+        .exposure_dir
+        .join(A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM);
+    std::os::unix::fs::symlink(pin_bin.join("rustc"), &orphan)
+        .expect("leave the link an earlier install made");
+    // What:
+    // a person's regular file beside it.
+    // Why:
+    // The removal is about links the tool made, and this file proves the rebuild tells them apart.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(pathJoin(rig.scope.exposureDir, aFileAPersonPutInTheFarm), "mine\n");
+    // ```
+    let the_file: PathBuf = rig
+        .scope
+        .exposure_dir
+        .join(A_FILE_A_PERSON_PUT_IN_THE_FARM);
+    fs::write(&the_file, "mine\n").expect("write a person's file into the farm");
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    // What:
+    // the orphan link's own entry, which must be gone: `symlink_metadata` reads the entry itself.
+    // Why:
+    // The name no row declares is not part of the farm an install leaves behind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(lstatSync(orphan, { throwIfNoEntry: false })).toBeUndefined();
+    // ```
+    assert!(
+        fs::symlink_metadata(&orphan).is_err(),
+        "the farm holds no link for a name no row declares; {text}"
+    );
+    // What:
+    // the report's own lines, one of which has to name the removed link.
+    // Why:
+    // An install that removes a name from a folder a person sees has to say which.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(text.split('\n').some((line) => line.startsWith('toolchain install: removed ') && line.includes(aLinkAnEarlierRowLeftInTheFarm))).toBe(true);
+    // ```
+    assert!(
+        text.lines().any(|line| {
+            return line.starts_with("toolchain install: removed ")
+                && line.contains(A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM);
+        }),
+        "the report names the link it removed; {text}"
+    );
+    // What:
+    // the person's file, still holding its text, and no report line naming it as removed.
+    // Why:
+    // A regular file of a name no row declares is a person's, so it stays and the report says nothing
+    // about removing it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(readFileSync(theFile, 'utf8')).toBe("mine\n");
+    // expect(text.split('\n').some((line) => line.startsWith('toolchain install: removed ') && line.includes(aFileAPersonPutInTheFarm))).toBe(false);
+    // ```
+    assert_eq!(
+        fs::read_to_string(&the_file).expect("a person's file stays where it is"),
+        "mine\n",
+        "the install leaves a regular file of a name no row declares"
+    );
+    assert!(
+        !text.lines().any(|line| {
+            return line.starts_with("toolchain install: removed ")
+                && line.contains(A_FILE_A_PERSON_PUT_IN_THE_FARM);
+        }),
+        "the report never says it removed a person's file; {text}"
+    );
+}
