@@ -4295,3 +4295,93 @@ Not taken:
 move the steps to `e2e/` and change the lint or the names around that rule.
 The round also left one case to a unit test alone:
 a run that keeps its guest (`--keep-guest`) was run in no guest.
+
+## Proposed: an `AGENTS.md` rule on the holds a session carries (recorded 2026-11-27T20:47:01-05:00)
+
+The owner's "parallelize better" found three holds the coordinating session kept with no failure on record:
+`main` held still through every release,
+one command at a time,
+and the ZFS route's next step sequenced behind rounds that had merged.
+`AGENTS.md` already asks for the rest:
+"start every ready tracked item unasked",
+"run independent jobs in parallel",
+and that a precaution which makes work wait "names the recorded failure it prevents".
+What it does not say is when a hold is read again.
+Proposed,
+its code to be chosen and checked when accepted:
+"A hold a session carries in its notes or summary is read against its recorded failure each time it makes work wait;
+a hold with none is dropped that turn."
+Not applied:
+`AGENTS.md` is the owner's.
+The handover's "How work is run side by side" holds what the session does now.
+
+## Veto open: what was done or picked on 2026-11-27 after 20:00 (recorded 2026-11-27T20:47:01-05:00)
+
+Each is the coordinating session's own,
+done or briefed without asking,
+and each can be undone.
+
+- The lock commit of `cargo-shadow` `0.1.5-alpha.17` (`7f21ae4ef9`) reached origin's `main` by fast-forward with no merge commit:
+  the lock branch had been made from `origin/main` with tracking,
+  and origin's `main` moved in the second the commit service's push of that branch ended.
+  The commit holds only the lock row's version,
+  address and checksum lines,
+  which a check in the same command had required before it was made.
+  Lock branches are made with `--no-track` from now on.
+- Issue 6641,
+  the wrapper's two High points of the alpha.51 read.
+  The brief's reading of `SPEC.md`'s "the worktree a command changes is the one measured and the one refused":
+  where a command behind a `!git` alias writes files in one place and an index and `HEAD` in another,
+  both are measured and the command is refused when either would be refused.
+  Not taken:
+  judging the files alone (alpha.51) or the repository alone (alpha.50 for these rows).
+- The wrapper's `final-newline` hint:
+  at an add refused at `error` it leads with `fix -- <path>` and staging again,
+  and at a manual push it says to edit and commit again.
+- The crate's one doc test becomes a unit test the gate runs,
+  with its fence written as the crate's other 15,635 are.
+  Not taken:
+  a doc-test task in the gate.
+- Dismissed from the alpha.51 reads:
+  the alias spellings `SPEC.md` names as the guard's boundary,
+  and the line numbers the internal-error notice prints.
+- The linter:
+  U+2800 is spelled as other characters a reader cannot tell from a space are,
+  or listed in the README as left raw,
+  whichever the code's own table makes right;
+  and a sentence no longer tells a person to untangle a loop in a folder that holds no module file.
+  Whether the rule `markdown/semantic-line-breaks` reports a break at no boundary is proposed by the round of issue 6642 and not built.
+- `rust/avoidable-closure` runs on no host run on this machine,
+  because its Dylint driver is absent and the linter downloads none.
+  Who puts the driver on a machine,
+  and whether a skipped rule fails a check,
+  is undecided,
+  and no issue is filed.
+- `mpm-shadow`,
+  from the alpha.18 read:
+  a temporary link whose installer is alive stays and one whose installer is gone is removed and named;
+  a link named `mpm-shadow` that resolves into an installed copy stays whatever binary runs;
+  a Rust row reads the directory named the channel or the channel followed by this host's own triple;
+  and `list` gets a bound on its wait only with a measurement beside it.
+- `cargo-shadow`'s alpha.16 round chose:
+  a confirming ask after a refused start,
+  in place of reading the failure's words;
+  asking where the slice is before starting it;
+  counting the transports of both systemd versions met here;
+  and a file of its own for the one ask,
+  because its comments took the discovery file over the line budget.
+- Issue 6636's round left three points:
+  whether the driver checks before the first prompt that the guard is armed,
+  as it does for the masking,
+  which needs a new end reason;
+  whether a worktree outside `.claude/worktrees` stays allowed to change itself;
+  and whether a guard for shell commands is worth building on the shell analyzer,
+  which would leave a command run after a change of directory open.
+- Issue 6639's round left four:
+  where a unit-tested reader of a guest build's log lives
+  (it ranks a shared module under `bin/` first);
+  whether the shared wait's refusal carries the log's tail itself;
+  that the `step` shape of the name check runs the work whatever the check answers,
+  measured;
+  and that a launcher which refuses for the wrong guest leaves the host polling until the finish bound,
+  43 minutes for this build.
