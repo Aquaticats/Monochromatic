@@ -73,6 +73,10 @@ use git_policy_cli::doctor_zfs_route::{
     staging_binds,
 };
 use git_policy_cli::fs_mount_options::parse_mount_table;
+use git_policy_cli::machine_route_facts::{
+    MachineRouteFacts,
+    gather_the_machine_route_facts,
+};
 use git_policy_cli::worktree_clone_mount::{
     CloneFolderIdentity,
     CloneSlotRefusal,
@@ -139,9 +143,31 @@ const FIXTURE: &str = "/home/zfs-doctor-fixture";
 /// The checkout the design's dataset mounts at.
 const CHECKOUT: &str = "/home/zfs-doctor-fixture/checkout";
 
-/// The account the delegation names,
-/// which the guest image creates.
-const ACCOUNT: u32 = 1000;
+/// The account the delegation names and the cache belongs to.
+/// The release's gatherer reads this process's own effective user,
+/// which is the account the wrapper runs as,
+/// so the arm states the same one here:
+/// the guest runs every command as root,
+/// and the grants, the cache and the staging folder are root's.
+fn the_account() -> u32 {
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    return unsafe { libc::geteuid() };
+}
+
+/// The account's cache folder,
+/// where a removal stages a clone,
+/// which is the place the release's gatherer reads too.
+fn the_cache() -> String {
+    let home: String = std::env::var("HOME").expect("the guest names a home");
+    return format!("{home}/.cache");
+}
+
+/// The owner every folder the arm makes is given,
+/// in the `chown` grammar.
+fn the_owner() -> String {
+    let account: u32 = the_account();
+    return format!("{account}:{account}");
+}
 
 /// The pool's image size.
 const POOL_IMAGE_SIZE: &str = "1G";
@@ -314,7 +340,7 @@ fn install_layout() {
         std::fs::create_dir_all(folder.as_str()).expect("the account's folder");
         run(
             "chown",
-            &[format!("{ACCOUNT}:{ACCOUNT}").as_str(), folder.as_str()],
+            &[the_owner().as_str(), folder.as_str()],
         );
         std::fs::set_permissions(folder.as_str(), std::fs::Permissions::from_mode(0o700))
             .expect("the account's mode");
@@ -531,11 +557,11 @@ fn publish_the_records() {
 /// The cache,
 /// the staging folder and its private bind.
 fn make_the_staging_folder() {
-    let cache: String = format!("{FIXTURE}/cache");
+    let cache: String = the_cache();
     std::fs::create_dir_all(cache.as_str()).expect("the cache");
     run(
         "chown",
-        &[format!("{ACCOUNT}:{ACCOUNT}").as_str(), cache.as_str()],
+        &[the_owner().as_str(), cache.as_str()],
     );
     std::fs::set_permissions(cache.as_str(), std::fs::Permissions::from_mode(0o700))
         .expect("the cache mode");
@@ -543,7 +569,7 @@ fn make_the_staging_folder() {
     std::fs::create_dir(stage.as_str()).expect("the staging folder");
     run(
         "chown",
-        &[format!("{ACCOUNT}:{ACCOUNT}").as_str(), stage.as_str()],
+        &[the_owner().as_str(), stage.as_str()],
     );
     std::fs::set_permissions(stage.as_str(), std::fs::Permissions::from_mode(0o700))
         .expect("the staging folder's mode");
@@ -554,7 +580,7 @@ fn make_the_staging_folder() {
 /// The nine decided grants,
 /// given with the one executable's own `zfs` userspace.
 fn allow_the_decided_grants() {
-    let account: String = ACCOUNT.to_string();
+    let account: String = the_account().to_string();
     let checkout: String = checkout_dataset();
     let container: String = container_dataset();
     for arguments in [
@@ -936,8 +962,8 @@ fn delegation_facts() -> DelegationFacts {
         grants.extend(grants_of(&reply).expect("the kernel's delegation shape"));
     }
     return DelegationFacts {
-        account: ACCOUNT,
-        groups: vec![ACCOUNT],
+        account: the_account(),
+        groups: vec![the_account()],
         checkout_dataset: checkout_dataset(),
         container_dataset: container_dataset(),
         grants,
@@ -1076,7 +1102,7 @@ fn request_facts() -> Vec<RequestFacts> {
 
 /// The cache and the staging folders under it.
 fn staging_facts() -> StagingFolderFacts {
-    let cache: String = format!("{FIXTURE}/cache");
+    let cache: String = the_cache();
     let mut folders: Vec<StagedFolder> = Vec::new();
     for entry in std::fs::read_dir(cache.as_str())
         .expect("the cache lists")
@@ -1104,7 +1130,7 @@ fn staging_facts() -> StagingFolderFacts {
             path: PathBuf::from(cache.as_str()),
             state: path_state(Path::new(cache.as_str())),
         },
-        account: ACCOUNT,
+        account: the_account(),
         folders,
     };
 }
@@ -1128,8 +1154,7 @@ fn zfs_doctor_route_guest_three_groups_and_each_finding() {
         return;
     }
     install_layout();
-    let boot: String = live_boot();
-    let reports: Vec<CheckReport> = route_checks(&route_facts(boot.as_str()));
+    let reports: Vec<CheckReport> = route_checks(&route_facts());
     assert_pass(&reports, "device");
     assert_pass(&reports, "abi");
     assert_pass(&reports, "pool");
@@ -1183,14 +1208,102 @@ fn zfs_doctor_route_guest_three_groups_and_each_finding() {
         assert_pass(&reports, name);
     }
     println!("DOCTOR-GUEST later-steps-are-unknown");
+    the_releases_gatherer_answers_the_same_report();
     break_each_fact();
 }
 
-/// The whole fact set for one live boot.
-fn route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
+/// What:
+///  The release's gatherer and this arm's own helper answer one report,
+///  line for line,
+///  on the design's layout.
+/// Why:
+///  The helper was the only gather there was,
+///  so every check was proven against facts a test built;
+///  the release's gatherer now reads the same facts from the live system,
+///  and a line that differed would be a fact the release reads differently from
+///  the helper that stood in for it
+///  (plan step 18,
+///  "VM measurements").
+///  A control that only asserted its own lines would pass over a difference
+///  between the two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(routeChecks(routeFacts())).toEqual(routeChecks(helperRouteFacts()));
+/// ```
+fn the_releases_gatherer_answers_the_same_report() {
+    let boot: String = live_boot();
+    let released: Vec<CheckReport> = route_checks(&route_facts());
+    let helped: Vec<CheckReport> = route_checks(&the_helpers_route_facts(boot.as_str()));
+    assert_eq!(released.len(), helped.len());
+    for (one, other) in released.iter().zip(helped.iter()) {
+        assert_eq!(
+            one.check,
+            other.check,
+            "the two reports hold the same checks in the same order"
+        );
+        assert_eq!(
+            one.line(),
+            other.line(),
+            "the release's gatherer and this arm's helper read this fact differently"
+        );
+    }
+    println!("DOCTOR-GUEST the-releases-gatherer-answers-the-same-report");
+}
+
+/// What:
+///  The whole fact set on the design's layout,
+///  with the machine's facts gathered by the release's own gatherer
+///  and each clone's facts built by this arm's helper.
+/// Why:
+///  The release's gatherer answers every fact that is true of the machine,
+///  and the clone group is the sibling round's,
+///  so the arm hands in the one clone this fixture manages
+///  (`machine_route_facts::MachineRouteFacts`).
+///  Every check the release answers must be a pass:
+///  a check left unproved is a fact the gatherer could not read,
+///  and the report names it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gathered = gatherTheMachineRouteFacts();
+/// expect(gathered.unread).toEqual([]);
+/// const route = { ...gathered.route, clones: [cloneFacts()] };
+/// ```
+fn route_facts() -> git_policy_cli::doctor_zfs_route::RouteFacts {
+    let gathered: MachineRouteFacts =
+        gather_the_machine_route_facts().expect("the machine's route facts");
+    let unproved: Vec<String> = gathered
+        .unread
+        .iter()
+        .map(|report| return report.line())
+        .collect();
+    assert!(
+        unproved.is_empty(),
+        "the release's gatherer left checks unproved: {unproved:?}"
+    );
+    let mut route: git_policy_cli::doctor_zfs_route::RouteFacts = gathered.route;
+    route.clones = vec![clone_facts(route.mounts.rows.as_slice())];
+    return route;
+}
+
+/// What:
+///  The whole fact set built by this arm's own helpers,
+///  which is what stood in for a gatherer before the release had one.
+/// Why:
+///  One helper per fact lets a control change exactly the field it judges,
+///  and the release's gatherer is compared with these lines on the design's
+///  layout,
+///  so a difference between the two is a fact read two ways.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const route = { device: deviceFacts(), abi: abiFacts(), ... };
+/// ```
+fn the_helpers_route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
     let (installation, configuration, folders, wiring, readiness) = handler_facts();
     let mounts: MountCheckFacts = mount_facts();
-    let cache: PathBuf = PathBuf::from(format!("{FIXTURE}/cache"));
+    let cache: PathBuf = PathBuf::from(the_cache());
     return git_policy_cli::doctor_zfs_route::RouteFacts {
         device: device_facts(),
         abi: abi_facts(),
@@ -1474,6 +1587,22 @@ fn report_of<'a>(
         });
 }
 
+/// What:
+///  The machine's facts as the release's own gatherer reads them,
+///  which every broken fact below is re-read through.
+/// Why:
+///  A broken fact must reach the check through the code a release runs,
+///  so a control that read the helper's version would prove a reader nobody
+///  ships.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const facts = gatherTheMachineRouteFacts();
+/// ```
+fn the_machines_facts() -> MachineRouteFacts {
+    return gather_the_machine_route_facts().expect("the machine's route facts");
+}
+
 /// Every broken fact this arm can make,
 /// each in its own function so no local outlives the answer it read.
 fn break_each_fact() {
@@ -1495,7 +1624,7 @@ fn break_each_fact() {
 /// A container that could mount itself is a finding naming `canmount`.
 fn breaks_container_canmount() {
     zfs(&["set", "canmount=on", container_dataset().as_str()]);
-    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let datasets: Vec<DatasetFacts> = the_machines_facts().route.datasets;
     let container: &DatasetFacts = datasets
         .iter()
         .find(|dataset| return dataset.name == container_dataset())
@@ -1516,7 +1645,9 @@ fn breaks_container_canmount() {
 /// A clone carrying setuid is a finding naming `setuid`.
 fn breaks_clone_setuid() {
     zfs(&["set", "setuid=on", clone_dataset().as_str()]);
-    let clones: Vec<DatasetFacts> = dataset_facts()
+    let clones: Vec<DatasetFacts> = the_machines_facts()
+        .route
+        .datasets
         .into_iter()
         .filter(|dataset| return matches!(dataset.role, DatasetRole::Clone))
         .collect();
@@ -1561,11 +1692,14 @@ fn breaks_unloaded_key() {
         encrypted_clone.as_str(),
     ]);
     zfs(&["unload-key", encrypted.as_str()]);
-    let unloaded: Vec<DatasetFacts> = vec![DatasetFacts {
-        role: DatasetRole::Clone,
-        name: encrypted_clone.clone(),
-        reading: reading(encrypted_clone.as_str()),
-    }];
+    // The release's gatherer lists the container's children, so the clone this control just made is one of the
+    // datasets it read; the key's own state is what the check judges.
+    let unloaded: Vec<DatasetFacts> = the_machines_facts()
+        .route
+        .datasets
+        .into_iter()
+        .filter(|dataset| return dataset.name == encrypted_clone)
+        .collect();
     let answer: CheckOutcome = check_key(&unloaded);
     let CheckOutcome::Finding {
         field,
@@ -1594,7 +1728,7 @@ fn breaks_nested_row() {
         output.as_str(),
     ]);
     zfs(&["mount", checkout_dataset().as_str()]);
-    let mounts: MountCheckFacts = mount_facts();
+    let mounts: MountCheckFacts = the_machines_facts().route.mounts;
     let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_nested_reachability(&mounts);
     let CheckOutcome::Finding {
         field,
@@ -1616,7 +1750,7 @@ fn breaks_nested_row() {
 fn breaks_misfiled_record() {
     let misfiled: String = format!("{}/two", store_path());
     std::fs::copy(format!("{}/one", store_path()), misfiled.as_str()).expect("the misfiled copy");
-    let store: StoreListingFacts = store_facts();
+    let store: StoreListingFacts = the_machines_facts().route.store;
     let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_store_entries(&store);
     let CheckOutcome::Finding {
         field,
@@ -1650,7 +1784,7 @@ fn breaks_staging_forms() {
         )
         .expect("a planted entry");
     }
-    let store: StoreListingFacts = store_facts();
+    let store: StoreListingFacts = the_machines_facts().route.store;
     let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_staging_forms(&store);
     let CheckOutcome::Finding {
         field,
@@ -1712,11 +1846,11 @@ fn breaks_rename_grant() {
         "allow",
         "-d",
         "-u",
-        ACCOUNT.to_string().as_str(),
+        the_account().to_string().as_str(),
         "rename",
         container_dataset().as_str(),
     ]);
-    let delegation: DelegationFacts = delegation_facts();
+    let delegation: DelegationFacts = the_machines_facts().route.delegation;
     let answer: CheckOutcome = check_delegation(&delegation);
     let CheckOutcome::Finding {
         field,
@@ -1732,7 +1866,7 @@ fn breaks_rename_grant() {
         "unallow",
         "-d",
         "-u",
-        ACCOUNT.to_string().as_str(),
+        the_account().to_string().as_str(),
         "rename",
         container_dataset().as_str(),
     ]);
@@ -1740,7 +1874,7 @@ fn breaks_rename_grant() {
 
 /// A readiness record judged against another boot is a finding naming the boot.
 fn breaks_readiness_boot() {
-    let (_, _, _, _, readiness) = handler_facts();
+    let readiness: ReadinessFacts = the_machines_facts().route.readiness;
     let answer: CheckOutcome =
         git_policy_cli::doctor_zfs_route::check_readiness(&readiness, OTHER_BOOT);
     let CheckOutcome::Finding {
@@ -1756,8 +1890,15 @@ fn breaks_readiness_boot() {
 
 /// A slot the walk cannot reach is a finding naming the component.
 fn breaks_missing_slot() {
-    let missing: SlotIdentityFacts = slot_facts("no-such-slot");
-    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_slot_identity(&missing);
+    let slot: String = format!("{CHECKOUT}/.claude/worktrees/one");
+    let moved: String = format!("{CHECKOUT}/.claude/worktrees/one-moved");
+    run("mv", &[slot.as_str(), moved.as_str()]);
+    let slots: Vec<SlotIdentityFacts> = the_machines_facts().route.slots;
+    let missing: &SlotIdentityFacts = slots
+        .iter()
+        .find(|slot| return slot.slot == "one")
+        .expect("the store still lists the slot whose folder moved");
+    let answer: CheckOutcome = git_policy_cli::doctor_zfs_route::check_slot_identity(missing);
     let CheckOutcome::Finding {
         field,
         detail,
@@ -1765,9 +1906,10 @@ fn breaks_missing_slot() {
     else {
         panic!("a missing slot is a finding: {answer:?}");
     };
-    assert!(field.contains("no-such-slot"), "{field}");
+    assert!(field.contains("one"), "{field}");
     assert!(detail.contains("not there"), "{detail}");
     println!("DOCTOR-GUEST missing-slot-is-a-finding");
+    run("mv", &[moved.as_str(), slot.as_str()]);
 }
 
 /// What:
@@ -1788,7 +1930,7 @@ fn breaks_missing_slot() {
 /// answered 2026-11-23").
 fn breaks_snapdir_visible() {
     zfs(&["set", "snapdir=visible", checkout_dataset().as_str()]);
-    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let datasets: Vec<DatasetFacts> = the_machines_facts().route.datasets;
     let checkout: &DatasetFacts = datasets
         .iter()
         .find(|dataset| return dataset.name == checkout_dataset())
@@ -1822,7 +1964,7 @@ fn breaks_snapdir_visible() {
 ///  act on.
 fn breaks_snapdir_hidden() {
     zfs(&["set", "snapdir=hidden", container_dataset().as_str()]);
-    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let datasets: Vec<DatasetFacts> = the_machines_facts().route.datasets;
     let container: &DatasetFacts = datasets
         .iter()
         .find(|dataset| return dataset.name == container_dataset())
@@ -1853,7 +1995,7 @@ fn breaks_snapdir_hidden() {
 ///  directories still do.
 fn breaks_snapdir_default() {
     zfs(&["inherit", "snapdir", container_dataset().as_str()]);
-    let datasets: Vec<DatasetFacts> = dataset_facts();
+    let datasets: Vec<DatasetFacts> = the_machines_facts().route.datasets;
     let container: &DatasetFacts = datasets
         .iter()
         .find(|dataset| return dataset.name == container_dataset())

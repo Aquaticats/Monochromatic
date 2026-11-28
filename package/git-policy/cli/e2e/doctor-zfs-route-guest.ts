@@ -7,7 +7,8 @@
  (`package/zfs/request-to-openzfs-kernel-device/e2e/run-fixture.ts`): it creates the Ubuntu 24.04 guest, prepares it with
  OpenZFS 2.4.4, Rust and cargo-nextest, builds this crate's binaries and tests inside it, runs the arm, and destroys the
  guest. The arm itself creates the design's layout, the store, the installed files and the records, asserts every group
- passes, then breaks one fact at a time and asserts the finding.
+ passes, compares the release's gatherer of the machine's route facts with the arm's own helper line for line, then
+ breaks one fact at a time and asserts the finding through the release's gatherer.
 
  Every line a run must find is printed by the arm as `DOCTOR-GUEST <claim>`. `create` refuses a name `mvm list` already
  reports, and `destroy` removes only a guest this driver created.
@@ -120,6 +121,7 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST rename-grant-is-a-finding',
   'DOCTOR-GUEST readiness-from-another-boot-is-a-finding',
   'DOCTOR-GUEST later-steps-are-unknown',
+  'DOCTOR-GUEST the-releases-gatherer-answers-the-same-report',
   'DOCTOR-GUEST snapdir-visible-is-a-finding',
   'DOCTOR-GUEST snapdir-hidden-is-a-finding',
   'DOCTOR-GUEST snapdir-default-is-a-finding',
