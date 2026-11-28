@@ -174,16 +174,29 @@ fn make_the_pool_and_the_datasets(fixture: &Fixture) {
         ],
     );
     assert!(pool, "the pool could not be made: {pool_said}");
+    let checkout: &Path = fixture.checkout.as_path();
+    std::fs::create_dir_all(checkout).expect("the checkout's folder");
+    let mountpoint: String = format!("mountpoint={}", checkout.display());
     for leaf in [CHECKOUT_DATASET_LEAF, OTHER_DATASET_LEAF] {
         let dataset: String = format!("{}/{leaf}", fixture.pool);
-        let (created, created_said) = fixture.ask("zfs", &["create", dataset.as_str()]);
+        // Both datasets mount at the checkout path and neither mounts on its own, so a phase mounts the one it is about
+        // and inherits no mount from another.
+        let (created, created_said) = fixture.ask(
+            "zfs",
+            &[
+                "create",
+                "-o",
+                mountpoint.as_str(),
+                "-o",
+                "canmount=noauto",
+                dataset.as_str(),
+            ],
+        );
         assert!(
             created,
             "the dataset {dataset} could not be made: {created_said}"
         );
     }
-    let checkout: &Path = fixture.checkout.as_path();
-    std::fs::create_dir_all(checkout).expect("the checkout's folder");
     say(format!(
         "fixture guest={} pool={} checkout={}",
         fixture.guest,
@@ -313,18 +326,10 @@ fn one_state(
 fn a_mount_that_is_not_the_checkout(fixture: &Fixture) -> String {
     let other: String = format!("{}/{OTHER_DATASET_LEAF}", fixture.pool);
     let checkout: &Path = fixture.checkout.as_path();
-    let (done, said) = fixture.ask(
-        "zfs",
-        &[
-            "mount",
-            "--mountpoint",
-            checkout.to_str().expect("a text path"),
-            other.as_str(),
-        ],
-    );
+    let (mounted, mounted_said) = fixture.ask("zfs", &["mount", other.as_str()]);
     assert!(
-        done,
-        "the other dataset could not be mounted at the checkout: {said}"
+        mounted,
+        "the other dataset could not be mounted at the checkout: {mounted_said}"
     );
     let receipts_before: usize = count_receipts();
     let places: PropagationPlaces = a_place();
@@ -735,23 +740,17 @@ fn make_the_parent_a_slave(fixture: &Fixture) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// exec(`zfs mount -o mountpoint=<checkout> <dataset>`);
+/// exec(`zfs mount <dataset>`); // the dataset's mountpoint is the checkout path
 /// ```
 fn mount_the_checkout(
     fixture: &Fixture,
     dataset: &str,
 ) {
-    let checkout: &Path = fixture.checkout.as_path();
-    let (made, said) = fixture.ask(
-        "zfs",
-        &[
-            "mount",
-            "--mountpoint",
-            checkout.to_str().expect("a text path"),
-            dataset,
-        ],
+    let (mounted, mounted_said) = fixture.ask("zfs", &["mount", dataset]);
+    assert!(
+        mounted,
+        "the dataset {dataset} could not be mounted: {mounted_said}"
     );
-    assert!(made, "the checkout dataset could not be mounted: {said}");
 }
 
 /// The step's places for one phase:
