@@ -331,6 +331,53 @@ fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
     );
 }
 
+/// What:
+/// The sentence for an added target names the listing this release reads,
+/// and the line of it the target was looked for in.
+/// Why:
+/// This release asks `rustup component list --installed` and no other listing
+/// (see `the_parts_a_rust_toolchain_lacks`),
+/// so a sentence naming `rustup target list --installed` sends a person to a command this run never made,
+/// whose own answer then differs from what the sentence says about it.
+/// The README's "How it installs" section says which question an install asks;
+/// a person reading the line and running the command named in it finds the two disagreeing.
+#[test]
+fn the_sentence_for_an_added_target_names_the_listing_this_release_reads() {
+    let rig = Rig::new();
+    let mut tool: LockedTool = rust_tool(&rig);
+    tool.declaration.options.rust_components = None;
+    let added: Vec<String> = reconcile_with(
+        &rig,
+        &tool,
+        &format!("rust-src\n{THE_HOSTS_STANDARD_LIBRARY}"),
+    )
+    .expect("the target was added");
+    assert_eq!(
+        added,
+        vec![
+            "rust: nightly-2026-10-30 was already installed; added the declared target \
+             aarch64-linux-android, which the `rust-std-aarch64-linux-android` line of \
+             `rustup component list --installed` did not show"
+                .to_string()
+        ],
+        "the sentence names the listing the catalogue read: {added:?}"
+    );
+    for sentence in &added {
+        assert!(
+            !sentence.contains("rustup target list --installed"),
+            "no sentence names a listing this run never asked: {sentence}"
+        );
+    }
+    assert!(
+        rig.runner
+            .lines()
+            .iter()
+            .all(|line| return !line.contains("target list")),
+        "the run itself asks no target listing: {:?}",
+        rig.runner.lines()
+    );
+}
+
 /// The installed-parts listing asks about the same channel `packageId` names,
 /// not the locked version,
 /// so a real install is not read as missing and re-added forever.

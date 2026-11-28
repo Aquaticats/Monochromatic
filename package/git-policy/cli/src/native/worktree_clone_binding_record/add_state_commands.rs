@@ -198,28 +198,32 @@ pub enum NextCommand {
 }
 
 /// The settling command's program and subcommand,
-/// which no management grammar admits in this release
+/// which this release's management grammar admits
 /// (`SPEC.md`,
-/// "The settling command,
-/// built and reachable from no command").
+/// "The settling command").
 pub const SETTLING_COMMAND_WORDS: &str =
     "git monochromatic-git-policy-cli settle-worktree-clone-record";
 
 /// The words every refusal and report prints where a removal would be the way
-/// out.
+/// out:
+/// what `git worktree remove` of the slot does now.
 /// Why:
 ///  A removal is the way out of most of the states this crate reports,
-///  and a sentence that named a command the release did not have would send a
-///  person nowhere,
+///  and a sentence that described it wrongly would send a person to a command
+///  that does not do what they were told,
 ///  so the sentence lives here once and each caller appends it
 ///  (`SPEC.md`,
 ///  "Removal of a ZFS worktree clone").
-///  The name is older than the removal it names:
-///  it was the words that said no removal existed,
-///  and it keeps its name so that no reader's line moves
+///  A caller prints it only for a slot the removal's command path takes,
+///  which is a slot proved to hold a whole clone,
+///  and says for itself which state it found:
+///  a slot whose destruction plan stands is Git's own removal
+///  and not this one
 ///  (`worktree_clone_slot_state`,
-/// `health/doctor_zfs_route` and this folder all read it)
-pub const NO_REMOVAL_WORDS: &str = "`git worktree remove` of that slot runs the wrapper's own removal, which destroys the clone, its own snapshots and its records and prints what it destroyed";
+/// `health/doctor_zfs_route` and this folder all read it).
+///  It was named `NO_REMOVAL_WORDS` while it said no removal existed;
+///  the removal's switch made that name say the opposite of what it holds.
+pub const THE_REMOVALS_WORDS: &str = "`git worktree remove` of that slot runs the wrapper's own removal, which destroys the clone, its own snapshots and its records and prints what it destroyed";
 
 /// What:
 ///  The command one state names.
@@ -370,8 +374,8 @@ impl NextCommand {
             NextCommand::GitWorktreeRemove => format!(
                 "run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"
             ),
-            NextCommand::TheRemoval => format!(
-                "the removal this slot's destruction plan belongs to resumes from the plan and ends it, and {NO_REMOVAL_WORDS}"
+            NextCommand::TheRemoval => String::from(
+                "the removal this slot's destruction plan belongs to is the one that resumes from the plan and ends it, and no command of this release runs that removal while such a plan stands: a `git worktree remove` of this slot is Git's own removal, which drops the registration and the slot folder while the clone stands, so do not run it. Read the plan's own file before you act.",
             ),
             NextCommand::TheFinishPass => String::from(
                 "wait: the pool cannot prove the clone's absence and the plan's head is `gone`, so the settling command refuses it and the finish pass removes the plan once the pool answers",

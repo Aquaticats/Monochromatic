@@ -137,13 +137,14 @@ pub fn semantic_line_breaks(
         // The text a break leaves on its own line starts one separator past the break point.
         let fragments: Vec<usize> = breaks
             .iter()
-            .map(|(at, separator)| at + separator)
+            .map(|(at, separator)| return at + separator)
             .collect::<Vec<usize>>();
         let joins: Vec<Option<FragmentJoin>> = fragment_joins(
             context.source.as_str(),
             paragraph_end,
             fragments.as_slice(),
             prefix.chars().count(),
+            context.host_prefix_chars,
         );
         for (index, (at, separator)) in breaks.iter().enumerate() {
             // The fix consumes at most the one separating space; the grouped editor resolves competing fixes.

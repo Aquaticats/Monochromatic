@@ -5612,13 +5612,17 @@ whose words are not the command Git runs.
 Git's own removal would delete the registration and the slot's underlay folder,
 which holds the pointer the add kept for prune,
 and the clone dataset with the person's checked-out files would then be reachable by
-nobody.
-The refusal prints the slot's report and says that this release has no removal for a clone,
-so the clone and its record stay until one does,
-and names the one command of Git's own message that works,
-`git worktree unlock <slot>`;
-what a removal would prove and lose is printed beside it,
-which the section "Removal of a ZFS worktree clone" below describes.
+nobody,
+so a `git worktree remove` of a slot a whole managed clone is bound to runs the
+wrapper's own removal instead of Git's:
+that removal destroys the clone,
+its own snapshots and its records,
+and prints what it destroyed in the same invocation,
+which the section "Removal of a ZFS worktree clone" below states.
+The slots the wrapper refuses are the ones the paragraphs below name,
+and each refusal prints the slot's report,
+the reading that stopped it,
+and the repair that ends it.
 A pending add's removal is not refused,
 because the add's own refusal names `git worktree remove <slot>` as its way forward;
 a pending add whose record has reached the phase that makes a clone
@@ -6089,9 +6093,12 @@ What this release does not do:
   (`worktree_clone_origin_cleanup::origin_cleanup_look`)
   is reached from the removal's own step of that order,
   and the other four commands' look is not yet called.
-- It adopts a plan from no command but the removal of that clone:
-  a removal that finds one adopts it and continues,
-  and no other command runs one.
+- It resumes no removal from a standing destruction plan through a command.
+  `worktree_clone_removal_proof_and_plan::removal_resume::start_the_removal` adopts a kept plan,
+  re-proves it and carries its loss forward,
+  but the command path takes only a slot it proves holds a whole clone,
+  and a slot a destruction plan names is one the command path leaves to Git,
+  so no command reaches that resume today and the plan waits for one that does.
 
 #### The cancel command
 
