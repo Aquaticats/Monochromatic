@@ -89,14 +89,21 @@ impl RemovalStagingFolder for AStagingFolderOfAFixtureCache {
         clone_guid: DatasetGuid,
     ) -> Result<(), RemovalStop> {
         self.asked.set(self.asked.get() + 1);
-        return create_the_staging_folder(self.home.as_path(), &self.pin, clone_guid)
-            .map(|_made| return ())
+        let _made: bool = create_the_staging_folder(self.home.as_path(), &self.pin, clone_guid)
             .map_err(|said| {
                 return RemovalStop::TheStagingFolderCouldNotBeMade {
                     step: String::from(super::STAGING_FOLDER_STEP),
                     said,
                 };
-            });
+            })?;
+        // What: `Ok(())` is the success variant of `Result`, saying the folder stands.
+        // Why: the control answers the step, and the order goes on to ask for the unmount.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return;
+        // ```
+        return Ok(());
     }
 }
 

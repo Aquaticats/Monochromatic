@@ -118,11 +118,18 @@ impl RemovalStagingFolder for LiveRemovalStagingFolder {
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // createTheStagingFolder(home, pin, cloneGuid);
+        // const made = createTheStagingFolder(home, pin, cloneGuid);
         // ```
-        return create_the_staging_folder(home.as_path(), &pin, clone_guid)
-            .map(|_made| return ())
-            .map_err(|said| return a_staging_refusal(STAGING_FOLDER_STEP, said));
+        let _made: bool = create_the_staging_folder(home.as_path(), &pin, clone_guid)
+            .map_err(|said| return a_staging_refusal(STAGING_FOLDER_STEP, said))?;
+        // What: `Ok(())` is the success variant of `Result`, saying this step owes nothing further.
+        // Why: the folder stands, so the order goes on to write the intent and ask for the unmount.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return;
+        // ```
+        return Ok(());
     }
 }
 
