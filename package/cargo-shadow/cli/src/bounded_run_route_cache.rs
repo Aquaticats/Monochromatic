@@ -11,8 +11,6 @@
 /// The route override and the route types of the test-only override.
 #[cfg(test)]
 use crate::bounded_run::ROUTE_OVERRIDE;
-/// The refusal text and the default discovery that the cache uses.
-use crate::bounded_run::reason_of;
 /// The settings and the detection of the route.
 use crate::control_group_route_discovery::{
     RouteSettings,
@@ -33,8 +31,10 @@ use crate::control_group::{
 /// an internal lock returns at once).
 pub(crate) struct RouteCache {
     /// The last answer,
-    /// a route or the reason there is none.
-    slot: std::sync::Mutex<Option<Result<Route, String>>>,
+    /// a route or the refusal that kept this process from one.
+    /// The refusal is kept whole and not only its words,
+    /// because a route no wait of this tool ends stops every run of the process that meets it (`GroupUnavailable::stops_the_call`).
+    slot: std::sync::Mutex<Option<Result<Route, GroupUnavailable>>>,
 }
 
 /// The methods of the type above.
@@ -73,11 +73,11 @@ impl RouteCache {
         if let Ok(held) = self.slot.try_lock()
             && let Some(answer) = held.as_ref()
         {
-            return answer.clone().map_err(crate::control_group::unavailable);
+            return answer.clone();
         }
         let found: Result<Route, GroupUnavailable> = discover();
         if let Ok(mut held) = self.slot.try_lock() {
-            *held = Some(found.as_ref().map(Clone::clone).map_err(reason_of));
+            *held = Some(found.clone());
         }
         return found;
     }
