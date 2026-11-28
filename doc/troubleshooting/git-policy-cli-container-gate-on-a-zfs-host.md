@@ -956,12 +956,82 @@ and the failures with the commit that fixed them.
   `12321 tests run: 12321 passed (5 slow), 51 skipped`,
   in 929 s.
   It failed nothing.
+- `229d5310eb`,
+  unit `gpc-gate-wrapper-next-alpha-on-229d5310eb-20261127T220658-0500`,
+  started 2026-11-27T22:06:58-05:00,
+  the first gate of the wrapper's `0.6.1-alpha.52`:
+  it ran no test.
+  The image build ended with `error: could not compile` for the library's test build and
+  `NativeVerificationError: podman build failed (status 101, signal none)`,
+  `gate-exit-status=1`,
+  at 22:48:48,
+  on the night this machine ran out of memory and swap while many rounds compiled at once.
+  The gates after it start only once free memory plus free swap reads 40,000,000 kB on three
+  readings a minute apart.
+- `af9c816379`,
+  unit `gpc-gate-wrapper-next-alpha-on-af9c816379-20261128T005704-0500`,
+  started 2026-11-28T00:57:04-05:00,
+  the gate `0.6.1-alpha.52` was released on:
+  `12337 tests run: 12337 passed (8 slow), 51 skipped`,
+  in 1243 s.
+  It failed nothing.
+- `3d64028ef3`,
+  unit `gpc-gate-wrapper-next-alpha-on-3d64028ef3-20261128T024847-0500`,
+  started 2026-11-28T02:48:47-05:00,
+  holding the seven rounds joined on 2026-11-28
+  (the removal's switch,
+  the management grammar,
+  both halves of the lost-event check,
+  `doctor`'s checks for two plan steps,
+  and issues 6615 and 6642):
+  `12474 tests run: 12474 passed (7 slow), 51 skipped`,
+  in 1205 s.
+  It failed nothing.
+  The three gates of that night took between 1205 s and 1243 s,
+  against 929 s the evening before,
+  with more than twenty rounds and nine guests on the machine.
 
 A gate's window denies what the work meets,
 never a failure by itself:
 the `umount` `dac_override` refusals and the `git` ones an issue 6448 round made are in
 `doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
 and only a denial the read maps to a failing test is a finding.
+- `05cf4c8820`,
+  unit `gpc-gate-wrapper-next-alpha-on-05cf4c8820-20261128T032317-0500`,
+  started 2026-11-28T03:23:17-05:00 and ended at 03:55:53,
+  on the merge that makes every sentence beside a removal say what the running removal does:
+  `12475 tests run: 12471 passed (10 slow), 4 failed, 51 skipped`.
+  The four are in `native_binary`,
+  and each met a bound of its own:
+  `fault_trace::storage_that_fails_during_a_commit_leaves_a_recoverable_repository`
+  (native Git's own commit ended at the control's 60 s bound),
+  `lfs_pre_push::a_failing_upload_blocks_the_reconcile_push_of_an_auto_push`
+  ("commit service has said nothing for 5 seconds"),
+  `lfs_pre_push::the_reconcile_push_of_an_auto_push_runs_the_upload_before_the_ref_moves`
+  ("service never settled the after-commit work"),
+  and `lfs_server::a_numeric_mirror_uploads_the_objects_of_every_branch_it_publishes`.
+  At 03:51:23 the machine read `MemAvailable` 0 kB and `full avg10=49.62` in `/proc/pressure/memory`,
+  with a load of 101.
+  Issue 6656 asks what the wrapper adds over native Git under that shortage and whether each bound is one a starved process misses with nothing wrong.
+  No release was made on this gate.
+- `d4faaf0807`,
+  unit `gpc-gate-wrapper-next-alpha-on-d4faaf0807-20261128T053953-0500`,
+  started 2026-11-28T05:39:53-05:00,
+  its verdict read at 06:18:41,
+  on the merge that makes the forced arm stop a locked holder's own user unit,
+  which also holds the removal's read of a person's lock before its first write and plan step 19's guest arms:
+  `12517 tests run: 12517 passed (6 slow), 51 skipped`.
+  It ran through memory trouble of two kinds.
+  Until 05:45:26 the guests' unit swapped against its own cap,
+  and `/proc/pressure/memory` read `full avg10` as high as 84.40 (at 05:45:06).
+  After that cap was raised the same reading stayed under 5,
+  and the host's `MemAvailable` moved between 694,028 kB (at 06:02:40) and 11,104,792 kB (at 06:06:41)
+  over 38 readings a minute apart.
+  The four controls that met their bounds on `05cf4c8820` passed here,
+  which tells issue 6656 that they hold under this much shortage and failed under more.
+  The wrapper's `0.6.1-alpha.53` was released after it,
+  from a tip that held two more merges under the package (`74f34f6af9` and `a2ff2180e9`),
+  each checked by its own round and neither by this gate.
 
 ## Verification
 

@@ -11,7 +11,7 @@
 //! which leaves the file that stood there under the staged name,
 //! and a write that landed after the reading is put back where it was written.
 //! Every answer says what became of every byte,
-//! so the caller words one line from it.
+//!  so the caller words one line from it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -64,7 +64,7 @@ pub(super) enum Restored {
 ///  `renameat2(RENAME_EXCHANGE)` (`rename_that_never_replaces.rs`),
 ///  which leaves the file that stood there under the staged name.
 ///  When that file holds the bytes the reading named it is the clean's own,
-/// and it goes
+///  and it goes
 ///  (a copy of it is kept already);
 ///  when it holds anything else a person wrote it after the reading,
 ///  so the exchange is undone and their file is back where they wrote it while the checked-out bytes are kept where the notice says.
@@ -213,8 +213,8 @@ fn is_cross_device(error: &std::io::Error) -> bool {
 /// and a write that lands exactly between those two steps is replaced unseen,
 /// which no step taken from outside the writer can prevent there.
 /// Every other write,
-/// before the reading or after the rename,
-/// is judged as the exchange judges it.
+///  before the reading or after the rename,
+///  is judged as the exchange judges it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -285,7 +285,7 @@ fn judge_the_displaced(
 ///  and put it back if it holds bytes written after the reading.
 /// Why:
 ///  A move is one step,
-/// so the file that goes is the file that stood there when the step ran,
+///  so the file that goes is the file that stood there when the step ran,
 ///  whatever a person wrote after the reading;
 ///  the bytes are judged from the moved file and not from an earlier reading.
 ///

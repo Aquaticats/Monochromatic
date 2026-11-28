@@ -4,7 +4,9 @@
 //!  control and its stages apart,
 //!  the mount request's wait and the unmount's,
 //!  the sweep's own cost and the lost-event behaviour,
+//!  the sweep's cost past 64 clones,
 //!  what expiration and removal free,
+//!  what a snapshot pins of incompressible output,
 //!  the forced arm's three waits,
 //!  and the largest snapshot-destroy request the binding sends.
 //! Why:
@@ -14,7 +16,7 @@
 //! The measurements that size waits and retention"),
 //!  and each shipped limit must cite a measurement beside its value.
 //!  The arms build a real pool,
-//! clone datasets and mounts as root,
+//!  clone datasets and mounts as root,
 //!  so no control on a person's machine may run them:
 //!  they run only where `CLI_GIT_ZFS_STEP22_GUEST` names a disposable guest,
 //!  on a file-backed pool,
@@ -184,19 +186,18 @@ fn nonce(seed: &str) -> String {
 /// The fixture the arm drives:
 /// the design's layout,
 /// a repository,
-/// and the
-/// wrapper's own link.
-struct Fixture {
+/// and the wrapper's own link.
+pub(super) struct Fixture {
     /// The checkout root.
-    root: PathBuf,
+    pub(super) root: PathBuf,
     /// The pool's name.
-    pool: String,
+    pub(super) pool: String,
     /// The OpenZFS userspace.
-    sbin: String,
+    pub(super) sbin: String,
     /// The checkout dataset the layout made.
-    checkout: String,
+    pub(super) checkout: String,
     /// The clone container the layout made.
-    container: String,
+    pub(super) container: String,
 }
 
 /// What one add round measured.
@@ -257,7 +258,7 @@ impl Fixture {
 
     /// One slot's folder,
     /// which the design keeps under the checkout.
-    fn slot(
+    pub(super) fn slot(
         &self,
         name: &str,
     ) -> PathBuf {
@@ -265,7 +266,7 @@ impl Fixture {
     }
 
     /// One slot's clone dataset.
-    fn clone(
+    pub(super) fn clone(
         &self,
         name: &str,
     ) -> String {
@@ -438,7 +439,7 @@ impl Fixture {
     /// One `zfs` command as root,
     /// with its status,
     /// output and error.
-    fn zfs(
+    pub(super) fn zfs(
         &self,
         arguments: &[&str],
     ) -> (bool, String, String) {
@@ -446,7 +447,7 @@ impl Fixture {
     }
 
     /// One `zfs` command that must succeed.
-    fn zfs_ok(
+    pub(super) fn zfs_ok(
         &self,
         arguments: &[&str],
     ) {
@@ -456,7 +457,7 @@ impl Fixture {
     /// One dataset's property,
     /// in bytes,
     /// where the property is a number.
-    fn bytes(
+    pub(super) fn bytes(
         &self,
         property: &str,
         dataset: &str,
@@ -518,8 +519,7 @@ impl Fixture {
 
     /// Run the wrapper's own add,
     /// which is the ZFS clone route,
-    /// watching its
-    /// binding record and mounting the clone when it asks.
+    /// watching its binding record and mounting the clone when it asks.
     fn wrapper_add(
         &self,
         name: &str,
@@ -638,8 +638,7 @@ impl Fixture {
     /// mount,
     /// folder,
     /// registration and record away,
-    /// so the
-    /// next round starts from nothing.
+    /// so the next round starts from nothing.
     fn clear(
         &self,
         name: &str,
@@ -666,7 +665,7 @@ impl Fixture {
     /// One clone of a fresh checkout snapshot,
     /// asking to be mounted at a slot
     /// Git registered.
-    fn make_a_clone_asking(
+    pub(super) fn make_a_clone_asking(
         &self,
         name: &str,
         seed: &str,
@@ -683,11 +682,37 @@ impl Fixture {
         make_the_slot(self.root.as_path(), name);
     }
 
+    /// What:
+    ///  Take one of the arm's own clones away with the checkout snapshot it was cloned from,
+    ///  and leave its slot folder standing.
+    /// Why:
+    ///  The sweep records a slot folder's identity the first time it attaches a clone there,
+    ///  and refuses a folder whose inode has changed since,
+    ///  so a parent that takes a clone away and later gives it one again has to keep the folder:
+    ///  a first run of the past-64 arm removed the folder with `forget` and the sweep then refused every slot it gave a
+    ///  clone back to.
+    pub(super) fn drop_the_clone(
+        &self,
+        name: &str,
+        seed: &str,
+    ) {
+        let clone: String = self.clone(name);
+        let snapshot: String = format!(
+            "{}@git-worktree-clone-origin-{}",
+            self.checkout,
+            nonce(seed)
+        );
+        let _destroyed: (bool, String, String) = self.zfs(&["destroy", "-r", "-f", clone.as_str()]);
+        let _snapshot: (bool, String, String) = self.zfs(&["destroy", "-f", snapshot.as_str()]);
+        let _inherited: (bool, String, String) =
+            self.zfs(&["inherit", DESIRED_STATE, self.container.as_str()]);
+    }
+
     /// Take one of the arm's own clones away,
     /// with the checkout snapshot it was
     /// cloned from,
     /// without touching a record the arm still reads.
-    fn forget(
+    pub(super) fn forget(
         &self,
         name: &str,
         seed: &str,
@@ -873,7 +898,7 @@ fn intent_says_mount(
 }
 
 /// Whether a mount stands at one path in this process's table.
-fn mounted_at_path(path: &Path) -> bool {
+pub(super) fn mounted_at_path(path: &Path) -> bool {
     let table: String = std::fs::read_to_string("/proc/self/mountinfo").expect("the mount table");
     let wanted: String = path.display().to_string();
     return table
@@ -883,7 +908,7 @@ fn mounted_at_path(path: &Path) -> bool {
 
 /// Take one mount down where it stands,
 /// without insisting that it did.
-fn unmount_quiet(folder: &Path) {
+pub(super) fn unmount_quiet(folder: &Path) {
     let _unmounted: Output = Command::new("/usr/bin/umount")
         .arg(folder)
         .output()
@@ -909,18 +934,17 @@ fn command(
 
 /// What:
 ///  Copy one folder tree's files and folders,
-/// leaving the `uses/` links out.
+///  leaving the `uses/` links out.
 /// Why:
 ///  Every source folder in this crate holds a `uses/` folder of links to the
 ///  folders its code uses,
 ///  and a copy that followed them walked the same subtree again and again:
 ///  the first run's workload read 133,102 files from 3,327,
 ///  filled a pool with 758 MiB,
-/// and made the route's capture exceed its bound.
+///  and made the route's capture exceed its bound.
 ///  A link is not fill work,
-/// so it is skipped rather than recreated,
-/// and the
-///  workload is the tree's own files.
+///  so it is skipped rather than recreated,
+///  and the workload is the tree's own files.
 fn copy_tree(
     from: &Path,
     to: &Path,
@@ -943,7 +967,7 @@ fn copy_tree(
 
 /// The middle reading of a copy,
 /// which is the median of an odd count.
-fn middle(values: &[u128]) -> u128 {
+pub(super) fn middle(values: &[u128]) -> u128 {
     let mut sorted: Vec<u128> = values.to_vec();
     sorted.sort_unstable();
     return sorted[sorted.len() / 2];
@@ -1006,13 +1030,12 @@ fn report_pairs(
 
 /// What:
 ///  The add against ordinary Git,
-/// interleaved round by round,
-/// with the binding
+///  interleaved round by round,
+///  with the binding
 ///  record's phases timed so the Git fill,
-/// the snapshot,
-/// the clone,
-/// the mount
-///  wait and the fill's own work are separate.
+///  the snapshot,
+///  the clone,
+///  the mount wait and the fill's own work are separate.
 /// Why:
 ///  The plan's acceptance text asks for exactly those stages apart under one
 ///  workload with an interleaved control,
@@ -1086,7 +1109,7 @@ fn add_rounds(fixture: &Fixture) {
 /// What:
 ///  The discard the route's fill pays and the ordinary Git arm has no stage for:
 ///  deleting the copied Git administration,
-/// at the bytes and file count the
+///  at the bytes and file count the
 ///  route's own copy holds.
 /// Why:
 ///  The acceptance text asks for the disposal to be reported as a contribution
@@ -1120,9 +1143,9 @@ fn discard_arm(fixture: &Fixture) {
 
 /// What:
 ///  The sweep's own cost with one clone and with sixteen,
-/// and what a lost event
+///  and what a lost event
 ///  leaves:
-/// a request no waiter and no handler sees stays unmounted until a
+///  a request no waiter and no handler sees stays unmounted until a
 ///  trigger fires.
 /// Why:
 ///  The design says a bound on how many sweeps may run in a period needs the
@@ -1178,14 +1201,13 @@ fn sweep_cost_arm(fixture: &Fixture) {
 
 /// What:
 ///  One sweep's cost over `count` clones of the checkout's snapshot,
-/// each
-///  asking for its mount,
-/// and how many it attached.
+///  each asking for its mount,
+///  and how many it attached.
 /// Why:
 ///  The cost is what the sweep pays per run,
-/// and a period a heartbeat uses must
+///  and a period a heartbeat uses must
 ///  exceed it,
-/// so the arm reads it at two sizes.
+///  so the arm reads it at two sizes.
 fn sweep_over(
     fixture: &Fixture,
     count: usize,
@@ -1236,10 +1258,10 @@ fn sweep_over(
 
 /// What:
 ///  The unmount's own wait:
-/// how long `umount` takes with no holder (the floor),
+///  how long `umount` takes with no holder (the floor),
 ///  how long it refuses with a holder (the path a deadline must not paper over),
 ///  and how long the holder takes to leave after its signal,
-/// which is the
+///  which is the
 ///  forced arm's `T_wait`.
 /// Why:
 ///  Step 9's unmount deadline must cover the verified unmount,
@@ -1394,7 +1416,7 @@ fn unmount_arm(fixture: &Fixture) {
 
 /// What:
 ///  `T_stop`:
-/// how long a transient unit takes to leave its cgroup after its
+///  how long a transient unit takes to leave its cgroup after its
 ///  manager is asked to stop it.
 /// Why:
 ///  The forced arm gives a locked unit `T_stop` to leave before it names it,
@@ -1450,12 +1472,12 @@ fn stop_wait_arm() {
 
 /// What:
 ///  What expiration,
-/// removal and the guard's current scope free:
+///  removal and the guard's current scope free:
 ///  the checkout dataset's own bytes,
-/// what its snapshot pins,
-/// what the clone
+///  what its snapshot pins,
+///  what the clone
 ///  holds,
-/// and what destroying first the clone and then the snapshot gives back.
+///  and what destroying first the clone and then the snapshot gives back.
 /// Why:
 ///  The design asks what expiration,
 ///  removal and the current guard can free,
@@ -1522,9 +1544,9 @@ fn retention_arm(fixture: &Fixture) {
 
 /// What:
 ///  The largest snapshot-destroy request the binding sends,
-/// in names and in
+///  in names and in
 ///  bytes of encoded input,
-/// at three sizes.
+///  at three sizes.
 /// Why:
 ///  The design's split needs the largest encoded input one request may carry,
 ///  and this arm reads it as the request's own bytes rather than estimating
@@ -1595,9 +1617,11 @@ fn the_step_22_guest_measurements() {
     );
     add_rounds(&fixture);
     sweep_cost_arm(&fixture);
+    super::zfs_step_22_large_parent::large_parent_sweep_arm(&fixture);
     unmount_arm(&fixture);
     stop_wait_arm();
     retention_arm(&fixture);
+    super::zfs_step_22_pinned_output::pinned_output_arm(&fixture);
     request_budget_arm(&fixture);
     println!("STEP22 done");
 }

@@ -14,7 +14,7 @@
 //!  intact,
 //! because the kernel shortens a list too large for the caller's buffer
 //!  (`module/zfs/zfs_ioctl.c`,
-//! `nvlist_smush`) and the binding's reader keeps
+//!  `nvlist_smush`) and the binding's reader keeps
 //!  at most [`MAXIMUM_ELEMENTS_KEPT`] entries
 //!  (`requests/element_error.rs`).
 //!  A reply that contradicts the request,
@@ -60,8 +60,7 @@ use super::snapshot_name_outcome::{
 /// the entries it lost are removed and one pair
 ///  named this carries their count
 ///  (`module/zfs/zfs_ioctl.c`,
-/// `nvlist_smush` and
-///  `zfs_ioc_destroy_snaps`'s registration with `smush_outnvlist` set).
+/// `nvlist_smush` and `zfs_ioc_destroy_snaps`'s registration with `smush_outnvlist` set).
 ///  A full reply is what this route's write buffer holds,
 /// so the marker should never appear;
 /// if it does,

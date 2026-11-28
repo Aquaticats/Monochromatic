@@ -247,6 +247,7 @@ fn the_removal_finish_pass_guest_arms() {
         head: &live,
         holders: &TheLiveHolderScan,
         settle: &ARefusingSettle,
+        cancelling: None,
         budget: the_budget(&fixture),
         now: "2026-11-25T09:12:44-05:00",
     };

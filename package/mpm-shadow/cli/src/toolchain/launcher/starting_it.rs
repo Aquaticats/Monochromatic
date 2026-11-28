@@ -176,18 +176,24 @@ fn say_why_the_lock_is_unreadable(lock_file: &Path) {
         LinkVerdict::NotReady {
             message,
         } => {
-            eprintln!(
+            // What: the crate's notice writer says why the lock could not be read and drops a write the
+            //  stream refuses.
+            // Why: the launcher goes on to start the program either way (the doc above says it never blocks a run),
+            //  so a stream that refuses this line must not stop the start.
+            crate::notices::say(&format!(
                 "mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway: {message}",
                 lock_file.display()
-            );
+            ));
         }
         LinkVerdict::CheckUnavailable {
             why,
         } => {
-            eprintln!(
+            // What: the same notice writer for the unknown-cause arm.
+            // Why: the same reason: the tool runs anyway.
+            crate::notices::say(&format!(
                 "mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway; the cause is unknown: {why}",
                 lock_file.display()
-            );
+            ));
         }
         LinkVerdict::NotConfigured | LinkVerdict::Ready => {}
     }
@@ -277,7 +283,9 @@ pub fn run_launcher(
         return report_program_not_found(record, &launch.program, lock_text.as_deref());
     }
     if let Some(warning) = &launch.warning {
-        eprintln!("mpm-shadow: warning: {warning}");
+        // What: the crate's notice writer says the older-lock warning and drops a write the stream refuses.
+        // Why: the program is started next, so a stream that refuses a warning must not keep it from running.
+        crate::notices::say(&format!("mpm-shadow: warning: {warning}"));
     }
     // A launcher never starts itself: a chain of records that leads back to this launcher, or in a circle, is refused before anything is started.
     if let Ok(own) = std::env::current_exe()
@@ -287,9 +295,12 @@ pub fn run_launcher(
         return EXEC_FAILED_EXIT_CODE;
     }
     if let Err(error) = refresh_stale_record(record, &launch.program) {
-        eprintln!(
+        // What: the same notice writer for the record that could not be refreshed.
+        // Why: the start goes on after this line (the record keeps naming the old program), so a stream that
+        //  refuses the line must not stop the tool running.
+        crate::notices::say(&format!(
             "mpm-shadow: warning: could not update the launcher record, so it keeps naming a program that no longer exists: {error}"
-        );
+        ));
     }
     let error: std::io::Error = exec_program(&launch.program, arguments);
     // What:     A refusal because another process holds a file this start needs open for writing is explained in the

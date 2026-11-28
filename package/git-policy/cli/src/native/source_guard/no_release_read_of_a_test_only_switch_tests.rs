@@ -88,7 +88,7 @@ fn declared_switch_names(text: &str) -> Vec<String> {
 /// Why:
 ///  A read of a switch is the one thing the release must not hold,
 ///  and a release file that names a switch at all may do it for an error message,
-/// a comment or a declaration,
+///  a comment or a declaration,
 ///  which are not reads.
 ///
 /// In TS you'd write (pseudocode):

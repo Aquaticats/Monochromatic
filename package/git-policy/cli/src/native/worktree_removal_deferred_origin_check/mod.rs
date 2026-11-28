@@ -16,12 +16,8 @@
 //!  and added a look before the unmount
 //!  (`doc/decision/cli-git-zfs-deferred-destroy-refusals-and-the-early-look.md`).
 //!  This folder is plan step 15's piece,
-//! built ahead of the plan's order and called by no
-//!  person's command yet:
-//!  its own step wires it in,
-//! and its tests and its guest arm are its only callers
-//!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
-//!  "Building later pieces ahead of the plan's order").
+//!  and the removal a person's `git worktree remove` runs calls it
+//!  at the look before the unmount and at each point before a destroy.
 //!
 //! Files in this folder,
 //! each using only files listed before it:

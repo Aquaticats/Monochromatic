@@ -10,7 +10,7 @@
 //!  They are one file apart from `worktree_remove.rs` because that file is at
 //!  the crate's length limit,
 //!  and because the around pass,
-//! the hand-over and the last look itself all name
+//!  the hand-over and the last look itself all name
 //!  the request rather than the steps it starts.
 //!
 //! In TS you'd write (pseudocode):
@@ -69,14 +69,14 @@ pub(crate) const TAG: &str = "worktreeRemove";
 /// What:
 ///  `pub trait LastLook` is the question a removal's caller asks again as the
 ///  removal runs,
-/// immediately before anything is destroyed.
+///  immediately before anything is destroyed.
 ///  `ask` answers the reason nothing is removed,
-/// or nothing.
+///  or nothing.
 /// Why:
 ///  A removal deletes what its caller proved it may delete,
-/// and that proof takes
+///  and that proof takes
 ///  time:
-/// it starts Git and walks the tree.
+///  it starts Git and walks the tree.
 ///  What the caller read before may have changed by then,
 ///  and a worktree added inside the one being removed,
 ///  or a record written into its Git directory,
@@ -98,13 +98,13 @@ pub trait LastLook {
 /// What:
 ///  `pub struct RemoveRequest<'a>` is what one removal is asked to do and in which
 ///  repository:
-/// the `GitContext` to start Git with,
-/// the `RemovePlan` of the
+///  the `GitContext` to start Git with,
+///  the `RemovePlan` of the
 ///  directory named,
-/// the canonical common Git directory of the invoked repository,
+///  the canonical common Git directory of the invoked repository,
 ///  and the caller's `LastLook` when it asks one.
 ///  The `'a` is the lifetime of every part of it,
-/// because a request only lends them.
+///  because a request only lends them.
 /// Why:
 ///   The repository that was invoked decides which registrations count;
 ///  the worktree's own pointers never do.

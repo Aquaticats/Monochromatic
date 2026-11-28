@@ -1,0 +1,17 @@
+The boundary test does not climb emphasis delimiters, reproduced at the rerun commit.
+Run 2026-11-28T03:47:48-05:00 with the installed monochromatic-lint 0.5.2-alpha.24, in systemd user scopes (MemoryMax 1G, CPUQuota 100%, TasksMax 64, IOWeight 1, RuntimeMaxSec 120).
+
+The copy (a file in the scratch folder, never a file of the repository):
+- **Naming every status.** The status filter is the next thing.
+
+command:
+  /home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint --config <one rule, error> --fix <the copy>
+
+output: exit 0; the copy is now:
+- **Naming every status.**
+  The status filter is the next thing.
+
+The rule wants the break after the closing delimiter (delimiter_tail climbs Strong),
+while ends_at_break_point strips only the nine closers,
+so a survey that calls this line's ending a break at no boundary contradicts the rule.
+A second --fix pass on the same copy changes nothing.

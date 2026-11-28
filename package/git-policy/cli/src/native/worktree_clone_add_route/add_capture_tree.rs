@@ -1,22 +1,20 @@
 //! What:
 //!  One walk of many tracked paths below a held root:
-//! each path read one plain
+//!  each path read one plain
 //!  name at a time,
-//! its parent folder reopened only when the walk moves to
+//!  its parent folder reopened only when the walk moves to
 //!  another folder,
-//! and the facts the capture records and the frozen proof
+//!  and the facts the capture records and the frozen proof
 //!  compares.
 //! Why:
 //!  The capture and the proof must agree about every field they compare,
-//! and a
-//!  second reader would drift.
-//! Both walks are also descriptor-relative:
-//! a
-//!  folder swapped for a link while the walk runs is an error and never a
+//!  and a second reader would drift.
+//!  Both walks are also descriptor-relative:
+//!  a folder swapped for a link while the walk runs is an error and never a
 //!  detour (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "The frozen proof").
 //!  Git's index is sorted by path,
-//! so the folder changes rarely and one cached
+//!  so the folder changes rarely and one cached
 //!  descriptor serves every entry in it.
 //!
 //! In TS you'd write (pseudocode):
@@ -70,8 +68,7 @@ impl FoundKind {
 ///  One path's facts as the walk found them.
 /// Why:
 ///  The capture records exactly these and the proof compares exactly these,
-/// so
-///  a difference in any field the design names refuses the clone.
+///  so a difference in any field the design names refuses the clone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -102,12 +99,11 @@ pub(super) struct FoundFacts {
 
 /// What:
 ///  Walk one item per tracked path,
-/// below a held handle of `root_path`.
+///  below a held handle of `root_path`.
 /// Why:
 ///  The caller gives the items,
-/// their paths and what to do with each,
-/// so the
-///  capture and the proof share this walk and neither reads a path its own way.
+///  their paths and what to do with each,
+///  so the capture and the proof share this walk and neither reads a path its own way.
 ///
 /// # Errors
 /// A path is not a plain relative path,

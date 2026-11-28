@@ -15,6 +15,7 @@ import {
   backendFromArgs,
 } from './backend.ts';
 import {
+  optionalPositiveInteger,
   optionalString,
   requiredString,
 } from './tool-arguments.ts';
@@ -35,7 +36,7 @@ export const createTool: ToolEntry = defineTool({
   name: 'create_vm',
   entry: {
     description:
-      'Creates and starts a new VM on the selected backend. libvirt supports ubuntu (default), fedora, alpine, windows, or a custom template name; hetzner supports ubuntu/debian/fedora/rocky/centos/alma or a literal Hetzner image slug. Windows libvirt VMs take 15-30 minutes on first creation. When `from` is provided, clones from that existing VM instead. `server_type` and `location` apply to the hetzner backend only.',
+      'Creates and starts a new VM on the selected backend. libvirt supports ubuntu (default), fedora, alpine, windows, or a custom template name; hetzner supports ubuntu/debian/fedora/rocky/centos/alma or a literal Hetzner image slug; ovh takes an image shorthand or a catalogue name. Windows libvirt VMs take 15-30 minutes on first creation. When `from` is provided, clones from that existing VM instead, and the clone keeps the source size. `vcpus` and `memory` ask for floors: libvirt gives exactly those, and a cloud backend picks the smallest size with at least both. `server_type` and `location` name a size and a place outright, and `server_type` cannot be combined with either floor.',
     schema: strictArguments({
       name: requiredString(
         'VM name (alphanumeric, hyphens, underscores; hetzner additionally forbids underscores)',
@@ -48,7 +49,13 @@ export const createTool: ToolEntry = defineTool({
         'Hetzner server type (e.g. cx23); defaults to the cheapest non-deprecated type; ignored by the libvirt backend',
       ),
       location: optionalString(
-        'Hetzner location or comma-separated fallback series (e.g. fsn1,nbg1); ignored by the libvirt backend',
+        'Hetzner location or comma-separated fallback series (e.g. fsn1,nbg1), or OVHcloud regions (e.g. bhs5); ignored by the libvirt backend',
+      ),
+      vcpus: optionalPositiveInteger(
+        'Fewest virtual CPUs the machine may have. libvirt gives exactly this many; a cloud backend picks the smallest size with at least this many',
+      ),
+      memory: optionalPositiveInteger(
+        'Least memory the machine may have, in gibibytes. libvirt gives exactly this much; a cloud backend picks the smallest size with at least this much',
       ),
       backend: BACKEND_ARGUMENT,
     },),
@@ -73,6 +80,14 @@ export const createTool: ToolEntry = defineTool({
        Optional Hetzner location series; ignored by the libvirt backend.
        */
       const location = ((typeof args.location) === 'string') ? args.location : undefined;
+      /**
+       Optional floor on virtual CPUs, or `undefined` when none was asked.
+       */
+      const vcpus = ((typeof args.vcpus) === 'number') ? args.vcpus : undefined;
+      /**
+       Optional floor on memory, in gibibytes.
+       */
+      const memoryGiB = ((typeof args.memory) === 'number') ? args.memory : undefined;
       try {
         /**
          Backend resolved from the optional `backend` arg, env, or default.
@@ -88,6 +103,8 @@ export const createTool: ToolEntry = defineTool({
             ...(image !== undefined ? { image, } : {}),
             ...(serverType !== undefined ? { serverType, } : {}),
             ...(location !== undefined ? { location, } : {}),
+            ...(vcpus !== undefined ? { vcpus, } : {}),
+            ...(memoryGiB !== undefined ? { memoryGiB, } : {}),
           },));
         /**
          Trailing fragment appended to the success message to disclose clone provenance when applicable.

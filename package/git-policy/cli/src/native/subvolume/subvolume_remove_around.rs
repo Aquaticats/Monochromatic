@@ -147,8 +147,8 @@ fn take(
 /// Why:
 ///   This is the pass behind "remove around it".
 /// A volume is never opened for reading,
-/// never renamed,
-/// never moved and never deleted here:
+///  never renamed,
+///  never moved and never deleted here:
 /// its handle is asked what it is and the pass goes on,
 ///  so what it holds is left exactly as it stands.
 /// A directory that holds one in its subtree is kept,

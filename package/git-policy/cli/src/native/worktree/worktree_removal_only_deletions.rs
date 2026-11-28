@@ -10,22 +10,22 @@
 //! an empty report says nothing about entries that are nowhere missing,
 //!  so reading it as
 //! "only deletions" made a fresh,
-//! clean worktree read as a half-emptied one.
+//!  clean worktree read as a half-emptied one.
 //! Why:
 //!  Two removals finish a tree their own earlier attempt half emptied:
 //! the commit service finishing a removal it began with Git,
 //! and the removal that went
 //!  around a volume and was cut short.
 //! Both may finish with `--force`,
-//! and `--force` deletes every file Git would keep,
+//!  and `--force` deletes every file Git would keep,
 //! so the question is asked of
 //!  Git itself:
 //! a modified file,
-//! a staged addition or an untracked one makes the answer false,
+//!  a staged addition or an untracked one makes the answer false,
 //! and nothing of the
 //!  person's then goes with the tree.
 //! The two routes ask it the same way,
-//! so the answer is one function rather than two
+//!  so the answer is one function rather than two
 //!  copies that can drift apart.
 //!
 //! In TS you'd write (pseudocode):
@@ -81,7 +81,7 @@ pub enum Reported {
 /// and a tree Git
 ///  names nothing in is not one a removal was cut short in either.
 ///  A Git that cannot answer proves nothing,
-/// and the answer is false.
+///  and the answer is false.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

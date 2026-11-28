@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.6.1-alpha.51"
+version = "0.6.1-alpha.53"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -85,6 +85,12 @@ measurement-routes = []
 # release and the control are told apart by the manifest and never by a variable
 # (doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md, choice 11).
 start-probe-raised-deadline = []
+# The nudge on Git commands, off. A command in a repository that holds a clone with an unanswered request may change that
+# clone's sweep nonce, and the record that asks for it before M8 sizes the first gap, the longest gap and the wait's delay
+# would be a shipped limit with no measurement beside it (rule `LQM`). Step 22 sets those three numbers from M8 and turns
+# this switch on in the same change: until then the command path reads the folder of unanswered requests, removes an entry
+# a receipt answers, and nudges nothing (doc/planning/cli-git-zfs-lost-last-event-triggers-design.md, "What builds it").
+zfs-lost-event-nudge = []
 # Every `CLI_GIT_TEST_ONLY_*` variable the release code reads is compiled out of the release, because a variable that arms
 # a fault can kill or stall the commit service and a unit's `Environment=` line can set one. Every read goes through
 # `foundation/test_only_switches.rs`, which answers nothing without this feature; the controls that arm a variable, and
@@ -112,7 +118,7 @@ forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.2" }
 # `monochromatic_lint::run_embedded::fix_source`, the executable's own `--stdin --fix` code, on a guarded thread.
 # Without its default `semantic` feature: the rust-analyzer backend is not used by Markdown, and linking it made
 # every start of this executable slower (doc/planning/cli-git-rust-implementation.md, "Markdown policy in process").
-monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.2-alpha.24", default-features = false }
+monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.2-alpha.25", default-features = false }
 # Lock, journal and work records are JSON read and written with `serde_json`.
 # The scanner already links this exact version, so it adds no package to the lockfile.
 serde_json = { workspace = true }

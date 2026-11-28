@@ -71,6 +71,9 @@ use crate::policy_linked_worktree_nested_repositories::{
 };
 /// The refusal of a write to the settings every worktree of one repository shares.
 use crate::policy_linked_worktree_shared_settings_refusal::refuse_shared_remote_settings;
+/// The two places a dirty refusal names,
+///  which are read from the identity the facts answered with.
+use crate::policy_linked_worktree_the_places_it_judged::dirty_worktree;
 /// The two readings of what work a form would take from the person.
 use crate::policy_linked_worktree_work_a_form_would_discard::{
     clean_deletes_a_path_only_its_exclusions_ignore,
@@ -80,7 +83,6 @@ use crate::policy_linked_worktree_work_a_form_would_discard::{
 use crate::repository_facts::RepositoryFacts;
 /// Where a command runs.
 use crate::repository_location::RepositoryLocation;
-/// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
     DirtyQuestion,
     GuardedCommand,
@@ -88,12 +90,16 @@ use crate::rule_linked_worktree::{
     LinkedWorktreeDecision,
     TargetTree,
     dirty_question,
-    dirty_worktree_message,
     exemption_notice,
     ignored_file_message,
     repository_stash_message,
     resolve_linked_worktree,
     target_tree,
+};
+/// The linked-worktree rule core.
+use crate::rule_linked_worktree_dirty_refusal::{
+    DirtyWorktree,
+    dirty_worktree_message,
 };
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
@@ -306,18 +312,36 @@ pub(crate) fn check_linked_worktree(
         });
     };
     let tree: Option<TargetTree> = target_tree(command, region);
+    // What: the two places a dirty refusal names, read from the identity the facts answered with.
+    // Why: the index a nested Git keeps and the files its own `-C` moves can be two worktrees', and only a text that
+    //  names both tells a person which of them to clean (the alpha.52 read's L2).
+    let places: Option<DirtyWorktree<'_>> = dirty_worktree(command, &location);
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
     //  nothing about it and the repository's own stash is asked instead.
     let (measured, rejection): (Result<bool, String>, String) = match question {
         DirtyQuestion::Worktree(scope) => {
-            (facts.worktree_dirty(scope), dirty_worktree_message(command))
+            let Some(reading) = places else {
+                return fact_unavailable(
+                    "the worktree this command's state would be read in cannot be named, so the command was not run"
+                        .to_string(),
+                );
+            };
+            (facts.worktree_dirty(scope), dirty_worktree_message(reading))
         }
         // A clean that names its own exclusions is measured by what Git would delete only because of them, which is
         //  the one reading that applies those patterns.
-        DirtyQuestion::CleanDryRun => (
-            clean_deletes_a_path_only_its_exclusions_ignore(facts, region),
-            dirty_worktree_message(command),
-        ),
+        DirtyQuestion::CleanDryRun => {
+            let Some(reading) = places else {
+                return fact_unavailable(
+                    "the worktree this clean's state would be read in cannot be named, so the command was not run"
+                        .to_string(),
+                );
+            };
+            (
+                clean_deletes_a_path_only_its_exclusions_ignore(facts, region),
+                dirty_worktree_message(reading),
+            )
+        }
         DirtyQuestion::RepositoryStash => (
             facts.repository_holds_a_stash(),
             repository_stash_message(command),

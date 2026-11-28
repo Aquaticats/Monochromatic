@@ -74,7 +74,7 @@ impl ProgressFile {
     ///  and the act's own first stage must be there before it reads anything,
     ///  so one call writes both and hands back the value that keeps the
     ///  counter moving,
-    /// which stops when it is dropped.
+    ///  which stops when it is dropped.
     ///
     /// # Errors
     /// The folder is not the designed root-owned `0755` one,

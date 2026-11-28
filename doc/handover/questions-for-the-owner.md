@@ -18,6 +18,117 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## A pick on the check before a command, veto open (recorded 2026-11-28T05:17:09-05:00)
+
+The check before a command is wired with the nudge's switch off
+(`fcaea34f36`),
+so a forwarded command in a repository with no folder of unanswered requests pays one `stat`,
+measured at 1.40 µs.
+The design says the check is compiled out with the switch off
+(`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
+"Counts and numbers this design does not ship").
+The pick is to keep the check and amend that sentence,
+because the check is what removes an answered entry.
+
+## Open: whether a deadline ends `mpm-shadow`'s wait for a program it started, with three picks beside it (recorded 2026-11-28T03:35:24-05:00)
+
+Two rounds answered the second pass over `mpm-shadow` `0.2.7-alpha.19` and merged on 2026-11-28
+(`be3a61bcd4` and `da10506b07`).
+What each found and changed is in
+`package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`.
+
+### The open choice: a deadline for a wait
+
+`mpm-shadow` starts other programs and waits for each:
+`rustup` to ask which parts a toolchain holds,
+`cargo binstall`,
+`tar`,
+`unzip`,
+`gh`.
+No deadline ends any of those waits.
+Since `da10506b07` one line goes to standard error when a wait passes 2 s,
+naming the program,
+and says that no deadline ends the wait.
+The round measured what an ordinary answer costs,
+on this machine under load,
+as ratios to a real `rustup --version` run in the same rounds:
+a stand-in's answer to the two questions took about 2.9 times that control at the median,
+and the slowest answer of all three arms was 45.61 ms.
+No run has recorded a real `rustup` that never answered;
+the second pass built the state with a stand-in that sleeps.
+
+- 1:
+  no deadline,
+  which is what ships.
+  A program that never answers makes the command wait until a person interrupts it,
+  and the line names what to stop.
+  An unattended run can hang for ever,
+  and nothing tells a script that it hung.
+- 2:
+  a deadline for the two read-only questions to `rustup` alone
+  (`rustup which` and `rustup component list --installed`),
+  ended with a failure that says the toolchain's parts could not be read.
+  `rustup` writes nothing for these questions,
+  so ending it costs no state,
+  and an unattended install or `list` stops hanging on them.
+  A slow answer on a loaded machine or a cold network file system would be reported as unreadable,
+  and the bound has to come from a measurement of the slowest honest answer,
+  which today's figures give only for this machine.
+- 3:
+  a deadline for every program,
+  the installers included.
+  A crate that compiles for minutes would be ended,
+  the bound would have to be a table per program that nothing has measured,
+  and an ended `cargo install` leaves a partial build.
+- 4:
+  a deadline for `install`'s questions and none for `list`.
+  `list` in a status loop hangs where `install` does not,
+  so two commands disagree about one question.
+
+Ranking:
+2 > 1 > 4 > 3.
+2 beats 1 because it ends the one hang that costs nothing to end,
+for the unattended runs this repository's rounds make,
+while 1 leaves every hang to a person.
+1 beats 4 because 4 adds a deadline and still leaves the command a loop runs without one.
+4 beats 3 because 3 ends work that is slow and right.
+The round that built the line recommends 1,
+because its measurement says what an answer costs and not where a late one should be cut off.
+
+### Three picks the rounds made, veto open
+
+- A bin name too long for its exposure folder is refused where the plan is read,
+  with exit status 2,
+  by every command that reads a plan
+  (`list`,
+  `update` and `bin` among them).
+  The length comes from the file system's own answer,
+  less 95 bytes for the temporary name a link is written under,
+  so at most 160 bytes where names hold 255.
+  Not taken:
+  a shorter temporary name,
+  which would give up which process,
+  start,
+  namespace and boot wrote a link;
+  and a check in `install` alone,
+  which would let `list` report on a plan that cannot be installed.
+- A temporary link whose name an earlier release wrote,
+  or that this release wrote without knowing its own boot or namespace,
+  is kept and named on every install,
+  and no run removes it.
+  It used to be removed when no process held its number,
+  which a run in another process namespace cannot know.
+  Not taken:
+  keeping that rule for names that can be judged,
+  which cannot tell the two cases apart.
+  The cost is a line on every install until a person deletes the name by hand.
+- The line for a wait covers every program a command starts,
+  goes to standard error,
+  and is printed once per start.
+  Not taken:
+  the `rustup` questions alone,
+  and a line repeated at every bound.
+
 ## Open: four proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
 
 Four rounds each wrote a proposal on 2026-11-27 and changed no code.
@@ -133,6 +244,28 @@ B beats C because any durable record on the commit beats a line on standard erro
 
 ### What closes the last file loop in `foundation/`
 
+Taken on 2026-11-28 by the coordinating session's pick,
+with the owner's veto open:
+the third way,
+because it alone changes no signature and keeps the notice said when it is said today.
+It is built and on `main` since 2026-11-28T05:54:10-05:00
+(merge `74f34f6af9`).
+No signature changed,
+and the notice is said from the same place,
+on the same thread,
+once:
+the queue's own wait says it through a function its policy names,
+which is how the queue's file names no diagnostic file.
+A control written before the change holds the notice's words,
+its moment and that it is said once,
+and was shown red by a plant.
+The folder's three file-loop lines left the allow list,
+and `lines_written_by_a_thread.rs` is split in three.
+On 2026-11-28 the owner chose "Keep it as built (Recommended)",
+so the veto is closed
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The foundation folder's last file loop").
+
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
 The plan's move was applied and the linter run:
@@ -164,7 +297,6 @@ Ranking:
 3 > 1 > 2.
 3 beats 1 because it alone keeps the notice said when it is said today without changing a signature.
 1 beats 2 because a returned answer is more local than a flag another file has to take.
-`foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
 ### What a landing writes for a path it has not read (issue 6566)
 
@@ -267,6 +399,12 @@ because the gate's verdict is unchanged and a false failure costs more than a sl
 
 
 ## Open: does the crate split's step 4 run now? (recorded 2026-11-27T06:40:00-05:00)
+
+
+Answered on 2026-11-28:
+"Read the signatures first (Recommended)"
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
 
 The plan's rounds 1 to 3 are done or nearly done
 (`doc/planning/cli-git-source-layout-target-tree.md`,
@@ -4630,6 +4768,13 @@ and each can be undone.
 
 ### A question that waits: what bounds the guests and the builds that run at once?
 
+
+Answered on 2026-11-28:
+the rounds of that night ride,
+and a later batch is bounded by guests alive
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
+
 The machine ran out of memory three times on the night of 2026-11-27,
 the second and third time for about twenty minutes each
 (`doc/handover/cli-git-rust-implementation.md`,
@@ -4818,3 +4963,134 @@ and each can be undone.
   wrote records for its two controls,
   and measures the pause from a stand-in's own start and end lines,
   which showed the planted edit in one gap of four on the loaded host.
+
+## For the owner, and veto open: what the morning of 2026-11-28 left between 06:14 and 07:17 (recorded 2026-11-28T07:17:43-05:00)
+
+The owner's stated priority this morning is guests on OVHcloud,
+so every question here waits until that work is moving,
+and none of them holds it.
+
+### Six proposals whose questions come after their gate reads
+
+Each was revised against its last gate read and merged on 2026-11-28,
+and each has a gate read by Claude Sonnet running;
+its questions are put through the question tool when that read is back:
+
+- the wrapper's development profile (`471d462ccf`),
+  six questions;
+- `mvm`'s sizes (`4217d02664`),
+  five still open of six;
+- the crate split's round 4 signatures (`39d9ec0b51`),
+  six questions;
+- GitHub's hosted runners (`60064b0024`),
+  six questions;
+- the linter's Dylint driver (`e63bf58c19`),
+  eight questions;
+- the linter's line breaks (`dc42566e69`),
+  nine questions.
+
+The paragraph of this file that begins with the linter's closure rule and issue 6643 describes the Dylint proposal's first draft.
+The proposal at `e63bf58c19` ranks differently:
+the floating channel with its components first for the toolchain,
+the lint task warming the driver first among local providers,
+and the pull-request surface as a question of its own.
+
+### `mvm` on OVHcloud: two picks with the veto open
+
+The owner chose the cheapest size that fits.
+The session's two other picks were shown beside that question and not answered:
+the numbers mean at least;
+and no GPU size is ever taken,
+built as a list of the five general families.
+Both are being built that way.
+
+### `mpm-shadow`: seven items the alpha.20 read left
+
+They are restated with their evidence,
+their options and a ranking in `package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`,
+"What stays open after the alpha.20 read":
+temporary links of an earlier shape named on every install for ever;
+a bin name that is long only together with its folder;
+the two-second line for installers that routinely run longer;
+an install by `0.2.7-alpha.19` beside one by `0.2.7-alpha.20`;
+two locks in one scope;
+a killed move of `current`;
+and the report on standard output,
+which still ends the command when its reader has left.
+
+### The ZFS route: three proposed values a measurement contradicts
+
+`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md` now shows that the mount-request deadline and step 9's unmount deadline,
+both proposed at 5,000 ms,
+hold only to a parent of about 256 clones,
+and that the heartbeat's four periods of 1,000 ms hold to about 205.
+The round's ways:
+bound a parent's clones;
+set the deadline from the clone count;
+chunk the sweep so a request is answered between chunks;
+or accept a missed window on a large parent.
+No constant was changed.
+
+### `mvm`: what a published copy runs
+
+Merge `9afd7194ab` makes the command run the TypeScript source beside it.
+A copy published to a registry cannot do that,
+because Node refuses TypeScript under `node_modules`,
+so it would need a built copy and a check of another kind.
+`mvm` is private today.
+Issue 6660 lists the twenty other commands and `mvm-mcp` that have the old shape.
+
+## Veto open: what the shutdown pass's round chose (recorded 2026-11-28T07:29:00-05:00)
+
+Merge `871e0be314` built the ZFS route's shutdown pass ahead of its wiring.
+Its round made these picks beyond its brief,
+each with the way not taken and its cost in the round's report,
+whose scratch expires a day after its last change:
+
+- the pass compares no live dataset GUID,
+  so a dataset destroyed and made again under the same name and mounted at the same slot is unmounted and not refused;
+  comparing one would make every check wait on `/dev/zfs` at shutdown;
+- a readiness record the route's reader refuses is removed all the same,
+  and a directory the route did not make is refused,
+  so a corrupt record is deleted and named in the pass's line and no mount is left standing over it;
+- the withdrawal removes the record and publishes no second one,
+  so nothing under `/run` says the boot is ending;
+- a busy mount's holder is named by mount namespace and never by process,
+  because naming the process would mean reading another account's descriptors;
+- the unmount is named by the descriptor opened without crossing the slot's mount,
+  after the clone's own descriptor is dropped,
+  which a guest run measured:
+  with the clone's descriptor held the kernel answered that the mount was busy.
+
+## Veto open: what the cheapest size that fits comes to (recorded 2026-11-28T07:45:46-05:00)
+
+The owner decided on 2026-11-28 that among sizes that fit the cheapest is taken,
+and merge `b7f9f7ed2c` builds it.
+What that decision was not shown,
+from the build's report and the proposal's second gate read:
+
+- for small asks the cheapest size is a `d2` one,
+  which OVHcloud's own table calls Discovery:
+  shared resources,
+  for testing and proof of concept.
+  The billed run asked for two cores and 4 GiB and got `d2-4` at 0.033 CAD an hour;
+  `c3-4`,
+  with the same numbers and cores of its own,
+  is 0.0732;
+- the hourly figures the proposal lists leave out two billed lines the price page shows:
+  a public IPv4 address at 0.00432 CAD an hour,
+  and local storage on the `b3`,
+  `c3` and `r3` sizes at 0.011665 CAD an hour for each 50 GB.
+  Whether the build's price read counts them is not checked;
+- `--memory` is compared with the catalogue's own memory number with no unit change,
+  so `--memory 4` is met by a size listed with 4.
+  The repository's comment calls that number GiB and the proposal treated it as GB;
+  one create settles which;
+- the build leaves the storage family `i1` out,
+  where the proposal's allow-list kept it;
+- a clone that is given either number refuses,
+  where it used to ignore nothing because the numbers did not exist.
+
+Guest rounds meanwhile name a size outright,
+`b3-16`,
+which is the session's pick.

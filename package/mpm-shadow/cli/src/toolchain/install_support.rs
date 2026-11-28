@@ -68,8 +68,10 @@ pub(crate) use self::a_control_refuses_the_link_move::{
 /// Re-exports the link write every installer shares.
 pub use self::the_atomic_symlink::atomic_symlink;
 /// Re-exports the name a held link carries,
+/// the purpose its name records,
 /// and the question the farm's rebuild asks of such a name.
 pub(crate) use self::the_temporary_link_of_an_installer::{
+    TEMPORARY_PURPOSE,
     liveness_of_the_installer,
     the_temporary_link_of,
 };

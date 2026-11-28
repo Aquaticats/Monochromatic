@@ -12,6 +12,9 @@
  of live tasks. Every one of those reads `/proc` or mounts a dataset, so no arm may
  run on the host.
 
+ What the guest runs is `holder-scan-arm-script-fixture.ts`, which a unit test holds
+ without a guest; this file starts that script and judges the log it leaves.
+
  @example
  ```ts
  const pulled = await holderScanArms({ chosen });
@@ -20,12 +23,10 @@
 
 import { join, } from 'node:path';
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
-import {
-  shellQuote,
-} from '../../bin/mvm-guest-command-line.ts';
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
@@ -36,20 +37,19 @@ import {
   readLog,
 } from '../../bin/mvm-guest-step-command.ts';
 
-
-
 import {
   armTimeoutMilliseconds,
-  crateDirectory,
   expectedScanMarkers,
-  expectedScanMeasurements,
   finishMarginMilliseconds,
-  openZfsPath,
-  scanCheckout,
-  scanGuestVariable,
-  storePool,
 } from './adoption-fixture.ts';
 import { detachedStep, } from './detached-step.ts';
+import { holderScanScript, } from './holder-scan-arm-script-fixture.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
+
 
 /**
  The log the holder-scan arm writes inside the guest's shared folder.
@@ -95,30 +95,10 @@ export async function holderScanArms({
    The arm itself, against a checkout and a clone parent the arm makes for
    itself.
    */
-  const script = [
-    'set -eu',
-    `export PATH=${openZfsPath}`,
-    `rm --recursive --force ${scanCheckout}`,
-    `mkdir --parents ${scanCheckout}`,
-    `cd ${crateDirectory}/package/git-policy/cli`,
-    'export PATH=/root/.cargo/bin:$PATH',
-    `export ${scanGuestVariable}=${chosen.name}`,
-    `export CLI_GIT_ZFS_SCAN_POOL=${storePool}`,
-    'export CLI_GIT_ZFS_SCAN_SBIN=/opt/openzfs-2.4.4/sbin',
-    `export CLI_GIT_ZFS_SCAN_CHECKOUT=${scanCheckout}`,
-    'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all '
-      + `--filterset "test(zfs_holder_scan_guest)" > /root/${armLog} 2>&1; then status=0; else status=$?; fi`,
-    'tail --lines=80 /root/holder-scan-arm.log',
-    'test "$status" = 0',
-    `if grep --quiet '^SKIPPED' /root/${armLog}; then echo 'the holder-scan arm returned without running'; exit 1; fi`,
-    ...expectedScanMarkers.map(function markerLine(marker,) {
-      return `grep --quiet --fixed-strings ${shellQuote(marker,)} /root/${armLog}`;
-    },),
-    ...expectedScanMeasurements.map(function measurementLine(marker,) {
-      return `grep --quiet --fixed-strings ${shellQuote(marker,)} /root/${armLog}`;
-    },),
-    `cp /root/${armLog} /mnt/shared/${armLog}`,
-  ].join('\n',);
+  const script = holderScanScript({
+    chosen,
+    log: armLog,
+  },);
   await detachedStep({
     chosen,
     script,
@@ -137,11 +117,10 @@ export async function holderScanArms({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'pull',
       chosen.name,
-      `/mnt/shared/${armLog}`,
+      `${backend.guestSharedFolder}/${ armLog }`,
       pulledPath,
     ],
     log: 'host-pull-holder-scan.log',

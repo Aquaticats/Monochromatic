@@ -1,24 +1,23 @@
 //! What:
 //!  The fill's leave-outs:
-//! the trash the clone's own content is set aside in,
-//! the
-//!  record of what it holds,
-//! and the trash a resumed add finds.
+//!  the trash the clone's own content is set aside in,
+//!  the record of what it holds,
+//!  and the trash a resumed add finds.
 //! Why:
 //!  The clone carries files the caller's checkout holds and the new worktree must
 //!  not,
-//! and each one goes into the trash rather than being removed,
-//! so a kill
+//!  and each one goes into the trash rather than being removed,
+//!  so a kill
 //!  after the leave-out leaves a record of what was set aside
 //!  (`doc/planning/cli-git-zfs-dirty-main-restore-on-rung-1-design.md`,
 //!  "The restore",
-//! step 5).
+//!  step 5).
 //!  A resumed add finds the trash its own earlier run made and reuses it instead
 //!  of leaving a second one.
 //!  `add_fill.rs` runs the fill in order and would go over the file-size limit
 //!  carrying these,
 //!  and the trash's own words are the wrapper's trash module's,
-//! so this file is
+//!  so this file is
 //!  the leave-out and its record.
 //!
 //! In TS you'd write (pseudocode):

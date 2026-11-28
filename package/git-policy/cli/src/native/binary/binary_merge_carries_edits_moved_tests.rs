@@ -11,8 +11,7 @@
 //!  and the record and the ref that keep every
 //!  byte of the person's work are the only copy left of the older layer.
 //!  `never discard user data` says the bytes stay,
-//! and the
-//!  answer a recovery already gives for a killed merge is the one these controls demand of a running command:
+//!  and the answer a recovery already gives for a killed merge is the one these controls demand of a running command:
 //!  the person's layers are merged with the branch as it is now,
 //!  the later commit stands,
 //!  and the command
@@ -275,7 +274,7 @@ fn an_edit_survives_a_second_merge_that_lands_while_the_carry_runs() {
 /// A record that no later command can settle would be worse than the defect,
 /// so the next command must
 ///  finish it,
-/// which is what the exit status of `git merge-base --is-ancestor` decides.
+///  which is what the exit status of `git merge-base --is-ancestor` decides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

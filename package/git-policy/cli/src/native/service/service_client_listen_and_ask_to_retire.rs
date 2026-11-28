@@ -218,7 +218,7 @@ pub(crate) fn read_message(reader: &mut BufReader<UnixStream>) -> Option<Service
 /// The
 ///  bound is the same read timeout the callers already give the connection,
 /// counted from the first byte waited for,
-/// so a line
+///  so a line
 ///  that never ends ends the wait like a silence does,
 /// and the caller reaches the service again on a new connection,
 /// which
@@ -246,7 +246,7 @@ pub(crate) fn listen(reader: &mut BufReader<UnixStream>) -> Heard {
 
 /// What:
 ///  `listen`,
-/// reading for no longer than `within`.
+///  reading for no longer than `within`.
 /// Why:
 ///   The bound is one look at the clock between two chunks,
 /// so bytes that never become a message move nothing and a
@@ -307,7 +307,7 @@ fn listen_within(
 
 /// What:
 ///  One line read in a single call,
-/// for a connection no caller gave a bound.
+///  for a connection no caller gave a bound.
 /// Why:
 ///   The behaviour every reader had before a line was read in chunks is kept for the one kind of caller that names no
 ///  bound at all,
@@ -371,10 +371,10 @@ pub(crate) enum Wrote {
 ///  waits with no end,
 /// so no bound of the client is ever looked at again
 /// (`wait_ceilings.rs`,
-/// `REQUEST_WRITE_SILENCE`).
+///  `REQUEST_WRITE_SILENCE`).
 /// The wait is on progress,
-/// not on a clock:
-/// a service that takes bytes is reading,
+///  not on a clock:
+///  a service that takes bytes is reading,
 /// so the silence window starts
 ///  again with every byte the kernel accepts,
 /// and only the whole write has a ceiling.
@@ -515,7 +515,7 @@ pub(crate) fn a_message_is_already_here(reader: &mut BufReader<UnixStream>) -> b
 /// or a service that does not greet,
 /// is no one to ask.
 /// The address is the one the service holds,
-/// and a service holds either a socket file or an abstract name
+///  and a service holds either a socket file or an abstract name
 /// (`service_address_of_a_worktree.rs`):
 /// it took a path here once,
 /// and under an abstract name the ask was delivered to a file that cannot exist,

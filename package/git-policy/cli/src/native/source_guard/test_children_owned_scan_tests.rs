@@ -8,7 +8,7 @@
 //!  and a signal a test aims at its own process reaches every thread of the run.
 //!  The scans answer only "where",
 //!  never "why the site is still there":
-//! the ledger beside them says that.
+//!  the ledger beside them says that.
 //! Gotcha:
 //!  The scans are textual.
 //!  A process number carried away from `getpid()` in a variable is not seen,
@@ -50,9 +50,9 @@ const NAMES_THIS_PROCESS: &[&str] = &["getpid()", "getpgrp()", "process::id()"];
 ///  `fn occurrences(text: &str, needle: &str) -> Vec<usize>` lists the byte offset of every place `needle` appears in
 ///  `text`.
 ///  `usize` is the unsigned integer wide enough to index memory (siblings:
-/// `u32`,
-/// `u64`,
-/// `i32`).
+///  `u32`,
+///  `u64`,
+///  `i32`).
 /// Why:
 ///  Each scan below reports where it found something,
 ///  and a search that started again from the first byte would report one place twice.
@@ -103,7 +103,7 @@ fn line_number(
 ///  in a group by `spawn_owned`,
 ///  so the test starts it and hands its number to `own_group` at once;
 ///  that pair is an owned child,
-/// not a finding.
+///  not a finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -137,8 +137,8 @@ fn owns_the_group_below(
 ///  `fn first_argument(text: &str, from: usize) -> &str` is the text of the first argument of a call whose `(` the
 ///  caller has already stepped over.
 ///  `&str` is a borrowed view of the text (sibling:
-/// `String`,
-/// the owned buffer).
+///  `String`,
+///  the owned buffer).
 /// Why:
 ///  A signal's target is its first argument,
 ///  and the target is what decides whether the signal reached the test's own process.
@@ -176,8 +176,8 @@ fn first_argument(
 ///  `fn names_this_process(target: &str) -> bool` says whether a signal's target names the process the test binary is.
 /// Why:
 ///  `getpid()`,
-/// `getpgrp()`,
-/// `std::process::id()` and the literal `0` all name this process,
+///  `getpgrp()`,
+///  `std::process::id()` and the literal `0` all name this process,
 ///  its group or its session,
 ///  and a signal to any of them reaches every thread of a threaded run.
 ///

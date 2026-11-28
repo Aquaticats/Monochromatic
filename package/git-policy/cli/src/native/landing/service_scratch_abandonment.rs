@@ -74,7 +74,7 @@ pub const SCRATCH_TREES_REMOVED_PER_COMMAND: usize = 8;
 ///  the landing that reads it does so inside that age,
 ///  and a request whose answer was lost before it landed keeps its tree out of a collection's reach
 ///  however old it is,
-/// until the service is done with that request.
+///  until the service is done with that request.
 ///  Every other entry of a scratch place is the wrapper's own and goes by the age the caller gives it,
 ///  because nothing else ever collects it.
 ///  An entry whose age cannot be told,

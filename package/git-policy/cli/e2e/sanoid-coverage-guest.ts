@@ -28,6 +28,9 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
 import { runGateCommand, } from '../bin/native-gate-run.ts';
 import {
   holdsLineStartingWith,
@@ -58,6 +61,10 @@ import {
 import {
   runWholeGuestRun,
 } from '../bin/mvm-guest-whole-run.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -347,7 +354,7 @@ async function arm({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
     'export CARGO_BUILD_JOBS=2',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${POOL_VARIABLE}=${POOL}`,
     'if /root/.cargo/bin/cargo nextest run --locked --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_sanoid_coverage_guest)" > /root/sanoid-coverage-arm.log 2>&1; then status=0; else status=$?; fi',

@@ -357,7 +357,7 @@ pub fn create_the_staging_folder(
 ///  cleanup that reads the same descriptor.
 ///  Its caller is `worktree_clone_removal_cancel/the_staged_state.rs`
 ///  (plan step 17),
-/// built on its own branch while `1f5aa01430` removed this function from `main` as uncalled.
+///  built on its own branch while `1f5aa01430` removed this function from `main` as uncalled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

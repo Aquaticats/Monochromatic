@@ -370,27 +370,46 @@ pub(crate) fn weaker_notice(unavailable: &GroupUnavailable) -> String {
 }
 
 /// What:
-/// `fn contain() -> Containment` plans a scope,
-/// or says in one line which capability is missing and falls back to a process group.
+/// `fn contain() -> Result<Containment, RunError>` plans a scope,
+/// or says in one line which capability is missing and falls back to a process group,
+/// or refuses the call where the route is one no wait of this tool ends.
 /// Why:
-/// The notice is printed once per process.
+/// The notice is printed once per process,
+/// and a refused route is the one answer that must not become a process group:
+/// the manager has a job on the slice,
+/// so a scope made there is refused,
+/// and a scope launcher that waited for the job would wait
+/// with no bound of this tool's (`RouteRefused`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function contain(): Containment
+/// function contain(): Containment  // throws RunError when the route is refused
 /// ```
-pub(crate) fn contain() -> Containment {
+pub(crate) fn contain() -> Result<Containment, RunError> {
     return match find_route() {
         Ok(route) => match ControlGroup::plan(&route) {
-            Ok(group) => Containment::Scope {
+            Ok(group) => Ok(Containment::Scope {
                 group: Rc::new(group),
                 route,
-            },
-            Err(error) => weaker(GroupUnavailable {
-                reason: format!("a scope name cannot be made ({error})"),
             }),
+            Err(error) => Ok(weaker(GroupUnavailable {
+                reason: format!("a scope name cannot be made ({error})"),
+                stops_the_call: false,
+            })),
         },
-        Err(unavailable) => weaker(unavailable),
+        // What:     `Err(unavailable) if unavailable.stops_the_call` is the refusal of a moment no wait ends, which stops the run
+        //           before anything is started.
+        // Why:      The weaker path would run the command behind another unit's stop, which is the wait this refusal exists to
+        //           avoid.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (unavailable.stopsTheCall) throw new RunError.RouteRefused(unavailable.reason)
+        // ```
+        Err(unavailable) if unavailable.stops_the_call => Err(RunError::RouteRefused {
+            reason: unavailable.reason,
+        }),
+        Err(unavailable) => Ok(weaker(unavailable)),
     };
 }
 
@@ -636,14 +655,6 @@ pub(crate) fn lose(
             None => Some(reason),
         };
     }
-}
-
-/// What:
-/// `fn reason_of(unavailable: &GroupUnavailable) -> String` clones the reason of a refusal.
-/// Why:
-/// `Result::map_err` takes it by path instead of a closure.
-pub(crate) fn reason_of(unavailable: &GroupUnavailable) -> String {
-    return unavailable.reason.clone();
 }
 
 /// What:

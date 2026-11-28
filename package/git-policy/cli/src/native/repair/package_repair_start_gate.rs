@@ -77,7 +77,7 @@ const EXITED_BEFORE_ITS_EXEC: i32 = 1;
 ///  and closing them is what ends a child that waited:
 /// every end the child holds is closed in it by the kernel at its own
 ///  `exec`,
-/// and otherwise when this gate is dropped.
+///  and otherwise when this gate is dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,7 +97,7 @@ pub(crate) struct TheStartGate {
 impl Drop for TheStartGate {
     /// What:
     ///  Say that the child will not be let go,
-    /// and then close the run's ends of the gate.
+    ///  and then close the run's ends of the gate.
     /// Why:
     ///  The end of the gate is what ends a waiting child,
     /// and a copy of its write end that a fork of another start inherited delays that end until that process reaches
@@ -214,7 +214,7 @@ impl TheStartGate {
 
     /// What:
     ///  Stop the child that reported itself,
-    /// and every helper it started.
+    ///  and every helper it started.
     /// Why:
     ///   A child that was let go and whose own `exec` did not answer is the one no wait of the run reached,
     /// so neither it nor anything it started may run any further.
@@ -253,8 +253,8 @@ impl TheStartGate {
 /// Why:
 ///   A start that takes time is the defect this file bounds,
 /// and only a hold inside the child,
-/// or on the thread that waits for it,
-/// makes one.
+///  or on the thread that waits for it,
+///  makes one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -276,11 +276,11 @@ pub(crate) struct TheStartsHolds {
 ///   Only the child can say that it exists and wait before its own `exec`,
 /// and it must say it with calls a forked child of a threaded process may make:
 /// `write`,
-/// `read`,
-/// `close`,
+///  `read`,
+///  `close`,
 ///  `getpid`,
-/// `nanosleep` and `_exit`,
-/// and nothing that allocates or locks.
+///  `nanosleep` and `_exit`,
+///  and nothing that allocates or locks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -368,7 +368,7 @@ impl TheChildsStart {
 
 /// What:
 ///  Pause the child for `held`,
-/// when a control armed a hold.
+///  when a control armed a hold.
 /// Why:
 ///   A start that takes time is the one thing no control can make from outside the child,
 /// and this is the only call that spends it.

@@ -15,7 +15,7 @@
 //!  so it is written once here:
 //!  a plan that could be worked out two ways would upload other objects or refuse a push the other face allows
 //!  (debt ledger of 2026-11-25,
-//! item 13).
+//!  item 13).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -64,10 +64,10 @@ use std::path::Path;
 ///  or nothing when this push uploads no object at all.
 /// Why:
 ///   A push that bypasses the upload (`--no-verify`,
-/// `GIT_LFS_SKIP_PUSH`,
-/// the caller's switch),
+///  `GIT_LFS_SKIP_PUSH`,
+///  the caller's switch),
 /// sends nothing (a dry run,
-/// only deletions),
+///  only deletions),
 ///  so the plan is answered before anything is asked;
 ///  both faces ask this one question first.
 ///
@@ -176,8 +176,8 @@ pub(crate) fn a_branch_is_needed(shape: &PushShape) -> bool {
 ///  or the one the configuration says a push of this branch goes to.
 /// Why:
 ///   Git's own default for a bare push is `branch.<name>.pushRemote`,
-/// then `remote.pushDefault`,
-/// then the branch's remote,
+///  then `remote.pushDefault`,
+///  then the branch's remote,
 ///  then `origin`;
 ///  `default_remote` reads them from the settings the caller already holds,
 ///  so no face can pick a different destination.
@@ -217,9 +217,9 @@ pub(crate) fn remote_name_of(
 ///  so what it sends is what the configuration decides.
 /// Why:
 ///   A bare push takes `remote.<name>.push`,
-/// a mirror's `--all`,
-/// `push.default=matching`'s `:`,
-/// or the branch;
+///  a mirror's `--all`,
+///  `push.default=matching`'s `:`,
+///  or the branch;
 ///  both faces read that decision here rather than each deciding what a bare push means.
 ///
 /// In TS you'd write (pseudocode):
@@ -239,9 +239,9 @@ pub(crate) fn a_bare_push(
 /// Why:
 ///   These are the arguments' own meaning:
 /// `--all`,
-/// `--tags`,
-/// `--mirror`,
-/// the matching refspec `:` and the configured `remote.<name>.push` all stand for refs;
+///  `--tags`,
+///  `--mirror`,
+///  the matching refspec `:` and the configured `remote.<name>.push` all stand for refs;
 ///  a bare push that names none of them sends the branch Git would,
 ///  or `HEAD` where no branch is named;
 ///  both faces extend the same list from the same settings.
@@ -363,7 +363,7 @@ pub(crate) fn unique_refs(refs: Vec<OsString>) -> Vec<OsString> {
 ///  and one destination per URL it pushes to.
 /// Why:
 ///   Git pushes to every push URL of a remote,
-/// and to every URL of a remote that has no push URL,
+///  and to every URL of a remote that has no push URL,
 /// so each of those is a destination of its own:
 /// each may keep its objects in its own place.
 ///  Both faces make the same list from the same settings.
@@ -490,9 +490,9 @@ pub(crate) fn destinations_of<'a>(
 ///  which is the only kind whose tracking refs it can confirm.
 /// Why:
 ///   A push URL,
-/// several URLs,
-/// a `pushInsteadOf` rewrite,
-/// a URL or path destination and a mirror all break
+///  several URLs,
+///  a `pushInsteadOf` rewrite,
+///  a URL or path destination and a mirror all break
 ///  the identity between what the clone fetched and where it pushes,
 ///  so such a destination is asked nothing and its upload stops nowhere;
 ///  both faces decide that here.

@@ -65,7 +65,7 @@ pub(crate) fn arm_watchdog() {
 /// Why:
 ///  The two targets each kept a copy of these helpers and the copies drifted apart
 /// (`doc/debt-ledger-2026-11-25.md`,
-/// item 11),
+///  item 11),
 /// so every helper below is written once in `fixture_support_shared_by_both_test_targets.rs`.
 ///
 /// In TS you'd write (pseudocode):
@@ -122,13 +122,13 @@ thread_local! {
 ///  named here so every `crate::test_support::name` path stays the same.
 ///  The owner is a file of its own because the binary controls' crate and the candidate consumer's crate include it by
 ///  path,
-/// and the library's test-only modules are invisible to them.
+///  and the library's test-only modules are invisible to them.
 /// Why:
 ///  One shape starts such a helper,
-/// so one file decides when it dies.
+///  so one file decides when it dies.
 ///  `own_group` is not named here:
-/// the library's own controls all start their helper through `spawn_owned`,
-/// and a target
+///  the library's own controls all start their helper through `spawn_owned`,
+///  and a target
 ///  that starts one without it names the owner directly.
 ///
 /// In TS you'd write (pseudocode):
@@ -139,7 +139,7 @@ pub(crate) use super::test_process_owner::spawn_owned;
 
 /// What:
 ///  Start a helper process whose output nobody reads,
-/// with its three standard streams on the null device.
+///  with its three standard streams on the null device.
 /// Why:
 ///  A stand-in that `exec`s a long sleep inherits this run's output pipe and holds it open,
 ///  so a caller that pipes the run's output waits for a process the run has already lost (issue 6463);

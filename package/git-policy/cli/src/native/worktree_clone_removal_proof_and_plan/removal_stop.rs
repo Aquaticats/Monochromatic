@@ -349,6 +349,29 @@ pub enum RemovalStop {
         /// The clone that answered.
         clone: String,
     },
+    /// The registration's lock holds words this add cannot attribute to itself,
+    /// so a person's lock may stand on it and the removal refuses before its first
+    /// write.
+    TheLocksWordsAreNotThisAdds {
+        /// The slot the lock stands on.
+        slot: String,
+        /// What the lock holds,
+        /// or why its read refused it.
+        cause: String,
+    },
+    /// The pool could not prove whether the clone a standing plan names is
+    /// gone,
+    /// so the plan's own resume path cannot be chosen.
+    TheClonesAbsenceCouldNotBeProved {
+        /// The slot the plan belongs to.
+        slot: String,
+        /// The plan's file.
+        path: PathBuf,
+        /// The plan's head word.
+        head: String,
+        /// What the read answered.
+        reason: String,
+    },
     /// The registration settle refused.
     TheSettleRefused {
         /// The step that refused.
@@ -370,6 +393,31 @@ pub enum RemovalStop {
         /// The step that refused.
         step: String,
         /// What it answered.
+        said: String,
+    },
+    /// A holder stopped the removal,
+    /// its answer put the clone back at its slot,
+    /// and the removal's report is the answer's own.
+    TheRemovalCancelledItself {
+        /// The report the answer wrote,
+        /// one line per name.
+        said: String,
+    },
+    /// The head destroy did not take the clone,
+    /// and the answer was not a holder the removal cancels itself for.
+    TheHeadDestroyWasRefused {
+        /// The kernel's errno,
+        /// when it kept one.
+        errno: Option<u32>,
+        /// Every name the pool still answers,
+        /// with its state in the plan.
+        names: Vec<String>,
+    },
+    /// A holder stopped the removal and the answer could not put the clone back.
+    TheRemovalCouldNotCancelItself {
+        /// Where the removal stopped.
+        stop: &'static str,
+        /// What the answer said.
         said: String,
     },
 }

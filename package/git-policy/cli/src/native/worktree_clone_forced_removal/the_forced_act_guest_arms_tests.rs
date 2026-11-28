@@ -1,10 +1,14 @@
 //! What:
 //!  The forced act's guest arm:
 //!  every kernel call the act makes,
-//! run by the route's own code in one
+//!  run by the route's own code in one
 //!  throwaway guest,
 //!  phase by phase,
-//!  for every kind of holder the earlier arm measured.
+//!  for every kind of holder the earlier arm measured,
+//!  and the mount namespace no task holds,
+//!  which this round's walk reaches by `listns` and its id's own namespace file
+//!  handle where the kernel lists namespaces,
+//!  and refuses `holder-unendable` where it does not.
 //! Why:
 //!  The design's measurements owed are the build's evidence
 //!  (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
@@ -23,10 +27,10 @@
 //!  the directory's removal,
 //!  `NS_GET_USERNS` on the holder's namespace,
 //!  and the pinned `SIGTERM`,
-//! wait and `SIGKILL` of the signal stage.
+//!  wait and `SIGKILL` of the signal stage.
 //!  The wait and the heartbeat are a harness's provisional values,
 //!  recorded with the run and shipped by nothing:
-//! the release's constants have
+//!  the release's constants have
 //!  no value until step 22 measures them.
 //!  A run on this machine prints one `SKIPPED` line,
 //!  which the recipe reads as a failure when it meant the arm to run.
@@ -57,7 +61,19 @@ use crate::worktree_clone_forced_removal::blocker_end::{
 };
 use crate::worktree_clone_forced_removal::descriptor_calls::open_directory;
 use crate::worktree_clone_forced_removal::forced_arm_numbers::TimeoutWindow;
-use crate::worktree_clone_forced_removal::holder_preflight::Route;
+use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
+use crate::worktree_clone_forced_removal::holder_endings::{
+    Ending,
+    HolderKind,
+    KindEvidence,
+    ending_of,
+};
+use crate::worktree_clone_forced_removal::holder_preflight::{
+    ForcedPlan,
+    PreflightReads,
+    Route,
+    plan_the_forced_removal,
+};
 use crate::worktree_clone_forced_removal::namespace_owner::{
     NamespaceOwner,
     read_the_owner,
@@ -72,13 +88,32 @@ use crate::worktree_clone_forced_removal::recorded_handle::{
     RecordedHandle,
     name_the_handle,
 };
+use crate::worktree_clone_forced_removal::taskless_namespace_walk::{
+    TasklessNamespace,
+    find_the_taskless_namespaces_holding,
+    the_ids_no_task_holds,
+    the_ids_this_machines_tasks_hold,
+    the_table_of_namespace,
+};
 use crate::worktree_clone_forced_removal::the_copy_taken_out_of_a_namespace::{
     NamespaceCopy,
     Ready,
+    WayOut,
     make_the_way_ready,
     take_the_copy_out,
     topmost_at,
 };
+use crate::worktree_clone_forced_removal::the_namespace_listing::the_mount_namespaces_on_this_machine;
+// What: the read and the descriptor conversion this file's own holder needs.
+// Why: the holder's ready byte and its namespace descriptor are read by hand, since no library call makes a namespace
+// and hands its descriptor over.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { Read, FromRawFd } from 'node:...';   // no TS equivalent: a descriptor is a number in Rust
+// ```
+use std::io::Read;
+use std::os::fd::FromRawFd;
 use std::path::{
     Path,
     PathBuf,
@@ -107,20 +142,20 @@ const THE_RESERVED_NAME: &str = ".git-worktree-clone-removal-0";
 /// ```ts
 /// type AHolder = { pid: number; kind: string };
 /// ```
-struct AHolder {
-    pid: libc::pid_t,
+pub(crate) struct AHolder {
+    pub(crate) pid: libc::pid_t,
 }
 
 impl AHolder {
     /// Whether the kernel still answers for the holder's number.
-    fn alive(&self) -> bool {
+    pub(crate) fn alive(&self) -> bool {
         // SAFETY: signal 0 asks for the process's existence and reaches nothing.
         return unsafe { libc::kill(self.pid, 0) } == 0;
     }
 
     /// End the holder and reap it,
     /// which every phase does whatever it proved.
-    fn end(self) {
+    pub(crate) fn end(self) {
         // SAFETY: the pid is this phase's own child, and signal 9 ends it.
         let _sent: libc::c_int = unsafe { libc::kill(self.pid, libc::SIGKILL) };
         let mut status: libc::c_int = 0;
@@ -322,7 +357,7 @@ fn a_harness_window() -> TimeoutWindow {
 ///  The design's one promise to the person is that the caller's session's other
 ///  jobs live through the act,
 ///  and a phase that did not have one could not show it.
-fn a_job_of_the_callers_session() -> AHolder {
+pub(crate) fn a_job_of_the_callers_session() -> AHolder {
     // SAFETY: `fork` takes no argument, and the child below returns through `_exit` only.
     let child: libc::pid_t = unsafe { libc::fork() };
     assert!(
@@ -345,7 +380,7 @@ fn a_job_of_the_callers_session() -> AHolder {
 }
 
 /// Mount the checkout's own dataset at its path in this namespace.
-fn mount_the_checkout(fixture: &Fixture) -> PathBuf {
+pub(crate) fn mount_the_checkout(fixture: &Fixture) -> PathBuf {
     let checkout: PathBuf = fixture.checkout_path();
     std::fs::create_dir_all(checkout.as_path()).expect("the checkout's own path");
     let (worked, said) = fixture.ask(
@@ -631,11 +666,106 @@ fn the_forced_act_guest_arm_tests() {
         "the caller's session's other job lived through it: {locked}"
     );
 
+    // Phase 8: a mount namespace no task holds, found by the kernel's own listing and ended by the act's stages.
+    let taskless: String = in_a_private_namespace("taskless-namespace", &|| {
+        return phase_taskless(&fixture);
+    });
+    println!("{taskless}");
+    if taskless.contains("listns=ENOSYS") {
+        // A kernel without the call is the owner's country: the kind is refused with the design's word, and the arm's
+        // own table says the same word.
+        assert!(
+            taskless.contains("refusal=holder-unendable"),
+            "a kernel without listns refuses with the design's word: {taskless}"
+        );
+        assert!(
+            taskless.contains("ending=enter-and-take-the-copy-out"),
+            "the row names the ending this build has for a kernel that lists: {taskless}"
+        );
+        assert!(
+            taskless.contains("caller-job=alive"),
+            "the caller's session's other job lived through the refusal: {taskless}"
+        );
+    } else {
+        assert!(
+            taskless.contains("holders-before=0") && taskless.contains("holders=1"),
+            "the walk finds no holder before the namespace is made and one after: {taskless}"
+        );
+        assert!(
+            taskless.contains("control=busy"),
+            "the copy in the namespace no task holds keeps the dataset busy until the act: {taskless}"
+        );
+        assert!(
+            taskless.contains("holders-copy=gone") && taskless.contains("hosts-copy=stays"),
+            "the act takes the holder's copy and leaves the host's: {taskless}"
+        );
+        assert!(
+            taskless.contains("unmount=accepted") && taskless.contains("destroy=gone"),
+            "the host's unmount and the head destroy follow: {taskless}"
+        );
+        assert!(
+            taskless.contains("caller-job=alive"),
+            "the caller's session's other job lived through the act: {taskless}"
+        );
+    }
+
+    // Phase 9: the same locked shape, but the holder is a service unit of the guest account's own user manager, so the
+    // manager's stop ends the unit, its control group and its namespace, and the removal then goes on.
+    let stopped_unit: String =
+        in_a_private_namespace("locked-holder-stopped-through-its-unit", &|| {
+            return super::the_forced_act_guest_arms_locked_unit::the_locked_holders_unit_phase(
+                &fixture,
+            );
+        });
+    println!("{stopped_unit}");
+    assert!(
+        stopped_unit.contains("owner=another"),
+        "the read names a user namespace of its own: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("unit=forced-act-holder.service"),
+        "the holder runs in the account's own manager's unit: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("way8=holder-locked"),
+        "way 8's unmount is refused with the locked holder's word: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("way7=holder-locked")
+            || stopped_unit.contains("way7=holder-structural"),
+        "way 7 refuses too, at its unmount or at the stage before it: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("holders-copy=stays") && stopped_unit.contains("hosts-copy=stays"),
+        "nothing was unmounted before the stop: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("stop-wait=refused:T_stop"),
+        "the release's own stop wait has no value: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("stopped=forced-act-holder.service"),
+        "the manager's stop named the unit it stopped: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("namespace-after=gone") && stopped_unit.contains("tasks-after=gone"),
+        "the unit's namespace and control group went with it: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("unmount-after=accepted")
+            && stopped_unit.contains("destroy-after=gone"),
+        "the removal's own unmount and the head destroy follow the stop: {stopped_unit}"
+    );
+    assert!(
+        stopped_unit.contains("caller-job=alive"),
+        "the caller's session's other job lived through the stop: {stopped_unit}"
+    );
+
     println!(
         "{}",
         phase_line(
             "arm-finished",
-            &[("phases", "7"), ("result", "every-phase-held")]
+            &[("phases", "9"), ("result", "every-phase-held")]
         )
     );
     fixture.teardown();
@@ -643,8 +773,8 @@ fn the_forced_act_guest_arm_tests() {
 
 /// What:
 ///  Wait,
-/// bounded,
-/// until the holder has the namespaces and the session its shape promises.
+///  bounded,
+///  until the holder has the namespaces and the session its shape promises.
 /// Why:
 ///  `fork` returns in the parent before the child has run a line,
 ///  so a phase that read the holder's session at once would read the caller's:
@@ -778,13 +908,13 @@ fn phase_path_holder(
 
 /// What:
 ///  One holder namespace's copy,
-/// its own descriptor and the tables the arm reads.
+///  its own descriptor and the tables the arm reads.
 /// Why:
 ///  The act takes the namespace's descriptor and the identity the report names,
 ///  and the descriptor must be dropped when the phase's act is over:
-/// it is a
+///  it is a
 ///  reference to that namespace,
-/// and a namespace kept alive keeps its mounts and
+///  and a namespace kept alive keeps its mounts and
 ///  the dataset their superblock holds.
 ///
 /// In TS you'd write (pseudocode):
@@ -1309,4 +1439,360 @@ fn phase_locked(fixture: &Fixture) -> String {
         "the holder's namespace is owned by a user namespace of its own"
     );
     return phase_line("locked-holder-refused", fields.as_slice());
+}
+
+/// What:
+///  One mount namespace this arm made and left,
+///  with no task in it and a copy of the clone at the slot,
+///  kept alive only by the descriptor this call answers.
+/// Why:
+///  The kind the design calls a taskless namespace is exactly this:
+///  a namespace whose tasks are gone and whose mounts stay,
+///  and the descriptor is the one thing that keeps it from being freed
+///  (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+///  F13).
+///  The child makes its checkout a group of its own before it goes,
+///  which is the shape way 8 fits,
+///  so the act has a route to measure.
+fn a_namespace_no_task_holds(checkout: &Path) -> std::fs::File {
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `ends` is a live two-element array the call fills with the two descriptors it makes.
+    let piped: libc::c_int = unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) };
+    assert_eq!(
+        piped,
+        0,
+        "the holder's ready pipe: {}",
+        std::io::Error::last_os_error()
+    );
+    // SAFETY: `fork` takes no argument, and the child below returns through `_exit` only.
+    let child: libc::pid_t = unsafe { libc::fork() };
+    assert!(
+        child >= 0,
+        "the holder's fork: {}",
+        std::io::Error::last_os_error()
+    );
+    if child == 0 {
+        // SAFETY: the read end is the parent's and this child closes its own copy exactly once.
+        unsafe { libc::close(ends[0]) };
+        // SAFETY: `prctl` reads its four words and touches no memory of ours.
+        let _death: libc::c_int =
+            unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL, 0, 0, 0) };
+        // SAFETY: `getppid` takes no argument and reads one number.
+        if unsafe { libc::getppid() } == 1 {
+            end_now(1);
+        }
+        // SAFETY: `unshare` reads one flag word and touches no memory of ours.
+        let made: libc::c_int = unsafe { libc::unshare(libc::CLONE_NEWNS) };
+        assert_eq!(
+            made,
+            0,
+            "the holder's own mount namespace: {}",
+            std::io::Error::last_os_error()
+        );
+        make_the_checkout_shared(checkout)
+            .expect("the holder makes its own checkout a group of its own");
+        // What: the one byte that says this child's namespace is ready.
+        // Why: the parent opens the namespace only once it is the shape this phase measures.
+        let ready: [u8; 1] = [1];
+        // SAFETY: the byte is this call's own and the write end is this child's.
+        let _said: libc::ssize_t =
+            unsafe { libc::write(ends[1], ready.as_ptr().cast::<libc::c_void>(), ready.len()) };
+        loop {
+            // SAFETY: `pause` waits for one signal and touches no memory of ours.
+            let _paused: libc::c_int = unsafe { libc::pause() };
+        }
+    }
+    // SAFETY: the write end is the child's and this parent closes its own copy exactly once.
+    unsafe { libc::close(ends[1]) };
+    // SAFETY: the read end is this call's own and nothing else reads it.
+    let mut ready_pipe: std::fs::File = unsafe { std::fs::File::from_raw_fd(ends[0]) };
+    let mut ready: [u8; 1] = [0; 1];
+    let _read: std::io::Result<usize> = Read::read(&mut ready_pipe, &mut ready);
+    drop(ready_pipe);
+    assert_eq!(ready[0], 1, "the holder's namespace is ready");
+    // The namespace is opened while the child still lives, because a task's own link is the only path one has, and
+    // this descriptor is what keeps the namespace after the child goes.
+    let namespace: std::fs::File = std::fs::File::open(format!("/proc/{child}/ns/mnt"))
+        .expect("the holder's own namespace link");
+    // SAFETY: the number is this phase's own child and signal 9 ends it.
+    let _ended: libc::c_int = unsafe { libc::kill(child, libc::SIGKILL) };
+    let mut status: libc::c_int = 0;
+    // SAFETY: the status word is this call's own and the child is this phase's.
+    let _waited: libc::pid_t = unsafe { libc::waitpid(child, &mut status, 0) };
+    return namespace;
+}
+
+/// What:
+///  The namespace a walk found holding the clone,
+///  as the act's own shapes name it.
+/// Why:
+///  The act reads the checkout's mount,
+///  the slot's own dentry and the add's
+///  handle inside that namespace,
+///  and a taskless namespace has no `/proc/<pid>` path to read them beside,
+///  so the walk's own descriptor is the one the stages use.
+fn the_copy_a_walk_found<'a>(
+    found: &'a TasklessNamespace,
+    checkout: &'a Path,
+    slot: &'a Path,
+    dataset: &'a str,
+    handle: &'a RecordedHandle,
+) -> NamespaceCopy<'a> {
+    return NamespaceCopy {
+        namespace: &found.namespace,
+        identity: found.identity.as_str(),
+        checkout,
+        slot,
+        dataset,
+        handle,
+        directory: THE_RESERVED_NAME,
+    };
+}
+
+/// What:
+///  The taskless namespace's phase:
+///  the walk finds the namespace no task holds,
+///  the preflight accepts it,
+///  and the act takes its copy out while the host's copy stays.
+/// Why:
+///  This is the measurement the owner's answer of 2026-11-26 waited for:
+///  the kind is ended where the kernel lists namespaces,
+///  and on a kernel without `listns` the same phase reports the refusal
+///  `holder-unendable` instead.
+fn phase_taskless(fixture: &Fixture) -> String {
+    let mut fields: Vec<(&str, &str)> = Vec::new();
+    // What: the clone's dataset name as text, made once.
+    // Why: the act's own shapes borrow it for the whole phase, and a value made inside a call would be dropped at the
+    // end of that statement.
+    let dataset: String = fixture.clone();
+    let caller_job: AHolder = a_job_of_the_callers_session();
+    fixture.a_fresh_clone();
+    let checkout: PathBuf = mount_the_checkout(fixture);
+    let slot: PathBuf = checkout.join(SLOT);
+    std::fs::create_dir_all(slot.as_path()).expect("the slot's underlay");
+    let underlay: std::fs::File = open_directory(slot.as_path()).expect("the underlay is opened");
+    let handle: RecordedHandle = name_the_handle(&underlay)
+        .expect("the underlay's handle is taken before the clone is mounted");
+    mount_the_clone(fixture, slot.as_path());
+    // The walk's first half on this kernel, which is what a kernel of 6.18 or older refuses outright. It is asked
+    // before any namespace is made, because a kernel without the call ends the phase here and there is then nothing
+    // to make.
+    let listed: Vec<u64> = match the_mount_namespaces_on_this_machine() {
+        Ok(ids) => ids,
+        Err(refusal) => {
+            // The owner's answer kept this refusal until a kernel of `6.19` or newer measured the walk, and this
+            // phase is what says on which kernel the refusal is still the whole answer: a kernel without the call.
+            assert_eq!(
+                refusal.errno,
+                libc::ENOSYS,
+                "the listing refused this kernel with an errno that is not `ENOSYS`: {refusal}"
+            );
+            fields.push(("listns", "ENOSYS"));
+            fields.push(("refusal", RefusalWord::HolderUnendable.word()));
+            // What: the same refusal the arm's own table answers for this kind where no walk is possible.
+            // Why: the row and the walk must say one word, or a person reads two different reasons.
+            let row: KindEvidence =
+                ending_of(HolderKind::TasklessNamespace).expect("the taskless row");
+            fields.push((
+                "ending",
+                match row.ending {
+                    Ending::EnterAndTakeTheCopyOut => "enter-and-take-the-copy-out",
+                    _ => "other",
+                },
+            ));
+            let alive: bool = caller_job.alive();
+            fields.push(("caller-job", if alive { "alive" } else { "gone" }));
+            caller_job.end();
+            assert!(
+                alive,
+                "the caller's session's other job lived through the phase"
+            );
+            return phase_line("taskless-namespace-unlistable", fields.as_slice());
+        }
+    };
+    // What: how many taskless namespaces held this copy before this phase made one.
+    // Why: the walk must answer none here, or the one it finds after would prove nothing.
+    let before: usize =
+        find_the_taskless_namespaces_holding(Path::new("/proc"), dataset.as_str(), slot.as_path())
+            .expect("the walk answers on this kernel")
+            .len();
+    let holding: std::fs::File = a_namespace_no_task_holds(checkout.as_path());
+    let identity_of_the_holder: String = format!(
+        "mnt:[{}]",
+        std::os::unix::fs::MetadataExt::ino(
+            &holding
+                .metadata()
+                .expect("the holder's descriptor is described")
+        )
+    );
+    let held: std::collections::BTreeSet<u64> =
+        the_ids_this_machines_tasks_hold(Path::new("/proc")).expect("this guest's own /proc reads");
+    let taskless: Vec<u64> = the_ids_no_task_holds(listed.as_slice(), &held);
+    fields.push((
+        "listns",
+        Box::leak(listed.len().to_string().into_boxed_str()),
+    ));
+    fields.push(("held", Box::leak(held.len().to_string().into_boxed_str())));
+    fields.push((
+        "taskless",
+        Box::leak(taskless.len().to_string().into_boxed_str()),
+    ));
+    fields.push((
+        "holders-before",
+        Box::leak(before.to_string().into_boxed_str()),
+    ));
+    let mut found: Vec<TasklessNamespace> =
+        find_the_taskless_namespaces_holding(Path::new("/proc"), dataset.as_str(), slot.as_path())
+            .expect("the walk answers on this kernel");
+    fields.push((
+        "holders",
+        Box::leak(found.len().to_string().into_boxed_str()),
+    ));
+    assert_eq!(
+        found.len(),
+        1,
+        "the walk found the one namespace no task holds and nothing else: {:?}",
+        found
+            .iter()
+            .map(|one| return one.identity.clone())
+            .collect::<Vec<String>>(),
+    );
+    let one: TasklessNamespace = found.remove(0);
+    fields.push(("id", Box::leak(one.id.to_string().into_boxed_str())));
+    fields.push(("identity", one.identity.as_str()));
+    assert_eq!(
+        one.identity, identity_of_the_holder,
+        "the walk's descriptor names the namespace the phase kept"
+    );
+    // The control the act's premise rests on: while the copy stands in that namespace the dataset is busy, and the
+    // same destroy is accepted once the act took the copy out. It is asked in a namespace of its own, because
+    // `zfs destroy` unmounts the dataset from its caller's own namespace on its way even when it refuses.
+    let control: String = in_a_private_namespace("taskless-namespace-control", &|| {
+        return phase_line(
+            "taskless-namespace-control",
+            &[(
+                "destroy",
+                if destroy_the_clone(fixture) {
+                    "accepted"
+                } else {
+                    "busy"
+                },
+            )],
+        );
+    });
+    fields.push((
+        "control",
+        if control.contains("destroy=busy") {
+            "busy"
+        } else {
+            "accepted"
+        },
+    ));
+    let copy: NamespaceCopy<'_> = the_copy_a_walk_found(
+        &one,
+        checkout.as_path(),
+        slot.as_path(),
+        dataset.as_str(),
+        &handle,
+    );
+    // What: the table the walk read for that namespace, as the preflight's own rows.
+    // Why: a taskless namespace has no `/proc/<pid>/mountinfo`, so the walk's read is the only table the preflight
+    // can have of it.
+    let deeper: NamespaceTable = NamespaceTable {
+        namespace: one.identity.clone(),
+        at_the_slot: topmost_at(one.rows.as_slice(), slot.as_path()),
+        rows: one.rows.clone(),
+    };
+    let host_rows: Vec<MountRow> = the_table();
+    let ours: NamespaceTable = NamespaceTable {
+        namespace: String::from("the host's"),
+        at_the_slot: topmost_at(host_rows.as_slice(), slot.as_path()),
+        rows: host_rows,
+    };
+    let tables: Vec<NamespaceTable> = vec![deeper.clone(), ours];
+    let handled: Vec<String> = vec![one.identity.clone()];
+    let Some(copy_row) = deeper.at_the_slot.clone() else {
+        panic!(
+            "the walk's own table has no mount at the slot: {:?}",
+            one.rows
+        );
+    };
+    let reads: PreflightReads<'_> = PreflightReads {
+        dataset: dataset.as_str(),
+        tables: tables.as_slice(),
+        acting: one.identity.as_str(),
+        copy: &copy_row,
+        handled: handled.as_slice(),
+        protected: None,
+        blind: &[],
+        unenterable: &[],
+        locked: &[],
+        // A namespace no task holds is no service unit of the account's own manager, so there is none to stop here.
+        locked_units: &[],
+        parents_not_the_checkout: &[],
+        structural: &[],
+        unendable: &[],
+        no_destination: &[],
+        handle_proved: true,
+    };
+    let plan: ForcedPlan = plan_the_forced_removal(&reads)
+        .expect("a namespace no task holds is a holder the preflight accepts");
+    fields.push(("route", plan.route.word()));
+    let ready: Ready = make_the_way_ready(plan.route, &copy)
+        .expect("the act's structural stage runs inside the namespace the walk opened");
+    let taken: WayOut = take_the_copy_out(&ready, &copy)
+        .expect("the act's unmount stage takes the copy out of the namespace no task holds");
+    fields.push((
+        "mount",
+        Box::leak(taken.mount_id.to_string().into_boxed_str()),
+    ));
+    let after_theirs: Vec<MountRow> = the_table_of_namespace(one.identity.as_str(), &one.namespace)
+        .expect("the namespace's own table is read after the act");
+    let after_ours: Vec<MountRow> = the_table();
+    fields.push((
+        "holders-copy",
+        if holds_the_copy_at(
+            after_theirs.as_slice(),
+            slot.as_path(),
+            fixture.clone().as_str(),
+        ) {
+            "stays"
+        } else {
+            "gone"
+        },
+    ));
+    fields.push((
+        "hosts-copy",
+        if holds_the_copy_at(
+            after_ours.as_slice(),
+            slot.as_path(),
+            fixture.clone().as_str(),
+        ) {
+            "stays"
+        } else {
+            "gone"
+        },
+    ));
+    let unmounted: String = match unmount_the_slot(slot.as_path()) {
+        Ok(()) => String::from("accepted"),
+        Err(error) => format!("errno {}", error.raw_os_error().unwrap_or(0)),
+    };
+    fields.push(("unmount", unmounted.as_str()));
+    fields.push((
+        "destroy",
+        if destroy_the_clone(fixture) {
+            "gone"
+        } else {
+            "refused"
+        },
+    ));
+    let alive: bool = caller_job.alive();
+    fields.push(("caller-job", if alive { "alive" } else { "gone" }));
+    drop(holding);
+    caller_job.end();
+    assert!(
+        alive,
+        "the caller's session's other job lived through the act"
+    );
+    return phase_line("taskless-namespace", fields.as_slice());
 }

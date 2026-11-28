@@ -7,11 +7,11 @@
 //!  and every word it answers with.
 //! Why:
 //!  Plan step 17 builds,
-//! with `--force`,
+//!  with `--force`,
 //!  "the ending of the holders other than the caller and its session,
-//! once the owed measurement shows it
+//!  once the owed measurement shows it
 //!  works;
-//! the identification of the caller and its session among the holders"
+//!  the identification of the caller and its session among the holders"
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17").
 //!  The design is
@@ -19,8 +19,8 @@
 //!  accepted with its V10 answer "Stop that unit" by
 //!  `doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`.
 //!  Nothing in this folder is reached by a person's command:
-//!  the removal's command path stays behind the cut
-//!  (`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
+//!  the removal's command path ends no holder and offers no `--force`
+//!  (`doc/decision/cli-git-zfs-step-17-forced-and-cancelled-removal-designs-accepted.md`),
 //!  no sentence of a release offers `--force`,
 //!  and the only callers are this folder's controls and the guest arms.
 //!  The cancelled removal and the `cancel-worktree-removal` command are the sibling design's and not built
@@ -31,7 +31,7 @@
 //!  and by the constant that sizes its wait,
 //!  which ships with no value (`forced_arm_numbers.rs`).
 //!  A kind the evidence does not show is identified and refused,
-//! never ended.
+//!  never ended.
 //!
 //! Files in this folder,
 //! each using only files listed before it:
@@ -99,6 +99,18 @@
 //! - `the_mount_table_the_act_reads.rs`:
 //!   the kernel's mount table as the act reads it inside a holder's namespace,
 //!   one row per mount and the topmost mount at a path.
+//! - `the_namespace_listing.rs`:
+//!   the kernel's own namespace calls the walk makes:
+//!   the syscall and ioctl numbers,
+//!   the two records they read and answer,
+//!   one page of the listing and the rule that walks the pages,
+//!   and one listed id as a namespace descriptor.
+//! - `taskless_namespace_walk.rs`:
+//!   the walk that finds a mount namespace no task holds:
+//!   the kernel's own listing,
+//!   the ids its tasks answer,
+//!   the descriptor one listed id becomes,
+//!   and the copy that namespace holds.
 //! - `the_copy_taken_out_of_a_namespace.rs`:
 //!   the shapes the act speaks in:
 //!   one holder namespace's copy,
@@ -197,6 +209,19 @@ pub mod mount_namespace_child;
 /// The kernel's mount table as the act reads it.
 pub mod the_mount_table_the_act_reads;
 
+/// The kernel's own namespace calls the walk makes.
+pub mod the_namespace_listing;
+
+// What:     the walk that finds a mount namespace no task holds.
+// Why:      the forced arm's own wiring is the step that takes it, and until then the folder publishes its pieces the
+//           way it publishes every other one.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { findTheTasklessNamespacesHolding } from './tasklessNamespaceWalk.js';
+// ```
+pub mod taskless_namespace_walk;
+
 /// The shapes the act speaks in,
 /// and the word a failed child's report becomes.
 pub mod the_copy_taken_out_of_a_namespace;
@@ -235,6 +260,16 @@ pub mod the_refusal_sentences;
 #[cfg(test)]
 #[path = "the_forced_act_guest_fixture_tests.rs"]
 mod the_forced_act_guest_fixture;
+
+/// What the stop's own answer becomes in this folder's words.
+#[cfg(test)]
+#[path = "the_stops_answer_tests.rs"]
+mod the_stops_answer;
+
+/// The guest arm's phase for a locked holder that is a unit of the account's own manager.
+#[cfg(test)]
+#[path = "the_forced_act_guest_arms_locked_unit_tests.rs"]
+mod the_forced_act_guest_arms_locked_unit;
 
 /// The guest arm that proves every kernel call of the act in a throwaway guest.
 #[cfg(test)]
@@ -323,11 +358,12 @@ pub use holder_endings::{
     HolderKind,
     IN_PLACE_SHOWN_BY,
     KindEvidence,
-    LOCKED_NOT_BUILT,
+    LOCKED_UNIT_SHOWN_BY,
     MOVE_SHOWN_BY,
     MissingKind,
     PATH_HOLDER_SHOWN_BY,
     TASKLESS_NOT_BUILT,
+    TASKLESS_SHOWN_BY,
     THE_KINDS,
     ending_of,
     ends_blockers,
@@ -413,6 +449,15 @@ pub use started_by_the_service_manager::{
     the_refusal_text,
     unified_cgroup_path,
 };
+/// The walk that finds a mount namespace no task holds.
+pub use taskless_namespace_walk::{
+    TasklessNamespace,
+    TasklessWalkRefusal,
+    find_the_taskless_namespaces_holding,
+    the_ids_no_task_holds,
+    the_ids_this_machines_tasks_hold,
+    the_table_of_namespace,
+};
 /// The handler's journal lines.
 pub use the_acts_journal_lines::{
     ABlockersEnd,
@@ -449,6 +494,27 @@ pub use the_mount_table_the_act_reads::{
     row_of,
     rows_of,
     topmost_at,
+};
+/// The kernel's own namespace calls the walk makes.
+pub use the_namespace_listing::{
+    FILEID_NSFS,
+    IDS_ONE_CALL_ASKS_FOR,
+    IOCTL_READING,
+    LISTNS_CURRENT_USER,
+    LISTNS_SYSCALL,
+    MNT_NAMESPACE_TYPE,
+    NS_GET_ID,
+    NS_GET_ID_NUMBER,
+    NS_GET_ID_WIDTH,
+    NS_ID_REQUEST_BYTES,
+    NSFS_FILE_HANDLE_BYTES,
+    NSIO,
+    OUR_MOUNT_NAMESPACE,
+    PageAnswer,
+    TheCallsRefusal,
+    open_by_the_id,
+    pages_until_the_end,
+    the_mount_namespaces_on_this_machine,
 };
 /// The five lines one progress file holds.
 pub use the_progress_file_lines::{
