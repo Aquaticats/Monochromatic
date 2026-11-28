@@ -26,9 +26,8 @@ import {
 
 import {
   guestBackend,
-  refuseAStepWhoseArmsCannotRun,
-  STEPS_THAT_RUN_NO_ARM,
 } from '../bin/mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from '../bin/mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -273,6 +272,8 @@ async function build(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
+  // A backend that mounts no share has no folder for the archive to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await host({
     chosen,
     command: 'mvm',
@@ -328,13 +329,13 @@ async function arm(chosen: GuestDriverOptions,): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${POOL_VARIABLE}=${POOL}`,
-    `export ${REMOVAL_GUEST_VARIABLE}=${chosen.name}`,
+    `export ${REMOVAL_GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${REMOVAL_POOL_VARIABLE}=${REMOVAL_POOL}`,
     `export ${REMOVAL_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${REMOVAL_ROOT_VARIABLE}=${REMOVAL_ROOT}`,
-    `export ${CLONE_FACTS_GUEST_VARIABLE}=${chosen.name}`,
+    `export ${CLONE_FACTS_GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${CLONE_FACTS_POOL_VARIABLE}=${CLONE_FACTS_POOL}`,
     `export ${CLONE_FACTS_PREFIX_VARIABLE}=${REMOVAL_PREFIX}`,
     `export ${CLONE_FACTS_ROOT_VARIABLE}=${CLONE_FACTS_ROOT}`,
@@ -480,14 +481,6 @@ const step = steps[chosen.step];
 
 if (step === undefined)
   throw new Error(`unknown step ${chosen.step}; give create, prepare, build, arm, destroy or all`,);
-// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
-// makes anything. The three that only make, prepare and take away a guest run on either backend.
-refuseAStepWhoseArmsCannotRun({
-  backend: guestBackend(),
-  step: chosen.step,
-  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
-});
-
 await step(chosen,);
 
 //endregion The run

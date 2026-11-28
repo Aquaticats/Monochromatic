@@ -30,8 +30,6 @@ import {
 
 import {
   guestBackend,
-  refuseAStepWhoseArmsCannotRun,
-  STEPS_THAT_RUN_NO_ARM,
 } from '../bin/mvm-guest-backend.ts';
 import { runGateCommand, } from '../bin/native-gate-run.ts';
 import {
@@ -63,6 +61,10 @@ import {
 import {
   runWholeGuestRun,
 } from '../bin/mvm-guest-whole-run.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 //region Constants
 
@@ -352,7 +354,7 @@ async function arm({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
     'export CARGO_BUILD_JOBS=2',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export ${POOL_VARIABLE}=${POOL}`,
     'if /root/.cargo/bin/cargo nextest run --locked --test native_binary --no-capture --status-level all ' +
       '--filterset "test(zfs_sanoid_coverage_guest)" > /root/sanoid-coverage-arm.log 2>&1; then status=0; else status=$?; fi',
@@ -530,14 +532,6 @@ await mkdir(
     mode: FOLDER_MODE,
   },
 );
-// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
-// makes anything. The three that only make, prepare and take away a guest run on either backend.
-refuseAStepWhoseArmsCannotRun({
-  backend: guestBackend(),
-  step: chosen.step,
-  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
-});
-
 await step(chosen,);
 
 //endregion The command line

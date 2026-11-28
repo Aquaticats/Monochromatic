@@ -29,6 +29,7 @@ import {
   ovhDestroy,
   ovhDestroyAll,
   ovhExec,
+  ovhList,
 } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
@@ -324,6 +325,284 @@ await describe({
         expect(body.region,).toBe('gra9',);
       },
     },),
+
+    //region The size a create asks for
+
+    it({
+      name: 'a create with two floors sends the smallest general-purpose size that meets both',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 25,
+              id: 'd2-2',
+              ram: 2,
+              vcpus: 1,
+            },),
+            flavorAnswer({
+              disk: 50,
+              id: 'c3-4',
+              ram: 4,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              id: 'b3-8',
+              ram: 8,
+              vcpus: 2,
+            },),
+          ],),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 4,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as { readonly flavorId: string; };
+        expect(body.flavorId,).toBe('c3-4',);
+      },
+    },),
+    it({
+      name: 'a create whose floors only a GPU size meets refuses and creates nothing',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 25,
+              id: 'd2-2',
+              ram: 2,
+              vcpus: 1,
+            },),
+            flavorAnswer({
+              disk: 25,
+              id: 't1-45',
+              ram: 45,
+              vcpus: 8,
+            },),
+          ],),],
+        },),);
+        const error = await errorFrom({
+          run: () => ovhCreate({
+            memoryGiB: 40,
+            name: 'dev',
+            vcpus: 8,
+          },),
+        },);
+        expect((error as Error).message,).toContain('t1-45',);
+        expect((error as Error).message,).toContain('left out as a family mvm does not pick without being told',);
+        expect((error as Error).message,).toContain('--server-type',);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'POST',
+            path: cloudPath('/instance',),
+          },),
+        ).toHaveLength(0,);
+      },
+    },),
+    it({
+      name: 'a create that names a flavor outright and also sets a floor refuses before reading anything',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(
+          routed(createRoutes(),),
+        );
+        const error = await errorFrom({
+          run: () => ovhCreate({
+            name: 'dev',
+            serverType: 'b3-8',
+            vcpus: 2,
+          },),
+        },);
+        expect((error as Error).message,).toContain('b3-8',);
+        expect((error as Error).message,).toContain('at least 2 vCPUs',);
+        expect(standIn.calls,).toHaveLength(0,);
+      },
+    },),
+    it({
+      name: 'a create walks past a region with no size that fits and asks the next region for the same floors',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/region',)}`]: [jsonAnswer(['bhs5', 'gra9',],),],
+          [`GET ${cloudPath('/region/gra9',)}`]: [jsonAnswer(regionAnswer({ name: 'gra9', },),),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 25,
+              id: 'd2-2',
+              ram: 2,
+              vcpus: 1,
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=gra9`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              id: 'b3-8',
+              ram: 8,
+              region: 'gra9',
+              vcpus: 2,
+            },),
+          ],),],
+          [`GET ${cloudPath('/image',)}?region=gra9`]: [jsonAnswer([imageAnswer({},),],),],
+          [`POST ${cloudPath('/instance',)}`]: [jsonAnswer(instanceAnswer({
+            region: 'gra9',
+            status: 'BUILD',
+          },),),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 4,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        const body = created?.body as {
+          readonly flavorId: string;
+          readonly region: string;
+        };
+        expect(body.region,).toBe('gra9',);
+        expect(body.flavorId,).toBe('b3-8',);
+      },
+    },),
+
+    it({
+      name: 'a create with the prices in hand sends the cheapest size that fits, not the smallest numbers',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'b2-7.consumption',
+              id: 'b2-7',
+              ram: 7,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'd2-8.consumption',
+              id: 'd2-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+          ],),],
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [jsonAnswer({
+            addons: [
+              {
+                planCode: 'b2-7.consumption',
+                pricings: [{
+                  interval: 1,
+                  intervalUnit: 'hour',
+                  price: 11_350_000,
+                  type: 'consumption',
+                },],
+              },
+              {
+                planCode: 'd2-8.consumption',
+                pricings: [{
+                  interval: 1,
+                  intervalUnit: 'hour',
+                  price: 5_960_000,
+                  type: 'consumption',
+                },],
+              },
+            ],
+            locale: { currencyCode: 'CAD', },
+          },),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 6,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as { readonly flavorId: string; };
+        expect(body.flavorId,).toBe('d2-8',);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'GET',
+            path: '/v1/order/catalog/public/cloud?ovhSubsidiary=CA',
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a create whose price read is refused falls back to the smallest numbers and says so',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'b2-7.consumption',
+              id: 'b2-7',
+              ram: 7,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'd2-8.consumption',
+              id: 'd2-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+          ],),],
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [failureAnswer({
+            errorCode: 'REFUSED',
+            message: 'the price catalogue is not readable with these rights',
+            status: 403,
+          },),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 6,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        expect((created.body as { readonly flavorId: string; }).flavorId,).toBe('b2-7',);
+      },
+    },),
+
+    //endregion The size a create asks for
 
     //endregion Create
 
@@ -639,5 +918,88 @@ await describe({
     },),
 
     //endregion Destroy all
+    //region Listing
+
+    it({
+      name: 'a listing reports each machine size from its own region flavor list, read once per region',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              flavorId: 'flavor-c3',
+              id: 'instance-1',
+              name: 'mvm-dev',
+            },),
+            instanceAnswer({
+              flavorId: 'flavor-b3',
+              id: 'instance-2',
+              ip: '192.0.2.11',
+              name: 'mvm-build',
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              id: 'flavor-c3',
+              name: 'c3-4',
+              ram: 4,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              id: 'flavor-b3',
+              name: 'b3-8',
+              ram: 8,
+              vcpus: 2,
+            },),
+          ],),],
+        },),);
+        const vms = await ovhList();
+        expect(vms,).toEqual([
+          {
+            memoryGiB: 4,
+            name: 'dev',
+            state: 'active',
+            vcpus: 2,
+          },
+          {
+            memoryGiB: 8,
+            name: 'build',
+            state: 'active',
+            vcpus: 2,
+          },
+        ],);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'GET',
+            path: `${cloudPath('/flavor',)}?region=bhs5`,
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a listing says nothing about a size whose flavor the region no longer lists',
+      fn: async () => {
+        await using _env = await installEnv();
+        using _standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              flavorId: 'flavor-gone',
+              id: 'instance-1',
+              name: 'mvm-dev',
+            },),
+          ],),],
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([flavorAnswer(),],),],
+        },),);
+        expect(await ovhList(),).toEqual([{
+          name: 'dev',
+          state: 'active',
+        },],);
+      },
+    },),
+
+    //endregion Listing
   ],
 },);

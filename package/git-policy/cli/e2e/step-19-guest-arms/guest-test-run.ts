@@ -11,6 +11,7 @@
  ```
  */
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
@@ -24,6 +25,10 @@ import {
   openZfsLibrary,
   openZfsPath,
 } from './fixture.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  The environment every arm of this driver starts with: the crate's own `PATH`, the OpenZFS userspace the recipe
@@ -48,7 +53,7 @@ export function armEnvironment({
     `cd ${cratePackage}`,
     `export PATH=/root/.cargo/bin:${openZfsPath}`,
     `export LD_LIBRARY_PATH=${openZfsLibrary}`,
-    `export ${guestVariable}=${chosen.name}`,
+    `export ${guestVariable}=${backend.hostnameOf(chosen.name)}`,
   ];
 }
 

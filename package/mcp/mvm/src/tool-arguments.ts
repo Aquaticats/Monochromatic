@@ -44,6 +44,34 @@ export function requiredString(description: string,): DescribedString {
 }
 
 /**
+ Builds an optional whole-number argument of at least one.
+
+ The declared type states what callers may rely on: an absent value, or a whole
+ number. The pipe's own action types carry message parameters not worth restating
+ here, and every caller reads the value through `typeof args.<name> === 'number'`
+ anyway.
+
+ @param description - Text clients read for this argument
+
+ @returns Schema accepting absence, rejecting zero, a fraction and a non-number
+
+ @example
+ ```ts
+ optionalPositiveInteger('Fewest virtual CPUs the machine may have');
+ ```
+ */
+export function optionalPositiveInteger(
+  description: string,
+): v.OptionalSchema<v.GenericSchema<number>, undefined> {
+  return v.optional(v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(1,),
+    v.description(description,),
+  ),);
+}
+
+/**
  Builds an optional string argument.
  
  @param description - Text clients read for this argument

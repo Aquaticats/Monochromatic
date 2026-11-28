@@ -969,6 +969,58 @@ Unapproved and non-final.
   and changes no durable intent.
   Its picks the brief did not decide are in `doc/handover/questions-for-the-owner.md`.
 
+#### Started and done between 07:29 and 07:45
+
+Unapproved and non-final.
+
+- The owner's word,
+  typed at about 07:30:
+  all guest work runs on OVHcloud from 08:00,
+  no matter what.
+  It is quoted in `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "All guest work runs on OVHcloud,
+  2026-11-28".
+  A command that ends at 08:00 and a one-shot schedule are armed.
+- Merge `feb999c67a`:
+  `mvm --backend ovh destroy` returns when the project's listing has let the machine go.
+  The billed test then passed whole on `main` at 07:32:22 and the project listed no machine.
+- Merges `832b3e25c2` and `a2c34bc3f0` took the guest drivers' round ahead of its end:
+  a driver takes its backend from `MVM_BACKEND`,
+  and on a backend that mounts no share the shared steps make a plain `/mnt/shared` in the guest,
+  so every arm script runs as it is.
+  That round is still running,
+  and the shared helpers and the recipe stay its to change.
+- Merge `b7f9f7ed2c`:
+  `mvm create` and `mvm run` take `--vcpus` and `--memory`,
+  and on OVHcloud the cheapest size that fits is taken from a live price read.
+  What the owner has not been shown yet is in `doc/handover/questions-for-the-owner.md`.
+- Every live round that runs guest arms was told at 07:34 to stop using its local guest,
+  and at 07:44 how to run its arms on OVHcloud:
+  through its driver's own mise task with `MVM_BACKEND=ovh MVM_OVH_FLAVOR=b3-16` in front,
+  a create only when the project lists fewer than six machines,
+  its own machine destroyed by name.
+  The note as sent is in `~/temp/agent/all-guest-work-moves-to-ovhcloud-2026-11-28/keep/`,
+  scratch that expires a day after its last change.
+- No arm of a wrapper driver has run on OVHcloud yet;
+  the recipe's create,
+  prepare and one arm of the binding's own have.
+- Issues 6662 (a create with a name already in use makes a second billed machine)
+  and 6663 (the Hetzner backend's destroy returns on acceptance) are filed.
+- Gate reads back,
+  both not ready:
+  the sizes proposal (three High,
+  twelve Medium,
+  five Low) and the development-profile proposal,
+  whose second revision is running.
+- The second pass on the wrapper's `0.6.1-alpha.53` behaviour found no High,
+  two Medium and six Low.
+  Its first Medium:
+  a removal resumed after its clone is gone publishes its plan and destroys the origin snapshot
+  before it reads a person's lock.
+  A fix round is owed.
+- Ended and not yet read:
+  the two fix rounds on the `cargo-shadow` alpha.18 read and the two-forces design.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.

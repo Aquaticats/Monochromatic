@@ -178,6 +178,7 @@ const EXPECTED_FACTS: Readonly<Record<
     readonly pushDestination: string;
     readonly pushedFolder: string;
     readonly powerCycles: boolean;
+    readonly makesTheFolder: boolean;
   }
 >> = {
   libvirt: {
@@ -186,6 +187,7 @@ const EXPECTED_FACTS: Readonly<Record<
     pushDestination: '/shared/a.tar.gz',
     pushedFolder: '/mnt/shared',
     powerCycles: true,
+    makesTheFolder: false,
   },
   ovh: {
     hostname: 'mvm-guest-a',
@@ -194,9 +196,10 @@ const EXPECTED_FACTS: Readonly<Record<
       '--non-interactive',
       '--',
     ],
-    pushDestination: '/home/ubuntu/a.tar.gz',
-    pushedFolder: '/home/ubuntu',
+    pushDestination: '/mnt/shared/a.tar.gz',
+    pushedFolder: '/mnt/shared',
     powerCycles: false,
+    makesTheFolder: true,
   },
 };
 
@@ -226,6 +229,10 @@ for (const [kind, expected,] of Object.entries(EXPECTED_FACTS,)) {
   hold(
     `${kind} ${expected.powerCycles ? 'can' : 'cannot'} power-cycle its guest`,
     backend.powerCycles === expected.powerCycles,
+  );
+  hold(
+    `${kind} ${expected.makesTheFolder ? 'makes' : 'does not make'} the folder its pushes land in`,
+    (backend.makesThePushedFolder !== undefined) === expected.makesTheFolder,
   );
 }
 
@@ -296,6 +303,18 @@ hold(
 hold(
   'the recipe refuses a power-cycle step through the module rather than itself',
   RECIPE_TEXT.includes('refuseAStepThatNeedsAPowerCycle(',),
+);
+hold(
+  'the recipe makes the folder its pushes land in, through the module, before any step pushes',
+  RECIPE_TEXT.includes('makesThePushedFolder',) && RECIPE_TEXT.includes('mvm-shared-folder.log',),
+);
+hold(
+  'every guest variable the arms read carries the guest hostname, which is what they compare `gethostname()` with',
+  !/[*_]GUEST=\${options\.name}/.test(RECIPE_TEXT,),
+);
+hold(
+  'the recipe hands the arms that hostname through the backend',
+  RECIPE_TEXT.includes('_GUEST=${options.backend.hostnameOf(options.name)}',),
 );
 
 //endregion The recipe's own text

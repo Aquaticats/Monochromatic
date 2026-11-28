@@ -828,6 +828,141 @@ so they detect the regression.
   so windows often contain none;
   the synthetic scenarios do not add binary or rename cases of their own.
 
+## The backend a guest driver drives
+
+Every guest driver takes the machine its guest lives on from one place,
+`bin/mvm-guest-backend.ts`,
+and that place reads what `mvm` itself reads:
+`--backend`,
+then the `MVM_BACKEND` environment variable,
+then `libvirt`.
+A run that says nothing drives the local guest it always drove,
+so a driver's own command line did not change.
+The one definition of the variable and of the default is
+`package/mvm/cli/src/backend/registry.ts` (`BACKEND_ENV_VAR`, `DEFAULT_BACKEND_KIND`),
+and the guest recipe's own module reads the same two the same way
+(`package/zfs/request-to-openzfs-kernel-device/e2e/guest-backend.ts`,
+which the recipe's own `e2e/guest-backend.check.ts` holds against `mvm`'s source).
+
+A driver is therefore pointed at another machine by naming it once:
+
+```sh
+# package/git-policy/cli: the driver, and every mvm it starts, on OVHcloud
+MVM_BACKEND=ovh mise run //package/git-policy/cli:e2e:forced-act -- create --name forced-act-ovh
+```
+
+What that place answers is more than a word on a command line,
+because the two backends differ in four ways a guest step meets on every command:
+
+- the guest's hostname:
+  a libvirt guest answers the name the run gave it,
+  and an OVHcloud instance answers `mvm-<name>`,
+  which is the name `mvm` created and the name the crate's guest arms compare
+  `gethostname()` with;
+- how a command runs as root:
+  a libvirt guest's command runs through the QEMU guest agent, which is root,
+  and an OVHcloud instance's runs over SSH as the account its image names,
+  so a step that must be root is started through `sudo --non-interactive --` there;
+- where a pushed file is readable:
+  libvirt's `mvm push` puts the file in the guest's `/mnt/shared` share under its own name,
+  and `ovh`'s writes the absolute path it is given over `scp`,
+  which for that account is `/home/ubuntu`;
+- whether an arm runs at all:
+  no arm does yet on `ovh`, for the reason below.
+
+A backend this package does not drive is refused where the run names it,
+with the word and the kinds a driver can drive,
+and not at the first step that reaches a guest.
+
+### What does not run on `ovh` yet
+
+The arms themselves.
+Every arm script this package runs is a shell script that reads and writes
+`/mnt/shared` itself,
+the libvirt share,
+and an OVHcloud guest has none:
+`mvm push` there writes a path over `scp` and mounts nothing.
+So a driver's `create`, `prepare` and `destroy` steps run on either backend,
+and a step that runs an arm refuses on `ovh` before it creates anything:
+`refuseAStepWhoseArmsCannotRun` names the step, the backend and the folder the arms need
+(`bin/mvm-guest-backend.unit.test.ts` holds each of those answers).
+Moving an arm to a second backend is therefore the arm's own work:
+take its folder from `guestBackend().guestSharedFolder` instead of writing `/mnt/shared`,
+and its push and pull paths from `pushDestinationOf`.
+
+The recipe's steps whose subject is a reboot or a power cut refuse on `ovh` too,
+and for a reason of `mvm`'s own:
+it never stops, pauses, shelves or resumes an OVHcloud instance
+(`package/mvm/cli/README.md`,
+"OVHcloud Public Cloud backend"),
+so a guest that did not come back could be neither reset nor inspected
+(`package/zfs/request-to-openzfs-kernel-device/e2e/guest-backend.ts`).
+The recipe's other steps ran on `ovh` on 2026-11-28:
+see "The recipe's first OVHcloud run".
+
+### What a round must do so that no machine is left behind
+
+An OVHcloud instance bills by the second until it is deleted,
+and `mvm` keeps nothing on this host that records which machines exist,
+so the round itself is what leaves none behind:
+
+- list the project before each create (`mise run //package/mvm/cli:run -- --backend ovh list`)
+  and create only when it shows fewer than six machines;
+  the bound is six alive at once;
+- make one machine at a time;
+- destroy your own machine by its name (`mvm --backend ovh destroy <name>`, which the recipe's
+  `destroy` step runs) and never `destroy --all`,
+  which deletes every `mvm-*` machine in the project,
+  including another round's;
+- destroy it when its step is done and whenever a step fails,
+  because a failed step leaves the machine billing;
+- end with a listing that shows none of yours.
+
+A driver's `all` step destroys the guest it made,
+even when the arms refused (`bin/mvm-guest-whole-run.ts`),
+and `--keep-guest` is the one exception a person asks for.
+A guest survives an interrupted driver,
+because taking it away is a step of the run's own,
+so the interruption names the guest and `mvm --backend ovh destroy <name>` is the next thing a person runs.
+
+## The recipe's first OVHcloud run
+
+On 2026-11-28 the guest recipe made one machine on OVHcloud and ran one arm in it,
+to show the backend coming from one place rather than from a literal at each call site:
+that branch named it 47 times in 14 files,
+by ``rg -c "'libvirt'" package/git-policy/cli package/zfs/request-to-openzfs-kernel-device``,
+and names it now in `bin/mvm-guest-backend.ts` and `e2e/guest-backend.ts` alone.
+The run named `--backend ovh`, `--guest-image 'Ubuntu 24.04'`, `MVM_OVH_FLAVOR=b3-16` (4 vCPUs, 16 GiB),
+region `BHS5`, and the machine destroyed by its name at the end.
+The steps were the recipe's `create`, `prepare` (which installs the packages and builds OpenZFS 2.4.4 in the guest)
+and `zfs-attach-arm` (plan step 4's descriptor attach against a real clone),
+and each passed:
+the suite reported 6 passed and the teardown left no pool, dataset or mount.
+
+The wall times, from `date --iso-8601=seconds` at each step's own start and end,
+beside the same steps on a local guest of the round of 2026-11-20
+(`~/temp/agent/integration-pass-zfs-step-4-guest-arms-after-their-findings-round-2026-11-20/keep/`,
+whose `mvm-create.log` and log files' own times are all it records):
+
+- `create`: 68 s on `ovh`, and 9.9 s on the local guest
+  (`mvm-create.log`'s first and last line);
+- `prepare`: 6 m 48 s on `ovh`,
+  and at most 5 m 40 s on the local guest (the local run's logs name no step start,
+  so that figure is the gap between its create's last line and its toolchain log);
+- `destroy`: 21 s on `ovh`, and 2.1 s on the local guest.
+
+The arm's first run failed after 15 m 37 s,
+in the crate's own name check:
+the recipe handed the arms `${options.name}` where they compare against `gethostname()`,
+which is right on libvirt and wrong on a cloud guest.
+The recipe now hands them `options.backend.hostnameOf(name)`,
+and `guest-backend.check.ts` refuses a recipe that names the run's name instead.
+The second run, with the crate's build already in the guest,
+passed in 64 s.
+The whole run is unapproved and non-final:
+the owner declares completion,
+and what was checked is these steps and no driver's arms.
+
 ## The ZFS adoption arm
 
 `mount-git-worktree-clone-datasets-guest.ts` runs the root modes' `adopt-worktree-parent` end to end,

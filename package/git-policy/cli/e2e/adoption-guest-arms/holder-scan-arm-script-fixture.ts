@@ -10,6 +10,7 @@
  ```
  */
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import { shellQuote, } from '../../bin/mvm-guest-command-line.ts';
 import type { GuestFacts, } from '../../bin/mvm-guest-guest-facts.ts';
 
@@ -24,6 +25,10 @@ import {
   scanGuestVariable,
   storePool,
 } from './adoption-fixture.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  The script the holder-scan arm runs inside the guest: its own layout, one nextest run of plan step 9's arms, and the
@@ -61,7 +66,7 @@ export function holderScanScript({
     `mkdir --parents ${scanCheckout}`,
     `cd ${crateDirectory}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${scanGuestVariable}=${chosen.name}`,
+    `export ${scanGuestVariable}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SCAN_POOL=${storePool}`,
     'export CLI_GIT_ZFS_SCAN_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SCAN_CHECKOUT=${scanCheckout}`,

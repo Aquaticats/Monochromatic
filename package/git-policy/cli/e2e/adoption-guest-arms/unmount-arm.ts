@@ -92,7 +92,7 @@ export async function unmountArms({
     'set -eu',
     `cd ${crateDirectory}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${unmountGuestVariable}=${chosen.name}`,
+    `export ${unmountGuestVariable}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${storePool}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${sweepCheckout}`,

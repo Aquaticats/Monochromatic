@@ -40,6 +40,7 @@ import {
   POLL_INTERVAL_MS,
 } from './mvm-guest-bounds.ts';
 import { guestBackend, } from './mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from './mvm-guest-shared-folder.ts';
 import { GuestDriverError, } from './mvm-guest-error.ts';
 import type { GuestFacts, } from './mvm-guest-guest-facts.ts';
 import { runGateCommand, } from './native-gate-run.ts';
@@ -81,6 +82,8 @@ async function pushIntoSharedFolder({
    The backend this run drives, which decides where `mvm push` puts the file.
    */
   const backend = guestBackend();
+  // A backend that mounts no share has no folder for the push to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await runRequiredStepCommand({
     logDirectory: chosen.logDir,
     program: 'mvm',

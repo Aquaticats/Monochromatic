@@ -18,8 +18,10 @@
  3. `GET .../region/<name>/flavor` and `GET .../image?region=<name>` in the first
     region that has a flavor in stock, to pick the smallest one and the image.
  4. `GET .../sshkey`, and `POST .../sshkey` when this key is not there yet.
- 5. `POST .../instance` with `monthlyBilling: false`, then `GET .../instance/<id>`
-    every three seconds until the instance reports `ACTIVE`.
+ 5. `POST .../instance` with `monthlyBilling: false`, after the backend chose the
+    smallest general-purpose size with at least two vCPUs and 4 GiB of memory,
+    then `GET .../instance/<id>` every three seconds until the instance reports
+    `ACTIVE`.
  6. `ssh` probes until the login account the image names answers, then one
     `uname -a`, then one `scp` in and one `scp` out of `/tmp/mvm-live.txt`.
  7. `DELETE .../instance/<id>`, which is what stops the meter.
@@ -77,6 +79,17 @@ const HAS_NAMES = REQUIRED_NAMES.every(function isSet(name,) {
  */
 const GUEST_PATH = '/tmp/mvm-live.txt';
 
+/**
+ Fewest virtual CPUs this run asks for, which is what a guest building this
+ repository's Rust code needs.
+ */
+const ASKED_VCPUS = 2;
+
+/**
+ Least memory this run asks for, in gibibytes.
+ */
+const ASKED_MEMORY_GIB = 4;
+
 //endregion Names
 
 await describe({
@@ -114,8 +127,29 @@ await describe({
           },
         };
 
-        // Create makes the smallest flavor the first Canadian region has in stock.
-        await backend.create({ name, },);
+        // Create asks for a floor of two vCPUs and 4 GiB, so the cheapest size
+        // that meets both wins rather than the smallest in stock. The backend
+        // prints the size it picked and its hourly price before it creates.
+        await backend.create({
+          memoryGiB: ASKED_MEMORY_GIB,
+          name,
+          vcpus: ASKED_VCPUS,
+        },);
+
+        /**
+         The machine as the backend lists it, which is where the size it was
+         actually given can be read back.
+         */
+        const sized = (await backend.list())
+          .find(function ours(vm,) {
+            return vm.name === name;
+          },);
+        // Exact terminal output this run reports; no logger is configured here.
+        console.log(
+          `live: asked at least ${String(ASKED_VCPUS,)} vCPUs and ${String(ASKED_MEMORY_GIB,)} GiB; the backend lists ${String(sized?.vcpus,)} vCPUs and ${String(sized?.memoryGiB,)} GiB`,
+        );
+        expect(sized?.vcpus,).toBeGreaterThanOrEqual(ASKED_VCPUS,);
+        expect(sized?.memoryGiB,).toBeGreaterThanOrEqual(ASKED_MEMORY_GIB,);
 
         /**
          Result of one command run inside the instance.

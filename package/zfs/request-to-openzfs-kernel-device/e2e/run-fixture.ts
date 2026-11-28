@@ -383,9 +383,14 @@ function guestCapture({ options, script, log, timeout }: GuestScript): string {
   return result.stdout;
 }
 
-/** The environment every live suite reads, as shell assignments. */
+/**
+ The environment every live suite reads, as shell assignments.
+
+ Each `*_GUEST` variable carries the guest's own hostname, which is what the crate's arms compare `gethostname()` with
+ before they change a dataset; on libvirt that is the name the run gave, and on a cloud backend it is the instance's name.
+ */
 function fixtureEnvironment(options: Options): string {
-  return `MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.name} ` +
+  return `MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.backend.hostnameOf(options.name)} ` +
     `MONOCHROMATIC_ZFS_FIXTURE_SBIN=${OPENZFS_PREFIX}/sbin ` +
     `MONOCHROMATIC_ZFS_FIXTURE_ROOT=${FIXTURE_ROOT} ` +
     `MONOCHROMATIC_ZFS_FIXTURE_ACCOUNT=${ACCOUNT} ` +
@@ -417,6 +422,36 @@ function guestNames(options: Options): readonly string[] {
   return names;
 }
 
+/**
+ Make the folder the host's pushed files land in, on a backend that mounts none there.
+
+ A libvirt guest's folder is the virtiofs share `mvm create` mounts, so this runs nothing there. A guest `mvm` reaches
+ over `ssh` has no share and its account cannot write outside its own home, so the folder is made once as root, owned by
+ that account, and every script the recipe pushes names the same folder on either backend.
+
+ @param options - the run's options
+
+ @throws Error naming the command and its status when the folder could not be made
+ */
+function makeThePushedFolder(options: Options): void {
+  const command = options.backend.makesThePushedFolder;
+  if (command === undefined)
+    return;
+  host({
+    options,
+    command: 'mvm',
+    args: [
+      ...options.backend.mvmArgumentWords,
+      'exec',
+      options.name,
+      '--',
+      ...options.backend.rootWords,
+      ...command,
+    ],
+    log: 'mvm-shared-folder.log',
+  });
+}
+
 /** Create the guest, refusing a name another run already holds. */
 function create(options: Options): void {
   const held: readonly string[] = guestNames(options);
@@ -441,6 +476,7 @@ function create(options: Options): void {
     ],
     log: 'mvm-create.log',
   });
+  makeThePushedFolder(options);
 }
 
 /**
@@ -760,7 +796,7 @@ function record(options: Options): void {
  */
 function step3Environment(options: Options): string {
   return `CLI_GIT_TEST_ROOT=${STEP3_FIXTURE_ROOT}/checkout ` +
-    `CLI_GIT_ZFS_FIXTURE_GUEST=${options.name} ` +
+    `CLI_GIT_ZFS_FIXTURE_GUEST=${options.backend.hostnameOf(options.name)} ` +
     `CLI_GIT_ZFS_TOOL_DIRECTORY=${OPENZFS_PREFIX}/sbin ` +
     `CLI_GIT_ZFS_SECOND_DATASET=${STEP3_FIXTURE_ROOT}/second ` +
     `CLI_GIT_ZFS_DIFFERENT_KEY_DATASET=${STEP3_FIXTURE_ROOT}/diffkey ` +
@@ -1177,7 +1213,7 @@ const STEP4_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/b
  and the suite step refuses to count such a line as a pass.
  */
 function step4Environment(options: Options): string {
-  return `MONOCHROMATIC_ZFS_ATTACH_ARM_GUEST=${options.name} ` +
+  return `MONOCHROMATIC_ZFS_ATTACH_ARM_GUEST=${options.backend.hostnameOf(options.name)} ` +
     `MONOCHROMATIC_ZFS_ATTACH_ARM_ROOT=${STEP4_FIXTURE_ROOT}/checkout ` +
     `MONOCHROMATIC_ZFS_ATTACH_ARM_ACCOUNT=${ACCOUNT} ` +
     `MONOCHROMATIC_ZFS_ATTACH_ARM_CLONE=${STEP4_CLONE} ` +
@@ -1380,7 +1416,7 @@ function gateArm(options: Options, expectation: string, label: string): void {
     'set -eu',
     `cd ${CRATE_DIR}`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.name}`,
+    `export MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.backend.hostnameOf(options.name)}`,
     `export MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=${expectation}`,
     `if cargo test --release --locked --lib ${GATE_ARM_FILTER} -- --ignored --nocapture > /root/${label}.log 2>&1; then status=0; else status=$?; fi`,
     `tail --lines=20 /root/${label}.log`,
@@ -1403,7 +1439,7 @@ function gateRed(options: Options, expectation: string, label: string, field: st
     'set -eu',
     `cd ${CRATE_DIR}`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.name}`,
+    `export MONOCHROMATIC_ZFS_FIXTURE_GUEST=${options.backend.hostnameOf(options.name)}`,
     `export MONOCHROMATIC_ZFS_FIXTURE_GATE_EXPECT=${expectation}`,
     `if cargo test --release --locked --lib ${GATE_ARM_FILTER} -- --ignored --nocapture > /root/${label}.log 2>&1; then status=0; else status=$?; fi`,
     `tail --lines=20 /root/${label}.log`,
@@ -1577,7 +1613,7 @@ const STEP10_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/
 
 /** The environment the add arms read inside the guest. */
 function step10Environment(options: Options): string {
-  return `CLI_GIT_ZFS_ADD_GUEST=${options.name} ` +
+  return `CLI_GIT_ZFS_ADD_GUEST=${options.backend.hostnameOf(options.name)} ` +
     `CLI_GIT_ZFS_ADD_ROOT=${STEP10_CHECKOUT_PATH} ` +
     `CLI_GIT_ZFS_ADD_POOL=${STEP10_POOL} ` +
     `CLI_GIT_ZFS_ADD_SBIN=${OPENZFS_PREFIX}/sbin`;
@@ -2109,7 +2145,7 @@ function step7Pool(options: Options): void {
 
 /** The environment the step 7 arms read inside the guest. */
 function step7Environment(options: Options): string {
-  return `MONOCHROMATIC_ZFS_STEP7_GUEST=${options.name} ` +
+  return `MONOCHROMATIC_ZFS_STEP7_GUEST=${options.backend.hostnameOf(options.name)} ` +
     `MONOCHROMATIC_ZFS_FIXTURE_SBIN=${OPENZFS_PREFIX}/sbin ` +
     `MONOCHROMATIC_ZFS_STEP7_POOL=${STEP7_POOL} ` +
     `MONOCHROMATIC_ZFS_STEP7_PARENT=${STEP7_PARENT} ` +
@@ -2283,7 +2319,7 @@ function step16Pool(options: Options): void {
 
 /** The environment the step 16 arms read inside the guest. */
 function step16Environment(options: Options): string {
-  return `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_GUEST=${options.name} ` +
+  return `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_GUEST=${options.backend.hostnameOf(options.name)} ` +
     `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_POOL=${STEP16_POOL} ` +
     `MONOCHROMATIC_ZFS_SNAPSHOT_BATCH_SBIN=${OPENZFS_PREFIX}/sbin`;
 }
