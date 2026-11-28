@@ -295,21 +295,25 @@ fn one_state(
 }
 
 /// What:
-///  The shared and slave set, read on a copy the kernel delivered into a namespace whose root is a slave:
+///  The shared and slave set,
+/// read on a copy the kernel delivered into a namespace whose root is a slave:
 ///  the child makes this namespace's root a slave of its own,
 ///  this process mounts the checkout,
 ///  and the child reads the copy that arrives,
 ///  runs the step on it,
 ///  and says what it found.
 /// Why:
-///  A mount made under a slave parent is private in this kernel: the copy that carries a master is the one
+///  A mount made under a slave parent is private in this kernel:
+/// the copy that carries a master is the one
 ///  propagation makes in the slave's namespace
 ///  (`fs/namespace.c`,
 ///  `attach_recursive_mnt`,
 ///  which copies only for a shared destination,
 ///  and `propagate_one`'s `CL_SLAVE | CL_MAKE_SHARED` for the slave's copy),
 ///  which is the set the design's F30 measured as `shared,slave`.
-///  So the two namespaces are one phase: the child waits for the copy, and this process makes the mount.
+///  So the two namespaces are one phase:
+/// the child waits for the copy,
+/// and this process makes the mount.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -388,7 +392,9 @@ fn a_checkout_delivered_into_a_slave_namespace(fixture: &Fixture) -> String {
 
 /// What:
 ///  The child's half of the delivered copy:
-///  wait, bounded, for the copy to arrive at the checkout path,
+///  wait,
+/// bounded,
+/// for the copy to arrive at the checkout path,
 ///  read its set,
 ///  and run the step on it.
 /// Why:
@@ -891,9 +897,12 @@ fn instance_of(path: &Path) -> u64 {
 ///  Change one mount's propagation through the kernel's own call.
 /// Why:
 ///  `mount --make-slave` on this guest answers `mount failed: Unknown error 5005` when util-linux hands the change to a
-///  filesystem helper, and the kernel's call names the mount the answer is about,
-///  so the arm asks the kernel directly, as the start probe does for its own namespace
-///  (`start_probe/probe_mount_calls.rs`, `make_mounts_private`).
+///  filesystem helper,
+/// and the kernel's call names the mount the answer is about,
+///  so the arm asks the kernel directly,
+/// as the start probe does for its own namespace
+///  (`start_probe/probe_mount_calls.rs`,
+/// `make_mounts_private`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -925,7 +934,8 @@ fn change_the_propagation(
     );
 }
 
-/// Make this namespace's whole tree private, so nothing mounted here is delivered to the guest's own table.
+/// Make this namespace's whole tree private,
+/// so nothing mounted here is delivered to the guest's own table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -935,7 +945,8 @@ fn make_the_tree_private(_fixture: &Fixture) {
     change_the_propagation(Path::new("/"), libc::MS_REC | libc::MS_PRIVATE);
 }
 
-/// Make this namespace's root a shared mount of its own, so a mount made on it comes up shared and stays here.
+/// Make this namespace's root a shared mount of its own,
+/// so a mount made on it comes up shared and stays here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
