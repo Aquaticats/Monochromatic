@@ -109,16 +109,18 @@ const SWAP_STEPS: readonly string[] = [
 ];
 /**
  Milliseconds the guest's crate build may take.
+ 2,400,000 s was a build that took 516 s on 2026-11-27's earlier guest; the same build on the same host at a load
+ average of 82 was still compiling the release binaries when 2,400,000 ms ran out, so the bound is 5,400,000 ms.
  */
-const CRATE_BUILD_TIMEOUT_MS = 2_400_000;
+const CRATE_BUILD_TIMEOUT_MS = 5_400_000;
 /**
  Milliseconds the host waits past the build's own bound before it stops asking whether the detached script ended.
  */
 const BUILD_FINISH_MARGIN_MS = 120_000;
 /**
- Milliseconds one arm may take.
+ Milliseconds one arm may take: two release test binaries, the pools their arms build, and the host's load.
  */
-const ARM_TIMEOUT_MS = 1_800_000;
+const ARM_TIMEOUT_MS = 2_700_000;
 /**
  Milliseconds the host waits past the arm's own bound before it stops asking whether the detached script ended.
  */
@@ -315,6 +317,9 @@ async function arm(chosen: GuestDriverOptions,): Promise<void> {
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/opt/openzfs-2.4.4/sbin:/opt/openzfs-2.4.4/bin:/root/.cargo/bin:$PATH',
     'export LD_LIBRARY_PATH=/opt/openzfs-2.4.4/lib',
+    // The arm runs as root, and its facts name the account's own cache; `mvm exec` hands the command no HOME, so the
+    // arm states the guest root account's home rather than letting the gather read none.
+    'export HOME=/root',
     `export ${GUEST_VARIABLE}=${chosen.name}`,
     `export ${POOL_VARIABLE}=${POOL}`,
     `export ${REMOVAL_GUEST_VARIABLE}=${chosen.name}`,
