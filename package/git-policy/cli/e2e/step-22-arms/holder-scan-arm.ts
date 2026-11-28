@@ -11,6 +11,7 @@
  ```
  */
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
@@ -27,6 +28,10 @@ import {
   scanCheckout,
   scanPool,
 } from './measurement-fixture.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  The log the holder-scan step writes inside the guest's shared folder.
@@ -68,7 +73,7 @@ export async function measureTheHolderScan({
     `mkdir --parents ${scanCheckout}`,
     `cd ${crateDirectory}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export CLI_GIT_ZFS_SCAN_GUEST=${chosen.name}`,
+    `export CLI_GIT_ZFS_SCAN_GUEST=${backend.hostnameOf(chosen.name)}`,
     `export ${scanPoolVariable}=${scanPool}`,
     'export CLI_GIT_ZFS_SCAN_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SCAN_CHECKOUT=${scanCheckout}`,

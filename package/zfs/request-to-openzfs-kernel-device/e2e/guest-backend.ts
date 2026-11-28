@@ -50,11 +50,11 @@ export type GuestBackend = {
    */
   readonly rootWords: readonly string[];
   /**
-   The path `mvm push` is given for one file, whose base name is what the guest reads.
+   The path `mvm push` is given for one file.
    */
   readonly pushDestinationOf: (file: string) => string;
   /**
-   The folder inside the guest a pushed file, and a log copied out of it, are readable at.
+   The folder inside the guest every pushed file lands in and every pulled log is read from.
    */
   readonly pushedFolder: string;
   /**
@@ -66,6 +66,10 @@ export type GuestBackend = {
    A backend that boots the provider's own catalogue image answers its own release instead.
    */
   readonly imageIsBaked: boolean;
+  /**
+   The command a guest runs to make {@link pushedFolder}, or nothing when the backend mounts it there already.
+   */
+  readonly makesThePushedFolder: readonly string[] | undefined;
 };
 
 /**
@@ -80,11 +84,11 @@ export const GUEST_BACKEND_ENV_VAR = 'MVM_BACKEND';
 export const DEFAULT_GUEST_BACKEND_KIND = 'libvirt';
 
 /**
- The home of the account an OVHcloud Ubuntu image logs in as.
- The image's own `user` field names it (`package/mvm/cli/README.md`, "The login account is the image's own"), and
- `/root` is not writable by that account, so a pushed file and a copied-out log live here.
+ The account an OVHcloud Ubuntu image logs in as.
+ The image's own `user` field names it (`package/mvm/cli/README.md`, "The login account is the image's own"), and every
+ `scp` and `ssh` this backend runs uses it.
  */
-const OVH_ACCOUNT_HOME = '/home/ubuntu';
+const OVH_ACCOUNT = 'ubuntu';
 
 /**
  The path `mvm`'s own guest agent sees a pushed file at, and the guest sees the virtiofs share at
@@ -106,6 +110,8 @@ export const GUEST_BACKENDS: Record<GuestBackendKind, GuestBackend> = {
     // The share keeps only the file name, so the word names one file and no directory.
     pushDestinationOf: (file: string,): string => `/shared/${file}`,
     pushedFolder: LIBVIRT_SHARED_FOLDER,
+    // `mvm create` mounts the virtiofs share at that folder, so nothing has to make it.
+    makesThePushedFolder: undefined,
     powerCycles: true,
     imageIsBaked: true,
   },
@@ -116,8 +122,23 @@ export const GUEST_BACKENDS: Record<GuestBackendKind, GuestBackend> = {
     hostnameOf: (name: string,): string => `mvm-${name}`,
     // The command runs over SSH as the image's own account, which the Ubuntu image lets sudo without a password.
     rootWords: ['sudo', '--non-interactive', '--',],
-    pushDestinationOf: (file: string,): string => `${OVH_ACCOUNT_HOME}/${file}`,
-    pushedFolder: OVH_ACCOUNT_HOME,
+    // A push writes the absolute path it is given over `scp`, so the word is the file's whole path in that folder.
+    pushDestinationOf: (file: string,): string => `${LIBVIRT_SHARED_FOLDER}/${file}`,
+    // The same folder a libvirt guest mounts its share at, so every script that names it runs on either backend.
+    pushedFolder: LIBVIRT_SHARED_FOLDER,
+    // Owned by the account every `scp` and `ssh` of this backend runs as, so a push can write into it and a pull can
+    // read what a root command copied there.
+    makesThePushedFolder: [
+      'install',
+      '--directory',
+      '--owner',
+      OVH_ACCOUNT,
+      '--group',
+      OVH_ACCOUNT,
+      '--mode',
+      '0755',
+      LIBVIRT_SHARED_FOLDER,
+    ],
     // `mvm` never stops, pauses, shelves or resumes an OVHcloud instance (`package/mvm/cli/README.md`,
     // "OVHcloud Public Cloud backend"), so nothing can power-cycle one.
     powerCycles: false,

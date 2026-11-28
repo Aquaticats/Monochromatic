@@ -394,7 +394,7 @@ await describe({
           },
         },),
         it({
-          name: 'keeps both files in the account home, and starts them as root, on a backend without a share',
+          name: 'keeps both files in the guest\'s shared folder, and starts them as root, on a backend without a share',
           fn: async () => {
             const files = detachedScriptFiles({
               name: GUEST,
@@ -404,9 +404,9 @@ await describe({
               nameCheck: 'launcher',
               backend: GUEST_BACKENDS.ovh,
             },);
-            expect(files.launch,).toContain('setsid nohup sudo --non-interactive -- sh /home/ubuntu/arm.log.step.sh',);
+            expect(files.launch,).toContain('setsid nohup sudo --non-interactive -- sh /mnt/shared/arm.log.step.sh',);
             expect(files.step,).toContain('sudo --non-interactive -- timeout 840 sh -ec',);
-            expect(files.step,).toContain('> /home/ubuntu/arm.log 2>&1',);
+            expect(files.step,).toContain('> /mnt/shared/arm.log 2>&1',);
           },
         },),
         it({

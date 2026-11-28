@@ -422,6 +422,36 @@ function guestNames(options: Options): readonly string[] {
   return names;
 }
 
+/**
+ Make the folder the host's pushed files land in, on a backend that mounts none there.
+
+ A libvirt guest's folder is the virtiofs share `mvm create` mounts, so this runs nothing there. A guest `mvm` reaches
+ over `ssh` has no share and its account cannot write outside its own home, so the folder is made once as root, owned by
+ that account, and every script the recipe pushes names the same folder on either backend.
+
+ @param options - the run's options
+
+ @throws Error naming the command and its status when the folder could not be made
+ */
+function makeThePushedFolder(options: Options): void {
+  const command = options.backend.makesThePushedFolder;
+  if (command === undefined)
+    return;
+  host({
+    options,
+    command: 'mvm',
+    args: [
+      ...options.backend.mvmArgumentWords,
+      'exec',
+      options.name,
+      '--',
+      ...options.backend.rootWords,
+      ...command,
+    ],
+    log: 'mvm-shared-folder.log',
+  });
+}
+
 /** Create the guest, refusing a name another run already holds. */
 function create(options: Options): void {
   const held: readonly string[] = guestNames(options);
@@ -446,6 +476,7 @@ function create(options: Options): void {
     ],
     log: 'mvm-create.log',
   });
+  makeThePushedFolder(options);
 }
 
 /**

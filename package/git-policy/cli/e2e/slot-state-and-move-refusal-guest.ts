@@ -33,9 +33,8 @@ import {
 
 import {
   guestBackend,
-  refuseAStepWhoseArmsCannotRun,
-  STEPS_THAT_RUN_NO_ARM,
 } from '../bin/mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from '../bin/mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -229,6 +228,8 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
+  // A backend that mounts no share has no folder for the archive to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await host({
     chosen,
     command: 'mvm',
@@ -280,7 +281,7 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     'set -eu',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${GUEST_VARIABLE}=${chosen.name}`,
+    `export ${GUEST_VARIABLE}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${POOL}`,
     `export CLI_GIT_ZFS_SWEEP_SBIN=${SBIN}`,
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${CHECKOUT}`,
@@ -479,13 +480,5 @@ if (step === undefined)
   throw new Error(`unknown step '${chosen.step}'; use ${Object
     .keys(steps,)
     .join(', ',)}`,);
-// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
-// makes anything. The three that only make, prepare and take away a guest run on either backend.
-refuseAStepWhoseArmsCannotRun({
-  backend: guestBackend(),
-  step: chosen.step,
-  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
-});
-
 await step(chosen,);
 console.log(`git-policy slot-state guest: step '${chosen.step}' finished; logs in ${chosen.logDir}`,);
