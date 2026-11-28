@@ -463,7 +463,8 @@ fn empty_the_nested_group(
 /// The control of issue 6650 failed at its twenty-second bound in four of the ten whole-suite runs on record,
 /// and its message named neither the write's answer nor the members left,
 /// so a reader could not tell a kill that never arrived from a member that was slow to leave
-/// (a same-vendor second read of `0.1.5-alpha.18`, 2026-11-28).
+/// (a same-vendor second read of `0.1.5-alpha.18`,
+/// 2026-11-28).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -547,7 +548,8 @@ fn what_a_group_still_lists(group: &Path) -> String {
 }
 
 /// What:
-/// `fn what_a_process_shows(pid: &str) -> String` is one process the group listed, read from `/proc/<pid>/stat`:
+/// `fn what_a_process_shows(pid: &str) -> String` is one process the group listed,
+/// read from `/proc/<pid>/stat`:
 /// whether it is alive,
 /// has exited and waits to be reaped,
 /// or is no longer there at all.
@@ -1334,16 +1336,20 @@ fn a_scope_proved_absent_is_worded_as_gone_and_not_as_the_kernel_speaking() {
 /// Why it is a control and not a comment:
 /// the control of issue 6650 failed at its twenty-second bound in four of the ten whole-suite runs on record,
 /// and its message named neither the write's answer nor the members left
-/// (a same-vendor second read of `0.1.5-alpha.18`, 2026-11-28).
+/// (a same-vendor second read of `0.1.5-alpha.18`,
+/// 2026-11-28).
 /// The group here is a plain directory holding a `cgroup.procs` file,
 /// because the read under control is a read of that file and of `/proc`,
 /// and the bound is fifty milliseconds because the subject is the message and not the wait.
 /// The group holds a directory where the kernel's `cgroup.kill` file would be,
 /// so the write is refused and the refusal's own words are part of the message.
 /// The three members are the three kinds a reader has to tell apart:
-/// this test's own process, which is alive;
-/// a child that has exited and is not reaped, so it is a zombie;
-/// and an id no process of this machine can have, since the kernel hands out no such id.
+/// this test's own process,
+/// which is alive;
+/// a child that has exited and is not reaped,
+/// so it is a zombie;
+/// and an id no process of this machine can have,
+/// since the kernel hands out no such id.
 #[test]
 fn a_nested_group_that_did_not_empty_names_the_kill_s_answer_and_each_member_left() {
     // The fixture directory of this control.

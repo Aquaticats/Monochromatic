@@ -1,8 +1,10 @@
 //! What:
 //! The controls of one ask of the user manager:
-//! the question it puts (the slice's control group and the job queued on it, in one program start),
+//! the question it puts,
 //! the reading of the answer's two named lines,
 //! and the reading of a failed start's words that tells the manager's own refusal from a transport that went away.
+//! The question asks for the slice's control group and the job queued on it in one program start,
+//! which is the shape a slice being stopped is told by.
 //! Why:
 //! Each of the three decides something a discovery's whole answer rests on,
 //! and until 2026-11-28 no control read any of them:
@@ -58,7 +60,8 @@ use std::path::{
 /// What:
 /// `use crate::control_group::RouteSettings;` imports the settings one ask is made with.
 /// Why:
-/// A control replaces the program the ask starts, which is a field of those settings.
+/// A control replaces the program the ask starts,
+/// which is a field of those settings.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +72,8 @@ use crate::control_group::RouteSettings;
 /// `use super::{WhereTheSliceIs, ask_where_the_slice_is_once, the_manager_answered_a_start, what_the_manager_reported};`
 /// imports the three items under control from the module this file belongs to.
 /// Why:
-/// The two readings are private to that module, and a control of them belongs beside them.
+/// The two readings are private to that module,
+/// and a control of them belongs beside them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,7 +88,8 @@ use super::{
 /// What:
 /// `use crate::test_scratch::scratch;` imports the disposable directory of one control.
 /// Why:
-/// The stand-in and its log live in a fixture of the control's own, never in another control's.
+/// The stand-in and its log live in a fixture of the control's own,
+/// never in another control's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

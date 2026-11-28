@@ -686,23 +686,38 @@ fn the_gap_between_two_asks_is_the_pause_the_call_site_sleeps() {
 /// What:
 /// `const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE: Duration` is the most the time from one ask's end to the next one's beginning may hold
 /// beyond `ASKING_AGAIN_PAUSE`:
-/// the pause the discovery sleeps, plus the work of starting, reading and reaping the next stand-in.
+/// the pause the discovery sleeps,
+/// plus the work of starting,
+/// reading and reaping the next stand-in.
 /// Why:
 /// The span the records name is the four pauses and nothing else,
 /// and a sleep at the call site that grew to twice the pause would double it while every lower bound stayed satisfied.
 /// What it rests on:
 /// measured 2026-11-28 on this host,
 /// in one run of `the_pauses_of_the_asking_again_are_no_longer_than_the_pause_the_call_site_sleeps` and of the control beside it:
-/// with the pause the call site sleeps, the four gaps were 208.0 ms, 207.0 ms, 206.2 ms and 207.9 ms,
+/// with the pause the call site sleeps,
+/// the four gaps were 208.0 ms,
+/// 207.0 ms,
+/// 206.2 ms and 207.9 ms,
 /// so the work around the sleep was at most 8.0 ms;
-/// with `std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` there, the four gaps of one run were 407.1 ms, 407.3 ms, 406.5 ms and
-/// 407.5 ms and those of the other 405.2 ms, 404.4 ms, 405.1 ms and 404.1 ms,
+/// with `std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` there,
+/// the four gaps of one run were 407.1 ms,
+/// 407.3 ms,
+/// 406.5 ms and
+/// 407.5 ms and those of the other 405.2 ms,
+/// 404.4 ms,
+/// 405.1 ms and 404.1 ms,
 /// and the lower bound of the control beside this one stayed satisfied in both.
 /// The package document records an earlier run of the same instrument with the pause in place:
 /// gaps of 209.0 ms to 209.9 ms,
-/// and under three quarters of the pause, 174.6 ms, 229.7 ms, 358.7 ms and 460.3 ms,
-/// which is why the allowance is generous: under load one gap of four can carry hundreds of milliseconds of work.
-/// The allowance is a bound on the shortest of four gaps, not on any one of them,
+/// and under three quarters of the pause,
+/// 174.6 ms,
+/// 229.7 ms,
+/// 358.7 ms and 460.3 ms,
+/// which is why the allowance is generous:
+/// under load one gap of four can carry hundreds of milliseconds of work.
+/// The allowance is a bound on the shortest of four gaps,
+/// not on any one of them,
 /// so a loaded host that stretches one gap and leaves the others does not fail this control,
 /// where a bound on the whole span would add all four.
 /// What it does not catch:
@@ -721,7 +736,8 @@ const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE: Duration = Duration::from_millis(150);
 /// `the_gap_between_two_asks_is_the_pause_the_call_site_sleeps` bounds that gap only from below,
 /// so `std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` at the call site stays green there
 /// with a span of 1.6 s where the records name 0.800 s
-/// (a same-vendor second read of `0.1.5-alpha.18` named that edit, 2026-11-28).
+/// (a same-vendor second read of `0.1.5-alpha.18` named that edit,
+/// 2026-11-28).
 /// The stand-in is a stand-in:
 /// it writes the clock down and refuses every ask,
 /// so the discovery's own work between two programs is all the gap holds besides the sleep.

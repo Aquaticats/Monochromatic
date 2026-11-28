@@ -518,8 +518,11 @@ with a span of 1.6 s where these records name 0.800 s
 (a same-vendor second read of `0.1.5-alpha.18` named that edit).
 It requires the shortest of the four gaps to be no more than `ASKING_AGAIN_PAUSE` plus `THE_MOST_A_GAP_OUTLASTS_THE_PAUSE`
 (150 ms),
-which is the work of starting, reading and reaping two stand-ins as this host measures it:
-with the pause in place the four gaps were 208.0 ms, 207.0 ms, 206.2 ms and 207.9 ms in one run of 2026-11-28,
+which is the work of starting,
+reading and reaping two stand-ins as this host measures it:
+with the pause in place the four gaps were 208.0 ms,
+207.0 ms,
+206.2 ms and 207.9 ms in one run of 2026-11-28,
 so the work cost at most 8.0 ms there,
 and under the doubled sleep the same control failed with
 `the shortest pause between two asks was 404.084351ms, longer than the 200ms the call site sleeps plus the 150ms the work around it is measured to take, so the span is not the 800ms the records name`.
@@ -1397,7 +1400,9 @@ and the figure above is the run as it was measured then.
   or the failure stays as it is,
   which costs a failed call inside that window.
   No measurement here says how often a call meets one.
-- A refusal for good whose words do not name the slice after the verb (Low 2 of the `0.1.5-alpha.18` read, 2026-11-28).
+- Low 2 of the `0.1.5-alpha.18` read,
+  2026-11-28:
+  a refusal for good whose words do not name the slice after the verb.
   Such a start is read as a moment,
   so the whole question is put again,
   and each attempt makes three asks:
@@ -1414,16 +1419,21 @@ and the figure above is the run as it was measured then.
   8.55 (6.32 to 10.93) for a cyclic order,
   8.97 (7.60 to 11.69) for a masked dependency,
   8.87 (5.28 to 9.99) for a missing one,
-  against 1.05 (0.98 to 1.15) for a masked slice, whose words do name it.
+  against 1.05 (0.98 to 1.15) for a masked slice,
+  whose words do name it.
   A dependency that sleeps eight seconds and then fails:
-  15 asks and 41.9 s to 49.5 s a call, against 8.3 s to 10.7 s (ratios 5.2 and 5.6, then 4.1 and 5.0).
+  15 asks and 41.9 s to 49.5 s a call,
+  against 8.3 s to 10.7 s (ratios 5.2 and 5.6,
+  then 4.1 and 5.0).
   The worst case the loop allows is five attempts of up to three programs of up to ten seconds each,
   which is 150 s and 0.8 s of pauses.
   What is open is whether fifteen asks are worth refusing a person's broken unit configuration at once,
   which means a rule about the manager's words beyond the four transport phrases,
   and nothing here measures how often a person meets that state.
-- Early ends that remain (Low 3 of the `0.1.5-alpha.18` read, 2026-11-28).
-  Each was measured by that read on 2026-11-28:
+- Low 3 of the `0.1.5-alpha.18` read,
+  2026-11-28:
+  the early ends that remain,
+  each measured by that read on 2026-11-28:
 
   - a dependency of `app.slice` that starts slower than `DISCOVERY_BOUND`:
     the weaker path in 9 of 9 calls of each of `0.1.5-alpha.16`,
@@ -1434,17 +1444,22 @@ and the figure above is the run as it was measured then.
     one call of 15 spent the bound in a state whose start job was already queued,
     took 18.2 s and took the weaker path;
   - a slice stopped between a successful start and the final ask:
-    the weaker path in 9 of 9 calls, in 3 asks,
+    the weaker path in 9 of 9 calls,
+    in 3 asks,
     staged with a stand-in that stops the slice before returning;
   - a stop job queued after a successful start:
-    the final ask answers a path beside a job, the path is taken, and the scope is refused as destructive,
+    the final ask answers a path beside a job,
+    the path is taken,
+    and the scope is refused as destructive,
     so the call exits 1 in 9 of 9 calls of both releases.
     The stop must land in the milliseconds between the start's return and the last ask.
 
   What is open is whether any of them should be tried again,
   and what a path beside a queued job should mean after a successful start,
   which no control staged before 2026-11-28.
-- A call's start replaces a person's stop of `app.slice` (Low 4 of the `0.1.5-alpha.18` read, 2026-11-28).
+- Low 4 of the `0.1.5-alpha.18` read,
+  2026-11-28:
+  a call's start replaces a person's stop of `app.slice`.
   Measured nine seconds after the call:
   the slice was active under `0.1.5-alpha.18` where it was inactive under `0.1.5-alpha.17`,
   two calls an arm,

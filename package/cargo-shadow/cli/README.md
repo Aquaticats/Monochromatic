@@ -1058,7 +1058,8 @@ and an HTTP 429 is retried after its `Retry-After`.
   A program that outlives its run is killed on the scope path.
   On that process-group fallback,
   one that stays in the group is killed with the run,
-  and one that leaves the group (a `setsid` of its own, say) is left alive:
+  and one that leaves the group is left alive.
+  A program that carries a `setsid` of its own leaves the group;
   what a process group holds is what the kill reaches.
   Its journal holds `pgroup starting` before the child starts and the process group after,
   and every recovery and every new

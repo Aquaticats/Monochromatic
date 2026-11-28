@@ -744,7 +744,8 @@ fn a_start_that_spent_its_bound_is_not_put_again() {
     );
 }
 
-/// The control of a path the manager reports beside a job queued on the slice, after a start that succeeded:
+/// The control of a path the manager reports beside a job queued on the slice,
+/// after a start that succeeded:
 /// the stand-in answers the first ask with no control group,
 /// answers the start,
 /// and answers the ask after it with the slice's path and a job queued on it.
