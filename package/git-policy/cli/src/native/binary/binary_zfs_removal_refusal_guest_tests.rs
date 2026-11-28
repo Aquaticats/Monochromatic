@@ -800,9 +800,12 @@ fn zfs_removal_refusal_guest() {
         .stderr(std::process::Stdio::null())
         .spawn()
         .expect("the sweeper starts under the installed name");
+    // One force, which is Git's own spelling for a worktree a person means to be rid of: the slot was made with
+    //  `--no-checkout`, so its registration holds no index for the cleanliness proof to read, and an unforced removal
+    //  refuses there. Two forces stay refused by the removal itself, which is that arm's.
     let removal: Output = wrapper_git(
         checkout.as_path(),
-        &["worktree", "remove", shown(slot.as_path())],
+        &["worktree", "remove", "--force", shown(slot.as_path())],
     );
     let said: String = said_of(&removal);
     // The sweeper is this arm's own child, and it ends here whether the assertions pass or not.
