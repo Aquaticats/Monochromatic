@@ -1391,8 +1391,10 @@ that gap is in the Open list.
 The control is
 `control_group_route_discovery::asking_again_tests::an_answer_about_a_group_that_is_not_the_slice_is_no_route`,
 which plants each of those two answers and requires one ask and a refusal that names the group.
-It failed on the code before this change for both answers,
-with `Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`.
+It failed on the code before this change at the first of them,
+`/system.slice`,
+with `Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`,
+and it asks the second only once the first passes.
 Measured 2026-11-28 in the same container,
 through a stand-in that answers the ask of where the slice is with
 `ControlGroup=/system.slice` and hands the start to the real manager:

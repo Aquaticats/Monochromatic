@@ -148,8 +148,9 @@ which is what it does on a host with no manager,
 and it claims no quiescence it has not shown.
 
 What the round that answered it measured:
-both stand-in answers were taken as `app.slice`'s route before the change
-(`Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`) and are refused after it;
+the first of the two stand-in answers was taken as `app.slice`'s route before the change
+(`Route { ... slice_dir: "/sys/fs/cgroup/system.slice" }`),
+and both are refused after it;
 and in the same container,
 through a stand-in answering `ControlGroup=/system.slice`,
 the released binary exited 0 in 146 ms on the delegated route
