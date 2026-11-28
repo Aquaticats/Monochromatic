@@ -1604,46 +1604,6 @@ if a real reexec shows no such answer inside its window;
 the records name every state in which the span is spent;
 and each of the three edits gets a control shown red by it.
 
-What `cargo-shadow`'s alpha.15 read found
-(`~/temp/agent/cargo-shadow-alpha-15-release-review-2026-11-27/keep/review.md`,
-a same-vendor second pass):
-no High,
-one Medium and ten Low.
-Between the two released binaries nothing differs but the version and the sentences the merges name
-(226 of 232 compared outputs identical,
-the rest version lines;
-alpha.12 as the case that must differ did,
-in 21),
-and a trivial call asks the manager two questions in alpha.11,
-alpha.14 and alpha.15 against six to ten in alpha.12.
-Timing cannot see a small change on this host:
-a byte-identical copy's own ratio ranged from 0.414 to 1.500.
-Its Medium finding is about the decision merge `3bf99cd706` changed:
-by its reading of the kernel at three versions,
-a new control group's directory and its files become visible together,
-so the "No such file with the directory there" the round guarded against is a state nothing produces,
-and the answer the kernel can give there is "No such device",
-for which alpha.14's silence was right and alpha.15 warns about a unit the manager is freeing.
-The round's reason was a reading too,
-and nothing was observed by either,
-so a round measures it on this host.
-Its Low findings:
-the printed refusal says two things twice;
-more kinds of later run settle a kept journal than the sentence names
-(a plain install,
-`cargo metadata`,
-both dry runs),
-and more leave it in silence
-(a frozen install,
-a run on the fast path);
-a dry run settles a kept journal before it looks,
-and can write;
-a scope that was never made is reachable in a release build and silent,
-and a unit left loaded was not reproduced in 56 launcher kills;
-three controls stay green under an edit each;
-and sentences of the README,
-the troubleshooting file and three sibling READMEs say what the code or the figures do not.
-
 What `cargo-shadow`'s alpha.14 read found
 (`~/temp/agent/cargo-shadow-alpha-14-release-review-2026-11-27/keep/review.md`):
 no High finding,
