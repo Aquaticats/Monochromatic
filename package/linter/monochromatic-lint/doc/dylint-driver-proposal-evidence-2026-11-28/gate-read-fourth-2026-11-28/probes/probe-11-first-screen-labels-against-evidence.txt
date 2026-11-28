@@ -1,0 +1,85 @@
+# probe 11: first-screen labels checked against their evidence (Q3, Q4, Q5, Q7) and the third-read count lines
+## Q4: advisory-core.yml lines 90-101 and 150-160, 205-215 (tool list and toolchain step)
+90:       - name: Set up node, pnpm and the task CLI
+91:         uses: ./.github/actions/task-cli-setup
+92:       - name: Install the repository tools
+93:         uses: ./.github/actions/repo-tools-setup
+94:         with:
+95:           tools: file-enforcer mpm-shadow cargo-shadow
+96:       # Committed outputs (CLAUDE.md, LICENSE, LICENSES, crate manifests, rust-catalog.toml and every other file no
+97:       # .gitignore matches) are checked before anything regenerates them, so a drift is reported instead of repaired
+98:       # (doc/decision/file-enforcer-rust-rewrite.md, "Cutover"; doc/runbook/rust-dependencies.md).
+99:       - name: Committed file drift
+100:         id: committed_file_drift
+101:         continue-on-error: true
+150:       # `rust:install` and `rust:verify` mise tasks; the cache keeps crates.io histories and the digests of lockfiles that
+151:       # passed. The database dump (about 2 GB, read once) fills a cold cache.
+152:       - name: Install the pinned Rust toolchain
+153:         id: rust_toolchain
+154:         continue-on-error: true
+155:         shell: bash
+156:         run: |
+157:           set -euo pipefail
+158:           toolchain="$(jq --raw-output '.tools.rust.version' toolchain.lock.json)"
+159:           rustup toolchain install "$toolchain" --profile minimal --no-self-update
+160:       - name: Restore Rust trust cache
+205:           fi
+206:           mapfile -t files < <(git diff --name-only "$base" "${{ github.sha }}" -- '*.md' '*.mdx' '*.rs' 2>/dev/null || true)
+207:           if [ "${#files[@]}" -eq 0 ]; then
+208:             echo "No changed static files"
+209:             echo "skip=true" >> "$GITHUB_OUTPUT"
+210:           else
+211:             echo "skip=false" >> "$GITHUB_OUTPUT"
+212:             printf '%s\n' "${files[@]}"
+213:             task-run lint:monochromatic-lint -- "${files[@]}"
+214:           fi
+215:       - name: Build fast subset
+
+## Q4: CI run excerpt (the lines the proposal quotes)
+9:advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0041027Z task-run: line 1: monochromatic-lint: command not found
+11:advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0065389Z   if (code !== 0) { throw new Error(`task-cli: step exited ${code}`); }
+14:advisory core	UNKNOWN STEP	2026-11-01T04:41:42.0066955Z Error: task-cli: step exited 127
+
+## Q7: M3 recount probe, totals and the four named packages
+package/cargo-shadow/cli	6
+package/git-policy/cli	1502
+package/linter/monochromatic-lint	31
+package/mpm-shadow/cli	72
+== total over the seven packages with findings
+packages with findings: 7, findings: 1674
+package/cargo-shadow/cli	6
+package/git-policy/cli	1502
+package/linter/monochromatic-lint	31
+package/mpm-shadow/cli	72
+sum: 1611
+rows: 30, wall seconds: 1688
+
+## Q5: M10 run.txt, the status lines (no linter identity is printed in M10 run.txt)
+3:== run status 0
+13:== arm A: the machine-wide rustc-dev skip, RUSTUP_TOOLCHAIN unset
+14:a-default status 0
+15:a-max-warnings status 1
+16:a-quiet status 0
+22:== arm B: the driver-gap skip, RUSTUP_TOOLCHAIN set to the dated name
+23:b-default status 0
+24:b-max-warnings status 1
+25:b-quiet status 0
+
+## Q5: Decision 5 results are all marked none measured except M10 statuses and M14 arm A
+1878:  Result:
+1895:  Result:
+1896:  none measured;
+1902:**Ranking:
+1915:  Result:
+1929:  Result:
+1930:  none measured.
+1939:**Ranking:
+1961:  Result:
+1962:  none measured.
+1965:  Result:
+1969:**Ranking:
+1993:  Result:
+1994:  none measured.
+2002:**Ranking:
+2030:  Result:
+2037:**Ranking:

@@ -1,0 +1,260 @@
+# probe 02: the installer sources and the plan row and lock entry (pinned commit, extracted with git archive)
+## model.rs, rustup_channel (lines 336-352) and expand_version (lines 380-410)
+    /// What:
+    /// The rustup channel this row names:
+    /// the declaration's `packageId` when it has one,
+    /// else the locked version.
+    /// Why:
+    /// `rustup` names a toolchain by the channel it was installed as (`stable`,
+    /// `nightly-2026-10-30`),
+    /// and `rustup toolchain list` prints that channel followed by the host triple,
+    /// so every stage that names this row's toolchain (its install,
+    /// its components and targets,
+    /// its listing,
+    /// its observation) asks for the same text,
+    /// never for the release the channel resolved to.
+    pub fn rustup_channel(&self) -> &str {
+        return self
+            .declaration
+            .package_id
+/// The text a plan writes where the tool's resolved version belongs inside a field that must carry it.
+pub const VERSION_PLACEHOLDER: &str = "{version}";
+
+/// What:
+/// A copy of the declaration with `{version}` replaced by `version` in `packageId` and in every `env` value.
+/// Why:
+/// A Rust channel's package id (`nightly-2026-10-30`) and a tool's home variable (`android-sdk/23.0`) equal the
+///           resolved version,
+/// which changes on every update.
+/// The plan writes `{version}` once,
+/// the lock holds the
+///           expanded text,
+/// and comparing a plan with a lock expands the plan with the lock's version first,
+/// so an
+///           update never makes the two files disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function expandVersion(declaration: Declaration, version: string): Declaration
+/// ```
+pub fn expand_version(
+    declaration: &Declaration,
+    version: &str,
+) -> Declaration {
+    let mut expanded: Declaration = declaration.clone();
+    if let Some(text) = &declaration.package_id {
+        expanded.package_id = Some(text.replace(VERSION_PLACEHOLDER, version));
+    }
+    let mut env: Vec<(String, String)> = Vec::new();
+    for (name, text) in &declaration.env {
+        env.push((name.clone(), text.replace(VERSION_PLACEHOLDER, version)));
+
+## install_rust_android.rs, install_rust_toolchain and install_rust_components (lines 56-139)
+/// `rustup toolchain install --no-self-update <package id, or the locked version>`.
+pub fn install_rust_toolchain(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
+    let channel: &str = tool.rustup_channel();
+    let request: RunRequest = ctx.request(
+        "rustup",
+        &["toolchain", "install", "--no-self-update", channel],
+    );
+    run_checked(
+        ctx,
+        &request,
+        "rustup toolchain install",
+        &tool.declaration.id,
+    )?;
+    return Ok(());
+}
+
+/// What:
+/// `rustup component add <name> --toolchain <version>` for each declared component,
+/// then `rustup target add
+///           <triple> --toolchain <version>` for each declared target.
+/// Why:
+/// The toolchain install above brings the default profile;
+/// the plan names the extras.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function installRustComponents(ctx: Context, tool: LockedTool): void
+/// ```
+pub fn install_rust_components(
+    ctx: &Context,
+    tool: &LockedTool,
+) -> Result<(), ToolchainError> {
+    for component in tool
+        .declaration
+        .options
+        .rust_components
+        .clone()
+        .unwrap_or_default()
+    {
+        let request: RunRequest = ctx.request(
+            "rustup",
+            &[
+                "component",
+                "add",
+                &component,
+                "--toolchain",
+                tool.rustup_channel(),
+            ],
+        );
+        run_checked(
+            ctx,
+            &request,
+            &format!("rustup component add ({component})"),
+            &tool.declaration.id,
+        )?;
+    }
+    for target in tool
+        .declaration
+        .options
+        .rust_targets
+        .clone()
+        .unwrap_or_default()
+    {
+        let request: RunRequest = ctx.request(
+            "rustup",
+            &[
+                "target",
+                "add",
+                &target,
+                "--toolchain",
+                tool.rustup_channel(),
+            ],
+        );
+        run_checked(
+            ctx,
+            &request,
+            &format!("rustup target add ({target})"),
+            &tool.declaration.id,
+        )?;
+    }
+    return Ok(());
+
+## toolchain.plan.jsonc, the rust row (lines 175-230)
+    // Floating nightly channel, resolved to the dated toolchain string; the pin
+    // rides in the MPM rustup package id because that adapter keeps only the id.
+    // The bins are the programs the installed toolchain holds; `rustup` itself is the
+    // manager, which the bootstrap installs before the first `mpm-shadow` run, so the
+    // row does not declare it (issue 6626).
+    // `rustfmt` is declared because it is the only component that installs `cargo-fmt` and
+    // `rustfmt`, two of the bins below; rustup's `minimal` profile installs neither, and the
+    // repository's own tasks run both (`cargo fmt`, and `format:processors` runs a bare
+    // `rustfmt`, issue 6630).
+    "rust": {
+      "request": "rust@nightly",
+      "route": "rustup-toolchain",
+      "manager": "rustup",
+      "packageId": "{version}",
+      "bins": [
+        "cargo",
+        "cargo-clippy",
+        "cargo-fmt",
+        "clippy-driver",
+        "rust-gdb",
+        "rust-gdbgui",
+        "rust-lldb",
+        "rustc",
+        "rustdoc",
+        "rustfmt"
+      ],
+      "options": {
+        "rustComponents": [
+          "clippy",
+          "rust-src",
+          "llvm-tools",
+          "rustc-dev",
+          "rustfmt"
+        ],
+        "rustTargets": [
+          "aarch64-linux-android",
+          "x86_64-linux-android"
+        ]
+      },
+      "env": {
+        "RUSTUP_TOOLCHAIN": "{version}"
+      }
+    },
+    "cargo-binstall": {
+      "request": "github:cargo-bins/cargo-binstall@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "cargo-binstall"
+      ]
+    },
+    // uutils' timeout replaced timeout-cli (owner 2026-11-01: "uutils timeout"): timeout-cli parsed its own
+    // flags when they came right after the wrapped command (`timeout 5 grep -v x` ran grep without -v);
+    // doc/troubleshooting/timeout-cli-consumes-flags-right-after-command.md.
+    "cargo:uu_timeout": {
+      "request": "cargo:uu_timeout@latest",
+      "route": "cargo-binstall",
+
+## toolchain.lock.json, the rust entry
+{
+  "request": "rust@nightly",
+  "version": "nightly-2026-11-16",
+  "packageId": "nightly-2026-11-16",
+  "env": {
+    "RUSTUP_TOOLCHAIN": "nightly-2026-11-16"
+  },
+  "options": {
+    "rustComponents": [
+      "clippy",
+      "rust-src",
+      "llvm-tools",
+      "rustc-dev",
+      "rustfmt"
+    ],
+    "rustTargets": [
+      "aarch64-linux-android",
+      "x86_64-linux-android"
+    ]
+  }
+}
+
+## install_tests.rs lines 1058-1080: a packageId of nightly is handled by the same two functions
+/// Components and targets are added to the channel `packageId` names:
+/// that is the toolchain the install step created,
+/// and the locked version can spell a date the channel does not.
+#[test]
+fn rust_components_and_targets_use_the_package_id_channel_that_was_installed() {
+    let mut rig = Rig::new();
+    let rust = rig
+        .lock
+        .tools
+        .iter_mut()
+        .find(|tool| return tool.declaration.id == "rust")
+        .expect("the rust tool");
+    rust.declaration.package_id = Some("nightly".to_string());
+    install_tool(&rig.context(), &rig.tool("rust")).expect("installed");
+    assert_eq!(
+        rig.runner.lines(),
+        vec![
+            "rustup toolchain install --no-self-update nightly".to_string(),
+            "rustup component add clippy --toolchain nightly".to_string(),
+            "rustup component add rust-src --toolchain nightly".to_string(),
+            "rustup target add aarch64-linux-android --toolchain nightly".to_string(),
+        ]
+    );
+
+## the second place that adds missing parts (the_parts_a_rust_toolchain_lacks.rs header, lines 1-16)
+//! What:
+//! The declared Rust parts a `rustup-toolchain` row's toolchain lacks,
+//! and the one place both commands ask for them:
+//! `install` adds each missing part,
+//! and `list` counts a toolchain that lacks one as drift.
+//! Why:
+//! A toolchain another program installed at the locked version never reaches the installing function,
+//! so the lock's `rustComponents` and `rustTargets` rows need a second place that applies them;
+//! asking `rustup` what the toolchain holds keeps a sync on a complete machine free of any add,
+//! and one question answers for both commands.
+//! Both questions are the component listing:
+//! a target is the `rust-std-<triple>` line of it
+//! (`list_targets` in rustup 1.29.3's `src/cli/rustup_mode.rs` keeps exactly those components),
+//! and `rustup target add` installs that component.
+//! `install_rust_android.rs` keeps the two installing routes and this file the parts question.
+//!

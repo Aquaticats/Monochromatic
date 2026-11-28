@@ -1,0 +1,84 @@
+# probe 08: the lean cleaner (what it keeps) against the proposal sentence that a stale K1 file names a toolchain rustup keeps
+## lean_rustup_toolchains.rs header (lines 1-20) and pins_in (lines 127-169)
+1: //! What:
+2: //! The removal of dated nightly Rust toolchains that no checkout's lock pins,
+3: //! after the grace period.
+4: //! Why:
+5: //! The repository installs a dated nightly per `toolchain:update` and rustup never removes one
+6: //! (20 toolchains of about 2.7 GiB each on 2026-11-04,
+7: //! `doc/planning/lean-build-dirs.md`).
+8: //! A toolchain is kept when any checkout pins it
+9: //! (`toolchain.lock.json` `.tools.rust.version`,
+10: //! `.cache/toolchain.env.json` `RUSTUP_TOOLCHAIN`,
+11: //! or a `rust-toolchain` file),
+12: //! when rustup's own settings name it as the default or an override,
+13: //! when a process runs a program from it or has it in its environment,
+14: //! or when it is younger than the grace period.
+15: //! Stable releases and the channel names are never touched.
+16: //! The removal is rustup's own (`rustup toolchain uninstall`),
+17: //! after the identity of the directory is checked once more.
+18: //!
+19: //! In TS you'd write (pseudocode):
+20: //! ```ts
+127: /// `fn pins_in(checkout: &Path, pinned: &mut HashSet<String>)` adds the toolchain names a checkout pins.
+128: /// Why:
+129: /// A checkout that has not re-run the install still uses the older nightly its environment file names.
+130: ///
+131: /// In TS you'd write (pseudocode):
+132: /// ```ts
+133: /// function pinsIn(checkout: string, pinned: Set<string>): void
+134: /// ```
+135: fn pins_in(
+136:     checkout: &Path,
+137:     pinned: &mut HashSet<String>,
+138: ) {
+139:     if let Ok(text) = fs::read_to_string(checkout.join("toolchain.lock.json"))
+140:         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
+141:         && let Some(version) = value
+142:             .pointer("/tools/rust/version")
+143:             .and_then(serde_json::Value::as_str)
+144:     {
+145:         pinned.insert(version.to_string());
+146:     }
+147:     if let Ok(text) = fs::read_to_string(checkout.join(".cache").join("toolchain.env.json"))
+148:         && let Ok(value) = serde_json::from_str::<serde_json::Value>(&text)
+149:         && let Some(name) = value
+150:             .get(TOOLCHAIN_VARIABLE)
+151:             .and_then(serde_json::Value::as_str)
+152:     {
+153:         pinned.insert(name.to_string());
+154:     }
+155:     for file in ["rust-toolchain", "rust-toolchain.toml"] {
+156:         if let Ok(text) = fs::read_to_string(checkout.join(file)) {
+157:             for line in text.lines() {
+158:                 let trimmed: &str = line
+159:                     .trim()
+160:                     .trim_start_matches("channel")
+161:                     .trim_start_matches([' ', '='])
+162:                     .trim_matches(['"', ' ']);
+163:                 if trimmed.starts_with("nightly-") {
+164:                     pinned.insert(trimmed.to_string());
+165:                 }
+166:             }
+167:         }
+168:     }
+169: }
+
+## the proposal sentences (pinned file lines 1367-1383)
+1367: - **K1 over K2.**
+1368:   Both are the same file and the same mechanism,
+1369:   and on the day its date is installed,
+1370:   K2 delivers what K1 delivers.
+1371:   K1's date is the lock's on the day the generator runs,
+1372:   so it names a toolchain the plan installs,
+1373:   and the lean cleaner keeps a toolchain the lock names.
+1374:   K2's date is installed by nothing the repository runs,
+1375:   and the cleaner keeps only a toolchain the lock
+1376:   or a checkout-root file names.
+1377:   That is a difference in whether the run happens at all,
+1378:   not a difference in effort.
+1379:   What K1 does not settle either:
+1380:   a file the generator has not rewritten since the lock moved names an older
+1381:   toolchain,
+1382:   which rustup keeps,
+1383:   so that is a stale file and not a missing toolchain.

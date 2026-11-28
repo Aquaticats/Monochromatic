@@ -1,0 +1,153 @@
+# probe 04: M12, M15a and M16 kept logs against what the proposal says they show
+
+## m12/run.txt: state and arm lines (long JSON records cut to 260 characters)
+1:== clock 2026-11-28T12:59:01+00:00
+2:== image localhost/dylint-probe-2026-11-28c
+3:== cargo /usr/bin/cargo -> /usr/bin/rustup
+4:== rustc /usr/bin/rustc -> /usr/bin/rustup
+5:== rustup
+6:info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`
+7:== toolchains
+8:nightly-x86_64-unknown-linux-gnu (active, default)
+9:nightly-2026-11-16-x86_64-unknown-linux-gnu
+10:nightly-2026-11-17-x86_64-unknown-linux-gnu
+11:== floating rustc
+12:rustc 1.102.0-nightly (c82ce1563 2026-11-27)
+13:== floating components
+15:llvm-tools-x86_64-unknown-linux-gnu
+16:rust-src
+19:rustc-dev-x86_64-unknown-linux-gnu
+20:== cargo-dylint
+22:== dylint-link
+24:== linter
+26:== linter digest
+28:== the toolchain name Dylint computes, in the library directory (no file there)
+29:nightly-x86_64-unknown-linux-gnu (default)
+30:== the sysroot the linter's probe reads, from its own working directory
+32:== no driver
+34:== filling the three caches a warm run fills (network), as Answer B's step would
+35:pkg fetch status 0
+36:library fetch status 0
+37:driver fetch status 0
+38:driver metadata offline status 0
+40:== arm A: the linter, no exported variable, no driver, the caches filled
+41:arm A status 2 after 20s
+43:{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\n    |\n 44 | use crate::output::{ErrorOutputType, OutputTyp
+45:== arm B: the warm command itself, to keep the first compiler error
+46:arm B status 1 after 0s
+47:3:error[E0603]: enum `ErrorOutputType` is private
+57:For more information about this error, try `rustc --explain E0603`.
+60:== driver directory after arm B
+62:== done 2026-11-28T12:59:27+00:00
+
+## m15a/run.txt: state and arm lines (long JSON records cut to 260 characters)
+1:== clock 2026-11-28T13:03:03+00:00
+2:== image localhost/dylint-probe-2026-11-28c
+3:== cargo /usr/bin/cargo -> /usr/bin/rustup
+4:== rustc /usr/bin/rustc -> /usr/bin/rustup
+5:== rustup
+6:info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`
+7:== linter
+9:== linter digest
+11:== the library's file
+13:channel = "nightly-2026-11-16"
+14:components = ["llvm-tools-preview", "rustc-dev"]
+15:== reinstalling the floating channel with the minimal profile
+16:uninstall status 0
+17:install status 0
+18:default status 0
+19:== floating components (must be the three of the minimal profile)
+23:== floating rustc
+24:rustc 1.102.0-nightly (c82ce1563 2026-11-27)
+25:== dated rustc
+26:rustc 1.102.0-nightly (5f4effd57 2026-11-13)
+27:== dated components
+29:llvm-tools-x86_64-unknown-linux-gnu
+30:rust-src
+33:rustc-dev-x86_64-unknown-linux-gnu
+34:== the two sysroot answers, from the linter's own working directory
+37:== the toolchain name Dylint computes, in the library directory
+38:nightly-2026-11-16-x86_64-unknown-linux-gnu (overridden by '/work/repo/lint-closure/rust-toolchain.toml')
+39:nightly-2026-11-16-x86_64-unknown-linux-gnu (overridden by environment variable RUSTUP_TOOLCHAIN)
+40:== no driver
+42:== filling the package's cache (network)
+43:pkg fetch status 0
+44:== arm A: the linter, variable unset, no driver
+45:arm A status 0
+46:{"message":"rust/avoidable-closure skipped pkg: the active compiler lacks the rustc-dev component; add it with `rustup component add rustc-dev` or mise install. Nothing in this package was checked by this rule, so a run without findings says nothing about i
+48:== arm B: the warm run that builds the library and the driver for the dated name
+49:arm B status 0 after 87s
+50:123:Building driver for toolchain `nightly-2026-11-16-x86_64-unknown-linux-gnu`
+55:3
+57:    241 execve("/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc"
+64:nightly-2026-11-16-x86_64-unknown-linux-gnu 6.4.0
+65:== arm C: the linter, variable set, driver present
+66:arm C status 0
+74:== arm D: the linter, variable unset, driver present
+75:arm D status 0
+76:{"message":"rust/avoidable-closure skipped pkg: the active compiler lacks the rustc-dev component; add it with `rustup component add rustc-dev` or mise install. Nothing in this package was checked by this rule, so a run without findings says nothing about i
+78:== done 2026-11-28T13:04:47+00:00
+
+## m16/run.txt: state and arm lines (long JSON records cut to 260 characters)
+1:== clock 2026-11-28T13:06:07+00:00
+2:== image localhost/dylint-probe-2026-11-28c
+3:== installing nightly-2026-11-28 with the components the lock's row names
+4:install status 0 after 16s
+8:== its components
+10:llvm-tools-x86_64-unknown-linux-gnu
+11:rust-src
+14:rustc-dev-x86_64-unknown-linux-gnu
+15:== its rustc
+16:rustc 1.102.0-nightly (c82ce1563 2026-11-27)
+17:== the library's file
+19:channel = "nightly-2026-11-28"
+20:components = ["llvm-tools-preview", "rustc-dev"]
+21:== the toolchain name Dylint computes
+22:nightly-2026-11-28-x86_64-unknown-linux-gnu (overridden by '/work/repo-b/lint-closure/rust-toolchain.toml')
+23:== the two sysroot answers, from the linter's own working directory
+26:== no driver
+28:== filling the caches (network)
+29:pkg fetch status 0
+30:library fetch status 0
+31:driver fetch status 0
+32:== arm A: the warm command with the variable set, on the new lock's compiler
+33:arm A status 1 after 23s
+34:58:error[E0603]: enum `ErrorOutputType` is private
+38:For more information about this error, try `rustc --explain E0603`.
+41:== driver directory after arm A
+43:== arm B: the linter with the variable set, the caches filled, no driver
+44:arm B status 2 after 1s
+45:{"message":"rust/avoidable-closure could not check this package: `cargo dylint` exited with exit status: 1. The result is incomplete, so the run cannot be trusted. The end of cargo's messages was:\n    |\n 44 | use crate::output::{ErrorOutputType, OutputTyp
+47:== done 2026-11-28T13:06:54+00:00
+
+## M15a: is there any RUNPATH or readelf log? (the proposal cites M15a for the RUNPATH entry)
+no hit in m12, m15a, m16
+M13 has one:
+1: 0x000000000000001d (RUNPATH)            Library runpath: [/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib]
+
+## the linter digest in each third-round run log (count of the sha256 line)
+m12 1
+m13 1
+m14 1
+m15a 1
+m15b 0
+m16 0
+m17 1
+
+## M16 script comment about the floating channel, and how the M16 container was made (fresh from the image, not the M15a container)
+#!/usr/bin/env bash
+# M16 (third round of 2026-11-28): Answer K1 once the lock has moved to a nightly that
+# Dylint 6.4.0 cannot compile against, which today's channel already is.
+# The library's file names the dated install of today's channel compiler (2026-11-27)
+# with its components; the floating channel is minimal (M15a left it so).
+set -uo pipefail
+13:podman run --detach --name "$container" --cpus=4 --memory=8g --pids-limit=1024 \
+
+## where the Containerfile is (the proposal gives third-round-2026-11-28/scripts/Containerfile)
+/home/user/temp/agent/fourth-narrow-read-of-the-dylint-driver-proposal-2026-11-28/tree/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/Containerfile
+ls: cannot access '/home/user/temp/agent/fourth-narrow-read-
+
+## M12 arm A record: is the error[E0603] header line in it, and how many packages were linted?
+records holding the text error[E0603]: 0
+records holding rustc --explain E0603: 1
+records in the file (one package, pkg, was linted): 1

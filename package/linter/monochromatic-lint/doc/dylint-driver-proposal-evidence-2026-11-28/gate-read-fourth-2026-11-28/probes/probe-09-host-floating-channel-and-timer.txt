@@ -1,0 +1,73 @@
+# probe 09: this host floating channel and the daily update timer, as the proposal evidence folder records them
+## machine/machine-state.txt lines 1-40
+1: # Machine state read on 2026-11-28, read-only, in the worktree of this round
+2: 
+3: Clock: 2026-11-28T03:11:10-05:00
+4: 
+5: $ rustup toolchain list
+6: nightly-x86_64-unknown-linux-gnu (active, default)
+7: nightly-2026-11-16-x86_64-unknown-linux-gnu
+8: 
+9: $ rustup show active-toolchain
+10: nightly-x86_64-unknown-linux-gnu (default)
+11: 
+12: $ rustup component list --installed --toolchain nightly-x86_64-unknown-linux-gnu
+13: cargo-x86_64-unknown-linux-gnu
+14: clippy-x86_64-unknown-linux-gnu
+15: rust-std-x86_64-unknown-linux-gnu
+16: rustc-x86_64-unknown-linux-gnu
+17: rustfmt-x86_64-unknown-linux-gnu
+18: 
+19: $ rustup component list --installed --toolchain nightly-2026-11-16-x86_64-unknown-linux-gnu
+20: cargo-x86_64-unknown-linux-gnu
+21: clippy-x86_64-unknown-linux-gnu
+22: llvm-tools-x86_64-unknown-linux-gnu
+23: rust-src
+24: rust-std-aarch64-linux-android
+25: rust-std-x86_64-linux-android
+26: rust-std-x86_64-unknown-linux-gnu
+27: rustc-x86_64-unknown-linux-gnu
+28: rustc-dev-x86_64-unknown-linux-gnu
+29: rustfmt-x86_64-unknown-linux-gnu
+30: 
+31: $ /home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/rustc --version
+32: rustc 1.102.0-nightly (5df8c02af 2026-11-16)
+33: $ /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc --version
+34: rustc 1.102.0-nightly (5f4effd57 2026-11-13)
+35: 
+36: $ du -sh /home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu
+37: 274M	/home/user/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+38: 799M	/home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu
+39: 
+40: $ type -a cargo
+
+## second read timer probe, lines 1-10
+1: # daily update timer state, read 2026-11-28 (systemctl --user status, read only)
+2: ○ toolchain-daily-update.timer - Daily update of the toolchain locks and the dependency locks
+3:      Loaded: loaded (/home/user/.config/systemd/user/toolchain-daily-update.timer; disabled; preset: enabled)
+4:      Active: inactive (dead)
+5:     Trigger: n/a
+6:    Triggers: ● toolchain-daily-update.service
+7:        Docs: file:///home/user/Monochromatic/doc/planning/toolchain-always-latest.md
+8: 
+9: # last lock commits touching the rust row (git log of toolchain.lock.json; subjects only)
+10: 2026-11-28T02:37:38-05:00 99effb55b0 chore(toolchain): lock cargo-shadow 0.1.5-alpha.18
+
+## M8 result the proposal cites for a channel frozen at 5df8c02af (run.txt arm lines)
+4:== run status 0
+11:rustup default status 0
+19:rustc 1.102.0-nightly (5df8c02af 2026-11-16)
+35:== arm A: the linter, no driver, the original library
+36:arm A status 0
+38:== arm B: the warm run that builds the library and the driver for the floating name
+39:arm B status 0 after 91s
+68:== arm C: the linter, offline, driver present, no exported toolchain
+69:arm C status 0
+70:{"message":"this closure captures `directory`, `application`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/a
+71:{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it af
+72:{"message":"this closure captures `decision`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure
+73:{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it af
+74:{"message":"this closure captures no variables, so a named function can take its place; also, the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it af
+75:{"message":"this closure captures `full`, but the callee parameter it is passed to is not required to be `'static`, so the callee does not keep it after the call","code":"rust/avoidable-closure","s
+77:== arm D: the same with --max-warnings 0
+78:arm D status 1

@@ -1,0 +1,74 @@
+# probe 12: what getting Answer I onto a stale floating channel does (M8 setup, M15b arm A, the linter probe that strips the variable)
+## M8 script lines 15-24: the floating channel is a copy of an install that already holds the components
+15: echo "== toolchains before"; rustup toolchain list | tee "$log/toolchains-before.txt"
+16: 
+17: # The floating channel is made to hold the build the host's floating channel holds: rustup names a
+18: # toolchain by its directory, so the dated install of 2026-11-17 is copied over the floating name.
+19: echo "== making the floating channel the 2026-11-17 build"
+20: rm -rf /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+21: cp -a "/root/.rustup/toolchains/$hostlike" /root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu
+22: rustup default nightly > "$log/default-set.txt" 2>&1; echo "rustup default status $?"
+23: echo "== toolchains after"; rustup toolchain list | tee "$log/toolchains-after.txt"
+24: echo "== active toolchain"; rustup show active-toolchain | tee "$log/active.txt"
+
+## M15b arm A: rustup toolchain install with no argument (log/a-install.txt)
+info: using existing install for nightly-2026-11-19-x86_64-unknown-linux-gnu
+info: syncing channel updates for nightly-2026-11-19-x86_64-unknown-linux-gnu
+info: latest update on 2026-11-19 for version 1.102.0-nightly (65ce8611f 2026-11-18)
+info: downloading 2 components
+info: the active toolchain `nightly-2026-11-19-x86_64-unknown-linux-gnu` has been installed
+info: it's active because: overridden by '/work/probe-e/rust-toolchain.toml'
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager
+
+## closure_driver_probe.rs lines 150-193 at the pinned commit: active_toolchain removes RUSTUP_TOOLCHAIN, CARGO and RUSTC before asking rustup
+150: 
+151: /// What:
+152: ///  The first word of the output of `rustup show active-toolchain` in a directory.
+153: /// Why:
+154: ///  That word names the driver directory.
+155: ///  The environment is cleaned as `cargo-dylint` cleans it,
+156: ///  because an inherited `RUSTUP_TOOLCHAIN` is not what it asks.
+157: ///
+158: /// In TS you'd write (pseudocode):
+159: /// ```ts
+160: /// function activeToolchain(rustup: Path, directory: Path): string; // throws string
+161: /// ```
+162: pub(crate) fn active_toolchain(
+163:     rustup: &Path,
+164:     directory: &Path,
+165: ) -> Result<String, String> {
+166:     let output = match Command::new(rustup)
+167:         .args(["show", "active-toolchain"])
+168:         .current_dir(directory)
+169:         .env_remove("RUSTUP_TOOLCHAIN")
+170:         .env_remove("CARGO")
+171:         .env_remove("RUSTC")
+172:         .stdin(Stdio::null())
+173:         .output()
+174:     {
+175:         Ok(done) => done,
+176:         Err(error) => return Err(format!("rustup does not run ({error})")),
+177:     };
+178:     if !output.status.success() {
+179:         return Err(format!(
+180:             "`rustup show active-toolchain` failed ({})",
+181:             output.status
+182:         ));
+183:     }
+184:     return match String::from_utf8_lossy(&output.stdout)
+185:         .split_ascii_whitespace()
+186:         .next()
+187:     {
+188:         Some(word) => Ok(word.to_string()),
+189:         None => Err(String::from(
+190:             "`rustup show active-toolchain` printed no toolchain",
+191:         )),
+192:     };
+193: }
+
+## M14 arm B log: rustup show active-toolchain auto-installs the named toolchain when auto-install is on
+1:info: syncing channel updates for nightly-2026-11-20-x86_64-unknown-linux-gnu
+3:info: downloading 8 components
+4:warn: the missing active toolchain `nightly-2026-11-20-x86_64-unknown-linux-gnu` has been auto-installed
+5:warn: auto-installation is deprecated for most `rustup` commands

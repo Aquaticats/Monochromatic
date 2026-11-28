@@ -90,3 +90,8 @@ package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28
 package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m17/log/c-linter.jsonl	Installed tools that lag toolchain.lock.json cause this; run `mise run toolchain:install` in this checkout.
 package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/probes/gh-dylint-releases-and-pull-request-2203.txt	keeps the driver and linting utility compatible with nightly toolchains that moved ErrorOutputType out of rustc_session::config
 package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/probes/todays-nightly-channel-manifest.txt	version = "1.102.0-nightly (c82ce1563 2026-11-27)"
+doc/decision/rust-closure-lint-dylint.md	Failures that are not a missing prerequisite
+doc/decision/rust-closure-lint-dylint.md	Still not approved
+doc/decision/rust-closure-lint-dylint.md	is not a silent message with exit status 0
+doc/decision/rust-closure-lint-dylint.md	no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override
+doc/planning/toolchain-always-latest.md	update EVERYTHING (not just rust) daily

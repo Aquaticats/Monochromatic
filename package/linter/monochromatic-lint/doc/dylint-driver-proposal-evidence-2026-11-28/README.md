@@ -130,7 +130,11 @@ printed in each `run.txt`).
   whole,
   with the probes it ran,
   and `findings-answered.md`,
-  which answers every finding of all three reads and carries the third revision's report.
+  which answers every finding of all four reads and carries the third and fourth revisions' reports.
+- `gate-read-fourth-2026-11-28/`:
+  the fourth same-vendor gate read,
+  whole,
+  with the twelve probes it ran.
 - `third-round-2026-11-28/`:
   the third round's measurements and probes,
   with a `README.md` saying which state each arm stands for,

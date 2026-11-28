@@ -1,0 +1,19 @@
+# probe 06: was RUSTUP_TOOLCHAIN set or unset in each arm of M12, M14 arm A, M15a and M16 (script lines that run the linter or cargo dylint)
+
+## m12-in-container.sh
+( cd /work/repo && env -u RUSTUP_TOOLCHAIN /work/monochromatic-lint --config monochromatic-lint.config.jsonc pkg ) > "$log/a-linter.jsonl" 2> "$log/a-linter.err"
+( cd /work/repo && env --unset=CARGO_NET_OFFLINE cargo dylint --path lint-closure --manifest-path pkg/Cargo.toml -- --locked ) > "$log/b-warm.out" 2> "$log/b-warm.err"
+
+## m14-in-container.sh
+( cd /work/repo-a && env -u RUSTUP_TOOLCHAIN RUSTUP_AUTO_INSTALL=0 /work/monochromatic-lint --config monochromatic-lint.config.jsonc pkg ) > "$log/a-linter.jsonl" 2> "$log/a-linter.err"
+( cd /work/repo-a && env -u RUSTUP_TOOLCHAIN RUSTUP_AUTO_INSTALL=0 /work/monochromatic-lint --config monochromatic-lint.config.jsonc --debug pkg ) > "$log/a-linter-debug.jsonl" 2> "$log/a-linter-debug.err"
+
+## m15a-in-container.sh
+( cd /work/repo && env -u RUSTUP_TOOLCHAIN /work/monochromatic-lint --config monochromatic-lint.config.jsonc pkg ) > "$log/a-linter-unset-before-driver.jsonl" 2> "$log/a-linter-unset-before-driver.err"
+( cd /work/repo && env --unset=CARGO_NET_OFFLINE strace -f -qq -e trace=execve -o "$log/b-warm-execve.log" cargo dylint --path lint-closure --manifest-path pkg/Cargo.toml -- --locked ) > "$log/b-warm.out" 2> "$
+( cd /work/repo && RUSTUP_TOOLCHAIN=$short /work/monochromatic-lint --config monochromatic-lint.config.jsonc pkg ) > "$log/c-linter-set-after-driver.jsonl" 2> "$log/c-linter-set-after-driver.err"
+( cd /work/repo && env -u RUSTUP_TOOLCHAIN /work/monochromatic-lint --config monochromatic-lint.config.jsonc pkg ) > "$log/d-linter-unset-after-driver.jsonl" 2> "$log/d-linter-unset-after-driver.err"
+
+## m16-in-container.sh
+( cd /work/repo-b && env --unset=CARGO_NET_OFFLINE RUSTUP_TOOLCHAIN=$short cargo dylint --path lint-closure --manifest-path pkg/Cargo.toml -- --locked ) > "$lock/a-warm.out" 2> "$lock/a-warm.err"
+( cd /work/repo-b && RUSTUP_TOOLCHAIN=$short /work/monochromatic-lint --config monochromatic-lint.config.jsonc pkg ) > "$lock/b-linter.jsonl" 2> "$lock/b-linter.err"

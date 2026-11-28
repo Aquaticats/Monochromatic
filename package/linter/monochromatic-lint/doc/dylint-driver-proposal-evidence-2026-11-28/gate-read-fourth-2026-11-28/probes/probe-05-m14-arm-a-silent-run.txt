@@ -1,0 +1,229 @@
+# probe 05: M14 arm A, the run that printed nothing and returned 0
+## run.txt arm A lines
+== clock 2026-11-28T13:01:24+00:00
+== image localhost/dylint-probe-2026-11-28c
+== rustup
+info: the currently active `rustc` version is `rustc 1.102.0-nightly (c82ce1563 2026-11-27)`
+== toolchains at the start
+nightly-x86_64-unknown-linux-gnu (active, default)
+nightly-2026-11-16-x86_64-unknown-linux-gnu
+nightly-2026-11-17-x86_64-unknown-linux-gnu
+== linter
+monochromatic-lint 0.5.2-alpha.25
+== linter digest
+34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a  /work/monochromatic-lint
+== arm A: the linter with auto-install off and a file naming a toolchain that is absent
+a show active-toolchain status 1
+error: override toolchain 'nightly-2026-11-21-x86_64-unknown-linux-gnu' is not installed: the toolchain file at '/work/repo-a/lint-closure/rust-toolchain.toml' specifies an uninstalled toolchain
+a pkg fetch status 0
+a linter status 0
+--- stderr
+--- with --debug, the probe's own note
+a linter --debug status 0
+monochromatic-lint: debug: discovered 127 supported file(s)
+monochromatic-lint: debug: pkg/README.md: selected for linting
+monochromatic-lint: debug: pkg/src/adoption_gate.rs: selected for linting
+monochromatic-lint: debug: pkg/src/adoption_gate_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_marks.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_marks_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_targets.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_targets_tests.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_mark_reconciliation.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_process_events_and_rescans.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_run_and_poll.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_service.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_service_child_run.rs: selected for linting
+monochromatic-lint: debug: pkg/src/application_watch_service_start.rs: selected for linting
+
+## sizes of the arm A logs (bytes)
+0 /home/user/temp/agent/fourth-narrow-read-of-the-dylint-driver-proposal-2026-11-28/tree/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m14/log/a-linter.jsonl
+0 /home/user/temp/agent/fourth-narrow-read-of-the-dylint-driver-proposal-2026-11-28/tree/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m14/log/a-linter.err
+0 /home/user/temp/agent/fourth-narrow-read-of-the-dylint-driver-proposal-2026-11-28/tree/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m14/log/a-record.txt
+0 /home/user/temp/agent/fourth-narrow-read-of-the-dylint-driver-proposal-2026-11-28/tree/package/linter/monochromatic-lint/doc/dylint-driver-proposal-evidence-2026-11-28/third-round-2026-11-28/m14/log/a-linter-debug.jsonl
+0 total
+
+## the --debug stderr without the file-selection lines
+monochromatic-lint: debug: linting 127 file(s) with a concurrency limit of 4
+monochromatic-lint: debug: rewrote 0 file(s); loaded 0 Cargo workspace(s)
+monochromatic-lint: debug: the Dylint driver check for the library lint-closure did not run: `rustup show active-toolchain` failed (exit status: 1)
+monochromatic-lint: debug: rust/avoidable-closure checked pkg: 0 report(s) from the compiler
+
+## the script lines of arm A
+
+# ---------------------------------------------------------------------------
+echo "== arm A: the linter with auto-install off and a file naming a toolchain that is absent"
+mkdir -p "/work/repo-a"
+cp -a /work/repo/. "/work/repo-a/"
+printf '%s\n' '[toolchain]' 'channel = "nightly-2026-11-21"' 'components = ["rustc-dev", "llvm-tools-preview"]' > "/work/repo-a/lint-closure/rust-toolchain.toml"
+( cd "/work/repo-a/lint-closure" && env -u RUSTUP_TOOLCHAIN RUSTUP_AUTO_INSTALL=0 rustup show active-toolchain ) > "$log/a-active.err" 2>&1
+echo "a show active-toolchain status $?"
+cat "$log/a-active.err"
+( cd /work/repo-a/pkg && cargo fetch --locked ) > "$log/a-pkg-fetch.out" 2>&1
+echo "a pkg fetch status $?"
+( cd /work/repo-a && env -u RUSTUP_TOOLCHAIN RUSTUP_AUTO_INSTALL=0 /work/monochromatic-lint --config monochromatic-lint.config.jsonc pkg ) > "$log/a-linter.jsonl" 2> "$log/a-linter.err"
+echo "a linter status $?"
+cat "$log/a-linter.jsonl" | tee "$log/a-record.txt"
+echo "--- stderr"; cat "$log/a-linter.err"
+echo "--- with --debug, the probe's own note"
+( cd /work/repo-a && env -u RUSTUP_TOOLCHAIN RUSTUP_AUTO_INSTALL=0 /work/monochromatic-lint --config monochromatic-lint.config.jsonc --debug pkg ) > "$log/a-linter-debug.jsonl" 2> "$log/a-linter-debug.err"
+
+## source: check_package, how a run is turned into findings (pinned commit, closure_step_package.rs lines 235-280)
+235:         directory,
+236:         cargo,
+237:         search.as_os_str(),
+238:     ) {
+239:         Readiness::Ready(ready) => ready,
+240:         Readiness::Skipped(reason) => {
+241:             outcome
+242:                 .skips
+243:                 .push(skip_finding(manifest_name.as_str(), &subject, &reason));
+244:             return outcome;
+245:         }
+246:     };
+247:     let run: DylintRun = match run_dylint(cargo, &package.library, &package.manifest, &setup) {
+248:         Ok(done) => done,
+249:         Err(reason) => {
+250:             outcome.findings.push(processing_failure(
+251:                 manifest_name.as_str(),
+252:                 file_start(),
+253:                 format!("{RULE} could not check this package: {reason}"),
+254:             ));
+255:             return outcome;
+256:         }
+257:     };
+258:     let parsed: Parsed = parse_records(run.stdout.as_slice());
+259:     outcome
+260:         .findings
+261:         .extend(findings_from(parsed.reports.as_slice(), directory, targets));
+262:     outcome.notes.push(format!(
+263:         "{RULE} checked {subject}: {} report(s) from the compiler",
+264:         parsed.reports.len()
+265:     ));
+266:     if !run.success {
+267:         outcome.findings.push(processing_failure(
+268:             manifest_name.as_str(),
+269:             file_start(),
+270:             failure_message(&run, &parsed),
+271:         ));
+272:     }
+273:     return outcome;
+274: }
+275: 
+276: /// What:
+277: ///  Merge one package's outcome into the step's outcome.
+278: /// Why:
+279: ///  A package outcome has the same three parts as the step's.
+280: ///
+
+## source: driver_state Unknown branches and the note (pinned commit, closure_driver.rs lines 178-210 and 278-312)
+178: pub fn driver_state(
+179:     cargo: &Path,
+180:     site: &DriverSite,
+181:     library: &Path,
+182:     needed: (u64, u64, u64),
+183:     warm: &str,
+184: ) -> DriverState {
+185:     let Some(drivers) = site.drivers.as_ref() else {
+186:         return DriverState::Unknown(String::from(
+187:             "no driver directory is known (no DYLINT_DRIVER_PATH and no home directory)",
+188:         ));
+189:     };
+190:     let toolchain: String = match active_toolchain(&site.rustup, library) {
+191:         Ok(name) => name,
+192:         Err(reason) => return DriverState::Unknown(reason),
+193:     };
+194:     let driver: PathBuf = drivers.join(&toolchain).join("dylint-driver");
+195:     let found: Option<(u64, u64, u64)> = driver_version(&driver);
+196:     if matches!(found, Some(version) if version >= needed) {
+197:         return DriverState::Ready;
+198:     }
+199:     let Some(scratch) = site.scratch.as_ref() else {
+200:         return DriverState::Unknown(String::from(
+201:             "no cache directory is known to resolve the driver crate in",
+202:         ));
+203:     };
+204:     let refusal: String = match driver_unresolved(cargo, scratch, &dotted(needed)) {
+205:         Ok(None) => return DriverState::Ready,
+206:         Ok(Some(first_line)) => first_line,
+207:         Err(reason) => return DriverState::Unknown(reason),
+208:     };
+209:     let held: String = match found {
+210:         Some(version) => format!(
+278: pub fn driver_gaps(
+279:     packages: &[ClosurePackage],
+280:     cargo: &Path,
+281:     site: &DriverSite,
+282:     version_text: &str,
+283:     cwd: &Path,
+284: ) -> DriverGaps {
+285:     let mut result: DriverGaps = DriverGaps::default();
+286:     let Some(needed) = parse_version(version_text) else {
+287:         result.notes.push(format!(
+288:             "the Dylint driver check did not run: `cargo dylint --version` printed no readable version ({})",
+289:             version_text.trim()
+290:         ));
+291:         return result;
+292:     };
+293:     let mut seen: Vec<&PathBuf> = Vec::<&PathBuf>::new();
+294:     for package in packages {
+295:         if seen.contains(&&package.library) {
+296:             continue;
+297:         }
+298:         seen.push(&package.library);
+299:         let library_name: String = display_name(&package.library, cwd);
+300:         let warm: String = warm_command(
+301:             library_name.as_str(),
+302:             display_name(&package.manifest, cwd).as_str(),
+303:         );
+304:         match driver_state(cargo, site, &package.library, needed, warm.as_str()) {
+305:             DriverState::Ready => {}
+306:             DriverState::Unknown(note) => result.notes.push(format!(
+307:                 "the Dylint driver check for the library {library_name} did not run: {note}"
+308:             )),
+309:             DriverState::Missing(reason) => {
+310:                 let count: usize = packages_using(packages, &package.library);
+311:                 let subject: String = if count == packages.len() {
+312:                     format!("all {count} package(s)")
+
+## M17: the case where the variable names an absent toolchain (loud, status 2)
+8:pkg fetch status 0
+13:a rustup run status 1
+17:b cargo dylint --version status 1
+21:c linter status 2
+23:{"message":"rust/avoidable-closure could not check any package, and fails instead of skipping because nothing was checked: `cargo dylint --version` failed (exit status: 1) without saying that cargo-dylint is missing, so this is a `cargo` that is broken or older than the lock and not a machine wit
+
+## decision record, Amendment of 2026-11-07: what a skip must not be (lines 214-246 of doc/decision/rust-closure-lint-dylint.md)
+214: skips directories ending in `.fuzz` or `.bench`,
+215: and reads the per-package prerequisites from `monochromatic-lint.prerequisites.jsonc`.
+216: A package with a missing prerequisite or a cold cargo cache is skipped with a message;
+217: the linter does not fetch.
+218: The lint itself skips closures in generated code,
+219: so the Slint window code needs no per-package attribute,
+220: and only rustc's `expect` suppresses.
+221: The IDE keeps error severity through a per-path block of `monochromatic-lint.config.jsonc`.
+222: The behaviour is documented in `package/linter/monochromatic-lint/README.md`,
+223: section "Closure check".
+224: Activation in a checkout needs a released `monochromatic-lint` that knows the rule:
+225: the 0.2.0 release rejects the configuration with status 2.
+226: 
+227: ## Amendment of 2026-11-07T22:19:43-05:00: a skip is a warning
+228: 
+229: The answer of 2026-10-19 that a package whose prerequisites are missing "is skipped,
+230: and the linter says so"
+231: left the form of the saying open,
+232: and the first implementation said it with a line on standard error and exit status 0.
+233: On 2026-11-07 a cold cargo cache skipped five packages and hid their findings behind a green run.
+234: Asked what a skip should do in the repository's own lint,
+235: the owner answered through the question tool,
+236: in their own words and not as one of the offered options:
+237: "Fetch then warn."
+238: 
+239: This reads as two rules:
+240: 
+241: - The repository's own lint tasks fetch the Rust dependencies first (`mise run fetch:rust-dependencies`),
+242:   so the cold cache that caused the skip is filled before the closure check reads it.
+243: - A skip that remains is reported as a warning-level finding of `rust/avoidable-closure`,
+244:   at the package's `Cargo.toml`,
+245:   naming the package and the command that fixes it.
+246:   It is not a silent message with exit status 0,

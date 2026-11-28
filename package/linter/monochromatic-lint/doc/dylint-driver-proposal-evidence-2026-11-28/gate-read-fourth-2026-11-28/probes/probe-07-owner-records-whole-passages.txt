@@ -1,0 +1,202 @@
+# probe 07: owner records, whole passages, against the sentences that cite them
+## doc/planning/toolchain-always-latest.md lines 1-42 (status, Owner words, and what they replace)
+1: # Toolchain always latest
+2: 
+3: Status as of 2026-11-07T08:33:17-05:00:
+4: the plan,
+5: both locks and the container builds follow the newest versions;
+6: the daily update is built,
+7: rehearsed in a throwaway worktree,
+8: and since 2026-11-07T08:29:48-05:00 enabled as a timer;
+9: its first real run ended at 2026-11-07T08:33:17-05:00 with result `success` (section "First run");
+10: since 2026-11-07 the update also checks every package before and after it and opens a fix-forward issue for each package
+11: it newly breaks (section "Checking every package after the update").
+12: 
+13: ## Owner's words
+14: 
+15: Recorded 2026-11-07,
+16: verbatim,
+17: in the order given:
+18: 
+19: - "Rust nightly should always be latest."
+20: - "Move anyway,
+21:   fix forward" (when a new nightly breaks a package).
+22: - "Make the plan file always track latest and set up a systemd cronjob to update EVERYTHING (not just rust) daily."
+23: - "Wait for Dylint" (the closure lint plugin `package/linter/monochromatic-lint-closure` stays as it is).
+24: - "Everything also covers the pnpm and cargo dep locks,
+25:   and the global toolchains too."
+26: - Standing rules the update keeps:
+27:   "nothing should ever wait forever or indefinitely";
+28:   "never discard user data";
+29:   "Commits should never fail.";
+30:   the wrapper never starts itself at system startup or login (systemd units are fine);
+31:   "Ignore Win and mac until I say so.";
+32:   and the ban on synthetic host load.
+33: 
+34: This note follows
+35: [`doc/planning/rust-nightly-always-latest.md`](rust-nightly-always-latest.md),
+36: which moved the Rust row to the newest nightly and proposed how to keep it there.
+37: The owner's answers replace its open question:
+38: move anyway,
+39: fix forward,
+40: and update everything,
+41: daily,
+42: on this machine.
+
+## the same file, lines 51 and 440-450 (the record calls rust@nightly a floating channel; the closure red is the Wait for Dylint red)
+51: `rust@nightly` was already the latest form (a floating channel) in both plans.
+440: 2.  The groups run and commit as before.
+441: 3.  When a group committed or the machine-global lock changed,
+442:     every package is checked again (the second pass).
+443:     A run that moved nothing skips the second pass,
+444:     because no check can have become red.
+445: 4.  For each check the two results are compared:
+446:     passed then failed is newly red;
+447:     failed then failed is already red and is never reported again (`package/linter/monochromatic-lint-closure` is red
+448:     today and the owner said "Wait for Dylint");
+449:     failed then passed is recovered;
+450:     passed then passed is unchanged;
+
+## doc/planning/rust-nightly-always-latest.md: the three options for the closure package and the header that all keep the lock on the newest nightly
+267:Options for the fix on latest (all keep the lock on the newest nightly):
+262:   the following `cargo fmt --check` step shows differences in
+263:   `src/test_scratch.rs`,
+264:   which the change does not touch.
+265:   The test run was not repeated with the fix.
+266: 
+267: Options for the fix on latest (all keep the lock on the newest nightly):
+268: 
+269: - Patch the package source as in the scratch diff,
+270:   and update `dylint_linting` and `dylint_testing` when a release
+271:   already carries the macro change (the package README requires both crates and the two tools on one Dylint release).
+272:   Pros:
+273:   smallest change,
+274:   no lock lag.
+275:   Cons:
+276:   the `default_field_values` feature is an unstable feature gate that can move again.
+277: - Wait for a Dylint release that fixes the macro,
+278:   and patch only the `caller_bounds` call.
+279:   `dylint_linting` 6.3.2 is published (the package asks for at least 6.2);
+280:   the E0797 comes from rustc's own
+281:   `declare_lint!` expansion,
+282:   and whether any Dylint release removes the need for the gate was not tested.
+283:   Pros:
+284:   no feature gate.
+285:   Cons:
+286:   the package stays red until then,
+287:   and it was already red.
+288: - Retire the lint,
+289:   or build it only when a person asks.
+290:   Pros:
+291:   removes the coupling to compiler internals.
+292:   Cons:
+293:   loses a lint,
+294:   an owner decision.
+295: 
+296: Ranking:
+297: patch now > wait for Dylint > retire.
+298: Patching now beats waiting because the package is red on the current lock anyway and the fix is two small edits that
+299: were seen to compile;
+300: waiting beats retiring because the lint has an owner-approved purpose
+301: (the package README,
+302: "Toolchain") and a Dylint release is the normal repair path for the macro half.
+
+## doc/decision/rust-closure-lint-dylint.md, Root toolchain change approved on 2026-10-18, whole
+42: - The `rustc-dev` toolchain component for the package that builds the lint.
+43: 
+44: ## Root toolchain change approved on 2026-10-18
+45: 
+46: Stage 1 kept the lint's toolchain package-local (a dated nightly in the package) because the root toolchain was not
+47: approved to change.
+48: On 2026-10-18 the owner answered three questions through the question tool,
+49: and stage 2a carries them out:
+50: 
+51: - Add `rustc-dev` to the shared floating nightly.
+52:   `mise.no-env.toml` lists the component and the tools `cargo-dylint` and `dylint-link`,
+53:   `mise.toml` is regenerated from it with file-enforcer,
+54:   and `mise.lock` records the tools and the new component list.
+55:   Changing the component list changes the locked options of the `rust` entry,
+56:   so refreshing the lock also moved the floating nightly from `nightly-2026-10-17` to `nightly-2026-10-18`.
+57: - Exempt `**/tests/ui/**` from `rust/no-anonymous-functions` in `monochromatic-lint.config.jsonc`,
+58:   because the lint's fixtures contain closures on purpose
+59:   (the exemption was removed together with the rule,
+60:   see the section "Removal of `rust/no-anonymous-functions`").
+61: - The two stray mise symlinks under `~/.local/share/mise/installs` were repaired by the coordinator.
+62: 
+63: The package therefore has no `rust-toolchain.toml` and no `RUSTUP_TOOLCHAIN` override;
+64: it uses the root toolchain and its aggregate tasks are named `build` and `lint` again,
+65: so the root fan-out reaches them.
+66: Still not approved:
+67: any other change to the root toolchain declaration,
+68: a pin of the nightly,
+69: an edit to the IDE package,
+70: a push,
+71: or a publish.
+72: A floating-nightly upgrade can break the lint source,
+73: because rustc's internal API moves;
+74: the package README says so.
+75: 
+76: ## Staging
+
+## the same record, Answers of 2026-10-19 (defaults adopted without asking)
+175:   tests,
+176:   fuzz crates and bench crates are exempt.
+177: - A package whose prerequisites are missing on the machine is skipped,
+178:   and the linter says so.
+179: 
+180: Adopted as defaults without asking,
+181: open to veto:
+182: the floating nightly stays (no pin),
+183: only rustc's `expect` suppresses the Dylint lint (no comment directives),
+184: generated code is skipped by the lint itself (spans outside the package's own source),
+185: and the IDE keeps error severity because it has no findings.
+186: ## Known limits to carry into the lint's README
+187: 
+188: - Wrappers are not recognised (`Arc::new(closure)`,
+189:   `Some(closure)`,
+190:   struct fields,
+
+## package/linter/monochromatic-lint-closure/README.md, section Toolchain (pinned commit)
+183: ### Toolchain
+184: 
+185: The package uses the repository's shared floating nightly,
+186: declared in the root `mise.toml` with the `rustc-dev` component
+187: (a Dylint library links rustc's own crates)
+188: and the tools `cargo-dylint` and `dylint-link` (the owner approved this on 2026-10-18).
+189: `mise install` provisions all three;
+190: nothing else is needed,
+191: and the package has no `rust-toolchain.toml` and no toolchain override of its own.
+192: The exact nightly is whatever `mise.lock` resolves for the `rust` entry.
+193: Dylint builds a library and every package it lints with that nightly,
+194: and `cargo dylint` caches its driver in `~/.dylint_drivers` (the optional `DYLINT_DRIVER_PATH` moves it).
+195: 
+196: A floating-nightly upgrade can break the lint source:
+197: rustc's internal API moves between nightlies,
+198: so after `mise.lock` moves the nightly,
+199: build the library and run the tests before relying on the lint,
+200: and fix the source if the compiler's API changed.
+
+## the proposal sentences that cite these records (line numbers of the pinned file)
+1160: the driver is filed under that name,
+1161: and the linter's probe reads that compiler when the variable is exported.
+1162: The library's compiler is the lock's nightly,
+1163: which is the toolchain the owner's 2026-10-18 answer
+1164: put `rustc-dev` on.
+1165: 
+1400: What this ranking does not weigh:
+1401: the owner's wish that the compiler always be latest.
+1402: The repository implements "latest" as a dated name in the lock,
+1403: which the daily update resolves,
+1404: so K1 follows the owner's recorded mechanism and I would follow it only if something moved the channel.
+1405: The owner may still prefer the channel for a reason this proposal cannot measure;
+1406: that is the preference to confirm,
+1407: not a result the ranking can produce.
+2239:    The owner's recorded wish that the compiler always be latest is implemented by the lock's daily move,
+2240:    which K1 follows;
+2241:    I would follow it only if something moved the channel.
+2312: 6. **Should `cargo-dylint` and `dylint-link` stay at `@latest`,
+2313:    or be pinned to exact versions (L)?**
+2314:    Keeping `@latest` follows the owner's "update EVERYTHING daily" and carries upstream's fix to the
+2315:    machine without a person;
+2316:    a pin makes a bump deliberate and takes the two tools out of that update.
+2317:    A yes to L leaves undecided which version to hold now.

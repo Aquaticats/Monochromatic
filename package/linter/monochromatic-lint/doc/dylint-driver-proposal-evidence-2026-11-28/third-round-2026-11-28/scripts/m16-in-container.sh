@@ -2,7 +2,8 @@
 # M16 (third round of 2026-11-28): Answer K1 once the lock has moved to a nightly that
 # Dylint 6.4.0 cannot compile against, which today's channel already is.
 # The library's file names the dated install of today's channel compiler (2026-11-27)
-# with its components; the floating channel is minimal (M15a left it so).
+# with its components. The floating channel is the image's own, carrying what its
+# Containerfile installs, because this arm ran in a fresh container rather than after M15a.
 set -uo pipefail
 
 lock=/work/log

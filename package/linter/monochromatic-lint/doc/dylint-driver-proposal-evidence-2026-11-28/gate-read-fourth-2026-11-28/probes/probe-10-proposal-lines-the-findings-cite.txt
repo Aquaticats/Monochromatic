@@ -1,0 +1,421 @@
+# probe 10: the proposal lines each finding of the review points at (pinned commit 88980bc4bb, file line numbers)
+## the first screen: lines 42-152
+42: ## What you are asked, and what this proposal recommends
+43: 
+44: Seven questions follow in this section,
+45: one per line of decision,
+46: each with the answer this proposal recommends,
+47: what that recommendation rests on,
+48: and what a yes leaves undecided.
+49: The mechanism and cost of every answer,
+50: and the reason for every adjacent pair in each ranking,
+51: are in the decision sections named beside each question.
+52: 
+53: 1. **Which compiler the lint library is built with.**
+54:    Recommended:
+55:    **K1**,
+56:    a `rust-toolchain.toml` in `package/linter/monochromatic-lint-closure`
+57:    generated from the lock's `rust` entry.
+58:    Basis:
+59:    measured.
+60:    With K1's file and the toolchain variable exported,
+61:    the rule returned six findings in 87 s of first-run build (M15a arm C);
+62:    with the components on the rustup channel named `nightly` and today's compiler,
+63:    the same linter returned a processing failure and status 2 for every package,
+64:    and no findings (M12 arm A).
+65:    A yes leaves undecided who writes the file,
+66:    which lock field it is written from,
+67:    and when it is rewritten (Decision 1).
+68: 
+69: 2. **How the toolchain variable reaches the programs Dylint starts.**
+70:    Recommended:
+71:    **T**,
+72:    the lint task's own environment,
+73:    with the rustup proxies first in `PATH` and `RUSTUP_TOOLCHAIN` naming the toolchain of question 1.
+74:    Basis:
+75:    measured state,
+76:    and it is the state every measurement here ran in;
+77:    that a `mise` task can create that state is read and not run.
+78:    A yes leaves undecided whether `cargo-shadow` gets a rule for the lint's build,
+79:    and whether a person calling the binary by its full path gets the rule at all (Decision 2).
+80: 
+81: 3. **Who builds the driver on a person's machine.**
+82:    Recommended:
+83:    **B**,
+84:    a step in the root lint task that runs the linter's own warm command
+85:    before the offline run.
+86:    Basis:
+87:    measured.
+88:    The warm command built the driver and the rule then returned the six findings (M15a arms B and C);
+89:    the same command cannot deliver today under question 1's other answers (M12 arm B).
+90:    A yes leaves undecided what a lint run does without the network,
+91:    and which package's task warms the driver (Decision 3).
+92: 
+93: 4. **Whether a pull request gets the rule at all.**
+94:    Recommended:
+95:    **C**,
+96:    a prepared image the job runs.
+97:    Basis:
+98:    not measured.
+99:    The job's state is read from `.github/workflows/advisory-core.yml`:
+100:    it cannot start the linter today,
+101:    and its toolchain step installs a minimal nightly with no components.
+102:    A yes leaves undecided how the checkout enters the image,
+103:    whether that run has the network,
+104:    and where the image lives (Decision 4).
+105: 
+106: 5. **What a run says when the rule did not check a package.**
+107:    Recommended:
+108:    a record and an exit status only for the causes the owner names,
+109:    a field a script can read,
+110:    and a closing line on standard error:
+111:    four parts,
+112:    each answerable alone;
+113:    the recommended choice in each part is marked there,
+114:    with the fifth part this round measured (Decision 5).
+115:    Basis:
+116:    measured.
+117:    The statuses a skip returns are M10's;
+118:    a run that checked nothing and printed nothing,
+119:    exiting 0,
+120:    is M14 arm A.
+121:    A yes to each part leaves undecided the option's name,
+122:    the field's name,
+123:    the status number and the line's wording.
+124: 
+125: 6. **Whether the two Dylint tools stay at `@latest`.**
+126:    Recommended:
+127:    keep `@latest`.
+128:    Basis:
+129:    line read of the plan's rows and of the record's "update EVERYTHING daily";
+130:    the cost of the alternative is stated,
+131:    and nothing here is measured.
+132:    A yes leaves undecided nothing further;
+133:    a yes to a pin leaves undecided which version to hold (Decision 6).
+134: 
+135: 7. **Where the counts of the rule's one measured repository-wide run live.**
+136:    Recommended:
+137:    beside the 2026-11-07 count in `doc/planning/repository-linter-stays-at-zero.md`.
+138:    Basis:
+139:    measured counts from the kept files of that run (M3,
+140:    recounted);
+141:    a placement,
+142:    not a measurement.
+143:    A yes leaves undecided whether that run is repeated on this machine (Decision 7).
+144: 
+145: The one thing the questions cannot be answered without,
+146: and which this revision states first because the last one stated it wrongly:
+147: `toolchain:install` installs a **dated** toolchain and adds the row's components to **that** toolchain.
+148: It does not put components on the rustup channel named `nightly`,
+149: and nothing in the repository moves that channel.
+150: The lines are in "The plan row installs a dated toolchain,
+151: and puts the components on it".
+152: 
+
+## What would change the recommended order: lines 171-192
+171: ### What would change the recommended order
+172: 
+173: - A `cargo-dylint` release that compiles on the channel's current compiler.
+174:   Upstream has merged that change and released nothing since 2026-11-10
+175:   (measured,
+176:   `probes/gh-dylint-releases-and-pull-request-2203.txt`).
+177:   Such a release would let Answer I deliver without a new file,
+178:   and would make question 1 a choice between two working answers.
+179: - The daily toolchain update being what moves the lock.
+180:   The timer stands `disabled; inactive (dead)` on this machine,
+181:   read by the second gate read and kept in
+182:   `gate-read-second-2026-11-28/probe-daily-update-timer-and-lock-state.txt`.
+183:   If the lock does not move,
+184:   K1's compiler does not move either,
+185:   and the choice in question 1 loses most of its meaning.
+186: - Whether the lint task inherits the lock's exported `RUSTUP_TOOLCHAIN`,
+187:   a dated name.
+188:   It was not measured.
+189:   If it does,
+190:   question 2's answer T is one step cheaper than stated,
+191:   and Answer I needs that value overridden to the channel name rather than set.
+192: 
+
+## the plan row section and its last sentences: lines 534-543 and 1257-1268
+534: So `toolchain:install` today installs `nightly-2026-11-16-x86_64-unknown-linux-gnu`
+535: with `rustc-dev`,
+536: `llvm-tools`,
+537: `rust-src`,
+538: `clippy` and `rustfmt`,
+539: and the two Android targets.
+540: It does not add anything to the rustup channel named `nightly`.
+541: That is the opposite of what the last revision of this file said,
+542: and it is why Answer I is stated with a new installer step and an owner for it.
+543: 
+1257: ### Answer I: the components on the rustup channel named `nightly`
+1258: 
+1259: **How it works.**
+1260: A new installer step puts `rustc-dev`,
+1261: `llvm-tools-preview` and `rust-src` on the floating channel.
+1262: Today's plan row does **not** do that:
+1263: it installs `nightly-2026-11-16` and adds the components
+1264: to that toolchain (the section on the plan row).
+1265: So this answer is new work in the installer,
+1266: a new owner for the channel's components,
+1267: and an owner for moving the channel,
+1268: which nothing in the repository does.
+
+## What is true today: lines 788-821
+788: What each answer to question 1 returns on that compiler:
+789: 
+790: - Answer I,
+791:   the components on the channel:
+792:   the library builds with `c82ce1563` and fails,
+793:   with `error[E0603]: enum ErrorOutputType is private` at `dylint_linting-6.4.0/src/lib.rs:794`.
+794:   The linter then returns one `core/processing-failure` per package and status 2 (M12 arms A and B).
+795: - Answer K1,
+796:   a file naming the lock's toolchain:
+797:   it builds with the dated compiler,
+798:   which compiles 6.4.0,
+799:   and returns the six findings on the copied package (M15a arms B and C).
+800:   If the lock moves to a nightly at or past the compiler that moved `ErrorOutputType`,
+801:   K1 fails exactly as I does:
+802:   measured with a file naming `nightly-2026-11-28`,
+803:   whose compiler is `c82ce1563`,
+804:   where the warm command failed with the same `E0603`
+805:   and the linter returned status 2 (M16 arms A and B).
+806: - Answer K2,
+807:   a file naming a hand-picked date:
+808:   same mechanism as K1 on that date,
+809:   and nothing installs that date (the section on the plan row and the cleaner).
+810: 
+811: So today only K1 and K2 return findings,
+812: and only with the toolchain variable exported (Decision 2),
+813: and both return them only until the lock (or the hand date) reaches a compiler newer than the 6.4.0 release.
+814: The fix for that is a `cargo-dylint` release carrying pull request 2203,
+815: or a locally built `cargo-dylint`:
+816: the library could take `dylint_linting` from a Git revision,
+817: but the driver is built by `cargo-dylint` from `dylint_driver = "=<its own version>"` on crates.io,
+818: which the library cannot patch (source,
+819: the driver build step).
+820: That last sentence is inference from the two build steps,
+821: not a run.
+
+## the ranking of Decision 1 and K1 stale-file sentence: lines 1353-1407
+1353: ### The ranking of Decision 1
+1354: 
+1355: Criterion:
+1356: findings the rule returns,
+1357: on a machine whose `cargo` and `rustc` are the rustup proxies,
+1358: with Decision 2's answer T exporting the variable,
+1359: on the compiler each answer names.
+1360: Measured in one image,
+1361: one linter and one day (M12,
+1362: M15a,
+1363: M16).
+1364: 
+1365: **K1 > K2 > I.**
+1366: 
+1367: - **K1 over K2.**
+1368:   Both are the same file and the same mechanism,
+1369:   and on the day its date is installed,
+1370:   K2 delivers what K1 delivers.
+1371:   K1's date is the lock's on the day the generator runs,
+1372:   so it names a toolchain the plan installs,
+1373:   and the lean cleaner keeps a toolchain the lock names.
+1374:   K2's date is installed by nothing the repository runs,
+1375:   and the cleaner keeps only a toolchain the lock
+1376:   or a checkout-root file names.
+1377:   That is a difference in whether the run happens at all,
+1378:   not a difference in effort.
+1379:   What K1 does not settle either:
+1380:   a file the generator has not rewritten since the lock moved names an older
+1381:   toolchain,
+1382:   which rustup keeps,
+1383:   so that is a stale file and not a missing toolchain.
+1384: - **K2 over I.**
+1385:   On the day K2's date is installed,
+1386:   K2 returns the six findings by the same mechanism K1 does.
+1387:   I returns a processing failure and status 2 on the compiler the channel carries today (M12),
+1388:   and would return findings only on a channel frozen at an older compiler or after a `cargo-dylint` release.
+1389: - **I is ranked last on today's delivery,
+1390:   not on a preference.**
+1391:   If a release carrying upstream's fix lands,
+1392:   I's delivery returns without a new file,
+1393:   and the order becomes K1 > I > K2,
+1394:   because I would then deliver without the file K2 needs and
+1395:   with a compiler that moves on its own.
+1396:   What I still needs is an installer step and an owner for moving the channel,
+1397:   which is a cost,
+1398:   not a delivery.
+1399: 
+1400: What this ranking does not weigh:
+1401: the owner's wish that the compiler always be latest.
+1402: The repository implements "latest" as a dated name in the lock,
+1403: which the daily update resolves,
+1404: so K1 follows the owner's recorded mechanism and I would follow it only if something moved the channel.
+1405: The owner may still prefer the channel for a reason this proposal cannot measure;
+1406: that is the preference to confirm,
+1407: not a result the ranking can produce.
+
+## M12 and the Containerfile path: lines 826-833 and 881-898
+826: each inside its own
+827: `systemd-run --user --scope --slice=agent-work.slice` with `MemoryMax`,
+828: `CPUQuota`,
+829: `TasksMax`,
+830: `IOWeight=1` and `RuntimeMaxSec`,
+831: from the image `localhost/dylint-probe-2026-11-28c`
+832: (`third-round-2026-11-28/scripts/Containerfile`:
+833: today's floating `nightly` with the components Answer I installs,
+881:   `cargo dylint` exited with exit status:
+882:   1" and ends with the compiler's own `E0603` text against `dylint_linting`
+883:   (`m12/log/a-linter.jsonl`).
+884: - Arm B,
+885:   the warm command itself,
+886:   to keep the first compiler error:
+887:   status 1 after 0 s,
+888:   `error[E0603]: enum ErrorOutputType is private` at
+889:   `dylint_linting-6.4.0/src/lib.rs:794`,
+890:   and no `~/.dylint_drivers` directory afterwards
+891:   (`m12/log/b-warm.err`,
+892:   `b-error-lines.txt`,
+893:   `b-driver-tree.txt`).
+894: 
+895: What M12 settles:
+896: on the compiler the channel carries today,
+897: Answer I returns no findings and status 2 for every Rust package,
+898: and the run's message carries the compiler's first error.
+
+## M15a RUNPATH sentence and M16 digest sentence: lines 920-932 and 838-845
+838: the host script prints the image digest and the container names it used.
+839: The linter binary was the released `monochromatic-lint` 0.5.2-alpha.25,
+840: whose sha256 is `34ca8f26d618be2cbfce78bfd209aec0ae2d1c2faf7f00f4144374df37de485a`
+841: (printed in every run log),
+842: copied from the machine-global install;
+843: the closure sources did not change between it and `HEAD`
+844: (`git diff --stat 8638a53928..HEAD -- package/linter/monochromatic-lint/src` is empty).
+845: The library and `package/wg/cli-quicker-exempt` were copied in with `podman cp`,
+920: - Arm B,
+921:   the warm command with the network:
+922:   status `0` after 87 s,
+923:   the library and the driver built for
+924:   `nightly-2026-11-16-x86_64-unknown-linux-gnu`,
+925:   3 `git` executions,
+926:   241 executions of the dated `rustc` and none of the floating one,
+927:   the driver's `-V` printing `nightly-2026-11-16-x86_64-unknown-linux-gnu 6.4.0`,
+928:   and one RUNPATH entry into the dated toolchain
+929:   (`m15a/log/b-warm.err`,
+930:   `b-rustc-counts.txt`,
+931:   `b-driver-version.txt`).
+932: - Arm C,
+
+## Decision 5, parts and part 5: lines 1868-1872 and 2009-2054
+1868: Five parts,
+1869: each answerable alone and combinable.
+1870: Part 5 is this round's,
+1871: not the record's.
+1872: 
+2009: ### Part 5: a run that checked nothing and printed nothing
+2010: 
+2011: This part is not in the record,
+2012: and this round measured the case:
+2013: with the driver's toolchain name unreadable,
+2014: the linter returns `Unknown`,
+2015: notes the reason only under `--debug`,
+2016: runs the packages,
+2017: prints no record and exits `0` (M14 arm A).
+2018: 
+2019: - **Report it** (recommended):
+2020: a processing failure at the package's `Cargo.toml`,
+2021:   status `2`,
+2022:   naming the reason the linter could not read
+2023: the toolchain name.
+2024:   How it works:
+2025:   the `Unknown` branch builds a finding instead of a note.
+2026:   What it changes for good:
+2027:   the one case where a run looks clean and checked nothing becomes red.
+2028:   What it gives up:
+2029:   a run whose toolchain name cannot be read now fails rather than proceeding.
+2030:   Result:
+2031:   the shape is M14 arm A's silent run;
+2032:   the fix is not measured.
+2033: - **Leave it**:
+2034:   today's behaviour,
+2035:   measured.
+2036: 
+2037: **Ranking:
+2038: report > leave.**
+2039: Criterion:
+2040: whether a reader can tell a clean run from a run that checked nothing.
+2041: Leaving it produces exactly the record the issue is about,
+2042: with no record at all.
+2043: 
+2044: ### How the five parts combine
+2045: 
+2046: Any combination of the parts is buildable.
+2047: One pair conflicts in intent:
+2048: a severity keyed by cause together with a status keyed on any skip,
+2049: because the first leaves prerequisite skips at `warn` and the second makes them red.
+2050: "Both,
+2051: in this order" is reachable:
+2052: Part 5 first,
+2053: then Parts 1 to 4 on top of it,
+2054: or the other way round.
+
+## Decision 6 reason: lines 2093-2105
+2093: **Ranking:
+2094: keep `@latest` > L.**
+2095: Criterion:
+2096: how soon the rule picks up an upstream fix.
+2097: Today's compiler needs upstream's merged fix (the section on what is true today),
+2098: and `@latest` carries it to the machine on the next daily update with no person involved;
+2099: a pin holds the compiler-breaking release until the owner moves it.
+2100: The cost of `@latest`,
+2101: an unwanted move,
+2102: is stated and not used to rank it lower.
+2103: The owner may still prefer the pin,
+2104: and that is a preference this proposal asks for,
+2105: not a result.
+
+## the dependency section and the questions preamble: lines 2140-2168 and 2222-2227
+2140: ## How the decisions depend on each other
+2141: 
+2142: - **Decision 1's ranking assumes Decision 2's answer T.**
+2143:   Without the variable,
+2144:   K1 and K2 skip (M15a arms A and D),
+2145:   and I fails on today's compiler for its own reason
+2146:   (M12).
+2147:   The two decisions are therefore not independent as ranked,
+2148:   and the assumption is stated here rather
+2149:   than inside the ranking.
+2150: - **Under Answer I,
+2151:   T's value is the floating channel's name.**
+2152:   The lock records `RUSTUP_TOOLCHAIN` as the dated name in the `rust` entry's environment.
+2153:   Whether the lint task receives that value was not measured.
+2154:   If it does,
+2155:   T must override it rather than set it,
+2156:   and that is one more line in the task.
+2157: - **Decision 3 and Decision 4 deliver only under an answer to Decision 1 whose compiler builds Dylint.**
+2158:   Today that is K1 or K2;
+2159:   under I the warm command fails before a driver exists (M12 arm B).
+2160: - **Decision 6 interacts with Decision 3:**
+2161:   a move of `cargo-dylint` invalidates the driver,
+2162:   so a pinned tool makes a rebuild deliberate and `@latest` makes it automatic.
+2163: - **Decision 5 is independent of all of them:**
+2164:   it changes what an absent rule says,
+2165:   not whether it runs.
+2166: - **Decision 7 is independent:**
+2167:   it changes where a count lives.
+2168: 
+2222: ## The questions for the owner
+2223: 
+2224: Each question is one the owner alone can answer,
+2225: is answerable without the others,
+2226: and says what a yes leaves undecided.
+2227: 
+
+## Implication 9 (CI) and the Decision 4 preamble: lines 1118-1120 and 1745-1750
+1118: 9. CI cannot start the linter at all today,
+1119:    so every CI answer waits on a workflow change
+1120:    that no provider answer includes.
+1745: ## Decision 4: how a pull request gets the rule
+1746: 
+1747: Both answers need a workflow change,
+1748: and neither was measured.
+1749: The job cannot start the linter today (the section on the tasks and the workflows).
+1750: 

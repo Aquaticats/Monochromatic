@@ -1,0 +1,11 @@
+# probe 01: the pinned commit, HEAD at the time of the read, and the proposal size
+2026-11-28T08:46:43-05:00
+HEAD now:
+6ce456d38240e1111e5fdd2afe2483adf5eefe16
+pinned:
+88980bc4bb62e018150f5a0f1ff39b4597f3306c
+proposal lines at the pinned commit:
+2473
+lines of src diff output between 8638a53928 and the pinned commit (the proposal says it is empty):
+0
+3:version = "0.5.2-alpha.25"

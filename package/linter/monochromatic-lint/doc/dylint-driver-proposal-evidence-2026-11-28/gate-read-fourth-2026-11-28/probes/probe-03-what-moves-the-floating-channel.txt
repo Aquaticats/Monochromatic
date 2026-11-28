@@ -1,0 +1,69 @@
+# probe 03: what in the repository could move the rustup channel named nightly (pinned commit, outside doc and Markdown)
+## git grep for installs, defaults and updates of a toolchain (test files and fixtures filtered out)
+88980bc4bb:.github/workflows/advisory-core.yml:159:          rustup toolchain install "$toolchain" --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:157:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:158:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:494:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:495:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:876:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:877:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:1002:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:1003:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:1138:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:1139:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:1497:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:1498:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:1852:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:1853:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:2217:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:2218:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:2536:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:2537:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:2859:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:2860:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:2989:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:2990:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:3116:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:3117:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:3244:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:3245:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:3372:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:3373:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:3500:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:3501:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:3863:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:3864:        rustup default nightly
+88980bc4bb:.github/workflows/cargo-publish.yml:4216:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/cargo-publish.yml:4217:        rustup default nightly
+88980bc4bb:.github/workflows/crate-release.yml:107:        rustup toolchain install nightly --profile minimal --no-self-update
+88980bc4bb:.github/workflows/crate-release.yml:108:        rustup default nightly
+88980bc4bb:.github/workflows/git-policy-cli-fuzz.yml:117:        rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy --no-self-update
+88980bc4bb:.github/workflows/git-policy-cli-fuzz.yml:118:        rustup default "$RUST_TOOLCHAIN"
+88980bc4bb:.github/workflows/music-player-release.yml:266:        rustup toolchain install "$toolchain" --profile minimal --no-self-update
+88980bc4bb:.github/workflows/music-player-release.yml:380:        rustup toolchain install "$toolchain" --profile minimal --target "$TARGET" --no-self-update
+88980bc4bb:.github/workflows/music-player-release.yml:1097:        rustup toolchain install "$toolchain" --profile minimal --no-self-update
+88980bc4bb:.github/workflows/music-player-release.yml:1683:        rustup toolchain install "$toolchain" --profile minimal --no-self-update
+88980bc4bb:package/forbidden-strings/core/mutants.Containerfile:13:RUN rustup toolchain install "${RUST_TOOLCHAIN}" --profile minimal \
+88980bc4bb:package/forbidden-strings/core/mutants.Containerfile:14:    && rustup default "${RUST_TOOLCHAIN}"
+88980bc4bb:package/git-policy/cli/bin/native-gate-clippy-toolchain.ts:236: caller's `RUSTUP_TOOLCHAIN` or rustup default says, and it prints the toolchain's own `rustc` rather than any proxy.
+88980bc4bb:package/mpm-shadow/cli/src/toolchain/install_rust_android.rs:2://! The `rustup-toolchain` route (`rustup toolchain install --no-self-update <channel>`,
+88980bc4bb:package/mpm-shadow/cli/src/toolchain/install_rust_android.rs:56:/// `rustup toolchain install --no-self-update <package id, or the locked version>`.
+88980bc4bb:package/mpm-shadow/cli/src/toolchain/install_rust_android.rs:69:        "rustup toolchain install",
+88980bc4bb:package/mpm-shadow/cli/src/toolchain/model.rs:60:    /// `rustup toolchain install <locked channel>`.
+88980bc4bb:package/music-player/desktop-app/Containerfile:74:          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
+88980bc4bb:package/music-player/desktop-app/Containerfile.windows-gnu:59:          --default-toolchain "${RUST_TOOLCHAIN}" --target x86_64-pc-windows-gnu
+88980bc4bb:package/nested-wayland-session/cli/Containerfile:57:          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
+88980bc4bb:package/terminal/app/Containerfile:66:          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
+88980bc4bb:package/terminal/app/Containerfile.release:59:          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
+
+## counts of the floating install line the proposal cites
+88980bc4bb:.github/workflows/cargo-publish.yml:17
+88980bc4bb:.github/workflows/crate-release.yml:1
+
+## the proposal own sentences on what moves the channel
+544:### Nothing in the repository moves the floating channel
+1343:an owner for the channel's daily move,
+1349:Who adds the components and who moves the channel;
+1395:  with a compiler that moves on its own.
+2239:   The owner's recorded wish that the compiler always be latest is implemented by the lock's daily move,
+2248:   who moves the channel,
