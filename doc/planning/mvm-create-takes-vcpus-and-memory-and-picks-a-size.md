@@ -1581,7 +1581,7 @@ naming the flavour,
 its numbers and its hourly price,
 and it prints that line only on the sized walk (`package/mvm/cli/src/backend/ovh/provisioning.ts`,
 `chooseFlavorAndImage`);
-a create with neither number prints its own line instead,
+a create with neither number prints only its creating line,
 with the flavour and its numbers and no price,
 although it reads the prices before it looks at whether a number was asked;
 the Hetzner create logs the type and its numbers with no price;
