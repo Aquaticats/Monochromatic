@@ -1366,6 +1366,27 @@ where a step's duration is its whole step:
   with a bound of 900 s.
   It is not timed on its own;
   it printed its 25 claims and passed.
+- The same step runs the gatherer's arm,
+  `zfs_doctor_clone_facts_guest` in
+  `src/native/health/doctor_zfs_route/clone_facts_guest_arm_tests.rs`,
+  in the same bound and the same guest:
+  it builds six managed clones in one repository
+  (mounted,
+  unmounted,
+  staged under the cache,
+  one whose removal stopped after its first write,
+  one whose origin snapshot carries the deferred-destroy mark,
+  and one a task in another mount namespace holds),
+  gathers each with `LiveCloneFactsReads`,
+  and prints one `CLONE-FACTS-GUEST` claim per state plus one that the
+  gather wrote no record.
+  No task in this package's `mise.toml` runs the doctor driver,
+  so a round runs it by hand:
+
+  ```sh
+  # package/git-policy/cli: one throwaway guest for both arms
+  node e2e/doctor-zfs-route-guest.ts all --name zfs-r4-clone-facts --log-dir <dir>
+  ```
 - `e2e/sanoid-coverage-guest.ts:278` is the Sanoid install,
   with a bound of 600 s.
   It is part of a whole `all` of 575 s.
