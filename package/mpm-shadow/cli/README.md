@@ -748,6 +748,24 @@ llama-cpu-cli \
   (see "The plan" for those two questions),
   and waits for each answer with no bound of its own,
   so a `rustup` that never answers makes it wait for ever.
+  `install` waits the same way, for the questions it asks about a Rust row and for every other program it
+  starts,
+  and so does every command that starts a program,
+  so a `rustup` or a `cargo` that never answers makes that command wait for ever too.
+  What a wait does say is one line on standard error once it has passed 2 s,
+  naming the program and every argument it was started with:
+
+  ```text
+  mpm-shadow: still waiting for `rustup component list --installed --toolchain nightly-2026-11-16` to answer, 2.0 s after this command started it; no deadline ends that wait
+  ```
+
+  The 2 s comes from what an ordinary answer costs,
+  measured on 2026-11-28 with three arms interleaved in each of 40 rounds:
+  this machine's `rustup 1.29.3` answering `--version` took 4.39 ms at the median and 45.61 ms at its slowest,
+  and a stand-in answering `which` and `component list` took 12.85 ms and 12.63 ms at their medians
+  and 26.58 ms and 26.28 ms at their slowest,
+  so 2 s is 75 times the slowest ordinary question and 157 times the median of the two questions,
+  and above the spread of the control arm, whose slowest sample was 10.4 times its median.
   What that costs when `rustup` answers:
   20 to 116 ms for the whole command with the row's components and targets declared,
   against 6 to 15 ms for a row that declares none and so asks only which toolchain the channel is,
@@ -1130,6 +1148,11 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   after the installers ran,
   to learn the directory the farm links from (see "The plan");
   `list` does not build the farm and never asks that question of an install.
+  That question and the listing above are waited on with no bound of their own,
+  as every program this command starts is,
+  and a wait that passes 2 s prints one line on standard error naming the program and its arguments
+  (the measurement behind that bound is under the `list` bullet of "Commands").
+  No deadline ends any of those waits.
 - `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<locked> --version <locked> <crate>`
   (see "Cargo tool installs").
 - `pnpm add --global <package>@<locked>`,
@@ -1199,6 +1222,21 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   `update` (for a version taken from a release tag)
   and the path builders all refuse such a name,
   and the message names it.
+  A bin name is also refused when the file system the exposure folder is on cannot hold the temporary
+  name its link is written under:
+  every link is written as `.{bin}.tmp.{process id}.{start time}.{namespace}.{boot}` and then renamed over
+  the link's name,
+  which adds at most 95 bytes to the bin name,
+  so the check is made where the plan is read,
+  against the longest name the file system itself reports for that folder,
+  and the refusal names the row,
+  the bin,
+  that limit and the longest bin name that would fit.
+  On a file system holding 255 bytes that is a bin name of at most 160 bytes;
+  a declared bin of 161 bytes or more is refused before anything is downloaded
+  (see "What the exposure folder holds" for the temporary name and why it carries those facts).
+  A file system that cannot be asked leaves the question open,
+  and the link write's own error is what a person meets then.
   Entries in the plan's `postinstall` are not checked this way.
 - mpm is never asked to install or look up a version:
   mpm 8.2.0 ignores a pinned version for cargo and pnpm,
@@ -1500,7 +1538,11 @@ one for each way its publish can go wrong:
 
 Each of them ends with `the finished copy this run holds is still at <hidden name>`,
 following the words above,
-and that copy is the one the next install publishes:
+and that copy is the one a later install publishes without downloading while that version's name holds no finished copy,
+in this process namespace and after a reboot;
+an install in another process namespace does not judge that name and leaves the copy where it is,
+and a newer version of one of this repository's tools, installed by then, leaves the copy hidden,
+which is what the sentence itself then says:
 
 ```text
 toolchain install: mpm-shadow failed: cannot move the finished install to <toolchain root>/mpm-shadow/0.2.7-alpha.13: Input/output error (os error 5); the finished copy this run holds is still at <toolchain root>/mpm-shadow/.0.2.7-alpha.13.staging.4242.99.424242.22222222-2222-2222-2222-222222222222. A later install of that version publishes that copy without downloading when the version's name holds no finished copy by then, and removes it as a second finished copy when that name holds one; it acts on that name in this process namespace and after a reboot, but an install in another process namespace does not judge that name and leaves the copy where it is, and prune --toolchain prints that name and what deleting it costs; a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, because an older repository tool is never kept
@@ -1551,9 +1593,14 @@ and when that install fails too the report names both causes in one failure.
 That warning ends with what this run then did.
 When the install that follows put the version at its name,
 the warning says `so the run does not fail for it`
-and then the sentence above,
-whose first half cannot apply because the version is at its name by then,
-so the removal it also names is what that later install does in this process namespace;
+and then the sentence for that state,
+which names the removal alone,
+because the version's name holds a finished copy by then and no install can publish the kept copy any more:
+
+```text
+A later install of that version removes that copy as a second finished copy, because the version's name holds a finished copy by then; it acts on that name in this process namespace and after a reboot, but an install in another process namespace does not judge that name and leaves the copy where it is, and prune --toolchain prints that name and what deleting it costs; a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, because an older repository tool is never kept
+```
+
 when that install failed too,
 the copy stays where the run's own sentence put it.
 A put-back that fails names the copy that was there rather than a finished one,
