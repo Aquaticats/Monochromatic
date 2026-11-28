@@ -96,7 +96,7 @@ pub enum DriverState {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Gaps = { gaps: Gap[]; notes: string[] };
+/// type Gaps = { gaps: Gap[]; notes: string[]; unknown: DriverUnknown[] };
 /// ```
 #[derive(Debug, Default)]
 pub struct DriverGaps {
@@ -104,6 +104,28 @@ pub struct DriverGaps {
     pub gaps: Vec<DriverGap>,
     /// Notes for checks that could not be made.
     pub notes: Vec<String>,
+    /// One entry per library whose check could not be made,
+    ///  so that a package that is then run and prints nothing can name the reason.
+    pub unknown: Vec<DriverUnknown>,
+}
+
+/// What:
+///  One library whose driver check could not be made and the sentence that says why.
+/// Why:
+///  The same sentence is the `--debug` note and the end of a finding's message,
+///  because a package the check then left unchecked has to name the cause that was already known.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type DriverUnknown = { library: Path; note: string };
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub struct DriverUnknown {
+    /// The library directory the check was asked about.
+    pub library: PathBuf,
+    /// Why the check could not be made,
+    ///  as the note a `--debug` run prints.
+    pub note: String,
 }
 
 /// What:
@@ -125,6 +147,28 @@ pub fn gaps_hold_library(
         }
     }
     return false;
+}
+
+/// What:
+///  The note of a library whose driver check could not be made.
+/// Why:
+///  The packages of such a library are run anyway,
+///  and one that prints no record has to say which known cause left it unchecked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unknownNote(unknown: DriverUnknown[], library: Path): string | undefined;
+/// ```
+pub fn unknown_note<'unknown>(
+    unknown: &'unknown [DriverUnknown],
+    library: &Path,
+) -> Option<&'unknown str> {
+    for entry in unknown {
+        if entry.library.as_path() == library {
+            return Some(entry.note.as_str());
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -270,6 +314,8 @@ fn packages_using(
 ///  The driver depends on the toolchain active in the library directory and not on the package,
 ///  so a repository of many packages with one library is checked once.
 ///  A `cargo-dylint` version that cannot be read is noted and the run proceeds.
+///  A library whose check could not be made keeps its packages in the run and records the reason,
+///  which is both the `--debug` note and what a package that printed no record reports.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -303,9 +349,16 @@ pub fn driver_gaps(
         );
         match driver_state(cargo, site, &package.library, needed, warm.as_str()) {
             DriverState::Ready => {}
-            DriverState::Unknown(note) => result.notes.push(format!(
-                "the Dylint driver check for the library {library_name} did not run: {note}"
-            )),
+            DriverState::Unknown(reason) => {
+                let note: String = format!(
+                    "the Dylint driver check for the library {library_name} did not run: {reason}"
+                );
+                result.notes.push(note.clone());
+                result.unknown.push(DriverUnknown {
+                    library: package.library.clone(),
+                    note,
+                });
+            }
             DriverState::Missing(reason) => {
                 let count: usize = packages_using(packages, &package.library);
                 let subject: String = if count == packages.len() {

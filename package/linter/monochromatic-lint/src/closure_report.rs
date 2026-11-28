@@ -4,12 +4,15 @@
 //!  `cargo dylint -- --message-format json` prints one record per line.
 //!  Only compiler messages of the closure lint and of unfulfilled lint expectations are findings;
 //!  a compiler error is kept as the explanation of a failed run,
-//! and everything else is ignored.
+//! and every other record is ignored but counted.
+//!  The count matters because cargo prints a record as soon as it builds anything:
+//!  a run that printed none never reached the compiler,
+//!  so a package without findings cannot be reported as a package without closures.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type Report = { file: string; byteStart: number; byteEnd: number; line: number; message: string; help?: string };
-//! function parseRecords(stdout: Uint8Array): { reports: Report[]; compilerError?: string };
+//! function parseRecords(stdout: Uint8Array): { reports: Report[]; compilerError?: string; records: number };
 //! ```
 
 /// Import the JSON value model.
@@ -68,7 +71,7 @@ pub struct Report {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Parsed = { reports: Report[]; compilerError?: string };
+/// type Parsed = { reports: Report[]; compilerError?: string; records: number };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Parsed {
@@ -78,6 +81,10 @@ pub struct Parsed {
     /// The rendered text of the first compiler error,
     ///  when a record had level `error`.
     pub compiler_error: Option<String>,
+    /// How many records cargo printed,
+    ///  of every reason and not only the compiler's messages.
+    ///  Nothing here on a finished run means cargo never built the package.
+    pub records: usize,
 }
 
 /// What:
@@ -146,7 +153,9 @@ fn report_of(message: &Value) -> Option<Report> {
 /// Why:
 ///  A line that is not a JSON object is ignored,
 ///  because cargo may print other text;
-///  the first error-level compiler message is kept for the failure explanation.
+///  the first error-level compiler message is kept for the failure explanation,
+///  and every record that carries a reason is counted,
+///  because that count is what tells a checked package from a run that built nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,7 +168,11 @@ pub fn parse_records(stdout: &[u8]) -> Parsed {
         let Ok(record) = serde_json::from_str::<Value>(line) else {
             continue;
         };
-        if record["reason"].as_str() != Some("compiler-message") {
+        let Some(reason) = record["reason"].as_str() else {
+            continue;
+        };
+        parsed.records += 1;
+        if reason != "compiler-message" {
             continue;
         }
         let message: &Value = &record["message"];

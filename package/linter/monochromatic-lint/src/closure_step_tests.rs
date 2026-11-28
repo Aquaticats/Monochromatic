@@ -19,6 +19,7 @@ use super::{
     run_closure_step_with,
 };
 use crate::closure_findings::RULE;
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::{
     closure_driver::DriverSite,
     closure_manifest::PREREQUISITES_FILE,
@@ -98,7 +99,7 @@ fn kinds(stub: &Scenario) -> Vec<String> {
 #[test]
 fn a_clean_package_is_checked_in_order() {
     let fixture: Fixture = fixture();
-    let stub = scenario(&[]);
+    let stub = scenario(&[CHECKED]);
     let outcome = run(&fixture, &stub);
     assert!(outcome.findings.is_empty() && outcome.skips.is_empty());
     assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
@@ -493,6 +494,14 @@ fn packages_are_independent() {
 /// so the driver check has a version to compare.
 const VERSIONED: (&str, &str) = ("dylint-version.stdout", "cargo-dylint 6.3.0\n");
 
+/// The one record a `cargo dylint` run leaves when it reached the compiler and finished.
+/// `cargo check --message-format json` prints it even when every unit was already built,
+/// which is why a run that prints no record at all never built this package.
+/// Copied from the capture
+/// `doc/closure-check-a-run-that-checked-nothing-2026-11-28/cargo-check/fresh-second-run.jsonl`,
+/// line 2.
+const CHECKED: (&str, &str) = ("dylint.stdout", "{\"reason\":\"build-finished\",\"success\":true}\n");
+
 /// The answers that make the offline resolution of the throwaway driver crate fail.
 const COLD_DRIVER: [(&str, &str); 2] = [
     ("metadata.dylint-driver-probe.status", "101"),
@@ -587,6 +596,7 @@ fn a_current_driver_lets_the_package_run() {
     let fixture: Fixture = fixture();
     let mut answers: Vec<(&str, &str)> = COLD_DRIVER.to_vec();
     answers.push(VERSIONED);
+    answers.push(CHECKED);
     let stub = scenario(answers.as_slice());
     install_driver(&stub, "dylint-driver 6.3.0\n");
     let rustup = toolchain_stub();
@@ -605,7 +615,7 @@ fn a_current_driver_lets_the_package_run() {
 #[test]
 fn a_stale_driver_with_a_warm_cache_lets_the_package_run() {
     let fixture: Fixture = fixture();
-    let stub = scenario(&[VERSIONED]);
+    let stub = scenario(&[VERSIONED, CHECKED]);
     install_driver(&stub, "dylint-driver 6.2.0\n");
     let rustup = toolchain_stub();
     let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
@@ -628,10 +638,11 @@ fn a_stale_driver_with_a_warm_cache_lets_the_package_run() {
 #[test]
 fn a_driver_check_that_cannot_be_made_is_a_note_and_the_run_proceeds() {
     let fixture: Fixture = fixture();
-    let stub = scenario(&[]);
+    let stub = scenario(&[CHECKED]);
     let rustup = toolchain_stub();
     let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
     assert!(outcome.skips.is_empty());
+    assert!(outcome.findings.is_empty(), "{:?}", outcome.findings);
     assert!(
         outcome
             .notes
@@ -641,13 +652,14 @@ fn a_driver_check_that_cannot_be_made_is_a_note_and_the_run_proceeds() {
         outcome.notes
     );
     assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
-    let located = scenario(&[VERSIONED]);
+    let located = scenario(&[VERSIONED, CHECKED]);
     let unlocated: DriverSite = DriverSite {
         drivers: None,
         ..driver_site(&located, &rustup)
     };
     let second = run_at(&fixture, &located, &unlocated);
     assert!(second.skips.is_empty());
+    assert!(second.findings.is_empty(), "{:?}", second.findings);
     assert!(
         second
             .notes
@@ -657,6 +669,79 @@ fn a_driver_check_that_cannot_be_made_is_a_note_and_the_run_proceeds() {
         second.notes
     );
     assert!(kinds(&located).contains(&String::from("dylint")));
+}
+
+/// A run that exited successfully without printing one record is a failure:
+/// the compiler never saw the package,
+/// so a run without findings would say nothing about its closures.
+#[test]
+fn a_run_that_printed_no_record_is_a_processing_failure() {
+    let fixture: Fixture = fixture();
+    let stub = scenario(&[VERSIONED]);
+    install_driver(&stub, "dylint-driver 6.3.0\n");
+    let rustup = toolchain_stub();
+    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
+    assert!(outcome.skips.is_empty());
+    assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
+    let finding = &outcome.findings[0];
+    assert_eq!(
+        (finding.code.as_str(), finding.severity),
+        (PROCESSING_FAILURE, Severity::Error)
+    );
+    assert_eq!(finding.filename, "my pkg/Cargo.toml");
+    assert!(
+        finding.message.contains("could not check my pkg"),
+        "{}",
+        finding.message
+    );
+    assert!(
+        finding.message.contains("printed none of cargo's records"),
+        "{}",
+        finding.message
+    );
+    assert!(
+        finding
+            .message
+            .ends_with("The end of cargo's messages was:\nnone"),
+        "{}",
+        finding.message
+    );
+    assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
+}
+
+/// The same failure names the cause the driver check already knew,
+/// which is the state the issue was measured in:
+/// the library's toolchain cannot be read and `cargo dylint` then finds nothing to check.
+#[test]
+fn a_failure_of_a_run_that_printed_nothing_names_the_driver_check() {
+    let fixture: Fixture = fixture();
+    let stub = scenario(&[VERSIONED]);
+    let rustup = scenario(&[
+        ("show.status", "1"),
+        (
+            "show.stderr",
+            "error: override toolchain `nightly-fixture` is not installed\n",
+        ),
+    ]);
+    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
+    assert!(outcome.skips.is_empty());
+    assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
+    let message: &String = &outcome.findings[0].message;
+    assert_eq!(outcome.findings[0].code, PROCESSING_FAILURE);
+    assert!(
+        message.contains(
+            "the Dylint driver check for the library lib did not run: `rustup show active-toolchain` failed (exit status: 1)"
+        ),
+        "{message}"
+    );
+    assert!(
+        outcome
+            .notes
+            .iter()
+            .any(|note| return message.contains(note.as_str())),
+        "{:?} is not part of {message}",
+        outcome.notes
+    );
 }
 
 //endregion

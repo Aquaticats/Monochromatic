@@ -8,6 +8,7 @@
 //!  and the command that fixes it,
 //!  so a skip is counted like any warning and never hides behind a green run,
 //!  and a package that cannot be checked for any other reason fails the run with status 2.
+//!  A check that exited `0` without printing one record of a compile is one of those: the package was never seen by the compiler.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -39,6 +40,7 @@ use crate::{
         driver_gaps,
         driver_site_from_environment,
         gaps_hold_library,
+        unknown_note,
     },
     closure_findings::{
         RULE,
@@ -234,7 +236,14 @@ pub fn run_closure_step_at(
         }
         absorb(
             &mut outcome,
-            check_package(package, cargo, &search, &targets, cwd),
+            check_package(
+                package,
+                cargo,
+                &search,
+                &targets,
+                cwd,
+                unknown_note(gaps.unknown.as_slice(), &package.library),
+            ),
         );
     }
     return outcome;

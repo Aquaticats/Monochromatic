@@ -188,6 +188,41 @@ fn failure_message(
 }
 
 /// What:
+///  Explain a `cargo dylint` run that exited successfully but printed none of cargo's records.
+/// Why:
+///  `cargo dylint` exits `0` without checking anything when it finds no library package to load,
+///  which is what a library whose toolchain is absent ends in,
+///  so a package that the compiler never saw would otherwise be reported as a package without closures.
+///  The message names the cause the driver check already knew,
+///  and quotes the end of cargo's own messages,
+///  which is where a cause it did not know is said.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function uncheckedMessage(run: DylintRun, subject: string, driverNote?: string): string;
+/// ```
+fn unchecked_message(
+    run: &DylintRun,
+    subject: &str,
+    driver_note: Option<&str>,
+) -> String {
+    let known: String = match driver_note {
+        Some(note) => format!("{note}. "),
+        None => String::new(),
+    };
+    let said: String = tail(&run.stderr, 12);
+    let messages: &str = if said.is_empty() {
+        "none"
+    } else {
+        said.as_str()
+    };
+    return format!(
+        "{RULE} could not check {subject}: `cargo dylint` exited with {} and printed none of cargo's records, so nothing in this package was checked by this rule and a run without findings says nothing about its closures. The result is incomplete, so the run cannot be trusted. {known}The end of cargo's messages was:\n{messages}",
+        run.status
+    );
+}
+
+/// What:
 ///  Check one package that passed the machine-wide checks.
 /// Why:
 ///  The order is manifest,
@@ -195,10 +230,13 @@ fn failure_message(
 /// prerequisites,
 /// then the run itself;
 ///  each can end the package early with a skip or a failure.
+///  A run that exits successfully without printing one record is a failure too:
+///  the compiler never saw the package,
+///  and the driver check's own note names the cause when it recorded one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkPackage(package: ClosurePackage, context): ClosureOutcome;
+/// function checkPackage(package: ClosurePackage, context, driverNote?: string): ClosureOutcome;
 /// ```
 pub(crate) fn check_package(
     package: &ClosurePackage,
@@ -206,6 +244,7 @@ pub(crate) fn check_package(
     search: &OsString,
     targets: &Targets,
     cwd: &Path,
+    driver_note: Option<&str>,
 ) -> ClosureOutcome {
     let mut outcome: ClosureOutcome = ClosureOutcome::default();
     let Some(directory) = package.manifest.parent() else {
@@ -268,6 +307,14 @@ pub(crate) fn check_package(
             manifest_name.as_str(),
             file_start(),
             failure_message(&run, &parsed),
+        ));
+        return outcome;
+    }
+    if parsed.records == 0 {
+        outcome.findings.push(processing_failure(
+            manifest_name.as_str(),
+            file_start(),
+            unchecked_message(&run, subject.as_str(), driver_note),
         ));
     }
     return outcome;

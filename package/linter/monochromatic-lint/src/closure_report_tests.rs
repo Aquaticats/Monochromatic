@@ -4,8 +4,8 @@
 //!  The records are the only evidence the check has,
 //! so a wrong code,
 //! a missing span,
-//! a duplicate from a second target
-//!  and a compiler error must each be handled on purpose.
+//! a duplicate from a second target,
+//!  a compiler error and the count of every record must each be handled on purpose.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -195,4 +195,26 @@ fn drops_reports_that_cannot_be_placed() {
 #[test]
 fn empty_output_is_empty() {
     assert_eq!(parse_records(b""), super::Parsed::default());
+}
+
+/// Every record cargo printed is counted,
+/// whatever its reason,
+/// because the count is what tells a checked package from a run that built nothing.
+#[test]
+fn counts_every_record_of_any_reason() {
+    let mut artifact: Value = record(Some(REPORTED_CODES[0]), "warning", "x", "src/a.rs", 1);
+    artifact["reason"] = Value::from("compiler-artifact");
+    let finished: Value = value(r#"{"reason": "build-finished", "success": true}"#);
+    let mut lines: Vec<u8> = lines(&[artifact, finished]);
+    lines.extend_from_slice(b"not a record at all\n");
+    assert_eq!(parse_records(&lines).records, 2);
+}
+
+/// A compiler message is a counted record as well,
+/// and a line that is no record carries no reason and is not counted.
+#[test]
+fn a_compiler_message_is_a_counted_record() {
+    let only: Vec<u8> = lines(&[record(Some(REPORTED_CODES[0]), "warning", "m", "src/a.rs", 1)]);
+    assert_eq!(parse_records(&only).records, 1);
+    assert_eq!(parse_records(b"{\"message\": 1}\n").records, 0);
 }
