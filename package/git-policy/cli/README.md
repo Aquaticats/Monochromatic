@@ -3523,6 +3523,21 @@ those words may begin with a global option,
 and a value whose own words name another `!` alias is followed through the
 shells it starts,
 up to four of them.
+The guard judges the state the nested `git` acts in:
+the directory Git runs the shell in,
+with the Git directory Git gives that shell,
+then your own options and then your words.
+Git gives the shell a `GIT_DIR` whenever you named a repository or a work tree
+(`--git-dir`,
+`--work-tree` or `GIT_DIR`),
+the repository is bare,
+the shell's directory is inside a Git directory,
+or the working tree's `.git` is a file that points elsewhere;
+from a plain main checkout it gives none.
+So from a linked worktree `git g -C <another worktree> reset --hard` writes that other worktree's files
+with your index and `HEAD`,
+and the guard refuses it as that state,
+while `git -C <another worktree> reset --hard` typed directly writes and resets that worktree alone.
 Every other shell alias runs as Git runs it,
 with no guard:
 `!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
