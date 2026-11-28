@@ -1770,7 +1770,8 @@ every `install` removes the older managed copies of this repository's tools:
 
 The scope's exposure folder is the directory its `PATH` puts first,
 and it holds one link per declared bin
-(`.cache/toolchain-bin` in a checkout, `<data home>/monochromatic-dev/toolchain-global/exposure` for the machine-global scope).
+(`.cache/toolchain-bin` in a checkout,
+`<data home>/monochromatic-dev/toolchain-global/exposure` for the machine-global scope).
 
 - A link is named after the bin its row declares,
   and points at the program that row's route finds.
@@ -2339,7 +2340,8 @@ The archive route installs no `rustup`,
 and neither does `mpm-shadow` on any route:
 both need a `rustup` the machine already has,
 from `rustup-init` or from the distribution's package,
-because the `rust` row asks it for the toolchain, its components and its targets.
+because the `rust` row asks it for the toolchain,
+its components and its targets.
 The `cargo install` route is the other way a machine gets `mpm-shadow`,
 and the `cargo` it runs is the one a verified `rustup` install provides.
 `mpm-shadow verify-archive` checks a downloaded archive against the lock before it is run.

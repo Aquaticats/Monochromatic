@@ -166,7 +166,7 @@ fn a_plan_that_declares_the_name_keeps_its_own_link() {
 // What:
 // `const THE_LINK_A_ROW_NO_LONGER_DECLARES: &str = "cargo-miri"` is the name of a program rustup's
 // `miri` component installs,
-/// which no row of the sample plan declares.
+// which no row of the sample plan declares.
 // Its string sibling `String` is an owned buffer,
 // which a constant never needs.
 // Why:
@@ -296,8 +296,13 @@ fn a_rebuild_removes_the_links_no_row_declares_and_leaves_a_persons_file() {
         !whether_a_row_declares(&rig, A_FILE_A_PERSON_PUT_IN_THE_FARM),
         "no row of the sample lock declares {A_FILE_A_PERSON_PUT_IN_THE_FARM}"
     );
-    symlink(&program, rig.scope.exposure_dir.join(THE_LINK_A_ROW_NO_LONGER_DECLARES))
-        .expect("link the program under a name no row declares");
+    symlink(
+        &program,
+        rig.scope
+            .exposure_dir
+            .join(THE_LINK_A_ROW_NO_LONGER_DECLARES),
+    )
+    .expect("link the program under a name no row declares");
     // What:
     // the second link, pointing at a program that is not on the disk.
     // Why:
@@ -308,7 +313,10 @@ fn a_rebuild_removes_the_links_no_row_declares_and_leaves_a_persons_file() {
     // symlinkSync(pathJoin(rig.scope.root, 'gone', theLinkThatResolvesNowhere), pathJoin(rig.scope.exposureDir, theLinkThatResolvesNowhere));
     // ```
     symlink(
-        rig.scope.root.join("gone").join(THE_LINK_THAT_RESOLVES_NOWHERE),
+        rig.scope
+            .root
+            .join("gone")
+            .join(THE_LINK_THAT_RESOLVES_NOWHERE),
         rig.scope.exposure_dir.join(THE_LINK_THAT_RESOLVES_NOWHERE),
     )
     .expect("link a name whose program is gone");
@@ -336,7 +344,10 @@ fn a_rebuild_removes_the_links_no_row_declares_and_leaves_a_persons_file() {
     // ```ts
     // expect(lstatSync(pathJoin(rig.scope.exposureDir, theLinkARowNoLongerDeclares), { throwIfNoEntry: false })).toBeUndefined();
     // ```
-    for name in [THE_LINK_A_ROW_NO_LONGER_DECLARES, THE_LINK_THAT_RESOLVES_NOWHERE] {
+    for name in [
+        THE_LINK_A_ROW_NO_LONGER_DECLARES,
+        THE_LINK_THAT_RESOLVES_NOWHERE,
+    ] {
         assert!(
             fs::symlink_metadata(rig.scope.exposure_dir.join(name)).is_err(),
             "the farm holds no {name}, because no row of the lock declares it"

@@ -414,8 +414,12 @@ fn a_rustup_toolchain_row_searches_only_the_directory_of_the_toolchain_it_names(
     );
     let mut moving = sample_tool("rust");
     moving.declaration.package_id = Some("nightly".to_string());
-    let dated = toolchains.join("nightly-2026-11-11-x86_64-unknown-linux-gnu").join("bin");
-    let moving_dir = toolchains.join("nightly-x86_64-unknown-linux-gnu").join("bin");
+    let dated = toolchains
+        .join("nightly-2026-11-11-x86_64-unknown-linux-gnu")
+        .join("bin");
+    let moving_dir = toolchains
+        .join("nightly-x86_64-unknown-linux-gnu")
+        .join("bin");
     fs::create_dir_all(&moving_dir).expect("make the moving channel's bin");
     assert_eq!(
         bin_search_dirs(&moving, &scope, &env, &[]),

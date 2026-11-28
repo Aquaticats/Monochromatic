@@ -26,13 +26,14 @@ use super::context::{
 use super::error::ToolchainError;
 /// Imports `NoNetwork` from `super::http`.
 use super::http::NoNetwork;
-/// Imports `load_agreeing` from `super::load`.
-use super::load::load_agreeing;
 /// Imports the question that says which declared Rust parts a toolchain lacks.
 use super::install_rust_android::missing_rust_parts;
+/// Imports `load_agreeing` from `super::load`.
+use super::load::load_agreeing;
 /// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
-/// Imports the route a row installs by, so the Rust question is asked of the rows it applies to.
+/// Imports the route a row installs by,
+/// so the Rust question is asked of the rows it applies to.
 use super::model::Route;
 /// Imports what this module uses from `super::observe`.
 use super::observe::{
@@ -89,7 +90,7 @@ pub fn run_status(
         host,
         tools: &lock.tools,
     };
-    let observations = observe_all(&context, &lock.tools);
+    let mut observations = observe_all(&context, &lock.tools);
     // What:
     // the same observations, with each `rustup-toolchain` row that is otherwise at its version asked
     // which declared components and targets its toolchain lacks.
@@ -108,7 +109,6 @@ pub fn run_status(
     //   return { ...observation, missingParts: parts, inSync: parts.length === 0 };
     // });
     // ```
-    let mut observations = observations;
     for observation in observations.iter_mut() {
         if !observation.in_sync {
             continue;

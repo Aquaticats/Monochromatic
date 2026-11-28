@@ -295,7 +295,9 @@ fn is_the_channels_directory(
 /// Why:
 /// A `rustup-toolchain` row's programs are the ones the toolchain the row names holds;
 /// searching the whole `toolchains` folder made the first directory in name order answer for every
-/// program, so a toolchain older than the pin took the farm's `rustc`, `cargo` and `rustfmt`
+/// program,
+/// so a toolchain older than the pin took the farm's `rustc`,
+/// `cargo` and `rustfmt`
 /// (issue 6634).
 /// A channel with no installed toolchain answers no directory,
 /// and its programs are then reported unresolved.
@@ -353,7 +355,8 @@ fn the_named_toolchains_bin_dirs(
 
 /// The names of the directories directly inside `directory`,
 /// sorted (a missing or unreadable directory has none).
-fn sorted_child_directories(directory: &Path) -> Vec<PathBuf> {    let Ok(entries) = fs::read_dir(directory) else {
+fn sorted_child_directories(directory: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(directory) else {
         return Vec::new();
     };
     let mut children: Vec<PathBuf> = Vec::new();

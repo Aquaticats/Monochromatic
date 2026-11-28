@@ -1662,7 +1662,8 @@ fn an_install_whose_toolchain_already_holds_the_declared_components_asks_for_not
 // test('an install links the rows programs from the toolchain the row names though an older toolchain sorts first', () => { ... });
 // ```
 #[test]
-fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_an_older_toolchain_sorts_first() {
+fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_an_older_toolchain_sorts_first()
+ {
     let row: LockedTool = the_repository_rust_row();
     let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
     let rig: Rig = rig_holding_the_programs_of(&held);
@@ -1744,7 +1745,8 @@ fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_an
 // test('an install links the rows programs from the toolchain the row names though a newer toolchain sorts last', () => { ... });
 // ```
 #[test]
-fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_a_newer_toolchain_sorts_last() {
+fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_a_newer_toolchain_sorts_last()
+ {
     let row: LockedTool = the_repository_rust_row();
     let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
     let rig: Rig = rig_holding_the_programs_of(&held);
@@ -1927,7 +1929,8 @@ fn an_install_removes_the_farm_link_no_row_declares_and_names_it() {
     assert!(
         !row.declaration
             .bins
-            .contains(&A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM.to_string()),
+            .iter()
+            .any(|bin| return bin == A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM),
         "the row declares no {A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM}"
     );
     fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
@@ -1956,10 +1959,7 @@ fn an_install_removes_the_farm_link_no_row_declares_and_names_it() {
     // ```ts
     // writeFileSync(pathJoin(rig.scope.exposureDir, aFileAPersonPutInTheFarm), "mine\n");
     // ```
-    let the_file: PathBuf = rig
-        .scope
-        .exposure_dir
-        .join(A_FILE_A_PERSON_PUT_IN_THE_FARM);
+    let the_file: PathBuf = rig.scope.exposure_dir.join(A_FILE_A_PERSON_PUT_IN_THE_FARM);
     fs::write(&the_file, "mine\n").expect("write a person's file into the farm");
     let report = sync_tools(&rig.context(), None);
     let text: String = format_sync_report(&report);
@@ -2188,7 +2188,8 @@ fn list_calls_a_toolchain_that_lacks_a_declared_component_drift_and_names_it() {
     // ```
     assert!(
         text.lines().any(|line| {
-            return line.starts_with("drift   rust ") && line.contains(THE_COMPONENT_THIS_ISSUE_DECLARES);
+            return line.starts_with("drift   rust ")
+                && line.contains(THE_COMPONENT_THIS_ISSUE_DECLARES);
         }),
         "the drift line names the component the toolchain lacks; {text}"
     );
@@ -2275,7 +2276,10 @@ fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_que
     answer_the_listings_of_the_installed_toolchain(&rig, &held);
     let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
     let text: String = report.text.clone();
-    assert!(!report.drifted, "a machine holding every declared part is in sync; {text}");
+    assert!(
+        !report.drifted,
+        "a machine holding every declared part is in sync; {text}"
+    );
     // What:
     // every `rustup` request the run made, which is what the extra question costs.
     // Why:
