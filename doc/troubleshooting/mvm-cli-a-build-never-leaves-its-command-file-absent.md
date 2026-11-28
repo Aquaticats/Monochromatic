@@ -68,7 +68,9 @@ one build deletes all thirteen files of that directory and writes them again:
 The path is absent from the unlink to the create:
 94.393 ms,
 and empty for the 58 us between the create and the write.
-An earlier build of the same shape measured 112.830 ms and 174.408 ms in the same place,
+A second build of the same shape,
+traced the same way,
+was absent for 139.994 ms and empty for 119 us,
 so the figure moves with the machine's load,
 and the mechanism does not.
 
