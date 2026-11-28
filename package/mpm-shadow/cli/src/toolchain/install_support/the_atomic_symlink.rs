@@ -21,10 +21,17 @@ use std::path::{
     PathBuf,
 };
 
+/// Imports the facts a name records about the install holding the link,
+/// which are the facts of the program running now.
+use super::super::archive_staging::Owner;
 /// Imports `ToolchainError` from the toolchain error module.
 use super::super::error::ToolchainError;
 /// Imports the refusal a control plants at the rename.
 use super::a_control_refuses_the_link_move::refused_link_move;
+/// Imports the name a held link carries,
+/// which records the install that wrote it,
+/// so a later rebuild can tell a link it may remove from one an install still holds.
+use super::the_temporary_link_of;
 
 /// What:
 /// Creates (or replaces) the symlink `link_path` pointing at `target`:
@@ -50,10 +57,14 @@ pub fn atomic_symlink(
             parent.display()
         )));
     }
-    let mut temporary_name = std::ffi::OsString::from(".");
-    temporary_name.push(link_path.file_name().unwrap_or_default());
-    temporary_name.push(format!(".{}.tmp", std::process::id()));
-    let temporary: PathBuf = link_path.with_file_name(temporary_name);
+    // What: the dotted name beside the link that this install holds it under until the rename.
+    // Why: the name records which install is writing, so a second rebuild at the same instant leaves it alone.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const temporary = theTemporaryLinkOf(linkPath, ownerOfThisProcess());
+    // ```
+    let temporary: PathBuf = the_temporary_link_of(link_path, Owner::here());
     // Best effort: a stale temporary link from a killed run is replaced; absence is the normal case.
     let _ = fs::remove_file(&temporary);
     #[cfg(unix)]
