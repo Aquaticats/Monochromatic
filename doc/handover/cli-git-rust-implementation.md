@@ -1626,27 +1626,7 @@ and no control shows that case.
 The shell-alias round adds no refusal for an alias the wrapper cannot follow,
 which is the open choice of `doc/planning/cli-git-slot-refusals-and-shell-aliases-they-cannot-read.md`.
 
-The whole gate on `main` at `97d9afb21c` passed
-(unit `gpc-gate-wrapper-next-alpha-on-97d9afb21c-20261127T113315-0500`,
-started 2026-11-27T11:33:15-05:00,
-`gate-exit-status=0`):
-`Summary [ 919.977s] 12191 tests run: 12191 passed (7 slow), 51 skipped`
-and "Clippy passed beside the test run.".
-Its worktree is `.claude/worktrees/gate-wrapper-next-alpha`,
-which `native:gate:main-tip` expects to exist and does not make.
-The three feature Clippy arms exited 0 in that worktree at the same commit.
-Between that commit and the release,
-only test code,
-the package guide and TypeScript changed in the wrapper package
-(issue 6595,
-part 2 of issue 6581),
-and on `main`'s tip `7e215a38c2`,
-in a second worktree no merge moves
-(`.claude/worktrees/typescript-checks-on-main-tip-before-wrapper-alpha-49`),
-`native:check` and the four Clippy tasks exited 0
-and the 232 tests of the modules issue 6595 touched passed;
-`native:ts-checks` exited 0 there at `7976b3daff`.
-Tip checks run in such a worktree:
+Tip checks run in a worktree no merge moves:
 on 2026-11-27 three Clippy arms run in the main checkout exited 0 while Rust merges landed under them,
 and stood for no commit.
 
