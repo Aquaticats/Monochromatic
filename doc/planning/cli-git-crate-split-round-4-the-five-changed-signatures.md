@@ -4,9 +4,9 @@ Status:
 unapproved and non-final.
 Only the owner declares this record complete.
 Prepared by a Pi run on 2026-11-28 and revised in place the same day,
-against this worktree's `main` at `b1529e79e1`
+against this worktree's `main` at `b6fc11da64`
 (`git log --format=%cI -1`:
-2026-11-28T07:52:31-05:00).
+2026-11-28T08:18:51-05:00).
 No code changed on this branch:
 every drawing in it was put into a working tree,
 compiled,
@@ -468,12 +468,12 @@ Each disagreement is stated where it bites.
   used at `package/git-policy/cli/src/native/subvolume/subvolume_command.rs:240`
   and `package/git-policy/cli/src/native/health/doctor.rs:720`,
   and its published line is `invocation::action const ENGINE_FAILURE_EXIT_CODE`
-  (`package/git-policy/cli/src/native/source_guard/items_nameable_from_outside_release.txt:3142`).
+  (`package/git-policy/cli/src/native/source_guard/items_nameable_from_outside_release.txt:3278`).
 - The four names that are published and change shape:
-  `subvolume::subvolume_command fn migrate_action` (`items_nameable_from_outside_release.txt:8240`),
-  `worktree::worktree_convert_command fn convert_action` (line 8938),
-  `health::doctor fn doctor_action_with_section` (line 2452)
-  and `health::doctor fn doctor_action` (line 2451).
+  `subvolume::subvolume_command fn migrate_action` (`items_nameable_from_outside_release.txt:8376`),
+  `worktree::worktree_convert_command fn convert_action` (line 9075),
+  `health::doctor fn doctor_action_with_section` (line 2588)
+  and `health::doctor fn doctor_action` (line 2587).
   Each is `pub fn` today,
   and each would become `pub(crate)`
   under the guide's reach rule (`package/git-policy/cli/doc/how-to-write-this-packages-code-and-tests.md:833`)
@@ -985,7 +985,7 @@ against what each changes for the files whose names promise no Git start.
   An earlier draft said that read passed no ledger;
   that was wrong.
 - `child_watch::start_with_locks` is a published name
-  (`package/git-policy/cli/src/native/source_guard/items_nameable_from_outside_release.txt:5977`),
+  (`package/git-policy/cli/src/native/source_guard/items_nameable_from_outside_release.txt:6113`),
   and both options remove it,
   so both edit that list.
 
@@ -2015,7 +2015,7 @@ where it sweeps today.
 What it changes for good:
 `clearing_leftover_reference_locks` leaves the watcher library's `uses/` entry at step 7;
 the library exports one trait whose only implementations are the program's;
-`start_with_locks` leaves the source guard's published list (`items_nameable_from_outside_release.txt:5977`).
+`start_with_locks` leaves the source guard's published list (`items_nameable_from_outside_release.txt:6113`).
 Example:
 a landing's `git update-ref` is stopped;
 the watch ends the child,
@@ -2254,7 +2254,7 @@ which A leaves to a later round.
 
 ## What was measured, what was read, and what is inferred
 
-Measured in this worktree at `b1529e79e1`,
+Measured in this worktree at `b6fc11da64`,
 each with the command that printed it:
 
 - `ENGINE_FAILURE_EXIT_CODE`:
@@ -2320,11 +2320,11 @@ and said so where it is used:
 
 - `doctor_action`'s future:
   it has no release caller and is published
-  (`items_nameable_from_outside_release.txt:2451`),
+  (`items_nameable_from_outside_release.txt:2587`),
   so the round either rewrites it with the others or deletes it and its line.
 - Which red `rust/folder-uses-links` findings `main` prints today
   (`doc/handover/cli-git-rust-implementation.md` keeps that list);
-  this file's allow-list line numbers are of `b1529e79e1`,
+  this file's line numbers are of `b6fc11da64`,
   and a line added or deleted before the round starts moves them.
 - The plan's two further call changes found by the moved-item check
   (`copy_file_exclusive`'s error type and the hint functions of `event_hints`) belong to step 5,
