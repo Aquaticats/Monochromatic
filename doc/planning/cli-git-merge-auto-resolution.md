@@ -2793,6 +2793,30 @@ and none of it is in the repository;
 the counts above are the durable record,
 and `src/native/merge/word_merge_refusals/` holds the two real shapes as controls.
 
+## 2026-11-27T13:49:49-05:00: a line a side removed is never written back, whatever the region's shape
+
+Recorded 2026-11-27T13:49:49-05:00,
+the time of the merge that carried it (`739bccb167`).
+Unapproved and non-final:
+only the owner declares work complete.
+
+The alpha.49 release pass on the word merge's deletions
+reproduced its read's three searches on `main` to the case:
+6 of 75,
+32 of 199 and 47 of 521 resolved answers wrote back more copies of a line than the two sides leave.
+With the rule read for every shape of region,
+82 of them became conflicts,
+none moved the other way,
+and no answer inside the bound became a conflict.
+The three left over are Git's own answers,
+where no conflict reaches the pass.
+The cause was the rule's shape:
+it fired only where one side held the line as often as the base did,
+and it counted inside the region Git left.
+No timing was taken.
+The section of 2026-11-27T16:51:13-05:00 records the shape the rule still had,
+which the alpha.50 review found.
+
 ## 2026-11-27T16:51:13-05:00: a hunk one side also wrote a line into reads the copies bound too
 
 Recorded 2026-11-27T16:51:13-05:00.
@@ -2887,3 +2911,30 @@ which is the loss issue 6529 exists to prevent,
 and a person cannot see which regions were judged by which rule.
 The shape is 21 of the 427 answers the review's seeds resolved,
 and nothing here measures how often real files meet it.
+
+## 2026-11-27T21:56:43-05:00: the two second passes' merge counts, and the repeated-line shape
+
+Recorded 2026-11-27T21:56:43-05:00.
+Unapproved and non-final:
+only the owner declares work complete.
+Both passes below are same-vendor second passes over a release,
+and neither is an independent review (rule IRW).
+
+The alpha.49 behaviour pass found that the merge pass,
+when both sides only delete and the base repeats a line,
+can write back a line one side removed:
+base `b a a`,
+ours `a`,
+theirs `b` resolves to `a`,
+the same in `0.6.1-alpha.48`,
+in 11 of 199 and 15 of 521 answers of a seeded search over unusually repetitive files.
+That answer lands wrong text with no marker,
+which is what the merge pass's own rule exists to stop.
+The rule that answers it makes a region whose word merge would write back more
+copies of a line one side deleted than that side still holds keep both sides,
+and `README.md` states it.
+
+The alpha.50 behaviour pass compared the two released binaries over 4,256 merge cases:
+`0.6.1-alpha.50` resolves none outside the bounds a union of two deletions keeps,
+resolves none that `0.6.1-alpha.49` left,
+and every conflict it leaves is Git's own bytes.

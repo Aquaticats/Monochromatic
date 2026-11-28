@@ -146,7 +146,8 @@ fn a_plan_that_declares_the_name_keeps_its_own_link() {
         "the plan's own row owns the farm link for the bin it declares"
     );
     let tool = rig.tool(SHADOW_TOOL_ID);
-    rebuild_exposure(&rig.context(), &[&tool]).expect("rebuilt");
+    let outcome = rebuild_exposure(&rig.context(), &[&tool]);
+    assert!(outcome.error.is_none(), "the farm is writable");
     assert_eq!(
         fs::read_link(rig.scope.exposure_dir.join(SHADOW_PROGRAM)).expect("a symlink"),
         rig.scope.launcher_dir.join(SHADOW_PROGRAM),
@@ -332,7 +333,8 @@ fn a_rebuild_removes_the_links_no_row_declares_and_leaves_a_persons_file() {
     // ```
     let the_file: PathBuf = rig.scope.exposure_dir.join(A_FILE_A_PERSON_PUT_IN_THE_FARM);
     fs::write(&the_file, "a person's file\n").expect("write a person's file into the farm");
-    rebuild_exposure(&rig.context(), &[]).expect("rebuild the farm");
+    let outcome = rebuild_exposure(&rig.context(), &[]);
+    assert!(outcome.error.is_none(), "the farm is writable");
     // What:
     // the two links, which must be gone: `symlink_metadata` reads the entry itself and never follows
     // the link, so a dangling link still answers whether it is there.

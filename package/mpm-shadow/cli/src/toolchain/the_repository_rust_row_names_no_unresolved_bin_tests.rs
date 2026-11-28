@@ -430,6 +430,23 @@ fn rig_of_the_repository_rust_row() -> Rig {
         write_executable(&toolchain_bin.join(name));
     }
     // What:
+    // the answer a machine whose toolchain is installed gives to
+    // `rustup which --toolchain <the row's channel> rustc`: that compiler's own path.
+    // Why:
+    // The fixture holds the toolchain under the name rustup gives one,
+    // so the manager names it,
+    // and a `rustup-toolchain` row's programs are read from the directory it names and no other.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // rig.runner.answer(`rustup which --toolchain ${row.rustupChannel()} rustc`, `${pathJoin(toolchainBin, 'rustc')}\n`, 0);
+    // ```
+    rig.runner.answer(
+        &format!("rustup which --toolchain {} rustc", row.rustup_channel()),
+        &format!("{}\n", toolchain_bin.join("rustc").display()),
+        0,
+    );
+    // What:
     // the scope's lock becomes one row,
     // the Rust toolchain's.
     // Why:
