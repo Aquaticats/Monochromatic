@@ -1193,8 +1193,10 @@ this shape was put into this worktree and
 `cargo check --locked --offline --all-targets` printed
 `Finished \`dev\` profile [unoptimized + debuginfo] target(s) in 33.89s`
 with no error and no warning.
-Changes: 11 files, 106 insertions and 38 deletions, including 7 control call lines and
-the two `LockLedger` readings the controls make.
+Changes:
+11 files,
+106 insertions and 38 deletions,
+including 8 control call lines in two control files and one control's ledger path.
 
 A yes leaves undecided:
 whether the same callback carries anything else later,
@@ -1330,7 +1332,7 @@ against what each changes for a stopped step whose locks are swept.
   inside the watcher's task on the blocking pool,
   so the stop-under-way window keeps its sweep;
   B moves the sweep to every caller and loses it in that window,
-  and it edits 18 control lines against A's 7.
+  and it edits 18 control lines against A's 8.
   B's advantage is a plain answer value instead of a trait object,
   which is the shape the target tree asks for,
   and that is a cost of A's shape,
