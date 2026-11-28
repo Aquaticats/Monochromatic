@@ -511,7 +511,8 @@ fn the_span_the_records_name_is_the_span_the_discovery_spends() {
 /// 229.7 ms,
 /// 358.7 ms and 460.3 ms with it at three quarters of the pause,
 /// where the edit showed in one gap of the four.
-/// A green is safe, because a sleep never ends early;
+/// A green is safe,
+/// because a sleep never ends early;
 /// a red needs one gap that the work around it did not stretch past the pause,
 /// and every gap is printed so a reader sees which.
 ///

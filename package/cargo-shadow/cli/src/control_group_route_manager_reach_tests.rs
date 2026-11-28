@@ -464,7 +464,8 @@ fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directo
 }
 
 /// The control of the address a runtime directory does not replace:
-/// a runtime directory that holds nothing, and a bus address naming a socket with nothing listening on it,
+/// a runtime directory that holds nothing,
+/// and a bus address naming a socket with nothing listening on it,
 /// keeps the asking again,
 /// because an ask can be carried over the address.
 /// Why it is a control and not a comment:
@@ -474,7 +475,9 @@ fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directo
 /// systemd 255 can still reach a manager there
 /// (`src/shared/bus-util.c:244` and `:260` at v255).
 /// Measured 2026-11-27 by a same-vendor second read of this release,
-/// which named that edit and the state it changes: 5 asks in both releases, and 1 under the edit.
+/// which named that edit and the state it changes:
+/// 5 asks in both releases,
+/// and 1 under the edit.
 #[test]
 fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_a_runtime_directory_is_set() {
     this_test_needs_a_delegated_scope();

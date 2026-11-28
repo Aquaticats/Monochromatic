@@ -1985,7 +1985,8 @@ Linux 7.3.5 and 6.8,
 systemd 262 and 255),
 not the second after one,
 where no ask failed and the ten of that run did.
-The span is the discovery's, and not the call's:
+The span is the discovery's,
+and not the call's:
 a reexec that begins after the discovery has answered fails everything after it,
 and no wait in this package covers that.
 A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec

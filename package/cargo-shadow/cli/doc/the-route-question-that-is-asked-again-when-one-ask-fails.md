@@ -586,7 +586,8 @@ systemd 262 takes `$XDG_RUNTIME_DIR/systemd/private` alone,
 and the bus socket and every address entry are transports the ask never takes.
 
 systemd 255's copy of the same function (`src/shared/bus-util.c:234-268` at v255) differs in two lines
-(`:244` against `:276` and `:260` against `:292`, in the order the block below shows):
+(`:244` against `:276` and `:260` against `:292`,
+in the order the block below shows):
 
 ```c
         e = secure_getenv("XDG_RUNTIME_DIR");
