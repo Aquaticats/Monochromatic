@@ -2827,12 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- Read only,
-  because nothing outside the process can start them:
-  the prune race,
-  the conversion environment's precedence,
-  the service-only changes.
-
 `cargo-shadow` `0.1.5-alpha.12` followed:
 release commit `581f7754a8`,
 locked (`e3c3dd43f1`) and installed.
