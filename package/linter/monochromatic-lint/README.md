@@ -2510,6 +2510,12 @@ Pipe-table conversion and semantic line breaks are implemented.
 Production Rust and Markdown commands have not been replaced.
 
 The semantic break fix also joins the fragment an old hard wrap cut off.
+Only a fragment a break of the same pass cut joins:
+the joins hang on the breaks one pass plans
+(`markdown_semantic_breaks.rs`,
+the `breaks` list that feeds `fragment_joins`),
+so a line already alone in the input is never joined by itself,
+and a fragment an earlier sweep left stays where it is until a break above it is planned again.
 When the rest of the author's line holds one or two words that do not end at a break-point
 character,
 is not the paragraph's last line,
