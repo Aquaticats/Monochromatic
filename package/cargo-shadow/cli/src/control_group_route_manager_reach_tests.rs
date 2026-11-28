@@ -119,7 +119,8 @@ use crate::control_group_route_discovery::{
 };
 /// What:
 /// `use crate::control_group_route_manager_reach::{MANAGER_FILES_DIRECTORY, MANAGER_SOCKET, SESSION_BUS_SOCKET};` imports the
-/// names the read looks for, so a control builds the state the read is about.
+/// names the read looks for,
+/// so a control builds the state the read is about.
 /// Why:
 /// A control that wrote `"systemd/private"` itself would pass after the read's own constant moved.
 ///
@@ -276,7 +277,8 @@ fn asked_once_and_not_waited_for(
 }
 
 /// What:
-/// `fn a_socket_node(path: &Path)` makes a socket file of the file system at a path, with no program listening on it.
+/// `fn a_socket_node(path: &Path)` makes a socket file of the file system at a path,
+/// with no program listening on it.
 /// Why:
 /// The read judges a transport by the file's kind alone,
 /// so the node is the whole state;
@@ -348,7 +350,8 @@ fn asked_again(
 /// The control of the first transport the read counts:
 /// a socket at the manager's own name inside the runtime directory,
 /// which is where `systemctl --user` looks first and where systemd 262 looks only.
-/// The asking again is kept there, and the socket carries nothing at all.
+/// The asking again is kept there,
+/// and the socket carries nothing at all.
 #[test]
 fn a_manager_socket_at_the_runtime_directory_keeps_the_asking_again() {
     this_test_needs_a_delegated_scope();
@@ -427,7 +430,8 @@ fn a_bus_socket_at_the_runtime_directory_keeps_the_asking_again_where_no_bus_add
 }
 
 /// The control of the place a host with no runtime directory asks over:
-/// a bus address naming a socket, which is the transport both systemd versions take there.
+/// a bus address naming a socket,
+/// which is the transport both systemd versions take there.
 #[test]
 fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directory_is_set() {
     this_test_needs_a_delegated_scope();
@@ -461,8 +465,10 @@ fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directo
 
 /// The control of a transport the read no longer counts:
 /// the user bus's socket beside a bus address,
-/// which no systemd met here takes, because sd-bus prefers the address to the bus socket.
-/// The address names nothing that is there, so the discovery ends at its first ask.
+/// which no systemd met here takes,
+/// because sd-bus prefers the address to the bus socket.
+/// The address names nothing that is there,
+/// so the discovery ends at its first ask.
 #[test]
 fn a_bus_socket_beside_a_bus_address_is_not_a_transport_the_ask_takes() {
     this_test_needs_a_delegated_scope();
@@ -510,7 +516,8 @@ fn a_bus_socket_beside_a_bus_address_is_not_a_transport_the_ask_takes() {
 }
 
 /// The control of the addresses the read cannot judge:
-/// an abstract socket, an escaped byte and another transport each name no path this process can look for,
+/// an abstract socket,
+/// an escaped byte and another transport each name no path this process can look for,
 /// so nothing is claimed about them and the asking again is kept.
 #[test]
 fn an_address_this_process_cannot_judge_keeps_the_asking_again() {

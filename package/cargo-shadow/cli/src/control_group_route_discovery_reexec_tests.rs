@@ -114,7 +114,8 @@ use crate::control_group::{
 /// `use crate::control_group_route_discovery::{ASKING_AGAIN_ATTEMPTS, ASKING_AGAIN_PAUSE};` imports the two constants the span is
 /// made of.
 /// Why:
-/// The control below holds them against the figures the records give, which is the only place a lowered constant is caught:
+/// The control below holds them against the figures the records give,
+/// which is the only place a lowered constant is caught:
 /// a stand-in that refuses for the measured moment passes four attempts of a shorter wait.
 ///
 /// In TS you'd write (pseudocode):
@@ -440,13 +441,17 @@ fn the_question_answers_across_a_real_reexec_of_a_containers_manager() {
 
 /// The number of attempts the records name.
 /// Why:
-/// `README.md`, "Development", says the question is put "five times, two hundred milliseconds apart",
+/// `README.md`,
+/// "Development",
+/// says the question is put "five times,
+/// two hundred milliseconds apart",
 /// and `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md` gives the same figures beside the measurement
 /// they were sized from.
 /// A change here is a change to both records and to the measurement behind them.
 const RECORDED_ATTEMPTS: u32 = 5;
 
-/// The pause between two attempts the records name, in milliseconds.
+/// The pause between two attempts the records name,
+/// in milliseconds.
 /// Why:
 /// It is the second half of the same sentence,
 /// and it is what makes the span of the asking again the figure the records give.
@@ -457,7 +462,8 @@ const RECORDED_PAUSE_MILLISECONDS: u64 = 200;
 /// and the waits they make outlast the longest reexec measured across which asks fail.
 /// Why it is a control and not a comment:
 /// a constant lowered by one attempt or by a shorter pause leaves the stand-in control green
-/// (a moment of 0.600 s is still asked through by four attempts 0.150 s apart, in the asks' own run time),
+/// (a moment of 0.600 s is still asked through by four attempts 0.150 s apart,
+/// in the asks' own run time),
 /// so nothing else in this file would show the change,
 /// and the README's "the span is spent" sentence and its cost would be about a span the code no longer spends.
 #[test]

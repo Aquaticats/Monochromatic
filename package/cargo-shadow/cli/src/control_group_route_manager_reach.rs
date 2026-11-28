@@ -111,13 +111,15 @@ pub(crate) const SESSION_BUS_VARIABLE: &str = "DBUS_SESSION_BUS_ADDRESS";
 /// It is the answer to whether a manager is there where the runtime directory is set,
 /// and it is the only transport systemd 262 takes there at all.
 /// `bus_connect_transport_systemd` sends a user-scope ask to `bus_connect_user_systemd` (`src/shared/bus-util.c:519-524` at
-/// v262), which connects `unix:path=$XDG_RUNTIME_DIR/systemd/private` and returns its failure rather than falling back
+/// v262),
+/// which connects `unix:path=$XDG_RUNTIME_DIR/systemd/private` and returns its failure rather than falling back
 /// (`src/shared/bus-util.c:266-289`),
 /// and systemd 255's copy of the same function falls back to the session bus where that connect fails
 /// (`src/shared/bus-util.c:234-262`).
 pub(crate) const MANAGER_SOCKET: &str = "systemd/private";
 
-/// Where inside the runtime directory the socket of the user bus is (`unix:path=$XDG_RUNTIME_DIR/bus`, sd-bus's
+/// Where inside the runtime directory the socket of the user bus is (`unix:path=$XDG_RUNTIME_DIR/bus`,
+/// sd-bus's
 /// `DEFAULT_USER_BUS_ADDRESS_FMT`):
 /// the transport a systemd older than 262 falls back to where the manager's own socket cannot be connected and no bus address
 /// is set.
@@ -127,7 +129,8 @@ pub(crate) const MANAGER_SOCKET: &str = "systemd/private";
 /// `return sd_bus_default_user(ret_bus)` at `:255`),
 /// while a systemd 262 never takes it (`src/shared/bus-util.c:266-289` at v262).
 /// The read counts it because the package runs beside both.
-/// Where `$DBUS_SESSION_BUS_ADDRESS` is set, sd-bus takes the address rather than this name
+/// Where `$DBUS_SESSION_BUS_ADDRESS` is set,
+/// sd-bus takes the address rather than this name
 /// (`bus_set_address_user` at `src/libsystemd/sd-bus/sd-bus.c:1373-1398` at v262 and `:1336-1361` at v255),
 /// so this name is not a transport such a host can take.
 pub(crate) const SESSION_BUS_SOCKET: &str = "bus";

@@ -454,6 +454,13 @@ Each flag maps to the nearest pnpm behavior:
   restore every lockfile.
   A kept journal is settled first,
   so a dry run keeps or replaces the lockfile an interrupted or refused run left.
+  The help of `install --dry-run` and `update --dry-run` carries that as a paragraph of its own,
+  and clap treats a second paragraph as long help:
+  `install --help` and `update --help` print the long layout for every option of the subcommand,
+  each option on two lines with a blank line between,
+  and `Print help (see a summary with '-h')`,
+  while `install -h` and `update -h` print the summary and end `Print help (see more with '--help')`
+  (measured 2026-11-27 on a release build).
 - `-w`,
   `--workspace` is `pnpm install`:
   the install step.
@@ -964,6 +971,11 @@ and an HTTP 429 is retried after its `Retry-After`.
   and a check of the directory made right after the read found it there in 20 of the 24.
   So that row is read as the collected unit it is,
   and nothing is printed about a unit the manager is freeing.
+  A look that reads that row and cannot verify the absence keeps the unit and says so,
+  with a sentence built from the read and not from the expectation:
+  `the kernel has taken the group's own files away, so the scope's directory ... may still be there`,
+  which is what the 20 of 24 says,
+  where the sentence it printed before that said the directory was gone.
   The question keeps one bound (`RETIRE_BOUND`,
   five seconds),
   and a request the bound kills is given a measured grace to be reaped before the warning is built.
@@ -1948,7 +1960,13 @@ cargo-shadow tests: not run [bounded_contain_tests::nested_transactions_keep_the
 
 A control that fails in about ten milliseconds has not failed at anything it measures:
 it failed at that question,
-and the words after `not run [<the test>]` say which ask of the manager answered no.
+and the words after `not run [<the test>]` say which ask of the manager answered no,
+which is the ask of where the slice is:
+
+```text
+cargo-shadow tests: not run [<the test>]: this host cannot give it a delegated control group (the user manager cannot be asked where app.slice is (systemctl failed (Failed to connect to user scope bus via local transport: Connection refused)))
+```
+
 The question is put five times,
 two hundred milliseconds apart,
 before an answer of no is taken for this host's answer
@@ -1968,8 +1986,44 @@ systemd 262 and 255),
 not the second after one,
 where no ask failed and the ten of that run did.
 Where a manager answers,
-the asking again costs nothing unless an ask fails,
-and that span is spent there and nowhere else.
+the asking again costs nothing:
+the first ask answers and no wait is spent.
+The span is spent where an ask fails and a manager may be there that did not answer.
+Measured 2026-11-27 in a container with no user manager of its own,
+five rounds of every state,
+with `0.1.5-alpha.16`,
+a byte-identical copy of it and this branch's binary:
+five asks and about 0.86 s a call in each of these states,
+against one ask and about 0.03 s a call where the read finds nothing.
+
+- a socket with nothing listening on it,
+  at `$XDG_RUNTIME_DIR/systemd/private`,
+  at `$XDG_RUNTIME_DIR/bus`,
+  or at a path a `unix:path=` entry of `$DBUS_SESSION_BUS_ADDRESS` names;
+- `$XDG_RUNTIME_DIR/systemd` still there with no socket at it,
+  plain and through a symlink,
+  which is what a manager's unlink and rebind looks like between two samples,
+  and what a manager that died leaves;
+- plain files at the socket names,
+  which is a runtime directory whose sockets were replaced by something not a socket;
+- a live session bus with no systemd on it,
+  reached by the runtime directory or by the address;
+- a bus address whose entry this process cannot look for,
+  an abstract socket,
+  an escaped byte or another transport,
+  where nothing is claimed about the transport and the asking is kept.
+
+A manager that is there and answers with a refusal of its own is not one of those,
+and neither is an answer that is not a control group path:
+the discovery asks where the slice is first,
+starts the slice only where the manager reports no control group,
+and asks once more after a start it refused,
+so an answer of the manager's ends the asking
+(measured 2026-11-27 in a container whose own manager had `app.slice` masked and stopped:
+**3 asks and 56.5 ms a call against the released `0.1.5-alpha.16`'s 5 asks and 883.1 ms**,
+with the same refusal words;
+and through a stand-in that answers every ask of where the slice is with an empty value,
+**3 asks and 41.8 ms against 10 asks and 890.4 ms**).
 Where no user manager can be reached at all,
 the question is asked once:
 the discovery reads in its own process that nothing on this host could carry an ask

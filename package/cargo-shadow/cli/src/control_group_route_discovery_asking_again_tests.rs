@@ -349,8 +349,11 @@ fn a_question_that_keeps_failing_is_still_a_missing_capability_and_names_its_las
 /// for a masked slice,
 /// so the discovery must end the asking and name the refusal.
 /// The words are the ones the container captured at `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
-/// The stand-in is a stand-in: it is built from that capture, and no claim about a real manager rests on it here
-/// (the same state was measured against a container's own manager: see the package document).
+/// The stand-in is a stand-in:
+/// it is built from that capture,
+/// and no claim about a real manager rests on it here
+/// (the same state was measured against a container's own manager:
+/// see the package document).
 #[test]
 fn a_refusal_the_manager_answers_ends_the_asking() {
     this_test_needs_a_delegated_scope();
