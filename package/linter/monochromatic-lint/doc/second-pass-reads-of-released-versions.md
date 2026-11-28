@@ -1265,6 +1265,37 @@ two readings per line over 50 lines.
 - A folder name whose own space the line spells with an unseen character is still no folder the reader finds;
   the refusal says what is true without it and the next run names the folder.
 
+#### Checks run
+
+Each once,
+in this branch's worktree,
+in its own capped scope:
+
+- `mise run //package/linter/monochromatic-lint:lint:rustfmt`:
+  `cargo fmt --check` printed its own command and nothing else;
+  exit 0.
+- `mise run //package/linter/monochromatic-lint:lint`:
+  `cargo check --locked` finished with no warning and no error;
+  exit 0.
+- `mise run //package/linter/monochromatic-lint:lint:types`:
+  `cargo check --locked` and `cargo clippy --locked --all-targets -- -D warnings`
+  each finished with no warning and no error;
+  exit 0.
+- `mise run //package/linter/monochromatic-lint:test`:
+  `1220 tests run: 1220 passed, 3 skipped`;
+  exit 0,
+  and the output names every control this round added or changed.
+- `mise run //package/linter/monochromatic-lint:test:host`:
+  exit 100,
+  `1 test run: 0 passed, 1 failed, 24 skipped`,
+  the failure being the closure check's host run,
+  whose Dylint driver for the nightly toolchain and `dylint_driver` 6.4.0 are not in this machine's caches and would need network access.
+  The task runs that one test and names none of this round's;
+  the suite above is where they ran.
+- The installed `0.5.2-alpha.25` over the README and this file:
+  no finding,
+  exit 0.
+
 #### Open for the owner
 
 - The count a file-name sentence speaks of.
