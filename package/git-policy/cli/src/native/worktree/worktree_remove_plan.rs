@@ -171,6 +171,130 @@ pub fn parse_removal_target(
     return target.is_dir().then_some(target);
 }
 
+/// What:
+///  Which of Git's own readings one long option carries.
+/// Why:
+///  A countup option has two readings and not one:
+///  the set form adds one,
+///  and the negated form sets the count back to zero
+///  (`parse-options.c:179` to `:196` at Git `v2.56.1`),
+///  so a reader that knew only "counts" would count `--force --no-force`
+///  as one force where Git counts none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ALongForce = 'not-this-option' | 'one' | 'reset';
+/// ```
+enum ALongForce {
+    /// The word is no spelling of this command's force.
+    NotThisOption,
+    /// The word adds one force.
+    One,
+    /// The word sets the count back to zero.
+    Reset,
+}
+
+/// Whether a word is one Git accepts as a prefix of `force`.
+/// Why:
+///  Git's long-option reader takes any prefix of a long name that no other
+///  option of the command also begins
+///  (`parse-options.c:563` to `:566` at Git `v2.56.1`),
+///  and `worktree remove` declares one long option,
+///  `force`,
+///  so `--f`,
+/// `--fo`,
+/// `--for` and `--forc` are the same reading as `--force`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAForcePrefix = (word: string) => word.length >= 1 && 'force'.startsWith(word);
+/// ```
+fn is_a_prefix_of_force(word: &[u8]) -> bool {
+    return !word.is_empty() && b"force".starts_with(word);
+}
+
+/// What:
+///  Which force `--<word>` carries.
+/// Why:
+///  The two readings differ in what they do to the count,
+///  and Git's parser strips one `no-` before it compares the word
+///  (`parse-options.c:530` to `:537` at Git `v2.56.1`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const longForce = (word: string) => isAForcePrefix(word) ? 'one' : isAForcePrefix(word.replace(/^no-/, '')) ? 'reset' : 'not-this-option';
+/// ```
+fn long_force_of(word: &[u8]) -> ALongForce {
+    if is_a_prefix_of_force(word) {
+        return ALongForce::One;
+    }
+    let Some(negated) = word.strip_prefix(b"no-") else {
+        return ALongForce::NotThisOption;
+    };
+    return if is_a_prefix_of_force(negated) {
+        ALongForce::Reset
+    } else {
+        ALongForce::NotThisOption
+    };
+}
+
+/// What:
+///  The number of forces one `git worktree remove` carried,
+///  in every spelling Git accepts.
+/// Why:
+///  The project decided on 2026-11-28 that this removal counts force the way Git
+///  does,
+///  so the reading is Git's own and not the wrapper's invention:
+///  a short cluster counts one force per `f` (`parse-options.c:426` to `:440`),
+///  `--force` and each of its prefixes count one,
+///  `--no-force` and each of its prefixes set the count back to zero,
+///  and a word after `--` is no option at all
+///  (`parse-options.c:120` to `:196` at Git `v2.56.1`).
+///  Git permutes its options around the operand,
+///  so a force after the path counts as one before it,
+///  and every option of the command is read here and not only those before the
+///  worktree's name.
+///  A word that is an option and not one of this command's force spellings is a
+///  spelling Git answers with its usage and no removal at all,
+///  and this wrapper answers that spelling before Git would,
+///  so the whole count is zero:
+///  no command gains force from a word Git refused,
+///  and a refused spelling never passes a refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const force = countOfTheForce(['-f', '-f', 'one']); // 2
+/// ```
+pub fn count_of_the_force(tokens: &[OsString]) -> usize {
+    let mut count: usize = 0;
+    let mut options_end: bool = false;
+    for token in tokens {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if !options_end && bytes == b"--" {
+            options_end = true;
+            continue;
+        }
+        // A word of one `-` is an operand to Git, and everything after `--` is an operand too.
+        if options_end || bytes.len() < 2 || !bytes.starts_with(b"-") {
+            continue;
+        }
+        let Some(long) = bytes.strip_prefix(b"--") else {
+            let cluster: &[u8] = &bytes[1..];
+            if !cluster.iter().all(|letter| return *letter == b'f') {
+                return 0;
+            }
+            count = count.saturating_add(cluster.len());
+            continue;
+        };
+        match long_force_of(long) {
+            ALongForce::One => count = count.saturating_add(1),
+            ALongForce::Reset => count = 0,
+            ALongForce::NotThisOption => return 0,
+        }
+    }
+    return count;
+}
+
 /// Removal plan controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_remove_plan_tests.rs"]

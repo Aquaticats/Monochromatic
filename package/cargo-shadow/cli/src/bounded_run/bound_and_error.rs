@@ -89,7 +89,30 @@ pub enum RunError {
         /// What was running.
         what: String,
     },
+    /// The route to a delegated control group was asked for and answered a path no scope can be made under while a job stands
+    /// on the slice:
+    /// nothing was started,
+    /// and the call stops rather than waiting for another unit's stop.
+    RouteRefused {
+        /// Why the route was refused,
+        /// in the discovery's own words.
+        reason: String,
+    },
 }
+
+/// The opening of the words a refused route leaves.
+/// Why:
+/// The words travel to a caller as text,
+/// and one caller must stop the command for this failure where every other failure of a
+/// cargo call only adds `--locked` (the install step).
+/// The opening is what that caller recognises,
+/// so it is written once here and beside the reading of it (`install_error`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ROUTE_REFUSED_OPENING = 'no delegated control group can be had now: '
+/// ```
+pub const ROUTE_REFUSED_OPENING: &str = "no delegated control group can be had now: ";
 
 /// How the error reads to a person.
 impl std::fmt::Display for RunError {
@@ -135,6 +158,12 @@ impl std::fmt::Display for RunError {
             } => write!(
                 formatter,
                 "{what} did not take all of its input, so its answer is not trusted"
+            ),
+            RunError::RouteRefused {
+                reason,
+            } => write!(
+                formatter,
+                "{ROUTE_REFUSED_OPENING}{reason}; nothing was started, so this call changed no file"
             ),
         };
     }

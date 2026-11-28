@@ -38,7 +38,7 @@ use std::path::Path;
 /// ```ts
 /// const text = cStringOf(path); // throws on an interior NUL
 /// ```
-pub(super) fn c_string_of(path: &Path) -> Result<CString, String> {
+pub(crate) fn c_string_of(path: &Path) -> Result<CString, String> {
     return CString::new(path.as_os_str().as_encoded_bytes())
         .map_err(|_nul| return format!("the path {} holds a NUL byte", path.display()));
 }
@@ -55,7 +55,7 @@ pub(super) fn c_string_of(path: &Path) -> Result<CString, String> {
 /// ```ts
 /// const file = openat(directory, staging, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0644);
 /// ```
-pub(super) fn create_at(
+pub(crate) fn create_at(
     directory: &std::fs::File,
     name: &str,
     mode: u32,
@@ -91,7 +91,7 @@ pub(super) fn create_at(
 /// ```ts
 /// const file = openat(directory, guid, O_RDONLY | O_NOFOLLOW); // null when absent
 /// ```
-pub(super) fn open_receipt_at(
+pub(crate) fn open_receipt_at(
     directory: &std::fs::File,
     name: &str,
 ) -> std::io::Result<Option<std::fs::File>> {
@@ -132,7 +132,7 @@ pub(super) fn open_receipt_at(
 /// ```ts
 /// await unlinkat(directory, name); // no AT_REMOVEDIR: a folder is a refusal
 /// ```
-pub(super) fn unlink_at(
+pub(crate) fn unlink_at(
     directory: &std::fs::File,
     name: &str,
 ) -> std::io::Result<()> {
@@ -157,7 +157,7 @@ pub(super) fn unlink_at(
 /// ```ts
 /// await renameat(directory, staging, directory, guid);
 /// ```
-pub(super) fn rename_at(
+pub(crate) fn rename_at(
     directory: &std::fs::File,
     from: &str,
     to: &str,
@@ -191,7 +191,7 @@ pub(super) fn rename_at(
 /// ```ts
 /// await fsync(directory);
 /// ```
-pub(super) fn sync_directory(directory: &std::fs::File) -> std::io::Result<()> {
+pub(crate) fn sync_directory(directory: &std::fs::File) -> std::io::Result<()> {
     return match rustix::fs::fsync(directory) {
         Ok(()) => Ok(()),
         Err(error) => Err(std::io::Error::from_raw_os_error(error.raw_os_error())),
