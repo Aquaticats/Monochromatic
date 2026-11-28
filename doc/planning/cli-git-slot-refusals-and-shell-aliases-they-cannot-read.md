@@ -233,6 +233,96 @@ sentence alone:
 `failure_after` and the configuration ending of
 `invocation/entry_forward_action_planning.rs` carry those lines too.
 
+## What the issue 6625 round measured
+
+A fourth pass over `0.6.1-alpha.50` and the branch that answers issue 6625,
+run on 2026-11-27,
+unapproved and non-final.
+What this file asks for is unchanged:
+a shell alias the wrapper cannot read still reaches Git,
+and the choice among the three options below is still the owner's.
+This section answers the two questions issue 6625 left open.
+
+Where real Git runs the shell of a `!` alias,
+measured with Git 2.56.1 in a fixture repository and in a bare one,
+each with a folder inside it,
+by an alias whose shell prints its own directory:
+`git -c 'alias.where=!pwd -P' where`,
+which Git runs through a shell because a space is one of the bytes
+`prepare_shell_cmd` reads as "run this through the shell"
+(`run-command.c:293` to `run-command.c:305`);
+a value of `!pwd` alone is exec'd as a program and starts no shell at all.
+
+- At the top of a worktree: the top.
+- Below that top: the top,
+  because discovery walked up to it.
+- In a repository's Git directory: that Git directory.
+- In a folder inside that Git directory: that folder.
+- In a bare repository: the bare repository.
+- In a folder inside the bare repository: that folder.
+
+Git names no top of a working tree in the last four,
+and `rev-parse --path-format=absolute --show-toplevel --show-prefix`,
+the one question `alias_run_directory` asks,
+fails there with `fatal: this operation must be run in a work tree`,
+which is the branch that answers the directory the command's own `-C` options
+left it in.
+Every one of the six answers equals what the reading answered in the same place,
+which two controls in
+`package/git-policy/cli/src/native/invocation/external_git_command_tests.rs` hold:
+`a_shell_alias_runs_where_the_reader_answers_in_a_git_directory_and_a_bare_repository`,
+and
+`git_names_no_top_of_a_working_tree_in_a_git_directory_or_a_bare_repository`,
+which pins what `--show-toplevel`,
+`--git-dir` and
+`--is-bare-repository` answer in each place.
+So the sentence the code carried about these two shapes was what Git does,
+and no release code changed for it.
+
+The slot refusals answer in both shapes as they do at the top of a worktree.
+Twelve controls in
+`package/git-policy/cli/src/native/invocation/entry_slot_refusals_read_every_spelling_tests.rs`
+put a bound slot in each shape,
+one removal,
+one move and
+one prune,
+direct and behind a `!git worktree ...` alias,
+and read the refusal the spelling at the top of the slot's own worktree gets:
+the removal and the move controls compare that report word for word,
+and the prune's two compare the shape's own two spellings,
+for the reason the next paragraph gives.
+Each operand is a relative path that ends in `../<slot>`,
+which no registered path ends with,
+so Git's own match by the last components of a registered path picks nothing and
+the directory reading alone decides which worktree is named.
+Every control was shown red once by a plant that was never committed:
+the six Git-directory controls by `common_dir`'s fallback to the directory a
+command outside every worktree stands in
+(`invocation/entry_forward_action_planning.rs`),
+the six bare-repository controls by the bare arm of `common_directory`
+(`worktree/worktree_identity.rs`),
+and the alias spelling of each by `shell_run_directory` answering the directory
+the wrapper was started in instead of the one Git puts the shell in
+(`invocation/forwarded_command.rs`).
+No shape was found in which a slot command is forwarded.
+
+A prune typed at the top of the slot's own worktree cannot stand beside the two
+shapes as their comparison.
+The state the pass refuses in is a pointer that no longer resolves to its
+registration,
+and that same state is what makes the slot's own directory stop being a worktree:
+`-C <slot> worktree prune` then names no repository at all and is forwarded,
+which was measured on 2026-11-27 and is why the prune's controls compare the
+shape's two spellings with each other.
+
+What `SPEC.md` says now,
+in "Removal of a ZFS worktree clone":
+a bare repository's records are the ones in its own directory,
+Git names no top of a working tree in either shape,
+a `!` alias's shell runs where the command's options left it,
+a removal's or a move's operand is read from there,
+and a prune typed in either shape reads that repository's records.
+
 ## Options
 
 ### A: refuse every shell alias in a repository that holds slot records
