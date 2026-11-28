@@ -1320,3 +1320,54 @@ so a round that needs the numbers again runs it by hand.
 # package/git-policy/cli: one throwaway guest for the whole measurement
 node e2e/zfs-step-22-measurements-guest.ts all --name <guest> --log-dir <dir>
 ```
+
+## The step 21 guest arms
+
+`zfs-step-21-guest.ts` runs plan step 21's guest half in a guest of the same
+recipe:
+the pnpm offline frozen-lockfile install after an add beside the same install on
+the checkout's own dataset,
+the Cargo clean with its lock recovered across file systems,
+the mise launcher repair,
+the watch rebinding after a clone's fill,
+and the queued repair beside the inline one
+(`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
+step 21).
+Its steps are in `e2e/step-21-arms/`:
+the Node tooling the pnpm arm starts,
+the crate's test build,
+the file-backed pool,
+and the arms themselves,
+which are the one test
+`binary_zfs_step_21_guest_tests.rs` holds,
+reached through the crate's own guest-arm files beside it.
+No task runs this driver,
+so a round that needs these arms runs it by hand.
+
+The arms add worktrees on the step 19 design's layout,
+which the guest makes rather than finds because the owner's migration has not
+run,
+and each arm clears the slot it made,
+so one guest serves the whole run.
+Each measured arm alternates its order with its control inside the same round,
+and the pulled log carries one `STEP21` line per thing an arm did,
+the readings of each side, and the ratio of the two,
+so a run that reported an arm without performing it fails the marker check.
+
+`create` and `prepare` are the recipe's own steps;
+`tools` installs the distribution's `nodejs` and `npm` and the `pnpm` the repair
+starts;
+`build` pushes this checkout and builds the test target;
+`run` lays the pool and runs the arms;
+`destroy` takes the guest away.
+`all` runs them in that order and destroys the guest even when a step refused.
+
+```sh
+# package/git-policy/cli: one throwaway guest, step by step
+node e2e/zfs-step-21-guest.ts create --name <guest> --log-dir <dir>
+node e2e/zfs-step-21-guest.ts prepare --name <guest> --log-dir <dir>
+node e2e/zfs-step-21-guest.ts tools --name <guest> --log-dir <dir>
+node e2e/zfs-step-21-guest.ts build --name <guest> --log-dir <dir>
+node e2e/zfs-step-21-guest.ts run --name <guest> --log-dir <dir>
+node e2e/zfs-step-21-guest.ts destroy --name <guest> --log-dir <dir>
+```

@@ -1284,6 +1284,23 @@ mod zfs_sweep_guest;
 #[path = "binary_zfs_step_22_measurement_guest_tests.rs"]
 mod zfs_step_22_measurement;
 
+#[path = "binary_zfs_step_21_dependency_arms.rs"]
+mod zfs_step_21_dependency_arms;
+#[path = "binary_zfs_step_21_guest_tests.rs"]
+mod zfs_step_21_guest;
+/// Plan step 21's guest arms, in one throwaway guest:
+/// the layout their adds work on,
+/// the pnpm and Cargo preparation each beside a control on the checkout's own dataset,
+/// the mise launcher repair,
+/// the watch rebinding after a clone's fill,
+/// and the queued repair beside the inline one.
+#[path = "binary_zfs_step_21_guest_fixture.rs"]
+mod zfs_step_21_guest_fixture;
+#[path = "binary_zfs_step_21_queued_arm.rs"]
+mod zfs_step_21_queued_arm;
+#[path = "binary_zfs_step_21_watch_arm.rs"]
+mod zfs_step_21_watch_arm;
+
 /// The refusal path of the installed name and the words,
 /// and the marker a start that reached the wrapper writes.
 #[path = "binary_root_mode_name_tests.rs"]
