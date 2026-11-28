@@ -72,7 +72,7 @@ pub(super) fn forced_refusal_sentence(stop: &RemovalStop) -> Option<String> {
             slot,
             cause,
         } => Some(format!(
-            "the Git registration of the slot `{slot}` holds a lock this add cannot attribute to itself ({cause}), so a person's lock may stand there and this removal stops before its first write with no force or one. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. Ways forward: run `git worktree unlock {slot}` to remove the lock and run the removal again, or run `git worktree remove --force --force {slot}`: two forces delete the lock file and then run this removal as it stands, which is Git's own gradation, `-f -f` among them."
+            "the Git registration of the slot `{slot}` holds a lock this add cannot attribute to itself ({cause}), so a person's lock may stand there and this removal stops before it unmounts or destroys anything, with no force or one. The slot's claim file is the only record this run wrote, and stopping gives the slot back. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. Ways forward: run `git worktree unlock {slot}` to remove the lock and run the removal again, or run `git worktree remove --force --force {slot}`: two forces delete the lock file and then run this removal as it stands, which is Git's own gradation, `-f -f` among them."
         )),
         _ => None,
     };

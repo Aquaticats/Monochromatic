@@ -8,8 +8,12 @@
 //!  Once the head is gone no live inventory exists,
 //!  so a name is settled by the absence proof and by nothing else,
 //!  and a name that now holds another object is a reused clone name rather than this removal's work.
-//!  Nothing is destroyed on this path:
-//!  the destroy it records already happened in the run that wrote the plan.
+//!  Nothing of the clone itself is destroyed on this path:
+//!  the destroy of its head and its snapshots already happened in the run that wrote the plan.
+//!  The origin snapshot is another matter:
+//!  a cleanup record an earlier run left lets this path send the one destroy that finishes it,
+//!  so the plan's own lines are written and the origin is destroyed here,
+//!  and the person's lock is read before either.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,6 +30,7 @@ use crate::worktree_clone_removal_proof_and_plan::plan_words::{
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_head_present::publish_the_plan;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
+use crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs;
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::CloneAbsence;
 use crate::worktree_clone_removal_proof_and_plan::removal_origin_step::attempt_the_origin_cleanup;
 use crate::worktree_clone_removal_proof_and_plan::removal_records_end::{
@@ -56,6 +61,19 @@ pub(super) fn the_head_gone_path(
     lost: NamesToBeLost,
     _pool: String,
 ) -> Result<TheRemovalDone, RemovalStop> {
+    // What: The lock is read here, before this path writes a line of the plan and before its origin cleanup can send
+    //       the destroy of the origin snapshot.
+    // Why:  A person's lock must refuse the removal before it unmounts or destroys anything, and the settle that reads
+    //       `locked` comes after both writes (`SPEC.md`, "Removal of a ZFS worktree clone"; the alpha.53 read's M1:
+    //       this path answered `TheStart::Gone` without reading the lock at all).
+    let mut forced: ForcedActs = ForcedActs::nothing();
+    if let Some(line) = super::the_lock_a_removal_refuses::the_locks_answer(
+        input.entry.common_dir,
+        input.entry.slot,
+        input.force,
+    )? {
+        forced.lines.push(line);
+    }
     let mut plan: DestructionPlan = standing;
     match crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::the_clone_absence(
         input.probe,
@@ -111,9 +129,8 @@ pub(super) fn the_head_gone_path(
         settle,
         records,
         claim: ClaimEnd::Held,
-        // A head-gone removal is a resume of a plan that read, so no act of force is behind it.
-        forced:
-            crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs::nothing(),
+        // No act of force stands behind a resume whose plan read, unless two forces deleted a person's lock above.
+        forced,
         plan_path,
         requests: Vec::new(),
     });

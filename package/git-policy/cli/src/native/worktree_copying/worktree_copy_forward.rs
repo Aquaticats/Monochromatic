@@ -200,7 +200,9 @@ pub fn run_forwarded_git_with_its_own_steps(
                 steps.the_bound_slots_removal,
             );
             // Only a removal that ended well can have taken the worktree; the stop checks that its Git directory is gone.
-            if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
+            if let Some(gone) = about.as_ref()
+                && the_removal_ended_well(&finished)
+            {
                 (steps.stop_units)(gone);
                 // The pool of a worktree is named from the same registration the removal deleted, and nothing of the repository looks at it again once the worktree is gone.
                 clear_the_pool_of_a_removed_worktree(
@@ -242,9 +244,39 @@ pub fn run_wrapper_own_git(
 }
 
 /// What:
-///  The worktree a plain `git worktree remove` names,
-/// as its commit service units know it.
+///  Whether the removal a served run answered took the worktree,
+/// so the steps after a removal belong to it.
 /// Why:
+///   Two of this run's steps remove what a removed worktree leaves,
+///  the units it ran and the pool it filled,
+///   and they run only when the removal ended well:
+///   a removal Git refused leaves the worktree and its units alone.
+///   A removal Git runs answers `Ran(0)`,
+///   and a bound slot's removal answers in Git's place with the status it ends in
+///   (`BoundSlotRemovalAnswer`),
+///   whose `0` is `REMOVED_EXIT_CODE`:
+///   a finished removal of a bound slot therefore ended well without `Ran`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ended = run.kind === 'ran' ? run.code === 0 : run.kind === 'failed' && run.code === REMOVED;
+/// ```
+#[cfg(unix)]
+fn the_removal_ended_well(run: &ForwardedRun) -> bool {
+    return match run {
+        ForwardedRun::Ran(code) => *code == 0,
+        ForwardedRun::Failed {
+            code, ..
+        } => {
+            *code == crate::worktree_clone_removal_proof_and_plan::removal_command_path::REMOVED_EXIT_CODE
+        }
+        ForwardedRun::Killed(_) => false,
+    };
+}
+
+/// What:
+///  The worktree a plain `git worktree remove` names,
+/// as its commit service units know it./// Why:
 ///   The units of a removed worktree are stopped once the removal ended (`worktree_removal_stops_units.rs`),
 /// and the name they have is made from the registration the removal deletes.
 ///
