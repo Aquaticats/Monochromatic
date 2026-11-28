@@ -1,8 +1,10 @@
 /**
- Unit tests for flavor selection: the smallest flavor in stock wins, a flavor
- that is out of stock is never chosen, a Linux flavor is preferred, an explicit
- `--server-type` or `MVM_OVH_FLAVOR` wins by identifier or by name, and a region
- with nothing in stock says so with the error a create walks past.
+ Unit tests for flavor selection: the smallest flavor in stock of a family mvm may
+ pick without being told a size wins, a flavor that is out of stock is never
+ chosen, a region whose only in-stock sizes are families the sized walk leaves
+ out refuses rather than taking one, an explicit `--server-type` or
+ `MVM_OVH_FLAVOR` wins by identifier or by name even when it names such a family,
+ and a region with nothing in stock says so with the error a create walks past.
 
  Flavor bodies here are stand-ins written by hand from OVHcloud's schema
  (`cloud.flavor.Flavor`), never a recording, so nothing in this file claims what
@@ -44,8 +46,8 @@ import {
 //region Fixtures
 
 /**
- Flavors of one region: a large one, the smallest one, one out of stock that is
- smaller still, the smallest Windows one, and the smallest arm one.
+ Flavors of one region: two of the `b3` family, one out of stock that is smaller
+ still, the smallest Windows one, and a size whose `arm` family no rule keeps.
  */
 const FLAVORS = [
   flavorAnswer({
@@ -75,6 +77,26 @@ const FLAVORS = [
     ram: 2,
     vcpus: 1,
   },),
+] as const satisfies readonly OvhFlavor[];
+
+/**
+ A region whose only size in stock is the GPU family `t1`, the family the catalog
+ files under `ovh.raid-nvme.t1` and `flavor-families.ts` leaves out. Its numbers
+ are the ones the live `BHS5` list of 2026-11-28 gave `t1-45`, and the body is a
+ stand-in written from the schema like every other here.
+ */
+const GPU_ONLY_REGION = [
+  flavorAnswer({ disk: 25, id: 't1-45', ram: 45, vcpus: 8 }),
+] as const satisfies readonly OvhFlavor[];
+
+/**
+ A region with a GPU size in stock beside the smallest kept size it has: the GPU
+ size is smaller in virtual CPUs, so it is the one a walk with no family rule
+ takes first.
+ */
+const GPU_BESIDE_A_KEPT_SIZE = [
+  flavorAnswer({ disk: 25, id: 't1-45', ram: 45, vcpus: 8 }),
+  flavorAnswer({ disk: 50, id: 'b3-64', ram: 64, vcpus: 32 }),
 ] as const satisfies readonly OvhFlavor[];
 
 //endregion Fixtures
@@ -206,18 +228,18 @@ await describe({
     //region Selection
 
     it({
-      name: 'selectFlavor picks the smallest flavor in stock and never an unavailable one',
+      name: 'selectFlavor picks the smallest flavor in stock of a kept family and never an unavailable one',
       fn: async () => {
         const chosen = selectFlavor({
           flavors: FLAVORS,
           override: '',
           region: 'bhs5',
         },);
-        expect(chosen.id,).toBe('arm-small',);
+        expect(chosen.id,).toBe('b3-8',);
       },
     },),
     it({
-      name: 'selectFlavor prefers a Linux flavor over a smaller Windows one',
+      name: 'selectFlavor takes the smallest kept size rather than a smaller Windows one',
       fn: async () => {
         const chosen = selectFlavor({
           flavors: [
@@ -228,7 +250,7 @@ await describe({
               vcpus: 1,
             },),
             flavorAnswer({
-              id: 'linux-big',
+              id: 'b3-8',
               ram: 8,
               vcpus: 2,
             },),
@@ -236,21 +258,79 @@ await describe({
           override: '',
           region: 'bhs5',
         },);
-        expect(chosen.id,).toBe('linux-big',);
+        expect(chosen.id,).toBe('b3-8',);
       },
     },),
     it({
-      name: 'selectFlavor falls back to the smallest flavor of any kind when no Linux flavor is in stock',
+      name: 'selectFlavor refuses rather than picking a size that targets another operating system',
+      fn: async () => {
+        const error = await errorFrom({
+          run: async function choose() {
+            selectFlavor({
+              flavors: [flavorAnswer({
+                id: 'windows-only',
+                osType: 'windows',
+              },),],
+              override: '',
+              region: 'bhs5',
+            },);
+          },
+        },);
+        expect(error,).toBeInstanceOf(NoSizeFitsError,);
+        expect((error as Error).message,).toContain('windows-only',);
+      },
+    },),
+    it({
+      name: 'refuses a region whose only size in stock that boots Linux is a family the sized walk leaves out',
+      fn: async () => {
+        const error = await errorFrom({
+          run: async function choose() {
+            selectFlavor({
+              flavors: GPU_ONLY_REGION,
+              override: '',
+              region: 'bhs5',
+            },);
+          },
+        },);
+        expect(error,).toBeInstanceOf(NoSizeFitsError,);
+        expect((error as Error).message,).toContain('t1-45',);
+        expect((error as Error).message,).toContain('bhs5',);
+        expect((error as Error).message,).toContain(
+          '1 size in stock was left out as a family mvm does not pick without being told',
+        );
+        expect((error as Error).message,).toContain('--server-type',);
+      },
+    },),
+    it({
+      name: 'takes the smallest kept size, never a GPU size in stock that is smaller still',
       fn: async () => {
         const chosen = selectFlavor({
-          flavors: [flavorAnswer({
-            id: 'windows-only',
-            osType: 'windows',
-          },),],
+          flavors: GPU_BESIDE_A_KEPT_SIZE,
           override: '',
           region: 'bhs5',
         },);
-        expect(chosen.id,).toBe('windows-only',);
+        expect(chosen.id,).toBe('b3-64',);
+      },
+    },),
+    it({
+      name: 'takes a GPU size a person names outright, on the command line and in the environment',
+      fn: async () => {
+        expect(
+          selectFlavor({
+            flavors: GPU_ONLY_REGION,
+            override: 't1-45',
+            region: 'bhs5',
+          },).id,
+        ).toBe('t1-45',);
+        await using _env = await installEnv();
+        using _set = withEnv({
+          name: 'MVM_OVH_FLAVOR',
+          value: 't1-45',
+        },);
+        using standIn = installStandIn(() => jsonAnswer(GPU_ONLY_REGION),);
+        const chosen = await resolveFlavor({ region: 'bhs5', },);
+        expect(chosen.id,).toBe('t1-45',);
+        expect(standIn.calls.length,).toBeGreaterThan(0,);
       },
     },),
     it({
@@ -325,6 +405,40 @@ await describe({
             path: `${cloudPath('/flavor',)}?region=bhs5`,
           },).length,
         ).toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'resolveFlavor refuses the GPU-only region rather than handing a create that size',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(() => jsonAnswer(GPU_ONLY_REGION),);
+        const error = await errorFrom({
+          run: async function read() {
+            await resolveFlavor({ region: 'bhs5', },);
+          },
+        },);
+        expect(error,).toBeInstanceOf(NoSizeFitsError,);
+        expect((error as Error).message,).toContain('t1-45',);
+        expect(standIn.calls.length,).toBeGreaterThan(0,);
+      },
+    },),
+    it({
+      name: 'names only the way the calling command can name a size',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(() => jsonAnswer(GPU_ONLY_REGION),);
+        const error = await errorFrom({
+          run: async function read() {
+            await resolveFlavor({
+              overrideOptions: 'MVM_OVH_FLAVOR',
+              region: 'bhs5',
+            },);
+          },
+        },);
+        expect((error as Error).message,).toContain('name a size outright with MVM_OVH_FLAVOR',);
+        expect((error as Error).message,).not.toContain('--server-type',);
+        expect(standIn.calls.length,).toBeGreaterThan(0,);
       },
     },),
 
