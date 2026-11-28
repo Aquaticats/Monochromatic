@@ -11,13 +11,16 @@
 //! the exposure farm) resolves binaries through this one search,
 //! so a tool that `install` placed is found by `list` at the same path,
 //! and an archive's inner layout never has to be guessed.
+//! A `rustup-toolchain` row's directory is not read from the names in `~/.rustup/toolchains`:
+//! only `rustup` knows which toolchain a channel is,
+//! so the caller that can ask it passes that one directory in.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! export function binSearchDirs(tool: LockedTool, scope: Scope, env: EnvMap, extra: string[]): string[]
+//! export function binSearchDirs(tool: LockedTool, scope: Scope, env: EnvMap, extra: string[], theToolchainsBin: string | undefined): string[]
 //! export function isExecutable(path: string): boolean
 //! export function findBinUnder(root: string, name: string): string | undefined
-//! export function findToolBin(tool: LockedTool, name: string, scope: Scope, env: EnvMap, extra: string[]): string | undefined
+//! export function findToolBin(tool: LockedTool, name: string, scope: Scope, env: EnvMap, extra: string[], theToolchainsBin: string | undefined): string | undefined
 //! ```
 /// Imports the file-system module the search and the executable check read.
 use std::fs;
@@ -95,16 +98,20 @@ fn build_tools_version(tool: &LockedTool) -> String {
 /// a per-tool directory),
 /// and the
 ///           first hit wins.
+/// `the_toolchains_bin` is the `bin` directory of the toolchain a `rustup-toolchain` row's channel is,
+/// as `rustup` names it (see `Context::the_toolchains_bin_dir`),
+/// for this caller has to ask the manager before the search can read that directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function binSearchDirs(tool: LockedTool, scope: Scope, env: EnvMap, extra: string[]): string[]
+/// export function binSearchDirs(tool: LockedTool, scope: Scope, env: EnvMap, extra: string[], theToolchainsBin: string | undefined): string[]
 /// ```
 pub fn bin_search_dirs(
     tool: &LockedTool,
     scope: &Scope,
     env: &EnvMap,
     extra_dirs: &[PathBuf],
+    the_toolchains_bin: Option<&Path>,
 ) -> Vec<PathBuf> {
     // A name that is not one plain directory name is refused when the plan and the lock are decoded, so the error
     // arm is unreachable for a decoded lock; for any other value "nowhere to look" is the safe answer.
@@ -134,16 +141,18 @@ pub fn bin_search_dirs(
             }
         }
         Route::CargoGit | Route::GoInstall | Route::Archive => dirs.extend(install_dir),
+        // A `rustup-toolchain` row's programs are the ones the toolchain its channel is holds,
+        // and that directory is the manager's to name;
+        // the neighbours in `~/.rustup/toolchains` are other toolchains and are never read:
+        // a custom linked channel's directory is the link's own name,
+        // a second host triple's directory extends the channel exactly as this host's does,
+        // and a linked name that extends the channel is a toolchain of its own
+        // (issue 6634's read, L-1).
         Route::RustupToolchain => {
             dirs.push(cargo_bin_dir(env, &scope.home));
-            let rustup_home: PathBuf = match env.get("RUSTUP_HOME") {
-                Some(directory) => PathBuf::from(directory),
-                None => scope.home.join(".rustup"),
-            };
-            dirs.extend(the_named_toolchains_bin_dirs(
-                &rustup_home,
-                tool.rustup_channel(),
-            ));
+            if let Some(bin) = the_toolchains_bin {
+                dirs.push(bin.to_path_buf());
+            }
         }
         Route::AndroidSdk => {
             if let Some(sdk) = install_dir {
@@ -185,172 +194,6 @@ pub fn is_executable(path: &Path) -> bool {
     {
         return true;
     }
-}
-
-/// What:
-/// Whether `rest` begins with a date rustup writes into a channel name
-/// (`2026-11-16` in `nightly-2026-11-16-x86_64-unknown-linux-gnu`).
-/// Why:
-/// A dated toolchain is a toolchain of its own,
-/// so the text after a channel name is a host triple and never a date;
-/// a date there means the directory belongs to another channel.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function beginsWithADate(rest: string): boolean
-/// ```
-fn begins_with_a_date(rest: &str) -> bool {
-    // What:
-    // the bytes of the first ten characters as a list, which is where `YYYY-MM-DD` sits.
-    // Why:
-    // The test is a shape over fixed positions, so a byte list states it once.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const head = [...rest].slice(0, 10);
-    // ```
-    let head: Vec<u8> = rest.bytes().take(10).collect();
-    if head.len() < 10 {
-        return false;
-    }
-    // What:
-    // every position but the fifth and the eighth is a digit,
-    // and those two are the hyphens that separate a date's parts.
-    // Why:
-    // A date is the whole shape being true;
-    // any other text there is a host triple, whose letters fail the digit test.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const isDate = head.every((byte, at) => at === 4 || at === 7 ? byte === 0x2d : byte >= 0x30 && byte <= 0x39);
-    // ```
-    for (at, byte) in head.iter().enumerate() {
-        let is_hyphen_at: bool = at == 4 || at == 7;
-        if is_hyphen_at {
-            if *byte != b'-' {
-                return false;
-            }
-            continue;
-        }
-        if !byte.is_ascii_digit() {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// What:
-/// Whether `directory_name` is the name rustup gives the toolchain of `channel`:
-/// the channel itself,
-/// or the channel followed by one host triple.
-/// Why:
-/// `rustup` installs a channel as `<channel>-<host triple>`,
-/// and a second toolchain installed beside it has a name of its own,
-/// so this one test says which directory is the row's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function isTheChannelsDirectory(directoryName: string, channel: string): boolean
-/// ```
-fn is_the_channels_directory(
-    directory_name: &str,
-    channel: &str,
-) -> bool {
-    if directory_name == channel {
-        return true;
-    }
-    // What:
-    // the text after `<channel>-`, or `None` when the name does not start that way.
-    // Why:
-    // A name that is not the channel plus a suffix belongs to another toolchain.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const after = directoryName.startsWith(`${channel}-`) ? directoryName.slice(channel.length + 1) : undefined;
-    // ```
-    let Some(after_the_channel) = directory_name
-        .strip_prefix(channel)
-        .and_then(|rest: &str| return rest.strip_prefix('-'))
-    else {
-        return false;
-    };
-    // What:
-    // a date where a host triple belongs is a channel of its own,
-    // so that directory is another toolchain's.
-    // Why:
-    // A bare channel such as `nightly` is installed as `nightly-<triple>`,
-    // while `nightly-2026-11-16-<triple>` is the dated toolchain
-    // and must not answer for the moving one.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return !beginsWithADate(after);
-    // ```
-    return !begins_with_a_date(after_the_channel);
-}
-
-/// What:
-/// The `bin` directories of the toolchains `rustup` installed for `channel`,
-/// and of no other toolchain.
-/// Why:
-/// A `rustup-toolchain` row's programs are the ones the toolchain the row names holds;
-/// searching the whole `toolchains` folder made the first directory in name order answer for every
-/// program,
-/// so a toolchain older than the pin took the farm's `rustc`,
-/// `cargo` and `rustfmt`
-/// (issue 6634).
-/// A channel with no installed toolchain answers no directory,
-/// and its programs are then reported unresolved.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function theNamedToolchainsBinDirs(rustupHome: string, channel: string): string[]
-/// ```
-fn the_named_toolchains_bin_dirs(
-    rustup_home: &Path,
-    channel: &str,
-) -> Vec<PathBuf> {
-    // What:
-    // the directories directly under `<rustup home>/toolchains`, sorted by name.
-    // Why:
-    // `rustup` gives each installed toolchain one directory there, named after the channel it was
-    // installed as, and the sort keeps the answer stable between runs.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const installed = sortedChildDirectories(pathJoin(rustupHome, 'toolchains'));
-    // ```
-    let installed: Vec<PathBuf> = sorted_child_directories(&rustup_home.join("toolchains"));
-    // What:
-    // the list being built: one `bin` directory per toolchain of this channel.
-    // Why:
-    // A channel can be installed for more than one host triple, and only the names are read here.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const dirs: string[] = [];
-    // ```
-    let mut dirs: Vec<PathBuf> = Vec::new();
-    for directory in installed {
-        // What:
-        // the directory's own name as text, or the empty text for a path with none.
-        // Why:
-        // The name is what says which channel the directory belongs to.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const name = basename(directory);
-        // ```
-        let name: String = match directory.file_name() {
-            Some(text) => text.to_string_lossy().to_string(),
-            None => String::new(),
-        };
-        if !is_the_channels_directory(&name, channel) {
-            continue;
-        }
-        dirs.push(directory.join("bin"));
-    }
-    return dirs;
 }
 
 /// The names of the directories directly inside `directory`,
@@ -415,11 +258,12 @@ pub fn find_bin_under(
 /// Why:
 /// Every consumer (observers,
 /// providers,
-/// the farm) resolves binaries through this one search.
+/// the farm) resolves binaries through this one search,
+/// and the directory of a `rustup-toolchain` row's toolchain is what the caller asked the manager for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export async function findToolBin(tool, name, scope, env, extra): Promise<string | undefined>
+/// export async function findToolBin(tool, name, scope, env, extra, theToolchainsBin): Promise<string | undefined>
 /// ```
 pub fn find_tool_bin(
     tool: &LockedTool,
@@ -427,8 +271,9 @@ pub fn find_tool_bin(
     scope: &Scope,
     env: &EnvMap,
     extra_dirs: &[PathBuf],
+    the_toolchains_bin: Option<&Path>,
 ) -> Option<PathBuf> {
-    for directory in bin_search_dirs(tool, scope, env, extra_dirs) {
+    for directory in bin_search_dirs(tool, scope, env, extra_dirs, the_toolchains_bin) {
         let direct: PathBuf = directory.join(name);
         if is_executable(&direct) {
             return Some(direct);
