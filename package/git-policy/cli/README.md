@@ -2772,13 +2772,38 @@ The check every forwarded command makes in that folder,
 one `stat` when no folder stands,
 is built in
 `src/native/worktree_clone_mount_protocol/unanswered_requests_before_a_command.rs`
-and has no call site yet:
-a use of that folder by `invocation/` is a new use inside a loop the layout
-allow list tolerates,
-and no line of that list may be added,
-so the round that built the check left the call out.
-Such a wiring use may now merge with its layout finding unrecorded,
-and the forwarded path's one line is owed together with the measurement of its cost.
+and called from the forwarded command's lifecycle in
+`src/native/invocation/wrapped_command.rs`,
+after configuration and the shadow sweep,
+before the commit path and before the child Git starts.
+The use that call adds,
+this crate's folder of unanswered requests used by `invocation/`,
+is one `rust/folder-uses-links` finding no line of the layout allow list may
+record,
+and the record's amendment of 2026-11-28 lets such a wiring merge with its
+finding unrecorded
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+
+The cost of that check was measured before it shipped,
+by building the wrapper twice from one commit,
+with the call and without it,
+and timing a forwarded command that does no other work in a fixture repository
+with no folder of unanswered requests.
+Five arms ran interleaved in each round:
+the control twice,
+the wired wrapper,
+a thousand `stat`s of the absent folder planted on the same path,
+and a thousand calls of the check planted at the wiring.
+Measured 2026-11-28 on this machine,
+where `git rev-parse --is-inside-work-tree` cost 6.61 ms per invocation:
+the control against itself answered 0.979 (0.935 to 1.061) and the wired
+wrapper 0.975 (0.920 to 1.068),
+which is inside the control's own spread;
+one `stat` of the absent folder is 914 ns and one call of the check 1.40 µs,
+0.014% and 0.022% of that command;
+and the plants moved the same arm by 1.141 (1.078 to 1.236) and 1.216
+(1.156 to 1.351),
+so the harness sees a thousand checks and not one.
 
 The nudge on Git commands is off.
 It stands behind the compiled switch `zfs-lost-event-nudge`,
