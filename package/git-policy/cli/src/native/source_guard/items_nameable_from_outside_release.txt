@@ -13072,3 +13072,23 @@ worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources trait SlotUnmount
 #   76fde92585 fix(git-policy-cli): name the shutdown unmount by the underlay folder's descriptor
 #   publishes the release unmount, which holds the folder the slot hangs in and calls `umount2` through it
 worktree_clone_shutdown_unmount_pass::shutdown_unmount_sources struct LiveSlotUnmounts
+
+# New code of commit 45aeb84740, published because the commit's own code is, one reason per name:
+#   45aeb84740 test(git-policy-cli): a host control holds the folder a removal's unmount binds
+#   publishes the seam the removal asks through to make the folder the handler binds
+worktree_clone_removal_proof_and_plan::removal_staging_folder trait RemovalStagingFolder
+#   45aeb84740 test(git-policy-cli): a host control holds the folder a removal's unmount binds
+#   publishes the release answer, which reads this account's home and the root-written pin
+worktree_clone_removal_proof_and_plan::removal_staging_folder struct LiveRemovalStagingFolder
+#   45aeb84740 test(git-policy-cli): a host control holds the folder a removal's unmount binds
+#   publishes the whole removal's field for that seam, which the command path fills
+worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::staging
+#   45aeb84740 test(git-policy-cli): a host control holds the folder a removal's unmount binds
+#   publishes the entry's field for that seam, which a caller fills
+worktree_clone_removal_proof_and_plan::removal_entry field EnteringTheRemoval::staging
+#   45aeb84740 test(git-policy-cli): a host control holds the folder a removal's unmount binds
+#   publishes the start's field for that seam, which the entry and the resume fill
+worktree_clone_removal_proof_and_plan::removal_start_inputs field TheStartingRemoval::staging
+#   45aeb84740 test(git-policy-cli): a host control holds the folder a removal's unmount binds
+#   publishes the destruction step's field for that seam, which its caller fills
+worktree_clone_removal_proof_and_plan::removal_destruction field RemovalDestruction::staging

@@ -94,7 +94,7 @@ impl RemovalStagingFolder for AStagingFolderOfAFixtureCache {
         )
         .map_err(|said| {
             return RemovalStop::TheStagingFolderCouldNotBeMade {
-                step: String::from("staging-folder"),
+                step: String::from(super::STAGING_FOLDER_STEP),
                 said,
             };
         });
@@ -191,13 +191,21 @@ fn a_removal_reaches_its_unmount_with_the_folder_the_release_makes() {
     std::fs::create_dir_all(cache_path.as_path()).expect("the fixture cache is made");
     let cache: std::fs::File =
         std::fs::File::open(cache_path.as_path()).expect("the fixture cache opens");
+    // What: the clone's GUID, read once, because the removal removes the binding record this read comes from.
+    // Why: a later read would find no record at all, and the control still needs the folder's name.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const cloneGuid = fixture.recorded().cloneGuid;
+    // ```
+    let clone_guid: DatasetGuid = fixture_at.recorded().clone_guid;
     let staging: AStagingFolderOfAFixtureCache = AStagingFolderOfAFixtureCache {
         home: home.clone(),
         pin: the_fixture_pins(&cache),
         asked: Cell::new(0),
     };
     let unmount: AnUnmountThatReadsTheFolder = AnUnmountThatReadsTheFolder {
-        clone_guid: fixture_at.recorded().clone_guid,
+        clone_guid,
         home: home.clone(),
         seen: RefCell::new(None),
     };
@@ -209,11 +217,8 @@ fn a_removal_reaches_its_unmount_with_the_folder_the_release_makes() {
         hidden: Rc::clone(&hidden),
     };
     let device: ClearingDevice = ClearingDevice::over(&pool);
-    let head: ScriptedHead = ScriptedHead::succeeding(
-        fixture_at.plan_folder(),
-        fixture_at.recorded().clone_guid,
-        Rc::clone(&hidden),
-    );
+    let head: ScriptedHead =
+        ScriptedHead::succeeding(fixture_at.plan_folder(), clone_guid, Rc::clone(&hidden));
     let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
     let settle: ScriptedSettle = ScriptedSettle::succeeding();
     complete_with(
@@ -244,7 +249,7 @@ fn a_removal_reaches_its_unmount_with_the_folder_the_release_makes() {
         Some(0o700),
         "the folder stood at mode 0700 when the unmount was asked for"
     );
-    let folder: PathBuf = cache_path.join(staging_folder_name(fixture_at.recorded().clone_guid));
+    let folder: PathBuf = cache_path.join(staging_folder_name(clone_guid));
     let facts: std::fs::Metadata = std::fs::metadata(folder.as_path()).expect("the folder stands");
     assert_eq!(facts.mode() & 0o7777, 0o700, "the folder keeps the route's mode");
     assert_eq!(

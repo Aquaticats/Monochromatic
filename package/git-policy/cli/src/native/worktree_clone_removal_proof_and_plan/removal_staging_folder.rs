@@ -43,15 +43,15 @@ use std::path::{
 
 /// The step word a refusal of this folder names,
 /// which is the handler's own word for the same folder.
-pub const STAGING_FOLDER_STEP: &str = "staging-folder";
+const STAGING_FOLDER_STEP: &str = "staging-folder";
 
 /// The step word a refusal of this account's home names,
 /// which is the handler's own for the same read.
-pub const ACCOUNT_HOME_STEP: &str = "account-home";
+const ACCOUNT_HOME_STEP: &str = "account-home";
 
 /// The step word a refusal of the pin names,
 /// which is the handler's own for the same record.
-pub const USER_CACHE_PIN_STEP: &str = "user-cache-pin";
+const USER_CACHE_PIN_STEP: &str = "user-cache-pin";
 
 /// What:
 ///  The folder one removal's unmount binds,
