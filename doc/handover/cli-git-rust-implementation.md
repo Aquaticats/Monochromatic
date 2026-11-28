@@ -2940,11 +2940,6 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- Two rounds wrote into the main checkout by mistake and undid it
-  (issue 6586's through its edit tool,
-  the four-small-points round through a command without its own `cd`);
-  both are on issue 6378,
-  which holds the branch that fences a run's writes.
 - After a failed `exec` of the real Git the wrapper now puts the `SIGPIPE` action back
   and ends by the status its exit contract gives a command that ran no Git (`65bffa15ec`,
   issue 6607):
