@@ -5,6 +5,14 @@
 //! a declaration it cannot place exactly is an error,
 //! because a guess here would
 //! decide which files a scan treats as release code.
+//! The visibilities it places are `mod`, `pub mod`, `pub(crate) mod` and `pub(super) mod`.
+//! A line written with any other visibility (`pub(in crate::a) mod x;`,
+//! `pub(self) mod x;`) or with text after its `;` (`mod x; // a note`) is an error,
+//! because the module it declares would be missing from every scan in silence.
+//! An inline `mod name { ... }` declares no file of its own and is not read.
+//! The reading is one line at a time and knows nothing of string literals or block comments,
+//! so it reads a `mod` statement at a file's first column wherever it stands:
+//! fixture text holding one is written indented, which is why an indented line is skipped rather than refused.
 
 /// What:
 ///  `pub(crate) struct Declaration { ... }` is a record type (TS:
@@ -126,6 +134,9 @@ pub(crate) fn is_test_gate(predicate: &str) -> bool {
 /// or `None` when the line is anything else (including an inline `mod name {`).
 /// Why:
 ///  Both the resolver and the boundary scan need to recognise a module declaration line the same way.
+///  The visibilities read are the ones this crate writes:
+///  `mod`, `pub mod`, `pub(crate) mod` and `pub(super) mod`.
+///  `declarations` errors on a module statement written any other way rather than stepping over it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,6 +165,35 @@ pub(crate) fn module_name(line: &str) -> Option<&str> {
 }
 
 /// What:
+///  `fn starts_a_module_declaration(line: &str) -> bool` says whether that line is written as the start of a
+///  file-module declaration, whatever visibility stands before its `mod`:
+///  `mod name`, `pub mod name`, `pub(crate) mod name`, `pub(super) mod name`, `pub(in path) mod name` and
+///  `pub(self) mod name`.
+/// Why:
+///  `declarations` stops on a module statement it cannot place,
+///  and a line that is no module statement at all (an item, a `use`, a statement) is no error there.
+///  An inline `mod name {` starts one too, and the caller reads its `{` to tell that shape apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startsAModuleDeclaration(line: string): boolean
+/// ```
+fn starts_a_module_declaration(line: &str) -> bool {
+    let trimmed: &str = line.trim();
+    let after_visibility: &str = if let Some(rest) = trimmed.strip_prefix("pub(") {
+        let Some((_inside, after)) = rest.split_once(')') else {
+            return false;
+        };
+        after.trim_start()
+    } else if let Some(after) = trimmed.strip_prefix("pub ") {
+        after
+    } else {
+        trimmed
+    };
+    return after_visibility.starts_with("mod ");
+}
+
+/// What:
 ///  `pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String>` lists the file-module declarations
 ///  of one source text in order,
 /// each with the attributes written directly above it (comments and blank lines
@@ -162,7 +202,9 @@ pub(crate) fn module_name(line: &str) -> Option<&str> {
 ///  The resolver follows these to find every file the compiler would read.
 /// It fails on an indented declaration (an
 ///  inline module's child,
-/// which resolves differently) and on a `path` attribute it cannot read,
+/// which resolves differently),
+/// on a module statement written with a visibility or an ending it does not place,
+///  and on a `path` attribute it cannot read,
 /// instead of guessing.
 ///
 /// In TS you'd write (pseudocode):
@@ -182,6 +224,19 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
             continue;
         }
         let Some(name) = module_name(trimmed) else {
+            // What: A `mod` statement at a file's first column that this reading cannot place stops the scan.
+            // Why: Stepping over it would leave its module out of the tree, and the surface would be short by
+            //      every name that module publishes, with nothing said.
+            //      An indented one is inside an inline module or a fixture's own text, which is no file of the
+            //      tree either way.
+            if starts_a_module_declaration(trimmed)
+                && !trimmed.contains('{')
+                && !line.starts_with(char::is_whitespace)
+            {
+                return Err(format!(
+                    "`{trimmed}` is no `mod` declaration this reading places, so the module it declares would be missing from the tree: write `mod`, `pub mod`, `pub(crate) mod` or `pub(super) mod`, and end the line at its `;`"
+                ));
+            }
             // Any other line (an item, a use, a statement) detaches the attributes above it.
             attributes.clear();
             continue;

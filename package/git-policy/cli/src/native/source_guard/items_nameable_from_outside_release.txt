@@ -21,6 +21,12 @@
 #       leading path is read from the module that writes it; and a gate keeps an item out only where it holds only
 #       when testing, so `all(not(test), unix)` leaves the item in. The shapes and the changes this reading still
 #       cannot see are named, with why, in that reader's own doc.
+# A name behind a feature gate is a name of this list, because the build that turns the feature on publishes it and
+#       no gate keeps it out. The three such names the tree writes today are
+#       `foundation::test_only_switches fn value`, `fn value_in` and
+#       `worktree::worktree_clone_conversion_fence_measurement_routes fn fence_of_the_measurement_route`.
+# A member of a type a `pub use` publishes at a facade path is listed at that facade's path and under the name the
+#       facade gives it, because the type's own declaration sits in a module no `pub mod` chain reaches.
 # What changed on 2026-11-27: this list keys every entry by its module path and member, and covers the shapes the
 #       first version of the reading could not see: a qualified function, a field, a method or an associated
 #       constant of a published type, a member whose declaration opens its body on a later line, and a re-export
@@ -12546,3 +12552,32 @@ policy::policy_engine field PolicyFinding::commit_correction
 #   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes the same answer as the event carries it, for the renderer that chooses the hint
 policy::policy_events_kinds field FindingEvent::commit_correction
+
+# Members of a type a `pub use` publishes at a facade path: the type's own declaration sits in a module no
+# `pub mod` chain reaches, so the facade statement is the only public path to it, and these are the names a
+# consumer reaches through that path. `source_guard/nameable_items_of_a_source_tree_tests.rs` reads them from the
+# module the statement names, keyed by the facade's path and by the name the facade gives the type.
+#   `command::rule_linked_worktree` publishes `GuardedCommand`, whose list of every guarded form the binary
+#   integration target reads (`binary/binary_discard_tests.rs`, `GuardedCommand::ALL`).
+command::rule_linked_worktree const GuardedCommand::ALL
+#   `worktree_clone_mount` publishes `StoredIdentity`, the record a slot's identity is stored as, and these are the
+#   two things the store's own code does with a record.
+worktree_clone_mount fn StoredIdentity::encode
+worktree_clone_mount fn StoredIdentity::key
+#   `worktree_clone_mount_protocol::clone_mount_readiness_file` publishes `ReadinessFileRefusal`, whose sentence a
+#   caller logs when a readiness file is refused (`clone_mount_readiness_admission.rs`).
+worktree_clone_mount_protocol::clone_mount_readiness_file fn ReadinessFileRefusal::message
+#   `worktree_clone_removal_cancel::the_proof` publishes `TheRecordsProof`, the inputs a removal's records are
+#   proved from (`the_cancel_command.rs` fills each one in), and `WhatTheRecordsProve`, what those records prove
+#   and the cancellation acts on.
+worktree_clone_removal_cancel::the_proof field TheRecordsProof::absence
+worktree_clone_removal_cancel::the_proof field TheRecordsProof::checkout
+worktree_clone_removal_cancel::the_proof field TheRecordsProof::common_dir
+worktree_clone_removal_cancel::the_proof field TheRecordsProof::home
+worktree_clone_removal_cancel::the_proof field TheRecordsProof::reads
+worktree_clone_removal_cancel::the_proof field TheRecordsProof::slot
+worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::destroyed
+worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::intent
+worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::plan
+worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::recorded
+worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::slot_path

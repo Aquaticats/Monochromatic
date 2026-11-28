@@ -885,12 +885,31 @@ and a re-export written without a leading path read from the module that writes 
 A gate keeps a name out only where it holds only when testing,
 so `#[cfg(test)]` and `#[cfg(all(test, unix))]` keep one out
 and `#[cfg(all(not(test), unix))]` does not.
+A `mod` line the reader cannot place stops every scan of the tree with the line named,
+rather than being stepped over:
+the visibilities it reads are `mod`, `pub mod`, `pub(crate) mod` and `pub(super) mod`,
+so `pub(in crate::a) mod x;`, `pub(self) mod x;` and a `mod` line with text after its `;` are errors.
+
+Two facts of the reading are decisions a reader has to see in the list:
+a name behind a feature gate counts as published,
+because a gate keeps a name out only where it holds only when testing,
+so the list holds the three names such gates carry today
+(`foundation::test_only_switches fn value`, `fn value_in` and
+`worktree::worktree_clone_conversion_fence_measurement_routes fn fence_of_the_measurement_route`);
+and a member is keyed by its type's bare name,
+so a `pub` type in a module nothing publishes has its `pub` members read as published whenever a published
+type elsewhere writes the same name.
+A member of a type whose only public path is a `pub use` facade is read too,
+at the facade's path and under the name the facade gives it,
+from the module the statement names;
+a facade that names an inline `mod` body or a module no chain and no root glob reaches publishes a type whose
+members the reading sees nowhere.
 
 What the reading still cannot see,
 and why,
 is in that same doc:
 a `pub` field written in a tuple-like struct's parentheses,
-a member of a type published only through a `pub use` facade,
+a member of a type a facade names through an inline `mod` body or through a module the tree cannot resolve,
 a `pub trait`'s methods and a `pub enum`'s variants,
 an item inside an inline `mod name { ... }`,
 a glob's own names,
@@ -1067,6 +1086,13 @@ and each guard whose scope could hold one says so in its top doc:
 a call a macro written outside the scope expands to,
 a name a glob import (`use super::*;`) brings into scope without writing it,
 and a call whose name and `(` a line break separates.
+A spelling a guard can be made to read,
+it reads and plants a control for:
+the commit path's ban reads a direct `syscall` call,
+because `libc::syscall(libc::SYS_symlinkat, ...)` writes the system call's name inside a longer constant;
+the login guard reads the manager's program however its literal is spelled,
+bare or as a path;
+and the note guard reads a write by descriptor number (`libc::STDERR_FILENO`).
 
 ## Walk the sources through the one walk, never a recursive read
 
