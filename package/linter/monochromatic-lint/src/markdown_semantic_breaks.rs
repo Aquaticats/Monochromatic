@@ -140,11 +140,11 @@ pub fn semantic_line_breaks(
             .map(|(at, separator)| return at + separator)
             .collect::<Vec<usize>>();
         let joins: Vec<Option<FragmentJoin>> = fragment_joins(
-            context.source.as_str(),
+            context,
+            paragraph,
             paragraph_end,
             fragments.as_slice(),
             prefix.chars().count(),
-            context.host_prefix_chars,
         );
         for (index, (at, separator)) in breaks.iter().enumerate() {
             // The fix consumes at most the one separating space; the grouped editor resolves competing fixes.
