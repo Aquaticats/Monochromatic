@@ -949,55 +949,6 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   and it counted inside the region Git left.
   No timing was taken;
   `native:check` passed on the pinned tree after the merge;
-- nothing for the wrapper's `0.6.1-alpha.49` structure pass:
-  both rounds are merged.
-  The round on the surface control (`b929e8c39b`) first planted the read's five shapes against the Rust control on `main`,
-  and each passed unseen while a plain `struct` failed.
-  The control now reads a function whatever qualifies it,
-  fields and methods of a published type,
-  and a `pub use` over any count of lines,
-  each keyed by the module path that publishes it;
-  its list went from 6,695 entries to 12,395;
-  four names a split had widened are narrowed,
-  and none of the rest;
-  and its top doc states the five shapes it still cannot see.
-  The merge restored seven platform gates,
-  counted in its diff.
-  The round on the list guards is merged (`e8d3ba3736`):
-  the hook ban fails on every spelling of a call that makes a link,
-  and on no call that only reads one;
-  an excuse names how many uses of its text its file holds,
-  so a use added to an excused file fails;
-  two guards read a whole folder where they read a name prefix;
-  each guard's top doc says what a file would have to look like to be missed;
-  the package guide holds the rules the two merges brought;
-  and the README says which targets the release builds.
-  Each of the read's plants was first run against the Rust guards on `main`,
-  and each finding held.
-  Two scopes stay open by the round's own account:
-  a link written outside `commit/`,
-  `landing/` and the three named files is no finding,
-  and the commit path's notes guard is chosen by the words a file names.
-  On the pinned tree at `203bd65854`,
-  all six merged rounds together,
-  `native:check`,
-  the four Clippy tasks and the whole `source_guard` module (212 of 212) passed,
-  and `native:ts-checks` passed with 90 unit test files and 189 suites.
-  That last run reached the account's service manager (issue 6620):
-  a unit test commits in fixture checkouts through whichever `git` the worktree's launcher names,
-  which there was the locked `0.6.1-alpha.44`,
-  so four commit services started for fixtures at 2026-11-27T14:31:32-05:00
-  and the shared program link named that release until 14:33:15.
-  Nothing was left:
-  the four instances read inactive and the fixtures were gone.
-  The pinned tree's launcher link names the reviewed build since then,
-  as the main checkout's does,
-  so the shared link stays where it is;
-  issue 6620's merge ended the services as well.
-  The task cannot be kept off the manager from outside,
-  because it starts each check in a scope of its own:
-  with a fixture runtime directory both checks ended `exit 1` before running anything.
-  The whole gate named under the behaviour pass covers these too;
 - rounds for `cargo-shadow`:
   both rounds of its `0.1.5-alpha.14` read are merged,
   and `0.1.5-alpha.15` is released
