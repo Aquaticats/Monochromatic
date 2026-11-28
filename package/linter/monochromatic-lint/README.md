@@ -2199,6 +2199,56 @@ and what the messages say.
   and an entry of a `uses` folder is named as that entry of a `uses` folder,
   where alpha.19 called it a file.
 
+What the second passes over these three releases measured with the released
+binaries
+(each a same-vendor pass and not an independent review):
+
+- `0.5.2-alpha.20` against `0.5.2-alpha.19`,
+  over 4,092 lists:
+  none that alpha.19 read clean is unclean here,
+  the keys it prints read back with no dead line,
+  the two allow lists of `package/git-policy/cli` give identical output in alpha.16,
+  alpha.19 and alpha.20,
+  and CPU time was 0.89 to 1.08 over five interleaved rounds,
+  against a byte-identical copy of alpha.19 as the control at 0.90 to 1.11,
+  so no cost was measurable.
+- `0.5.2-alpha.21` against `0.5.2-alpha.20`,
+  over 5,161 lists:
+  no line changed from read to refused or back,
+  so only texts changed,
+  the repository copy's findings are byte-identical in alpha.19,
+  alpha.20 and alpha.21,
+  and no cost shows on a package-sized run.
+  Of 1,296 six-word `file-uses` lines over real folders named with a space,
+  a tab,
+  two spaces,
+  a no-break space and an arrow,
+  alpha.21 lost the folder's name alpha.20 gave 558 of them,
+  and put right the lines for which alpha.20 named a wrong folder.
+  Alpha.21 spells six unseen code points and prints the rest raw,
+  4,232 by that pass's count.
+  A list of 30,000 dead lines took 1.18 times alpha.20's wall time
+  (range 1.10 to 1.34,
+  its control 0.96 to 1.14),
+  and 1.06 where both print sentences of equal size.
+- `0.5.2-alpha.22` against `0.5.2-alpha.21`,
+  over 10,081 lists:
+  no line moved between read and refused,
+  no exit status or set of findings changed,
+  a probe first showed that the comparison sees a move (alpha.19 against alpha.21 moves 163 lists),
+  and on a clean tree only `--version` differs.
+  The table of unseen characters equals Unicode 17.0.0's own data,
+  and over every scalar value alpha.22 spells 4,288 where alpha.21 spelled 29.
+  A `file-uses` line of six words names the folder it wrote in 1,152 of 1,296 lines against 324,
+  and the help of a dead line names every character a gap kept,
+  in 992 of 992 lines.
+
+The second pass over `0.5.2-alpha.21` did not review the closure check,
+the rules outside the layout rules beyond a byte comparison,
+the test suite as run,
+Windows and macOS,
+or how `package/git-policy/cli` uses this library.
+
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,
@@ -2383,6 +2433,15 @@ and what the messages say.
   `Cc` and `Default_Ignorable_Code_Point`,
   and no one of them names U+2800,
   so the quote keeps it and no sentence calls it unseen.
+- A folder name that holds two arrow shapes needs a rename for each,
+  and it keeps that:
+  each sentence such a name gets is true,
+  and such names are rare.
+- A longer dead list takes longer to read than it did,
+  and the longer sentences are the cause the pass could show:
+  a list of 30,000 dead lines took 1.18 times `0.5.2-alpha.20`'s wall time,
+  against a control of that release's own copy at 0.96 to 1.14,
+  and 1.06 where both print sentences of equal size.
 
 ### Links and other tools
 
