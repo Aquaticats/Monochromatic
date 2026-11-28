@@ -6,9 +6,8 @@ over `0.6.1-alpha.52`.
 Each part is unapproved and non-final.
 
 ## The alpha.48 release passes
-# What a release pass of the wrapper found
 
-Rounds of 2026-11-27 and 2026-11-28,
+Round of 2026-11-27,
 unapproved and non-final.
 
 Two passes read the release `0.6.1-alpha.48`:
@@ -20,14 +19,7 @@ This record keeps the findings and the measurements that no other file holds,
 in the passes' own words where they had them.
 Every figure is the pass's own measurement,
 taken on 2026-11-27;
-nothing here was re-measured for that record.
-
-A later second pass read `0.6.1-alpha.52` against `0.6.1-alpha.51` on 2026-11-28,
-and what a round did about its findings is
-"The alpha.52 behaviour pass" at the end of this file.
-That pass was another agent of the same vendor,
-so still not an independent review,
-and the round that acted on it re-ran each finding before changing anything.
+nothing here was re-measured for this record.
 
 The behaviour the release rests on is the code,
 the gate,
@@ -915,6 +907,7 @@ The step-shaped check was read with `sh` of this host,
 with the guest's shared folder replaced by a folder of the round's own.
 What a `mvm exec` answers for a nonzero command is the producer's source and its controls,
 not a guest of this round.
+
 ## The alpha.52 behaviour pass
 
 A second pass read `0.6.1-alpha.52` (`bf46e60f6d`) against `0.6.1-alpha.51` (`81b06993bd`) on 2026-11-28,
