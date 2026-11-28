@@ -2529,7 +2529,8 @@ Removing the deepest indent of a rustdoc run re-projects every line of that run
 `run_margin`),
 so such an edit would be refused instead of applied.
 
-A fence is closed by the author's own line, and no rule here reports one that is never closed:
+A fence is closed by the author's own line,
+and no rule here reports one that is never closed:
 CommonMark runs an unterminated fence to the end of its container,
 so the lines after it are code to every Markdown rule,
 and a fix has nothing to say about the missing closing line.
