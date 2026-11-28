@@ -2827,11 +2827,14 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
+
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
+
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
+
 The lock names each tool by its own id:
 `cargo:monochromatic-lint`,
 `cargo:monochromatic-cargo-shadow`,
@@ -2885,8 +2888,8 @@ and the two `truepeak` files wait on their branch.
 
 ### What the rounds found
 
-- Closed by a merged round:
-  every issue these rounds filed, except those with a round ("Rounds that ended,
+- The issues these rounds filed are on GitHub,
+  and each is closed by a merged round except those with a round ("Rounds that ended,
   and what each left") and these,
   which stay open on purpose and wait in `doc/handover/questions-for-the-owner.md`.
   Issues 6555,
@@ -2988,6 +2991,7 @@ and the two `truepeak` files wait on their branch.
   the round marked it for the owner to weigh.
 - Two rounds split the four byte-identical copies of `src/shadow_identity.rs` in different ways.
   A file that several crates must keep identical belongs to one round.
+
 ### Next
 
 - Merge each round when it has ended and its report is read,
