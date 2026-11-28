@@ -352,3 +352,79 @@ the numbers mean at least;
 the smallest size that fits wins;
 GPU and other special families are left out by family name.
 The proposal `doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md` no longer stands in front of that build.
+
+## The size taken among those that fit, 2026-11-28
+
+Asked at about 2026-11-28T07:08-05:00 which size `mvm` takes on OVHcloud when several fit an ask,
+the owner chose "Cheapest that fits (Recommended)",
+whose text was:
+
+- at create time mvm reads OVHcloud's public hourly prices,
+  keeps the sizes whose vCPUs and memory are both at least the ask,
+  and takes the lowest-priced one,
+  printing the size and its price before anything is created;
+- example:
+  `--vcpus 2 --memory 6` ends on `d2-8` at CA$0.0596 per hour;
+- it gives up the sizes with no published price (the `-flex` twins),
+  which are never picked;
+- still open after a yes:
+  the price read itself has not been made from this machine yet;
+  if it cannot be had,
+  mvm falls back to smallest numbers and says so.
+
+The option not chosen ordered the fitting sizes by vCPUs,
+then memory,
+then disk,
+and ended the same ask on `b2-7` at CA$0.1135 per hour.
+The prices are OVHcloud's price page for Canada,
+Linux,
+excluding tax,
+read 2026-11-28 by the round that revised `doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`.
+
+The same question restated the session's two other picks,
+each still open to the owner's veto and neither answered:
+the numbers mean at least;
+and no GPU size is ever taken,
+built as a list of the five general families,
+so that a GPU family OVHcloud adds later cannot be picked.
+
+## All guest work runs on OVHcloud, 2026-11-28
+
+Typed by the owner at about 2026-11-28T07:30-05:00:
+
+> Set a reminder for yourself for OVH for 8am.
+> By then,
+> switch to OVH for all guest work no matter what.
+
+So from 2026-11-28T08:00-05:00 no guest work runs on this machine:
+no round makes a local guest or starts a command in one,
+and no brief names one.
+
+What the session did with it,
+recorded 2026-11-28T07:34:42-05:00:
+
+- a command that ends at 08:00 and a one-shot schedule at the same minute are armed;
+- merge `832b3e25c2` puts the guest drivers' switch on `main` ahead of its round's end:
+  a driver takes its backend from the environment variable `MVM_BACKEND`,
+  and `libvirt` is only what it takes when nothing is said;
+- every round that holds a local guest is told to stop using it,
+  to finish what needs no guest and to name in its report each arm that has not run;
+- at 08:00 the session destroys every local guest still alive and tells its round why.
+
+What does not run on OVHcloud at the time of writing:
+a guest arm.
+The arm scripts reach a guest through a folder shared with the host,
+which only a local guest has,
+so on OVHcloud a driver makes and prepares a guest and refuses to run an arm.
+The round that built the switch is making arms run there,
+with the script pushed,
+the arm started through `mvm exec` and its log pulled back.
+Until that lands no guest arm runs anywhere.
+
+What does run there,
+on `main` at `feb999c67a`:
+create,
+a command,
+a push and a pull,
+and a destroy that returns when the project's listing has let the machine go;
+the billed test passed whole at 2026-11-28T07:32:22-05:00.

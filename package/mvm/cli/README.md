@@ -119,6 +119,27 @@ mise run //package/mvm/cli:run -- create --image fedora build-box
 mise run //package/mvm/cli:run -- create --image windows win-box
 ```
 
+## What the `mvm` command runs
+
+`mvm` runs this package's TypeScript source,
+`src/cli.ts`,
+and Node strips the types on the way in.
+No build output stands between the command and its code,
+so a change that lands in the source reaches the next run,
+and no worktree runs a build older than the source beside it (issue 6655).
+`mise run //package/mvm/cli:run` runs the same file.
+
+`dist/final/node/cli.mjs` is a launcher for that source,
+never a copy of the program:
+a `node_modules/.bin/mvm` shim written by an install older than this manifest names that path,
+so the build writes a file there that runs the source beside it.
+`pnpm install` in a checkout writes a shim naming the source directly,
+and `mise run //package/mvm/cli:build` refreshes the launcher in a worktree whose build is
+older than this change.
+The ways weighed,
+their costs and the measurements:
+[`doc/what-the-mvm-command-runs.md`](doc/what-the-mvm-command-runs.md).
+
 ## Host tools
 
 The libvirt backend runs two host commands,
@@ -737,6 +758,36 @@ mise run //package/mvm/cli:run -- --backend ovh destroy --all
 # Report each Canadian region's smallest flavor in stock and its instance quota
 mise run //package/mvm/cli:run -- --backend ovh update
 ```
+
+`destroy` returns only once OVHcloud has stopped billing the machine.
+An accepted delete leaves the instance in the project's listing as `DELETING`
+first and as `DELETED` afterwards,
+and only then does it leave the listing;
+a read of one instance by its identifier answers `DELETED` even after the
+listing has dropped it.
+`destroy` reads the listing every three seconds and says each status once,
+`destroy --all` sends every delete before it waits for all of them,
+and the wait gives up after five minutes with an error that names the machine,
+its last status and the bill,
+and prints `mvm --backend ovh list` and `mvm --backend ovh destroy <name>`.
+
+`list`,
+`destroy --all` and every lookup by name leave out an instance the listing
+calls `DELETED`,
+because it runs nowhere and its name is free again.
+An instance the listing calls `DELETING` is still billed,
+so `list` shows it as `deleting` and it counts against any limit on how many
+machines run at once.
+`exec`,
+`push`,
+`pull` and `shell` match it and refuse at once,
+saying the machine is being deleted;
+`destroy` matches it,
+so repeating the command the timeout error prints finishes the delete.
+`create` and `clone` refuse a name the project is still deleting,
+because OVHcloud does not make instance names unique,
+and a second machine of that name would make every later lookup on it
+ambiguous.
 
 ### Differences from the Hetzner backend
 

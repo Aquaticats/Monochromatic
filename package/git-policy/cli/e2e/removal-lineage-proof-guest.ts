@@ -47,6 +47,11 @@ import {
 import {
   GuestDriverError,
 } from '../bin/mvm-guest-error.ts';
+import {
+  guestBackend,
+  refuseAStepWhoseArmsCannotRun,
+  STEPS_THAT_RUN_NO_ARM,
+} from '../bin/mvm-guest-backend.ts';
 import type { GuestFacts, } from '../bin/mvm-guest-guest-facts.ts';
 import {
   pushWorktreeSnapshot,
@@ -345,6 +350,14 @@ await mkdir(
     mode: FOLDER_MODE,
   },
 );
+// The steps that run an arm in the guest refuse on a backend this package's arm scripts cannot reach, before this run
+// makes anything. The three that only make, prepare and take away a guest run on either backend.
+refuseAStepWhoseArmsCannotRun({
+  backend: guestBackend(),
+  step: chosen.step,
+  stepsThatRunNoArm: STEPS_THAT_RUN_NO_ARM,
+});
+
 await step(chosen,);
 
 //endregion The command line

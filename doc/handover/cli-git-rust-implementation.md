@@ -774,6 +774,201 @@ Unapproved and non-final.
   - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`
   - `zfs-two-forces-pass-holders-and-the-2026-11-23-limits-designed-and-measured`
 
+#### Started and done between 06:14 and 06:58
+
+Unapproved and non-final.
+
+- The owner asked why local guests were still being started three hours after pointing at OVHcloud.
+  The session had put a proposal and its reviews in front of the third billed run.
+  The owner then gave a standing yes for billed runs by the session and by its rounds,
+  inside bounds (`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "A standing yes for billed runs,
+  2026-11-28"),
+  and chose a new wording of rule `URF` in `AGENTS.md` (commit `2b222d450b`).
+  Before it ends a turn the session lists the project's machines and deletes leftovers named `mvm-*`.
+- No name resolved on this machine from 06:21:08 until the owner reconnected IVPN at 06:36:00
+  (`doc/troubleshooting/ivpn-3-15-inverse-split-tunnel-overrides-wireguard.md`,
+  "Name lookups ride the tunnel for every program").
+  Ordinary traffic was outside the tunnel when measured after recovery,
+  and neither OpenSnitch nor AppArmor was involved.
+- An OVHcloud machine answered:
+  a `d2-2` from the image `Ubuntu 26.04` in `BHS5`,
+  running 134 s after the create call in one run and 57 s in the next,
+  with a command,
+  a push and a pull passing in both.
+  Merge `dcbb146340` makes `mvm`'s listing leave out an instance the project lists as `DELETED`.
+  Still open:
+  `destroy` returns while the machine is listed as `DELETING` (read 16 s after the delete call),
+  so the billed test's last check fails;
+  the round `mvm-cli-ovh-destroy-returns-when-the-instance-is-gone` started at 06:54:55.
+  The project listed no machine at 06:56:43.
+- Two rounds toward guests on OVHcloud run since 06:24:
+  `mvm-cli-create-and-run-take-vcpus-and-memory-and-pick-the-smallest-size-that-fits`
+  (the owner's sizing sentence,
+  built without waiting for the proposal)
+  and `guest-drivers-take-the-mvm-backend-from-one-place-and-one-arm-runs-on-an-ovhcloud-machine`.
+  Each has an inbox note that `main` holds `dcbb146340` and `9afd7194ab`.
+  The session starts no new round on a local guest once both are merged.
+- Merge `9afd7194ab` (issue 6655) makes the `mvm` command run the source beside it,
+  and the main checkout was built so that worktrees inherit the launcher.
+  Its report leaves for issues:
+  `mvm-mcp` and twenty other commands still run a build that can be older than their source,
+  and one case of `cli-session-daemon.unit.test.ts` failed in one of three suite runs.
+  Its question on what a published `mvm` runs is the owner's and off the stated priority.
+- Merge `5a84e361c0` puts the guests' unit at three quarters of memory in `mvm`'s code;
+  the main checkout's build computes `47364M`.
+- The gate on `d4faaf0807` was green
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md`),
+  and the wrapper's `0.6.1-alpha.53` was published at 2026-11-28T06:49:18-05:00
+  and unpacked under `.cache/wrapper-release-0.6.1-alpha.53/`.
+  It does not hold the owner's force answers of 06:01 to 06:05.
+  Two second passes by Claude Sonnet started at about 06:57;
+  their reviews go to
+  `~/temp/agent/git-policy-cli-alpha-53-release-review-behaviour-2026-11-28/keep/review.md` and
+  `~/temp/agent/git-policy-cli-alpha-53-release-review-no-change-merges-2026-11-28/keep/review.md`.
+- Merge `471d462ccf` holds the development-profile proposal's revision;
+  its second gate read started at about 06:57 and writes to
+  `~/temp/agent/second-gate-review-of-the-development-profile-proposal-2026-11-28/keep/review.md`.
+- Three rounds ended at 06:35:31 with `model-error`:
+  their providers could not be reached while names did not resolve,
+  and the last one in the writer's list answered that its usage limit was reached.
+  They are the line-break revision,
+  the measurement of guest test binaries built outside the guest,
+  and the design of what two forces do at a holder.
+  Each was resumed from its own session at 06:47.
+  A resume names the run by its folder's name:
+  a whole path in `sessionOf` ends the start with a stack trace,
+  which is owed an issue.
+  A round that falls through to the provider at its limit ends the same way again.
+- The linter's `0.5.2-alpha.25` second pass found no High,
+  no Medium and eight Low;
+  its fix round is not started.
+- At 06:49:21 a round read 106 MiB available on the host with the guests' unit under its raised cap,
+  which is the state the move to OVHcloud is for.
+
+#### Started and done between 06:58 and 07:15
+
+Unapproved and non-final.
+
+- The billed OVHcloud test's cleanup ran `destroyAll`,
+  which deletes every machine named `mvm-*` in the project,
+  and its last check wanted the whole listing empty,
+  while three rounds worked against that one project.
+  The three were warned through their inboxes at about 07:03.
+  Merge `945adbef05` makes the test destroy and look for only the machine it made,
+  and the three were told at about 07:09.
+  A round never runs `mvm --backend ovh destroy --all`,
+  and the session's own look before it ends a turn only lists while a round can hold a machine.
+  The Hetzner live test has the same shape and is unchanged.
+- The owner chose the cheapest size that fits for `mvm` on OVHcloud
+  (`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "The size taken among those that fit,
+  2026-11-28");
+  the sizing round has the prices,
+  the family rule and that decision in its inbox.
+- The owner declined a new rule about waiting on a fault:
+  "normal,
+  never an excuse" already means working with the condition
+  (`doc/philosophy/agents.md`,
+  "what "normal here,
+  never an excuse" asks for").
+- Merged after their reports were read whole:
+  the `mvm` sizes proposal's revision (`4217d02664`)
+  and the crate split round 4 proposal's revision (`39d9ec0b51`).
+  Each has a second gate read by Claude Sonnet running since about 07:13,
+  writing to `~/temp/agent/second-gate-review-of-the-mvm-sizes-proposal-2026-11-28/keep/review.md`
+  and `~/temp/agent/second-gate-review-of-the-crate-split-round-4-signatures-proposal-2026-11-28/keep/review.md`.
+- Issues filed:
+  6658 (a batch entry whose `sessionOf` is a path),
+  6659 (the `mvm` unit case that depends on order)
+  and 6660 (twenty commands and `mvm-mcp` that can run a build older than their source).
+  Issue 6655 is closed.
+
+#### Started and done between 07:15 and 07:18
+
+Unapproved and non-final.
+
+- Five more rounds ended and were merged after their reports were read whole:
+  the `mpm-shadow` fix on its alpha.20 read
+  (a notice a stream refuses no longer ends the command),
+  step 22's two guest measurements (`b30ef786e0`),
+  and the revisions of the hosted-runners (`60064b0024`),
+  Dylint (`e63bf58c19`)
+  and line-break (`dc42566e69`) proposals.
+- `mpm-shadow` `0.2.7-alpha.21` is releasing (run 46143657292);
+  its lock and its second pass follow.
+- Eight readers on Claude Sonnet run:
+  two second passes of the wrapper's `0.6.1-alpha.53`,
+  and gate reads of the development-profile,
+  sizes,
+  crate split,
+  hosted-runners,
+  Dylint and line-break proposals.
+  Their briefs are under `~/temp/agent/briefs-for-release-reads-written-2026-11-28/`
+  and `~/temp/agent/briefs-for-gate-reads-written-2026-11-28/`,
+  and each review goes to a scratch folder named for it.
+- What waits for the owner from these rounds is in `doc/handover/questions-for-the-owner.md`,
+  the section recorded this morning.
+- Owed issues:
+  the container-limit package's unit task is red on `main`
+  because the OVHcloud backend's image file is missing from the container-start-sites ledger;
+  and the account companion answered past its 100 ms deadline under load in one guest run,
+  so that an add fell back to the ordinary Git route.
+
+#### Started and done between 07:18 and 07:23
+
+Unapproved and non-final.
+
+- `mpm-shadow` `0.2.7-alpha.21` is published,
+  locked (`c2f93a25dc`) and installed in the main checkout,
+  whose launcher now starts it;
+  the session's `git` link was restored after the install.
+  Its second pass by Claude Sonnet is running and writes to
+  `~/temp/agent/mpm-shadow-alpha-21-release-review-2026-11-28/keep/review.md`.
+- Merge `3ce67273e1` puts the OVHcloud backend's image file into the container-start-sites ledger;
+  the container-limit package's unit task had been red on `main` since that file named `docker` as an image label.
+- Merge `3db7f34154` holds the forced arm's ending for a holder in a mount namespace no task is in:
+  on the step 23 template's kernel the walk lists such a namespace,
+  enters it and takes the copy out,
+  and a kernel without the listing call answers the refusal instead.
+  The owner's condition of 2026-11-26 was a measurement on a kernel of 6.19 or newer,
+  which this is.
+  The step 17 decision record's sentence on that refusal now holds only for a kernel without the listing call
+  and needs a dated note in place;
+  the measurement is in `doc/planning/cli-git-zfs-taskless-namespace-walk-measured-on-the-step-23-template.md`.
+  The forced arm is still reached by no command.
+- The sizing round ended in the middle of a sentence with no report;
+  it was resumed from its own session with the decided order restated.
+- Issue 6661 asks about the account companion answering past its 100 ms deadline under load.
+- Nine readers on Claude Sonnet run:
+  the eight named in the section before this one and the `mpm-shadow` second pass.
+- OVHcloud at 07:22:08 by the clock:
+  two machines active,
+  both created by rounds that are running.
+
+#### Started and done between 07:23 and 07:29
+
+Unapproved and non-final.
+
+- The development-profile proposal's second gate read came back not ready
+  (three High,
+  ten Medium,
+  nine Low).
+  Its first point is that the recommended form was never measured.
+  The round `development-profile-proposal-revised-against-its-second-gate-read-with-the-recommended-form-measured`
+  started at 07:27:49;
+  unlike the first revision it may build the fewest arms that measure that form.
+- Merge `871e0be314` holds the shutdown pass
+  (`src/native/worktree_clone_shutdown_unmount_pass/`),
+  built and proved in a guest and reached by no command:
+  the mode `zfs-root shutdown-unmount` still refuses,
+  as its brief directed.
+  The pass withdraws this boot's readiness record first,
+  unmounts only the clone mounts this boot verified,
+  leaves a busy mount standing and names its holders,
+  and changes no durable intent.
+  Its picks the brief did not decide are in `doc/handover/questions-for-the-owner.md`.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.

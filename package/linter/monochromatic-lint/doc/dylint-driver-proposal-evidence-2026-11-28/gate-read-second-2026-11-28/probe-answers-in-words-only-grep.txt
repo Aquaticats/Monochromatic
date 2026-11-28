@@ -1,0 +1,5 @@
+# Proposal body (not the answer section) searched for what the answer section says it contains
+1250:which the owner has paused (issue 6316);
+1780:The 2026-10-30 ranking is cited (`B > C > A > D`,
+1789:2026-11-07 counts (516 findings,
+(answer section starts at line 1664)

@@ -1084,6 +1084,68 @@ and the sweep ignores it
 step 8,
 "Where the checkout and the datasets are found").
 
+## The ZFS shutdown pass's arm
+
+`shutdown-unmount-guest.ts` runs plan step 19's shutdown pass end to end,
+which is the work the gate unit's `ExecStopPost` will do once the mode that
+refuses in this build is wired to it.
+The pass is `src/native/worktree_clone_shutdown_unmount_pass/`,
+the arm is `src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`
+under the `native_binary` target,
+and the two scripts it runs are `e2e/shutdown-unmount-guest-scripts.ts`:
+the build unpacks this worktree and compiles the crate's test targets,
+and the arm runs one `nextest` filterset.
+Both are started detached through `bin/mvm-guest-detached-script.ts`,
+because either can pass five minutes,
+and the driver reads the status each script wrote into its own log.
+
+The arm builds the design's layout on the guest's own file-backed pool:
+a checkout dataset mounted at the configured path with its private
+propagation,
+the sibling clone container,
+two clones of the checkout dataset's snapshot with a mount intent each,
+and both mounted at their slots with `mount -t zfs`,
+which is the row a legacy clone's mount leaves in the table.
+It then publishes this boot's readiness record,
+holds a file open inside the second clone so the kernel answers `EBUSY`,
+and calls `run_the_pass` itself as root with the live seams:
+the release mount table,
+the release slot walk,
+the release staging calls,
+the release fresh capture,
+the store opened under root control,
+one clone's GUID through the pool reader,
+and the all-namespace holder scan over this machine's `/proc`.
+
+Its claims,
+one `SHUTDOWN-UNMOUNT` marker each:
+
+- the idle clone's mount is unmounted,
+  and the row the pool reports for it is gone;
+- the busy clone's mount is still there,
+  and the pass's own line names it and what holds it,
+  with nothing forced and nothing detached;
+- this boot's readiness record is withdrawn,
+  so the wrapper's own add preflight finds no report standing for this boot
+  and admits no attach
+  (`src/native/worktree_clone_add_route/add_preflight.rs`,
+  `admit_the_handler`);
+- both clones' `org.mochromatic:git-worktree-clone-mount-desired-state`
+  property is exactly what it was;
+- a second pass,
+  run on the same machine after the withdrawal,
+  answers one line saying this boot published no readiness record,
+  reaches no mount and unmounts nothing.
+
+The driver fails a run whose pulled `shutdown-unmount-arm.log` lacks a marker
+or holds a `SKIPPED` line,
+so an arm that returned without running fails the run.
+
+```sh
+# package/git-policy/cli: one guest for the whole arm
+node e2e/shutdown-unmount-guest.ts all --name <guest> --log-dir <dir>
+```
+
 ## The ZFS start-probe arms
 
 `start-probe-guest.ts` runs the root probe's own arms in a guest of the same
@@ -1529,7 +1591,21 @@ Its build,
 its two pools,
 its measurement arm
 and the holder scan beside it are in `e2e/step-22-arms/`,
-and the numbers one run took are recorded in
+and two more arms live beside the measurement arm as files of the `native_binary` test target,
+which the same test calls in the order the record reads:
+`src/native/binary/binary_zfs_step_22_large_parent_guest_tests.rs`
+sweeps a parent at 16,
+64,
+128,
+256 and 512 clones after the run-to-run spread on unchanged input,
+and `binary_zfs_step_22_pinned_output_guest_tests.rs`
+writes incompressible bytes,
+pins them with an hourly snapshot,
+overwrites them,
+and reads what a clone's removal,
+the snapshot's expiry and the live copy's removal free,
+beside the same counts over one repeated byte as the probe's positive control.
+The numbers one run took are recorded in
 `doc/planning/cli-git-zfs-step-22-guest-half-measurements.md`;
 no task runs the driver,
 so a round that needs the numbers again runs it by hand.

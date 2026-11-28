@@ -23,6 +23,7 @@
 
 import { join, } from 'node:path';
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
@@ -36,8 +37,6 @@ import {
   readLog,
 } from '../../bin/mvm-guest-step-command.ts';
 
-
-
 import {
   armTimeoutMilliseconds,
   expectedScanMarkers,
@@ -45,6 +44,12 @@ import {
 } from './adoption-fixture.ts';
 import { detachedStep, } from './detached-step.ts';
 import { holderScanScript, } from './holder-scan-arm-script-fixture.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
+
 
 /**
  The log the holder-scan arm writes inside the guest's shared folder.
@@ -112,11 +117,10 @@ export async function holderScanArms({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'pull',
       chosen.name,
-      `/mnt/shared/${armLog}`,
+      `${backend.guestSharedFolder}/${ armLog }`,
       pulledPath,
     ],
     log: 'host-pull-holder-scan.log',

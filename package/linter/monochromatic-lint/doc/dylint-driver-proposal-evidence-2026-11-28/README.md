@@ -11,7 +11,13 @@ The full logs of the runs are larger than what is kept here:
 the `strace` logs ran to about a megabyte each,
 the container images and the driver binaries are not kept,
 and the run's own scratch folder expires a day after its last change.
-What is kept is every line a claim rests on.
+What is kept is every line a claim rests on,
+except where the proposal says otherwise:
+the first round kept the JSONL records of three skip probes and not their status lines,
+kept two skip messages cut at 400 characters,
+and kept no cause for its two closure failures.
+Those gaps are named in the proposal's own account of M1 to M6,
+and the second round re-measured every one of their figures that a claim still needs.
 
 ## The machine and the clock
 
@@ -64,6 +70,61 @@ the host's registry cache and index for M3,
 and for M3 the `git archive` of the worktree's `HEAD`).
 Every container was removed at the end of its run with `podman rm --force <name>`;
 none of this round is left.
+
+## The second round of 2026-11-28
+
+The second gate read of 2026-11-28 asked for two measurements under one instrument and one correction:
+option K measured alone and option I measured on a compiler like this host's floating one.
+They are here with two smaller ones.
+Each folder holds the container's whole output in `run.txt` and its logs in `log/`,
+and each script is in `scripts/`.
+The image of this round is `localhost/dylint-probe-base:2026-11-28b`,
+built from `docker.io/cachyos/cachyos-v4:latest` with `rustup`,
+`strace`,
+`jq`,
+`binutils`,
+`git`,
+`cargo-dylint` and `dylint-link` 6.4.0,
+and the three nightlies the measurements name;
+its Containerfile is the one in the first round's section above plus
+`nightly-2026-11-17` with `rustc-dev`,
+`llvm-tools-preview` and `rust-src`,
+and a `git` in the package list.
+The linter is the released `monochromatic-lint` 0.5.2-alpha.25 (`sha256` begins `34ca8f26d6`,
+printed in each `run.txt`).
+
+- `m7-k-with-minimal-floating-channel/`:
+  option K alone,
+  with a minimal floating channel and the proxy first for `cargo` and `rustc`.
+  `log/a-*.jsonl` and `log/e-*.jsonl` are the rustc-dev skips with the variable unset,
+  `log/b-*.jsonl` the driver-gap skip with it set,
+  `log/c-warm.*` the 123 s warm build (library 47.13 s,
+  driver 1 m 13 s),
+  `log/c-execve-counts.txt` the 3 `git` executions,
+  `log/c-driver-*` the driver's place,
+  version and RUNPATH,
+  and `log/d-*.jsonl` the six findings.
+- `m8-option-i-on-the-host-like-floating-build/`:
+  option I on this host's floating compiler (`5df8c02af`,
+  2026-11-16).
+  `log/toolchains-*.txt`,
+  `log/floating-components.txt` and `log/floating-rustc-version.txt`
+  are the state,
+  `log/a-*.jsonl` the driver-gap skip,
+  `log/b-warm.*` the 91 s warm build (library 46.88 s,
+  driver 38.85 s),
+  `log/b-execve-counts.txt` the 0 `git` executions,
+  `log/c-*.jsonl` the six findings and `log/d-*.jsonl` the `--max-warnings 0` run.
+- `m10-skip-statuses/`:
+  the three statuses of a skip for both causes,
+  with the status lines kept.
+- `m11-rustup-does-not-install-an-absent-toolchain/`:
+  what `rustup` 1.29.3 does when a directory's `rust-toolchain.toml` names a toolchain it does not
+  have.
+- `gate-read-second-2026-11-28/`:
+  the second same-vendor gate read,
+  whole,
+  with the probes it ran.
 
 ## The measurements
 

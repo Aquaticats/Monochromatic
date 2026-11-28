@@ -751,8 +751,16 @@ llama-cpu-cli \
   `install` waits the same way,
   for the questions it asks about a Rust row and for every other program it
   starts,
-  and so does every command that starts a program,
+  and every program a toolchain command starts through that runner is waited on the same way,
   so a `rustup` or a `cargo` that never answers makes that command wait for ever too.
+  Three starts do not go through the runner and print no such line,
+  which is what each needs:
+  the shadow mode starts the real `mpm` with the standard streams inherited and waits for it
+  (`src/shim.rs`),
+  a launcher replaces itself with the program its record names
+  (`src/toolchain/launcher/starting_it.rs`),
+  and the check for the repository link to the 860 drive starts its own program under its own deadline
+  (`src/toolchain/repository_link_cause.rs`).
   What a wait does say is one line on standard error once it has passed 2 s,
   naming the program and every argument it was started with:
 
@@ -2000,11 +2008,16 @@ and it holds one link per declared bin
     A name this build cannot judge against those facts,
     such as one from another process namespace,
     keeps its link,
-    and every rebuild names it once and says what deleting it by hand would risk:
+    and a rebuild names it once and says what deleting it by hand would risk:
 
     ```text
     toolchain install: left the temporary link <name>: this run cannot judge the install its name records, so it is not removed, and deleting it by hand may make that install fail where it gives the link its name
     ```
+
+    The pass reads the folder's entries in the order the directory lists them,
+    and a removal that fails stops it,
+    so a rebuild that stops at a failing removal names the names it reached before that removal
+    and the next install names the ones after it.
 
     A name an earlier build wrote carries the process id alone,
     and the shorter name this build writes when it cannot read its own boot or process namespace carries a process id and a start time and no namespace:
