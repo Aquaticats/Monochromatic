@@ -164,7 +164,7 @@ fn state(
 /// which the wrapper cannot finish for them.
 fn marked_ways_forward(origin_snapshot: &str) -> String {
     return format!(
-        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, the wrapper's own removal refuses a marked origin and prints this same mark until it is gone, so run `git monochromatic-git-policy-cli cancel-worktree-removal` on the slot once the origin answers without it."
+        "`zfs get -H -o value defer_destroy {origin_snapshot}` and `zfs holds {origin_snapshot}` show the mark and the holds. The mark cannot be cleared in place, so this slot's removal finishes only outside the wrapper: either you accept that snapshot's destruction and destroy the clone yourself, which takes the worktree's files with it and needs the worktree taken down first, where a program holding it may refuse; or you clone that snapshot elsewhere first, which pins it, and then destroy the clone. Either way, the wrapper's own removal refuses a marked origin and prints this same mark until it is gone."
     );
 }
 

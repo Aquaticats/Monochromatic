@@ -201,7 +201,10 @@ fn a_staged_clone_is_a_finding_naming_the_folder() {
     };
     assert_eq!(field, "staging");
     assert!(detail.contains(folder.as_str()), "{detail}");
-    assert!(detail.contains("no removal for a clone"), "{detail}");
+    assert!(
+        detail.contains(crate::worktree_clone_binding_record::NO_REMOVAL_WORDS),
+        "{detail}"
+    );
 }
 
 /// A clone mounted somewhere that is no staging folder stays unproven,
