@@ -70,9 +70,14 @@ pub(crate) struct Holder {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Holdings {
-    /// Every namespace that holds a mount of the clone,
-    /// in the scan's order.
+    /// Every namespace other than this process's own that holds a mount of the
+    ///  clone,
+    ///  in the scan's order.
     pub(crate) holders: Vec<Holder>,
+    /// How many mounts of the clone stand in this process's own mount
+    ///  namespace,
+    ///  which is where an unmount from here would act.
+    pub(crate) own_mounts: usize,
     /// How many reads the scan could not complete.
     pub(crate) incomplete_reads: usize,
 }
@@ -320,10 +325,16 @@ fn holdings_sentence(holdings: &Result<Holdings, String>) -> String {
         Ok(found) => found,
         Err(said) => return said.clone(),
     };
-    if found.holders.is_empty() {
+    if found.holders.is_empty() && found.own_mounts == 0 {
         return format!(
             "the all-namespace scan named no namespace holding a mount of it, and {} read(s) of it could not be completed",
             found.incomplete_reads
+        );
+    }
+    if found.holders.is_empty() {
+        return format!(
+            "the all-namespace scan found {} mount(s) of it in this process's own mount namespace and no other namespace holding one, and {} read(s) of it could not be completed",
+            found.own_mounts, found.incomplete_reads
         );
     }
     let named: Vec<String> = found
@@ -332,7 +343,8 @@ fn holdings_sentence(holdings: &Result<Holdings, String>) -> String {
         .map(|holder| return holder_line(holder))
         .collect();
     return format!(
-        "the all-namespace scan named {list} ({count} read(s) it could not complete)",
+        "the all-namespace scan found {own} mount(s) of it in this process's own mount namespace and named {list} ({count} read(s) it could not complete)",
+        own = found.own_mounts,
         list = named.join("; "),
         count = found.incomplete_reads
     );

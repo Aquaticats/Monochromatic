@@ -1293,6 +1293,12 @@ mod root_mode_name;
 #[path = "binary_zfs_unmount_guest_tests.rs"]
 mod zfs_unmount_guest;
 
+/// Plan step 19's shutdown pass as root against a real pool: the idle clone
+/// unmounted, the busy one kept and named, and this boot's readiness withdrawn
+/// before either.
+#[path = "binary_zfs_shutdown_unmount_guest_tests.rs"]
+mod zfs_shutdown_unmount_guest;
+
 /// Plan step 13's managed Git lock in the throwaway guest:
 /// Git's own lock,
 /// the clone mounted over the slot,

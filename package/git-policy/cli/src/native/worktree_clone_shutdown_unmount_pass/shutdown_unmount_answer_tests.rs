@@ -109,6 +109,7 @@ fn the_summary_counts_every_ending_and_says_no_intent_changed() {
                         task: PathBuf::from("/proc/1234"),
                         mounts: 1,
                     }],
+                    own_mounts: 1,
                     incomplete_reads: 0,
                 }),
             ),
@@ -180,6 +181,7 @@ fn the_held_line_names_its_holders_and_says_nothing_was_forced() {
                     task: PathBuf::from("/proc/1234"),
                     mounts: 2,
                 }],
+                own_mounts: 1,
                 incomplete_reads: 3,
             }),
         )],
@@ -206,6 +208,7 @@ fn a_scan_that_found_no_holder_says_so() {
             "two",
             Ok(Holdings {
                 holders: Vec::new(),
+                own_mounts: 0,
                 incomplete_reads: 0,
             }),
         )],

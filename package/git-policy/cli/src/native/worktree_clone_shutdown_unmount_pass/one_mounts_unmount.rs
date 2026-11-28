@@ -191,6 +191,7 @@ fn holders_of(
         .collect();
     return Ok(Holdings {
         holders,
+        own_mounts: scan.own_mounts.len(),
         incomplete_reads: scan.incomplete.len(),
     });
 }
