@@ -1,0 +1,35 @@
+Survey command and the temporary source edits
+
+Run at commit c8545f91b8c79a8064490bcffa667d6ea79b83df
+(2026-11-27T22:56:16-05:00).
+The list is files.txt at that commit.
+The harness reads each path with `git show <commit>:<path>`,
+so the counts are the commit's, not the worktree's later edits.
+The whole output is output.txt.
+
+The three temporary source edits, all reverted after the run and never committed:
+
+1. Copy the kept harness into the crate source:
+   cp doc/a-survey-of-line-breaks-at-no-semantic-boundary/survey_line_breaks_at_no_semantic_boundary_tests.rs.keep \
+     src/markdown_fragment_joins_survey_tests.rs
+
+2. Append to src/markdown_fragment_joins.rs:
+   #[cfg(test)]
+   #[path = "markdown_fragment_joins_survey_tests.rs"]
+   mod survey_tests;
+
+3. Change the fragment limit in src/markdown_fragment_joins.rs
+   from 2 to usize::MAX.
+   This is the one guard lifted for the removal count.
+
+The command, run from package/linter/monochromatic-lint:
+
+SURVEY_LIST="$PWD/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt" \
+  SURVEY_ROOT="$(git rev-parse --show-toplevel)" \
+  cargo nextest run --locked --lib --no-capture survey_
+
+The command was run under:
+
+systemd-run --user --scope --slice=agent-work.slice \
+  --property=MemoryMax=6G --property=CPUQuota=400% --property=TasksMax=128 \
+  --property=IOWeight=1 --property=RuntimeMaxSec=2400 -- ...
