@@ -2827,16 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-- `cargo-shadow`,
-  `0.1.5-alpha.11`:
-  release commit `82cfbcaf11`,
-  locked (`c0b6187db0`) and installed;
-  a `native:check` of the wrapper through it printed its two install-step lines and exited 0.
-  Over alpha.10 it holds issue 6528's stop report,
-  issue 6576's test programs that end by themselves,
-  the test fixes of issues 6549 to 6554,
-  the file splits and the reformat.
-
 What the two shadow tools' passes found,
 each with no High finding:
 
