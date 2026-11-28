@@ -321,7 +321,8 @@ Markdown and MDX.
 
 The handover recorded the tip check the coordinator ran after a batch
 (`doc/handover/cli-git-rust-implementation.md`
-[section removed on 2026-11-27 under rule H0P; the quotation below is its record]):
+[section removed on 2026-11-27 under rule H0P;
+the quotation below is its record]):
 
 ```text
 `main`'s tip is checked after a batch of merges and not by each merge:
