@@ -76,6 +76,28 @@ mod the_links_no_row_declares;
 /// Imports the removal of the farm's links no row of the lock declares.
 use self::the_links_no_row_declares::remove_the_links_no_row_declares;
 
+/// What:
+/// The instant before one removal of the farm's rebuild,
+/// which a build made for controls can plant:
+/// another run's removal of the same link,
+/// or an `unlink` the kernel refuses.
+/// Why:
+/// A control has to show what a run prints and leaves in those two states,
+/// and neither can be made to happen on demand by a disposable fixture.
+/// A shipped build holds no plant at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { atTheInstantBeforeARemoval } from './exposure/a-control-plants-a-removal.ts';
+/// ```
+mod a_control_plants_a_removal;
+/// Re-exports the plants a control makes for its own thread.
+#[cfg(test)]
+pub(crate) use self::a_control_plants_a_removal::{
+    What,
+    planting_at_the_removal_of,
+};
+
 /// The result of rebuilding the farm:
 /// the names now linked,
 /// the names whose program was not found,

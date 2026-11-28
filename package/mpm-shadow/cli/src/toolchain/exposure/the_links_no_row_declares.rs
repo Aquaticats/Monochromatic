@@ -27,6 +27,9 @@ use super::super::context::Context;
 use super::super::error::ToolchainError;
 /// Imports `declares_bin` from the module that links the farm.
 use super::declares_bin;
+/// Imports the instant a control can plant at one removal,
+/// which a shipped build never holds.
+use super::a_control_plants_a_removal::at_the_instant_before_a_removal;
 
 /// What:
 /// Removes every symbolic link in the exposure directory whose name no row of the lock declares,
@@ -158,7 +161,34 @@ pub(super) fn remove_the_links_no_row_declares(
                 )));
             }
         };
-        if let Err(error) = fs::remove_file(entry.path()) {
+        // What:
+        // the step a control plants where the kernel's own `unlink` answers,
+        // or the `unlink` itself in a shipped build.
+        // Why:
+        // A control shows what the rebuild leaves when the link it came to remove is already gone,
+        // and when one removal fails after earlier ones succeeded.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const planted = atTheInstantBeforeARemoval(name, entry.path());
+        // ```
+        let planted: Option<std::io::Error> =
+            at_the_instant_before_a_removal(&name, &entry.path());
+        // What:
+        // the removal's own answer: the planted error, or the `unlink`'s.
+        // Why:
+        // Both are the same failure for the caller,
+        // so the failure arm below is written once.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const removal = planted ?? unlinkSync(entry.path());
+        // ```
+        let removal: std::io::Result<()> = match planted {
+            Some(error) => Err(error),
+            None => fs::remove_file(entry.path()),
+        };
+        if let Err(error) = removal {
             return Err(ToolchainError::failure(format!(
                 "cannot remove the exposure link {}: {error}",
                 entry.path().display()

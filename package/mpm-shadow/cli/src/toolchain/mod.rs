@@ -357,6 +357,10 @@ mod plan_insert_tests;
 #[cfg(test)]
 mod exposure_tests;
 
+/// The controls of what a rebuild of the exposure farm removes, spares and names.
+#[cfg(test)]
+mod the_farm_removal_spares_and_names_tests;
+
 /// The controls of this repository's own `rust` row:
 /// an install of it names no unresolved bin,
 /// and a bin no route provides is still named.
