@@ -83,7 +83,11 @@ export function snapdirScript(): string {
     '  mount --make-private "$CHECKOUT"',
     '  read_value=$(zfs get -H -o value snapdir "$DS")',
     '  test "$read_value" = "$value"',
-    '  if as_account_ls "$CHECKOUT" > /root/snapdir-list.log 2>&1 && grep --quiet "^.zfs$" /root/snapdir-list.log; then listed=true; else listed=false; fi',
+    // The listing is `ls -a` of the checkout, and what the arm asserts of it is that `.zfs` is one of its lines, in the
+    // states where the directory is visible. The pattern is anchored and its dot is escaped, so a name that merely ends
+    // in `zfs` is not the directory; the text is raw, because a JavaScript string turns `\.` into `.` before the shell
+    // ever sees it, which is what the guest ran until 2026-11-27.
+    String.raw`  if as_account_ls "$CHECKOUT" > /root/snapdir-list.log 2>&1 && grep --quiet "^\.zfs$" /root/snapdir-list.log; then listed=true; else listed=false; fi`,
     '  before=$(snapshot_rows)',
     '  if as_account_ls "$CHECKOUT/.zfs/snapshot/account-origin" > /root/snapdir-enter.log 2>&1; then entered=true; else entered=false; fi',
     '  after=$(snapshot_rows)',

@@ -50,6 +50,13 @@ export function holderScanScript({
   return [
     'set -eu',
     `export PATH=${openZfsPath}`,
+    // The arm's own run ends with the checkout's dataset still mounted at the folder below, and a run killed part-way
+    // leaves the clone it attached at the slot inside it as well; the `rm` below refuses while anything stands there,
+    // so every run takes down what a previous one left before it claims the folder. Every mount under the checkout
+    // goes first, the slot a clone stands at included, then the checkout itself, which is the order the sweep arm
+    // answers its own leftover in (`sweep-arm.ts`).
+    `for target in $(findmnt --list --noheadings --output TARGET | grep --fixed-strings ${scanCheckout} || true); do umount --force "$target" 2>/dev/null || true; done`,
+    `umount --force ${scanCheckout} 2>/dev/null || true`,
     `rm --recursive --force ${scanCheckout}`,
     `mkdir --parents ${scanCheckout}`,
     `cd ${crateDirectory}/package/git-policy/cli`,

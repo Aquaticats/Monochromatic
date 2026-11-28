@@ -53,17 +53,14 @@ function patternOfTheListingLine(): string {
    */
   const start = line.indexOf(PATTERN_OPENS_WITH,) + PATTERN_OPENS_WITH.length;
   /**
-   The offset of the quote that closes the pattern, absent when the line closes none.
+   The line from the pattern's first character to its end, which the quote that closes the pattern ends.
    */
-  const end = line.indexOf(
-    '"',
-    start,
-  );
-  if (end < 0)
+  const rest = line.slice(start,);
+  if (!rest.includes('"',))
     throw new Error(`the line that greps the listing closes no pattern: ${line}`,);
   return line.slice(
     start,
-    end,
+    start + rest.indexOf('"',),
   );
 }
 
@@ -105,7 +102,7 @@ await describe({
   name: '',
   children: [
     describe({
-      name: 'patternOfTheListingLine',
+      name: patternOfTheListingLine.name,
       children: [
         it({
           name: 'finds the .zfs directory in the listing of the checkout',

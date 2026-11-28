@@ -900,6 +900,11 @@ when `store-fsync.log` carries both `PROBE` lines,
 and when neither log holds a `SKIPPED` line,
 so an arm that returned without running fails the run.
 `--keep-guest` keeps a failed run's guest to inspect.
+`run` may be repeated in one guest.
+The holder-scan arm takes down the mounts a previous run left at its checkout
+before it removes that folder (`holder-scan-arm-script-fixture.ts`),
+so a guest that already ran the step runs it again,
+and a run killed part-way leaves the same mounts for the next run's first lines.
 
 ## The ZFS sweep arms
 
@@ -1048,6 +1053,15 @@ Its lines are the `SNAPDIR` markers,
 and the sweep guest arm reads a locally set value,
 an inherited one and the default through the route's own dataset-stats request
 (`SNAPDIR-REPLY`).
+
+The arm's assertion about the listing is one line of `grep`:
+`^\.zfs$`,
+which the script writes as a raw string so the backslash reaches the guest's `grep`
+(`snapdir-arm-script-fixture.ts`).
+Before 2026-11-27 the guest ran `^.zfs$`,
+whose dot matches any character,
+so a listing that held `xzfs` and no `.zfs` passed the `visible` row;
+the escaped dot asserts the directory itself.
 
 The arm does not test the distro's mount generator:
 the integration pass ran that question with its own positive control,

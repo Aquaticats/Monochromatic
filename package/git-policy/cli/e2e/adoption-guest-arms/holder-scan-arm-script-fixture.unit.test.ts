@@ -31,17 +31,6 @@ const LOG = 'holder-scan-arm.log';
 const REMOVE = `rm --recursive --force ${scanCheckout}`;
 
 /**
- The words of the line that unmounts the checkout itself.
- */
-const UNMOUNT_THE_CHECKOUT = `umount ${scanCheckout}`;
-
-/**
- The words of the line that unmounts every mount under the checkout, the slot a previous run's clone stands at
- included.
- */
-const UNMOUNT_UNDER_THE_CHECKOUT = `findmnt --list --noheadings --output TARGET | grep --fixed-strings ${scanCheckout}`;
-
-/**
  The script the arm runs inside the guest.
 
  @returns the whole script, as the arm hands it to the guest
@@ -57,41 +46,97 @@ function script(): string {
 }
 
 /**
- Where one piece of the script stands among its text.
+ The script's lines, which this guard reads in order.
 
- @param piece - the text whose first offset is wanted
-
- @returns the offset of that text, or -1 when the script does not hold it
+ @returns one entry per line
  */
-function at({ piece, }: { readonly piece: string; },): number {
+function lines(): readonly string[] {
   return script()
-    .indexOf(piece,);
+    .split('\n',);
+}
+
+/**
+ Whether one line is the arm's removal of its checkout.
+
+ @param line - one line of the script
+
+ @returns true when the line removes the folder with `rm`
+ */
+function removesTheCheckout(line: string,): boolean {
+  return line === REMOVE;
+}
+
+/**
+ Whether one line unmounts every mount under the checkout, the slot a previous run's clone stands at included.
+
+ @param line - one line of the script
+
+ @returns true when the line reads the mount table for the checkout and unmounts what it names
+ */
+function unmountsUnderTheCheckout(line: string,): boolean {
+  return line.includes('findmnt',) && line.includes(scanCheckout,);
+}
+
+/**
+ Whether one line unmounts the checkout itself.
+
+ @param line - one line of the script
+
+ @returns true when the line begins an `umount` that names the checkout
+ */
+function unmountsTheCheckout(line: string,): boolean {
+  return line.startsWith('umount ',) && line.includes(scanCheckout,);
 }
 
 await describe({
   name: '',
   children: [
     describe({
-      name: 'the holder-scan arm\'s script',
+      name: holderScanScript.name,
       children: [
+        it({
+          name: 'removes the folder, which is the line that refuses while a previous run\'s dataset stands there',
+          fn: async () => {
+            /**
+             Where the script removes its checkout.
+             */
+            const remove = lines()
+              .findIndex(removesTheCheckout,);
+            expect(remove,).toBeGreaterThanOrEqual(0,);
+          },
+        },),
         it({
           name: 'unmounts every mount under its checkout before it removes the folder',
           fn: async () => {
-            expect(at({ piece: UNMOUNT_UNDER_THE_CHECKOUT, },),).toBeGreaterThan(-1,);
-            expect(at({ piece: UNMOUNT_UNDER_THE_CHECKOUT, },),).toBeLessThan(at({ piece: REMOVE, },),);
+            /**
+             Where the script takes down every mount under the checkout, and where it removes the folder.
+             */
+            const underTheCheckout = lines()
+              .findIndex(unmountsUnderTheCheckout,);
+            /**
+             Where the script removes its checkout.
+             */
+            const remove = lines()
+              .findIndex(removesTheCheckout,);
+            expect(underTheCheckout,).toBeGreaterThanOrEqual(0,);
+            expect(underTheCheckout,).toBeLessThan(remove,);
           },
         },),
         it({
           name: 'unmounts the checkout itself before it removes the folder',
           fn: async () => {
-            expect(at({ piece: UNMOUNT_THE_CHECKOUT, },),).toBeGreaterThan(-1,);
-            expect(at({ piece: UNMOUNT_THE_CHECKOUT, },),).toBeLessThan(at({ piece: REMOVE, },),);
-          },
-        },),
-        it({
-          name: 'removes the folder, which is the line that refuses while a previous run\'s dataset stands there',
-          fn: async () => {
-            expect(at({ piece: REMOVE, },),).toBeGreaterThan(-1,);
+            /**
+             Where the script unmounts the checkout itself, and where it removes the folder.
+             */
+            const theCheckout = lines()
+              .findIndex(unmountsTheCheckout,);
+            /**
+             Where the script removes its checkout.
+             */
+            const remove = lines()
+              .findIndex(removesTheCheckout,);
+            expect(theCheckout,).toBeGreaterThanOrEqual(0,);
+            expect(theCheckout,).toBeLessThan(remove,);
           },
         },),
       ],
