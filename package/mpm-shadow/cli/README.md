@@ -264,9 +264,21 @@ or a Java major line such as `21`).
   so the farm links `rustup` only where a `rustup` proxy of that name already sits in the cargo bin
   directory,
   and a row that declared it names an unresolved bin wherever none does.
+  On 2026-11-17 this machine's `rustup` became the distribution's package,
+  and the proxies in the cargo home went with the `rustup-init` installation it replaced,
+  so no `rustup` proxy sat there any more,
+  and the row that declared it named it an unresolved bin.
   A program a component provides is in the toolchain only while that component is installed,
   so such a program resolves through the farm once `rustComponents` declares it or
   `rustup component add` has put it there.
+  An install adds a declared component the toolchain lacks,
+  which `0.2.7-alpha.17` showed against a real `rustup` in its second pass:
+  on a pinned toolchain at the `minimal` profile holding no `rustfmt` it asked
+  `rustup component add rustfmt --toolchain nightly-2026-11-16`,
+  the two programs were in the toolchain's `bin` afterwards and ran,
+  and the report named no unresolved bin,
+  where `0.2.7-alpha.16` in the same state asked nothing and named three unresolved bins.
+  The controls around this answer every `rustup` call from a stand-in runner.
   `list` reads the same declarations:
   it asks `rustup` which toolchain the row's channel is,
   then `rustup component list --installed` for what that toolchain holds,
@@ -1695,6 +1707,9 @@ and never what a start of either copy does:
 the test is a completion marker and a program found,
 so a program cut short under its marker reads as finished too,
 and the copy the version's name holds may be the one that cannot run.
+A stronger test of that clause was priced and not taken:
+keeping a second copy whose program differs means reading both programs on every recovery,
+and it still cannot tell a program cut short from one rebuilt at the same size.
 
 ```text
 toolchain install: removed 1 hidden directory left behind by an install of mpm-shadow that has ended, 1 of which held a second finished copy of 0.2.7-alpha.13, because 0.2.7-alpha.13 holds its completion marker and its program at its name
