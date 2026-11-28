@@ -113,6 +113,14 @@ fn every_check_name_is_unique() {
     );
 }
 
+/// The checkout's mount check is named `checkout-mount` in every report line,
+/// so the word a person greps outlives a release
+/// and a rename shows here rather than in a log nobody keeps.
+#[test]
+fn the_checkout_mount_check_is_named_checkout_mount() {
+    assert_eq!(Check::CheckoutMount.name(), "checkout-mount");
+}
+
 /// A finding's field is a word or a component,
 /// never empty,
 /// so a line always says what failed.
