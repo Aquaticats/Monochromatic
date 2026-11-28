@@ -2,17 +2,26 @@
  What the start probe's guest arms name: the built wrapper and the words that
  select its root mode, the record the probe writes, the dataset the design names,
  the configuration and the checkout, the file-backed pool the guest makes, and the
- bound each arm gets.
+ bound each arm gets; and what one arm reads back out of a guest build's log.
 
  The words are choice 2's, so a bare mode word is refused under the installed name
  and this shape is what reaches the modes
  (`doc/decision/cli-git-zfs-root-modes-the-eleven-choices-of-the-one-program-design.md`).
+
+ The log reading sits here because the arms share it and because a unit test may
+ reach a unit-testable module by this name: `test-import/require-eventual-artifact`
+ refuses a test that imports sibling source otherwise, and `bin/mvm-guest-*.ts` is
+ the shared set this round changes nothing in.
 
  @example
  ```ts
  const { name, logDir } = options();
  ```
  */
+
+import {
+  doneStatusOf,
+} from '../../bin/mvm-guest-command-line.ts';
 
 /**
  Where the crate is unpacked and built inside the guest, which every account may
@@ -110,6 +119,110 @@ export const openZfsPath: string = `${openZfsPrefix}/sbin:${openZfsPrefix}/bin:/
  one of them into a target folder of its own.
  */
 export const crateBuildTimeoutMilliseconds = 2_400_000;
+
+/**
+ Milliseconds the host gives the guest's build past its own bound, before it stops
+ waiting for the script's status line: the guest's own `timeout` fires a minute
+ inside that bound, and the pull of a log this size costs the answer's own seconds.
+ */
+export const buildFinishMarginMilliseconds = 180_000;
+
+/**
+ How many lines of a guest build's own log a refusal carries, counted back from its
+ status line: the two builds' own `tail --lines=3` outputs fit inside it, and a
+ longer refusal is one nobody reads.
+ */
+export const tailLineCount = 12;
+
+/**
+ A guest build's log whose status line names no zero status, or names none at all.
+ */
+export type FailedGuestBuild = {
+  /**
+   True for a build that ended other than zero, or that never said how it ended.
+   */
+  readonly failed: true;
+  /**
+   The status the build's log names, or `without a status` when it names none.
+   */
+  readonly status: string;
+  /**
+   The log's last lines before its status line, as the guest wrote them.
+   */
+  readonly tail: readonly string[];
+};
+
+/**
+ How a guest build ended, as the log it writes answers.
+ */
+export type GuestBuildEnd = {
+  /**
+   True for a build whose log's status line names zero.
+   */
+  readonly failed: false;
+} | FailedGuestBuild;
+
+/**
+ The log's last lines before its status line.
+
+ @param text - the whole log the guest wrote
+
+ @returns the last {@link tailLineCount} lines with text in them, in the order the
+ guest wrote them, with the status line left out because a refusal names that itself
+
+ @example
+ ```ts
+ logTailOf({ text: 'error[E0308] …\nDONE=101\n' }); // ['error[E0308] …']
+ ```
+ */
+export function logTailOf({ text, }: { readonly text: string; },): readonly string[] {
+  /**
+   Every line of the log but the status lines, which a `split` of a log that ends in
+   a newline leaves an empty one of.
+   */
+  const lines = text
+    .split('\n',)
+    .filter(function hasText(line: string,): boolean {
+      return line.length > 0;
+    },)
+    .filter(function isNotTheStatus(line: string,): boolean {
+      return !line.trim()
+        .startsWith('DONE=',);
+    },);
+  return lines.slice(-tailLineCount,);
+}
+
+/**
+ How a guest build ended, read from the log the host pulled.
+
+ The build runs as a detached script (`bin/mvm-guest-detached-script.ts`), so its
+ log is the guest's own output with the status line the script appends after the two
+ `tail --lines=3` outputs. A build the guest's kernel ended, or one a compiler
+ refused, prints its own words and the tail is what a person reads.
+
+ @param text - the whole log the guest wrote
+
+ @returns whether the build ended zero, and for a failed one its status and the tail
+ of its log
+
+ @example
+ ```ts
+ const ended = guestBuildEndOf({ text: pulled });
+ ```
+ */
+export function guestBuildEndOf({ text, }: { readonly text: string; },): GuestBuildEnd {
+  /**
+   The status the log's own `DONE=` line names, absent when the log holds none.
+   */
+  const ended = doneStatusOf({ text, },);
+  if (ended.found && (ended.status === '0'))
+    return { failed: false, };
+  return {
+    failed: true,
+    status: ended.found ? ended.status : 'without a status',
+    tail: logTailOf({ text, },),
+  };
+}
 
 /**
  Milliseconds one probe arm may take.

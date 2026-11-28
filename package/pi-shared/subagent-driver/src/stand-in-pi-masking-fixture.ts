@@ -34,6 +34,10 @@ import {
   answer,
   emit,
 } from './stand-in-pi-records-fixture.ts';
+import {
+  guardCommandsOf,
+  standInMainCheckoutGuard,
+} from './stand-in-pi-main-checkout-guard-fixture.ts';
 
 /**
  The scenario in which the stand-in plays a Pi whose extension did not load, so the masking is not in place.
@@ -326,6 +330,8 @@ export function answerCommands({
         { name: 'bash', },
         { name: 'edit', },
         ...maskingCommandsOf({ masking, },),
+        // Every extension a run's Pi loads reports its own command, so the list this answers with holds the guard's too.
+        ...guardCommandsOf({ guard: standInMainCheckoutGuard(), },),
       ],
     },
   },);

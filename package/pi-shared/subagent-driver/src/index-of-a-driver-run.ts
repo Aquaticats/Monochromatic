@@ -41,6 +41,7 @@ export {
   type StartsOfARun,
   startsOfARun,
 } from './starts-of-a-run.ts';
+export { wholePathOfACall, } from './whole-path-of-a-call.ts';
 export {
   NestedDriverError,
   PiRunEndedEarlyError,

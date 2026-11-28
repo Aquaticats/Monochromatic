@@ -943,6 +943,19 @@ and the failures with the commit that fixed them.
   It failed nothing,
   and no test was leaky:
   issue 6501's relay control no longer outlives its run.
+- `beb61ec46b`,
+  unit `gpc-gate-wrapper-next-alpha-on-beb61ec46b-20261127T183913-0500`,
+  started 2026-11-27T18:39:13-05:00,
+  the gate of the wrapper's `0.6.1-alpha.51`:
+  `12307 tests run: 12307 passed (7 slow), 51 skipped`.
+  It failed nothing.
+- `6037c4e0f8`,
+  unit `gpc-gate-wrapper-next-alpha-on-6037c4e0f8-20261127T201313-0500`,
+  started 2026-11-27T20:13:13-05:00,
+  holding issue 6625's twelve controls and the driver's guard of issue 6636:
+  `12321 tests run: 12321 passed (5 slow), 51 skipped`,
+  in 929 s.
+  It failed nothing.
 
 A gate's window denies what the work meets,
 never a failure by itself:

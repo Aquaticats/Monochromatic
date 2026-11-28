@@ -1135,6 +1135,165 @@ node e2e/start-probe-guest.ts no-configuration --name <guest> --log-dir <dir>
 node e2e/mount-git-worktree-clone-datasets-guest.ts destroy --name <guest> --log-dir <dir>
 ```
 
+The driver's build is the two release builds of the handler,
+and it runs as a detached script since issue 6639
+(`crate-build.ts`,
+`bin/mvm-guest-detached-script.ts`):
+the guest's own two `cargo build` lines,
+their order,
+their options and the log each writes are what the step always sent,
+and only how the command is started and how its end is read changed.
+The guest's name check is in the launcher,
+so a command that reached another machine's guest refuses before the step file
+starts:
+a check inside the step file is one the step file runs on and then works anyway
+(measured with `sh` on both shapes of
+`bin/mvm-guest-command-line.ts`).
+A build that ends nonzero is reported with its own status and the tail of its own
+log.
+In issue 6639's own guest,
+the two builds finished in 3m 16s and 3m 08s,
+the whole `green` step took 7m 11s
+(`2026-11-27T20:20:58-05:00` to `2026-11-27T20:28:09-05:00`),
+and the step's result was the `DONE=0` line of the log the wait pulled:
+the `mvm exec` that started the launcher returns before the build starts,
+so none of its status is read.
+
+## Guest work that runs longer than the agent's safe length
+
+A long command in a guest can lose its result:
+the kernel ends a process in the guest agent's unit,
+systemd stops the unit,
+and the agent that answers the next status request has never heard of the
+command
+(`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`).
+The record names mvm's own five minutes for an unanswered request,
+and the case it was found on is a seven-minute build;
+nothing in it shows a plain guest command losing its result under five minutes.
+So the work that runs detached is a guest command bounded above five minutes,
+or one measured above them:
+a script started with `setsid nohup` that appends its own status line,
+whose end this host reads from that line (`bin/mvm-guest-detached-script.ts`).
+
+The adoption driver's detached step
+(`e2e/adoption-guest-arms/detached-step.ts`)
+runs its build and every arm that takes minutes that way,
+the step 22 driver has the same file
+(`e2e/step-22-arms/detached-step.ts`),
+and the removal-lineage and settling drivers start their build and their arm
+detached in the driver itself.
+So `mount-git-worktree-clone-datasets-guest.ts`,
+`removal-lineage-proof-guest.ts`,
+`settling-command-guest.ts` and
+`zfs-step-22-measurements-guest.ts` hold no plain long command at all.
+
+Every other plain `guest()` command in this package is listed here,
+with the bound it carries and the duration recorded for it.
+None of them is changed by issue 6639.
+The durations are the round of issue 6612's own guest run of 2026-11-27,
+where a step's duration is its whole step:
+
+- `e2e/deferred-origin-check-guest.ts:214` is the crate's test build,
+  with a bound of 2,400 s.
+  It took 9m 21s at two jobs,
+  then 13m 59s at one job.
+- `e2e/deferred-origin-check-guest.ts:246` is that driver's arm,
+  with a bound of 900 s.
+  Its whole `run` took 568 s at two jobs and 843 s at one,
+  of which the build is 561 s and 839 s.
+- `e2e/forced-act-guest.ts:224` is the crate's test build,
+  with a bound of 2,400 s.
+  It took 8m 30s at two jobs,
+  then 14m 35s at one job.
+- `e2e/forced-act-guest.ts:256` is that driver's arm,
+  with a bound of 900 s.
+  Its whole `run` took 546 s at two jobs and 911 s at one,
+  of which the build is 510 s and 875 s.
+- `e2e/managed-git-lock-guest.ts:200` is the guest's pool,
+  with a bound of 1,800 s.
+  It is not timed on its own.
+- `e2e/managed-git-lock-guest.ts:255` is the crate's test build,
+  with a bound of 2,400 s.
+  It took 11m 31s as the narrowed `--test native_binary` build.
+- `e2e/managed-git-lock-guest.ts:285` is the lock arm,
+  with a bound of 1,800 s.
+  Its whole `run` took 697 s,
+  of which the build is 691 s.
+- `e2e/slot-state-and-move-refusal-guest.ts:261` is the crate's test build,
+  with a bound of 2,400 s.
+  It took 6m 07s.
+- `e2e/slot-state-and-move-refusal-guest.ts:289` is the slot-state arm,
+  with a bound of 1,800 s.
+  Its whole `run` took 371 s,
+  of which the build is 367 s.
+- `e2e/doctor-zfs-route-guest.ts:267` is the crate's build,
+  with a bound of 2,400 s.
+  It took 516 s.
+- `e2e/doctor-zfs-route-guest.ts:308` is the doctor arm,
+  with a bound of 900 s.
+  It is not timed on its own;
+  it printed its 25 claims and passed.
+- `e2e/sanoid-coverage-guest.ts:278` is the Sanoid install,
+  with a bound of 600 s.
+  It is part of a whole `all` of 575 s.
+- `e2e/sanoid-coverage-guest.ts:320` is the crate's build,
+  with a bound of 2,400 s.
+  It took 4m 01s.
+- `e2e/sanoid-coverage-guest.ts:360` is the Sanoid arm,
+  with a bound of 1,200 s.
+  It is part of the same 575 s.
+- `e2e/adoption-guest-arms/store-dataset-and-fsync.ts:115` is the store's
+  dataset and its publication-fsync probe,
+  with a bound of 900 s.
+  It is not timed on its own,
+  and the driver's whole `run` took 1,758 s with its detached arms.
+- `e2e/adoption-guest-arms/delegation-arm.ts:155` is the delegation arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/adoption-guest-arms/snapdir-arm.ts:149` is the `snapdir` matrix,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/fixture-arms.ts:85` is the `red` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/fixture-arms.ts:142` is the `probe-dataset` step,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/green-arm.ts:174` is the `green` arm,
+  with a bound of 900 s.
+  It took 34 s.
+- `e2e/start-probe-arms/refusal-arms.ts:71` is the `gate-skip` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/refusal-arms.ts:112` is the `m9-busy` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/no-configuration-arm.ts:94` is the
+  `no-configuration` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/table-window-arm.ts:97` is the `m2-controls` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/scan-arm.ts:110` is the `m7-scan` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/kill-matrix-arm.ts:91` is the `m3-kill` arm,
+  with a bound of 1,500 s.
+  It took 182 s.
+- `e2e/start-probe-arms/key-arms.ts:97` is the `m1-key` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/key-arms.ts:152` is the `m1-read-write` arm,
+  with a bound of 900 s.
+  It is not timed on its own.
+- `e2e/start-probe-arms/timing-arms.ts:128` is the `timings` arm,
+  with a bound of 1,500 s.
+  It took 14 s.
+- `e2e/start-probe-arms/timing-arms.ts:198` is the `timings-boot-first` arm,
+  with a bound of 900 s.
+  It took 12 s.
+
 ## The step 22 measurement driver
 
 `zfs-step-22-measurements-guest.ts` runs plan step 22's guest half in a guest of
