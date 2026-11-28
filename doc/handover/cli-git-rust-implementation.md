@@ -355,77 +355,10 @@ pinned to no member
 (`doc/decision/writer-rounds-take-qwen-first-through-the-virtual-writer.md`),
 whose members the owner changed on 2026-11-27 at about 16:15 -05:00:
 "Change writer's list to match the reviewer's list."
-On `main` the reviewer asks the qwen plan,
-then Synthetic,
-then `opencode-go`,
-then Neuralwatt's flex lane,
-and the writer asks those without Synthetic
-(`package/pi-plugin/rate-limit-fallback/src/model-pools.ts`);
-the round `the-virtual-writer-asks-the-members-the-virtual-reviewer-asks` built that
-and measured what it costs:
-a pool advertises the smallest window among its registered members,
-Synthetic's member has 524,288 tokens where the others have about 1,000,000,
-so the writer's window would fall from 1,000,000 to 524,288 and its output limit from 384,000 to 65,536.
-Asked with those figures through the question tool at about 16:46 -05:00,
-the owner chose "Skip too-small member (Recommended)":
-the shared list stays,
-the router passes over a member whose own window cannot hold the request,
-and the pool advertises its head member's window,
-so the writer keeps 1,000,000 and the reviewer rises to it.
-Not chosen:
-"Keep three members" and "Live as built".
-The round `the-router-passes-over-a-member-too-small-for-the-request-and-the-pool-advertises-its-heads-window`
-built that on top of the first branch and is merged (`45b9aaeb94`),
-with the first branch inside it.
-Pi loads that extension from the main checkout's built copy,
-which the coordinator rebuilt at 2026-11-27T17:28:33-05:00
-(`mise run //package/pi-plugin/rate-limit-fallback:build`),
-so the change is live for every Pi run started after that,
-and a run started before it keeps the list it loaded.
-Asked before and after the rebuild,
-that built copy answered:
-before,
-the writer asks three members and the reviewer advertises 524,288 and 65,536;
-after,
-both pools ask the four members and advertise 1,000,000 tokens of window and 384,000 of output,
-and with the head member unregistered both advertise the next member's 524,288 and 65,536.
-The head is the first member of the pool's order that the session's registry resolves.
-The size of a request is Pi's own estimate,
-which the round measured against the counts real providers reported:
-over 200 sessions and 48,805 requests the estimate divided by the reported count had a median of 1.000,
-with 0.999 at the 5th percentile and 1.002 at the 95th.
-The router compares the input alone with a member's window,
-because Pi fits the answer into what the window leaves,
-and it keeps no margin.
-Those three picks wait in `doc/handover/questions-for-the-owner.md` with the veto open.
-A case of the driver's suite failed once in a whole run of that round and passed alone and on `main`:
-issue 6631,
-whose round is merged (`ae937863bc`) and whose issue is closed.
-One timed whole run showed the case's bound,
-three polls,
-left 177 ms of room while its own process was held up for as long as 94 ms by its sibling cases.
-With one named step made a poll slower,
-the case ended on its wall clock,
-which is the failure the issue quotes.
-The cases of that file that end on an event now take their bound from the looks they need,
-each look counted with the longest wait a look can be handed,
-so no loaded host decides them;
-the cost is that a watch that never reaches its event is reported after as long as 181.8 s.
-The watch itself is unchanged.
-The cases that assert the wall clock keep their bounds,
-and one of them still fails if a timer fires about 285 ms late.
-The suite's 228 lines passed after the merge of `main`.
-Three things of that round wait for the owner in `doc/handover/questions-for-the-owner.md`.
-The rounds started at that minute are the first on the rebuilt copy.
-The first of them to end,
-the round of issue 6630,
-recorded a context window of 1,000,000 tokens in its `summary.json`,
-with no retry and no rate-limit error,
-which closes the check of the owner's change at a real run.
-The owner also wrote,
-of one `advisor` tool result in a round's session that names `neuralwatt/nw-large`:
-"nw-large is advisor,
-and that's fine."
+Three picks inside the router the owner chose for the writer's list
+wait in `doc/handover/questions-for-the-owner.md` with the veto open.
+Three things the round on the driver's watch cases chose
+wait for the owner in `doc/handover/questions-for-the-owner.md`.
 The rounds run
 under the owner's "Up to 64 rounds at once."
 (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`).
