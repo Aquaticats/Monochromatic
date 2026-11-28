@@ -51,7 +51,8 @@ pub(super) const ELSEWHERE: &str = "/root/step21-elsewhere";
 /// The Node project the pnpm arm adds a worktree of.
 /// Its one dependency is a tarball the fixture makes,
 /// because this guest has no package registry the arm may rely on and because pnpm 12 refuses a store it cannot
-/// hard link into a project on another file system, which the checkout's dataset and the clone's are.
+/// hard link into a project on another file system,
+/// which the checkout's dataset and the clone's are.
 const PACKAGE: &str = "{\n  \"name\": \"step21-fixture\",\n  \"private\": true,\n  \"version\": \"0.0.0\",\n  \"dependencies\": {\n    \"is-odd-local\": \"file:vendor/is-odd-local-1.0.0.tgz\"\n  }\n}\n";
 
 /// The manifest of the dependency the fixture packs into that tarball.

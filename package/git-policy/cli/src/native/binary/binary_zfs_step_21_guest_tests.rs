@@ -6,12 +6,15 @@
 //! Why:
 //!  The plan's acceptance asks for "real dependency preparation after add and
 //!  after migration",
-//!  for "queued and inline repair, Cargo prewarm and cross-filesystem lock
-//!  recovery, mise and launcher repair, and watch rebinding in the editor"
+//!  for "queued and inline repair,
+//!  Cargo prewarm and cross-filesystem lock recovery,
+//!  mise and launcher repair,
+//!  and watch rebinding in the editor"
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 21),
 //!  and every piece of it acts on a clone of the design's datasets.
-//!  `SPEC.md` says the comparison of the watches is reached by no command, and
+//!  `SPEC.md` says the comparison of the watches is reached by no command,
+//!  and
 //!  the skip of the separate ignored-file copy is not built,
 //!  so the arms drive what `main` holds and the wiring stays the wiring step's.
 //!  "After migration" is not runnable here:

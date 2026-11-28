@@ -1290,7 +1290,8 @@ mod zfs_step_21_dependency_fixtures;
 mod zfs_step_21_guest;
 #[path = "binary_zfs_step_21_guest_fixture.rs"]
 mod zfs_step_21_guest_fixture;
-/// Plan step 21's guest arms, in one throwaway guest:
+/// Plan step 21's guest arms,
+/// in one throwaway guest:
 /// the layout their adds work on,
 /// the pnpm and Cargo preparation each beside a control on the checkout's own dataset,
 /// the mise launcher repair,
@@ -1306,6 +1307,8 @@ mod zfs_step_21_launcher_arm;
 mod zfs_step_21_pnpm_and_cargo_arms;
 #[path = "binary_zfs_step_21_queued_arm.rs"]
 mod zfs_step_21_queued_arm;
+#[path = "binary_zfs_step_21_queued_service.rs"]
+mod zfs_step_21_queued_service;
 #[path = "binary_zfs_step_21_repair_readings.rs"]
 mod zfs_step_21_repair_readings;
 #[path = "binary_zfs_step_21_watch_arm.rs"]

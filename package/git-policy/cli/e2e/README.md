@@ -1351,7 +1351,8 @@ and each arm clears the slot it made,
 so one guest serves the whole run.
 Each measured arm alternates its order with its control inside the same round,
 and the pulled log carries one `STEP21` line per thing an arm did,
-the readings of each side, and the ratio of the two,
+the readings of each side,
+and the ratio of the two,
 so a run that reported an arm without performing it fails the marker check.
 
 `create` and `prepare` are the recipe's own steps;

@@ -3,7 +3,8 @@
 //!  the success line the repair prints,
 //!  the time it credits each tool with,
 //!  the branch its own diagnostic log names,
-//!  and the one report of readings, spreads and ratios.
+//!  and the one report of readings,
+//!  spreads and ratios.
 //! Why:
 //!  `render` writes one line for a worktree whose repairs worked,
 //!  a tool's detail followed by ` in <seconds> s`,
