@@ -1442,6 +1442,50 @@ fn a_link_move_that_fails_once_ends_one_and_keeps_the_older_version() {
 }
 
 /// What:
+/// A link move the kernel itself refuses,
+/// and the temporary name it must leave behind nothing at.
+/// Why:
+/// The two controls above refuse the move through the plant,
+/// which answers before the real rename runs,
+/// so the cleanup after a real failure was reached by no test and could be deleted with every test in this file green;
+/// a directory at the link's name is a destination `rename` refuses to replace,
+/// which takes the arm the plant stands in front of.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// test('a link move the kernel refuses leaves no temporary name', () => {
+///   mkdirSync(join(exposureDir, 'name'));
+///   expect(() => atomicSymlink(join(exposureDir, 'name'), '/a/program/that/is/not/there')).toThrow('cannot place the link');
+///   expect(existsSync(join(exposureDir, `.name.${process.pid}.tmp`))).toBe(false);
+/// });
+/// ```
+#[test]
+fn a_link_move_the_kernel_refuses_leaves_no_temporary_name() {
+    let rig = Rig::new();
+    let link: PathBuf = rig.scope.exposure_dir.join("name");
+    fs::create_dir_all(&link).expect("a directory at the link's name");
+    let error = atomic_symlink(&link, Path::new("/a/program/that/is/not/there"))
+        .expect_err("a rename onto a directory is refused by the kernel");
+    assert!(
+        error
+            .message
+            .contains(&format!("cannot place the link {}", link.display())),
+        "the failure names the link it could not place: {error}"
+    );
+    assert!(
+        error.message.contains("Is a directory"),
+        "the kernel refused the rename, not a planted refusal: {error}"
+    );
+    let temporary: PathBuf = link.with_file_name(format!(".name.{}.tmp", std::process::id()));
+    assert!(
+        fs::symlink_metadata(&temporary).is_err(),
+        "the temporary link is gone: {}",
+        temporary.display()
+    );
+    assert!(link.is_dir(), "the destination is as it was");
+}
+
+/// What:
 /// A recovery that puts back the unfinished copy a killed install had moved aside,
 /// and the link it also moves.
 /// Why:
