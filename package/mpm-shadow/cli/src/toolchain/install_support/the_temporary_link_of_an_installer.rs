@@ -18,10 +18,17 @@
 //! and why the question is asked the same way.
 //! The name is built by the one function the hidden names' own builder provides,
 //! so the two shapes cannot drift apart.
-//! A name written by `0.2.7-alpha.18` and earlier carries the process id alone:
-//! a number no process holds is an install that certainly ended,
-//! and a number still held may be that install or a program that took the number over,
-//! so the link stays and a later rebuild asks again.
+//! A name written by `0.2.7-alpha.18` and earlier carries the process id alone,
+//! and the shorter name this build writes when it cannot read its own boot or process namespace
+//! carries the process id and a start time and no namespace:
+//! neither can be judged,
+//! because a number means one thing only inside the process namespace that gave it out,
+//! and a number free in this namespace says nothing about a name an install in another namespace wrote.
+//! Such a link stays,
+//! and a rebuild names it and says what it could not show,
+//! which is the rule a hidden copy's unjudgeable name already follows
+//! (`archive_staging`,
+//! `the_owner_of_a_hidden_sibling`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -125,58 +132,61 @@ pub(crate) fn liveness_of_the_installer(name: &str) -> Option<Liveness> {
     }
     // What: the shape this build writes when it cannot read its own boot or namespace,
     // which ends in the purpose, the process id and its start time.
-    // Why: a name with no boot and no namespace cannot be judged against either, which the answer says.
+    // Why: a name with no boot and no namespace cannot be placed in either,
+    //  so nothing here can show that the process it records wrote it or has ended;
+    //  the link stays and a rebuild names it.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const [temporary, pid, started] = parts.slice(-3);
-    // if (temporary === 'tmp' && isPid(pid) && isMoment(started)) return namedWithoutAPlace(pid);
+    // if (temporary === 'tmp' && isPid(pid) && isMoment(started)) return 'unknown';
     // ```
     if let [carried @ .., temporary, pid, started] = parts.as_slice()
         && !carried.is_empty()
         && *temporary == TEMPORARY_PURPOSE
-        && let Ok(number) = pid.parse::<u32>()
+        && let Ok(_number) = pid.parse::<u32>()
         && let Ok(_moment) = started.parse::<u64>()
     {
-        return Some(named_without_a_place(number));
+        // What: the answer of a name that records no place, which is that nothing may be concluded.
+        // Why: it may belong to an install that still runs in a namespace this reader cannot see.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return 'unknown';
+        // ```
+        return Some(Liveness::Unknown);
     }
     // What: the shape `0.2.7-alpha.18` and earlier wrote,
     // which ends in the process id and the purpose.
-    // Why: a farm written before this build still holds those names, and a kill still leaves one,
-    //  so the rebuild has to read them rather than take them for ordinary orphans.
+    // Why: that name records neither a start time nor a place,
+    //  so a number no process holds here is no evidence that the install that wrote it has ended;
+    //  the link stays and a rebuild names it.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const [pid, temporary] = parts.slice(-2);
-    // if (temporary === 'tmp' && isPid(pid)) return namedWithoutAPlace(pid);
+    // if (temporary === 'tmp' && isPid(pid)) return 'unknown';
     // ```
     if let [carried @ .., pid, temporary] = parts.as_slice()
         && !carried.is_empty()
         && *temporary == TEMPORARY_PURPOSE
-        && let Ok(number) = pid.parse::<u32>()
+        && let Ok(_number) = pid.parse::<u32>()
     {
-        return Some(named_without_a_place(number));
+        // What: the same answer as the shape above, for the same reason.
+        // Why: an earlier build's name carries even less than this build's shorter one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return 'unknown';
+        // ```
+        return Some(Liveness::Unknown);
     }
+    // What: nothing, because this name is no temporary link's.
+    // Why: the caller then treats the name as an ordinary orphan, which is what it is.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return undefined;
+    // ```
     return None;
-}
-
-/// What:
-/// What this process can say about a temporary link whose name records only a process number.
-/// Why:
-/// The number is an answer only while it belongs to no process:
-/// then the install that wrote the name has ended beyond doubt;
-/// while some process holds the number it may be that install,
-/// or one that took the number over after it ended,
-/// and nothing in the name tells those apart,
-/// so the link stays and a later rebuild asks again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function namedWithoutAPlace(pid: number): 'gone' | 'unknown'
-/// ```
-fn named_without_a_place(pid: u32) -> Liveness {
-    if super::super::archive_staging::the_number_is_held(pid) {
-        return Liveness::Unknown;
-    }
-    return Liveness::Gone;
 }

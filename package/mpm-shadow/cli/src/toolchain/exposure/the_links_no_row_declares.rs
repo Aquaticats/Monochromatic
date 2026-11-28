@@ -23,10 +23,17 @@
 //! A name this run has just linked is never removed for a third reason:
 //! it is either a name the lock declares or the program's own link,
 //! which the two rules above already keep.
-//! A link another run removed in the instant before this one reaches it is no failure:
-//! the name is gone,
+//! A link another run removed or renamed in the instant before this one reaches it is no failure:
+//! the removal reads an entry's own metadata,
+//! then the link's target,
+//! and then removes it,
+//! and a name that any of those three calls no longer finds is gone,
 //! which is what this run wanted,
 //! and the run that took it named it.
+//! A temporary link this run cannot judge is kept and named once per rebuild:
+//! it may belong to an install that still runs and that no run here can see,
+//! so the report says which name stayed and what deleting it by hand would cost,
+//! as `prune --toolchain` says of a hidden copy it cannot judge.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -67,26 +74,31 @@ use super::the_link_the_farm_keeps;
 /// The links one pass removed and the error that stopped it,
 /// if any:
 /// the links removed before the error still left the folder and are named.
+/// Also the temporary links it could not judge and left where they are.
 /// Why:
 /// A sentence is built when its link is removed,
-/// so a removal that fails later cannot lose the names of the ones already gone.
+/// so a removal that fails later cannot lose the names of the ones already gone,
+/// and a kept name has to be said once or nothing tells a person the folder holds it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Removals = { sentences: string[]; error?: Error };
+/// type Removals = { sentences: string[]; left: string[]; error?: Error };
 /// ```
 #[derive(Debug, Default)]
 pub(super) struct Removals {
     /// One sentence per link removed,
     /// in name order.
     pub(super) sentences: Vec<String>,
+    /// One sentence per temporary link this pass could not judge,
+    /// in name order.
+    pub(super) left: Vec<String>,
     /// The error that ended the pass.
     pub(super) error: Option<ToolchainError>,
 }
 
 /// What:
 /// One link the pass took out of the folder,
-/// with where it pointed and whether it was a held link an install that ended left.
+/// with where it pointed and whether the name was a held link's the run could show an ended install had left.
 /// Why:
 /// The sentence says which of the two a name was,
 /// and both are read before the removal,
@@ -108,6 +120,7 @@ struct ARemoval {
 /// What:
 /// Removes every symbolic link in the exposure directory whose name no row of the lock declares,
 /// answers one sentence per link it removed while it removes them,
+/// names each temporary link it could not judge and leaves that one,
 /// and stops at the first removal that fails.
 /// Why:
 /// A row that stops declaring a bin,
@@ -140,6 +153,7 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
         Err(error) => {
             return Removals {
                 sentences: Vec::new(),
+                left: Vec::new(),
                 error: Some(ToolchainError::failure(format!(
                     "cannot read {}: {error}",
                     ctx.scope.exposure_dir.display()
@@ -158,6 +172,17 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
     // const removed: ARemoval[] = [];
     // ```
     let mut removed: Vec<ARemoval> = Vec::new();
+    // What:
+    // the temporary links this pass could not judge, which stay in the folder and are named once.
+    // Why:
+    // Such a link may belong to an install that still runs in a process namespace this run cannot see,
+    // so leaving it silently would keep a name in a folder a person reads and say nothing about it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const left: string[] = [];
+    // ```
+    let mut left: Vec<String> = Vec::new();
     // What:
     // the error that ended the pass,
     // which is answered after the removals already made are named.
@@ -206,7 +231,8 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
         // the step a control plants where the kernel's own `lstat` answers,
         // or nothing in a shipped build.
         // Why:
-        // Another install may take the name between this run's listing of the folder and this read.
+        // Another install may take the name between this run's listing of the folder and this read,
+        // and a control has to be able to put that instant here rather than only before the removal.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -217,14 +243,16 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
         // the entry's own metadata, read without following the link.
         // Why:
         // Only a symbolic link is this tool's to remove;
-        // a file or a directory there is a person's.
+        // a file or a directory there is a person's,
+        // and a name another run just took is already gone rather than a failure.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const metadata = lstatSync(entry.path);
+        // const metadata = lstatSync(entry.path, { throwIfNoEntry: false });
         // ```
         let metadata = match fs::symlink_metadata(entry.path()) {
             Ok(metadata) => metadata,
+            Err(failure) if failure.kind() == std::io::ErrorKind::NotFound => continue,
             Err(failure) => {
                 error = Some(ToolchainError::failure(format!(
                     "cannot read {}: {failure}",
@@ -248,14 +276,20 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
         // if (installer === 'running' || installer === 'unknown') continue;
         // ```
         let installer: Option<Liveness> = liveness_of_the_installer(&name);
-        if matches!(installer, Some(Liveness::Running | Liveness::Unknown)) {
+        if installer == Some(Liveness::Running) {
+            continue;
+        }
+        if installer == Some(Liveness::Unknown) {
+            left.push(name.clone());
             continue;
         }
         // What:
         // the step a control plants where the kernel's own `readlink` answers,
         // or nothing in a shipped build.
         // Why:
-        // The metadata read and this one are two calls, so another install can take the name in between.
+        // The metadata read and this one are two calls,
+        // so another install can take the name in the gap between them,
+        // and the control has to reach that gap.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -267,7 +301,8 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
         // read before it is removed so the sentence can say.
         // Why:
         // A dangling link still records its target,
-        // and that text is how a person recognises what left it.
+        // and that text is how a person recognises what left it;
+        // a name another run took in the gap is gone rather than a failure.
         //
         // In TS you'd write (pseudocode):
         // ```ts
@@ -275,6 +310,7 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
         // ```
         let target: PathBuf = match fs::read_link(entry.path()) {
             Ok(target) => target,
+            Err(failure) if failure.kind() == std::io::ErrorKind::NotFound => continue,
             Err(failure) => {
                 error = Some(ToolchainError::failure(format!(
                     "cannot read the link {}: {failure}",
@@ -354,13 +390,29 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
     // removed.sort((left, right) => left.name.localeCompare(right.name));
     // return { sentences: removed.map(theSentenceOf), error };
     // ```
-    removed.sort_by(|left, right| return left.name.cmp(&right.name));
+    removed.sort_by(|left_one, right_one| return left_one.name.cmp(&right_one.name));
     let mut sentences: Vec<String> = Vec::with_capacity(removed.len());
     for one in &removed {
         sentences.push(the_sentence_of(one));
     }
+    // What:
+    // the kept temporary links, one sentence each in name order.
+    // Why:
+    // The folder's entries come in no order,
+    // and the report reads the same on every run only if the names are sorted.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // left.sort((a, b) => a.localeCompare(b));
+    // ```
+    left.sort();
+    let mut left_sentences: Vec<String> = Vec::with_capacity(left.len());
+    for name in &left {
+        left_sentences.push(the_kept_sentence_of(name));
+    }
     return Removals {
         sentences,
+        left: left_sentences,
         error,
     };
 }
@@ -371,8 +423,11 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
 /// where it pointed,
 /// and why the rebuild took it.
 /// Why:
-/// A name no row declares and a temporary link an install that ended left are told apart in the sentence,
-/// because a person reading it has to know whether a plan stopped declaring a bin or a run was killed.
+/// A name no row declares and a temporary link are told apart in the sentence,
+/// because a person reading it has to know whether a plan stopped declaring a bin or a run was killed;
+/// and the temporary link's sentence says only what the name is and what the run could show of the process it
+/// records,
+/// never that an install wrote it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -381,7 +436,7 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
 fn the_sentence_of(one: &ARemoval) -> String {
     if one.temporary {
         return format!(
-            "removed the temporary link {} (it pointed at {}), which an install that ended left before it gave the link its name",
+            "removed the temporary link {} (it pointed at {}), a name of the shape an install writes while it holds a link, and the process that name records is not running",
             one.name,
             one.target.display()
         );
@@ -390,5 +445,25 @@ fn the_sentence_of(one: &ARemoval) -> String {
         "removed the exposure link {} (it pointed at {}), which no row of the lock declares",
         one.name,
         one.target.display()
+    );
+}
+
+/// What:
+/// The one line a rebuild prints for a temporary link it could not judge and left where it is:
+/// the name,
+/// why nothing was removed,
+/// and what deleting it by hand would risk.
+/// Why:
+/// The name records the install that may still hold the link,
+/// and a process in another process namespace cannot be judged from here,
+/// so the line says no more than that and names the cost of a person's own deletion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theKeptSentenceOf(name: string): string
+/// ```
+fn the_kept_sentence_of(name: &str) -> String {
+    return format!(
+        "left the temporary link {name}: this run cannot judge the install its name records, so it is not removed, and deleting it by hand may make that install fail where it gives the link its name"
     );
 }

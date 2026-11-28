@@ -38,8 +38,8 @@ use super::error::ToolchainError;
 use super::install_support::atomic_symlink;
 /// Imports `ensure_launcher` from `super::launcher`.
 use super::launcher::ensure_launcher;
-/// Imports the question whether a program belongs to an installed tool of either toolchain root.
-use super::launcher_source::belongs_to_an_install;
+/// Imports the question which install of either toolchain root a program belongs to.
+use super::launcher_source::install_below_root;
 /// Imports what this module uses from `super::launcher_source`.
 use super::launcher_source::{
     newest_installed_shadow,
@@ -110,8 +110,12 @@ pub struct ExposureReport {
     /// where it pointed,
     /// and why the rebuild took it away:
     /// that no row of the lock declares it,
-    /// or that it was a temporary link an install that ended never renamed.
+    /// or that it was a temporary link the run could show an ended install had left.
     pub links_removed: Vec<String>,
+    /// What the rebuild left in the directory,
+    /// one sentence per temporary link it could not judge,
+    /// naming the link and what deleting it by hand would risk.
+    pub links_left: Vec<String>,
 }
 
 /// What:
@@ -201,10 +205,12 @@ pub fn rebuild_exposure(
     // ```ts
     // const removals = removeTheLinksNoRowDeclares(ctx);
     // report.linksRemoved = removals.sentences;
+    // report.linksLeft = removals.left;
     // return { report, error: removals.error };
     // ```
     let removals: Removals = remove_the_links_no_row_declares(ctx);
     report.links_removed = removals.sentences;
+    report.links_left = removals.left;
     return ExposureOutcome {
         report,
         error: removals.error,
@@ -335,8 +341,23 @@ pub fn expose_running_shadow(
 const THE_PROGRAMS_OWN_NAME: &str = "mpm-shadow";
 
 /// What:
-/// Whether a farm link is the one the program's own name carries and it resolves into an installed `mpm-shadow`
-/// of either toolchain root.
+/// The crate this program is published as,
+/// which names the directory a cargo-route install of it sits in:
+/// `<toolchain root>/cargo/<crate>`.
+/// Why:
+/// The farm's own-name link is kept only while it resolves into an install of this program,
+/// and a cargo install of it is named after the crate while a release-archive one is named after the tool,
+/// so the rule compares the install's own directory against both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_PROGRAMS_CRATE = 'monochromatic-mpm-shadow';
+/// ```
+const THE_PROGRAMS_CRATE: &str = env!("CARGO_PKG_NAME");
+
+/// What:
+/// Whether a farm link is the one the program's own name carries and it resolves into an install of `mpm-shadow`
+/// in either toolchain root.
 /// Why:
 /// A shell outside a checkout reaches the program only through this link,
 /// so a rebuild run by a binary that belongs to no install must leave it:
@@ -345,6 +366,9 @@ const THE_PROGRAMS_OWN_NAME: &str = "mpm-shadow";
 /// A link whose target no longer resolves is not kept:
 /// with nothing installed there the name reaches nothing,
 /// and a scope that has the program installed nowhere removes it as a link no row declares.
+/// Neither is a link that resolves into another tool's install directory, or into a superseded version,
+/// or into a dead installer's staging directory:
+/// that is not an install of this program, and the name is meant for the one that is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -378,14 +402,28 @@ fn the_link_the_farm_keeps(
     if file_name_text(&resolved) != name || !resolved.is_file() {
         return false;
     }
-    // What: whether that program is one of an install below a toolchain root.
-    // Why: a file of the same name that belongs to no install is not the program's own link.
+    // What: the directory of the install the resolved program belongs to, as the path below a toolchain root.
+    // Why: a file of the same name that belongs to no install is not the program's own link,
+    //  and neither is one inside another tool's install directory.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return belongsToAnInstall(scope, resolved);
+    // const installation = installBelowRoot(scope, resolved);
+    // if (installation === undefined) return false;
     // ```
-    return belongs_to_an_install(scope, &resolved);
+    let Some(installation): Option<PathBuf> = install_below_root(scope, &resolved) else {
+        return false;
+    };
+    // What: whether that install is this program's own:
+    // the tool's own directory for a release archive, or the cargo route's `cargo/<crate>`.
+    // Why: the link is meant for the scope's installed program, and any other tool's install directory is not it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return installation === THE_PROGRAMS_OWN_NAME || installation === `cargo/${THE_PROGRAMS_CRATE}`;
+    // ```
+    return installation == Path::new(THE_PROGRAMS_OWN_NAME)
+        || installation == Path::new("cargo").join(THE_PROGRAMS_CRATE);
 }
 
 /// Whether a tool of the scope's lock declares `name` as one of its bins.
