@@ -72,6 +72,132 @@ export {
   sshBaseOpts,
   sshExecArgs,
 } from './backend/hetzner/ssh.ts';
+/**
+ OVHcloud request signing, masking and error type, exposed for built-artifact
+ verification.
+
+ @internal
+ */
+export {
+  AUTH_TIME_PATH,
+  forgetServerClockOffset,
+  MASKED_PROJECT,
+  maskProjectId,
+  OvhApiError,
+  ovhRequest,
+  signRequest,
+  signaturePayload,
+} from './backend/ovh/api.ts';
+/**
+ OVHcloud resource calls, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  createInstance,
+  createSnapshot,
+  createSshKey,
+  deleteInstance,
+  deleteSnapshot,
+  deleteSshKey,
+  getImage,
+  getInstance,
+  getRegion,
+  listFlavors,
+  listImages,
+  listInstances,
+  listQuotas,
+  listRegionNames,
+  listSnapshots,
+  listSshKeys,
+} from './backend/ovh/api-resources.ts';
+/**
+ OVHcloud configuration readers, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  DEFAULT_ENDPOINT,
+  envRegions,
+  flavorOverride,
+  isEndpointName,
+  ovhDataDir,
+  parseRegions,
+  requireCredentials,
+  resolveEndpointRoot,
+  scpCommand,
+  sshCommand,
+  validateOvhName,
+} from './backend/ovh/config.ts';
+/**
+ OVHcloud flavor selection, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  NoFlavorInStockError,
+  orderFlavors,
+  resolveFlavor,
+  selectFlavor,
+} from './backend/ovh/flavors.ts';
+/**
+ OVHcloud image selection, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  normalizeImageName,
+  resolveImage,
+  selectImage,
+} from './backend/ovh/images.ts';
+/**
+ OVHcloud instance reading and waiting, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  findMvmInstance,
+  instanceImageUser,
+  instanceLoginUser,
+  listMvmInstances,
+  publicIpv4,
+  waitForSnapshotReady,
+  waitUntilRunning,
+} from './backend/ovh/instances.ts';
+/**
+ OVHcloud lifecycle operations, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  ovhClone,
+  ovhCreate,
+  ovhDestroy,
+  ovhDestroyAll,
+  ovhList,
+} from './backend/ovh/lifecycle.ts';
+/**
+ OVHcloud region selection, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  listDefaultRegions,
+  resolveRegions,
+  selectDefaultRegions,
+} from './backend/ovh/regions.ts';
+/**
+ OVHcloud SSH and scp argument builders, exposed for built-artifact verification.
+
+ @internal
+ */
+export {
+  ovhConnectionTarget,
+  ovhScpPullArgs,
+  ovhScpPushArgs,
+  ovhSshBaseOpts,
+  ovhSshExecArgs,
+} from './backend/ovh/ssh.ts';
 export * from './backend/registry.ts';
 export type {
   Backend,
