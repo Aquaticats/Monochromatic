@@ -698,10 +698,11 @@ fn propagation_of(
         "the mount's propagation could not be read: {read_said}"
     );
     let word: &str = read_said.trim();
-    // `findmnt` lists the flags a mount carries, and a private mount carries none.
+    // `findmnt` lists the flags a mount carries, comma-separated, and a private mount carries none; the record names
+    // the same set joined by `+`, so one spelling compares with the other.
     return match word {
         "" => String::from("private"),
-        other => String::from(other),
+        other => String::from(other).replace(',', "+"),
     };
 }
 
