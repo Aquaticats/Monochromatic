@@ -1,0 +1,14 @@
+# read-only stat of the main checkout cache links, 2026-11-28T07:29:07-05:00
+.cache/toolchain-bin  modified 2026-11-28 07:22:34.702239674 -0500  (symlink -> .cache/toolchain-bin)
+.cache/toolchain-bin/cargo  modified 2026-11-28 07:22:34.681239744 -0500  (symlink -> .cache/toolchain-bin/cargo -> /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/cargo)
+.cache/toolchain-bin/rustc  modified 2026-11-28 07:22:34.682239741 -0500  (symlink -> .cache/toolchain-bin/rustc -> /home/user/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/bin/rustc)
+stat: cannot statx '.cache/toolchain.env.json': No such file or directory
+toolchain.lock.json  modified 2026-11-28 07:21:50.517387587 -0500  (symlink -> toolchain.lock.json)
+
+## lock rust entry
+{"version":"nightly-2026-11-16","env":{"RUSTUP_TOOLCHAIN":"nightly-2026-11-16"},"packageId":"nightly-2026-11-16"}
+## git log of the lock (read-only)
+2026-11-28T07:21:46-05:00 d61c11a8cb chore(toolchain): the lock names mpm-shadow 0.2.7-alpha.21
+2026-11-28T04:58:53-05:00 8f93af13c1 chore(toolchain): the lock names monochromatic-lint 0.5.2-alpha.25
+2026-11-28T04:44:29-05:00 d58f347f4c chore(toolchain): the lock names mpm-shadow 0.2.7-alpha.20
+2026-11-28T02:37:38-05:00 99effb55b0 chore(toolchain): lock cargo-shadow 0.1.5-alpha.18
