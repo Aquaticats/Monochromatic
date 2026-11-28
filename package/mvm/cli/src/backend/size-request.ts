@@ -4,8 +4,11 @@
 
  The two numbers are floors, not exact values: a provider sells sizes it chose,
  so a request for `--vcpus 2 --memory 4` gives a machine with at least two
- virtual CPUs and at least four gibibytes of memory, and the smallest size that
- satisfies both. Naming a size outright, through `--server-type` or the
+ virtual CPUs and at least four gibibytes of memory, and a size no smaller than
+ it must be. Which of the sizes that meet both a backend takes is the backend's
+ own rule: OVHcloud reads the hourly prices and takes the cheapest that fits, the
+ smallest numbers when no price can be read, and the Hetzner backend takes the
+ smallest type that fits. Naming a size outright, through `--server-type` or the
  provider's own environment variable, is the other way to size a machine, and the
  two ways are never combined: they can disagree, and the refusal says so.
 
@@ -278,7 +281,7 @@ export function refuseSizeAndOverride({
   throw new Error(
     `a size is named two ways at once: ${overrideOptions} names "${override}", and --vcpus or --memory asks for ${
       describeSizeRequest({ request, },)
-    }; name a size with ${overrideOptions} alone, or set --vcpus and --memory and let the backend pick the smallest size that fits`,
+    }; name a size with ${overrideOptions} alone, or set --vcpus and --memory and let the backend take the size that fits`,
   );
 }
 

@@ -67,7 +67,7 @@ const fromOption = optional(
     '--from',
     string({ metavar: 'SOURCE', },),
     {
-      description: message`Clone from an existing VM instead of creating fresh`,
+      description: message`Clone from an existing VM instead of creating fresh; a clone keeps the source's size, so --vcpus and --memory are refused beside it`,
     },
   ),
 );
@@ -131,7 +131,7 @@ const vcpusOption = optional(
     },),
     {
       description:
-        message`Fewest virtual CPUs the machine may have; a libvirt guest gets exactly this many, and a cloud backend picks the smallest size with at least this many. Omit to keep the backend's own default`,
+        message`Fewest virtual CPUs the machine may have; a libvirt guest gets exactly this many, the Hetzner backend takes the smallest server type with at least this many, and the OVHcloud backend the cheapest size that fits, or its smallest numbers when no hourly price can be read. Omit to keep the backend's own default`,
     },
   ),
 );
@@ -149,7 +149,7 @@ const memoryOption = optional(
     },),
     {
       description:
-        message`Least memory the machine may have, in gibibytes; a libvirt guest gets exactly this much, and a cloud backend picks the smallest size with at least this much. Omit to keep the backend's own default`,
+        message`Least memory the machine may have, in gibibytes; a libvirt guest gets exactly this much, the Hetzner backend takes the smallest server type with at least this much, and the OVHcloud backend the cheapest size that fits, or its smallest numbers when no hourly price can be read. Omit to keep the backend's own default`,
     },
   ),
 );

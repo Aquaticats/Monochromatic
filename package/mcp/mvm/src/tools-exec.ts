@@ -83,7 +83,7 @@ export const runTool: ToolEntry = defineTool({
   name: 'run_in_vm',
   entry: {
     description:
-      'Creates an ephemeral VM, runs a shell command inside it, then destroys the VM. Returns stdout, stderr, and exit code. Optionally clones from an existing VM instead of creating fresh; a clone keeps the source size. `vcpus` and `memory` ask for floors on a fresh VM: libvirt gives exactly those, a cloud backend picks the smallest size with at least both. Runs on the selected backend.',
+      'Creates an ephemeral VM, runs a shell command inside it, then destroys the VM. Returns stdout, stderr, and exit code. `vcpus` and `memory` ask for floors on a fresh VM: libvirt gives exactly those, Hetzner takes the smallest server type with at least both, and OVHcloud the cheapest size that fits, or its smallest numbers when no hourly price can be read. `from` clones an existing VM instead, a clone keeps the source size, so `from` cannot be combined with either floor. Runs on the selected backend.',
     schema: strictArguments({
       command: requiredString(
         'Shell command to run inside the VM (libvirt: bash/PowerShell via guest agent; hetzner and ovh: remote login shell)',
@@ -92,10 +92,10 @@ export const runTool: ToolEntry = defineTool({
         'Clone from this existing VM name instead of creating fresh. Use list_vms to see available names (e.g. "win-01", not "windows").',
       ),
       vcpus: optionalPositiveInteger(
-        'Fewest virtual CPUs a fresh machine may have',
+        'Fewest virtual CPUs a fresh machine may have; refused beside `from`, because a clone keeps the source size',
       ),
       memory: optionalPositiveInteger(
-        'Least memory a fresh machine may have, in gibibytes',
+        'Least memory a fresh machine may have, in gibibytes; refused beside `from`, because a clone keeps the source size',
       ),
       backend: BACKEND_ARGUMENT,
     },),

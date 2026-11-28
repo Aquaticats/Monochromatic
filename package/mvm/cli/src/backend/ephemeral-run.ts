@@ -14,6 +14,13 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ExecResult, } from '../exec.ts';
+import {
+  describeSizeRequest,
+  isEmptySizeRequest,
+  NO_NUMBER,
+  sizeRequest,
+  type SizeRequest,
+} from './size-request.ts';
 import type { Backend, } from './types.ts';
 
 /**
@@ -75,17 +82,19 @@ function generateEphemeralName(): string {
  
  @param from - source VM to clone from (fresh VM when omitted)
  
- @param memoryGiB - least memory the fresh VM must have, in gibibytes;
- a clone keeps the source's size, so this is only passed to a fresh create
+ @param memoryGiB - least memory the fresh VM must have, in gibibytes; a clone
+ keeps the source's size, so a floor beside `from` is refused
  
  @param ops - backend create/clone/destroy/exec used to provision and run
  
  @param vcpus - fewest virtual CPUs the fresh VM must have; a clone keeps the
- source's size
+ source's size, so a floor beside `from` is refused
  
  @returns captured stdout, stderr, and exit code from the command
  
- @throws Error when VM creation, command execution, or cleanup fails
+ @throws Error when a floor is asked beside a source machine to clone, which
+ boots its source's size, or when VM creation, command execution, or cleanup
+ fails
  
  @example
  ```ts
@@ -107,6 +116,21 @@ export async function ephemeralRun(
     readonly vcpus?: number;
   },
 ): Promise<ExecResult> {
+  /**
+   The floors this call set, empty when it set none.
+   */
+  const request: SizeRequest = sizeRequest({
+    memoryGiB: memoryGiB ?? NO_NUMBER,
+    vcpus: vcpus ?? NO_NUMBER,
+  },);
+  if ((from !== undefined) && (!isEmptySizeRequest({ request, },))) {
+    // A clone boots its source's own size, so a floor cannot be honoured by one.
+    // Dropping it quietly would give the caller a machine smaller than it asked for,
+    // which is the failure `mvm create --from` refuses; this path refuses it too.
+    throw new Error(
+      `a machine cloned from ${from} keeps ${from}'s own size, so ${describeSizeRequest({ request, },)} cannot be honoured with a clone: drop the source machine, or drop the size and clone as the source is`,
+    );
+  }
   /**
    Logger scoped to this run so VM lifecycle steps log under the right name.
    */

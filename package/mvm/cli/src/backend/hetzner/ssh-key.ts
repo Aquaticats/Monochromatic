@@ -24,7 +24,7 @@ import {
   listSshKeys,
 } from './api-resources.ts';
 import {
-  HETZNER_DATA_DIR,
+  hetznerDataDir,
   OPENSSH_REMEDY,
 } from './config.ts';
 
@@ -41,17 +41,36 @@ const l = tagged({ tag: 'mvm', },);
 //region Key paths
 
 /**
- Path to the managed ed25519 private key.
+ Path to the managed ed25519 private key, read at call time so
+ {@link hetznerDataDir} can be moved between calls.
+ 
+ @returns absolute path to the private key
+ 
+ @example
+ ```ts
+ const key = privateKeyPath();
+ ```
  */
-export const PRIVATE_KEY_PATH: string = join(
-  HETZNER_DATA_DIR,
-  'id_ed25519',
-);
+export function privateKeyPath(): string {
+  return join(
+    hetznerDataDir(),
+    'id_ed25519',
+  );
+}
 
 /**
- Path to the managed ed25519 public key.
+ Path to the managed ed25519 public key, beside {@link privateKeyPath}.
+ 
+ @returns absolute path to the public key
+ 
+ @example
+ ```ts
+ const key = publicKeyPath();
+ ```
  */
-const PUBLIC_KEY_PATH = `${PRIVATE_KEY_PATH}.pub`;
+function publicKeyPath(): string {
+  return `${privateKeyPath()}.pub`;
+}
 
 /**
  Number of trailing key-material characters used to name an uploaded key.
@@ -79,7 +98,7 @@ async function ensureKeypair(): Promise<void> {
     l,
   },);
   try {
-    await access(PRIVATE_KEY_PATH,);
+    await access(privateKeyPath(),);
     return;
   }
   catch (error) {
@@ -89,7 +108,7 @@ async function ensureKeypair(): Promise<void> {
     rl.info('generating managed ed25519 keypair for hetzner backend',);
   }
   await mkdir(
-    HETZNER_DATA_DIR,
+    hetznerDataDir(),
     { recursive: true, },
   );
   await spawn({
@@ -98,7 +117,7 @@ async function ensureKeypair(): Promise<void> {
       '-t',
       'ed25519',
       '-f',
-      PRIVATE_KEY_PATH,
+      privateKeyPath(),
       '-N',
       '',
       '-C',
@@ -210,7 +229,7 @@ export async function ensureSshKeyId(): Promise<number> {
    Managed public key line read from disk.
    */
   const publicKey = (await readFile(
-    PUBLIC_KEY_PATH,
+    publicKeyPath(),
     'utf8',
   )).trim();
   /**

@@ -9,7 +9,15 @@ MCP server that exposes [mvm](../../mvm/cli/) VM management operations to AI age
 - **create_vm**:
    creates and starts a new VM (image plus,
    for hetzner,
-   `server_type`/`location`)
+   `server_type`/`location`),
+   with optional `vcpus` and `memory` floors that each backend sizes as the
+   CLI's `--vcpus` and `--memory` do:
+   exactly those on libvirt,
+   the smallest server type that fits on hetzner,
+   and the cheapest size that fits on ovh,
+   or its smallest numbers when no hourly price can be read.
+   `from` clones an existing VM and keeps its size,
+   so a floor beside `from` is refused.
 - **destroy_vm**:
    force-stops and deletes a VM by name,
    or all managed VMs when `all` is true.
