@@ -24,7 +24,9 @@ import {
 import {
   ovhClone,
   ovhCreate,
+  ovhDestroy,
   ovhDestroyAll,
+  ovhExec,
 } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
@@ -249,6 +251,37 @@ await describe({
       },
     },),
     it({
+      name: 'a create refuses a name the project is still deleting',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              id: 'instance-dev',
+              name: 'mvm-dev',
+              status: 'DELETING',
+            },),
+          ],),],
+        },),);
+        const error = await errorFrom({ run: () => ovhCreate({ name: 'dev', },) },);
+        /**
+         What the refusal says, which has to name the status, the bill and the command that finishes the delete.
+         */
+        const message = caughtValueText(error,);
+        expect(message,).toContain('DELETING',);
+        expect(message,).toContain('bills an instance until it is deleted',);
+        expect(message,).toContain('mvm --backend ovh destroy dev',);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'POST',
+            path: cloudPath('/instance',),
+          },).length,
+        ).toBe(0,);
+      },
+    },),
+    it({
       name: 'a create walks past a region with nothing in stock and creates in the next one',
       fn: async () => {
         await using _env = await installEnv();
@@ -408,6 +441,77 @@ await describe({
 
     //endregion Clone
 
+    //region Lookups by name
+
+    it({
+      name: 'exec refuses a machine the project is listing as deleting',
+      fn: async () => {
+        await using env = await installEnv();
+        using _standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
+            instanceAnswer({
+              id: 'instance-dev',
+              name: 'mvm-dev',
+              status: 'DELETING',
+            },),
+          ],),],
+        },),);
+        const error = await errorFrom({
+          run: () => ovhExec({
+            command: 'true',
+            name: 'dev',
+          },),
+        },);
+        /**
+         What the refusal says, which has to name the status and the state it stands for.
+         */
+        const message = caughtValueText(error,);
+        expect(message,).toContain('DELETING',);
+        expect(message,).toContain('being deleted',);
+        expect(await sshCalls({ dir: env.dir, },),).toHaveLength(0,);
+      },
+    },),
+
+    //endregion Lookups by name
+
+    //region Destroy
+
+    it({
+      name: 'destroy returns only once the project stops listing the machine',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [
+            jsonAnswer([instanceAnswer({
+              id: 'instance-dev',
+              name: 'mvm-dev',
+            },),],),
+            jsonAnswer([],),
+          ],
+          [`DELETE ${cloudPath('/instance/instance-dev',)}`]: [new Response(null, { status: 204, },),],
+        },),);
+        await ovhDestroy({ name: 'dev', },);
+        /**
+         Requests in the order they were made, by method and path.
+         */
+        const order = standIn.calls.map(function describe(call,) {
+          return `${call.method} ${call.path}`;
+        },);
+        /**
+         Where the delete sits, after which the listing has to be read again before destroy may return.
+         */
+        const deletedAt = order.indexOf(`DELETE ${cloudPath('/instance/instance-dev',)}`,);
+        expect(deletedAt,).toBeGreaterThan(-1,);
+        expect(
+          order.filter(function readAfterDelete(entry, index,) {
+            return (index > deletedAt) && (entry === `GET ${cloudPath('/instance',)}`);
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+
+    //endregion Destroy
+
     //region Destroy all
 
     it({
@@ -415,16 +519,19 @@ await describe({
       fn: async () => {
         await using _env = await installEnv();
         using standIn = installStandIn(routed({
-          [`GET ${cloudPath('/instance',)}`]: [jsonAnswer([
-            instanceAnswer({
-              id: 'instance-dev',
-              name: 'mvm-dev',
-            },),
-            instanceAnswer({
-              id: 'instance-web',
-              name: 'web-1',
-            },),
-          ],),],
+          [`GET ${cloudPath('/instance',)}`]: [
+            jsonAnswer([
+              instanceAnswer({
+                id: 'instance-dev',
+                name: 'mvm-dev',
+              },),
+              instanceAnswer({
+                id: 'instance-web',
+                name: 'web-1',
+              },),
+            ],),
+            jsonAnswer([],),
+          ],
           [`DELETE ${cloudPath('/instance/instance-dev',)}`]: [new Response(null, { status: 204, },),],
           [`DELETE ${cloudPath('/instance/instance-web',)}`]: [new Response(null, { status: 204, },),],
           [`GET ${cloudPath('/snapshot',)}`]: [jsonAnswer([
@@ -469,6 +576,54 @@ await describe({
             path: cloudPath('/snapshot/snapshot-foreign',),
           },).length,
         ).toBe(0,);
+      },
+    },),
+    it({
+      name: 'destroy --all sends every delete before it waits, and waits for every machine',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          [`GET ${cloudPath('/instance',)}`]: [
+            jsonAnswer([
+              instanceAnswer({
+                id: 'instance-dev',
+                name: 'mvm-dev',
+              },),
+              instanceAnswer({
+                id: 'instance-dev-2',
+                name: 'mvm-dev-2',
+              },),
+            ],),
+            jsonAnswer([],),
+          ],
+          [`DELETE ${cloudPath('/instance/instance-dev',)}`]: [new Response(null, { status: 204, },),],
+          [`DELETE ${cloudPath('/instance/instance-dev-2',)}`]: [new Response(null, { status: 204, },),],
+          [`GET ${cloudPath('/snapshot',)}`]: [jsonAnswer([],),],
+        },),);
+        await ovhDestroyAll();
+        /**
+         Requests in the order they were made, by method and path.
+         */
+        const order = standIn.calls.map(function describe(call,) {
+          return `${call.method} ${call.path}`;
+        },);
+        /**
+         Where each machine's delete sits.
+         */
+        const deletedAt = [
+          order.indexOf(`DELETE ${cloudPath('/instance/instance-dev',)}`,),
+          order.indexOf(`DELETE ${cloudPath('/instance/instance-dev-2',)}`,),
+        ];
+        expect(deletedAt.at(0,),).toBeGreaterThan(-1,);
+        expect(deletedAt.at(1,),).toBeGreaterThan(-1,);
+        /**
+         Where the second read of the listing sits, the first one after the deletes being the wait's own.
+         */
+        const waitedAt = order.indexOf(
+          `GET ${cloudPath('/instance',)}`,
+          1,
+        );
+        expect(waitedAt,).toBeGreaterThan(Math.max(...deletedAt,),);
       },
     },),
 
