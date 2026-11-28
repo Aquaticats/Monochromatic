@@ -153,6 +153,50 @@ merge::merge_second_pass_stage_line_places fn place_in_stage
 #   publishes whether a common directory outside a worktree holds one, which the location reader names
 repo_read::repository_location field RepositoryLocation::common_directory_outside_a_worktree
 
+#   42f66aedfc feat(git-policy-cli): the forced arm stops a locked holder's own unit through the account's manager
+#   publishes the reads that tell a locked holder's own service unit from every other holder
+process::a_locked_holders_own_unit const ACCOUNT_MANAGER_SEGMENT
+process::a_locked_holders_own_unit const SERVICE_UNIT_SUFFIX
+process::a_locked_holders_own_unit const UNIFIED_HIERARCHY_PREFIX
+process::a_locked_holders_own_unit enum NotTheAccountsUnit
+process::a_locked_holders_own_unit field ALockedHoldersUnit::cgroup
+process::a_locked_holders_own_unit field ALockedHoldersUnit::namespace
+process::a_locked_holders_own_unit field ALockedHoldersUnit::task
+process::a_locked_holders_own_unit field ALockedHoldersUnit::unit
+process::a_locked_holders_own_unit fn NotTheAccountsUnit::word
+process::a_locked_holders_own_unit fn a_locked_holders_unit
+process::a_locked_holders_own_unit fn the_unit_of_the_accounts_manager
+process::a_locked_holders_own_unit fn the_unit_the_manager_holds
+process::a_locked_holders_own_unit struct ALockedHoldersUnit
+#   42f66aedfc feat(git-policy-cli): the forced arm stops a locked holder's own unit through the account's manager
+#   publishes the stop of that unit through the account's own manager, and the wait that follows it
+process::a_service_unit_stopped_through_the_accounts_manager const HOLDER_LOCKED_WORD
+process::a_service_unit_stopped_through_the_accounts_manager const POLLS_IN_ONE_STOP_WAIT
+process::a_service_unit_stopped_through_the_accounts_manager enum UnitNotStopped
+process::a_service_unit_stopped_through_the_accounts_manager field LeftBehind::namespace
+process::a_service_unit_stopped_through_the_accounts_manager field LeftBehind::state
+process::a_service_unit_stopped_through_the_accounts_manager field LeftBehind::tasks_cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field StoppedUnit::cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field StoppedUnit::namespace
+process::a_service_unit_stopped_through_the_accounts_manager field StoppedUnit::unit
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::identity
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::namespace
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::tasks_cgroup
+process::a_service_unit_stopped_through_the_accounts_manager field TheUnitsStop::unit
+process::a_service_unit_stopped_through_the_accounts_manager fn UnitNotStopped::said
+process::a_service_unit_stopped_through_the_accounts_manager fn UnitNotStopped::word
+process::a_service_unit_stopped_through_the_accounts_manager fn stop_every_locked_unit
+process::a_service_unit_stopped_through_the_accounts_manager fn stop_the_unit
+process::a_service_unit_stopped_through_the_accounts_manager fn the_stops_verdict
+process::a_service_unit_stopped_through_the_accounts_manager struct LeftBehind
+process::a_service_unit_stopped_through_the_accounts_manager struct StoppedUnit
+process::a_service_unit_stopped_through_the_accounts_manager struct TheUnitsStop
+#   42f66aedfc feat(git-policy-cli): the forced arm stops a locked holder's own unit through the account's manager
+#   publishes the plan's list of locked units to stop, and the preflight read it comes from
+worktree_clone_forced_removal::holder_preflight field ForcedPlan::units_to_stop
+worktree_clone_forced_removal::holder_preflight field PreflightReads::locked_units
+
 # The rest of the surface 0.6.1-alpha.47 already had.
 # What: every entry below was nameable at 68af165851 (0.6.1-alpha.47) with the same kind and name: an item declared
 #       `pub` in a module the chain reached, or a `pub` field or method of a type published then. The release that
@@ -9836,7 +9880,7 @@ worktree_clone_forced_removal::forced_removal_words fn Stage::order
 worktree_clone_forced_removal::forced_removal_words fn Stage::parse_word
 worktree_clone_forced_removal::forced_removal_words fn Stage::word
 worktree_clone_forced_removal::holder_endings const IN_PLACE_SHOWN_BY
-worktree_clone_forced_removal::holder_endings const LOCKED_NOT_BUILT
+worktree_clone_forced_removal::holder_endings const LOCKED_UNIT_SHOWN_BY
 worktree_clone_forced_removal::holder_endings const MOVE_SHOWN_BY
 worktree_clone_forced_removal::holder_endings const OTHER_ACCOUNT_OWED
 worktree_clone_forced_removal::holder_endings const OTHER_SESSION_SHOWN_BY
