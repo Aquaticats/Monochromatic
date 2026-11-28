@@ -889,8 +889,11 @@ as `pub async fn`,
 `pub extern "C" fn` do;
 a `pub` field,
 a method or an associated constant of a type that chain publishes,
-read in a body that opens its `{` on the declaration's own line or on a later one;
-a `#[macro_export] macro_rules!`;
+read in a body that opens its `{` on the declaration's own line or on a later one,
+which is how a long generic list is written;
+an item written on the same line as the attribute above it;
+a `#[macro_export] macro_rules!`,
+with or without parentheses inside the attribute;
 and a `pub use` over any number of lines,
 one entry per name it publishes,
 with an `as` rename read as the published name,
@@ -947,7 +950,7 @@ a `pub` field written in a tuple-like struct's parentheses,
 a member of a type a facade names through an inline `mod` body or through a module the tree cannot resolve,
 a `pub trait`'s methods and a `pub enum`'s variants,
 an item inside an inline `mod name { ... }`,
-a glob's own names,
+the names a glob carries out of a module no `pub mod` chain reaches,
 the second path a re-export adds when it keeps the name it re-exports,
 and a signature or a value that changes under a name that stays.
 So a widening in one of those shapes is one only the diff shows,
@@ -1134,8 +1137,17 @@ it reads and plants a control for:
 the commit path's ban reads a direct `syscall` call,
 because `libc::syscall(libc::SYS_symlinkat, ...)` writes the system call's name inside a longer constant;
 the login guard reads the manager's program however its literal is spelled,
-bare or as a path;
-and the note guard reads a write by descriptor number (`libc::STDERR_FILENO`).
+bare or as a path, on the call's own line or on the next one,
+and refuses the import that brings the type of a start in under another name;
+and the note guard reads a write by descriptor number (`libc::STDERR_FILENO`),
+the two macros that write standard error without asking for a stream,
+and the paths that open the same handle.
+The read of alpha.52 planted six spellings the guards let through and each is read now:
+the link guard reads `std::fs::soft_link`;
+the note guard reads `eprintln!`, `eprint!`, `/dev/stderr`, `/dev/fd/2` and `/proc/self/fd/2`,
+and `eprintln!` is refused in every release source by the door's own guard
+(`source_guard/diagnostic_door_tests.rs`) besides;
+and the login guard reads the import that renames the type and a literal on the line after its `(`.
 
 ## Walk the sources through the one walk, never a recursive read
 
