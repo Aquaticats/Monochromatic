@@ -2039,9 +2039,8 @@ Measured 2026-11-27 in a container whose own manager had `app.slice` masked and 
 with the same refusal words;
 and through a stand-in that answers every ask of where the slice is with an empty value,
 **3 asks and 41.8 ms against 10 asks and 890.4 ms**.
-This branch's binary made 3 asks in each of 12 calls there,
-beside the released `0.1.5-alpha.17`'s 3 and its
-byte-identical copy's 3,
+This branch's binary made 3 asks in each of the 12 calls of that run,
+and the released `0.1.5-alpha.17` and its byte-identical copy made 3 in each of theirs,
 where `0.1.5-alpha.16` made 5.
 A slice with a stop job queued is one of the states a start waits out:
 the manager keeps the slice's path while the job stands,
@@ -2057,9 +2056,8 @@ one call each:
 this branch's binary exited 0 and took the delegated route in 3 of 3 calls,
 in 3 asks and 3.8 s to 6.1 s,
 where `0.1.5-alpha.16` did the same in 2 asks and 3.6 s to 5.7 s,
-and the released `0.1.5-alpha.17` and its byte-identical copy exited 1 in the 4 calls that met the state (1 ask,
-0.1 s to
-0.2 s),
+and the released `0.1.5-alpha.17` and its byte-identical copy exited 1 in the four calls that met the state,
+each taking one ask and under 0.2 s,
 with the manager's words above under "Cargo output".
 What a start behind a queued stop does is in systemd's own source at v262 and v255,
 and the document below
