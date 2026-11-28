@@ -3,34 +3,43 @@
 ## Symptom
 
 A Bash call that hands a script to a shell with `-c`
-(`sh -c '…'`, `bash -c '…'`, `podman exec "$cid" sh -c '…'`, `env … bash -c '…'`)
+(`sh -c '…'`,
+`bash -c '…'`,
+`podman exec "$cid" sh -c '…'`,
+`env … bash -c '…'`)
 and whose script contains `rm` stops at a permission prompt that reads:
 
 ```text
 This command passes a shell -c script that runs rm, and Claude Code could not check the script for dangerous removals. Approve only if you have read the script.
 ```
 
-Its short reason, the line the user quoted on 2026-11-28, is
-`This shell -c script runs rm and could not be checked`.
+Its short reason,
+the line the user quoted on 2026-11-28,
+is `This shell -c script runs rm and could not be checked`.
 
 The prompt appears in every permission mode,
 including sessions started with `claude --dangerously-skip-permissions`,
 which is how the sessions on this machine are started (`/proc/<pid>/cmdline` of both live sessions on 2026-11-28).
 No allow rule answers it.
-In a `-p` run, which has nobody to answer prompts, the call is refused with the same text.
+In a `-p` run,
+which has nobody to answer prompts,
+the call is refused with the same text.
 
 Agent-written commands in this repository's own transcripts hit it,
 for example a `podman exec "$cid" sh -c '…'` status check
 and an `env --ignore-environment … bash -c 'cd -- … && node …'` edit
-(`~/.claude/projects/-home-user-Monochromatic/`, searched for the message text on 2026-11-28).
+(`~/.claude/projects/-home-user-Monochromatic/`,
+searched for the message text on 2026-11-28).
 
 ## Root cause
 
-Claude Code ships as a native executable with its JavaScript bundled, not as open source.
+Claude Code ships as a native executable with its JavaScript bundled,
+not as open source.
 The trace below reads the installed bundle,
 `~/.local/share/claude/versions/2.1.332`,
 with `rg --text --byte-offset --only-matching`.
-Names are minified, and each excerpt is cited by its byte offset in that file.
+Names are minified,
+and each excerpt is cited by its byte offset in that file.
 
 ### The prompt is a hard-coded dangerous-removal safety check
 
@@ -57,37 +66,46 @@ covered under "What does not work".
 ### When the script counts as unreadable
 
 The function that reads a `-c` script gives up on text it cannot follow.
-Byte 343623077 is one of its exits: a script containing the word `alias` comes back with no judged text.
+Byte 343623077 is one of its exits:
+a script containing the word `alias` comes back with no judged text.
 
 ```js
 // claude 2.1.332 bundle
 if(SVe(k).some(Uzs)||/\balias\b/.test(k)||/\bIFS\b/.test(k.replace(
 ```
 
-Byte 343628371 drops scripts that name no `rm` early, so only scripts that run `rm` can reach `cVe`:
+Byte 343628371 drops scripts that name no `rm` early,
+so only scripts that run `rm` can reach `cVe`:
 
 ```js
 // claude 2.1.332 bundle
 if(Q===void 0||!(Odo(Q.judged??Q.script)||Q.script.includes("$'")))return null;
 ```
 
-The other exits (scripts over a length limit, `IFS`, zsh-only syntax, too many directory changes)
+The other exits (scripts over a length limit,
+`IFS`,
+zsh-only syntax,
+too many directory changes)
 were read only as far as their conditions and were not probed one by one.
 
 ### The switch that turns the whole check off
 
-Byte 343632168, the entry to the `-c` script analysis:
+Byte 343632168,
+the entry to the `-c` script analysis:
 
 ```js
 // claude 2.1.332 bundle
 async function pVe(e,n,o=[],g=[]){if(s.CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT||!Vte())return null;
 ```
 
-With the variable set, the analysis returns nothing for every `-c` script,
+With the variable set,
+the analysis returns nothing for every `-c` script,
 so neither this prompt nor its sibling "A permission rule denies a command in this shell -c script" is produced.
 The current [environment variable reference][env-vars-switch] documents the switch:
 
-> Set to 1 to stop Claude Code from reading scripts passed to a shell with -c, such as bash -c 'rm -rf ~', for critical-path removals.
+> Set to 1 to stop Claude Code from reading scripts passed to a shell with -c,
+> such as bash -c 'rm -rf ~',
+> for critical-path removals.
 > Claude Code still checks the shell variable and positional parameter targets in those scripts,
 > and the other critical-path checks keep running.
 > Set it in the environment that launches Claude Code,
@@ -97,14 +115,17 @@ The current [environment variable reference][env-vars-switch] documents the swit
 ### Why a settings file cannot set it
 
 The variable is in a set (`rla`) that the settings loader drops from every settings source.
-Byte 333843568, inside the loop over a settings file's `env` block:
+Byte 333843568,
+inside the loop over a settings file's `env` block:
 
 ```js
 // claude 2.1.332 bundle
 if(rla.has(E.toUpperCase())&&!Ct(E,g,n))continue;
 ```
 
-Byte 333841306, the only exception, which is for managed policy settings:
+Byte 333841306,
+the only exception,
+which is for managed policy settings:
 
 ```js
 // claude 2.1.332 bundle
@@ -113,7 +134,8 @@ function Ct(e,n,o){return o==="policySettings"&&gt.has(e.toUpperCase())&&pi(n)}
 
 The drop is silent for `~/.claude/settings.json`;
 for a project's `.claude/settings.json` the loader logs
-"no settings file can set this key, only the environment Claude Code is started with or Claude Code itself."
+"no settings file can set this key,
+only the environment Claude Code is started with or Claude Code itself."
 The probe's third arm under "Verification" confirms the drop for a user settings file.
 
 ## Verification
@@ -128,15 +150,21 @@ Each arm ran the installed executable once in `-p` mode with `--dangerously-skip
 `--model haiku` and `--output-format stream-json --verbose`,
 with a disposable `HOME` and `CLAUDE_CONFIG_DIR` under
 `~/temp/agent/claude-code-shell-c-rm-prompt-2026-11-28/arms/<arm>/`,
-an environment built from nothing but `HOME`, `CLAUDE_CONFIG_DIR`, `PATH`, `LANG`, `DISABLE_AUTOUPDATER`,
+an environment built from nothing but `HOME`,
+`CLAUDE_CONFIG_DIR`,
+`PATH`,
+`LANG`,
+`DISABLE_AUTOUPDATER`,
 and `ANTHROPIC_API_KEY` taken from the repository's test key `CLAUDE_CODE_TEST_CLAUDE_API_KEY`.
 The prompt asked the model to run one command unchanged;
 every arm's recorded `tool_use` input equals the command asked for.
-The runs went in `systemd-run --user --scope` units capped at `CPUQuota=200%`, `MemoryMax=3G`,
+The runs went in `systemd-run --user --scope` units capped at `CPUQuota=200%`,
+`MemoryMax=3G`,
 `TasksMax=512` and `IOWeight=1`,
 between 2026-11-28T03:18:13-05:00 and 2026-11-28T03:19:49-05:00.
 
-The harness, as run:
+The harness,
+as run:
 
 ```ts
 // ~/temp/agent/claude-code-shell-c-rm-prompt-2026-11-28/keep/inline-shell-rm-switch-probe.ts
@@ -237,7 +265,9 @@ Run it as `node inline-shell-rm-switch-probe.ts [arm names…]` with `CLAUDE_COD
   This is the positive control.
 - The same command with the switch only in the disposable `~/.claude/settings.json` as
   `{"env":{"CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT":"1"}}`:
-  same prompt text, same denial, victim file still there.
+  same prompt text,
+  same denial,
+  victim file still there.
 
 ### Arms that run
 
@@ -296,31 +326,42 @@ and `systemd-run --user --wait --pipe printenv CLAUDE_CODE_DISABLE_INLINE_SHELL_
 - A running Claude Code keeps the environment it started with.
   The OdyTTY process that hosts the terminal tabs also keeps its own,
   so new tabs in it get the variable only after OdyTTY is restarted or the user logs in again.
-  Until then, `export CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT=1` in a shell before `claude` applies it to that launch.
-- The switch is read from a minified, closed-source bundle;
+  Until then,
+  `export CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT=1` in a shell before `claude` applies it to that launch.
+- The switch is read from a minified,
+  closed-source bundle;
   re-check it after a Claude Code update with
   `rg --text --fixed-strings --count CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT ~/.local/share/claude/versions/<version>`
   and the first arm of the harness.
 
 ## What does not work
 
-- Allow rules: the decision carries `suggestions:[]` and the reference says this class of check cannot be auto-allowed;
+- Allow rules:
+  the decision carries `suggestions:[]` and the reference says this class of check cannot be auto-allowed;
   the bundle's own variable-target message says "cannot be auto-allowed by permission rules".
-- `--dangerously-skip-permissions`: the `dangerousRemoval` breaker is `bypassImmune`.
-- `CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT` in `~/.claude/settings.json` `env`, where this machine keeps its other `CLAUDE_CODE_*` variables:
-  dropped by the loader, shown by the probe's settings arm.
+- `--dangerously-skip-permissions`:
+  the `dangerousRemoval` breaker is `bypassImmune`.
+- `CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT` in `~/.claude/settings.json` `env`,
+  where this machine keeps its other `CLAUDE_CODE_*` variables:
+  dropped by the loader,
+  shown by the probe's settings arm.
 - `CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS`:
-  it waives every dangerous-removal prompt in bypass mode, which is far wider than this one prompt,
+  it waives every dangerous-removal prompt in bypass mode,
+  which is far wider than this one prompt,
   and the bundle keeps the prompts whenever the session has deny or ask rules or a `PermissionRequest` hook
-  (byte 334746249 prints "CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS has no effect in this session: dangerous rm commands keep their usual checks.").
-  `~/.claude/settings.json` has deny rules, so it was not tried.
+  (byte 334746249 prints "CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS has no effect in this session:
+  dangerous rm commands keep their usual checks.").
+  `~/.claude/settings.json` has deny rules,
+  so it was not tried.
 
 ## Upstream filing decision
 
 Nothing to file.
 `.out-of-scope/claude-code-upstream-bugs.md` puts Claude Code bug reports out of scope for this project,
 and this is not a defect in any case:
-the prompt is deliberate, and upstream documents the switch that turns it off.
-The six constraints were therefore not walked, and no draft is kept.
+the prompt is deliberate,
+and upstream documents the switch that turns it off.
+The six constraints were therefore not walked,
+and no draft is kept.
 
 [env-vars-switch]: https://code.claude.com/docs/en/env-vars#:~:text=CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT
