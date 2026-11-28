@@ -55,13 +55,20 @@ use std::path::{
 /// Why:
 ///  The owner's answer of 2026-11-26 refuses the removal in three cases a slot
 ///  proves nothing about and leaves every other unproved state to Git,
-///  so the classification keeps which reading stopped the proof rather than
-///  leaving a caller to read a sentence's words
-///  (`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`).
+///  and the owner's answers of 2026-11-28 added two more readings a removal
+///  refuses:
+///  a destruction plan that cannot be read and a clone mounted at the staging
+///  folder
+///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+///  "A destruction plan that cannot be read" and
+///  "A clone mounted at the staging folder,
+/// with no plan").
+///  Each keeps which reading stopped the proof rather than leaving a caller to
+///  read a sentence's words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ProofStoppedBy = 'a-mount-no-record-names' | 'a-record-of-another-path' | 'a-mount-that-cannot-be-read' | 'another-reading';
+/// type ProofStoppedBy = 'a-mount-no-record-names' | 'a-record-of-another-path' | 'a-mount-that-cannot-be-read' | 'a-destruction-plan-that-cannot-be-read' | 'a-clone-at-the-staging-folder' | 'another-reading';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProofStoppedBy {
@@ -73,31 +80,50 @@ pub enum ProofStoppedBy {
     /// or the mount at the slot,
     /// could not be read.
     AMountThatCannotBeRead,
+    /// A destruction plan is filed for this clone and cannot be read,
+    /// so nothing proves no removal is in flight and nothing proves what one
+    /// already destroyed.
+    ADestructionPlanThatCannotBeRead,
+    /// The clone is mounted on a staging folder a removal derived,
+    /// with no plan beside it,
+    /// which is where an unmount an earlier run was killed in left it.
+    ACloneAtTheStagingFolder,
     /// Any other reading that proved nothing.
     AnotherReading,
 }
 
 impl ProofStoppedBy {
     /// What:
-    ///  Whether a removal of this slot must be refused for this reading.
+    ///  Whether a removal of this slot must be refused for this reading,
+    ///  for a command that carried no force or one force.
     /// Why:
     ///  The owner's answer of 2026-11-26 refuses the removal where nothing proves
     ///  what a slot holds,
     ///  because Git's own removal would delete the registration and the underlay
-    ///  folder while a clone's files may stand behind the mount;
-    ///  a plan nobody could read and a phase that disagrees with its mount are
-    ///  readings the answer does not name,
-    ///  so they stay Git's until the owner says otherwise.
+    ///  folder while a clone's files may stand behind the mount.
+    ///  The owner's answers of 2026-11-28 added a destruction plan that cannot be
+    ///  read and a clone mounted at the staging folder,
+    ///  and both are refused without force and passed by one:
+    ///  "one `--force` goes through a destruction plan it cannot read and through
+    ///  a clone at the staging folder"
+    ///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+    ///  A phase that disagrees with its mount stays Git's,
+    ///  and no sentence of a release forces a mount no record names.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const refuses = (stopped) => stopped !== 'another-reading';
+    /// const refuses = (stopped, aForceWasGiven) => stopped === 'a-mount-no-record-names' || ... || (!aForceWasGiven && stopped === 'a-clone-at-the-staging-folder');
     /// ```
-    pub fn refuses_a_removal(self) -> bool {
+    pub fn refuses_a_removal(
+        self,
+        a_force_was_given: bool,
+    ) -> bool {
         return match self {
             ProofStoppedBy::AMountNoRecordNames
             | ProofStoppedBy::ARecordOfAnotherPath
             | ProofStoppedBy::AMountThatCannotBeRead => true,
+            ProofStoppedBy::ADestructionPlanThatCannotBeRead
+            | ProofStoppedBy::ACloneAtTheStagingFolder => !a_force_was_given,
             ProofStoppedBy::AnotherReading => false,
         };
     }
@@ -291,10 +317,10 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
         } => {
             return SlotRouteState::CannotProve {
                 reason: format!(
-                    "the destruction plan at {} could not be read ({reason}), so nothing proves no removal is in flight for this slot",
+                    "the destruction plan at {} could not be read ({reason}), so nothing proves no removal is in flight for this slot and nothing proves what an earlier removal destroyed",
                     plan.display()
                 ),
-                stopped_by: ProofStoppedBy::AnotherReading,
+                stopped_by: ProofStoppedBy::ADestructionPlanThatCannotBeRead,
             };
         }
         PlanReading::NotAsked => {
@@ -345,8 +371,13 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
             },
             CloneMount::Elsewhere {
                 described,
+            }
+            | CloneMount::AtTheStagingFolder {
+                described,
             } => SlotRouteState::CannotProve {
                 reason: disagree(record.phase, &format!("{described} is mounted")),
+                // A remove's own reading is the one above this; an add's resume owns a clone its own unmount left on the
+                //  staging folder, and a removal of a pending add is the add's way forward.
                 stopped_by: ProofStoppedBy::AnotherReading,
             },
             CloneMount::SomethingElseAtTheSlot {
@@ -362,6 +393,17 @@ pub fn classify_slot(readings: &SlotReadings) -> SlotRouteState {
             },
             CloneMount::Nowhere => SlotRouteState::KnownUnmountedClone {
                 clone_dataset: record.clone_dataset.clone(),
+            },
+            CloneMount::AtTheStagingFolder {
+                described,
+            } => SlotRouteState::CannotProve {
+                reason: format!(
+                    "the binding record says `phase={}`, and the clone is mounted on the staging folder ({described}), so an earlier removal's unmount was killed before it wrote a plan",
+                    record.phase.word()
+                ),
+                // The owner answered on 2026-11-28 that a removal refuses this state without force and that one force passes
+                //  it, unmounting the clone there and then destroying it.
+                stopped_by: ProofStoppedBy::ACloneAtTheStagingFolder,
             },
             CloneMount::Elsewhere {
                 described,

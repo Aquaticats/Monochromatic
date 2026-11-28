@@ -428,3 +428,31 @@ a command,
 a push and a pull,
 and a destroy that returns when the project's listing has let the machine go;
 the billed test passed whole at 2026-11-28T07:32:22-05:00.
+
+### What stood at the mark
+
+Read at 2026-11-28T08:00:05-05:00,
+unapproved and non-final:
+
+- on this machine,
+  `mvm --backend libvirt list` named no guests,
+  and the session libvirt held no domains;
+  each round destroyed its own local guest after it was told,
+  the last before 07:53;
+- on OVHcloud the project listed 2 machines,
+  each made by a round;
+- `main` holds what a round needs there:
+  merge `a2c34bc3f0` makes a plain `/mnt/shared` in a guest that mounts no share,
+  so the arm scripts run as they are,
+  and merge `b7f9f7ed2c` gives `create` and `run` the two size options.
+
+What is not shown yet:
+no arm of a wrapper driver has run to its own result line on OVHcloud.
+The recipe's own create,
+prepare and one arm of the binding have.
+
+A defect a real run showed that morning,
+issue 6664:
+the one-shot `run` on a cloud backend drops `--vcpus` and `--memory`
+and creates the default size without a word.
+A round is fixing it.

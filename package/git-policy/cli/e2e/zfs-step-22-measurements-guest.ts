@@ -30,6 +30,7 @@
 import {
   guestBackend,
 } from '../bin/mvm-guest-backend.ts';
+import { refuseAHostSideRead, } from './step-22-arms/host-shared-log.ts';
 import { mkdir, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
 
@@ -352,6 +353,8 @@ async function runTheStep(chosen: Options,): Promise<void> {
   const step = steps.get(chosen.step,);
   if (step === undefined)
     throw new Error(`unknown step '${chosen.step}'; use create, prepare, run, destroy or all`);
+  // Said before this run makes anything: every step of this driver waits by reading the host's side of the share.
+  refuseAHostSideRead({ backend: guestBackend(), step: chosen.step, });
   await mkdir(
     chosen.logDir,
     {
