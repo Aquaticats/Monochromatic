@@ -32,7 +32,9 @@
 #       constant of a published type, a member whose declaration opens its body on a later line, and a re-export
 #       written over several lines or under a name of its own. Every name the widened reading found was already
 #       published by 0.6.1-alpha.50, so this round published nothing: it narrowed the names nothing outside their
-#       module reads, and wrote the one line another crate's own path needed.
+#       module reads, and wrote the one line another crate's own path needed. Before that, the round planted those
+#       five shapes against the Rust control on `main` and each passed unseen while a plain `struct` failed; with
+#       them read the list went from 6,695 entries to 12,395, and four names a split had widened were narrowed.
 # What changed on 2026-11-27, in the round after 0.6.1-alpha.51: the reading now reads the members of a type a
 #       `pub use` publishes at a facade path, so the fifteen names under "Members of a type a `pub use` publishes"
 #       below take their lines. No release code changed with them, so nothing here was published that a build of
