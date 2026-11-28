@@ -19,7 +19,7 @@ The owner declares completion;
 no part of it is approved,
 and the options here are not adopted.
 
-This revision was written after the clock read of 2026-11-28T06:35:00-05:00.
+This revision was written after the clock read of 2026-11-28T07:00:36-05:00.
 It answers two same-vendor gate reads,
 each a second pass by another Claude instance and neither an independent review:
 
@@ -98,7 +98,7 @@ with a driver for the dated toolchain,
 counted 1674 findings over seven packages,
 1611 of them in the four packages the issue names
 (the counts are in the section "M3" below).
-Whether that run is the record the counts should live in is the owner's to say (question 7).
+Whether that run is the record the counts should live in is the owner's to say (question 8).
 
 ## How the linter runs the rule
 
@@ -280,8 +280,8 @@ The floating name `nightly-x86_64-unknown-linux-gnu` has the channel word `night
 so it takes the same no-clone arm as the dated name `nightly-2026-11-16` does not.
 Measured on both sides:
 the dated name ran 3 `git` executions and the floating name 0
-(`.../m7-k-with-minimal-floating-channel/log/c-warm-execve.log`,
-`.../m2-f2-proxy-cargo/log/dated-driver-execve.git-lines.txt`).
+(`.../m7-k-with-minimal-floating-channel/log/c-execve-counts.txt`,
+`.../m8-option-i-on-the-host-like-floating-build/log/b-execve-counts.txt`).
 
 ## What each absence produces
 
@@ -1119,7 +1119,9 @@ and the sentences that rested on an unkept figure are gone.
   six skipped and two failed closure with status `2`,
   so twenty-two of the thirty were checked.
   The four packages the issue names account for 1611 of the 1674.
-  The wall times of the thirty rows sum to 1688 s with 4 jobs in the container;
+  The wall times of the thirty rows sum to 1688 s;
+  one linter invocation ran at a time,
+  each with `CARGO_BUILD_JOBS=4` (`scripts/m3-in-container.sh`);
   `package/linter/monochromatic-lint` alone took 418 s,
   `mpm-shadow` 250 s and `git-policy` 142 s.
   What the folder does not hold,
@@ -1211,12 +1213,15 @@ and the sentences that rested on an unkept figure are gone.
 
 ## The decisions, each answerable alone
 
-Eight decisions are separable,
-and this proposal keeps them apart.
+Seven decisions are separable,
+and this proposal keeps them apart;
+an eighth question asks where the counts live.
 A provider and a skip return are complements and not alternatives:
 a provider changes whether the rule runs,
 and a skip return changes what an absent provider says.
-A patch that fixes the toolchain of a cargo install and a patch that warms a driver are complements too.
+The toolchain answer and the provider answer are complements for the same reason:
+the first decides which compiler and which driver directory,
+the second decides who builds the driver.
 Nothing in one ranking is a reason against an answer in another.
 
 ### Decision 1: which toolchain the linter's library names, and whether it is pinned
@@ -1290,8 +1295,11 @@ How it works:
 `package/linter/monochromatic-lint-closure/rust-toolchain.toml`
 carries `channel = "nightly-2026-11-16"` (the `tools.rust.version` the lock records at build time)
 and the components `llvm-tools-preview` and `rustc-dev`,
-written by `file-enforcer` from `toolchain.lock.json`
+written from `toolchain.lock.json` by a generator the owner would name,
 so that the file cannot disagree with the lock.
+No rule in `file-enforcer.config.jsonc` writes a toolchain file today,
+so the generator is new work whichever part gets it;
+who writes it is one of the things a yes to K1 leaves undecided.
 Every `rustup` command in that directory then answers the dated full name,
 Dylint files the driver under that name,
 and the linter's `active_toolchain` reads the same name.
@@ -1317,7 +1325,7 @@ Also measured (M11):
 on a machine that lacks the dated toolchain,
 `rustup show active-toolchain` in that directory installs it and the file's components
 (rustup 1.29.3 warns that this auto-installation is deprecated).
-So F installs what it names,
+So K1 installs what it names,
 at the price of a network download on first use.
 What a yes leaves undecided:
 which field of the lock the file is generated from and when it is regenerated,
@@ -1342,7 +1350,7 @@ reads `toolchain.lock.json`,
 and the `rust-toolchain`/`rust-toolchain.toml` files at a checkout's root,
 so a package-level file is not read at all,
 and a date the lock does not name is not kept by anything but rustup's own settings.
-Delivers and costs as F,
+Delivers and costs as K1,
 with the extra exposure that the file and the lock can disagree.
 What a yes leaves undecided:
 which date,
@@ -1388,7 +1396,7 @@ The failure the earlier round called disqualifying was measured on a nightly 11 
 on which `dylint` 6.4.0 fails with `error[E0603]` (M2b,
 M5);
 that is a property of the newer nightly,
-and F inherits it the moment the lock moves there.
+and K1 inherits it the moment the lock moves there.
 What a yes leaves undecided:
 what to do on a nightly that breaks the library (wait for Dylint,
 as recorded,
@@ -1418,7 +1426,7 @@ M8 arm A).
 How it works:
 the `lint:monochromatic-lint` task runs the linter with `PATH` holding the rustup proxies before
 the repository launchers,
-and with `RUSTUP_TOOLCHAIN` set to the toolchain Answer I or F names.
+and with `RUSTUP_TOOLCHAIN` set to the toolchain Answer I or K1 names.
 What changes for good:
 nothing outside the task;
 a full-path call to the installed binary does not see it.
@@ -1432,7 +1440,7 @@ this is the state M7 and M8 ran in,
 and it delivers the rule in both answers (M7 arm D,
 M8 arm C).
 What a yes leaves undecided:
-whether `RUSTUP_TOOLCHAIN` is set (F) or the components make it unnecessary (I),
+whether `RUSTUP_TOOLCHAIN` is set (K1) or the components make it unnecessary (I),
 and whether the shadow is given a rule for that tree.
 
 #### Mechanism N: no change; the person runs the lint with the proxy first
@@ -1472,7 +1480,7 @@ How it works:
 and exports `RUSTUP_TOOLCHAIN`,
 which today it does only for its own catalog calls
 (`cargo_toolchain` and the `RUSTUP_TOOLCHAIN` it sets on the command in `src/cargo_run.rs`).
-What it delivers over L:
+What it delivers over CL:
 the repository's trust guard stays in the chain,
 because the child is still the shadow's hand-off.
 What it gives up:
@@ -1541,8 +1549,12 @@ It needs a route that compiles,
 which the plan has none of today
 (its routes are `rustup-toolchain`,
 `cargo-binstall`,
-`archive` and
-`bin`-sourced),
+`archive`,
+`bin`-sourced,
+`mpm-pnpm`,
+`mpm-uvx` and
+`android-sdk`,
+and every one of them installs a released artifact rather than building one),
 and it needs the installer's `cargo` to restore the toolchain variable.
 What it delivers,
 once the installer runs:
@@ -1749,7 +1761,7 @@ the coordinating session wrote:
 (`gh issue view 6316 --comments`,
 kept in `.../gate-read-second-2026-11-28/probe-issue-6316-comments.txt`)
 
-and the issue itself says the toolchain links wait for that change.
+and the same comment says the tool links wait for that issue.
 So the answer as written is about running the installer in the main checkout while a prerequisite is
 unbuilt;
 it is not a statement about a new plan row or a new component install,
@@ -1887,12 +1899,12 @@ and each says what a yes leaves undecided.
    I (the components on the floating channel;
    no file;
    wait for Dylint when a nightly breaks it),
-   F (a file generated from the lock),
-   or P (a file naming a date by hand).
+   K1 (a file generated from the lock),
+   or K2 (a file naming a date by hand).
    A yes to I leaves undecided what to do on a breaking nightly beyond waiting,
    and whether the plan's row is the only installer of the components.
-   A yes to F leaves undecided the lock field it is generated from and when it is regenerated.
-   A yes to P leaves undecided the date and who moves it.
+   A yes to K1 leaves undecided the lock field it is generated from and when it is regenerated.
+   A yes to K2 leaves undecided the date and who moves it.
 2. How the toolchain variable reaches the lint's `cargo` tree:
    T (the lint task's own environment puts the proxy first and sets the variable),
    N (no change;
@@ -2407,7 +2419,7 @@ with the log beside it:
 the machine's toolchains,
 components,
 versions and `PATH` order (`.../machine/machine-state.txt`);
-Answers F and I end to end with the proxy first (M7,
+Answers K1 and I end to end with the proxy first (M7,
 M8);
 the statuses a skip returns for both skip causes (M10);
 what rustup does with a file naming an absent toolchain (M11);
@@ -2483,7 +2495,7 @@ Every log this proposal cites is in
 - `gate-read-second-2026-11-28/`:
   the same-vendor read of 2026-11-28,
   whole,
-  with the probes that read ran and the two files it cites as this proposal's own.
+  with the probes that read ran.
 - `m1-f1-nonproxy-cargo/`,
   `m2a-proxy-alone-fails-at-rustc-dev/`,
   `m2-f2-proxy-cargo/`,
