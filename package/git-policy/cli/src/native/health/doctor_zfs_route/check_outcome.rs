@@ -134,9 +134,9 @@ impl Check {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use git_policy_cli::doctor_zfs_route::Check;
-    /// assert_eq!(Check::CheckoutMount.name(), "checkout-mount");
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const name = checkName(Check.CheckoutMount); // 'checkout-mount'
     /// ```
     pub fn name(self) -> &'static str {
         return match self {

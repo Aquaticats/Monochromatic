@@ -48,9 +48,13 @@
 //! the finished copy stays under the name this run holds it at,
 //! and the message names that path and the version's name,
 //! so a person reads what is on disk.
-//! What a later install does with that copy is that install's to read:
-//! it publishes it when the version's name holds no finished copy,
-//! and removes it as a second one when the version is at its name by then.
+//! What a later install does with that copy is that install's to read,
+//! and every such message says it (`WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY`):
+//! it publishes the copy without downloading when the version's name holds no finished copy by then,
+//! and removes it as a second finished copy when that name holds one.
+//! An install in another process namespace does not judge that name and leaves the copy where it is,
+//! which `prune --toolchain` prints for a person,
+//! and a newer version of a tool this repository publishes leaves that copy hidden rather than published.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -130,6 +134,10 @@ use self::exchanging_the_two_names::{
     cannot_exchange,
     exchange_the_two_names,
 };
+/// Re-exports which copy a failed recovery named,
+/// which only a control reads.
+#[cfg(test)]
+pub(crate) use self::leftovers_of_a_killed_install::WhatTheFailureNamed;
 /// Imports what a later install does with the leftovers of a killed one,
 /// what a recovery that failed answers,
 /// and the hidden name that holds the copy a kill moved aside.
@@ -145,6 +153,7 @@ pub(crate) use self::leftovers_of_a_killed_install::{
     hidden_siblings,
     recover_leftovers,
 };
+
 /// Re-exports what a process's record answers,
 /// and the reader a control uses to name a process of its own choosing.
 #[cfg(test)]
@@ -183,6 +192,35 @@ pub(crate) const REPLACED_PURPOSE: &str = "replaced";
 /// before it published it,
 /// so no other install publishes from the same directory.
 pub(crate) const RECOVERED_PURPOSE: &str = "recovered";
+
+/// What:
+/// What a later install does with the finished copy a failed publish names,
+/// as the sentence of every such message says it.
+/// Why:
+/// The copy is the only way an offline machine gets that version back,
+/// so a person reading a failure has to know which later run acts on it and which does not,
+/// and one sentence keeps every message and the report's warning saying the same thing.
+/// Every clause is a fact of the recovery next to this file:
+/// a copy whose marker vouches for the lock's row is published while the version's name holds no finished copy,
+/// and removed as a second one once it does;
+/// a name from another boot is an installer that reboot ended,
+/// so a run after a reboot acts on it;
+/// a name from another process namespace is never judged,
+/// so the copy waits for a person;
+/// and an older version beside a newer installed one is never kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY =
+///   'A later install of that version publishes that copy without downloading ...';
+/// ```
+pub(crate) const WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY: &str = "A later install of that version publishes that copy without downloading when the version's name holds no finished copy by then, \
+     and removes it as a second finished copy when that name holds one; \
+     it acts on that name in this process namespace and after a reboot, \
+     but an install in another process namespace does not judge that name and leaves the copy where it is, \
+     and prune --toolchain prints that name and what deleting it costs; \
+     a newer version of a tool this repository publishes, installed by then, leaves that copy hidden, \
+     because an older repository tool is never kept";
 
 /// `<parent>/.<name>.<purpose>.<process id>.<start time>.<namespace>.<boot>`,
 /// a hidden sibling of `version_dir` that no version scan lists.
@@ -462,7 +500,9 @@ fn replace_the_copy_that_is_there(
 /// and the copy this call holds and the copy it moved aside are dropped;
 /// a copy that a second install put back in it goes back rather than being replaced,
 /// and the finished copy this call holds stays wherever it is when anything else fails,
-/// so the next install publishes it.
+/// so a later install publishes it without downloading while the version's name holds no finished copy,
+/// and removes it as a second finished copy once that name holds one
+/// (`WHAT_A_LATER_INSTALL_DOES_WITH_THE_COPY`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
