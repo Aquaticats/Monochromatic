@@ -1,0 +1,33 @@
+7cfdc9199ede3790045b638a37b8944767861d17
+2026-11-27T22:45:13-05:00
+fix(git-policy-cli): close the doc fence the forbidden-strings check left open
+
+fix(git-policy-cli): the fence's closing line is restored where its block ends
+
+`package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs` opened a
+`//!` fence carrying the info string `ts` and no doc line closed it, so rustdoc
+rendered what follows as code.
+`8ac11438b8` (2026-11-26T19:44:23-05:00) dropped that closing line while
+splitting the file: the commit's own diff removes the doc line under the
+pseudocode line, and every earlier commit in the file's history holds it.
+The restored line leaves the file with twelve doc fence lines where it had
+eleven. Issue 6642.
+
+docs(git-policy-cli): the package's guide says a doc fence is closed
+
+Nothing reports a fence that is never closed, and no fix can add the missing
+line, so the guide asks a writer to count the file's doc fence lines before a
+commit. The measurement it cites is the round's own: the file above carried the
+open fence from `8ac11438b8` until this round closed it.
+
+docs(linter-monochromatic-lint): no rule reports a fence that is never closed
+
+CommonMark runs an unterminated fence to the end of its container, so the lines
+after it are code to every Markdown rule here, and no fix has anything to say
+about the missing closing line.
+The wrapper's round measured it on 2026-11-27: the repository's configuration
+and `0.5.2-alpha.24` reported no finding on the file with the open fence, and a
+break planted in the same source was reported in the same run, so the empty
+answer is not a skipped file.
+
+The round is unapproved and non-final; the owner declares completion.

@@ -10,9 +10,9 @@
 //!  so the configuration is held to the reviewed set rather than trusted
 //!  (`doc/planning/cli-git-zfs-root-modes-in-the-one-wrapper-executable-design.md`,
 //!  "The typed half,
-//! and the configuration it rests on").
+//!  and the configuration it rests on").
 //!  A reason's prose is free:
-//! only the level table and the paths are compared.
+//!  only the level table and the paths are compared.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

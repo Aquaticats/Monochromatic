@@ -25,13 +25,21 @@
 //!  and this entry stops at the plan and the list of names.
 //!  A removal that finds a plan already standing for its clone stops and names it,
 //!  because adopting a kept plan,
-//!  re-proving it and carrying its loss forward is the resume the later steps build.
+//!  re-proving it and carrying its loss forward is
+//!  `removal_resume::adopt_the_removal`'s own path.
+//!  A lock on the registration whose words are not this add's refuses here too,
+//!  before the first write:
+//!  the Git settle is the one step of the removal's order that reads `locked`,
+//!  and it comes after every destroy,
+//!  so a person's lock met only there would be met too late
+//!  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
+//!  "How doctor and removal tell the states apart").
 //!  The first write,
-//!  the intent and the unmount are switched on by plan step 16's wiring:
-//!  this release's removal command runs `removal_reading::read_the_removal` and writes nothing,
-//!  and step 16 replaces that call with this entry once the snapshot batch,
-//!  the head destroy,
-//!  the origin cleanup and the Git settle exist to finish or cancel what it starts.
+//!  the intent and the unmount are what the removal a person's
+//!  `git worktree remove` runs:
+//!  `removal_command_path::complete_the_bound_clones_removal` hands this entry the
+//!  live reads,
+//!  the live unmount request and the live clock.
 //!  The three process facts the plan records are `removal_clock.rs`.
 //!
 //! In TS you'd write (pseudocode):
@@ -252,6 +260,10 @@ pub(super) fn prepare_the_removal_over_a_plan(
     refuse_a_standing_plan: bool,
 ) -> Result<(PreparedRemoval, Option<DestructionPlan>), RemovalStop> {
     let recorded: RecordedBinding = read_the_recorded_binding(entry.common_dir, entry.slot)?;
+    super::the_lock_a_removal_refuses::refuse_a_lock_this_add_did_not_write(
+        entry.common_dir,
+        entry.slot,
+    )?;
     let registration: ObjectId = prove_the_adds_registration(entry.common_dir, &recorded)?;
     let origin_inventory = read_the_origin_inventory(entry.common_dir, &recorded)?;
     let standing: Option<DestructionPlan> =

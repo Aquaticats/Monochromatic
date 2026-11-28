@@ -1,8 +1,10 @@
 //! Controls for the table of kinds:
 //!  every kind has a row,
-//!  the two kinds whose ending no round shows are refused with the design's own words,
+//!  the kind no round shows is refused with the design's own words,
+//!  a locked holder that is this account's own unit is stopped through its
+//!  manager,
 //!  every row names its evidence and its owed arm,
-//!  and a refusal ends no blocker.
+//!  and a refusal and a unit's stop end no blocker.
 
 use crate::worktree_clone_forced_removal::forced_removal_words::RefusalWord;
 use crate::worktree_clone_forced_removal::holder_endings::*;
@@ -35,19 +37,26 @@ fn every_kind_has_one_row() {
 }
 
 /// A kind whose ending no round shows is refused,
-/// with the design's own word for it.
+/// with the design's own word for it,
+/// and a locked holder that is a service unit of this account's own user
+/// manager is stopped through that manager instead.
 #[test]
-fn the_two_unshown_kinds_are_refused() {
+fn the_kind_no_round_shows_is_refused_and_a_unit_of_ours_is_stopped() {
     let locked: KindEvidence = ending_of(HolderKind::LockedHolder).expect("the locked row");
-    assert_eq!(locked.ending, Ending::Refuse(RefusalWord::HolderLocked));
+    assert_eq!(locked.ending, Ending::StopTheAccountsOwnUnitThenGoOn);
     let taskless: KindEvidence =
         ending_of(HolderKind::TasklessNamespace).expect("the taskless row");
     assert_eq!(
         taskless.ending,
         Ending::Refuse(RefusalWord::HolderUnendable)
     );
-    // The refusal rows name the arm that would settle them.
-    assert!(locked.owed_arm.contains("V10"));
+    // The rows name the evidence they have and the arm that would settle what is still open.
+    assert!(locked.shown_by.contains("guest arm"), "{}", locked.shown_by);
+    assert!(
+        locked.owed_arm.contains("not a service unit"),
+        "{}",
+        locked.owed_arm
+    );
     assert!(taskless.owed_arm.contains("6.19"));
 }
 
@@ -72,12 +81,14 @@ fn every_rows_evidence_says_what_is_shown_and_what_is_owed() {
 }
 
 /// A refusal ends no blocker,
+/// a unit's stop ends none either,
 /// and each ending that does answers true,
 /// which is what keeps a locked holder's jobs from being signalled.
 #[test]
 fn a_refusal_ends_no_blocker() {
     assert!(!ends_blockers(Ending::Refuse(RefusalWord::HolderLocked)));
     assert!(!ends_blockers(Ending::Refuse(RefusalWord::HolderUnendable)));
+    assert!(!ends_blockers(Ending::StopTheAccountsOwnUnitThenGoOn));
     assert!(ends_blockers(Ending::EndBlockersThenUnmount));
     assert!(ends_blockers(Ending::UnmountInPlaceByHandle));
     assert!(ends_blockers(Ending::MakeTheParentASlaveThenMoveAndUnmount));

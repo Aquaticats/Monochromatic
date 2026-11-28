@@ -18,6 +18,226 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: what a ZFS removal does at a person's lock, at a plan it cannot read and at a staged clone, with one pick beside them (recorded 2026-11-28T05:17:09-05:00)
+
+The round that answered the lock question merged on 2026-11-28 as `2d5f167ae9`.
+Its control showed that on `main` a `git worktree remove` of a ZFS slot under a lock a person wrote
+sent the clone's snapshot request,
+the head destroy and the origin snapshot's request,
+and only then met the lock.
+The removal now reads the lock before its first write.
+What it built and measured is in `package/git-policy/cli/SPEC.md`,
+"Removal of a ZFS worktree clone".
+
+### Two forces at a person's lock
+
+A person ran `git worktree lock --reason 'keep this' <slot>` on a ZFS worktree,
+and someone then runs `git worktree remove --force --force <slot>`.
+In Git alone two forces drop a locked registration and leave the files.
+Here the removal destroys the clone and its own snapshots.
+
+- 1:
+  every spelling refuses,
+  two forces among them,
+  and the sentence names `git worktree unlock <slot>` as the way on.
+  The wrapper reads the lock file before it claims the slot,
+  compares its words with the sentence this add wrote,
+  and stops when they differ;
+  nothing is unmounted,
+  destroyed or written.
+  A person who means it types `git worktree unlock <slot>` and then the removal:
+  two commands.
+  This is what is built.
+- 2:
+  two forces pass.
+  The wrapper deletes the person's lock file itself and then destroys the clone.
+  One command,
+  with Git's own meaning of two forces;
+  the lock's one confirmation is gone,
+  and the function that never removes a lock it cannot attribute to this add would have to.
+- 3:
+  a spelling of the wrapper's own,
+  `--no-enforce-…`,
+  that says "and the lock too".
+  The wrapper would read that option,
+  delete the lock and destroy the clone.
+  One command;
+  it adds an option to a Git command whose grammar is Git's,
+  where `git worktree unlock` already says the same.
+
+Ranking:
+1 > 3 > 2.
+1 over 3:
+both keep a person's lock from being passed by habit,
+and 1 does it with a command Git already has.
+3 over 2:
+3 asks for a spelling nobody types by reflex,
+and 2 gives the destruction to the spelling Git's own refusal suggests.
+
+### A slot whose destruction plan does not read
+
+A removal was killed part way and its plan file is damaged.
+Today such a slot is left to Git:
+`git worktree remove` drops the registration and the slot folder,
+and the clone and the damaged plan stay.
+The owner's answer of 2026-11-26 named three refusals "and no more",
+and this is not one of them.
+
+- 1:
+  leave it to Git,
+  as now.
+  The wrapper classes the slot as a reading it cannot prove and answers nothing.
+  A clone stays on the pool with no registration,
+  which `doctor` reports.
+- 2:
+  refuse the removal there too,
+  naming the plan file and `git monochromatic-git-policy-cli settle-worktree-clone-record`.
+  The wrapper would add this reading to the ones that refuse.
+  Nothing is dropped until a person has settled the plan;
+  it is a fourth refusal beside the three the owner named.
+
+Ranking:
+2 > 1.
+Both destroy nothing;
+2 keeps the registration that says where the clone belongs,
+and 1 leaves a clone nothing points at.
+
+### A clone mounted at the staging folder, with no plan
+
+- 1:
+  leave it to Git,
+  as now:
+  the registration and the slot folder go,
+  and the clone stays mounted at the staging folder.
+- 2:
+  refuse the removal,
+  naming `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
+  which is the command the cancellation design gives for putting the mount back.
+- 3:
+  take the slot and let the removal's own unmount request run.
+  No record says what that request does to a clone already at the staging folder,
+  so this one needs a guest measurement before it could be built.
+
+Ranking:
+2 > 1 > 3.
+2 over 1:
+2 names the command that repairs the state,
+and 1 leaves it for `doctor` to find.
+1 over 3:
+3 could destroy snapshots while the mount still stands,
+and nothing has measured it.
+
+### The pick the session made, with the veto open
+
+The check before a command is wired with the nudge's switch off
+(`fcaea34f36`),
+so a forwarded command in a repository with no folder of unanswered requests pays one `stat`,
+measured at 1.40 µs.
+The design says the check is compiled out with the switch off
+(`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
+"Counts and numbers this design does not ship").
+The pick is to keep the check and amend that sentence,
+because the check is what removes an answered entry.
+
+## Open: whether a deadline ends `mpm-shadow`'s wait for a program it started, with three picks beside it (recorded 2026-11-28T03:35:24-05:00)
+
+Two rounds answered the second pass over `mpm-shadow` `0.2.7-alpha.19` and merged on 2026-11-28
+(`be3a61bcd4` and `da10506b07`).
+What each found and changed is in
+`package/mpm-shadow/cli/doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`.
+
+### The open choice: a deadline for a wait
+
+`mpm-shadow` starts other programs and waits for each:
+`rustup` to ask which parts a toolchain holds,
+`cargo binstall`,
+`tar`,
+`unzip`,
+`gh`.
+No deadline ends any of those waits.
+Since `da10506b07` one line goes to standard error when a wait passes 2 s,
+naming the program,
+and says that no deadline ends the wait.
+The round measured what an ordinary answer costs,
+on this machine under load,
+as ratios to a real `rustup --version` run in the same rounds:
+a stand-in's answer to the two questions took about 2.9 times that control at the median,
+and the slowest answer of all three arms was 45.61 ms.
+No run has recorded a real `rustup` that never answered;
+the second pass built the state with a stand-in that sleeps.
+
+- 1:
+  no deadline,
+  which is what ships.
+  A program that never answers makes the command wait until a person interrupts it,
+  and the line names what to stop.
+  An unattended run can hang for ever,
+  and nothing tells a script that it hung.
+- 2:
+  a deadline for the two read-only questions to `rustup` alone
+  (`rustup which` and `rustup component list --installed`),
+  ended with a failure that says the toolchain's parts could not be read.
+  `rustup` writes nothing for these questions,
+  so ending it costs no state,
+  and an unattended install or `list` stops hanging on them.
+  A slow answer on a loaded machine or a cold network file system would be reported as unreadable,
+  and the bound has to come from a measurement of the slowest honest answer,
+  which today's figures give only for this machine.
+- 3:
+  a deadline for every program,
+  the installers included.
+  A crate that compiles for minutes would be ended,
+  the bound would have to be a table per program that nothing has measured,
+  and an ended `cargo install` leaves a partial build.
+- 4:
+  a deadline for `install`'s questions and none for `list`.
+  `list` in a status loop hangs where `install` does not,
+  so two commands disagree about one question.
+
+Ranking:
+2 > 1 > 4 > 3.
+2 beats 1 because it ends the one hang that costs nothing to end,
+for the unattended runs this repository's rounds make,
+while 1 leaves every hang to a person.
+1 beats 4 because 4 adds a deadline and still leaves the command a loop runs without one.
+4 beats 3 because 3 ends work that is slow and right.
+The round that built the line recommends 1,
+because its measurement says what an answer costs and not where a late one should be cut off.
+
+### Three picks the rounds made, veto open
+
+- A bin name too long for its exposure folder is refused where the plan is read,
+  with exit status 2,
+  by every command that reads a plan
+  (`list`,
+  `update` and `bin` among them).
+  The length comes from the file system's own answer,
+  less 95 bytes for the temporary name a link is written under,
+  so at most 160 bytes where names hold 255.
+  Not taken:
+  a shorter temporary name,
+  which would give up which process,
+  start,
+  namespace and boot wrote a link;
+  and a check in `install` alone,
+  which would let `list` report on a plan that cannot be installed.
+- A temporary link whose name an earlier release wrote,
+  or that this release wrote without knowing its own boot or namespace,
+  is kept and named on every install,
+  and no run removes it.
+  It used to be removed when no process held its number,
+  which a run in another process namespace cannot know.
+  Not taken:
+  keeping that rule for names that can be judged,
+  which cannot tell the two cases apart.
+  The cost is a line on every install until a person deletes the name by hand.
+- The line for a wait covers every program a command starts,
+  goes to standard error,
+  and is printed once per start.
+  Not taken:
+  the `rustup` questions alone,
+  and a line repeated at every bound.
+
 ## Open: four proposals from rounds, each with its own questions, recorded 2026-11-27T04:34:22-05:00
 
 Four rounds each wrote a proposal on 2026-11-27 and changed no code.
@@ -132,6 +352,16 @@ A beats B because the spans and blob names are what let a reader check the resol
 B beats C because any durable record on the commit beats a line on standard error nobody kept.
 
 ### What closes the last file loop in `foundation/`
+
+Taken on 2026-11-28 by the coordinating session's pick,
+with the owner's veto open:
+the third way,
+because it alone changes no signature and keeps the notice said when it is said today.
+A round builds it
+(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
+started at 2026-11-28T03:13:06-05:00),
+and it stops and reports if the third way turns out to change a signature,
+a behaviour or the moment the notice is said.
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
@@ -267,6 +497,12 @@ because the gate's verdict is unchanged and a false failure costs more than a sl
 
 
 ## Open: does the crate split's step 4 run now? (recorded 2026-11-27T06:40:00-05:00)
+
+
+Answered on 2026-11-28:
+"Read the signatures first (Recommended)"
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
 
 The plan's rounds 1 to 3 are done or nearly done
 (`doc/planning/cli-git-source-layout-target-tree.md`,
@@ -4629,6 +4865,13 @@ and each can be undone.
 ## For the owner, and veto open: what the night of 2026-11-27 left after 22:15 (recorded 2026-11-27T23:01:36-05:00)
 
 ### A question that waits: what bounds the guests and the builds that run at once?
+
+
+Answered on 2026-11-28:
+the rounds of that night ride,
+and a later batch is bounded by guests alive
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+This entry leaves the file at its next cut.
 
 The machine ran out of memory three times on the night of 2026-11-27,
 the second and third time for about twenty minutes each

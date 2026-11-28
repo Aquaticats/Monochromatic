@@ -14,9 +14,8 @@
 //!  while the default `hidden` merely leaves the directory out of a listing
 //!  (`doc/decision/cli-git-zfs-step-8-sweep-choices.md`,
 //!  "Snapshot directories are hidden on the checkout",
-//! and its
-//!  "What hiding comes to,
-//! answered 2026-11-23";
+//!  and its "What hiding comes to,
+//!  answered 2026-11-23";
 //!  plan step 18,
 //!  "What it builds").
 //!  Plan step 19's setup sets the value on the checkout dataset and again on
@@ -26,15 +25,15 @@
 //!  so the command is printed and never run.
 //!  The value arrives in the dataset-stats reply the dataset checks already
 //!  read,
-//! so no check here opens the device or starts `zfs`:
+//!  so no check here opens the device or starts `zfs`:
 //!  the reply carries `snapdir` whenever it is set locally or inherited and
 //!  omits it only at the default,
-//! which is why an absent value is reported as
+//!  which is why an absent value is reported as
 //!  the default `hidden` rather than as unreadable.
 //!  Nothing compares the loaded module's release text with a rule
 //!  (`doc/decision/cli-git-zfs-runtime-layout-checker.md`,
 //!  "The release string,
-//! Q2"),
+//!  Q2"),
 //!  so the module floor is stated of a module older than OpenZFS 2.3.0 in the
 //!  conditional and no finding claims this machine's module is one.
 //!
@@ -237,10 +236,10 @@ fn subject_of(role: &DatasetRole) -> &'static str {
 ///  where the mount table's bound is all that stands in the directories'
 ///  place.
 ///  The command is printed and not run,
-/// because `doctor` changes nothing,
+///  because `doctor` changes nothing,
 ///  and the module floor is stated of such a module rather than judged from
 ///  this machine:
-/// no release string is compared with a rule.
+///  no release string is compared with a rule.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

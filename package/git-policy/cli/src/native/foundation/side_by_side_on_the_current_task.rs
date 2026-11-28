@@ -23,7 +23,7 @@
 //! the answers come back in the order the futures were given,
 //! whatever order they finish in.
 //!  An answer is handed over as its item ends,
-//! not when the slowest of the wave does:
+//!  not when the slowest of the wave does:
 //! a push refused at once is on record at once,
 //! and with a silent server its sibling holds the wave for the push deadline or the connected push's quiet window
 //! (`wait_ceilings.rs`),
@@ -84,7 +84,7 @@ fn no_answer_yet<T>() -> Option<AnAnswer<T>> {
 
 /// What:
 ///  One wave of futures,
-/// whose answers are taken one at a time as their items end.
+///  whose answers are taken one at a time as their items end.
 /// Why:
 ///  The wave keeps the futures and which of them have answered,
 /// so a future that answered is never polled again,
@@ -233,7 +233,7 @@ impl<'wave, T: 'wave> Future for TheNextAnswer<'wave, '_, T> {
 /// This is the shape a caller needs when it wants every answer at the end;
 /// a caller that settles each item's record as it ends uses `AnswersAsTheyCome` instead.
 /// A panic in one item is that item's own answer (`AnAnswer::Stopped`),
-/// never the caller's.
+///  never the caller's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -12,7 +12,7 @@
 //!  rather than at the caller's discretion
 //! (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Removal and recovery",
-//! step 3).
+//!  step 3).
 //!  The device seam is the binding's own `destroy_snaps`,
 //! so the request that is sent
 //!  is built by the constructor whose bytes the guard and the plan read,

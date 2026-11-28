@@ -292,7 +292,7 @@ fn quoted_into(
 ///  and reads the parameters after the numbered pairs,
 ///  so the caller's newer pair is the one that decides.
 ///  Writing the whole value here,
-/// rather than adding numbered pairs,
+///  rather than adding numbered pairs,
 ///  keeps that order:
 /// a numbered pair is read before an inherited parameter,
 ///  and an inherited parameter would decide the upload's server.

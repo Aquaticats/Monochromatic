@@ -380,6 +380,13 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the macOS and Windows fallback of the name wait; on Linux the same wait is a futex",
     },
     Allowed {
+        file: "process/a_service_unit_stopped_through_the_accounts_manager.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks at a locked holder's unit after its manager was asked to stop it; the stop runs in \
+              the forced removal's handler, which is a command of its own and has no task, and the pause becomes a task \
+              with the handler's own step",
+    },
+    Allowed {
         file: "foundation/unix_socket_connect_within_a_deadline.rs",
         rule: "blocking-sleep",
         why: "the pause between asks of a socket whose listening queue is full, in the connection a commit makes for a drawn \

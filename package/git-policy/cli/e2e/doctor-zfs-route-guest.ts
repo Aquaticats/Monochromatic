@@ -139,7 +139,7 @@ const GREEN_MARKERS: readonly string[] = [
   'DOCTOR-GUEST staging-forms-are-removed-and-nothing-else-is',
   'DOCTOR-GUEST rename-grant-is-a-finding',
   'DOCTOR-GUEST readiness-from-another-boot-is-a-finding',
-  'DOCTOR-GUEST later-steps-are-unknown',
+  'DOCTOR-GUEST unread-step-facts-are-unknown',
   'DOCTOR-GUEST the-releases-gatherer-answers-the-same-report',
   'DOCTOR-GUEST snapdir-visible-is-a-finding',
   'DOCTOR-GUEST snapdir-hidden-is-a-finding',

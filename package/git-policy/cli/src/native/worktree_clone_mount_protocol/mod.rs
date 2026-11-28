@@ -92,6 +92,39 @@
 //!   where one boot's readiness lives and how it is written.
 //! - `clone_mount_intent_write.rs`:
 //!   the wrapper's request and nudge payloads and the gated writes.
+//! - `unanswered_request_entry.rs`:
+//!   one line of the folder of unanswered requests:
+//!   its fields,
+//!   its text and its parse.
+//! - `unanswered_request_names.rs`:
+//!   one attempt's name,
+//!   the staging name a writer links it from,
+//!   and the number the next claim takes.
+//! - `unanswered_requests_refusals.rs`:
+//!   why the folder refused one call:
+//!   the folder,
+//!   a file that is not an entry,
+//!   or a text that is not one.
+//! - `unanswered_requests_one_entry_read.rs`:
+//!   the read of one entry:
+//!   no link followed,
+//!   the account's own,
+//!   one page.
+//! - `unanswered_requests_folder.rs`:
+//!   the folder in the Git common directory:
+//!   one `stat`,
+//!   the publish of a wait's entry,
+//!   the helper's recorded outcome,
+//!   and the removal of a clone's attempts.
+//! - `unanswered_requests_nudge.rs`:
+//!   the gaps,
+//!   the claim whose link decides the one owner,
+//!   and the outcome a helper records,
+//!   compiled only under the nudge switch.
+//! - `unanswered_requests_before_a_command.rs`:
+//!   the check one forwarded command makes,
+//!   one `stat` when nothing waits,
+//!   with no call site until its wiring lands.
 //! - `mount_request_wait.rs`:
 //!   the wrapper's wait for a matching receipt,
 //!   what it last saw,
@@ -166,6 +199,50 @@ pub mod clone_mount_intent_write;
 
 /// The wrapper's wait for a matching receipt and its deadline.
 pub mod mount_request_wait;
+
+/// One line of the folder of unanswered requests:
+/// its fields,
+/// its text and its parse.
+pub mod unanswered_request_entry;
+
+/// One attempt's name,
+/// the staging name a writer links it from,
+/// and the number the next claim takes.
+pub mod unanswered_request_names;
+
+/// Why the folder of unanswered requests refused one call,
+/// and what a person reads.
+pub mod unanswered_requests_refusals;
+
+/// The folder of unanswered requests in the Git common directory:
+/// one `stat`,
+/// the publish of a wait's entry,
+/// the helper's recorded outcome,
+/// and the removal of a clone's attempts.
+pub mod unanswered_requests_folder;
+
+/// The nudge a command asks for on a waiting clone's behalf,
+/// compiled only where the `zfs-lost-event-nudge` switch is on,
+/// which is off until step 22 sizes its gaps with M8.
+#[cfg(feature = "zfs-lost-event-nudge")]
+pub(crate) mod unanswered_requests_nudge;
+
+/// The check one forwarded command makes in its repository's folder of
+/// unanswered requests:
+/// one `stat` when nothing waits,
+/// and the receipt read that removes an answered entry.
+/// It has no call site yet:
+/// a use of this folder by `invocation/` is a new use inside a loop the layout
+/// allow list tolerates,
+/// which no line may record,
+/// so the forwarded path's one line waits for the round that untangles it.
+pub mod unanswered_requests_before_a_command;
+
+/// The read of one entry of the folder:
+/// no link followed,
+/// the account's own,
+/// one page.
+pub mod unanswered_requests_one_entry_read;
 
 /// Step 7's guest arms:
 /// the intent refusals with no mount,

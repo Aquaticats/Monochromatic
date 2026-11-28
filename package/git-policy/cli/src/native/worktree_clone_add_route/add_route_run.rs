@@ -1,32 +1,30 @@
 //! What:
 //!  The ZFS add route's entry point and runner:
-//! the gate,
-//! the preflight,
-//! the
-//!  claim,
-//! the phases a resume continues from,
-//! and the end that repairs the new
+//!  the gate,
+//!  the preflight,
+//!  the claim,
+//!  the phases a resume continues from,
+//!  and the end that repairs the new
 //!  worktree and hands its trash over.
 //! Why:
 //!  The wrapper's one add path asks this before it builds a ladder,
 //!  and `None` keeps every add on another filesystem,
-//! another checkout dataset,
+//!  another checkout dataset,
 //!  or whose source the fill's own restore would refuse,
 //!  exactly as it was
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//! step 10,
-//! and
-//!  `super::add_source_the_restore_cannot_prove` for the sources the route leaves
+//!  step 10,
+//!  and `super::add_source_the_restore_cannot_prove` for the sources the route leaves
 //!  to the ladder until the removal's writing path is reachable:
 //!  its Git settle is plan step 16's,
 //!  and no command of this release reaches it).
 //!  A failed or killed add keeps the claim,
-//! the slot and the locked
+//!  the slot and the locked
 //!  registration,
-//! and the next add at the slot reads the record's phase and
+//!  and the next add at the slot reads the record's phase and
 //!  continues from it
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//! A0 to A12 and
+//!  A0 to A12 and
 //!  W5 and W6 of the fourth check).
 //!  The fallback that finishes a failed add with Git's own checkout is step 11's,
 //!  so this release refuses nothing it cannot resume.
@@ -95,13 +93,13 @@ pub const FILLED_NOTE: &str = "monochromatic-git-policy-cli: made the worktree a
 
 /// What:
 ///  Run the ZFS route for one add,
-/// or leave it to the ordinary path.
+///  or leave it to the ordinary path.
 /// Why:
 ///  `None` is the answer for every add the route does not serve,
 ///  which is every add on another filesystem,
-/// every add in a checkout that is
+///  every add in a checkout that is
 ///  not the design's dataset,
-/// and every add whose source the fill's own restore
+///  and every add whose source the fill's own restore
 ///  would refuse until the settle that cleans up after it lands
 ///  (`super::add_source_the_restore_cannot_prove`).
 pub fn run_a_zfs_add(
@@ -168,7 +166,7 @@ pub fn run_a_zfs_add(
 ///  and whose `None` is the add the route declines.
 /// Why:
 ///  The decline is the preflight's,
-/// and it stands before the claim,
+///  and it stands before the claim,
 ///  so a declined add leaves nothing this route would resume and reaches the
 ///  ladder with nothing changed.
 fn run_the_route(

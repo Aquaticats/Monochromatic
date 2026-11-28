@@ -1,0 +1,30 @@
+96c930201ff24d0e7c661c35e1893d4c6bd1b31a
+2026-11-27T22:35:41-05:00
+style(git-policy-cli): join the doc lines the old hard wrap left alone
+
+Issue 6642. Merge `beb61ec46b` ran the then-current
+`markdown/semantic-line-breaks` fix over 471 Rust files of this package, and
+that fix broke a line after a comma or a clause without joining what the old
+hard wrap had cut, so a word that ended an old line stands alone at no
+boundary and the rule reports nothing there.
+
+The repair is the fixed tool's own output, not a hand edit: for each of the
+471 files the merge changed, the pre-sweep copy (`beb61ec46b^1:<path>`) went
+through the installed `monochromatic-lint` `0.5.2-alpha.24` with a
+configuration naming `markdown/semantic-line-breaks` alone, and that output
+replaces a doc paragraph only where the paragraph's words are the same in the
+pre-sweep file and on this branch, compared with every comment marker and
+every whitespace character removed.
+
+771 doc paragraphs were repaired in 367 files, netting 90 fewer doc lines.
+Every changed line is a `//!` or `///` line, and the text of every changed
+file with its doc markers and every whitespace character removed is identical
+before and after, which a probe that changed one word shows the comparison can
+see.
+
+Six paragraphs stay as the branch held them, because another round reworded or
+added them since the sweep; none of the six holds a one- or two-word line that
+ends at no break point.
+
+The measurement and its scripts are the run's own; the round is unapproved and
+non-final.

@@ -55,6 +55,10 @@ use crate::worktree_clone_removal_proof_and_plan::removal_report::{
     OriginCleanupDone,
     TheRemovalDone,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_self_cancelling_step::{
+    TheStopTheRemovalTakes,
+    cancelled_at,
+};
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::SettleAnswer;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle_step::settle_the_registration;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::ClaimEnd;
@@ -155,6 +159,28 @@ pub(super) fn the_head_present_path(
         probe: input.probe,
         device: input.head,
     })?;
+    // The last stop point the design names: a holder outlasts the head destroy. The kernel answers `EBUSY` with every
+    //  one of the clone's own snapshots already gone, which is a holder and not a name this run left.
+    if head.head == HeadWord::Refused {
+        let left: Vec<String> = the_names_not_destroyed(&plan);
+        if left.is_empty() && head.errno == u32::try_from(libc::EBUSY).ok() {
+            let the: TheStopTheRemovalTakes<'_> = TheStopTheRemovalTakes {
+                cancelling: input.cancelling,
+                common_dir: input.entry.common_dir,
+                slot: input.entry.slot,
+                plan: Some(&plan),
+                holders: &[],
+                stop: crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheStopPoint::AtTheHeadDestroy,
+            };
+            if let Some(stopped) = cancelled_at(&the) {
+                return Err(stopped);
+            }
+        }
+        return Err(RemovalStop::TheHeadDestroyWasRefused {
+            errno: head.errno,
+            names: the_states_of(&plan, left.as_slice()),
+        });
+    }
     let origin: OriginCleanupDone = attempt_the_origin_cleanup(input, &plan)?;
     let settle: SettleAnswer = settle_the_registration(input, &plan)?;
     let records: RecordsGone =
@@ -307,6 +333,19 @@ fn refuse_the_holders(
         .holders_of(plan.facts.clone_dataset.as_str(), plan.facts.clone_guid)?;
     let lines: Vec<String> = the_holder_lines(&scan);
     if !lines.is_empty() {
+        // The scan before a delete is the design's own stop point: a holder the scan sees stops the destruction and a
+        //  removal without a forced arm puts the clone back rather than going on.
+        let the: TheStopTheRemovalTakes<'_> = TheStopTheRemovalTakes {
+            cancelling: input.cancelling,
+            common_dir: input.entry.common_dir,
+            slot: input.entry.slot,
+            plan: Some(plan),
+            holders: lines.as_slice(),
+            stop: crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheStopPoint::ByAScanBeforeADelete,
+        };
+        if let Some(stopped) = cancelled_at(&the) {
+            return Err(stopped);
+        }
         return Err(RemovalStop::HoldersSeeTheClone {
             holders: lines,
             incomplete: scan.incomplete.len(),

@@ -19,7 +19,7 @@ use crate::typed_network_command_relay::the_options_before_the_remote::remote_op
 
 /// What:
 ///  The words of one command line,
-/// as the person typed them.
+///  as the person typed them.
 /// Why:
 ///  Every control below reads arguments and never a shell line.
 ///

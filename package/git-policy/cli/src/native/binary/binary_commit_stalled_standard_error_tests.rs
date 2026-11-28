@@ -12,7 +12,7 @@
 //!  the read end of a full pipe kept open and never read,
 //!  or a pipe whose read end is closed before the command starts.
 //! The pipe is filled to its whole capacity,
-//! so not one byte of any line fits:
+//!  so not one byte of any line fits:
 //!  a line the wrapper writes before the fix waits there and the commit never returns.
 //!
 //! In TS you'd write (pseudocode):
@@ -70,7 +70,7 @@ const WAIT_SECONDS: u64 = 150;
 ///  run with real Git directly.
 /// Why:
 ///  A control reads what landed from the repository itself,
-/// never from the wrapper's own words.
+///  never from the wrapper's own words.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

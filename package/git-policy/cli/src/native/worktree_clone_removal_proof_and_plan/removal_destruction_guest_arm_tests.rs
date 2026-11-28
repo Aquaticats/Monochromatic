@@ -18,9 +18,8 @@
 //!  The reap itself is the deferred-origin folder's own guest arm,
 //! which ran before this one:
 //!  a harness that cannot see the loss cannot show that the refusal avoids it (rule `QPC`).
-//!  This arm drives the writing path the library offers,
-//!  because the removal's command path is cut on purpose until plan step 16:
-//!  `src/native/source_guard/removal_command_path_writes_nothing_tests.rs`.
+//!  This arm drives the destruction half the library offers,
+//!  because the whole order's own arm is `removal_completion_guest_arm_tests`.
 //!  The windows the design reaches with its pause route are reached here from the arm's own
 //!  seams:
 //!  the check's reader answers the first check from an unmarked pool and every later read from

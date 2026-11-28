@@ -37,6 +37,8 @@
 //! so a rename's import (`use std::os::unix::fs::symlink as make_link;`,
 //! and the braced `use std::os::unix::fs::{symlink as make_link};`) and a function taken as a value
 //! are findings too.
+//! The deprecated standard-library spelling of a symlink (`std::fs::soft_link`) is one of those names,
+//! so a line that writes it is a finding as well.
 //! A syscall entry is banned as the call that makes it (`libc::syscall`),
 //! and never by the constant that numbers it,
 //! because `libc::SYS_symlinkat` writes the system call's name inside a longer one.
@@ -231,6 +233,7 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
 ///  the bare call of an imported name,
 ///  the `at` form a directory descriptor goes through,
 ///  the name any other crate gives the same system call (`rustix::fs::linkat`),
+///  the deprecated standard-library spelling of a symlink (`std::fs::soft_link`),
 ///  and the syscall entry itself,
 ///  because `libc::syscall(libc::SYS_symlinkat, ...)` writes the system call's name inside a longer constant
 ///  (`SYS_symlinkat`) where no name boundary reads it.
@@ -242,11 +245,12 @@ const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const LINKS_A_FILE_MAY_NOT_MAKE = ['symlink', 'symlinkat', 'hard_link', 'link', 'linkat', 'syscall'];
+/// const LINKS_A_FILE_MAY_NOT_MAKE = ['symlink', 'symlinkat', 'soft_link', 'hard_link', 'link', 'linkat', 'syscall'];
 /// ```
 const LINKS_A_FILE_MAY_NOT_MAKE: &[&str] = &[
     "symlink",
     "symlinkat",
+    "soft_link",
     "hard_link",
     "link",
     "linkat",
@@ -329,17 +333,17 @@ fn files_the_scope_no_longer_reads(sources: &[(String, String)]) -> Vec<String> 
 
 /// What:
 ///  The executable is the reviewed handful of statements,
-/// whole.
+///  whole.
 /// Why:
 ///  `main` is where a start becomes a root mode,
 ///  so its code text is pinned line for line:
 ///  any line added,
-/// removed,
-/// reordered,
-/// reworded or re-spelled fails here,
+///  removed,
+///  reordered,
+///  reworded or re-spelled fails here,
 ///  and the commit that changes it changes this list in the same diff.
 ///  A whole-line comment and a blank line are not code,
-/// so an explanation
+///  so an explanation
 ///  re-pins nothing.
 #[test]
 fn main_is_the_reviewed_handful_of_statements() {
@@ -480,6 +484,9 @@ const SPELLINGS_OF_A_LINK: &[&str] = &[
     "let _ = libc::symlink(from, to);",
     "let _ = symlink(from, to);",
     "let _ = std::os::unix::fs::symlinkat(from, to, at);",
+    "let _ = std::fs::soft_link(from, to);",
+    "let _ = std::os::unix::fs::soft_link(from, to);",
+    "let _ = soft_link(from, to);",
     "let _ = std::fs::hard_link(from, to);",
     "let _ = std::fs::link(from, to);",
     "let _ = libc::linkat(from, to, at);",

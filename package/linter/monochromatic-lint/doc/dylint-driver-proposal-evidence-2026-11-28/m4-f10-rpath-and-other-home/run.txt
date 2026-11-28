@@ -1,0 +1,23 @@
+== clock 2026-11-28T08:21:28+00:00
+== control 1: the driver, run where the builder's rpath exists (/root/.rustup)
+-rw-r--r-- 1 root root 165416064 Nov 28 07:59 /root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/librustc_driver-5adf19dcd2f7d879.so
+ 0x000000000000001d (RUNPATH)            Library runpath: [/root/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib:/root/.rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib]
+ 0x0000000000000001 (NEEDED)             Shared library: [librustc_driver-5adf19dcd2f7d879.so]
+ 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+ 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]
+control status 0
+nightly-2026-11-16-x86_64-unknown-linux-gnu 6.4.0
+== move the builder's rustup home away, install the same toolchain at /opt/rustup
+install status 0
+info: default toolchain set to nightly-2026-11-16-x86_64-unknown-linux-gnu
+info: self-update is disabled for this build of rustup
+info: any updates to rustup will need to be fetched with your system package manager
+-rw-r--r-- 1 root root 165416064 Nov 28 08:22 /opt/rustup/toolchains/nightly-2026-11-16-x86_64-unknown-linux-gnu/lib/librustc_driver-5adf19dcd2f7d879.so
+== the same driver, run with HOME=/home/other and the toolchain at /opt/rustup
+other-path status 127
+/work/dylint-driver: error while loading shared libraries: librustc_driver-5adf19dcd2f7d879.so: cannot open shared object file: No such file or directory
+== positive control: the same run with LD_LIBRARY_PATH at the other toolchain's lib
+ld-library-path status 0
+nightly-2026-11-16-x86_64-unknown-linux-gnu 6.4.0
+== done 2026-11-28T08:22:15+00:00

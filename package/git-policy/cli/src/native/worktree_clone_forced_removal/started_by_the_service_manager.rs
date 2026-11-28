@@ -12,7 +12,7 @@
 //!  (`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
 //!  "Which processes a forced removal never ends" and
 //!  "One more answer:
-//! a unit whose main process is a script").
+//!  a unit whose main process is a script").
 //!  The reason is that nothing tells the process that asked for the removal from
 //!  the manager that started it,
 //!  and an ending there would reach whatever the unit holds.
@@ -21,8 +21,7 @@
 //!  and a session leader whose own record cannot be read refuses too,
 //!  because the fourth answer's words do not cover an orphan and refusing is the
 //!  safe reading (the design's "A command whose parent is the service manager,
-//! or
-//!  whose session was started by it").
+//!  or whose session was started by it").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -134,7 +133,7 @@ pub struct ManagerRefusal {
 ///  so the decision is one function a control can drive.
 /// Why:
 ///  A parent,
-/// its command and its cgroup are three reads of two files,
+///  its command and its cgroup are three reads of two files,
 ///  and keeping them as values lets the control show every shape the fourth
 ///  answer names without starting a manager.
 ///
@@ -288,7 +287,7 @@ pub fn started_by_the_service_manager(reads: &ManagerReads<'_>) -> Option<Manage
 /// What:
 ///  The refusal's own sentence,
 ///  with the manager,
-/// the place and the remedy filled in.
+///  the place and the remedy filled in.
 /// Why:
 ///  The design fixes this text for the command and the session leader's parent
 ///  and for an orphan,

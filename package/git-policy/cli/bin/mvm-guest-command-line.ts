@@ -8,9 +8,10 @@
  `bin/mvm-guest-command-line.ts` and `e2e/guest-host/guest-host-rules-fixture.ts`), and they agreed byte for byte; what
  survived is the shape each question was answered best in.
 
- A detached script is the one place the three did not agree, and the difference is kept: one driver's scripts carry the
- guest's name check in the step file and the other two carry it in the launcher, and the two scripts are identical only
- with that distinction (`{@link detachedScriptFiles}`'s `nameCheck`).
+ A detached script is the one place the three helper sets did not agree, and the difference is kept: the step 22 driver's
+ scripts carry the guest's name check in the step file, the adoption driver's and the start probe's carry it in the
+ launcher, and the scripts of the three drivers that carry none are identical only in having none
+ (`{@link detachedScriptFiles}`'s `nameCheck`).
  */
 
 import {
@@ -132,9 +133,10 @@ export function guestSecondsOf({ timeoutMilliseconds, }: { readonly timeoutMilli
  Which of a detached script's two files carries the check that the command reached the guest it names.
 
  - `launcher` puts `test "$(hostname)" = NAME || exit 1` first in the launcher, which refuses a command that reached
-   another machine before the step file is started at all (the adoption driver's scripts);
- - `step` puts `test "$(hostname)" = NAME` first in the step file, so the detached script refuses itself (the step 22
-   driver's);
+   another machine before the step file is started at all (the adoption driver's and the start probe's scripts);
+ - `step` puts the same check first in the step file, so the detached script refuses itself, and writes the status line
+   the host waits for before it exits, so the host reports the refusal at its next look rather than waiting out the
+   script's bound (the step 22 driver's);
  - `none` carries no check, as the removal-lineage and settling drivers' scripts always did, because the host names the
    guest in `mvm exec` and `mvm` itself picks the domain.
  */
@@ -204,13 +206,20 @@ export function detachedScriptFiles({
    */
   const hostnameCheck = `test "$(hostname)" = ${name}`;
   /**
+   The log inside the guest's shared folder, which the step file writes and the host pulls back.
+   */
+  const sharedLog = `/mnt/shared/${log}`;
+  /**
    The bounded script, which is what runs detached.
+
+   A step-shaped check refuses with the status line the host already waits for, because a step file that exited without one
+   would leave the host asking until the script's own bound passed.
    */
   const stepLines = [
-    ...(nameCheck === 'step' ? [hostnameCheck,] : []),
-    `timeout ${String(guestSecondsOf({ timeoutMilliseconds, },),)} sh -ec ${shellQuote(script,)} > /mnt/shared/${log} 2>&1`,
+    ...(nameCheck === 'step' ? [`${hostnameCheck} || { echo "${ENDED_MARK}1" >> ${sharedLog}; exit 1; }`,] : []),
+    `timeout ${String(guestSecondsOf({ timeoutMilliseconds, },),)} sh -ec ${shellQuote(script,)} > ${sharedLog} 2>&1`,
     'status=$?',
-    `echo "${ENDED_MARK}$status" >> /mnt/shared/${log}`,
+    `echo "${ENDED_MARK}$status" >> ${sharedLog}`,
     '',
   ];
   /**
