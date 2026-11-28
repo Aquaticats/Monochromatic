@@ -1989,6 +1989,23 @@ Linux 7.3.5 and 6.8,
 systemd 262 and 255),
 not the second after one,
 where no ask failed and the ten of that run did.
+The span is the discovery's,
+and not the call's:
+a reexec that begins after the discovery has answered fails everything after it,
+and no wait in this package covers that.
+A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
+0 to 110 ms after each of its 24 calls began,
+so every discovery was done before the window opened,
+and 11 of the 24 calls exited 1
+(7 of `0.1.5-alpha.16`'s 12 and 4 of this release's 12,
+every one on the delegated route),
+with the scope launcher's
+`Failed to connect to user scope bus via local transport: Connection refused`
+and `cargo update --workspace --offline failed` in the output of the calls whose standard error that read kept.
+The two releases differ only in where the reexec fell inside each call,
+and the code that makes the scopes is the same,
+so neither release tried a scope's creation again.
+Whether a scope's creation that meets a reexec is tried again is not decided.
 Where a manager answers,
 the asking again costs nothing:
 the first ask answers and no wait is spent.
