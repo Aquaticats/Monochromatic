@@ -262,14 +262,11 @@ fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
         LOCKED_TOOLCHAIN_PATH,
         0,
     );
+    // The targets are the `rust-std-<triple>` lines of this one listing, so no target question is
+    // answered here: a run that asked it would find nothing installed and add every declared target.
     rig.runner.answer(
         "rustup component list --installed --toolchain nightly-2026-10-30",
-        "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
-        0,
-    );
-    rig.runner.answer(
-        "rustup target list --installed --toolchain nightly-2026-10-30",
-        "x86_64-unknown-linux-gnu\naarch64-linux-android\n",
+        "clippy-x86_64-unknown-linux-gnu\nrust-src\nrust-std-x86_64-unknown-linux-gnu\nrust-std-aarch64-linux-android\n",
         0,
     );
     let report = sync_tools(&rig.context(), None);
@@ -312,14 +309,10 @@ fn a_toolchain_row_naming_a_channel_is_recognised_and_reconciled_under_that_chan
     // The channel still holds the release the lock records, so the row is current.
     rig.runner
         .answer("rustc --version", "rustc 1.90.0 (abc 2026-09-01)\n", 0);
+    // The targets are this listing's `rust-std-<triple>` lines, so no target question is answered.
     rig.runner.answer(
         "rustup component list --installed --toolchain stable",
-        "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
-        0,
-    );
-    rig.runner.answer(
-        "rustup target list --installed --toolchain stable",
-        "x86_64-unknown-linux-gnu\naarch64-linux-android\n",
+        "clippy-x86_64-unknown-linux-gnu\nrust-src\nrust-std-x86_64-unknown-linux-gnu\nrust-std-aarch64-linux-android\n",
         0,
     );
     let report = sync_tools(&rig.context(), None);
