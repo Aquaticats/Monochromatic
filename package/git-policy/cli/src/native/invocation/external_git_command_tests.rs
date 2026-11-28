@@ -434,7 +434,8 @@ fn git_reports_the_exec_path_the_search_uses() {
 ///  What real Git answers about one place a command can be typed:
 ///  the working directory the shell of a `!` alias printed,
 ///  and the `rev-parse` questions the wrapper's reading decides from.
-///  `(bool, String)` is whether Git succeeded, and what it printed.
+///  `(bool, String)` is whether Git succeeded,
+/// and what it printed.
 /// Why:
 ///  `alias_run_directory` decides the directory from those answers,
 ///  so a control holds the wrapper's answer against Git's own answer in the
@@ -579,7 +580,8 @@ fn the_git_directory_named_at(place: &Path) -> PathBuf {
 }
 
 /// What:
-///  Seven places a command can be typed, and the fixture they are made in.
+///  Seven places a command can be typed,
+/// and the fixture they are made in.
 /// Why:
 ///  The two shapes issue 6625 named sit beside the shapes a control already
 ///  stood in,
@@ -590,7 +592,8 @@ fn the_git_directory_named_at(place: &Path) -> PathBuf {
 /// const shapes = shapesAPlaceCanBeTyped('name'); // { root, repository, belowTheTop, gitDirectory, ... }
 /// ```
 struct ShapesAPlaceCanBeTyped {
-    /// The fixture's own directory, which is outside every repository.
+    /// The fixture's own directory,
+    /// which is outside every repository.
     root: PathBuf,
     /// The repository Git made.
     repository: PathBuf,
@@ -705,7 +708,8 @@ fn a_shell_alias_runs_where_the_reader_answers_in_a_git_directory_and_a_bare_rep
 ///  which is the other difference these two shapes carry.
 /// Why:
 ///  The reading's failure branch is the leaf the two shapes of issue 6625 take,
-///  so the answers it fails on are pinned once, beside the control that reads
+///  so the answers it fails on are pinned once,
+/// beside the control that reads
 ///  them:
 ///  the failing question prints `fatal: this operation must be run in a work
 ///  tree` and the reading keeps only the status and the printed paths.

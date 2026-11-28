@@ -3048,7 +3048,8 @@ fn typed_apart_from_a_top(
 
 /// What:
 ///  The operand a command typed in `typed_in` names the fixture's slot by:
-///  one `..` for each folder `typed_in` stands below `root`, then the slot's name.
+///  one `..` for each folder `typed_in` stands below `root`,
+/// then the slot's name.
 /// Why:
 ///  A relative operand is what makes the start directory decide which worktree is
 ///  named,
@@ -3131,7 +3132,8 @@ fn the_removal_refusal_at_the_top(bound: &RegisteredSlot) -> String {
 }
 
 /// What:
-///  The stop one move answers with, as the status and the report a person reads.
+///  The stop one move answers with,
+/// as the status and the report a person reads.
 /// Why:
 ///  The move's refusal ends the command rather than settling a run around Git,
 ///  so its two answers come from the planning itself.
@@ -3152,7 +3154,8 @@ fn the_stop_of_the_move(
 ///  refused with the words the same removal gets at the top of the slot's own
 ///  worktree.
 /// Why:
-///  Issue 6625: no control stood in either shape,
+///  Issue 6625:
+/// no control stood in either shape,
 ///  and the plant that reddened the controls below the top of a worktree changes
 ///  nothing here,
 ///  because the reading those shapes need is the records' own directory rather
