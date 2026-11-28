@@ -49,9 +49,9 @@ use super::zfs_step_21_watch_arm::the_watch_arm;
 /// Why:
 ///  One test runs the arms in the order a reader reads the record:
 ///  the two installs,
+///  the queued pair,
 ///  the launcher repair,
-///  the watch,
-///  and the queued pair,
+///  and the watch,
 ///  each clearing the slot it made so the next one starts from nothing.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,10 +69,10 @@ fn the_step_21_guest_arms() {
         fixture.checkout, fixture.container
     );
     the_pnpm_arm(&fixture);
+    the_queued_and_inline_arms(&fixture);
     the_cargo_arm(&fixture);
     the_launcher_arm(&fixture);
     the_watch_arm(&fixture);
-    the_queued_and_inline_arms(&fixture);
     assert!(
         !mounted_at(fixture.root()),
         "the arms left a mount over the checkout root"

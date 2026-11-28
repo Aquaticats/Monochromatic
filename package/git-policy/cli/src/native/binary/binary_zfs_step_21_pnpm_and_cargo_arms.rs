@@ -41,6 +41,7 @@ use super::zfs_step_21_guest_fixture::{
 };
 use super::zfs_step_21_guest_layout::{
     ROUNDS,
+    dataset_stands,
     device_of,
 };
 use super::zfs_step_21_repair_readings::{
@@ -53,6 +54,33 @@ use std::path::{
     PathBuf,
 };
 use std::time::Instant;
+
+/// What:
+///  Refuse an arm whose add the ZFS clone route did not serve.
+/// Why:
+///  The route answers every add it does not serve with a silence and Git's own
+///  checkout,
+///  so an arm that read an add on the ladder would measure a copy on the
+///  checkout's dataset instead of a clone.
+///  The registration the route makes is locked and its clone dataset stands,
+///  which is what this reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(datasetStands(clone(name)) && added.status === 0, added.said);
+/// ```
+fn assert_the_route_served_the_add(
+    fixture: &Fixture,
+    name: &str,
+    added: &AddRound,
+) {
+    if !dataset_stands(fixture.sbin.as_str(), fixture.clone(name).as_str()) {
+        panic!(
+            "the add of {name} went to Git's own checkout and not to the ZFS clone route, so this arm has no clone to measure: {}",
+            added.said
+        );
+    }
+}
 
 /// What:
 ///  Run pnpm's offline frozen-lockfile install in a folder the arm prepared,
@@ -134,6 +162,7 @@ fn pnpm_after_an_add(
         "the add of {name} was refused: {}",
         added.said
     );
+    assert_the_route_served_the_add(fixture, name.as_str(), &added);
     let millis: u128 = the_time_of(added.said.as_str(), "pnpm relinked node_modules");
     let slot: PathBuf = fixture.slot(name.as_str());
     let resolved: std::process::Output = fixture.run(
@@ -257,6 +286,7 @@ fn cargo_after_an_add(
         "the add of {name} was refused: {}",
         added.said
     );
+    assert_the_route_served_the_add(fixture, name.as_str(), &added);
     let millis: u128 = the_time_of(
         added.said.as_str(),
         "Cargo kept dependency builds and cleaned the worktree's own crates",
