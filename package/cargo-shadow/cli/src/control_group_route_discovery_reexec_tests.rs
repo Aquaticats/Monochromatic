@@ -502,9 +502,18 @@ fn the_span_the_records_name_is_the_span_the_discovery_spends() {
 /// with a span of 0.6 s where the README and the package document name 0.800 s.
 /// Measured 2026-11-27 by a same-vendor second read of this release,
 /// which named that edit.
-/// A gap measured this way is the sleep and the discovery's own work between two programs,
-/// so a host slow enough to spend a quarter of the pause there would hide the edit;
-/// this host spent under a millisecond there.
+/// A gap measured this way holds the next stand-in's own start and the discovery's work between two programs as well as the
+/// sleep,
+/// so a host slow enough to spend a quarter of the pause there can hide the edit:
+/// measured on this host on 2026-11-27,
+/// the four gaps were 209.0 ms to 209.9 ms with the sleep in place,
+/// and 174.6 ms,
+/// 229.7 ms,
+/// 358.7 ms and 460.3 ms with it at three quarters of the pause,
+/// where the edit showed in one gap of the four.
+/// A green is safe, because a sleep never ends early;
+/// a red needs one gap that the work around it did not stretch past the pause,
+/// and every gap is printed so a reader sees which.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
