@@ -23,13 +23,14 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type Completion = { entry; reads; unmount; clock; check; probe; snapshots; head; holders; settle; budget; now };
+//! type Completion = { entry; reads; unmount; clock; check; probe; snapshots; head; holders; settle; budget; now; force };
 //! ```
 
 use crate::worktree_clone_mount_handler::sweep_dataset_reader::DatasetReader;
 use crate::worktree_clone_removal_proof_and_plan::fresh_holder_scan::FreshHolderScan;
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
 use crate::worktree_clone_removal_proof_and_plan::removal_entry::RemovalEntry;
+use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
 use crate::worktree_clone_removal_proof_and_plan::removal_head_destroy::DatasetDestroyDevice;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::RegistrationSettle;
 use crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheRemovalCancelling;
@@ -80,4 +81,7 @@ pub struct RemovalCompletion<'a> {
     pub budget: RequestBudget,
     /// The moment this run's records and attempts carry.
     pub now: &'a str,
+    /// How many forces the command carried,
+    /// which decides the refusals this run passes.
+    pub force: RemovalForce,
 }

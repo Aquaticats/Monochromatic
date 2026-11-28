@@ -106,6 +106,7 @@ fn stops() -> Vec<RemovalStop> {
             path: PathBuf::from("/repo/.git/plans/1"),
         },
         RemovalStop::PlanUnreadable {
+            slot: String::from("one"),
             path: PathBuf::from("/repo/.git/plans/1"),
             refusal: PlanRefusal::at(PlanRefusalCause::NotCanonical, "cloneGuid", "007"),
         },

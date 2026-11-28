@@ -90,6 +90,24 @@ service::service_main const EXIT_REFUSED
 service::service_main fn is_service_start
 service::service_main fn run
 service::service_main fn service_options
+worktree_clone_removal_proof_and_plan::removal_force struct RemovalForce
+worktree_clone_removal_proof_and_plan::removal_forced_acts field ForcedActs::lines
+worktree_clone_removal_proof_and_plan::removal_forced_acts field ForcedActs::the_unreadable_plan
+worktree_clone_removal_proof_and_plan::removal_forced_acts field ForcedActs::recorded_guid
+worktree_clone_removal_proof_and_plan::removal_forced_acts field ForcedActs::answered_guid
+worktree_clone_removal_proof_and_plan::removal_forced_acts fn ForcedActs::nothing
+worktree_clone_removal_proof_and_plan::removal_forced_acts fn ForcedActs::is_nothing
+worktree_clone_removal_proof_and_plan::removal_forced_acts struct ForcedActs
+worktree_clone_removal_proof_and_plan::removal_forced_acts fn delete_the_persons_lock
+worktree_clone_removal_proof_and_plan::removal_forced_acts fn forced_past_a_plan
+worktree_clone_removal_proof_and_plan::removal_forced_acts fn forced_past_a_proof
+worktree_copying::the_slots_cleanliness field TheSlotToCheck::slot
+worktree_copying::the_slots_cleanliness field TheSlotToCheck::registration
+worktree_copying::the_slots_cleanliness field TheSlotToCheck::common_dir
+worktree_copying::the_slots_cleanliness field TheLiveCleanliness::context
+worktree_copying::the_slots_cleanliness struct TheSlotToCheck
+worktree_copying::the_slots_cleanliness trait TheSlotsCleanliness
+worktree_copying::the_slots_cleanliness struct TheLiveCleanliness
 worktree_copying::worktree_copy_owner struct CopyOwner
 
 # New code of a commit after 0.6.1-alpha.47, published because the commit's own code is, one reason per name:
@@ -8884,6 +8902,7 @@ worktree::worktree_command_facts field CopyFacts::creates
 worktree::worktree_command_facts field CopyFacts::destination
 worktree::worktree_command_facts field CopyFacts::identity
 worktree::worktree_command_facts field CopyFacts::quiet
+worktree::worktree_command_facts field CopyFacts::removal_force
 worktree::worktree_command_facts field CopyFacts::removal_target
 worktree::worktree_command_facts field CopyFacts::remove_plan
 worktree::worktree_command_facts field RemovePlan::force
@@ -9229,6 +9248,7 @@ worktree::worktree_remove_notices fn destroy_notice
 worktree::worktree_remove_operations struct LinuxOperations
 worktree::worktree_remove_operations trait RemoveOperations
 worktree::worktree_remove_outcome enum RemoveOutcome
+worktree::worktree_remove_plan fn count_of_the_force
 worktree::worktree_remove_plan fn parse_removal_target
 worktree::worktree_remove_plan fn parse_remove_plan
 worktree::worktree_remove_registry field Registration::admin
@@ -11448,6 +11468,7 @@ worktree_clone_removal_proof_and_plan::lineage_proof field ProvenRemoval::identi
 worktree_clone_removal_proof_and_plan::lineage_proof field ProvenRemoval::inventory
 worktree_clone_removal_proof_and_plan::lineage_proof field ProvenRemoval::own_snapshots
 worktree_clone_removal_proof_and_plan::lineage_proof fn prove_the_lineage
+worktree_clone_removal_proof_and_plan::lineage_proof fn prove_the_live_lineage
 worktree_clone_removal_proof_and_plan::lineage_proof struct ObjectIdentity
 worktree_clone_removal_proof_and_plan::lineage_proof struct ProvenIdentities
 worktree_clone_removal_proof_and_plan::lineage_proof struct ProvenRemoval
@@ -11570,6 +11591,7 @@ worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCo
 worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::check
 worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::clock
 worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::entry
+worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::force
 worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::head
 worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::holders
 worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::now
@@ -11603,6 +11625,15 @@ worktree_clone_removal_proof_and_plan::removal_entry field RemovalEntry::slot
 worktree_clone_removal_proof_and_plan::removal_entry fn enter_the_removal
 worktree_clone_removal_proof_and_plan::removal_entry struct EnteredRemoval
 worktree_clone_removal_proof_and_plan::removal_entry struct RemovalEntry
+worktree_clone_removal_proof_and_plan::removal_entry field EnteringTheRemoval::entry
+worktree_clone_removal_proof_and_plan::removal_entry field EnteringTheRemoval::reads
+worktree_clone_removal_proof_and_plan::removal_entry field EnteringTheRemoval::unmount
+worktree_clone_removal_proof_and_plan::removal_entry field EnteringTheRemoval::clock
+worktree_clone_removal_proof_and_plan::removal_entry field EnteringTheRemoval::force
+worktree_clone_removal_proof_and_plan::removal_entry field EnteringTheRemoval::forced_before
+worktree_clone_removal_proof_and_plan::removal_entry field EnteredRemoval::forced
+worktree_clone_removal_proof_and_plan::removal_entry struct EnteringTheRemoval
+worktree_clone_removal_proof_and_plan::removal_entry fn enter_the_removal_with_force
 worktree_clone_removal_proof_and_plan::removal_head_destroy enum CloneAbsence
 worktree_clone_removal_proof_and_plan::removal_head_destroy field HeadDestroyRequest::device
 worktree_clone_removal_proof_and_plan::removal_head_destroy field HeadDestroyRequest::folder
@@ -11651,6 +11682,7 @@ worktree_clone_removal_proof_and_plan::removal_inventory fn LiveInventory::snaps
 worktree_clone_removal_proof_and_plan::removal_inventory fn LiveObject::full_name
 worktree_clone_removal_proof_and_plan::removal_inventory struct LiveInventory
 worktree_clone_removal_proof_and_plan::removal_inventory struct LiveObject
+worktree_clone_removal_proof_and_plan::removal_inventory fn LiveInventory::every_snapshot
 worktree_clone_removal_proof_and_plan::removal_reading field RemovalReading::clone
 worktree_clone_removal_proof_and_plan::removal_reading field RemovalReading::clone_createtxg
 worktree_clone_removal_proof_and_plan::removal_reading field RemovalReading::clone_guid
@@ -11690,10 +11722,19 @@ worktree_clone_removal_proof_and_plan::removal_report fn TheRemovalDone::lines
 worktree_clone_removal_proof_and_plan::removal_report fn TheRemovalDone::text
 worktree_clone_removal_proof_and_plan::removal_report fn the_outcome_word
 worktree_clone_removal_proof_and_plan::removal_report struct TheRemovalDone
-worktree_clone_removal_proof_and_plan::removal_resume enum TheStart
+worktree_clone_removal_proof_and_plan::removal_report field TheRemovalDone::forced
 worktree_clone_removal_proof_and_plan::removal_resume fn adopt_the_removal
 worktree_clone_removal_proof_and_plan::removal_resume fn refuse_the_live_intent
 worktree_clone_removal_proof_and_plan::removal_resume fn start_the_removal
+worktree_clone_removal_proof_and_plan::removal_resume fn start_the_removal_with_force
+worktree_clone_removal_proof_and_plan::removal_start_inputs enum TheStart
+worktree_clone_removal_proof_and_plan::removal_start_inputs struct TheStartingRemoval
+worktree_clone_removal_proof_and_plan::removal_start_inputs field TheStartingRemoval::entry
+worktree_clone_removal_proof_and_plan::removal_start_inputs field TheStartingRemoval::reads
+worktree_clone_removal_proof_and_plan::removal_start_inputs field TheStartingRemoval::unmount
+worktree_clone_removal_proof_and_plan::removal_start_inputs field TheStartingRemoval::clock
+worktree_clone_removal_proof_and_plan::removal_start_inputs field TheStartingRemoval::probe
+worktree_clone_removal_proof_and_plan::removal_start_inputs field TheStartingRemoval::force
 worktree_clone_removal_proof_and_plan::removal_settle field SettleAnswer::lines
 worktree_clone_removal_proof_and_plan::removal_settle field SettleAnswer::released_the_lock
 worktree_clone_removal_proof_and_plan::removal_settle field SettleAnswer::removed_the_registration
@@ -12673,6 +12714,14 @@ worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalAnswer
 worktree_copying::worktree_removal_of_a_bound_clone fn the_removal_of_a_bound_clone
 worktree_copying::worktree_removal_of_a_bound_clone fn the_removal_with
 worktree_copying::worktree_removal_of_a_bound_clone struct BoundSlotRemovalAnswer
+worktree_copying::worktree_removal_of_a_bound_clone field TheSlotRemoval::target
+worktree_copying::worktree_removal_of_a_bound_clone field TheSlotRemoval::common_dir
+worktree_copying::worktree_removal_of_a_bound_clone field TheSlotRemoval::force
+worktree_copying::worktree_removal_of_a_bound_clone field TheSlotRemoval::cleanliness
+worktree_copying::worktree_removal_of_a_bound_clone field TheRemovalsReadings::reads
+worktree_copying::worktree_removal_of_a_bound_clone field TheRemovalsReadings::sources
+worktree_copying::worktree_removal_of_a_bound_clone struct TheSlotRemoval
+worktree_copying::worktree_removal_of_a_bound_clone struct TheRemovalsReadings
 worktree_clone_add_route::the_removals_cancelling fn the_removals_cancelling
 worktree_clone_removal_cancel::the_self_cancelling_answer struct TheSelfCancellingAnswer
 worktree_clone_removal_finish_pass::the_live_pass fn finish_the_removal_plans_live

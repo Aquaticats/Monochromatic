@@ -232,3 +232,43 @@ fn a_state_nothing_proves_changes_nothing() {
         "{action}"
     );
 }
+
+/// What:
+///  The two states the owner's answers of 2026-11-28 added name their own way on.
+/// Why:
+///  The sentence a person reads beside a slot says what is safe next,
+///  and for these two states the safe things are the settling command and a
+///  forced removal for the plan,
+///  and the cancel command and a forced removal for the staged clone
+///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+#[test]
+fn the_two_new_readings_name_the_commands_that_end_them() {
+    let readings: SlotReadings = readings_at(Phase::Filled);
+    let plan: String = next_safe_action(
+        &SlotRouteState::CannotProve {
+            reason: String::from("the destruction plan at /plans/1 could not be read"),
+            stopped_by: ProofStoppedBy::ADestructionPlanThatCannotBeRead,
+        },
+        &readings,
+    );
+    for said in [
+        "git monochromatic-git-policy-cli settle-worktree-clone-record topic",
+        "git worktree remove --force topic",
+        "from the pool's own list",
+    ] {
+        assert!(plan.contains(said), "the sentence says {said}: {plan}");
+    }
+    let staged: String = next_safe_action(
+        &SlotRouteState::CannotProve {
+            reason: String::from("the clone is mounted on the staging folder"),
+            stopped_by: ProofStoppedBy::ACloneAtTheStagingFolder,
+        },
+        &readings,
+    );
+    for said in [
+        "git monochromatic-git-policy-cli cancel-worktree-removal topic",
+        "git worktree remove --force topic",
+    ] {
+        assert!(staged.contains(said), "the sentence says {said}: {staged}");
+    }
+}

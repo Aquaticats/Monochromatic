@@ -1965,6 +1965,20 @@ a record's word alone settles nothing.
   and what was read,
   and says that nothing was destroyed by this refusal.
   A plan that does not read is never moved aside or deleted (the seven answers' unreadable rule).
+  Note of 2026-11-28:
+  a forced removal goes past such a plan and removes that file with its own
+  records,
+  which the owner answered with
+  ("it proves the clone by the record's GUID against the pool,
+  destroys the clone and its snapshots from the pool's own list,
+  deletes the unreadable plan file",
+  `doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+  "How far force reaches"),
+  and a removal without force refuses the slot naming the plan's file and
+  `git monochromatic-git-policy-cli settle-worktree-clone-record <slot>`
+  (the same record's "A destruction plan that cannot be read").
+  So the rule above holds for every reader and every removal that carries no
+  force, and not for a forced one.
 - An oversized record:
   a file larger than `10,130 + 361 * declared count`,
   or one that ends before the lines it declares.
