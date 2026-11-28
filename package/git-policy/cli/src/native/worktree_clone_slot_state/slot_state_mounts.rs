@@ -129,6 +129,13 @@ pub enum CloneMount {
         /// The clone's instance in words.
         described: String,
     },
+    /// The clone dataset is mounted on a folder a removal derived for a staging
+    /// folder,
+    /// which is where an unmount a killed earlier run asked for left it.
+    AtTheStagingFolder {
+        /// The clone's instance in words.
+        described: String,
+    },
     /// Something that is not the clone's own root stands at the slot.
     SomethingElseAtTheSlot {
         /// The mount in words.
@@ -143,13 +150,18 @@ pub enum CloneMount {
 
 /// What:
 ///  Where the clone is mounted,
-///  from the table's rows and the slot's own mount.
+///  from the table's rows and the slot's own mount,
+///  and whether a mount away from the slot stands on a staging folder.
 /// Why:
 ///  A row is an instance of the clone only when its source is the clone dataset
 ///  and its root is the dataset's own root,
 ///  which the proposal's mount rules already fix for every reader;
 ///  a bind mount of a subtree shows a deeper root and is something else at the
 ///  slot rather than the clone.
+///  The staging folder is the one place a clone mounted away from its slot came
+///  from a removal,
+///  so the reader that tells the two apart is the folder's own name
+///  (`worktree_clone_mount_protocol::staging_folder_component`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -185,6 +197,13 @@ pub fn clone_mount_of(
     let elsewhere: Option<&MountedDatasetInstance> =
         found.iter().find(|row| return row.dataset == clone_dataset);
     if let Some(row) = elsewhere {
+        if crate::worktree_clone_mount_protocol::staging_folder_component::is_a_staging_folder_mount(
+            row.mount_point.as_path(),
+        ) {
+            return CloneMount::AtTheStagingFolder {
+                described: row.described(),
+            };
+        }
         return CloneMount::Elsewhere {
             described: row.described(),
         };

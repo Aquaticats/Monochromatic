@@ -76,6 +76,14 @@ pub struct CopyFacts {
     /// for a form that names no one directory,
     /// and for a directory that does not exist.
     pub removal_target: Option<PathBuf>,
+    /// How many forces that `git worktree remove` carried,
+    /// counted the way Git counts them,
+    /// and `0` for every other command.
+    /// It is read for every spelling Git accepts,
+    /// as `removal_target` is,
+    ///  because the force a person typed after the worktree's name counts as one
+    ///  before it (`worktree_remove_plan::count_of_the_force`).
+    pub removal_force: usize,
     /// Whether the person asked a `git worktree add` for `--quiet`,
     /// read from the words whether or not the ladder serves the form,
     /// so a plainly run add prints no line a quiet one would suppress.
@@ -133,7 +141,7 @@ pub struct AddPlan {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RemovePlan = { target: string; operand: string; force: boolean };
+/// type RemovePlan = { target: string; operand: string; force: number };
 /// ```
 #[cfg(unix)]
 #[derive(Clone, Debug, Eq, PartialEq)]

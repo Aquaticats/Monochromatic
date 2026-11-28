@@ -125,6 +125,9 @@ pub struct TheRemovalDone {
     /// The plan's file,
     /// which a finished removal removed.
     pub plan_path: PathBuf,
+    /// What this run did only because of a force,
+    /// with the line a person reads about each act.
+    pub forced: crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs,
     /// Every snapshot request this run sent,
     /// with the kernel's per-name answers.
     pub requests: Vec<BatchOutcome>,
@@ -202,6 +205,9 @@ impl TheRemovalDone {
             OriginCleanupDone::NoRecord { said } => format!("  no origin cleanup record was attempted ({said})."),
             OriginCleanupDone::Unreadable { path, said } => format!("  the origin cleanup record at {} could not be read ({said}), so nothing was destroyed on its word.", path.display()),
         });
+        for line in &self.forced.lines {
+            lines.push(format!("  {line}"));
+        }
         if self.records.plan_removed {
             lines.push(String::from("  the removal's plan, its binding and both inventories are removed, which frees the slot for the next add."));
         } else {

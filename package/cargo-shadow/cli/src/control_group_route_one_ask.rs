@@ -404,3 +404,11 @@ pub(crate) fn spent_its_bound(
 ) -> bool {
     return took + DISCOVERY_POLL * 2 >= settings.discovery_bound;
 }
+
+/// The controls of one ask:
+/// the question's shape,
+/// the reading of the answer's two named lines,
+/// and the reading of a failed start's words.
+#[cfg(test)]
+#[path = "control_group_route_one_ask_tests.rs"]
+mod one_ask_tests;
