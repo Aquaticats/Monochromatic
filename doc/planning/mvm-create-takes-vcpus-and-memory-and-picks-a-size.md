@@ -399,8 +399,8 @@ so this command answers a different question than a create does.
 4.  **A flavour named in the environment is refused beside either number.**
     Built at `package/mvm/cli/src/backend/size-request.ts`:
     the two sources are refused rather than resolved,
-    so `MVM_OVH_FLAVOR` beside `--vcpus` ends a create that the earlier draft
-    would have run on the named flavour.
+    so `MVM_OVH_FLAVOR` beside `--vcpus` ends a create that naming the flavour
+    alone would have run.
     Taken into
     "What is built today",
     and marked open to the owner's veto here:
