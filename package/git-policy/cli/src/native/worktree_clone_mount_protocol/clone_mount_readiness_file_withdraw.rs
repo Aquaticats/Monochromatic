@@ -33,12 +33,14 @@
 //! withdrawal.stood; // 'nothing' | the record | the reader's refusal
 //! ```
 
-use super::ReadinessFile;
-use super::ReadinessFileRefusal;
 use crate::worktree_clone_mount_protocol::clone_mount_readiness::{
     READINESS_DIRECTORY_MODE,
     READINESS_NAME,
     ReadinessRecord,
+};
+use crate::worktree_clone_mount_protocol::clone_mount_readiness_file::{
+    ReadinessFile,
+    ReadinessFileRefusal,
 };
 use crate::worktree_clone_mount_protocol::clone_mount_receipts_folder_calls::{
     sync_directory,

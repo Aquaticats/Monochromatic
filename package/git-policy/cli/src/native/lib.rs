@@ -605,6 +605,20 @@ pub mod zfs_mounted_dataset;
 #[cfg(target_os = "linux")]
 pub mod worktree_clone_mount_handler;
 
+/// Plan step 19's shutdown pass over the managed clone mounts,
+///  built ahead of the unit that runs it:
+///  withdraw this boot's readiness,
+///  close admission to new attaches,
+///  and unmount only the mounts this boot verified,
+///  without changing durable intent.
+/// No command reaches it in this build:
+///  `zfs-root shutdown-unmount` still answers the refusal that names the unit,
+///  and the round that wires the mode calls `run_the_pass` from it.
+/// It is Linux only,
+/// like the mounts and `/proc` files it reads.
+#[cfg(target_os = "linux")]
+pub mod worktree_clone_shutdown_unmount_pass;
+
 /// The root handler's all-namespace holder scan of one ZFS clone:
 ///  the live tasks grouped by mount namespace,
 ///  one mount table read per namespace,

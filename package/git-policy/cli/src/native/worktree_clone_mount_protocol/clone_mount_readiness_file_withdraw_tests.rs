@@ -11,7 +11,8 @@
 //!  and an attach is admitted on nothing once the pass has withdrawn it
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Boot and shutdown unit").
-//!  No control here mounts, unmounts or opens a device:
+//! No control here mounts,
+//!  unmounts or opens a device:
 //!  the whole file is a folder under the test's fixture root.
 //!
 //! In TS you'd write (pseudocode):
@@ -75,7 +76,8 @@ fn live_file(name: &str) -> ReadinessFile {
     return ReadinessFile::at(root, this_uid());
 }
 
-/// A published record is removed, and the route's own reader answers nothing.
+/// A published record is removed,
+///  and the route's own reader answers nothing.
 #[test]
 fn a_published_record_is_removed_and_reads_back_as_nothing() {
     let file: ReadinessFile = live_file("readiness-withdraw-published");
@@ -151,7 +153,8 @@ fn a_record_the_reader_refuses_is_removed_and_named() {
     assert!(!file.record().exists(), "the name is gone");
 }
 
-/// A directory another account owns is refused, and its file stays.
+/// A directory another account owns is refused,
+///  and its file stays.
 #[test]
 fn a_directory_of_another_account_is_refused_and_its_record_stays() {
     let file: ReadinessFile = live_file("readiness-withdraw-wrong-owner");
@@ -176,7 +179,8 @@ fn a_directory_of_another_account_is_refused_and_its_record_stays() {
     );
 }
 
-/// A directory at a mode the route does not set is refused, and its file stays.
+/// A directory at a mode the route does not set is refused,
+///  and its file stays.
 #[test]
 fn a_directory_at_another_mode_is_refused_and_its_record_stays() {
     let file: ReadinessFile = live_file("readiness-withdraw-wrong-mode");

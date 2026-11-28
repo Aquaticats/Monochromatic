@@ -69,19 +69,6 @@ use self::clone_mount_readiness_file_read::read_the_record;
 /// The refusal the directory,
 /// the write and the read answer with.
 pub use self::clone_mount_readiness_file_refusals::ReadinessFileRefusal;
-/// The withdrawal of one whole record,
-/// behind the directory already proved.
-pub(crate) use self::clone_mount_readiness_file_withdraw::{
-    RecordStood,
-    WithdrawRefusal,
-    Withdrawal,
-    withdraw_the_record,
-};
-/// The withdrawal's one record: what stood, the removal and the proof that
-/// nothing answers after it.
-#[path = "clone_mount_readiness_file_withdraw.rs"]
-mod clone_mount_readiness_file_withdraw;
-
 /// What:
 ///  Where one boot's readiness lives and which account must own it.
 /// Why:
@@ -125,6 +112,21 @@ impl ReadinessFile {
     /// The directory.
     pub fn directory(&self) -> &Path {
         return self.directory.as_path();
+    }
+
+    /// What:
+    ///  The account this record's directory and file must belong to.
+    /// Why:
+    ///   The withdrawal proves a directory and removes a name inside it,
+    ///  and only this file object knows which account the route requires there,
+    ///  so it is asked rather than a second constant that could drift from it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// file.owner(); // 0 at the installed place
+    /// ```
+    pub(crate) fn owner(&self) -> u32 {
+        return self.owner;
     }
 
     /// The record's own path.
