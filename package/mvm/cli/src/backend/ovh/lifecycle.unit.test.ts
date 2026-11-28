@@ -14,6 +14,7 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   describe,
   expect,
@@ -66,10 +67,13 @@ function routed(routes: Routes,): (call: RecordedCall,) => Response {
   /**
    Answers not yet handed out, per method and path.
    */
-  const queues = new Map(Object.entries(routes,)
-    .map(function toQueue([key, answers,],) {
-      return [key, [...answers,],] as const;
-    },),);
+  const queues = new Map<string, Response[]>();
+  for (const [key, answers,] of Object.entries(routes,)) {
+    queues.set(
+      key,
+      [...answers,],
+    );
+  }
   return function answer(call,) {
     /**
      Answers still queued for this request.
@@ -153,7 +157,9 @@ await describe({
       name: 'a create asks for hourly billing, never monthly, and builds the body the schema names',
       fn: async () => {
         await using env = await installEnv();
-        using standIn = installStandIn(routed(createRoutes(),),);
+        using standIn = installStandIn(
+          routed(createRoutes(),),
+        );
         await ovhCreate({ name: 'dev', },);
         const created = matching({
           calls: standIn.calls,
@@ -178,7 +184,9 @@ await describe({
       name: 'a create connects as the account the image names, at the public IPv4',
       fn: async () => {
         await using env = await installEnv();
-        using _standIn = installStandIn(routed(createRoutes(),),);
+        using _standIn = installStandIn(
+          routed(createRoutes(),),
+        );
         await ovhCreate({ name: 'dev', },);
         const [probe,] = await sshCalls({ dir: env.dir, },);
         expect(probe?.at(-2,),).toBe('ubuntu@192.0.2.10',);
@@ -189,9 +197,11 @@ await describe({
       name: 'a create deletes the instance when it never becomes reachable, and says nothing is billed',
       fn: async () => {
         await using _env = await installEnv({ sshCommand: ['/no/such/ssh-program',], },);
-        using standIn = installStandIn(routed(createRoutes(),),);
+        using standIn = installStandIn(
+          routed(createRoutes(),),
+        );
         const error = await errorFrom({ run: () => ovhCreate({ name: 'dev', },) },);
-        expect(Error.isError(error,) ? error.message : '',).toContain('nothing is left billed',);
+        expect(caughtValueText(error,),).toContain('nothing is left billed',);
         expect(
           matching({
             calls: standIn.calls,
@@ -210,7 +220,7 @@ await describe({
           [`GET ${cloudPath('/instance/instance-1',)}`]: [jsonAnswer(instanceAnswer({ status: 'ERROR', },),),],
         },),);
         const error = await errorFrom({ run: () => ovhCreate({ name: 'dev', },) },);
-        expect(Error.isError(error,) ? error.message : '',).toContain('ERROR',);
+        expect(caughtValueText(error,),).toContain('ERROR',);
         expect(
           matching({
             calls: standIn.calls,
@@ -232,7 +242,7 @@ await describe({
           },),],
         },),);
         const error = await errorFrom({ run: () => ovhCreate({ name: 'dev', },) },);
-        const message = Error.isError(error,) ? error.message : '';
+        const message = caughtValueText(error,);
         expect(message,).toContain('keeps being billed',);
         expect(message,).toContain('mvm --backend ovh destroy dev',);
         expect(message,).toContain('the instance is locked by a pending operation',);
@@ -260,7 +270,14 @@ await describe({
           method: 'POST',
           path: cloudPath('/instance',),
         },);
-        expect((created?.body as { region: string, } | undefined)?.region,).toBe('gra9',);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as { readonly region: string; };
+        expect(body.region,).toBe('gra9',);
       },
     },),
 
@@ -272,7 +289,9 @@ await describe({
       name: 'a clone boots the snapshot in the source region and deletes the snapshot once the clone runs',
       fn: async () => {
         await using _env = await installEnv();
-        using standIn = installStandIn(routed(cloneRoutes(),),);
+        using standIn = installStandIn(
+          routed(cloneRoutes(),),
+        );
         await ovhClone({
           destination: 'dev-2',
           source: 'dev',
@@ -282,9 +301,20 @@ await describe({
           method: 'POST',
           path: cloudPath('/instance',),
         },);
-        expect((created?.body as { imageId: string, } | undefined)?.imageId,).toBe('snapshot-1',);
-        expect((created?.body as { name: string, } | undefined)?.name,).toBe('mvm-dev-2',);
-        expect((created?.body as { region: string, } | undefined)?.region,).toBe('bhs5',);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the clone's create sent, as the schema names its fields.
+         */
+        const body = created.body as {
+          readonly imageId: string;
+          readonly name: string;
+          readonly region: string;
+        };
+        expect(body.imageId,).toBe('snapshot-1',);
+        expect(body.name,).toBe('mvm-dev-2',);
+        expect(body.region,).toBe('bhs5',);
         const deletes = matching({
           calls: standIn.calls,
           method: 'DELETE',
@@ -321,7 +351,7 @@ await describe({
             source: 'dev',
           },),
         },);
-        expect(Error.isError(error,) ? error.message : '',).toContain(
+        expect(caughtValueText(error,),).toContain(
           'the flavor is not available in this region',
         );
         expect(
@@ -358,7 +388,7 @@ await describe({
             source: 'dev',
           },),
         },);
-        expect(Error.isError(error,) ? error.message : '',).toContain('ERROR',);
+        expect(caughtValueText(error,),).toContain('ERROR',);
         expect(
           matching({
             calls: standIn.calls,

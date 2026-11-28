@@ -82,9 +82,9 @@ await describe({
             value: 'standin-supplied-application-key',
           },);
           using _noSecret = withEnv({ name: 'OVH_APPLICATION_SECRET', },);
-          const message = throwMessage({ run: () => requireCredentials() },);
-          expect(message,).toContain('OVH_APPLICATION_SECRET',);
-          expect(message,).not.toContain('standin-supplied-application-key',);
+          const missingSecret = throwMessage({ run: () => requireCredentials() },);
+          expect(missingSecret,).toContain('OVH_APPLICATION_SECRET',);
+          expect(missingSecret,).not.toContain('standin-supplied-application-key',);
           {
             using _secret = withEnv({
               name: 'OVH_APPLICATION_SECRET',
@@ -98,9 +98,9 @@ await describe({
                 value: 'standin-supplied-consumer-key',
               },);
               using _noProject = withEnv({ name: 'MVM_OVH_PROJECT_ID', },);
-              const message = throwMessage({ run: () => requireCredentials() },);
-              expect(message,).toContain('MVM_OVH_PROJECT_ID',);
-              expect(message,).not.toContain('standin-supplied-consumer-key',);
+              const missingProject = throwMessage({ run: () => requireCredentials() },);
+              expect(missingProject,).toContain('MVM_OVH_PROJECT_ID',);
+              expect(missingProject,).not.toContain('standin-supplied-consumer-key',);
             }
           }
         }

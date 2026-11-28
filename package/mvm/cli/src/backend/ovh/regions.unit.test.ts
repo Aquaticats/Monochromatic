@@ -11,6 +11,7 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   describe,
   expect,
@@ -21,8 +22,8 @@ import {
   listDefaultRegions,
   resolveRegions,
   selectDefaultRegions,
+  type OvhRegion,
 } from '../../../dist/final/node/index.mjs';
-import type { OvhRegion, } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
   errorFrom,
@@ -149,7 +150,7 @@ await describe({
         },);
         const error = await errorFrom({ run: () => listDefaultRegions() },);
         expect(Error.isError(error,),).toBe(true,);
-        const text = Error.isError(error,) ? error.message : '';
+        const text = caughtValueText(error,);
         expect(text,).toContain('countryCode',);
         expect(text,).toContain('MVM_OVH_REGIONS',);
       },

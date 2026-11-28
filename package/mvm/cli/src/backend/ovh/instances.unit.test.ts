@@ -10,6 +10,7 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   describe,
   expect,
@@ -22,8 +23,8 @@ import {
   mvmInstances,
   publicIpv4,
   waitUntilRunning,
+  type OvhInstance,
 } from '../../../dist/final/node/index.mjs';
-import type { OvhInstance, } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
   errorFrom,
@@ -98,7 +99,7 @@ await describe({
         await using _env = await installEnv();
         using _standIn = installStandIn(() => jsonAnswer(PROJECT_INSTANCES,),);
         const error = await errorFrom({ run: () => findMvmInstance({ name: 'x-other', },) },);
-        expect(Error.isError(error,) ? error.message : '',).toContain('no mvm-managed',);
+        expect(caughtValueText(error,),).toContain('no mvm-managed',);
       },
     },),
     it({
@@ -108,7 +109,7 @@ await describe({
         using _standIn = installStandIn(() => jsonAnswer(PROJECT_INSTANCES,),);
         const error = await errorFrom({ run: () => findMvmInstance({ name: 'ghost', },) },);
         expect(Error.isError(error,),).toBe(true,);
-        expect(Error.isError(error,) ? error.message : '',).toContain('ghost',);
+        expect(caughtValueText(error,),).toContain('ghost',);
       },
     },),
     it({
@@ -120,7 +121,7 @@ await describe({
           instanceAnswer({ id: 'instance-2', name: 'mvm-dev', },),
         ],),);
         const error = await errorFrom({ run: () => findMvmInstance({ name: 'dev', },) },);
-        expect(Error.isError(error,) ? error.message : '',).toContain('ambiguous',);
+        expect(caughtValueText(error,),).toContain('ambiguous',);
       },
     },),
 
@@ -205,7 +206,7 @@ await describe({
             },);
           },
         },);
-        expect(Error.isError(error,) ? error.message : '',).toContain('ERROR',);
+        expect(caughtValueText(error,),).toContain('ERROR',);
       },
     },),
     it({

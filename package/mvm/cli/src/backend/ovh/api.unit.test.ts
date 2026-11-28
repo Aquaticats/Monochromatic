@@ -24,6 +24,10 @@
  */
 
 import {
+  caughtValueStack,
+  caughtValueText,
+} from '@monochromatic-dev/caught-value-core/ts';
+import {
   describe,
   expect,
   it,
@@ -45,6 +49,7 @@ import {
   errorFrom,
   failureAnswer,
   installEnv,
+  installRawStandIn,
   installStandIn,
   jsonAnswer,
   STAND_IN_APPLICATION_SECRET,
@@ -181,13 +186,10 @@ await describe({
       fn: async () => {
         await using _env = await installEnv();
         forgetServerClockOffset();
-        using _standIn = installStandIn(
-          () => new Response(
-            'no clock here',
-            { status: 503, },
-          ),
-          { answerClock: false, },
-        );
+        using _standIn = installRawStandIn(() => new Response(
+          'no clock here',
+          { status: 503, },
+        ),);
         const error = await errorFrom({
           run: async function request() {
             await ovhRequest({
@@ -277,7 +279,7 @@ await describe({
             },);
           },
         },);
-        expect((error as Error).message,).toContain('Bad Gateway',);
+        expect(caughtValueText(error,),).toContain('Bad Gateway',);
       },
     },),
 
@@ -324,10 +326,7 @@ await describe({
           ...consoleError.args,
         ]
           .map(function asText(args,) {
-            return args
-              .map(function one(argument,) {
-                return String(argument,);
-              },)
+            return args.map(String,)
               .join(' ',);
           },)
           .join('\n',);
@@ -335,9 +334,7 @@ await describe({
         /**
          Everything the thrown error carries, message and stack together.
          */
-        const thrown = `${String((error as Error).message,)}\n${
-          String((error as Error).stack,)
-        }`;
+        const thrown = caughtValueStack(error,);
         for (const value of [
           STAND_IN_APPLICATION_SECRET,
           STAND_IN_CONSUMER_KEY,

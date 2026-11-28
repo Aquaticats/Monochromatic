@@ -16,24 +16,28 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
+  access,
   mkdtemp,
   readFile,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
-import type {
-  OvhFlavor,
-  OvhImage,
-  OvhInstance,
-  OvhInstanceState,
-  OvhQuotas,
-  OvhRegion,
-  OvhRegionStatus,
-  OvhSshKey,
+import {
+  isAbsentPathError,
+  type OvhFlavor,
+  type OvhImage,
+  type OvhInstance,
+  type OvhInstanceState,
+  type OvhQuotas,
+  type OvhRegion,
+  type OvhRegionStatus,
+  type OvhSshKey,
 } from '../../../dist/final/node/index.mjs';
 
 //region Constants
@@ -135,6 +139,35 @@ export type StandIn = Disposable & {
 //region Requests
 
 /**
+ The headers of one request, whatever form the caller gave them in.
+ 
+ @param init - the request's init, when it had one
+ 
+ @returns the headers as a record
+ 
+ @example
+ ```ts
+ headersOf({ headers: { 'X-Ovh-Application': 'ak' } });
+ ```
+ */
+function headersOf(init?: RequestInit,): Readonly<Record<string, string>> {
+  /**
+   Headers in whatever form fetch accepts.
+   */
+  const raw = init?.headers;
+  if (raw === undefined) {
+    return {};
+  }
+  if (raw instanceof Headers) {
+    return Object.fromEntries(raw.entries(),);
+  }
+  if (Array.isArray(raw,)) {
+    return Object.fromEntries(raw,);
+  }
+  return raw;
+}
+
+/**
  Builds a project-scoped path, the form the backend must send.
  
  @param suffix - resource path below the project, beginning with `/`
@@ -151,11 +184,9 @@ export function cloudPath(suffix: string,): string {
 }
 
 /**
- Builds a JSON answer.
+ Builds a JSON answer with status 200.
  
  @param body - answer body
- 
- @param status - HTTP status
  
  @returns a response carrying `body`
  
@@ -164,11 +195,8 @@ export function cloudPath(suffix: string,): string {
  jsonAnswer({ id: 'instance-1' });
  ```
  */
-export function jsonAnswer(body: unknown, status = 200,): Response {
-  return Response.json(
-    body,
-    { status, },
-  );
+export function jsonAnswer(body: unknown,): Response {
+  return Response.json(body,);
 }
 
 /**
@@ -198,12 +226,12 @@ export function failureAnswer({
   readonly message: string;
   readonly status: number;
 },): Response {
-  return jsonAnswer(
+  return Response.json(
     {
       errorCode,
       message,
     },
-    status,
+    { status, },
   );
 }
 
@@ -220,12 +248,55 @@ export function failureAnswer({
  using standIn = installStandIn(() => jsonAnswer([]));
  ```
  */
-export function installStandIn(
-  handler: Handler,
-  {
-    answerClock = true,
-  }: { readonly answerClock?: boolean } = {},
-): StandIn {
+export function installStandIn(handler: Handler,): StandIn {
+  return install({
+    answerClock: true,
+    handler,
+  },);
+}
+
+/**
+ Replaces `globalThis.fetch` with a handler that answers everything itself,
+ including the clock path, and records every call. For the tests of what happens
+ when the clock cannot be read.
+ 
+ @param handler - answers every request, the clock read included
+ 
+ @returns the recorded calls, and a dispose that restores fetch
+ 
+ @example
+ ```ts
+ using standIn = installRawStandIn(() => new Response('no clock', { status: 503 }));
+ ```
+ */
+export function installRawStandIn(handler: Handler,): StandIn {
+  return install({
+    answerClock: false,
+    handler,
+  },);
+}
+
+/**
+ The shared body of the two installers.
+ 
+ @param answerClock - whether the clock path is answered here
+ 
+ @param handler - answers the requests the clock answer does not cover
+ 
+ @returns the recorded calls, and a dispose that restores fetch
+ 
+ @example
+ ```ts
+ using standIn = install({ answerClock: true, handler });
+ ```
+ */
+function install({
+  answerClock,
+  handler,
+}: {
+  readonly answerClock: boolean;
+  readonly handler: Handler;
+},): StandIn {
   /**
    Every request answered, in order.
    */
@@ -234,11 +305,19 @@ export function installStandIn(
    The fetch that was there before, restored on dispose.
    */
   const original = globalThis.fetch;
-  globalThis.fetch = (async function standInFetch(input: unknown, init?: RequestInit,) {
+  globalThis.fetch = function standInFetch(
+    input: URL | RequestInfo,
+    init?: RequestInit,
+  ): Promise<Response> {
     /**
      Requested URL, as the backend built it.
      */
-    const url = String(input,);
+    const url = (function urlOf(): string {
+      if ((typeof input) === 'string') {
+        return input;
+      }
+      return (input instanceof URL) ? input.href : input.url;
+    })();
     /**
      Path and query, with the API root removed.
      */
@@ -246,7 +325,10 @@ export function installStandIn(
       /**
        Index where the path begins after the scheme and host.
        */
-      const start = url.indexOf('/', url.indexOf('//',) + 2,);
+      const start = url.indexOf(
+        '/',
+        url.indexOf('//',) + 2,
+      );
       return (start === (-1)) ? url : url.slice(start,);
     })();
     /**
@@ -261,16 +343,16 @@ export function installStandIn(
       path,
       method: init?.method ?? 'GET',
       body: ((typeof rawBody) === 'string') ? JSON.parse(rawBody,) : undefined,
-      headers: (init?.headers ?? {}) as Readonly<Record<string, string>>,
+      headers: headersOf(init,),
     };
     calls.push(call,);
     if (answerClock && (path === AUTH_TIME_PATH)) {
-      return jsonAnswer(STAND_IN_SERVER_TIME,);
+      return Promise.resolve(jsonAnswer(STAND_IN_SERVER_TIME,),);
     }
-    return handler(call,);
-  }) as unknown as typeof fetch;
+    return Promise.resolve(handler(call,),);
+  };
   return {
-    calls: calls as readonly RecordedCall[],
+    calls,
     [Symbol.dispose]() {
       globalThis.fetch = original;
     },
@@ -363,7 +445,10 @@ export function withEnv({
    */
   const previous = process.env[name];
   if (value === undefined) {
-    Reflect.deleteProperty(process.env, name,);
+    Reflect.deleteProperty(
+      process.env,
+      name,
+    );
   }
   else {
     process.env[name] = value;
@@ -371,7 +456,10 @@ export function withEnv({
   return {
     [Symbol.dispose]() {
       if (previous === undefined) {
-        Reflect.deleteProperty(process.env, name,);
+        Reflect.deleteProperty(
+          process.env,
+          name,
+        );
       }
       else {
         process.env[name] = previous;
@@ -417,9 +505,13 @@ export async function installEnv({
     'ovh-test-',
   ),);
   /**
-   Variables set, with the values they had before, so dispose restores each.
+   Variables that held a value before this scope, restored on dispose.
    */
-  const previous = new Map<string, string | undefined>();
+  const restore = new Map<string, string>();
+  /**
+   Variables that were unset before this scope, unset again on dispose.
+   */
+  const remove = new Set<string>();
   /**
    Variables this fixture owns, in a fixed order.
    */
@@ -430,39 +522,70 @@ export async function installEnv({
     OVH_CONSUMER_KEY: STAND_IN_CONSUMER_KEY,
     MVM_OVH_PROJECT_ID: STAND_IN_PROJECT,
     MVM_OVH_DATA_DIR: dir,
-    MVM_OVH_SSH_COMMAND: JSON.stringify(sshCommand ?? [process.execPath, FAKE_SSH_PATH,],),
-    MVM_FAKE_OVH_SSH_CALLS: join(dir, SSH_CALLS_FILE,),
+    MVM_OVH_SSH_COMMAND: JSON.stringify(sshCommand ?? [
+      process.execPath,
+      FAKE_SSH_PATH,
+    ],),
+    MVM_FAKE_OVH_SSH_CALLS: join(
+      dir,
+      SSH_CALLS_FILE,
+    ),
     MVM_FAKE_OVH_SSH_EXIT: '0',
   };
   for (const [name, value,] of Object.entries(values,)) {
-    previous.set(name, process.env[name],);
+    /**
+     Value the variable held before this scope, when it held one.
+     */
+    const before = process.env[name];
+    if (before === undefined) {
+      remove.add(name,);
+    }
+    else {
+      restore.set(
+        name,
+        before,
+      );
+    }
     process.env[name] = value;
   }
-  for (const name of ['MVM_OVH_REGIONS', 'MVM_OVH_FLAVOR', 'MVM_OVH_SCP_COMMAND',]) {
-    previous.set(name, process.env[name],);
-    Reflect.deleteProperty(process.env, name,);
+  for (const name of [
+    'MVM_OVH_REGIONS',
+    'MVM_OVH_FLAVOR',
+    'MVM_OVH_SCP_COMMAND',
+  ]) {
+    remove.add(name,);
+    Reflect.deleteProperty(
+      process.env,
+      name,
+    );
   }
   await writeFile(
-    join(dir, 'id_ed25519',),
+    join(
+      dir,
+      'id_ed25519',
+    ),
     'stand-in private key; no ssh ever reads it\n',
     { mode: 0o600, },
   );
   await writeFile(
-    join(dir, 'id_ed25519.pub',),
+    join(
+      dir,
+      'id_ed25519.pub',
+    ),
     `${STAND_IN_PUBLIC_KEY}\n`,
   );
   return {
     dir,
     async [Symbol.asyncDispose](): Promise<void> {
-      for (const [name, value,] of previous) {
-        if (value === undefined) {
-          Reflect.deleteProperty(process.env, name,);
-        }
-        else {
-          process.env[name] = value;
-        }
+      for (const [name, value,] of restore) {
+        process.env[name] = value;
       }
-      const { rm, } = await import('node:fs/promises');
+      for (const name of remove) {
+        Reflect.deleteProperty(
+          process.env,
+          name,
+        );
+      }
       await rm(
         dir,
         {
@@ -491,30 +614,38 @@ export async function sshCalls({
 }: {
   readonly dir: string;
 },): Promise<readonly (readonly string[])[]> {
+  /**
+   Path of the log the stand-in `ssh` writes.
+   */
+  const logPath = join(
+    dir,
+    SSH_CALLS_FILE,
+  );
   try {
-    /**
-     The log, one JSON array per line.
-     */
-    const text = await readFile(
-      join(dir, SSH_CALLS_FILE,),
-      'utf8',
-    );
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- lines this fixture's own fake ssh wrote
-    return text.trim()
-      .split('\n',)
-      .filter(function notEmpty(line,) {
-        return line !== '';
-      },)
-      .map(function decode(line,) {
-        return JSON.parse(line,) as readonly string[];
-      },);
+    await access(logPath,);
   }
   catch (error: unknown) {
-    if (!(Error.isError(error,))) {
-      throw error;
+    if (isAbsentPathError(error,)) {
+      return [];
     }
-    return [];
+    throw error;
   }
+  /**
+   The log, one JSON array per line.
+   */
+  const text = await readFile(
+    logPath,
+    'utf8',
+  );
+  return text.trim()
+    .split('\n',)
+    .filter(function notEmpty(line,) {
+      return line !== '';
+    },)
+    .map(function decode(line,) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- lines this fixture's own fake ssh wrote
+      return JSON.parse(line,) as readonly string[];
+    },);
 }
 
 //endregion Environment
@@ -542,7 +673,7 @@ export function throwMessage({
     run();
   }
   catch (error: unknown) {
-    return Error.isError(error,) ? error.message : String(error,);
+    return caughtValueText(error,);
   }
   return '';
 }
@@ -688,7 +819,7 @@ export function imageAnswer({
     creationDate,
     size: 2.5,
     minDisk: 10,
-    minRam: 1024,
+    minRam: 1_024,
   };
 }
 

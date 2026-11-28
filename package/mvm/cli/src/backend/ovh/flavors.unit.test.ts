@@ -22,8 +22,8 @@ import {
   orderFlavors,
   resolveFlavor,
   selectFlavor,
+  type OvhFlavor,
 } from '../../../dist/final/node/index.mjs';
-import type { OvhFlavor, } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
   errorFrom,

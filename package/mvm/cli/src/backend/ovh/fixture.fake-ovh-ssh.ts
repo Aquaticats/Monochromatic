@@ -11,7 +11,7 @@
  @module
  */
 
-import { appendFileSync, } from 'node:fs';
+import { appendFile, } from 'node:fs/promises';
 
 /**
  Exit status meaning the remote side answered.
@@ -21,18 +21,23 @@ const EXIT_OK = 0;
 /**
  File the calls are appended to, `''` when the test wants no log.
  */
-const callsFile = process.env.MVM_FAKE_OVH_SSH_CALLS ?? '';
+const callsFile = process.env
+  .MVM_FAKE_OVH_SSH_CALLS
+  ?? '';
 
 if (callsFile !== '') {
-  appendFileSync(
+  await appendFile(
     callsFile,
-    `${JSON.stringify(process.argv.slice(2,),)}\n`,
+    `${JSON.stringify(process.argv
+      .slice(2,),)}\n`,
   );
 }
 
 /**
  Status this invocation exits with.
  */
-const requested = Number(process.env.MVM_FAKE_OVH_SSH_EXIT ?? '0',);
+const requested = Number(process.env
+  .MVM_FAKE_OVH_SSH_EXIT
+  ?? '0',);
 
-process.exit(Number.isFinite(requested,) ? requested : EXIT_OK,);
+process.exitCode = Number.isFinite(requested,) ? requested : EXIT_OK;

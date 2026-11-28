@@ -11,6 +11,7 @@
  @module
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   describe,
   expect,
@@ -21,10 +22,10 @@ import {
   instanceImageUser,
   instanceLoginUser,
   normalizeImageName,
+  type OvhImage,
   resolveImage,
   selectImage,
 } from '../../../dist/final/node/index.mjs';
-import type { OvhImage, } from '../../../dist/final/node/index.mjs';
 import {
   cloudPath,
   errorFrom,
@@ -217,7 +218,7 @@ await describe({
           },
         },);
         expect(Error.isError(error,),).toBe(true,);
-        expect(Error.isError(error,) ? error.message : '',).toContain('names no login account',);
+        expect(caughtValueText(error,),).toContain('names no login account',);
       },
     },),
 
