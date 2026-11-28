@@ -51,6 +51,7 @@ use crate::scan_step_command::{
     SCOPE_STEP_NAME,
     declared_step_body,
     step_body,
+    step_runs_after_failure,
 };
 
 // What:     `const SCOPE_SCRIPT` is the fixture file holding the extracted
@@ -87,10 +88,9 @@ const LINK_SCAN_SCRIPT: &str = "scan-links.sh";
 //           the file scan,
 //           the step that writes each link's target text,
 //           and the step that scans links and gitlinks,
-//           each with whether the workflow must declare it and whether the
-//           workflow keeps it running after an earlier step failed.
+//           each with whether the workflow must declare it.
 // Why:      The runner runs a job's steps in the workflow's order, stops at the
-//           first one that fails unless a later step carries a status check,
+//           first one that fails unless a later step declares a status check,
 //           and cancels the rest when the run is cancelled;
 //           one ordered list keeps the fixture on that contract when a step
 //           joins the workflow.
@@ -99,11 +99,13 @@ const LINK_SCAN_SCRIPT: &str = "scan-links.sh";
 //           the two newer ones are optional,
 //           so a case about them reports the behaviour it found instead of a
 //           harness panic.
-const STEPS: [(&str, &str, bool, bool); 4] = [
-    (SCOPE_STEP_NAME, SCOPE_SCRIPT, true, false),
-    (SCAN_STEP_NAME, SCAN_SCRIPT, true, false),
-    (LINK_LIST_STEP_NAME, LINK_LIST_SCRIPT, false, true),
-    (LINK_SCAN_STEP_NAME, LINK_SCAN_SCRIPT, false, true),
+//           Whether a step runs after a failure is read from the workflow's
+//           own `if:` line, never assumed here.
+const STEPS: [(&str, &str, bool); 4] = [
+    (SCOPE_STEP_NAME, SCOPE_SCRIPT, true),
+    (SCAN_STEP_NAME, SCAN_SCRIPT, true),
+    (LINK_LIST_STEP_NAME, LINK_LIST_SCRIPT, false),
+    (LINK_SCAN_STEP_NAME, LINK_SCAN_SCRIPT, false),
 ];
 
 // What:     `struct RunRow` is one workflow run listed by the stub.
@@ -190,7 +192,12 @@ impl Fixture {
         //           bodies, so a case about a missing step reports the
         //           behaviour it found instead of a harness panic.
         let mut steps: Vec<(&'static str, bool, bool)> = Vec::new();
-        for (name, script, required, after_failure) in STEPS {
+        for (name, script, required) in STEPS {
+            // What:     `after_failure` is the workflow's own answer to whether
+            //           this step runs after an earlier step failed.
+            // Why:      Assuming it here would let a plant that removed the
+            //           status check still pass every case.
+            let after_failure: bool = step_runs_after_failure(name);
             // What:     `body` is the step's shell, or `None` when the step is
             //           optional and the workflow does not declare it.
             // Why:      `step_body` panics on a missing step, and `declared_step_body`

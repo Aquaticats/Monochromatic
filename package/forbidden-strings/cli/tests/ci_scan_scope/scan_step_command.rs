@@ -79,13 +79,13 @@ pub(super) fn step_body(name: &str) -> String {
         .unwrap_or_else(|| panic!("workflow must keep its `{}` step", name.trim()));
 }
 
-// What:     `fn declared_step_body(name)` returns the body of the step called
-//           `name`, or `None` when the workflow declares no such step.
-// Why:      The fixture runs every body the workflow declares, so a workflow
-//           without the left-out step still runs its other steps and a case
-//           reports what those really hand over, instead of every case failing
-//           with the harness's own panic.
-pub(super) fn declared_step_body(name: &str) -> Option<String> {
+// What:     `fn step_source(name)` returns the workflow file's own text for
+//           the step called `name`, or `None` when the workflow declares no
+//           such step.
+// Why:      The step's body and the status check beside it come from one slice
+//           of the file, so a case can read the condition the workflow really
+//           declares instead of a copy of it.
+pub(super) fn step_source(name: &str) -> Option<String> {
     let workflow_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../.github/workflows/forbidden-strings.yml");
     let workflow = fs::read_to_string(&workflow_path).expect("read workflow file");
@@ -95,7 +95,40 @@ pub(super) fn declared_step_body(name: &str) -> Option<String> {
         Some(index) => index + 1,
         None => from_step.len(),
     };
-    let step = &from_step[..step_end];
+    return Some(from_step[..step_end].to_string());
+}
+
+// What:     `fn step_runs_after_failure(name)` reports whether the step called
+//           `name` declares a status check that keeps it running after an
+//           earlier step in the job failed.
+// Why:      The runner skips a job's later steps once one fails unless the step
+//           carries a check such as `!cancelled()` or `always()`, and the
+//           fixture must follow the workflow's own declaration: a harness that
+//           assumed the check would report a step running after a failure that
+//           the workflow never runs, which is how a plant of the check's
+//           removal once passed every case.
+pub(super) fn step_runs_after_failure(name: &str) -> bool {
+    let Some(step) = step_source(name) else {
+        return false;
+    };
+    for line in step.lines() {
+        let trimmed: &str = line.trim();
+        let Some(condition) = trimmed.strip_prefix("if: ") else {
+            continue;
+        };
+        return condition.contains("!cancelled()") || condition.contains("always()");
+    }
+    return false;
+}
+
+// What:     `fn declared_step_body(name)` returns the body of the step called
+//           `name`, or `None` when the workflow declares no such step.
+// Why:      The fixture runs every body the workflow declares, so a workflow
+//           without one of the later steps still runs its other steps and a
+//           case reports what those really hand over, instead of every case
+//           failing with the harness's own panic.
+pub(super) fn declared_step_body(name: &str) -> Option<String> {
+    let step: String = step_source(name)?;
     let run_key = "      run: |\n";
     let run_start = step
         .find(run_key)
@@ -110,9 +143,9 @@ pub(super) fn declared_step_body(name: &str) -> Option<String> {
         let Some(stripped) = line.strip_prefix("        ") else {
             panic!("unexpected scan-step line outside the run body: {}", line);
         };
-        // `line` borrows from `step`, which borrows from `workflow`; copying
-        // each stripped line into an owned `String` (the sibling `&str` is a
-        // borrow that cannot outlive `body`) lets the caller join them freely.
+        // `line` borrows from `body`, which borrows from the owned `step`;
+        // copying each stripped line into an owned `String` lets the lines
+        // outlive that borrow when the caller joins them.
         lines.push(stripped.to_string());
     }
     while !lines.is_empty() && lines[lines.len() - 1].is_empty() {
