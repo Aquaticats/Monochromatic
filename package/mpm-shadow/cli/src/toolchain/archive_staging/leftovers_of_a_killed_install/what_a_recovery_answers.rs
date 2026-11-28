@@ -23,7 +23,7 @@
 //! type RemovedFinishedCopy = 'no-finished-copy' | { secondCopy: string; programFound: boolean } | { notAtItsName: string; whyNotPublished: WhyNotPublished };
 //! type WhyNotPublished = 'the-lock-does-not-record-its-archive' | { anOlderRepositoryToolIsNeverKept: string };
 //! type Recovered = { finishedCopy: FinishedCopy; restored: boolean; leftForALiveInstall?: HoldingInstaller; removed: RemovedLeftover[] };
-//! type ARecoveryThatFailed = { error: ToolchainError; readTheHiddenNames: boolean };
+//! type ARecoveryThatFailed = { error: ToolchainError; thePublishKeptItsCopy: boolean };
 //! function holdsOf(purpose: string): Holds | undefined;
 //! function mayBePublished(holds: Holds): boolean;
 //! ```
@@ -51,69 +51,83 @@ use super::super::{
 /// What:
 /// A recovery that failed:
 /// the error a person reads,
-/// and whether the run had read the tool directory's hidden names before it failed.
+/// and whether the failure was the publish's own,
+/// whose message names the finished copy the run keeps.
 /// Why:
 /// The warning an install makes of a failed recovery states what a later run does with the copy that failure kept,
-/// and only a failure that read the hidden names names a copy at all:
-/// the one step before that read is the listing of the tool's directory,
-/// and every failure after it is one that left the copy it names.
+/// and it may state it only for the publish's own failure:
+/// the claim and the put-back fail on a rename the tool's directory refuses,
+/// and a directory that refuses that rename refuses the install's writes too,
+/// so no control reaches the state such a sentence would speak about.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ARecoveryThatFailed = { error: ToolchainError; readTheHiddenNames: boolean };
+/// type ARecoveryThatFailed = { error: ToolchainError; thePublishKeptItsCopy: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ARecoveryThatFailed {
     /// The error the run prints.
     pub(crate) error: ToolchainError,
-    /// Whether the tool directory's hidden names were read,
-    /// which is where every copy such a failure names comes from.
-    pub(crate) read_the_hidden_names: bool,
+    /// Whether the failure was the publish's own,
+    /// which keeps the finished copy this run holds at the path its message names.
+    pub(crate) the_publish_kept_its_copy: bool,
 }
 
 /// The methods of `ARecoveryThatFailed`.
 impl ARecoveryThatFailed {
     /// What:
-    /// A recovery that failed before it could read the tool directory's hidden names,
-    /// so it names no copy.
+    /// A recovery that failed before it read the tool directory's hidden names,
+    /// so its message names no copy.
     /// Why:
     /// The listing is the first step of a recovery,
     /// and a run whose listing failed read nothing about what the directory holds.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function nothingRead(error: ToolchainError): ARecoveryThatFailed { return { error, readTheHiddenNames: false }; }
+    /// function nothingRead(error: ToolchainError): ARecoveryThatFailed { return { error, thePublishKeptItsCopy: false }; }
     /// ```
     pub(crate) fn nothing_read(error: ToolchainError) -> ARecoveryThatFailed {
         return ARecoveryThatFailed {
             error,
-            read_the_hidden_names: false,
+            the_publish_kept_its_copy: false,
         };
     }
 
     /// What:
-    /// A recovery that failed after it read the tool directory's hidden names.
+    /// A recovery whose claim or put-back failed,
+    /// whose message names the copy that step left.
     /// Why:
-    /// Every failure from then on is one about a copy the run found,
-    /// and its message names the copy it left.
+    /// The warning adds nothing about that copy's fate:
+    /// a control cannot build the state it would speak about
+    /// (see this type's own note on the publish's failure).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function afterReadingTheNames(error: ToolchainError): ARecoveryThatFailed { return { error, readTheHiddenNames: true }; }
+    /// function aCopyItNamed(error: ToolchainError): ARecoveryThatFailed { return { error, thePublishKeptItsCopy: false }; }
     /// ```
-    pub(crate) fn after_reading_the_names(error: ToolchainError) -> ARecoveryThatFailed {
+    pub(crate) fn a_copy_it_named(error: ToolchainError) -> ARecoveryThatFailed {
         return ARecoveryThatFailed {
             error,
-            read_the_hidden_names: true,
+            the_publish_kept_its_copy: false,
         };
     }
-}
 
-/// Makes `?` answer a failure after the hidden names were read,
-/// which is what every step after that read is.
-impl From<ToolchainError> for ARecoveryThatFailed {
-    fn from(error: ToolchainError) -> ARecoveryThatFailed {
-        return ARecoveryThatFailed::after_reading_the_names(error);
+    /// What:
+    /// The publish's own failure,
+    /// whose message names the finished copy this run keeps.
+    /// Why:
+    /// This is the one failure arm whose warning states what a later run does with that copy,
+    /// and five run-level controls hold that sentence.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function thePublishKeptItsCopy(error: ToolchainError): ARecoveryThatFailed { return { error, thePublishKeptItsCopy: true }; }
+    /// ```
+    pub(crate) fn the_publish_kept_its_copy(error: ToolchainError) -> ARecoveryThatFailed {
+        return ARecoveryThatFailed {
+            error,
+            the_publish_kept_its_copy: true,
+        };
     }
 }
 
@@ -124,7 +138,7 @@ impl fmt::Display for ARecoveryThatFailed {
     /// which is the sentence a warning carries.
     /// Why:
     /// A warning joins this to what the run then did,
-    /// and the fact that the run read the names is not part of what a person reads.
+    /// and which step failed is not part of what a person reads.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

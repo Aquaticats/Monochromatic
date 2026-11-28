@@ -366,7 +366,8 @@ pub(super) fn reached_the_instant_between_the_two_renames(
 /// and the rename that moves whatever is there aside,
 /// and the copy moved aside then reads as finished;
 /// a control picks that instant exactly,
-/// and it is the only way the arm that puts such a copy back is reached.
+/// it is the only way the arm that puts such a copy back is reached,
+/// and it publishes once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -380,11 +381,26 @@ pub(super) fn reached_the_instant_before_the_aside_rename(
     final_dir: &Path,
 ) {
     let planted: Option<Plant> = planted_steps();
-    if let Some(publishes) = planted.and_then(|plant| {
+    let Some(publishes) = planted.and_then(|plant| {
         return plant.another_install_publishes_before_the_aside_rename;
-    }) {
-        publishes(staging, final_dir);
-    }
+    }) else {
+        return;
+    };
+    // What: the publisher is taken out of the plant before it runs, so a second publish of this run meets the real step.
+    // Why: the install that follows a failed recovery publishes too,
+    //  and its copy must not be the last thing this control put at the version's name.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // planted.anotherInstallPublishesBeforeTheAsideRename = undefined;
+    // ```
+    PLANTED.with(|cell| {
+        if let Some(mut plant) = cell.get() {
+            plant.another_install_publishes_before_the_aside_rename = None;
+            cell.set(Some(plant));
+        }
+    });
+    publishes(staging, final_dir);
 }
 
 /// The same instant in a shipped build:

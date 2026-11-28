@@ -422,16 +422,17 @@ pub fn sync_tools(
                     // Why: the recovery's own sentences name the copy it kept and say where it is,
                     //  and they promise nothing about a later run, because this run cannot know what that one reads.
                     //  This run does: it put the version at its name, so a later run finds the copy a second one.
-                    //  A failure that read no hidden name named no copy, so nothing about one is said.
+                    //  Only the publish's own failure states it: that is the arm whose copy a control can leave behind
+                    //  with the version at its name afterwards, and a failed listing names no copy at all.
                     //
                     // In TS you'd write (pseudocode):
                     // ```ts
-                    // const fate = problem.readTheHiddenNames
+                    // const fate = problem.thePublishKeptItsCopy
                     //   ? 'so a later run publishes nothing from that copy and removes it, and the run does not fail for it'
                     //   : 'so the run does not fail for it';
                     // report.warnings.push(`${problem}; the install this run went on to make put ${id} ${version} at its name, ${fate}`);
                     // ```
-                    let fate: &str = if problem.read_the_hidden_names {
+                    let fate: &str = if problem.the_publish_kept_its_copy {
                         "so a later run publishes nothing from that copy and removes it, and the run does not fail for it"
                     } else {
                         "so the run does not fail for it"
