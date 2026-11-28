@@ -46,6 +46,7 @@ use crate::worktree_clone_removal_proof_and_plan::removal_identities::read_the_r
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::LiveRemovalReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_settle::TheLiveSettle;
 use crate::worktree_clone_removal_proof_and_plan::the_self_cancelling_seam::TheRemovalCancelling;
+use crate::worktree_clone_removal_proof_and_plan::the_staging_folder_before_the_unmount::LiveUnmountWithTheStagingFolder;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::LiveRemovalUnmount;
 use crate::worktree_clone_snapshot_batch::request_budget::the_removals_request_budget;
 use monochromatic_zfs_request_to_openzfs_kernel_device::ZfsDevice;
@@ -122,6 +123,9 @@ pub fn complete_the_bound_clones_removal(
             Ok(unmount) => unmount,
             Err(stop) => return TheRemovalAnswer::stopped(stop.message()),
         };
+    // The handler binds a folder under the account's `.cache`, and the wrapper is what makes it: the design puts the
+    //  creation after the pin check and before the request, and the handler refuses to make one itself.
+    let unmount = LiveUnmountWithTheStagingFolder::over(unmount, recorded.clone_guid);
     let reads = match LiveRemovalReads::open() {
         Ok(reads) => reads,
         Err(reason) => {

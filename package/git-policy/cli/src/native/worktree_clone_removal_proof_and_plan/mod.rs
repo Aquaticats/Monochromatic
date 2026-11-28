@@ -108,6 +108,9 @@
 //!   the lines a finished removal prints.
 //! - `unmount_request.rs`:
 //!   the removal intent and the verified answer.
+//! - `the_staging_folder_before_the_unmount.rs`:
+//!   the staging folder the handler binds, made by the wrapper after the
+//!   `user-cache` pin proves the cache dataset stands.
 //! - `removal_clock.rs`:
 //!   the three process facts a removal's plan records.
 //! - `removal_entry.rs`:
@@ -205,6 +208,7 @@ pub mod removal_stop;
 pub mod removal_stop_sentences;
 pub mod started_moment;
 pub mod the_self_cancelling_seam;
+pub mod the_staging_folder_before_the_unmount;
 pub mod unmount_request;
 
 pub use bookmark_rule::{
