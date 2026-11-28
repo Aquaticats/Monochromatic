@@ -1693,8 +1693,8 @@ the handler kept the clone where it was,
 and the removal cancelled itself.
 
 The order makes that folder now,
-at the step the records give: before the removal intent and the unmount
-request,
+at the step the records give:
+before the removal intent and the unmount request,
 on both ways into the order (a fresh entry and an adopted plan),
 through the seam
 `worktree_clone_removal_proof_and_plan::removal_staging_folder`,
@@ -1745,8 +1745,9 @@ and the guest arm is what did catch them.
 ### What now holds it
 
 - `removal_command_path_tests.rs` reads the moment through the same function the
-  command calls and puts it through the origin record's writer, its reader and a
-  read back,
+  command calls,
+  puts it through the origin record's writer,
+  its reader and a read back,
   for `startedAt` and for a blocked attempt's `attemptedAt`.
   A later change of that clock fails here.
 - `removal_staging_folder_tests.rs` runs a whole removal over a fixture cache and

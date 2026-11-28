@@ -5,10 +5,12 @@
 //! Why:
 //!  The record's reader accepts one spelling of a moment and refuses every other,
 //!  and the command path is the writer no host control reached before this one:
-//!  every other control plants `now` itself, so each of them agreed with the reader
-//!  whatever the command's own clock wrote.
-//!  A later change of that clock is caught here, because this control reads the moment
-//!  through the command's own function and never restates the spelling.
+//!  every other control plants `now` itself,
+//!  so each of them agreed with the reader whatever the command's own clock
+//!  wrote.
+//!  A later change of that clock is caught here,
+//!  because this control reads the moment through the command's own function and
+//!  never restates the spelling.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

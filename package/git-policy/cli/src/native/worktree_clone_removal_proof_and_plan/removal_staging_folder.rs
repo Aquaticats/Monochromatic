@@ -16,7 +16,8 @@
 //!  function the staging module holds for that duty,
 //!  and no release code called it,
 //!  so every removal of a real clone asked the handler to bind a folder nothing
-//!  had made and stopped there (issue 6669, cause B).
+//!  had made,
+//!  and stopped there (cause B of issue 6669).
 //!  The seam exists because the folder's place and the pin are this account's:
 //!  a control on a person's machine answers it with a fixture cache and a pin it
 //!  builds from this machine's own mount facts,

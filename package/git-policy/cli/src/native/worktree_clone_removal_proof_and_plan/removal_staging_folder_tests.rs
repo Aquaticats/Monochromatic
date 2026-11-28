@@ -188,9 +188,10 @@ fn the_fixture_pins(cache: &std::fs::File) -> UserCachePin {
 /// Why:
 ///  No release code made that folder,
 ///  so every removal of a real clone asked the handler to bind a folder nothing
-///  had made and stopped at `staging-folder` (issue 6669, cause B).
-///  The cache and the pin are this machine's own facts, so the control states
-///  both and keeps the release's function.
+///  had made,
+///  and stopped at `staging-folder` (cause B of issue 6669).
+///  The cache and the pin are this machine's own facts,
+///  so the control states both and keeps the release's function.
 #[test]
 fn a_removal_reaches_its_unmount_with_the_folder_the_release_makes() {
     let fixture_at: RemovalFixture = a_fixture("staging-folder-the-removal-makes");
