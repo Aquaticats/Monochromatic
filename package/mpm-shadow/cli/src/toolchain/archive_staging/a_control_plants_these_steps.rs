@@ -2,7 +2,7 @@
 //! The steps of a publish that a build made for controls can plant:
 //! the exchange answered as a file system without `RENAME_EXCHANGE` answers it,
 //! the exchange answered with an error a control names,
-//! one of the three renames answered with an error a control names,
+//! one or two of the three renames answered with an error a control names,
 //! the process ended in the instant between the two renames of the fallback,
 //! and what another install does while this one stands at one of its steps,
 //! before that copy is moved aside as well as after it.
@@ -86,6 +86,7 @@ pub(crate) enum RenameRefused {
 ///   refuseTheExchange: boolean;
 ///   answerTheExchangeWith?: number;
 ///   refuseTheRename?: [RenameRefused, number];
+///   refuseThePutBackWith?: number;
 ///   killBetweenTheTwoRenames: boolean;
 ///   anotherInstallActs?: (staging: string, finalDir: string) => void;
 ///   anotherInstallPublishesBeforeTheAsideRename?: (staging: string, finalDir: string) => void;
@@ -102,6 +103,12 @@ pub(crate) struct Plant {
     /// One rename of this publish,
     /// answered with an operating system error's number instead of being made.
     pub(crate) refuse_the_rename: Option<(RenameRefused, i32)>,
+    /// The put-back that follows the refused rename, answered with this operating system error's number,
+    /// which is the arm whose message names both errors:
+    /// the two-rename fallback whose second rename fails and whose put-back fails too.
+    /// It is a field of its own because that arm needs two of the three renames refused at once,
+    /// and `refuse_the_rename` names one and is spent by the answer it gives.
+    pub(crate) refuse_the_put_back_with: Option<i32>,
     /// Whether the process ends in the instant between the two renames.
     pub(crate) kill_between_the_two_renames: bool,
     /// What another install does while this publish stands at its step,
@@ -265,10 +272,18 @@ pub(super) fn the_exchanges_error() -> Option<io::Error> {
 /// ```
 #[cfg(test)]
 pub(super) fn refused_or_none(what: RenameRefused) -> Option<io::Error> {
-    let planted: Option<Plant> = planted_steps();
-    // What: `planted?.refuse_the_rename?` takes the pair through two optional steps.
-    // Why: a publish with no plant, or one refusing another rename, makes this rename itself.
-    let (refused, code): (RenameRefused, i32) = planted?.refuse_the_rename?;
+    // What: this thread's plant, which a control set and which one answer takes the refusal out of.
+    // Why: a publish with no plant makes every rename itself, and the plant is read once per question.
+    let planted: Plant = planted_steps()?;
+    // What: the put-back that fails after the refused rename, which is the sixth arm of a failed publish.
+    // Why: that arm is the one whose message names two errors, so a plant that refuses one rename cannot reach it;
+    //  the second refusal is asked for by a field of its own and is not spent by the first answer.
+    if what == RenameRefused::PutsTheCopyBack
+        && let Some(restore_code) = planted.refuse_the_put_back_with
+    {
+        return Some(io::Error::from_raw_os_error(restore_code));
+    }
+    let (refused, code): (RenameRefused, i32) = planted.refuse_the_rename?;
     if refused != what {
         return None;
     }
@@ -281,9 +296,9 @@ pub(super) fn refused_or_none(what: RenameRefused) -> Option<io::Error> {
     // planted.refuseTheRename = undefined;
     // ```
     PLANTED.with(|cell| {
-        if let Some(mut plant) = cell.get() {
-            plant.refuse_the_rename = None;
-            cell.set(Some(plant));
+        if let Some(mut rest) = cell.get() {
+            rest.refuse_the_rename = None;
+            cell.set(Some(rest));
         }
     });
     return Some(io::Error::from_raw_os_error(code));

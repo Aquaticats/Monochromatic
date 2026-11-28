@@ -481,3 +481,142 @@ fn a_failed_put_back_of_the_copy_that_was_there_claims_nothing_about_a_finished_
         names_of(&tool_dir)
     );
 }
+
+/// What:
+/// The sixth failure one of these messages names,
+/// the one no control held:
+/// the two-rename fallback whose second rename fails and whose put-back fails after it.
+/// Why:
+/// The message names two errors and keeps the finished copy this run holds,
+/// and its sentence about a later install is the same one the other five carry;
+/// without this control a change to that arm could not be seen by any test.
+#[test]
+fn both_renames_failing_says_what_a_later_install_does_with_the_kept_copy() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION);
+    serve_releases(&rig, &[THE_VERSION]);
+    unmarked_archive(&root, THE_VERSION);
+    // What: the two-rename fallback, whose second rename is refused and whose put-back is refused after it.
+    // Why: both renames of that arm have to fail for the sixth message to be built, and one plant names one.
+    plant_these_steps(Plant {
+        refuse_the_exchange: true,
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        refuse_the_put_back_with: Some(AN_INPUT_OUTPUT_ERROR),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
+    clear_the_plant();
+    let copy: String = staging_dir_of(&version_dir).display().to_string();
+    the_failure_says_what_a_later_install_does(
+        &rig,
+        &report,
+        &format!(
+            "cannot move the finished install to {}: Input/output error (os error 5); the copy that was there could not be put back from ",
+            version_dir.display()
+        ),
+        &copy,
+        &version_dir,
+    );
+}
+
+/// What:
+/// The clause "it acts on that name in this process namespace and after a reboot,
+/// so a run after a reboot publishes the kept copy.
+/// Why:
+/// A name of another boot is the one case where nothing about a process has to be asked,
+/// and no control drove a kept copy into a later boot before.
+#[test]
+fn a_copy_under_a_name_from_an_earlier_boot_is_published_by_the_next_install() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION);
+    serve_releases(&rig, &[THE_VERSION]);
+    plant_these_steps(Plant {
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
+    clear_the_plant();
+    assert_eq!(report.failed.len(), 1, "{report:?}");
+    // What: the copy this run kept, under the name a run before the last reboot wrote.
+    // Why: that name is the state the sentence's reboot clause speaks of, and a real reboot is not something a
+    //  test makes; the name is the whole record a later install reads.
+    let kept: PathBuf = staging_dir_of(&version_dir);
+    let after_a_reboot: PathBuf = hidden_sibling(
+        &version_dir,
+        STAGING_PURPOSE,
+        an_installer_of_another_boot(),
+    );
+    fs::rename(&kept, &after_a_reboot)
+        .expect("put the kept copy under a name of another boot");
+    let downloads_before: usize = rig.http.requests().len();
+    the_next_install_publishes_the_copy(&rig, THE_VERSION, downloads_before);
+}
+
+/// What:
+/// The clause "a newer version of a tool this repository publishes, installed by then, leaves that copy hidden,
+/// so the next install of the older version publishes nothing and downloads nothing.
+/// Why:
+/// It is the other condition of that sentence no control drove,
+/// and a run that published the older copy beside the newer one would break the newest-only rule.
+#[test]
+fn a_newer_version_installed_leaves_the_kept_copy_hidden() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    let version_dir: PathBuf = tool_dir.join(THE_VERSION);
+    serve_releases(&rig, &[THE_VERSION]);
+    plant_these_steps(Plant {
+        refuse_the_rename: Some((RenameRefused::GivesTheVersionItsName, AN_INPUT_OUTPUT_ERROR)),
+        ..Plant::default()
+    });
+    let report: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
+    clear_the_plant();
+    assert_eq!(report.failed.len(), 1, "{report:?}");
+    let kept: PathBuf = as_after_this_process_ended(
+        &staging_dir_of(&version_dir),
+        &version_dir,
+        STAGING_PURPOSE,
+    );
+    // What: a newer version of this repository's tool, finished in the root the lock reads.
+    // Why: the next install then finds a newer finished copy and, by the newest-only rule, never publishes the older
+    //  one the failure kept.
+    finish_archive(&root, "0.2.2");
+    let downloads_before: usize = rig.http.requests().len();
+    let next: SyncReport = sync_tools(
+        &context_of(&rig, &rig.scope, &lock_at(&rig, THE_VERSION)),
+        None,
+    );
+    assert!(next.failed.is_empty(), "{next:?}");
+    assert_eq!(
+        next.recovered,
+        vec![format!(
+            "left the finished copy of {ID} {THE_VERSION} under the hidden name an earlier install left it at, \
+             because 0.2.2 is installed and an older repository tool is never kept"
+        )],
+        "the next install names the copy it left and why: {next:?}"
+    );
+    assert_eq!(
+        rig.http.requests().len(),
+        downloads_before,
+        "the next install publishes nothing and downloads nothing: {:?}",
+        rig.http.requests()
+    );
+    assert!(
+        is_finished(&kept, BIN),
+        "the kept copy is still where a later install publishes it: {:?}",
+        names_of(&tool_dir)
+    );
+}
