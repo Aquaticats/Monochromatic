@@ -187,6 +187,17 @@ pub(super) fn at_the_instant_before_a_removal(
 ) -> Option<io::Error> {
     let plant: Plant = THE_PLANT.with(|cell| return cell.take())?;
     if plant.name != name {
+        // What: this removal is not the one the control planted, so the plant goes back for the removal it names.
+        // Why: one rebuild removes several links, and the plant has to be found at its own name and nowhere else.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // THE_PLANT[threadId] = plant;
+        // return undefined;
+        // ```
+        THE_PLANT.with(|cell| {
+            cell.set(Some(plant));
+        });
         return None;
     }
     forget_the_plant();

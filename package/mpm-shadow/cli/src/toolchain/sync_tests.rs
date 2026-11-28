@@ -523,7 +523,9 @@ fn the_exposure_directory_links_every_declared_bin_and_aliases_link_their_primar
         rig.lock.tool("node").expect("node"),
         rig.lock.tool("pnpm").expect("pnpm"),
     ];
-    let report = rebuild_exposure(&rig.context(), &tools).expect("rebuilt");
+    let outcome = rebuild_exposure(&rig.context(), &tools);
+    assert!(outcome.error.is_none(), "the farm is writable");
+    let report = outcome.report;
     assert_eq!(
         report.linked,
         vec![
@@ -554,8 +556,10 @@ fn rebuilding_the_exposure_directory_twice_is_stable() {
     let rig = Rig::new();
     rig.install_binary("node", "node");
     let tools = vec![rig.lock.tool("node").expect("node")];
-    rebuild_exposure(&rig.context(), &tools).expect("first");
-    rebuild_exposure(&rig.context(), &tools).expect("second");
+    let first = rebuild_exposure(&rig.context(), &tools);
+    assert!(first.error.is_none(), "the farm is writable");
+    let second = rebuild_exposure(&rig.context(), &tools);
+    assert!(second.error.is_none(), "the farm is writable");
     let names: Vec<String> = fs::read_dir(&rig.scope.exposure_dir)
         .expect("list")
         .flatten()

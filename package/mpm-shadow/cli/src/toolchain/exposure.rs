@@ -40,6 +40,8 @@ use super::error::ToolchainError;
 use super::install_support::atomic_symlink;
 /// Imports `ensure_launcher` from `super::launcher`.
 use super::launcher::ensure_launcher;
+/// Imports the question whether a program belongs to an installed tool of either toolchain root.
+use super::launcher_source::belongs_to_an_install;
 /// Imports what this module uses from `super::launcher_source`.
 use super::launcher_source::{
     newest_installed_shadow,
@@ -60,6 +62,8 @@ use super::runner::{
 };
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
+/// Imports `file_name_text` from `super::util`.
+use super::util::file_name_text;
 
 /// What:
 /// The removal of the farm's links whose names no row of the lock declares,
@@ -73,8 +77,12 @@ use super::scope::Scope;
 /// export { removeTheLinksNoRowDeclares } from './exposure/the-links-no-row-declares.ts';
 /// ```
 mod the_links_no_row_declares;
-/// Imports the removal of the farm's links no row of the lock declares.
-use self::the_links_no_row_declares::remove_the_links_no_row_declares;
+/// Imports the removal of the farm's links no row of the lock declares,
+/// and what it removed and where it stopped.
+use self::the_links_no_row_declares::{
+    Removals,
+    remove_the_links_no_row_declares,
+};
 
 /// What:
 /// The instant before one removal of the farm's rebuild,
@@ -112,8 +120,32 @@ pub struct ExposureReport {
     /// one sentence per symbolic link,
     /// naming the link,
     /// where it pointed,
-    /// and that no row of the lock declares it.
+    /// and why the rebuild took it away:
+    /// that no row of the lock declares it,
+    /// or that it was a temporary link an install that ended never renamed.
     pub links_removed: Vec<String>,
+}
+
+/// What:
+/// The farm a rebuild left and the error that stopped it, if any.
+/// Why:
+/// The links a rebuild removed before a later removal failed still left the folder a person's `PATH` reads,
+/// so the run that failed must name them,
+/// and an error alone would lose them (`MadeLinks` and `CommandReport` record their partial work the same way).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ExposureOutcome = { report: ExposureReport; error?: ToolchainError };
+/// ```
+#[derive(Debug, Default)]
+pub struct ExposureOutcome {
+    /// The names linked,
+    /// the names missing,
+    /// and the removals this run made and named.
+    pub report: ExposureReport,
+    /// The error that ended the rebuild,
+    /// after the removals it named.
+    pub error: Option<ToolchainError>,
 }
 
 /// The directories searched in addition to a route's own:
@@ -146,6 +178,51 @@ fn exposed_target(
 }
 
 /// What:
+/// Rebuilds the farm:
+/// links every declared bin of `tools`,
+/// then removes the links no row of the lock declares and names each removal as it makes it.
+/// Why:
+/// Called after the installers ran,
+/// so freshly installed programs are found,
+/// and the run must be able to say which links left the folder even when a later removal fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function rebuildExposure(ctx: Context, tools: LockedTool[]): ExposureOutcome
+/// ```
+pub fn rebuild_exposure(
+    ctx: &Context,
+    tools: &[&LockedTool],
+) -> ExposureOutcome {
+    let mut report: ExposureReport = ExposureReport::default();
+    if let Err(error) = link_the_farm(ctx, tools, &mut report) {
+        return ExposureOutcome {
+            report,
+            error: Some(error),
+        };
+    }
+    // What:
+    // the links the farm held for names no row of the lock declares, removed and each named as it is removed.
+    // Why:
+    // The farm is `PATH`'s first directory, so a name an earlier row declared and this lock does not
+    // would go on standing in front of the machine's own programs;
+    // each removal is named where it is made, so a failure after it keeps the names of the ones already gone.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const removals = removeTheLinksNoRowDeclares(ctx);
+    // report.linksRemoved = removals.sentences;
+    // return { report, error: removals.error };
+    // ```
+    let removals: Removals = remove_the_links_no_row_declares(ctx);
+    report.links_removed = removals.sentences;
+    return ExposureOutcome {
+        report,
+        error: removals.error,
+    };
+}
+
+/// What:
 /// Links every declared bin of `tools` in the exposure directory:
 /// the program is searched under its route's
 ///           directories,
@@ -156,23 +233,24 @@ fn exposed_target(
 /// so freshly installed programs are found;
 /// a name with no program stays
 ///           missing and is reported,
-/// never linked to nothing.
+/// never linked to nothing,
+/// and the first failure ends the pass so the report says which bin could not be linked.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function rebuildExposure(ctx: Context, tools: LockedTool[]): ExposureReport
+/// function linkTheFarm(ctx: Context, tools: LockedTool[], report: ExposureReport): void  // throws
 /// ```
-pub fn rebuild_exposure(
+fn link_the_farm(
     ctx: &Context,
     tools: &[&LockedTool],
-) -> Result<ExposureReport, ToolchainError> {
+    report: &mut ExposureReport,
+) -> Result<(), ToolchainError> {
     if let Err(error) = fs::create_dir_all(&ctx.scope.exposure_dir) {
         return Err(ToolchainError::failure(format!(
             "cannot create {}: {error}",
             ctx.scope.exposure_dir.display()
         )));
     }
-    let mut report: ExposureReport = ExposureReport::default();
     for tool in tools {
         let aliases: Vec<(String, String)> = tool
             .declaration
@@ -201,19 +279,7 @@ pub fn rebuild_exposure(
     if let Some(name) = expose_running_shadow(ctx, &running_program()?)? {
         report.linked.push(name);
     }
-    // What:
-    // the links the farm held for names no row of the lock declares, removed and each named for the
-    // report.
-    // Why:
-    // The farm is `PATH`'s first directory, so a name an earlier row declared and this lock does not
-    // would go on standing in front of the machine's own programs.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // report.linksRemoved = removeTheLinksNoRowDeclares(ctx, report.linked);
-    // ```
-    report.links_removed = remove_the_links_no_row_declares(ctx, &report.linked)?;
-    return Ok(report);
+    return Ok(());
 }
 
 /// What:
@@ -257,6 +323,74 @@ pub fn expose_running_shadow(
     }
     atomic_symlink(&ctx.scope.exposure_dir.join(&name), &installed)?;
     return Ok(Some(name));
+}
+
+/// What:
+/// The name the farm links an installed `mpm-shadow` under:
+/// the program's own file name,
+/// which every sentence this tool prints tells a person to type.
+/// Why:
+/// The farm keeps that one name while an install of the program exists,
+/// so the name the rule asks about lives beside the rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const THE_PROGRAMS_OWN_NAME = 'mpm-shadow';
+/// ```
+const THE_PROGRAMS_OWN_NAME: &str = "mpm-shadow";
+
+/// What:
+/// Whether a farm link is the one the program's own name carries and it resolves into an installed `mpm-shadow`
+/// of either toolchain root.
+/// Why:
+/// A shell outside a checkout reaches the program only through this link,
+/// so a rebuild run by a binary that belongs to no install must leave it:
+/// the release removed it although an installed copy existed and the link resolved,
+/// and the name then came and went with whichever binary ran `install`.
+/// A link whose target no longer resolves is not kept:
+/// with nothing installed there the name reaches nothing,
+/// and a scope that has the program installed nowhere removes it as a link no row declares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theLinkTheFarmKeeps(scope: Scope, name: string, linkPath: string): boolean
+/// ```
+fn the_link_the_farm_keeps(
+    scope: &Scope,
+    name: &str,
+    link_path: &Path,
+) -> bool {
+    if name != THE_PROGRAMS_OWN_NAME {
+        return false;
+    }
+    // What: where the link resolves, following every link on the way.
+    // Why: the farm's link goes through the tool's `current`, which a later version move rewrites.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const resolved = canonicalize(linkPath);  // throws when the link dangles
+    // ```
+    let Ok(resolved) = fs::canonicalize(link_path) else {
+        return false;
+    };
+    // What: whether the program the link resolves to is the program's own name, as a file.
+    // Why: an alias a row stopped declaring resolves to the same program under another name, and must go.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (fileNameText(resolved) !== name || !resolved.isFile()) return false;
+    // ```
+    if file_name_text(&resolved) != name || !resolved.is_file() {
+        return false;
+    }
+    // What: whether that program is one of an install below a toolchain root.
+    // Why: a file of the same name that belongs to no install is not the program's own link.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return belongsToAnInstall(scope, resolved);
+    // ```
+    return belongs_to_an_install(scope, &resolved);
 }
 
 /// Whether a tool of the scope's lock declares `name` as one of its bins.

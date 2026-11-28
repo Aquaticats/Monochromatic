@@ -468,11 +468,23 @@ pub fn sync_tools(
             .failed
             .push(("postinstall links".to_string(), error.message)),
     }
-    match rebuild_exposure(ctx, &entries) {
-        Ok(exposure) => report.removed_exposure_links.extend(exposure.links_removed),
-        Err(error) => report
+    // What: the rebuild's own report, whose removals are named, and the error that stopped it, if any.
+    // Why: a removal made before a later failure left the folder, and the run that failed still has to name it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const exposure = rebuildExposure(ctx, entries);
+    // report.removedExposureLinks.push(...exposure.report.linksRemoved);
+    // if (exposure.error) report.failed.push(['exposure directory', exposure.error.message]);
+    // ```
+    let exposure = rebuild_exposure(ctx, &entries);
+    report
+        .removed_exposure_links
+        .extend(exposure.report.links_removed);
+    if let Some(error) = exposure.error {
+        report
             .failed
-            .push(("exposure directory".to_string(), error.message)),
+            .push(("exposure directory".to_string(), error.message));
     }
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.
