@@ -5084,8 +5084,10 @@ from the build's report and the proposal's second gate read:
   Whether the build's price read counts them is not checked;
 - `--memory` is compared with the catalogue's own memory number with no unit change,
   so `--memory 4` is met by a size listed with 4.
-  The repository's comment calls that number GiB and the proposal treated it as GB;
-  one create settles which;
+  A billed run has since read it:
+  the guest of such a size counts 3,906,272 kB,
+  about 3.73 GiB,
+  7.4 percent under the number asked for and printed (merge `95f65ed945`);
 - the build leaves the storage family `i1` out,
   where the proposal's allow-list kept it;
 - a clone that is given either number refuses,

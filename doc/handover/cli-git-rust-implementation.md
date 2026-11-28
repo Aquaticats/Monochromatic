@@ -1113,6 +1113,34 @@ Unapproved and non-final.
 - The sizes revision round was told to quote nothing from the session's probe log,
   and the fix round on the alpha.53 read to merge `main` first.
 
+#### Started and done between 08:16 and 08:24
+
+Unapproved and non-final.
+
+- `cargo-shadow` `0.1.5-alpha.19` is published and locked (merge `5391c22a3c`),
+  and its second pass by Claude Sonnet runs.
+- Merge `95f65ed945` closes issue 6664:
+  the one-shot `run` hands the asked numbers to its create on every backend.
+  Its billed run read a guest's own memory total,
+  recorded in `doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`,
+  "What a size's memory number comes to inside the guest".
+- Four proposal revisions are merged,
+  each report read whole:
+  the development profile (`e74da32adf`),
+  the hosted runners (`59710d26b0`),
+  the line-break proposal (`4715cc382e`) and the sizes proposal (`60dc28feff`).
+  A gate read by Claude Sonnet runs on each;
+  the line-break one is narrowed to the four High findings of the read before it.
+- Issue 6666:
+  the built price read on OVHcloud prices the instance row
+  and leaves the public IPv4 and local storage out.
+- Corrective comments are posted on three pushed commits whose messages their rounds reported as inaccurate
+  (`934451eba0`,
+  `4484c1e095`,
+  `3316dea634`).
+- Ended and not yet read:
+  the Dylint proposal's third revision and the crate split proposal's second.
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
