@@ -474,7 +474,8 @@ At line 186 the record says the fixer
 which is why a blind sweep of quoted records is not safe.
 
 `doc/handover/cli-git-rust-implementation.md` counts a later sweep,
-at lines 2749 and 2750:
+at lines 2749 and 2750 of that file at the survey commit,
+and at lines 2865 and 2866 after the merge:
 
 ```text
 Both are fixed (`beb61ec46b`):
@@ -991,7 +992,7 @@ are the owner's to say.
   at `bc5b4ca2ba` it does not,
   because the merge of `96c930201f` joined it.
   The defect remains reachable and its exhibit is now a fixture.
-- The linter's `README.md` line 2629 said
+- The linter's `README.md` line 2629 at the survey commit said
   "The fix never rewrites a line the author wrote."
   That sentence held at `bc5b4ca2ba`,
   and a run on a copy shows an author's second line gaining a fragment at its start.
@@ -1010,7 +1011,8 @@ are the owner's to say.
 and this survey,
 skips what follows.
   That holds at `bc5b4ca2ba`
-  (`package/linter/monochromatic-lint/README.md` lines 2635 to 2639,
+  (`package/linter/monochromatic-lint/README.md` lines 2635 to 2639 at the survey commit,
+  and lines 2724 to 2728 after the merge,
   recorded by `7cfdc9199e`).
 - At `error` a run without `--fix` exits `1` and at `warn` it exits `0`,
   and `--fix` applies at both severities.
@@ -1125,7 +1127,8 @@ Each item names the finding and what answered it.
   and the conjunction list is given.
 - M8 asked for the sweeps that merged during the hold.
   Question 5 names both sweeps with their commits and counts,
-  and the handover citation is lines 2749 and 2750.
+  and the handover citation is lines 2749 and 2750 at the survey commit,
+  and lines 2865 and 2866 after the merge.
 - M9 asked for "forced" relative to the kinds.
   The forced count is given per class,
   and stated as the reading that permits no kind.
