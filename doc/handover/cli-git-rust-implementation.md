@@ -2940,16 +2940,10 @@ and the two `truepeak` files wait on their branch.
   twice seen untracked there,
   gone later).
   The branch that fences a run's writes is held (issue 6378).
-- The four shadow crates' copies of their shared rule agree again (`7e215a38c2`,
-  issue 6609),
-  and each package's own test task runs the comparison,
-  shown red in all four by one planted byte.
-  `pnpm-shadow` and `search-shadow` print a refused start with the system's own answer;
+- `pnpm-shadow` and `search-shadow` print a refused start with the system's own answer;
   neither is released,
   because the standing answer on alphas does not name them
   (`doc/handover/questions-for-the-owner.md`).
-  `cargo-shadow`'s start uses a check of its own with two outcomes the shared refusal has no word for,
-  and keeps its own line.
 - A check scope's last counters keep every part they read (`07f9232af0`,
   issue 6610).
   The kernel takes a dying control group's files away one at a time before its directory,
