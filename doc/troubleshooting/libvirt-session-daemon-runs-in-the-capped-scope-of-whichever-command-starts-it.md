@@ -277,6 +277,16 @@ systemd-run --user --unit=mvm-libvirt-session --collect \
   virtqemud --timeout=120
 ```
 
+The cap in that command changed on 2026-11-28:
+it is three quarters of `MemTotal`,
+`47364M` on this machine,
+by the owner's answer recorded in
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The unit's cap",
+which replaced the project's choice of "half of total" for issue 6338.
+mvm's own code changed with it (`package/mvm/cli/src/session-daemon-memory.ts`);
+the command and the measurements below stay as they were recorded on 2026-11-21.
+
 Each setting,
 with its basis:
 
@@ -285,6 +295,10 @@ with its basis:
   read when the unit starts.
   The project chose "half of total" on 2026-11-21,
   so every guest together may use half the machine (rule `LQM`).
+  Three quarters since 2026-11-28 (`47364M` on this machine),
+  by the owner's answer recorded in
+  `doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+  "The unit's cap".
 
 - `OOMPolicy=continue`:
   the kernel kills a process it picks inside the unit,
@@ -340,7 +354,9 @@ Where it lives:
 `package/mvm/cli/src/session-daemon.ts` (the start,
 the question,
 the wait and the retries),
-`package/mvm/cli/src/session-daemon-memory.ts` (half of `MemTotal`),
+`package/mvm/cli/src/session-daemon-memory.ts` (half of `MemTotal`,
+three quarters since 2026-11-28,
+`47364M` on this machine),
 `package/mvm/cli/src/config.ts` (the unit name and the idle limit),
 and the "Session daemon" section of `package/mvm/cli/README.md` (for users).
 Measured on 2026-11-21:
@@ -363,7 +379,8 @@ so an isolated run needs no unit.
 Tradeoffs:
 `mvm` takes over a choice its README leaves to `virsh`;
 every guest is still charged to one cap,
-now half the machine,
+now half the machine (three quarters since 2026-11-28,
+`47364M` on this machine),
 so guests that together exceed it get the process the kernel picks killed,
 usually the largest guest;
 a `virsh` run outside `mvm` can still start a daemon in its own scope when none runs,

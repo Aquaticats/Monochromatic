@@ -1,10 +1,11 @@
 /**
  Reads the machine's total memory for the cap on the session daemon's unit.
 
- The project set that cap on 2026-11-21 as "half of total memory": every guest
- inside `mvm-libvirt-session.service` together may use half of what the machine
- has, and the other half stays with the rest of the session. Rule `LQM` asks for
- that basis beside the value.
+ The project set that cap on 2026-11-28 as three quarters of total memory,
+ replacing its choice of 2026-11-21 for issue 6338 ("half of total"): every
+ guest inside `mvm-libvirt-session.service` together may use three quarters of
+ what the machine has, and everything outside the unit gets the rest. Rule `LQM`
+ asks for that basis beside the value.
 
  The value is read from `/proc/meminfo`'s `MemTotal` when mvm starts the unit,
  so it follows the machine rather than a number written into mvm.
@@ -59,13 +60,24 @@ const MEM_TOTAL_UNIT_INDEX = 1;
 const MEMINFO_FIELD_SEPARATOR = ' ';
 
 /**
- Divisor of the machine's total memory that the unit may use: half.
+ Numerator of the fraction of the machine's total memory the unit may use.
 
- The project chose "half of total" for issue 6338 on 2026-11-21
- (the answer sent 2026-11-21T23:07:05-05:00), so guests together get half the
- machine and the session keeps the other half for everything else.
+ The owner answered "Three quarters, six guests" on 2026-11-28, which replaced
+ the project's choice of 2026-11-21 for issue 6338 ("half of total"); both are
+ recorded in
+ `doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+ "The unit's cap". Guests together may use three quarters of the machine and
+ everything outside the unit gets the rest, so host builds, the gate (its unit
+ may take 20 GiB) and the desktop share 15.4 GiB swap instead. Rule `LQM` asks
+ for that basis beside the value.
  */
-const CAP_DIVISOR = 2;
+export const CAP_NUMERATOR = 3;
+
+/**
+ Denominator of that fraction, kept whole so the cap is whole-number arithmetic
+ on kibibytes rather than a divisor with a repeating decimal.
+ */
+export const CAP_DENOMINATOR = 4;
 
 /**
  Kibibytes in one mebibyte, which is what systemd's `M` suffix means.
@@ -73,18 +85,18 @@ const CAP_DIVISOR = 2;
 const KIB_PER_MIB = 1_024;
 
 /**
- Suffix systemd reads as a power of 1024: `31576M` is 31576 MiB.
+ Suffix systemd reads as a power of 1024: `1M` is one mebibyte.
  */
 const MEMORY_MAX_SUFFIX = 'M';
 
 /**
  Smallest cap mvm gives the unit, in mebibytes.
 
- Half of a machine whose total memory is under two mebibytes is not a cap any unit
- can run in, and such a machine is not one mvm runs on. The floor keeps the value
- mvm hands systemd a positive one, without claiming what `0` would mean there.
+ A machine small enough that the fraction rounds down to no whole mebibyte is
+ not one mvm runs on. The floor keeps the value mvm hands systemd a positive
+ one, without claiming what `0` would mean there.
  */
-const MINIMUM_MEMORY_MAX_MIB = 1;
+export const MINIMUM_MEMORY_MAX_MIB = 1;
 
 //endregion Names
 
@@ -128,7 +140,7 @@ export class SessionDaemonMemoryError extends Error {
   },) {
     super(
       [
-        `mvm caps libvirt's session daemon unit at half of this machine's total memory, which it reads from ${path}, and could not read it: ${detail}`,
+        `mvm caps libvirt's session daemon unit at three quarters of this machine's total memory, which it reads from ${path}, and could not read it: ${detail}`,
         'mvm needs that number to set the unit\'s MemoryMax; there is nothing to configure, because the machine reports it.',
       ].join('\n',),
       { cause, },
@@ -200,30 +212,30 @@ export function parseMemTotalKib({
 
  @param memTotalKib - Machine's total memory in kibibytes
 
- @returns Cap of half that memory, in mebibytes with systemd's `M` suffix
+ @returns Cap of that fraction of the memory, in mebibytes with systemd's `M` suffix
 
  @example
  ```ts
- memoryMaxArgument({ memTotalKib: 2_097_152 }); // => '1024M'
+ memoryMaxArgument({ memTotalKib: 2_097_152 }); // => '1536M'
  ```
  */
 export function memoryMaxArgument({ memTotalKib, }: {
   readonly memTotalKib: number;
 },): string {
   /**
-   Half the machine's memory, in kibibytes.
+   The fraction of the machine's memory, in kibibytes.
    */
-  const halfKib = memTotalKib / CAP_DIVISOR;
+  const capKib = (memTotalKib * CAP_NUMERATOR) / CAP_DENOMINATOR;
   /**
-   Half the machine's memory, rounded down to whole mebibytes.
+   That fraction of the machine's memory, rounded down to whole mebibytes.
    */
-  const halfMib = Math.floor(halfKib / KIB_PER_MIB,);
+  const capMib = Math.floor(capKib / KIB_PER_MIB,);
   /**
    Whole mebibytes the cap may state, never zero.
    */
   const mib = Math.max(
     MINIMUM_MEMORY_MAX_MIB,
-    halfMib,
+    capMib,
   );
   return `${String(mib,)}${MEMORY_MAX_SUFFIX}`;
 }
@@ -260,8 +272,8 @@ async function readMeminfoText({ path, }: { readonly path: string; },): Promise<
 }
 
 /**
- Reads the machine's total memory and returns the cap half of it gives the
- session daemon's unit.
+ Reads the machine's total memory and returns the cap the decided fraction of
+ it gives the session daemon's unit.
 
  @param path - `meminfo` file to read; defaults to {@link MEMINFO_PATH}
 
@@ -271,7 +283,7 @@ async function readMeminfoText({ path, }: { readonly path: string; },): Promise<
 
  @example
  ```ts
- await sessionDaemonMemoryMax(); // => '31576M' on a machine with 61.7 GiB
+ await sessionDaemonMemoryMax(); // => '47364M' on this 61.7 GiB machine
  ```
  */
 export async function sessionDaemonMemoryMax({ path = MEMINFO_PATH, }: {
@@ -289,7 +301,7 @@ export async function sessionDaemonMemoryMax({ path = MEMINFO_PATH, }: {
    */
   const text = await readMeminfoText({ path, },);
   /**
-   Cap that half of the reported total gives.
+   Cap that fraction of the reported total gives.
    */
   const cap = memoryMaxArgument({
     memTotalKib: parseMemTotalKib({

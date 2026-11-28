@@ -21,6 +21,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  CAP_DENOMINATOR,
+  CAP_NUMERATOR,
   MEMINFO_PATH,
   SESSION_DAEMON_IDLE_TIMEOUT_SECONDS,
   SESSION_DAEMON_UNIT,
@@ -77,18 +79,18 @@ const CLAIM_DELAY_MS_FOR_RETRIES = 10;
 const RETRY_START_TIMEOUT_MS = 3_000;
 
 /**
- Derives the cap mvm must give the unit from this machine's own total memory,
- the test's own way, so the cap is checked against the machine rather than
- against mvm's reader.
+ Derives the cap mvm must give the unit from this machine's own total memory and
+ the decided fraction, the test's own way, so the cap is checked against the
+ machine rather than against mvm's reader.
 
  @returns Cap in the form systemd's `MemoryMax=` reads
 
  @example
  ```ts
- await hostHalfMemoryMax(); // => '31576M' on a machine with 61.7 GiB
+ await hostMemoryMax(); // => '47364M' on this machine
  ```
  */
-async function hostHalfMemoryMax(): Promise<string> {
+async function hostMemoryMax(): Promise<string> {
   /**
    Content of this machine's memory file.
    */
@@ -111,13 +113,18 @@ async function hostHalfMemoryMax(): Promise<string> {
     ?.slice('MemTotal:'.length,)
     .trim()
     .split(' ',)[0],);
-  return `${String(Math.floor(kib / 2 / 1_024,),)}M`;
+  /**
+   The fraction of that total the cap covers, in kibibytes.
+   */
+  const capKib = (kib * CAP_NUMERATOR) / CAP_DENOMINATOR;
+  return `${String(Math.floor(capKib / 1_024,),)}M`;
 }
 
 /**
- Half of this machine's total memory, which the unit's cap must equal.
+ The cap the decided fraction of this machine's total memory gives, which the
+ unit's cap must equal.
  */
-const MEMORY_MAX = await hostHalfMemoryMax();
+const MEMORY_MAX = await hostMemoryMax();
 
 /**
  Arguments the stand-in `systemd-run` must receive before the daemon command.
@@ -185,7 +192,7 @@ await describe({
     },),
 
     it({
-      name: 'caps the unit at half of this machine\'s total memory',
+      name: 'caps the unit at the decided fraction of this machine\'s total memory',
       fn: async () => {
         await using sandbox = await createSandbox({
           domains: DOMAINS,
