@@ -310,21 +310,67 @@ whose tail holds three words and so carries no join.
 - The width's refusal of a fragment whose following line is already long,
   which is the same bound and not a new one.
 
+## Clippy findings that no finding of the read named
+
+`lint:types` runs `cargo check --locked` and then
+`cargo clippy --locked --all-targets -- -D warnings`,
+and this crate denies `implicit_return`,
+`shadow_same` and `shadow_unrelated`.
+The round's own code drew five of them:
+four closures that returned their tail expression,
+and one test that named two results `remaining`.
+Four more stood in lines of `4cf7cc74b8` that the read did not mention:
+`markdown_prose_context.rs`,
+the `all` closure of `continuation_indent`;
+`markdown_semantic_breaks.rs`,
+the `map` closure that adds each break's separator;
+`markdown_fragment_joins.rs`,
+a `written` rebound from `written`;
+and a `&` before a `repeat` in a `format!` argument of the join tests.
+A run of the same command with those four files at `4cf7cc74b8` reports the three of the lib
+(`error: `written` is shadowed`,
+and `error: missing `return` statement` twice),
+so the task was red before this round and is green after it.
+All nine are fixed,
+because a check that stays red for any reason stops showing the next regression.
+
 ## Checks run
 
 Each once,
-in this branch's worktree:
+in this branch's worktree,
+in its own capped scope:
 
-- `mise run //package/linter/monochromatic-lint:lint:rustfmt`.
-- `mise run //package/linter/monochromatic-lint:test:host`,
-  which the package defines as the closure check's host-only run,
-  and `mise run //package/linter/monochromatic-lint:test`,
-  which names this package's unit tests.
-- `mise run //package/linter/monochromatic-lint:lint:types`,
-  the task that runs Clippy with `-D warnings` over every target.
-- The installed `monochromatic-lint` over this README,
-  this file and the other documents the round changed,
-  with no finding on a line the round wrote.
+- `mise run //package/linter/monochromatic-lint:lint:rustfmt`:
+  `cargo fmt --check` printed its own command and nothing else,
+  so no file needed formatting.
+- `mise run //package/linter/monochromatic-lint:lint:types`:
+  exit `0`,
+  and both commands finished with no warning and no error.
+- `mise run //package/linter/monochromatic-lint:test`:
+  exit `0`,
+  `1208 tests run: 1208 passed, 3 skipped`,
+  and the output names every test this round added.
+- `mise run //package/linter/monochromatic-lint:test:host`:
+  exit `100`.
+  The package defines that task as the closure check's host-only run
+  (`cargo nextest run --test closure_binary --run-ignored only`),
+  one test named `host_real_run_over_wg_quicker_exempt`,
+  so it names no test of this round.
+  It fails because the Dylint driver for the active toolchain and
+  `dylint_driver` 6.4.0
+  are not on this machine:
+  "the Dylint driver for toolchain `nightly-x86_64-unknown-linux-gnu` ... is absent
+  (cargo-dylint is 6.4.0),
+  and `dylint_driver` 6.4.0 with its dependencies is not in the cargo cache,
+  so `cargo dylint` would have to download it,
+  which this linter does not do".
+  The message names the one command that fills those caches,
+  and it needs network access this round does not have.
+  The closure check reads no line this round changed.
+- The installed `monochromatic-lint 0.5.2-alpha.24` over this README,
+  this file and the other documents the round changed:
+  no finding,
+  exit `0`.
 - A render of every Markdown passage the round changed,
   through `pandoc --from gfm --to html`,
   read by eye.
