@@ -17,6 +17,7 @@ import {
 import {
   guestCommandLine,
 } from './mvm-guest-command-line.ts';
+import { guestBackend, } from './mvm-guest-backend.ts';
 import { GuestDriverError, } from './mvm-guest-error.ts';
 import type { GuestFacts, } from './mvm-guest-guest-facts.ts';
 import {
@@ -28,11 +29,6 @@ import {
  The `mvm` subcommand that runs one command inside a named guest, through the guest agent.
  */
 const EXEC_SUBCOMMAND = 'exec';
-
-/**
- The backend `mvm` is asked for: the guests this package's arms need are `libvirt` domains.
- */
-const LIBVIRT_BACKEND = 'libvirt';
 
 /**
  Run one script inside a named guest and answer what the guest wrote.
@@ -69,12 +65,18 @@ export async function guest({
   /**
    The status the guest's command exited with, which `mvm` passes on.
    */
+  /**
+   The backend this run drives, whose words select it on every `mvm` this step starts.
+   */
+  const backend = guestBackend();
+  /**
+   The status the guest's command exited with, which `mvm` passes on.
+   */
   const status = await runStepCommand({
     logDirectory: chosen.logDir,
     program: 'mvm',
     argumentWords: [
-      '--backend',
-      LIBVIRT_BACKEND,
+      ...backend.mvmArgumentWords,
       EXEC_SUBCOMMAND,
       chosen.name,
       '--',

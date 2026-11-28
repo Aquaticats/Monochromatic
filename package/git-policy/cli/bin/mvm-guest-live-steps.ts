@@ -124,7 +124,7 @@ export type LiveStepHeld = {
 
  @example
  ```ts
- using held = holdTheLiveStep({ child, step: 'mvm --backend libvirt exec guest-a -- sh /mnt/shared/build.log.launch.sh' });
+ using held = holdTheLiveStep({ child, step: 'mvm exec guest-a -- sh /mnt/shared/build.log.launch.sh' });
  ```
  */
 export function holdTheLiveStep({
