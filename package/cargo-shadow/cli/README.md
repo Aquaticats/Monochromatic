@@ -1055,7 +1055,11 @@ and an HTTP 429 is retried after its `Retry-After`.
   an unknown slice,
   a kernel before 5.14),
   the run goes on in a process group of its own and prints one line naming the missing capability.
-  A program that outlives its run is killed on the scope path and left alive on that process-group fallback.
+  A program that outlives its run is killed on the scope path.
+  On that process-group fallback,
+  one that stays in the group is killed with the run,
+  and one that leaves the group (a `setsid` of its own, say) is left alive:
+  what a process group holds is what the kill reaches.
   Its journal holds `pgroup starting` before the child starts and the process group after,
   and every recovery and every new
   transaction refuses such a journal,
@@ -1994,9 +1998,11 @@ and not the call's:
 a reexec that begins after the discovery has answered fails everything after it,
 and no wait in this package covers that.
 A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
-0 to 110 ms after each of its 24 calls began,
-so every discovery was done before the window opened,
-and 11 of the 24 calls exited 1
+0 to 110 ms after each of its 24 calls began.
+In 12 of those 24 the window opened while the discovery was still asking,
+and every one of the twelve exited 0:
+the asking again rode through it.
+The 11 calls that exited 1 met the window after the discovery had answered
 (7 of `0.1.5-alpha.16`'s 12 and 4 of this release's 12,
 every one on the delegated route),
 with the scope launcher's

@@ -376,9 +376,11 @@ the rest of a call.
 A reexec that begins after the discovery has answered fails everything after it,
 in both releases.
 A same-vendor second read of `0.1.5-alpha.17` on 2026-11-27 fired a container manager's reexec
-0 to 110 ms after each of its 24 calls began,
-so every discovery was done before the window opened,
-and 11 of the 24 calls exited 1
+0 to 110 ms after each of its 24 calls began.
+In 12 of those 24 the window opened while the discovery was still asking,
+and every one of the twelve exited 0:
+the asking again rode through it.
+The 11 calls that exited 1 met the window after the discovery had answered
 (7 of `0.1.5-alpha.16`'s 12 and 4 of `0.1.5-alpha.17`'s 12,
 every one on the delegated route),
 with the scope launcher's
@@ -1154,7 +1156,8 @@ a same-vendor second read of this release measured on 2026-11-27
 88 ms to 96 ms with 20,
 294 ms to 372 ms with 600),
 so the two can meet,
-and that read reached the state in 2 of its 24 calls whose reexec was aligned to the call's start.
+and that read reached the state in 2 of the 12 calls of `0.1.5-alpha.17` whose reexec was aligned to the call's start,
+and in none of the 12 of its byte-identical copy or of its 9 calls against a loaded manager.
 What it would print is a refusal of the shape of the three above,
 which names the unit and the verb and is a transport that died.
 That state is read the other way since 2026-11-27:
@@ -1342,8 +1345,9 @@ and the figure above is the run as it was measured then.
   and a window inside that one program start would make a transport failure read as the manager's answer,
   which would refuse the call.
   The three asks of the start-failure shape measured above are what it would look like.
-  A same-vendor second read of 2026-11-27 reached the state in 2 of its 24 calls
+  A same-vendor second read of 2026-11-27 reached the state in 2 of the 12 calls of `0.1.5-alpha.17`
   whose reexec was aligned to the call's start,
+  and in none of the 12 of its byte-identical copy or of its 9 calls against a loaded manager,
   and the window a connect is refused in was 65 ms to 372 ms long in its containers,
   against a gap of one program start.
   A host whose `app.slice` is inactive and whose manager reexecutes at that instant is the state,
