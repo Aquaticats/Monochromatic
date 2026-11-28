@@ -2829,9 +2829,6 @@ and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 Before a release note is written,
 `git merge-base --is-ancestor <merge> <the last release commit>` says what the release before already held.
-- Its count of tests that run under the gate's build is the gate's own,
-  12,115.
-
 What `mpm-shadow`'s alpha.13 pass found,
 with no High finding:
 
