@@ -342,11 +342,22 @@ async function run({ chosen, }: { readonly chosen: GuestFacts; },): Promise<void
     timeoutMilliseconds: ARM_TIMEOUT_MS,
     nameCheck: 'none',
   },);
-  await awaitDetachedGuestScript({
-    chosen,
-    log: 'grammar-commands-arm-shell.log',
-    finishTimeoutMilliseconds: ARM_TIMEOUT_MS + ARM_FINISH_MARGIN_MS,
-  },);
+  try {
+    await awaitDetachedGuestScript({
+      chosen,
+      log: 'grammar-commands-arm-shell.log',
+      finishTimeoutMilliseconds: ARM_TIMEOUT_MS + ARM_FINISH_MARGIN_MS,
+    },);
+  } catch (error) {
+    // A failed arm's own log is the evidence a person needs, so it is pulled before the failure is reported, and the
+    // guest is kept so the script's log can be read in it.
+    await pullGuestLog({
+      chosen,
+      file: ARM_LOG,
+      log: 'host-pull-arm.log',
+    },);
+    throw error;
+  }
   /**
    The arms' own output, as the host pulled it back.
    */
