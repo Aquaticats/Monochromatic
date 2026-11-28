@@ -404,7 +404,7 @@ pub(crate) fn unavailable(reason: String) -> GroupUnavailable {
 /// and 0.87 to 1.05 times it where the runtime directory holds no socket (median 1.00),
 /// where the same harness measured 12.90 to 29.68 times before this change (README,
 /// "Development").
-const ASKING_AGAIN_ATTEMPTS: u32 = 5;
+pub(crate) const ASKING_AGAIN_ATTEMPTS: u32 = 5;
 
 /// How long the discovery waits before it asks the same question again,
 /// where a manager could be reached and did not answer for a moment.
@@ -425,57 +425,72 @@ pub(crate) const ASKING_AGAIN_PAUSE: Duration = Duration::from_millis(200);
 
 /// What one ask of the manager left when it answered nothing:
 /// the words of the failure,
-/// and whether the program ran out of the bound that ask gave it.
+/// and whether putting the question again could get another answer.
 /// Why:
-/// The two are different failures.
+/// Three failures are the end of the asking.
 /// A manager that answered nothing inside its bound is what a host without one looks like,
 /// and a second ask would only spend a second bound;
-/// a program that failed at once can be a moment of pressure,
+/// a manager that answered with a refusal of its own (a masked slice, a policy that denies the start) answers the same way
+/// a moment later,
+/// which is asked once and not five times (measured 2026-11-27: one ask of `start app.slice` against a masked slice
+/// answered `Failed to start app.slice: Unit app.slice is masked.`,
+/// and five asks spent 895 ms where the answer was the first one);
+/// and everything else can be a moment of pressure,
 /// and asking again is what tells the two apart.
 /// Each program is timed on its own,
-/// because the discovery starts two of them and a slow one followed by a fast failure must still be put again.
+/// because the discovery starts one program per ask and a slow one followed by a fast failure must still be put again.
 struct FailedAsk {
     /// The words the refusal names.
     reason: String,
-    /// Whether the program this ask ran ran out of the bound the ask gave it.
-    spent_its_deadline: bool,
+    /// Whether asking again could answer differently:
+    /// false where a program spent the bound the ask gave it, and false where the manager itself answered.
+    may_be_put_again: bool,
 }
 
-/// What:
-/// `fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk>` starts the slice when the ordinary question is asked,
-/// asks the manager where the slice is,
-/// and answers the path it reported or what the failure left.
+/// What one ask of where the slice is answered:
+/// the control group's path,
+/// or the manager's answer that the slice has no control group.
 /// Why:
-/// The two asks are one answer about one thing:
-/// a slice that could not be started cannot be asked about.
-/// The words are the refusal the caller names,
-/// so they say which of the two failed.
+/// The two are different facts about the host,
+/// and only the first one is a route:
+/// a slice with no control group is one that has not been started,
+/// and a manager that answers at all is one that can be reached.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function askOnce(settings: RouteSettings): string  // throws FailedAsk
+/// type WhereTheSliceIs = { path: string } | { noControlGroup: true }
 /// ```
-fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
-    // An inactive slice has no control group yet (a fresh login, a runner whose manager has run no application): starting it is
-    // idempotent, and it is still the discovery of a capability, so a manager that cannot start it is a missing capability.
-    if settings.question.is_none() {
-        let began: Instant = Instant::now();
-        let started: Result<String, String> = run_plain(
-            &settings.systemctl,
-            &["--user", "start", &settings.slice],
-            &settings.environment,
-            settings.discovery_bound,
-        );
-        if let Err(reason) = started {
-            return Err(FailedAsk {
-                reason: format!(
-                    "the user manager cannot start {} ({reason})",
-                    settings.slice
-                ),
-                spent_its_deadline: spent_its_bound(settings, began.elapsed()),
-            });
-        }
-    }
+enum WhereTheSliceIs {
+    /// The path of the slice's control group, which the manager reported.
+    APath(String),
+    /// The manager answered, and its answer is no control group path at all.
+    NoControlGroup,
+}
+
+/// What:
+/// `fn ask_where_the_slice_is_once(settings) -> Result<WhereTheSliceIs, FailedAsk>` makes one ask of the manager about the slice,
+/// and answers the path it reported or what the failure left.
+/// Why:
+/// This ask is also the read that says whether the manager can be reached:
+/// a transport that is not there fails before the manager sees the request,
+/// and a manager that is there always answers this one.
+/// A failure is put again (see `ask_where_the_slice_is`),
+/// and an answer is judged here,
+/// so the two callers below share one reading of the manager's words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askWhereTheSliceIsOnce(settings: RouteSettings): WhereTheSliceIs  // throws FailedAsk
+/// ```
+fn ask_where_the_slice_is_once(settings: &RouteSettings) -> Result<WhereTheSliceIs, FailedAsk> {
+    // What:     `ordinary` is the question `systemctl --user show <slice> --property=ControlGroup --value`, whose answer is the
+    //           path the manager has the slice's control group at, and nothing at all for a slice it has none for.
+    // Why:      The path is what the route is built on, and what a manager that is there answers to.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const ordinary = ['--user', 'show', settings.slice, '--property=ControlGroup', '--value']
+    // ```
     let ordinary: Vec<String> = vec![
         "--user".to_string(),
         "show".to_string(),
@@ -483,6 +498,13 @@ fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
         "--property=ControlGroup".to_string(),
         "--value".to_string(),
     ];
+    // What:     `question` is that question, or the one a control put in its place.
+    // Why:      A control asks through a stand-in whose answer it chose, so it replaces the words of the ask.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const question = settings.question ?? ordinary
+    // ```
     let question: Vec<&str> = settings
         .question
         .as_ref()
@@ -490,7 +512,24 @@ fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
         .iter()
         .map(String::as_str)
         .collect();
+    // What:     `began` is the clock reading the ask is timed from, so a program that ran out of its bound is told from one
+    //           that answered at once.
+    // Why:      A manager that answered nothing inside the bound is a host without one, and no second ask changes that.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const began = performance.now()
+    // ```
     let began: Instant = Instant::now();
+    // What:     `answered` is what the program wrote, or the reason it failed.
+    // Why:      Both are needed: an answer is read for a path, and a failure is what a refusal or a moment is built from.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // let answered: string
+    // try { answered = runPlain(settings.systemctl, question, settings.environment, settings.discoveryBound) }
+    // catch (reason) { throw { reason: `the user manager cannot be asked where ${settings.slice} is (${reason})`, mayBePutAgain: elapsed < bound } }
+    // ```
     let answered: String = match run_plain(
         &settings.systemctl,
         &question,
@@ -499,27 +538,185 @@ fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
     ) {
         Ok(text) => text,
         Err(reason) => {
+            // What:     `FailedAsk { .. }` is the failure this ask leaves: the words name which ask failed, and `may_be_put_again`
+            //           is false only where the program used the whole bound it was given.
+            // Why:      The caller puts the question again on a failure that came back at once, and ends where the manager
+            //           answered nothing at all.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // throw { reason: `the user manager cannot be asked where ${settings.slice} is (${reason})`, mayBePutAgain: !spentItsBound(began) }
+            // ```
             return Err(FailedAsk {
                 reason: format!(
                     "the user manager cannot be asked where {} is ({reason})",
                     settings.slice
                 ),
-                spent_its_deadline: spent_its_bound(settings, began.elapsed()),
+                may_be_put_again: !spent_its_bound(settings, began.elapsed()),
             });
         }
     };
+    // What:     `reported` is that answer with the newline `systemctl` ends it with taken off.
+    // Why:      The path is compared as a path, so the answer's own trailing whitespace is not part of it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const reported = answered.trim()
+    // ```
     let reported: &str = answered.trim();
     if reported.is_empty() || !reported.starts_with('/') || reported.contains('\n') {
-        return Err(FailedAsk {
+        // What:     `WhereTheSliceIs::NoControlGroup` is the manager's answer that this slice has no control group.
+        // Why:      The manager answered, so the transport works and the answer is its own: an answer that is not a path is
+        //           no route, and no wait makes it one.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return { noControlGroup: true }
+        // ```
+        return Ok(WhereTheSliceIs::NoControlGroup);
+    }
+    // What:     `WhereTheSliceIs::APath(...)` is the manager's answer, wrapped as the path the route is built on.
+    // Why:      The caller needs the path and not the answer's words.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return { path: reported }
+    // ```
+    return Ok(WhereTheSliceIs::APath(reported.to_string()));
+}
+
+/// What:
+/// `fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk>` asks the manager where the slice is,
+/// starts the slice where it has no control group yet,
+/// and answers the path a manager that could be reached reported.
+/// Why:
+/// The ask of where the slice is comes first because it is also the read that says the manager answered at all:
+/// a manager that is there answers it whether or not the slice was ever started,
+/// so a failure of the start that follows is the manager's own answer about the slice rather than a transport that is not
+/// there (measured 2026-11-27 against a masked slice in a container: the ask of where the slice is answered at once with no
+/// path, the start answered `Failed to start app.slice: Unit app.slice is masked.`, and one ask after it answered again,
+/// which is the manager saying the same thing twice).
+/// The words are the refusal the caller names,
+/// so they say which ask failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askOnce(settings: RouteSettings): string  // throws FailedAsk
+/// ```
+fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
+    match ask_where_the_slice_is_once(settings)? {
+        // What:     `WhereTheSliceIs::APath(path)` is the route, found by the first ask.
+        // Why:      An active slice is the ordinary host, and this is the whole discovery there: one program start.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return path
+        // ```
+        WhereTheSliceIs::APath(path) => return Ok(path),
+        // What:     `WhereTheSliceIs::NoControlGroup` means the slice is not started yet, which the start below makes good.
+        // Why:      An inactive slice has no control group (a fresh login, a runner whose manager has run no application), and
+        //           the discovery is still the discovery of a capability.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // // fall through to the start
+        // ```
+        WhereTheSliceIs::NoControlGroup => {}
+    }
+    if settings.question.is_none() {
+        // What:     `started` is the manager's answer to `systemctl --user start <slice>`, or the reason it failed.
+        // Why:      Starting a slice that is inactive is idempotent, and a manager that cannot start it is a missing
+        //           capability.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const started = runPlain(settings.systemctl, ['--user', 'start', settings.slice], settings.environment, settings.discoveryBound)
+        // ```
+        let began: Instant = Instant::now();
+        let started: Result<String, String> = run_plain(
+            &settings.systemctl,
+            &["--user", "start", &settings.slice],
+            &settings.environment,
+            settings.discovery_bound,
+        );
+        if let Err(reason) = started {
+            // What:     `asked_where` is the refusal's own words: the start failed, and this names the program's answer.
+            // Why:      A person reading the weaker path's notice has to see what the manager said about the slice.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const askedWhere = `the user manager cannot start ${settings.slice} (${reason})`
+            // ```
+            let asked_where: String = format!(
+                "the user manager cannot start {} ({reason})",
+                settings.slice
+            );
+            // What:     `spent` says whether that program used the whole bound the ask gave it.
+            // Why:      A manager that answered nothing at all is a host without one, and the ask after this is not made to
+            //           find that out twice.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const spent = spentItsBound(settings, began.elapsed())
+            // ```
+            let spent: bool = spent_its_bound(settings, began.elapsed());
+            return match ask_where_the_slice_is_once(settings) {
+                // What:     `Ok(...)` is the manager answering one more ask, so the start's failure is its answer about the
+                //           slice and no wait changes it.
+                // Why:      This is the refusal of a manager that is there: asking four more times spent 895 ms on the same
+                //           sentence (measured 2026-11-27 against a masked slice).
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // return { reason: askedWhere, mayBePutAgain: false }
+                // ```
+                Ok(_answered) => Err(FailedAsk {
+                    reason: asked_where,
+                    may_be_put_again: false,
+                }),
+                // What:     `Err(after)` is that ask failing too, which is a transport that is not there rather than the
+                //           manager's answer.
+                // Why:      A moment of a manager that is there must still be asked through, which is what the asking again is
+                //           for (issue 6619).
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // return { reason: askedWhere, mayBePutAgain: !spent && after.mayBePutAgain }
+                // ```
+                Err(after) => Err(FailedAsk {
+                    reason: asked_where,
+                    may_be_put_again: !spent && after.may_be_put_again,
+                }),
+            };
+        }
+    }
+    return match ask_where_the_slice_is_once(settings)? {
+        // What:     `WhereTheSliceIs::APath(path)` is where the manager just put the slice's control group.
+        // Why:      The slice was started for this answer, so it is the route.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // return path
+        // ```
+        WhereTheSliceIs::APath(path) => Ok(path),
+        // What:     `WhereTheSliceIs::NoControlGroup` after a start is the manager reporting no control group for a slice it
+        //           was just asked to start.
+        // Why:      The manager answered twice, so this is its answer and no wait changes it (measured 2026-11-27 through a
+        //           stand-in that answers every ask of where the slice is with an empty value: two asks spent 895 ms saying
+        //           the same thing).
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // throw { reason: `the user manager reports no control group for ${settings.slice}`, mayBePutAgain: false }
+        // ```
+        WhereTheSliceIs::NoControlGroup => Err(FailedAsk {
             reason: format!(
                 "the user manager reports no control group for {}",
                 settings.slice
             ),
-            // An answer that is not a path is an answer: the program ran and ended inside its bound, so it is put again.
-            spent_its_deadline: false,
-        });
-    }
-    return Ok(reported.to_string());
+            may_be_put_again: false,
+        }),
+    };
 }
 
 /// What:
@@ -527,8 +724,8 @@ fn ask_once(settings: &RouteSettings) -> Result<String, FailedAsk> {
 /// the ask gave it.
 /// Why:
 /// Only the program's own time says it ran out of its bound:
-/// the discovery starts two programs per ask,
-/// so the time around both tells neither.
+/// the discovery starts one program per ask and a moment of a manager that is there must still be asked through,
+/// so the time around a whole ask tells neither.
 /// `DISCOVERY_POLL` is the interval the wait notices an end at,
 /// and twice it is the most an ended program can be noticed after its deadline.
 ///
@@ -557,6 +754,10 @@ fn spent_its_bound(
 /// and a second ask would only spend a second bound.
 /// A host where nothing could carry an ask to a manager at all is the other,
 /// which the discovery reads in its own process rather than from the words of the refusal (issue 6629).
+/// And an answer that is a refusal of the manager's own is the end of the asking too,
+/// which `ask_once` reads from the manager answering one more ask after it:
+/// a masked slice answered `start` once and the question after it once, in 3 asks and about 0.1 s,
+/// where five asks spent 895 ms (measured 2026-11-27 in a container whose own manager had `app.slice` masked and stopped).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -578,7 +779,7 @@ fn ask_where_the_slice_is(settings: &RouteSettings) -> Result<String, String> {
         match ask_once(settings) {
             Ok(reported) => return Ok(reported),
             Err(failed) => {
-                if failed.spent_its_deadline {
+                if !failed.may_be_put_again {
                     return Err(failed.reason);
                 }
                 // What:     `a_refusal_that_ends_the_asking(settings, &failed.reason)` says what to refuse with where nothing on

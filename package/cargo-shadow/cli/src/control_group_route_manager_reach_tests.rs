@@ -80,6 +80,18 @@ use std::time::{
 /// ```
 use crate::cgroup_test_support::this_test_needs_a_delegated_scope;
 /// What:
+/// `use crate::control_group_route_discovery::ASKING_AGAIN_ATTEMPTS;` imports how many times the discovery puts the question
+/// before a failure is taken for this host's answer.
+/// Why:
+/// The controls below that read a transport on the host require the asking again to be kept there,
+/// and the count of attempts is what "kept" means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ASKING_AGAIN_ATTEMPTS } from 'crate/control_group_route_discovery'
+/// ```
+use crate::control_group_route_discovery::ASKING_AGAIN_ATTEMPTS;
+/// What:
 /// `use crate::control_group_route_discovery::ASKING_AGAIN_PAUSE;` imports the wait between two asks.
 /// Why:
 /// What "does not wait" means is measured against the wait the discovery makes between two asks,
@@ -104,6 +116,21 @@ use crate::control_group_route_discovery::ASKING_AGAIN_PAUSE;
 use crate::control_group_route_discovery::{
     RouteSettings,
     detect_route,
+};
+/// What:
+/// `use crate::control_group_route_manager_reach::{MANAGER_FILES_DIRECTORY, MANAGER_SOCKET, SESSION_BUS_SOCKET};` imports the
+/// names the read looks for, so a control builds the state the read is about.
+/// Why:
+/// A control that wrote `"systemd/private"` itself would pass after the read's own constant moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { MANAGER_FILES_DIRECTORY, MANAGER_SOCKET, SESSION_BUS_SOCKET } from 'crate/control_group_route_manager_reach'
+/// ```
+use crate::control_group_route_manager_reach::{
+    MANAGER_FILES_DIRECTORY,
+    MANAGER_SOCKET,
+    SESSION_BUS_SOCKET,
 };
 /// What:
 /// `use crate::control_group_route_manager_reach::{RUNTIME_DIRECTORY_VARIABLE, SESSION_BUS_VARIABLE};` imports the two variable
@@ -246,6 +273,322 @@ fn asked_once_and_not_waited_for(
         "the discovery answered after {took:?}, which is inside the span of waits it must not spend here ({ASKING_AGAIN_PAUSE:?} apart)"
     );
     return refused.to_string();
+}
+
+/// What:
+/// `fn a_socket_node(path: &Path)` makes a socket file of the file system at a path, with no program listening on it.
+/// Why:
+/// The read judges a transport by the file's kind alone,
+/// so the node is the whole state;
+/// binding a listener would need a socket address,
+/// and these fixture paths are longer than one holds (`SUN_LEN` is 108 bytes on this host,
+/// and every path under this package's scratch folder is longer).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aSocketNode(path: string): void  // mknod(path, S_IFSOCK | 0o600)
+/// ```
+fn a_socket_node(path: &Path) {
+    // What:     `rustix::fs::mknodat(rustix::fs::CWD, path, FileType::Socket, ..., 0)` makes a node of the given kind at
+    //           `path`, with no device number, in this process's own directory.
+    // Why:      It is the only way to a socket node without a bound address, which is what the read looks at.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // mknodSync(path, S_IFSOCK | 0o600)
+    // ```
+    rustix::fs::mknodat(
+        rustix::fs::CWD,
+        path,
+        rustix::fs::FileType::Socket,
+        rustix::fs::Mode::from_bits_truncate(0o600),
+        0,
+    )
+    .expect("make a socket file");
+}
+
+/// What:
+/// `fn asked_again(settings: &RouteSettings, log: &Path) -> String` runs the discovery,
+/// requires that the question was put once per attempt,
+/// and answers the refusal's own words.
+/// Why:
+/// A transport the read counts must keep the asking again,
+/// and the count of asks is what "kept" means (issue 6629).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function askedAgain(settings: RouteSettings, log: string): string
+/// ```
+fn asked_again(
+    settings: &RouteSettings,
+    log: &Path,
+) -> String {
+    // The refusal, which a host that cannot reach a manager must give.
+    let refused = detect_route(settings)
+        .expect_err("a host with no manager to reach is a missing capability");
+    // Every ask the stand-in was given.
+    let calls: String = fs::read_to_string(log).expect("the stand-in's log");
+    // What:     `usize::try_from(ASKING_AGAIN_ATTEMPTS)` is the attempt count as the width `lines().count()` answers in.
+    // Why:      The count of attempts is a `u32`, and the count of lines is a `usize`; comparing them needs one width.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const wanted = ASKING_AGAIN_ATTEMPTS
+    // ```
+    let wanted: usize = usize::try_from(ASKING_AGAIN_ATTEMPTS)
+        .expect("an attempt count that fits a count of lines");
+    assert_eq!(
+        calls.lines().count(),
+        wanted,
+        "a transport an ask could be carried over was read on this host, so the asking again must be kept: {calls:?}"
+    );
+    return refused.to_string();
+}
+
+/// The control of the first transport the read counts:
+/// a socket at the manager's own name inside the runtime directory,
+/// which is where `systemctl --user` looks first and where systemd 262 looks only.
+/// The asking again is kept there, and the socket carries nothing at all.
+#[test]
+fn a_manager_socket_at_the_runtime_directory_keeps_the_asking_again() {
+    this_test_needs_a_delegated_scope();
+    // The fixture directory of this control.
+    let directory = scratch();
+    // Where the stand-in writes down each ask.
+    let log: PathBuf = directory.path().join("calls");
+    // The runtime directory this control names.
+    let runtime_directory: PathBuf = directory.path().join("a-runtime-directory");
+    fs::create_dir_all(runtime_directory.join(MANAGER_FILES_DIRECTORY))
+        .expect("make the manager's directory");
+    // What:     `a_socket_node(...)` plants the manager's socket where an ask would look for it.
+    // Why:      The read judges a transport by the file's kind, and this is the one systemd 262 takes.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // aSocketNode(join(runtimeDirectory, MANAGER_SOCKET))
+    // ```
+    a_socket_node(&runtime_directory.join(MANAGER_SOCKET));
+    // The settings of this control: the stand-in for `systemctl`, that runtime directory, and no bus address.
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (
+                RUNTIME_DIRECTORY_VARIABLE.to_string(),
+                Some(runtime_directory.display().to_string()),
+            ),
+            (SESSION_BUS_VARIABLE.to_string(), None),
+        ],
+        ..RouteSettings::default()
+    };
+
+    let refused: String = asked_again(&settings, &log);
+
+    assert!(
+        refused.contains("the user manager cannot be asked where app.slice is ("),
+        "the refusal does not name the ask that failed: {refused}"
+    );
+}
+
+/// The control of the second transport the read counts:
+/// a socket at the user bus's name inside the runtime directory and no bus address,
+/// which is where a systemd 255 falls back to.
+#[test]
+fn a_bus_socket_at_the_runtime_directory_keeps_the_asking_again_where_no_bus_address_is_set() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let runtime_directory: PathBuf = directory.path().join("a-runtime-directory");
+    fs::create_dir_all(&runtime_directory).expect("make the runtime directory");
+    // What:     `a_socket_node(...)` plants the user bus's socket at its own name.
+    // Why:      A systemd 255 answers over it where the manager's own socket cannot be connected, so the read counts it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // aSocketNode(join(runtimeDirectory, SESSION_BUS_SOCKET))
+    // ```
+    a_socket_node(&runtime_directory.join(SESSION_BUS_SOCKET));
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (
+                RUNTIME_DIRECTORY_VARIABLE.to_string(),
+                Some(runtime_directory.display().to_string()),
+            ),
+            (SESSION_BUS_VARIABLE.to_string(), None),
+        ],
+        ..RouteSettings::default()
+    };
+
+    asked_again(&settings, &log);
+}
+
+/// The control of the place a host with no runtime directory asks over:
+/// a bus address naming a socket, which is the transport both systemd versions take there.
+#[test]
+fn a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directory_is_set() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let bus_socket: PathBuf = directory.path().join("a-bus-socket");
+    // What:     `a_socket_node(&bus_socket)` plants the socket the address names.
+    // Why:      An ask over a bus address is carried over the socket the address names, and that is what the read looks for.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // aSocketNode(busSocket)
+    // ```
+    a_socket_node(&bus_socket);
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (RUNTIME_DIRECTORY_VARIABLE.to_string(), None),
+            (
+                SESSION_BUS_VARIABLE.to_string(),
+                Some(format!("unix:path={}", bus_socket.display())),
+            ),
+        ],
+        ..RouteSettings::default()
+    };
+
+    asked_again(&settings, &log);
+}
+
+/// The control of a transport the read no longer counts:
+/// the user bus's socket beside a bus address,
+/// which no systemd met here takes, because sd-bus prefers the address to the bus socket.
+/// The address names nothing that is there, so the discovery ends at its first ask.
+#[test]
+fn a_bus_socket_beside_a_bus_address_is_not_a_transport_the_ask_takes() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let runtime_directory: PathBuf = directory.path().join("a-runtime-directory");
+    fs::create_dir_all(&runtime_directory).expect("make the runtime directory");
+    // What:     `a_socket_node(...)` plants the user bus's socket at its own name, beside the address.
+    // Why:      The state is the one the read must judge as having no transport: the address replaces this name.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // aSocketNode(join(runtimeDirectory, SESSION_BUS_SOCKET))
+    // ```
+    a_socket_node(&runtime_directory.join(SESSION_BUS_SOCKET));
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (
+                RUNTIME_DIRECTORY_VARIABLE.to_string(),
+                Some(runtime_directory.display().to_string()),
+            ),
+            (
+                SESSION_BUS_VARIABLE.to_string(),
+                Some(format!(
+                    "unix:path={}",
+                    directory
+                        .path()
+                        .join("a-socket-that-is-not-there")
+                        .display()
+                )),
+            ),
+        ],
+        ..RouteSettings::default()
+    };
+
+    let refused: String = asked_once_and_not_waited_for(&settings, &log);
+
+    assert!(
+        refused.contains("nothing an ask could be carried over is there:"),
+        "the refusal does not say what this process read: {refused}"
+    );
+}
+
+/// The control of the addresses the read cannot judge:
+/// an abstract socket, an escaped byte and another transport each name no path this process can look for,
+/// so nothing is claimed about them and the asking again is kept.
+#[test]
+fn an_address_this_process_cannot_judge_keeps_the_asking_again() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    // The three addresses, each of a transport or a form the read cannot look for.
+    let unjudged: [&str; 3] = [
+        "unix:abstract=/cargo-shadow-a-control-no-manager",
+        "unix:path=/a-directory/a%74-socket",
+        "unix:tmpdir=/tmp",
+    ];
+    for (index, address) in unjudged.iter().enumerate() {
+        // What:     `log` is that address's own log, so the asks of the address before it are not counted again.
+        // Why:      One stand-in writes every ask it is given to this path, and a count across three addresses would be the
+        //           sum of theirs.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const log = join(directory, `calls-${index}`)
+        // ```
+        let log: PathBuf = directory.path().join(format!("calls-{index}"));
+        // What:     `RouteSettings { .. }` asks through the stand-in with only that address set.
+        // Why:      Each address is a host of its own: the read must keep the asking again for each.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const settings = { systemctl, environment: [[RUNTIME_DIRECTORY_VARIABLE, undefined], [SESSION_BUS_VARIABLE, address]] }
+        // ```
+        let settings: RouteSettings = RouteSettings {
+            systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+                .display()
+                .to_string(),
+            environment: vec![
+                (RUNTIME_DIRECTORY_VARIABLE.to_string(), None),
+                (SESSION_BUS_VARIABLE.to_string(), Some(address.to_string())),
+            ],
+            ..RouteSettings::default()
+        };
+
+        asked_again(&settings, &log);
+    }
+}
+
+/// The control of the read's tolerance for a reexec:
+/// a runtime directory that holds the manager's own directory and no socket at this instant,
+/// which is what the manager's unlink and rebind looks like between two samples,
+/// keeps the asking again.
+#[test]
+fn the_manager_s_own_directory_keeps_the_asking_again() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    let runtime_directory: PathBuf = directory.path().join("a-runtime-directory");
+    // What:     `fs::create_dir_all(runtime_directory.join(MANAGER_FILES_DIRECTORY))` makes the directory the manager keeps its
+    //           files in, and nothing else.
+    // Why:      A reexec unlinks and rebinds its socket, so the directory is what says a manager was there.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // mkdirSync(join(runtimeDirectory, MANAGER_FILES_DIRECTORY), { recursive: true })
+    // ```
+    fs::create_dir_all(runtime_directory.join(MANAGER_FILES_DIRECTORY))
+        .expect("make the manager's directory");
+    let settings: RouteSettings = RouteSettings {
+        systemctl: a_stand_in_that_only_writes_down_each_ask(directory.path(), &log)
+            .display()
+            .to_string(),
+        environment: vec![
+            (
+                RUNTIME_DIRECTORY_VARIABLE.to_string(),
+                Some(runtime_directory.display().to_string()),
+            ),
+            (SESSION_BUS_VARIABLE.to_string(), None),
+        ],
+        ..RouteSettings::default()
+    };
+
+    asked_again(&settings, &log);
 }
 
 /// The control of the first way a host has no manager:
