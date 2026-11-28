@@ -604,6 +604,28 @@ await describe({
             expect(Object.hasOwn(arguments_, 'from',),).toBe(false,);
           },
         },),
+        it({
+          name: 'forwards the floors a fresh one-shot run asked for',
+          fn: async ctx => {
+            const run = ctx.sinon.spy(fakeBackend, 'run',);
+
+            await runTool.handler({
+              command: 'nproc',
+              vcpus: 2,
+              memory: 4,
+              backend: FAKE_BACKEND_KIND,
+            },);
+
+            // The floors reach the backend's run, which is where each backend hands them
+            // to the create that makes the machine.
+            expect(run.callCount,).toBe(1,);
+            expect(run.firstCall.args,).toEqual([{
+              command: 'nproc',
+              vcpus: 2,
+              memoryGiB: 4,
+            },],);
+          },
+        },),
       ],
     },),
 
