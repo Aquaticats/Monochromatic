@@ -212,11 +212,84 @@ each either loads it or ends in the words above.
 `mise run //package/zfs/request-to-openzfs-kernel-device:test:tooling` holds that step's
 shell on the host without a guest,
 against stand-in trees and stand-in `modinfo`,
-`modprobe` and `insmod`;
+`modprobe` and `insmod`,
+and holds the template guest's step below the same way;
 a guest run is what shows the real kernel answering.
 [`doc/prepare-in-a-prepared-guest-2026-11-27.md`](../doc/prepare-in-a-prepared-guest-2026-11-27.md)
 records those runs,
 with each exit and the lines each step printed.
+
+## `prepare` in a guest made from the step 23 template
+
+`prepare --image <template> --kernel-release <release>`
+runs `prepareFromTemplate`,
+which loads the module the template installs and says which one it loaded,
+then checks the template's userspace,
+its module type information,
+the release tree and the tools.
+The load is the step in `e2e/load-the-template-module-step.ts`,
+a smaller step than the built module's,
+because the template builds nothing:
+it installs `linux-cachyos-zfs`,
+whose module files are zstd-compressed in
+`/lib/modules/$(uname -r)/extramodules/`,
+so `modprobe zfs` is the route that loads them,
+`insmod` cannot load those files at all,
+and there is no `extra/zfs.ko` to compare against and nothing to remove.
+
+It keeps `modprobe`'s own words and its status,
+reads the version the file this template installs states
+(`modinfo --field version zfs`,
+and the file's own path from `modinfo --field filename zfs`),
+and compares the loaded module with that file and with the OpenZFS release
+this recipe pins,
+for both module files.
+It reads before it loads,
+so a file that cannot be read,
+or that carries another release,
+is refused with nothing loaded.
+Those readings leave five states:
+
+- the guest already runs the module the template installs:
+  it says so and loads,
+  removes and inserts nothing;
+- nothing is loaded,
+  as in a guest whose module was taken out:
+  `modprobe zfs` loads it,
+  and the step says which module it loaded and where it came from;
+- the load fails:
+  it refuses,
+  naming `modprobe`'s own words,
+  what is loaded now,
+  the file the template installs and the release this recipe pins,
+  and what to check before running the step again;
+  a `modprobe` that exits 0 and loads nothing is refused the same way,
+  because the version read after it would fail with no reason;
+- the installed file states another release than the one this recipe pins,
+  in either of the two files:
+  it refuses before anything is loaded,
+  naming both releases and the file;
+- a module is loaded that is not the one the file states:
+  it refuses,
+  naming the version loaded,
+  the version the file states,
+  the release this recipe pins,
+  and the two ways out:
+  reboot the guest,
+  which loads what the template ships,
+  or take the other module out with `modprobe --remove`
+  when nothing holds it,
+  and run the step again.
+
+A `modinfo` that cannot read the file is a refusal too,
+so a template whose module files are gone ends in words rather than in a bare status,
+and nothing is loaded.
+A refusal after a `modprobe` that failed says what the guest is left running,
+because the kernel may have loaded `spl` before refusing `zfs`.
+[`doc/prepare-in-a-prepared-guest-2026-11-27.md`](../doc/prepare-in-a-prepared-guest-2026-11-27.md)
+records the guest runs,
+issue 6644's own,
+with the kernel release and the module release the template answered.
 
 ## What the guest carries
 

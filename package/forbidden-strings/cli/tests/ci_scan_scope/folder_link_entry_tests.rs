@@ -326,8 +326,8 @@ fn push_of_folder_links_only_ends_green_and_says_what_it_left_out() {
         !result.stdout.contains("changed file(s)")
             && result
                 .stdout
-                .contains("Scanning 2 left-out entries: each one by its own name"),
-        "both links must reach the left-out step rather than the file scan\nstdout: {}\nstderr: {}",
+                .contains("Scanning 2 link and gitlink entries: each one by its own name"),
+        "both links must reach the link-scan step rather than the file scan\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
     );

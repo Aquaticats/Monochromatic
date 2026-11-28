@@ -144,34 +144,67 @@ fn a_whitespace_character_is_no_character_of_this_set() {
     }
 }
 
-/// The first and last code point of every range, and the code point just outside each end,
+/// The first and last code point of every range, an interior code point of it, and the code points just outside each end,
 ///  written out one by one rather than read from the table the answer is built from.
 /// Why:
 ///  A control that walks `DEFAULT_IGNORABLE_CODE_POINTS` itself cannot see an edit to that table:
-///  deleting a range, cutting an end or dropping a range leaves every assertion it makes true.
+///  deleting a range, cutting an end, splitting a range in two or dropping a range leaves every assertion it makes true.
 ///  The code points below were taken from the Unicode 17.0.0 data files on 2026-11-27:
 ///  `DerivedCoreProperties-17.0.0.txt` (property `Default_Ignorable_Code_Point`, date 2025-07-30),
 ///  `DerivedGeneralCategory-17.0.0.txt` (`Cf` and `Cc`) and `PropList-17.0.0.txt` (`White_Space`),
 ///  all three from https://www.unicode.org/Public/17.0.0/ucd/,
 ///  taking the property's code points and leaving out every `Cf`, `Cc` and whitespace one.
+///  The code point before the first end is the one the general categories give it:
+///  U+FDFF stands before the variation selectors, and U+FDFE is two away from them.
 #[test]
-fn every_range_end_and_the_code_point_just_outside_it_is_written_out() {
-    // What: each range as (first, last, the code point before it, the code point after it).
-    // Why: the four literals are the control; a table edit cannot change what this list asserts.
-    for (first, last, before, after) in [
-        ('\u{34f}', '\u{34f}', '\u{34e}', '\u{350}'),
-        ('\u{115f}', '\u{1160}', '\u{115e}', '\u{1161}'),
-        ('\u{17b4}', '\u{17b5}', '\u{17b3}', '\u{17b6}'),
-        ('\u{180b}', '\u{180d}', '\u{180a}', '\u{180e}'),
-        ('\u{180f}', '\u{180f}', '\u{180e}', '\u{1810}'),
-        ('\u{2065}', '\u{2065}', '\u{2064}', '\u{2066}'),
-        ('\u{3164}', '\u{3164}', '\u{3163}', '\u{3165}'),
-        ('\u{fe00}', '\u{fe0f}', '\u{fdfe}', '\u{fe10}'),
-        ('\u{ffa0}', '\u{ffa0}', '\u{ff9f}', '\u{ffa1}'),
-        ('\u{fff0}', '\u{fff8}', '\u{ffef}', '\u{fff9}'),
-        ('\u{e0000}', '\u{e0000}', '\u{dffff}', '\u{e0001}'),
-        ('\u{e0002}', '\u{e001f}', '\u{e0001}', '\u{e0020}'),
-        ('\u{e0080}', '\u{e0fff}', '\u{e007f}', '\u{e1000}'),
+fn every_range_end_an_interior_point_and_the_code_point_just_outside_it_is_written_out() {
+    // What: each range as (first, interior, last, the code point before it, the code point after it),
+    // with no interior point for a range of one or two code points, whose ends are all of it.
+    // Why: the five literals are the control; a table edit cannot change what this list asserts.
+    for (first, interior, last, before, after) in [
+        ('\u{34f}', None, '\u{34f}', '\u{34e}', '\u{350}'),
+        ('\u{115f}', None, '\u{1160}', '\u{115e}', '\u{1161}'),
+        ('\u{17b4}', None, '\u{17b5}', '\u{17b3}', '\u{17b6}'),
+        (
+            '\u{180b}',
+            Some('\u{180c}'),
+            '\u{180d}',
+            '\u{180a}',
+            '\u{180e}',
+        ),
+        ('\u{180f}', None, '\u{180f}', '\u{180e}', '\u{1810}'),
+        ('\u{2065}', None, '\u{2065}', '\u{2064}', '\u{2066}'),
+        ('\u{3164}', None, '\u{3164}', '\u{3163}', '\u{3165}'),
+        (
+            '\u{fe00}',
+            Some('\u{fe07}'),
+            '\u{fe0f}',
+            '\u{fdff}',
+            '\u{fe10}',
+        ),
+        ('\u{ffa0}', None, '\u{ffa0}', '\u{ff9f}', '\u{ffa1}'),
+        (
+            '\u{fff0}',
+            Some('\u{fff4}'),
+            '\u{fff8}',
+            '\u{ffef}',
+            '\u{fff9}',
+        ),
+        ('\u{e0000}', None, '\u{e0000}', '\u{dffff}', '\u{e0001}'),
+        (
+            '\u{e0002}',
+            Some('\u{e0010}'),
+            '\u{e001f}',
+            '\u{e0001}',
+            '\u{e0020}',
+        ),
+        (
+            '\u{e0080}',
+            Some('\u{e0500}'),
+            '\u{e0fff}',
+            '\u{e007f}',
+            '\u{e1000}',
+        ),
     ] {
         // What: both ends of the range, which the table must answer as printing as nothing.
         // Why: a cut end or a deleted range leaves one of these answered as a visible character.
@@ -180,6 +213,15 @@ fn every_range_end_and_the_code_point_just_outside_it_is_written_out() {
                 prints_as_nothing(end),
                 "U+{:04X} is the end of a range and must print as nothing",
                 end as u32
+            );
+        }
+        // What: a code point inside the range that is neither end.
+        // Why: a range split in two around this point answers it as a visible character although the data file names it.
+        if let Some(inside) = interior {
+            assert!(
+                prints_as_nothing(inside),
+                "U+{:04X} stands inside a range and must print as nothing",
+                inside as u32
             );
         }
         // What: the two code points just outside the range, whose answer must be the category's alone.
@@ -195,4 +237,21 @@ fn every_range_end_and_the_code_point_just_outside_it_is_written_out() {
             );
         }
     }
+}
+
+/// The blank cell of the Braille block has a glyph of its own,
+///  so it is no character a reader cannot see,
+///  and the set's three properties say so: it is `So`, and `Default_Ignorable_Code_Point` does not name it.
+///  A README that listed it among the characters a message spells would be wrong,
+///  and the reason it is left as written stands in the README beside that list.
+#[test]
+fn a_braille_blank_cell_prints_as_a_character_a_reader_can_see() {
+    assert!(
+        !prints_as_nothing('\u{2800}'),
+        "U+2800 is a symbol with a glyph, not a character a message spells"
+    );
+    // What: the control, the code points on either side of it that the set does and does not name.
+    // Why: an answer of `false` for every character would pass the line above and spell nothing.
+    assert!(!prints_as_nothing('\u{2801}'));
+    assert!(prints_as_nothing('\u{fe0f}'));
 }

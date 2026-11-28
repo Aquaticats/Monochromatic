@@ -396,6 +396,12 @@ mod builtin;
 #[path = "binary_alias_expansion_tests.rs"]
 mod alias_expansion;
 
+/// Every place a guarded command behind a `!` alias acts in:
+///  the files of the worktree its words name,
+///  and the index and `HEAD` of the repository Git's exported `GIT_DIR` keeps.
+#[path = "binary_shell_alias_acts_in_two_places_tests.rs"]
+mod shell_alias_acts_in_two_places;
+
 /// Taking one side of a conflicted file during a merge,
 /// rebase,
 /// cherry-pick or revert:

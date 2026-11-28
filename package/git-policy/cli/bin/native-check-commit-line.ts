@@ -9,6 +9,9 @@
 
  A folder that is in no checkout, and a git that cannot answer, each get a line saying the commit could not be read and why:
  a log that holds no commit and no reason reads as one that was never asked.
+
+ This was the only `git -C` in the package's `bin/` refused in silence:
+ every other one names a checkout's root, or runs `/usr/bin/git`, or throws with the refusal's words.
  */
 import {
   join,
