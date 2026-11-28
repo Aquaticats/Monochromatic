@@ -2944,10 +2944,6 @@ and the two `truepeak` files wait on their branch.
   neither is released,
   because the standing answer on alphas does not name them
   (`doc/handover/questions-for-the-owner.md`).
-- On `main` at `07f9232af0`,
-  in a worktree no merge moved,
-  the package's whole `test:unit` exited 0 with 176 `[PASS]` suite lines and none failing,
-  and `lint:types` exited 0.
 - The wrapper package's `lint:oxlint` exits 0 on `main` (`0f33063f26`,
   2026-11-27):
   `Found 0 warnings and 0 errors.` on 341 files,
