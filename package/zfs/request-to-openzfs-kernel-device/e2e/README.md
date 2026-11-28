@@ -207,8 +207,9 @@ the listing is the round's.
 
 The first runs of this kind,
 2026-11-28,
-made `b3-16` (4 vCPUs,
-16 GiB) in `BHS5` from the image `Ubuntu 24.04`
+made `b3-16` in `BHS5` from the image `Ubuntu 24.04`
+(the size `mvm`'s own README names as an example of a larger flavour;
+the guest's own processor count and memory were not read before it was destroyed)
 (the recipe's own run,
 and then a wrapper driver's through its `mise` task with
 `MVM_BACKEND=ovh`),
