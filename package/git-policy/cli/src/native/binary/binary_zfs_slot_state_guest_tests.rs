@@ -90,6 +90,10 @@ use git_policy_cli::worktree_clone_move_refusal::managed_move_refusal::{
     ManagedMoveRefusalCause,
     refuse_move_of_a_bound_slot,
 };
+use git_policy_cli::worktree_clone_removal_proof_and_plan::removal_staging_folder::{
+    LiveRemovalStagingFolder,
+    RemovalStagingFolder,
+};
 use git_policy_cli::worktree_clone_slot_state::slot_state_classification::classify_slot;
 use git_policy_cli::worktree_clone_slot_state::slot_state_readings::SlotReadings;
 use git_policy_cli::worktree_clone_slot_state::slot_state_report::report_of;
@@ -536,9 +540,19 @@ impl ASceneToMake<'_> {
             pointer,
             registration: common.join("worktrees").join(self.slot_name),
         };
-        // The removal's own order makes the staging folder the handler binds, at its step 2 and after the
-        //  `user-cache` pin check, which is what this release owes and what the removal below needs.
         self.pin_the_accounts_cache();
+        // What: the folder the handler binds, made here through the release's own answer,
+        //  because this scene asks the handler for an unmount of its own before the removal runs.
+        // Why: only the wrapper makes that folder, and this scene's unmount is not a removal's, so the scene
+        //  states the request the way the wrapper's step 2 does and the handler binds a folder the release made.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const folder = liveRemovalStagingFolder.makeTheFolder(cloneGuid);
+        // ```
+        LiveRemovalStagingFolder
+            .make_the_folder(clone_guid)
+            .expect("the wrapper makes the staging folder this scene's unmount binds");
         let attached = sweep();
         assert_eq!(
             attached.status,
