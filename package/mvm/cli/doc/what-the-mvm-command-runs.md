@@ -70,6 +70,9 @@ the source's 166.0 ms (154.5 to 208.9),
 a ratio of 1.225 on the medians
 and 1.205 on the round pairs (0.905 to 1.566).
 A Node start-up dominates both figures.
+`mise run //package/mvm/cli:run` has run `node src/cli.ts` since before this change,
+so unbundled execution is this package's existing supported path and not a new one;
+what is new is that the shim takes it too.
 Once the built entry is the launcher below,
 the shim's median is 109.6 ms against the source's 103.9 ms over eleven rounds,
 a ratio of 1.055,
@@ -137,6 +140,13 @@ on a machine where many rounds start at once.
   Until it runs,
   `node_modules/.bin/mvm` reaches the launcher,
   which runs the same source.
+  No install ran in the round that wrote this (it is banned in a worktree),
+  so the fresh shim itself is unexercised here.
+  The repository already carries that shape:
+  `package/claude-code-plugin/source` declares
+  `"bin": { "spawn-claude": "./src/cli/spawn-claude.ts" }`
+  and the installed shim for it ends
+  `exec node .../package/claude-code-plugin/source/src/cli/spawn-claude.ts`.
 - A published `mvm` would be the exception,
   below.
 
@@ -151,9 +161,37 @@ on a machine where many rounds start at once.
 - the built entry a shim an older install wrote names imports exactly that file,
   which a bundle written by an older build would not.
 
-Pointing `bin` back at the built copy turns the first and third red
-(`Control's red` in the round's report).
-Replacing the launcher with a bundle turns the third red.
+The third case refuses two shapes a built entry can wrongly have:
+one with no import line at all,
+which is a bundle,
+and one holding the import line *beside* a program of its own,
+which would run that program as well as the source.
+Every line other than the shebang,
+the comments and the one import must be absent.
+
+Pointing `bin` back at the built copy turned the first and third red,
+replacing the launcher with a real bundle turned the third red,
+and a file holding the import line plus two lines of program turned it red as well.
+The round's report quotes all three.
+
+### The one state this does not repair by itself
+
+The guard holds from the moment a build writes the launcher into a checkout or worktree.
+Before that build,
+a worktree still holds the old shim *and* the old bundle its `dist` was copied with,
+so its `mvm` runs that bundle silently,
+which is the state issue 6655 was filed about.
+Two things are therefore the coordinating session's,
+not this package's:
+
+- after merging a change to this package,
+  run `mise run //package/mvm/cli:build` in the main checkout,
+  because the ignored `dist` worktrees inherit is the checkout's;
+- a round that merges into its own worktree rebuilds there,
+  which is what `mise run //package/mvm/cli:build` already does for it.
+
+Nothing in the package can see a build that has not happened yet:
+the code that would compare is the code that is stale.
 
 ## How it was checked
 
@@ -203,6 +241,15 @@ which is what `private: true` states
 (`doc/decision/npm-publishing.md`,
 "Published surface is the built artifact;
 `./ts` is stripped at publish").
+
+The tarball would not be enough either:
+the manifest's `files` is `["dist/final", "LICENSES"]`,
+so a `pnpm pack` of this package now carries a launcher whose `../../../src/cli.ts` is not in
+the tarball.
+No task checks it.
+`npm:package:pack` in the root `mise.toml` takes a package name by hand and nothing calls it,
+and the changeset release path skips a private package,
+so the hole is real but unexercised.
 Were `mvm` to be published,
 its `bin` would have to name a built copy again,
 and the comparison above (a receipt the build writes and the command checks,

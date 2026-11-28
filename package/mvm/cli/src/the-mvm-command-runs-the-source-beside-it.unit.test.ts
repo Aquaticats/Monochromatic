@@ -168,16 +168,31 @@ const IMPORT_LINE_PREFIX = "import '";
 const IMPORT_LINE_SUFFIX = "';";
 
 /**
+ What the line a launcher starts with reads, which is the interpreter a kernel runs.
+ */
+const SHEBANG_PREFIX = '#!';
+
+/**
+ What a launcher's explanatory lines start with. They are comments, so a bundle that carried
+ one would still be a bundle.
+ */
+const COMMENT_PREFIX = '//';
+
+/**
  Reads the file the built entry runs, from the one import line a launcher holds.
 
- A built entry that holds a program of its own imports no source, and a source change then
- never reaches it: that is how the six guests lost free page reporting.
+ A launcher holds a shebang, comments and one `import '<specifier>';` line, and no program of
+ its own. A built entry that holds a program does not run a source file, so a source change
+ never reaches it: that is how the six guests lost free page reporting. A file holding the
+ import line *and* a bundled program runs its own copy too, so it is refused as well, which
+ is why every other line must be a shebang, a comment or blank.
 
  @param builtEntryText - the built entry's text, which is a launcher or a bundle
 
  @returns the absolute path the built entry runs
 
- @throws Error when the built entry imports no file, which is what a bundle does
+ @throws Error when the built entry holds no import line, or holds a program beside one,
+ both of which leave a source change unable to reach the command
 
  @example
  ```ts
@@ -186,14 +201,35 @@ const IMPORT_LINE_SUFFIX = "';";
  */
 function sourceTheBuiltEntryRuns(builtEntryText: string,): string {
   /**
+   The built entry's lines, which a launcher holds no program in.
+   */
+  const lines = builtEntryText.split('\n',);
+  /**
    The built entry's import line, which a launcher holds and a bundle does not.
    */
-  const importLine = builtEntryText
-    .split('\n',)
-    .find((line,) => line.startsWith(IMPORT_LINE_PREFIX,),);
+  const importLine = lines.find((line,) => line.startsWith(IMPORT_LINE_PREFIX,),);
   if (importLine === undefined) {
     throw new Error(
       `the built entry ${BUILT_ENTRY_PATH} holds no ${IMPORT_LINE_PREFIX}...${IMPORT_LINE_SUFFIX} line, so it holds a program of its own and no source change reaches it: run \`mise run //package/mvm/cli:build\` to write the launcher the build makes now`,
+    );
+  }
+  /**
+   Every line of the built entry that is neither its import, its shebang, a comment, nor blank.
+   */
+  const programLines = lines.filter((line,) => (
+    (line.trim() !== '')
+      && (!line.startsWith(SHEBANG_PREFIX,))
+      && (!line.startsWith(COMMENT_PREFIX,))
+      && (line !== importLine)
+  ),);
+  if (programLines.length > 0) {
+    throw new Error(
+      `the built entry ${BUILT_ENTRY_PATH} runs its own copy of the program beside the import line (${String(programLines.length,)} line(s) of it start "${programLines[0]
+        ?.trim()
+        .slice(
+          0,
+          60,
+        )}"), so a source change may never reach the command: run \`mise run //package/mvm/cli:build\` to write the launcher the build makes now`,
     );
   }
   /**

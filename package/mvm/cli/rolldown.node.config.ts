@@ -93,10 +93,12 @@ function isChunkEntry(entry: unknown,): entry is BuiltBundleEntry {
 /**
  Replaces the bundled CLI entry with a launcher that runs the source beside the build.
 
- The plugin keeps the entry in the build's input so the build still names it, sets its
- shebang and its executable bit the way every other bin target gets them, and then puts
- the launcher's text in its place. Everything else the build emits is unchanged, and the
- package's library entry (`src/index.ts`) is still a real bundle.
+ The shared shebang plugin reads the manifest's `bin` targets, which now name `src/cli.ts`,
+ so it no longer touches the emitted chunk: the launcher's own text carries the shebang, and
+ the shared executable-bit plugin still sees that shebang on the written chunk and marks it
+ runnable. The CLI stays in the build's input so the chunk is emitted under the name an older
+ shim names, and so `cli.d.mts` is still produced beside the library entry, which stays a real
+ bundle.
 
  @returns Rolldown plugin rewriting the CLI entry chunk before it is written
 
