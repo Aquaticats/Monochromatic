@@ -113,17 +113,18 @@ use rustix::pipe::fcntl_setpipe_size;
 use rustix::pipe::pipe;
 
 /// Imports the bound under test,
-/// and the writer itself.
+/// and the one function every notice and every report line is written through.
 /// Why:
 /// The controls hold what the shipped code does, so they call it and read its own constant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// import { A_WAIT_FOR_A_STREAM_TO_TAKE_THE_BYTES, writeTheWords } from './notices.ts';
+/// import { A_WAIT_FOR_A_STREAM_TO_TAKE_THE_BYTES, sayOn, reportLineOn } from './notices.ts';
 /// ```
 use super::{
     A_WAIT_FOR_A_STREAM_TO_TAKE_THE_BYTES,
-    write_the_words,
+    report_line_on,
+    say_on,
 };
 
 /// What:
@@ -612,22 +613,22 @@ fn a_write_a_full_non_blocking_stream_refuses_is_made_when_the_reader_drains() {
     // ```
     let (mut reading, mut writing) = a_pipe_with_both_ends_non_blocking();
     let filler: Vec<u8> = filled_until_it_refuses(&mut writing);
-    // What: the line the writer is given, with its line end.
+    // What: the line the writer is given, without its line end, which the notice writer adds.
     // Why: it has to be recognised at the end of what the reader takes.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const notice = 'mpm-shadow: a line a full pipe takes once the reader drains\n';
+    // const notice = 'mpm-shadow: a line a full pipe takes once the reader drains';
     // ```
-    let notice: &str = "mpm-shadow: a line a full pipe takes once the reader drains\n";
+    let notice: &str = "mpm-shadow: a line a full pipe takes once the reader drains";
     // What: how many bytes the reader has to take for the whole pipe's content to be out.
-    // Why: an exact count lets the reader stop at the notice's last byte.
+    // Why: an exact count lets the reader stop at the notice's last byte, which is its line end.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const expected = filler.length + notice.length;
+    // const expected = filler.length + notice.length + 1;
     // ```
-    let expected: usize = filler.len() + notice.len();
+    let expected: usize = filler.len() + notice.len() + 1;
     // What: the reader, which waits past the writer's first refusal and then drains everything.
     // Why: this is the reader the read measured as alive and slow, which the dropped `EAGAIN` lost the
     //  notice of.
@@ -645,9 +646,9 @@ fn a_write_a_full_non_blocking_stream_refuses_is_made_when_the_reader_drains() {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // writeTheWords(writing, Buffer.from(notice));
+    // sayOn(writing, notice);
     // ```
-    write_the_words(&mut writing, notice.as_bytes());
+    say_on(&mut writing, notice);
     // What: what the reader thread took.
     // Why: its tail is the notice, if the writer waited for room.
     //
@@ -663,7 +664,7 @@ fn a_write_a_full_non_blocking_stream_refuses_is_made_when_the_reader_drains() {
     );
     assert_eq!(
         &seen[filler.len()..],
-        notice.as_bytes(),
+        format!("{notice}\n").as_bytes(),
         "the bytes after the filler are the line with its line end"
     );
 }
@@ -712,14 +713,14 @@ fn a_line_is_never_written_without_its_line_end() {
         // ```
         let (mut reading, mut writing) = a_one_page_pipe_with_both_ends_non_blocking();
         let filler: Vec<u8> = wrote_exactly(&mut writing, A_ONE_PAGE_PIPE - room);
-        // What: the write of the line and its line end as one text, the way `say` makes it.
+        // What: the write of the line and its line end as one text, the way the report writer makes it.
         // Why: this is the call whose one write cannot lose the line end alone.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // writeTheWords(writing, Buffer.from(`${line}\n`));
+        // reportLineOn(writing, line);
         // ```
-        write_the_words(&mut writing, format!("{line}\n").as_bytes());
+        report_line_on(&mut writing, &line);
         // What: what the pipe holds after the write.
         // Why: the arms' whole difference is what this holds.
         //
@@ -779,9 +780,9 @@ fn a_write_no_reader_takes_gives_up_within_the_bound() {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // writeTheWords(writing, Buffer.from('a line nobody reads\n'));
+    // sayOn(writing, 'a line nobody reads');
     // ```
-    write_the_words(&mut writing, b"a line nobody reads\n");
+    say_on(&mut writing, "a line nobody reads");
     // What: how long it waited.
     // Why: shorter than the bound would mean it gave up early, longer would mean the bound is not held.
     //
@@ -902,17 +903,17 @@ fn every_error_kind_a_stream_answers_returns_without_ending_the_process() {
         9,   // EBADF: the descriptor is not open for writing
     ];
     for code in kinds {
-        // What: the writer's call with that kind of refusal.
+        // What: the writer's call with that kind of refusal, through the notice path a real line takes.
         // Why: returning at all is the assertion, because a panic ends the whole test binary.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // writeTheWords(new AStreamThatRefuses(code), Buffer.from('a line\n'));
+        // sayOn(new AStreamThatRefuses(code), 'a line');
         // ```
         let mut refusing = AStreamThatRefuses {
             code,
         };
-        write_the_words(&mut refusing, b"a line\n");
+        say_on(&mut refusing, "a line");
     }
 }
 
@@ -1101,14 +1102,22 @@ impl Write for AStreamThatIsInterruptedOnce {
 /// and a loss here would be a line the stream was willing to take.
 #[test]
 fn a_wait_for_room_and_a_short_write_both_carry_the_whole_line() {
-    // What: the line every arm of this control writes.
-    // Why: it has to be read back whole.
+    // What: the line every arm of this control writes, without its line end.
+    // Why: the notice path adds the line end, so the text the stream should hold is this line plus one.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const line = 'mpm-shadow: one line\n';
+    // const line = 'mpm-shadow: one line';
     // ```
-    let line: &str = "mpm-shadow: one line\n";
+    let line: &str = "mpm-shadow: one line";
+    // What: what every arm's stream should hold: the line and the one line end the path adds.
+    // Why: an assertion against the line alone would pass with the line end missing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const words = `${line}\n`;
+    // ```
+    let words: String = format!("{line}\n");
     // What: the stream that refuses twice and then takes the bytes.
     // Why: this is a full pipe whose reader catches up.
     //
@@ -1120,17 +1129,17 @@ fn a_wait_for_room_and_a_short_write_both_carry_the_whole_line() {
         refusals: 2,
         taken: Vec::new(),
     };
-    // What: the write under test.
+    // What: the write under test, through the notice path.
     // Why: it has to end with the whole line taken.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // writeTheWords(waiting, Buffer.from(line));
+    // sayOn(waiting, line);
     // ```
-    write_the_words(&mut waiting, line.as_bytes());
+    say_on(&mut waiting, line);
     assert_eq!(
         waiting.taken,
-        line.as_bytes(),
+        words.as_bytes(),
         "the line arrived whole after two refusals that a wait cures"
     );
     // What: the stream that takes a quarter of the bytes per write.
@@ -1148,12 +1157,12 @@ fn a_wait_for_room_and_a_short_write_both_carry_the_whole_line() {
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // writeTheWords(slowly, Buffer.from(line));
+    // sayOn(slowly, line);
     // ```
-    write_the_words(&mut slowly, line.as_bytes());
+    say_on(&mut slowly, line);
     assert_eq!(
         slowly.taken,
-        line.as_bytes(),
+        words.as_bytes(),
         "the line arrived whole through writes that took a few bytes each"
     );
     // What: the stream whose first write is interrupted.
@@ -1167,17 +1176,17 @@ fn a_wait_for_room_and_a_short_write_both_carry_the_whole_line() {
         interrupted: false,
         taken: Vec::new(),
     };
-    // What: the write under test.
+    // What: the write under test, through the notice path.
     // Why: the line has to arrive despite the interrupt.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // writeTheWords(interrupted, Buffer.from(line));
+    // sayOn(interrupted, line);
     // ```
-    write_the_words(&mut interrupted, line.as_bytes());
+    say_on(&mut interrupted, line);
     assert_eq!(
         interrupted.taken,
-        line.as_bytes(),
+        words.as_bytes(),
         "the line arrived whole after an interrupt that took no bytes"
     );
 }

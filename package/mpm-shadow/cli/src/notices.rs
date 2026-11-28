@@ -122,15 +122,6 @@ const THE_LONGEST_PAUSE_BETWEEN_TWO_ATTEMPTS: Duration = Duration::from_millis(2
 /// export function say(line: string): void
 /// ```
 pub fn say(line: &str) {
-    // What: the line and its line end as one text, so one write carries both.
-    // Why: two writes let a stream take the line and refuse the newline, which joins the next output
-    //  to this line; one write cannot be split that way on a stream that answers atomically.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const words = `${line}\n`;
-    // ```
-    let words: String = format!("{line}\n");
     // What: `std::io::stderr()` borrows the process's standard error stream
     //  (the sibling `std::io::stdout()` is the other one).
     // Why: the notices belong on standard error, beside a command's failures,
@@ -141,14 +132,50 @@ pub fn say(line: &str) {
     // const standardError = process.stderr;
     // ```
     let mut standard_error = std::io::stderr();
+    // What: hands the line to the function below, which is where the text and the write live.
+    // Why: a control gives that function a stream of its own, so a plant in the text or the write is held
+    //  by a control and not only by reading.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // sayOn(standardError, line);
+    // ```
+    say_on(&mut standard_error, line);
+}
+
+/// What:
+/// `pub(crate) fn say_on(stream: &mut dyn Write, line: &str)` writes `line` and one newline into `stream`
+/// and drops whatever that write answered.
+/// Why:
+/// This is where a notice's text and its one write live,
+/// so a control can hand it a pipe another process filled or a stand-in that answers a chosen error,
+/// which the process's own standard error cannot be made to do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sayOn(stream: { write(b: Uint8Array): number }, line: string): void
+/// ```
+pub(crate) fn say_on(
+    stream: &mut dyn Write,
+    line: &str,
+) {
+    // What: the line and its line end as one text, so one write carries both.
+    // Why: two writes let a stream take the line and refuse the newline, which joins the next output
+    //  to this line; one write cannot be split that way on a stream that answers atomically.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const words = `${line}\n`;
+    // ```
+    let words: String = format!("{line}\n");
     // What: hands both to the one writer, which drops a refusal.
     // Why: the wait for a non-blocking stream and the handling of every error kind live in that one place.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // writeTheWords(standardError, words);
+    // writeTheWords(stream, words);
     // ```
-    write_the_words(&mut standard_error, words.as_bytes());
+    write_the_words(stream, words.as_bytes());
 }
 
 /// What:
@@ -199,14 +226,6 @@ pub fn report(text: &str) {
 /// export function reportLine(line: string): void
 /// ```
 pub fn report_line(line: &str) {
-    // What: the line and its line end as one text.
-    // Why: `report` writes text as given, so the newline is added here.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const words = `${line}\n`;
-    // ```
-    let words: String = format!("{line}\n");
     // What: `std::io::stdout()` borrows the process's standard output stream.
     // Why: one sentence of a command's result goes where its other lines go.
     //
@@ -215,14 +234,48 @@ pub fn report_line(line: &str) {
     // const standardOutput = process.stdout;
     // ```
     let mut standard_output = std::io::stdout();
+    // What: hands the line to the function below, which is where the text and the write live.
+    // Why: a control gives that function a stream of its own, as it does for a notice.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // reportLineOn(standardOutput, line);
+    // ```
+    report_line_on(&mut standard_output, line);
+}
+
+/// What:
+/// `pub(crate) fn report_line_on(stream: &mut dyn Write, line: &str)` writes `line` and one newline into
+/// `stream`
+/// and drops whatever that write answered.
+/// Why:
+/// This is where the line end is added to the line in one text, which is what keeps a stream from taking
+/// the line and refusing its end under a control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reportLineOn(stream: { write(b: Uint8Array): number }, line: string): void
+/// ```
+pub(crate) fn report_line_on(
+    stream: &mut dyn Write,
+    line: &str,
+) {
+    // What: the line and its line end as one text.
+    // Why: `report` writes text as given, so the newline is added here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const words = `${line}\n`;
+    // ```
+    let words: String = format!("{line}\n");
     // What: the one writer, with the same dropping rule.
     // Why: the same reason `say` gives: the stream cannot change what the command did.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // writeTheWords(standardOutput, words);
+    // writeTheWords(stream, words);
     // ```
-    write_the_words(&mut standard_output, words.as_bytes());
+    write_the_words(stream, words.as_bytes());
 }
 
 /// What:
