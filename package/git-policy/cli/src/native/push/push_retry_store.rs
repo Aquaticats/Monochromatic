@@ -332,9 +332,9 @@ fn names_the_branch(
 /// and gives its answer or the words it is refused with.
 /// Why:
 ///   Such a step lists a directory,
-/// reads records and writes or removes files,
+///  reads records and writes or removes files,
 /// and every one of those can wait in the kernel on a disk,
-/// a lock or a mount that stopped answering.
+///  a lock or a mount that stopped answering.
 /// The caller is a task of the runtime,
 /// and a task that made the call itself would hold the worker the runtime needs,
 /// where no timer can end its wait
@@ -388,7 +388,7 @@ struct PlanJournal {
 /// as a job of the blocking pool.
 /// Why:
 ///   `save` is storage,
-/// and the worker that decided a retry keeps the plan on it,
+///  and the worker that decided a retry keeps the plan on it,
 /// which is a task of the runtime.
 ///
 /// In TS you'd write (pseudocode):
@@ -415,7 +415,7 @@ pub async fn save_awaiting(
 /// as a job of the blocking pool.
 /// Why:
 ///   `remove` is storage,
-/// and the worker that decided the branch needs no new try runs it,
+///  and the worker that decided the branch needs no new try runs it,
 /// which is a task of the runtime.
 /// A removal that gave no answer is said by the caller,
 /// and the file stays for the next start either way.

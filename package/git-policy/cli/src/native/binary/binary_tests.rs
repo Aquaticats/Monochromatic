@@ -1283,8 +1283,7 @@ mod zfs_sweep_guest;
 
 /// Plan step 22's guest measurements:
 /// the add against ordinary Git,
-/// the
-/// waits,
+/// the waits,
 /// the sweep's cost,
 /// retention and the request budget.
 #[path = "binary_zfs_step_22_measurement_guest_tests.rs"]

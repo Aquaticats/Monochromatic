@@ -538,7 +538,7 @@ fn the_tracer() -> PathBuf {
 /// the control used to run anyway and report "no look saw the lock and its pid file",
 /// which named the holder's speed rather than the missing program
 /// (this host,
-/// 2026-11-25:
+///  2026-11-25:
 /// `doc/troubleshooting/git-policy-cli-cut-control-holds-a-tracer-the-stop-kills.md`,
 /// "A machine without the tracer").
 /// The answer is the one every traced control reads
@@ -547,7 +547,7 @@ fn the_tracer() -> PathBuf {
 /// naming the variable and the program,
 /// and a run that stated the absence gets the line that says this control did not run.
 /// A gate image that lost the program is red,
-/// not green with these controls unchecked;
+///  not green with these controls unchecked;
 /// the image installs `strace` (`native-test-base.Containerfile`).
 fn can_arrange_the_cut(
     kind: Holder,

@@ -1597,7 +1597,7 @@ fn the_record_folder_exists(common: &Path) -> bool {
 /// a fork of a process whose runtime threads are running loses the runtime's wake-up in the child,
 /// so a run that puts this control in a module-wide process finds the test after it waiting on a read for ever
 /// (measured on this host 2026-11-24:
-/// the module runs in 11.6 s without this control and stops after it with it).
+///  the module runs in 11.6 s without this control and stops after it with it).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

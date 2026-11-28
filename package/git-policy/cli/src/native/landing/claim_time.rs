@@ -141,7 +141,7 @@ fn is_lowercase_hex_digit(byte: &u8) -> bool {
 /// which is proof that the holder is gone.
 /// So the part must be in the spelling `read_boot_id` stores and `current_boot_id` answers,
 /// and a part in any other spelling (capitals,
-/// say) is no boot this reader can compare.
+///  say) is no boot this reader can compare.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

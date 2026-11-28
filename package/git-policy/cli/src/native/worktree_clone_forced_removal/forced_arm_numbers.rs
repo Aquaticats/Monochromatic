@@ -7,7 +7,7 @@
 //! Why:
 //!  The owner's answer fixes the order and leaves the length to a decision or a
 //!  measurement,
-//! and the design repeats it:
+//!  and the design repeats it:
 //!  "the wait's length is a constant with no value;
 //!  step 17's build sets it only after the owner decides one or M12 sizes it,
 //!  and the forced arm does not ship before then"
@@ -18,13 +18,13 @@
 //!  `doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`,
 //!  "The signal").
 //!  A number here would be a number no measurement supports,
-//! so this build
+//!  so this build
 //!  writes the constants as [Option]s that answer nothing,
 //!  and the one function that would arm a clock refuses while any of them is
 //!  unset.
 //!  The probe rounds ran their stand-in with provisional values of the harness's
 //!  own (10 s,
-//! 1 s and 4 s) and those are not these:
+//!  1 s and 4 s) and those are not these:
 //!  a harness value that a test reads is never a shipped one.
 //!
 //! In TS you'd write (pseudocode):

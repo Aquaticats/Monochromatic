@@ -915,18 +915,18 @@ fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_sock
 
 /// What:
 ///  A line the service cannot write at once is dropped,
-/// on a pipe as on the journal's stream,
-/// rather than waited for.
+///  on a pipe as on the journal's stream,
+///  rather than waited for.
 /// Why:
 ///   The audit of release 0.6.1-alpha.14 connected the commit service's standard error to a full FIFO and a landing was
 ///   held 7.35 s longer than real Git took,
-/// until the auditor's own script drained it;
-/// by reading,
-/// a `write_all` there
+///  until the auditor's own script drained it;
+///  by reading,
+///  a `write_all` there
 ///   waits for as long as nothing reads.
 ///   A service's standard error is a pipe,
-/// a FIFO or the journal,
-/// so every line of it is written the same way.
+///  a FIFO or the journal,
+///  so every line of it is written the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -7,11 +7,11 @@
 //!  and every word it answers with.
 //! Why:
 //!  Plan step 17 builds,
-//! with `--force`,
+//!  with `--force`,
 //!  "the ending of the holders other than the caller and its session,
-//! once the owed measurement shows it
+//!  once the owed measurement shows it
 //!  works;
-//! the identification of the caller and its session among the holders"
+//!  the identification of the caller and its session among the holders"
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17").
 //!  The design is
@@ -31,7 +31,7 @@
 //!  and by the constant that sizes its wait,
 //!  which ships with no value (`forced_arm_numbers.rs`).
 //!  A kind the evidence does not show is identified and refused,
-//! never ended.
+//!  never ended.
 //!
 //! Files in this folder,
 //! each using only files listed before it:

@@ -408,7 +408,7 @@ fn the_scan_finds_a_lock_in_text_that_has_one() {
 }
 
 /// A name imported inside a vertical `use` block is an import,
-/// not a lock,
+///  not a lock,
 ///  and the scan finds the lock again on the first line after the block closes.
 #[test]
 fn a_lock_word_inside_a_vertical_use_block_is_an_import() {

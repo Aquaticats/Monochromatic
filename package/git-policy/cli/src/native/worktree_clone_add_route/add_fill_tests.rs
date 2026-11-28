@@ -29,7 +29,7 @@ use std::path::PathBuf;
 /// Why:
 ///  A restore pointed at a private name that the publication removed would read
 ///  an empty index,
-/// so the state the publication leaves must be told from the
+///  so the state the publication leaves must be told from the
 ///  one before it.
 ///  The exchange is past the restore for the same reason.
 ///

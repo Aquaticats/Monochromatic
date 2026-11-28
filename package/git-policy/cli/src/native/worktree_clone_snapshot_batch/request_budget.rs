@@ -6,11 +6,11 @@
 //!  request's encoded input
 //! (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Removal and recovery",
-//! step 3),
+//!  step 3),
 //! and the value is measured rather than picked:
 //!  the plan's request budget is step 22's measurement
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//! step 22).
+//!  step 22).
 //!  A named type keeps the unit beside the number and keeps this piece from
 //!  shipping a limit of its own.
 //!  The design's words are "Budget for encoded inputs and per-name results":
@@ -18,13 +18,12 @@
 //! which starts a
 //!  write's reply at `max(256 KiB, twice the input)`
 //!  (`requests/reply.rs`,
-//! `initial_size`,
-//! after `libzfs_core`'s
-//!  `MAX(size * 2, 128 * 1024)`),
+//!  `initial_size`,
+//!  after `libzfs_core`'s `MAX(size * 2, 128 * 1024)`),
 //! and a per-name answer is one int32
 //!  per submitted name
 //! (`module/zfs/dsl_destroy.c:683` to `:686`,
-//! OpenZFS `zfs-2.4.4`),
+//!  OpenZFS `zfs-2.4.4`),
 //!  which is smaller than that name's own pair in the input list.
 //!  A name list that
 //!  fits therefore leaves a reply that can hold every name's failure,
@@ -32,7 +31,7 @@
 //!  budget bounds the direct route's input and its results together.
 //!  The root
 //!  route's program limits are a separate,
-//! unmeasured question the design names
+//!  unmeasured question the design names
 //!  and this route does not take.
 //!
 //! In TS you'd write (pseudocode):

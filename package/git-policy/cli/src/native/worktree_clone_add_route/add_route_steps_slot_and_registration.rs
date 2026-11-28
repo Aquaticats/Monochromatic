@@ -80,8 +80,7 @@ pub fn step_slot(
 /// Verify one existing slot:
 /// a directory of this account,
 /// empty,
-/// on the
-/// checkout's own dataset.
+/// on the checkout's own dataset.
 fn verify_the_slot(
     metadata: &std::fs::Metadata,
     slot: &Path,

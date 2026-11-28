@@ -174,7 +174,7 @@ fn one_socket_address_holds_a_name_of_the_longest_length_and_no_more() {
 ///  The number the prose states for the longest runtime directory a socket path carries is the one the function returns.
 /// Why:
 ///   Two places state it — this module's doc of `longest_runtime_directory` and `SPEC.md`,
-/// "Where the service listens" —
+///  "Where the service listens" —
 /// and a number in prose that no test holds drifted once already:
 /// the change that introduced the address forms first said 39 where the code gives 40.
 /// A control that reads both files makes the next drift fail the suite instead of a person.

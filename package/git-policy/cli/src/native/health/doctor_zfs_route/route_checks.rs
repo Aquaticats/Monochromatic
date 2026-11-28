@@ -151,9 +151,9 @@ use super::zfs_checks::{
 ///  gathered once.
 /// Why:
 ///  One clone's state,
-/// records,
-/// snapshots,
-/// origin and holders belong to one
+///  records,
+///  snapshots,
+///  origin and holders belong to one
 ///  value,
 ///  so no line can describe one clone's plan beside another clone's pool answer,
 ///  and a control changes one field and sees exactly one answer move.
@@ -362,7 +362,7 @@ pub fn route_checks(facts: &RouteFacts) -> Vec<CheckReport> {
 /// Why:
 ///  A repository can hold several managed clones,
 ///  and a plan,
-/// a registration or a holder belongs to one of them,
+///  a registration or a holder belongs to one of them,
 ///  so the lines are grouped per clone rather than mixed by check.
 ///
 /// In TS you'd write (pseudocode):

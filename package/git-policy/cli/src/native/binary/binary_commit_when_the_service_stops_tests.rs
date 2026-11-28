@@ -755,7 +755,7 @@ fn read_for(
 
 /// What:
 ///  A commit whose landing takes longer than the silence bound still lands,
-/// because the service says it is alive while it
+///  because the service says it is alive while it
 ///  works.
 /// Why:
 ///  The owner's bound is five seconds over native Git,
@@ -764,7 +764,7 @@ fn read_for(
 /// and a service that is landing says a beat every second
 /// (`HEARTBEAT_EVERY`).
 /// Measured on this host on 2026-11-12:
-/// the whole commit of 600 changed files took 4.7 s and a landing of 2,500 changed
+///  the whole commit of 600 changed files took 4.7 s and a landing of 2,500 changed
 /// files 52.8 s,
 /// so a commit of 1,600 of them waits longer than the silence bound for its landing.
 ///
@@ -908,7 +908,7 @@ fn a_service_that_wakes_after_the_failure_makes_no_commit() {
 /// a client waited 37,327 ms for a socket a dying instance still held,
 /// and 34 of its 35 connection tries were refused.
 /// The wait is bounded,
-/// and the connect to a socket nothing accepts on no longer waits in the kernel
+///  and the connect to a socket nothing accepts on no longer waits in the kernel
 /// (`CONNECT_CEILING`),
 /// so a client that finds such an instance ends at the start wait with words that name it,
 /// and its next run reaches the service that is there.
@@ -1076,19 +1076,19 @@ fn a_commit_killed_at_each_step_leaves_nothing_behind() {
 /// What:
 ///  A request line whose framing newline never arrived is refused by the real service:
 ///  nothing of it is read as a message,
-/// nothing is queued,
-/// the branch does not move,
+///  nothing is queued,
+///  the branch does not move,
 ///  and the service says so in its log;
-/// the same bytes with their newline are taken.
+///  the same bytes with their newline are taken.
 /// Why:
 ///  A client that gives up writing says the service never took the request,
 ///  and that is true only if the service refuses a line the client could not finish.
 ///  The review of this change sent a real 3,262-byte request without its newline to the real service binary
 ///  and the commit landed,
-/// twice,
-/// once after a full close;
+///  twice,
+///  once after a full close;
 ///  and the client's chunked write can leave exactly that stream,
-/// because a socket's buffers hold the whole
+///  because a socket's buffers hold the whole
 ///  JSON object and not the last newline.
 ///  The control first has the client send a real request to a stand-in that records it,
 ///  then puts the real service at the same address and sends the recorded line without its newline.

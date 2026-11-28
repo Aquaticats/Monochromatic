@@ -43,8 +43,7 @@ use std::ffi::OsString;
 /// What:
 ///  The two installed halves of one build:
 ///  the root-owned wrapper executable a caller and the boot unit start,
-/// and the
-///  ZED history event that starts its sweep mode.
+///  and the ZED history event that starts its sweep mode.
 /// Why:
 ///  ZED runs the event file as an executable,
 ///  so both are files,

@@ -9,7 +9,7 @@
 //!  one bounded failed-step word
 //!  (`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
 //!  "The refusal,
-//! and what it leaves",
+//!  and what it leaves",
 //!  and F24).
 //!  This design adds no key,
 //!  so the words are the whole answer and the holders the act ended are the

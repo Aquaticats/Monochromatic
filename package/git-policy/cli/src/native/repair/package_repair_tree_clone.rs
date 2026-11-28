@@ -109,7 +109,7 @@ pub(crate) async fn clone_tree_awaiting(
 /// Why:
 ///   The two faces of a clone differ only in whose work they are,
 /// so the walk,
-/// the slices and the modes are one account.
+///  the slices and the modes are one account.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

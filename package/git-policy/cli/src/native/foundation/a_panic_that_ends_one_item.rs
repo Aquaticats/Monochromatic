@@ -29,19 +29,19 @@ use std::task::Poll;
 
 /// What:
 ///  Await `work`,
-/// and answer its answer,
+///  and answer its answer,
 ///  or the words a panic in it left.
 /// Why:
 ///   The panic is caught at the poll boundary,
-/// so it never reaches the task that awaited the item:
+///  so it never reaches the task that awaited the item:
 /// the wave,
-/// the drain and the lane that ran it go on with their other items.
+///  the drain and the lane that ran it go on with their other items.
 /// A future that panicked is never polled again,
 /// and it is dropped when this call returns.
 /// The item's own future must be `Send`,
 /// because the wave and the lane that await it are tasks of the runtime.
 /// The payload is read by its own type,
-/// so the text `panic!` was given is the text the record carries.
+///  so the text `panic!` was given is the text the record carries.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

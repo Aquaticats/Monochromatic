@@ -4,7 +4,7 @@
 //! and endings that are the query's own.
 //! Why:
 //!  The bound is the helper's own promise,
-//! so two things must hold:
+//!  so two things must hold:
 //! a pipe some other process still holds cannot hold the answer past the bound,
 //! and the ending the answer reports is the last status the wait returned,
 //! which means a query killed by the helper's signal at the bound
@@ -301,8 +301,8 @@ fn a_query_that_ends_by_itself_keeps_its_own_ending() {
 }
 
 /// One query that writes,
-/// and ends,
-/// says what it wrote:
+///  and ends,
+///  says what it wrote:
 ///  the bound does not turn its output into nothing.
 #[test]
 fn a_query_that_ends_by_itself_keeps_its_output() {
