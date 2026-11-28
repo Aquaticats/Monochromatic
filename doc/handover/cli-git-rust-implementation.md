@@ -2832,10 +2832,6 @@ Before a release note is written,
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
-- Right as claimed:
-  41 commands compared between the two binaries,
-  identical but for the version line.
-
 What the linter's alpha.19 pass found:
 no High and no Medium finding,
 and both of alpha.18's Medium findings fixed
