@@ -1084,7 +1084,7 @@ a third of that.
 
 The library rebuild after the leaf edit peaked at 3275 MiB in its first run
 and 2812 MiB in its second,
-15.2% apart,
+16.5% apart,
 while every other control pair agrees within 2%.
 The two runs compiled the same one crate with the same flags,
 and the run with the higher peak also took 42% longer in wall
@@ -1097,7 +1097,7 @@ and the run that got the least processor time per second of wall reached the hig
 The five other runs without incremental data of that same unit
 sit between 2798 and 2855 MiB.
 So the peak is stable to about 2% when the host schedules a build the same way twice,
-and moves by up to 15% when it does not,
+and moves by up to 17% when it does not,
 which is the uncertainty to carry into a cap set from these numbers.
 
 ### Disk
