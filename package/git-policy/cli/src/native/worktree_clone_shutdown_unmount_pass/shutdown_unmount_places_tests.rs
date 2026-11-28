@@ -67,7 +67,8 @@ fn the_boot_identifier_is_read_without_its_newline() {
     );
 }
 
-/// A file that is not there refuses, and says which file.
+/// A file that is not there refuses,
+///  and says which file.
 #[test]
 fn a_missing_boot_identifier_refuses_and_names_the_file() {
     let places: ShutdownUnmountPlaces = fixture_places("shutdown-places-missing");

@@ -17,7 +17,8 @@
 //!  "Requests,
 //! results and ordering").
 //!  The unmount is the double's answer and the slot is a fixture folder,
-//!  so no control mounts, unmounts or reads `/run`.
+//!  so no control mounts,
+//!  unmounts or reads `/run`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,9 +39,6 @@ use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_answer::{
     ReachedMount,
 };
 use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_doubles::{
-    CLONE,
-    MOUNT_ID,
-    PARENT_MOUNT_ID,
     StatedCalls,
     StatedGuids,
     StatedHolders,
@@ -48,6 +46,11 @@ use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_doub
     StatedMounts,
     StatedWalk,
     StatedWorktrees,
+};
+use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_fixture_values::{
+    CLONE,
+    MOUNT_ID,
+    PARENT_MOUNT_ID,
     busy,
     clone_guid,
     fresh_lookup_of,
@@ -280,7 +283,9 @@ fn a_held_slot_is_left_to_the_holder() {
     );
 }
 
-/// A busy mount is kept, names its holders, and says what was not done.
+/// A busy mount is kept,
+///  names its holders,
+///  and says what was not done.
 #[test]
 fn a_busy_mount_is_kept_and_names_its_holders() {
     let mut world: World = world("unmount-busy");

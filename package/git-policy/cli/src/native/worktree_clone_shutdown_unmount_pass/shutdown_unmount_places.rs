@@ -127,7 +127,7 @@ impl ShutdownUnmountPlaces {
     /// or it holds nothing,
     /// because a boot identifier of no characters matches no record.
     pub(crate) fn this_boot(&self) -> Result<String, String> {
-        let text: String = std::fs::read_to_string(self.boot_identity.as_path()).map_err(
+        let text: String = crate::plain_file::read_plain_text(self.boot_identity.as_path()).map_err(
             |error| {
                 return format!(
                     "this boot's identifier could not be read from {} ({error}), so no readiness record could be told from another boot's and nothing was unmounted. Ways forward: run the mode where the kernel's boot identifier is readable, as the boot unit's `ExecStopPost` does",

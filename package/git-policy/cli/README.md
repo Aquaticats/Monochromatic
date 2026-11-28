@@ -2676,7 +2676,8 @@ and no command reaches it in this build:
 `zfs-root shutdown-unmount` still refuses,
 naming the step whose boot unit runs it,
 and the round that wires the mode calls the pass from there.
-What it does, in the order the design gives
+What it does,
+in the order the design gives
 (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 "Boot and shutdown unit"):
 
@@ -2685,7 +2686,8 @@ What it does, in the order the design gives
   so no attach is admitted after it;
 - it reads the same root-owned configuration the gate's own `ExecStart` read,
   so the mounts it looks at are the ones that pass made;
-- it takes, from this process's mount table,
+- it takes,
+  from this process's mount table,
   every standing mount of an immediate child of the configured clone container
   that stands at a slot of the configured checkout;
 - it proves each one before any kernel call:

@@ -80,9 +80,11 @@
 //!   its unmount and its busy answer.
 //! - `shutdown_unmount_turn.rs`:
 //!   the whole pass in the order the design gives.
-//! - `shutdown_unmount_pass_test_doubles.rs`:
-//!   the doubles the folder's value tests share,
-//!   and the one guest arm,
+//! - the folder's value tests,
+//!   one file beside each module and named for it,
+//!   and the two files they share,
+//!   `shutdown_unmount_pass_test_fixture_values.rs` and
+//!   `shutdown_unmount_pass_test_doubles.rs`,
 //!   which are never part of the release executable.
 //!
 //! In TS you'd write (pseudocode):
@@ -120,6 +122,11 @@ pub mod one_mounts_unmount;
 
 /// The whole pass in the design's order.
 pub mod shutdown_unmount_turn;
+
+/// The values the folder's value tests state,
+///  never part of the release executable.
+#[cfg(test)]
+pub(crate) mod shutdown_unmount_pass_test_fixture_values;
 
 /// The doubles the folder's value tests share,
 ///  never part of the release executable.

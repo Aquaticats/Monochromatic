@@ -1102,7 +1102,8 @@ the store opened under root control,
 one clone's GUID through the pool reader,
 and the all-namespace holder scan over this machine's `/proc`.
 
-Its claims, one `SHUTDOWN-UNMOUNT` marker each:
+Its claims,
+one `SHUTDOWN-UNMOUNT` marker each:
 
 - the idle clone's mount is unmounted,
   and the row the pool reports for it is gone;

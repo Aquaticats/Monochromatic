@@ -38,7 +38,7 @@ use std::path::{
 };
 
 /// Where the slots hang under a checkout.
-const SLOT_FOLDER_NAMES: [&str; 2] = [".claude", "worktrees"];
+const SLOT_FOLDER_NAMES: &[&str] = &[".claude", "worktrees"];
 
 /// What:
 ///  One mount the pass may look at:

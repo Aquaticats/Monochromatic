@@ -13,7 +13,8 @@
 //!  it leaves is one nothing may touch
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Boot and shutdown unit").
-//!  The rows are values, so no control reads a machine's own table.
+//!  The rows are values,
+//!  so no control reads a machine's own table.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -26,7 +27,7 @@ use super::{
     slot_path_of,
 };
 use crate::testing::test_support::fixture;
-use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_doubles::CONTAINER;
+use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_fixture_values::CONTAINER;
 use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasetInstance;
 use std::path::{
     Path,

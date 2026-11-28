@@ -1,5 +1,6 @@
 //! What:
-//!  Plan step 19's shutdown pass, driven as root against a real file-backed
+//!  Plan step 19's shutdown pass,
+//!  driven as root against a real file-backed
 //!  pool in a throwaway guest:
 //!  an idle clone's mount is unmounted,
 //!  a busy clone's mount is kept and its holder is named,
@@ -185,14 +186,17 @@ impl Holder {
     fn hold_a_file_in(slot_path: &Path) -> Holder {
         let file: PathBuf = slot_path.join("held-by-the-arm");
         std::fs::write(file.as_path(), b"the arm holds this\n").expect("the held file is written");
-        let mut child: Child = Command::new("sh")
+        let mut command: Command = Command::new("sh");
+        command
             .arg("-c")
             .arg("exec 3<\"$1\"; echo ready; sleep 600")
             .arg("sh")
             .arg(file.to_str().expect("the file path is text"))
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("the holding child starts");
+            .stdout(Stdio::piped());
+        // The child is this test's to end, so it is started through the target's own owner and ended however the
+        // assertions below go.
+        let mut child: Child =
+            super::support::spawn_owned(&mut command).expect("the holding child starts");
         // The child is ready once it has the file open, which it does before it
         // prints anything; a read of the pipe waits for the arm's own line so no
         // sleep guesses at it.

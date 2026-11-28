@@ -11,7 +11,8 @@
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 19,
 //!  "Acceptance tests").
-//!  The values are built here, so no control reads a machine.
+//!  The values are built here,
+//!  so no control reads a machine.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -150,7 +151,8 @@ fn the_summary_counts_every_ending_and_says_no_intent_changed() {
     );
 }
 
-/// The unmounted line names the slot, the clone and the mount.
+/// The unmounted line names the slot,
+///  the clone and the mount.
 #[test]
 fn the_unmounted_line_names_the_slot_the_clone_and_the_mount() {
     let outcome: PassOutcome = PassOutcome {
@@ -188,7 +190,9 @@ fn the_held_line_names_its_holders_and_says_nothing_was_forced() {
     };
     let line: String = outcome.lines()[1].clone();
     assert!(
-        line.contains("the all-namespace scan named `mnt:[4026532001]` read through /proc/1234 with 2 mount(s) of it (3 read(s) it could not complete)"),
+        line.contains(
+            "the all-namespace scan found 1 mount(s) of it in this process's own mount namespace and named `mnt:[4026532001]` read through /proc/1234 with 2 mount(s) of it (3 read(s) it could not complete)"
+        ),
         "the line names the holder and the incompletes, and this one says {line}"
     );
     assert!(

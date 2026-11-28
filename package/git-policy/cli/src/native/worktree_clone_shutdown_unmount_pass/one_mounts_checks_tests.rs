@@ -19,7 +19,8 @@
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Descriptor mount and unmount").
 //!  The slot is a real folder of the test's fixture and every call is a stated
-//!  answer, so no control mounts or unmounts anything.
+//!  answer,
+//!  so no control mounts or unmounts anything.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -33,12 +34,14 @@ use crate::testing::test_support::fixture;
 use crate::worktree_clone_mount::FreshSlotLookup;
 use crate::worktree_clone_mount::clone_folder_identity::CloneFolderIdentity;
 use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_doubles::{
-    CLONE,
-    MOUNT_ID,
-    PARENT_MOUNT_ID,
     StatedCalls,
     StatedLookups,
     StatedWalk,
+};
+use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_fixture_values::{
+    CLONE,
+    MOUNT_ID,
+    PARENT_MOUNT_ID,
     fresh_lookup_of,
     identity_of,
     mount_row,

@@ -14,7 +14,8 @@
 //!  do not change durable intent"
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Boot and shutdown unit").
-//!  A control reads a mount table it states, a walk and an unmount it states,
+//!  A control reads a mount table it states,
+//!  a walk and an unmount it states,
 //!  a readiness record in a fixture folder and a configuration in a fixture
 //!  file,
 //!  so nothing here reads `/run`,
@@ -43,9 +44,6 @@ use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_answer::{
     PassOutcome,
 };
 use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_doubles::{
-    CLONE,
-    MOUNT_ID,
-    PARENT_MOUNT_ID,
     StatedCalls,
     StatedGuids,
     StatedHolders,
@@ -53,6 +51,11 @@ use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_doub
     StatedMounts,
     StatedWalk,
     StatedWorktrees,
+};
+use crate::worktree_clone_shutdown_unmount_pass::shutdown_unmount_pass_test_fixture_values::{
+    CLONE,
+    MOUNT_ID,
+    PARENT_MOUNT_ID,
     clone_guid,
     fresh_lookup_of,
     identity_of,
