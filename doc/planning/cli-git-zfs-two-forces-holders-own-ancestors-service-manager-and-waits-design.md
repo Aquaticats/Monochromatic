@@ -276,7 +276,7 @@ each with what answered it:
   the recipe's build at `/opt/openzfs-2.4.4`),
   systemd 259,
   accounts `root`,
-  `ubuntu` and `holder2`.
+  `ubuntu` and a second account.
   `keep/arm-stack.log`.
 - **This machine**,
   for the control-group readings only:
@@ -869,13 +869,19 @@ the never-end set is the tasks in that unit's control group,
 and a line whose last component names no unit refuses.
 
 Read on this machine (`keep/arm-cgroups.log`):
-a command this project's agents run carries
-`0::/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash`,
-which names no unit,
+a command this Pi run starts carries
+`0::/user.slice/user-1000.slice/user@1000.service/app.slice/<the run's unit>.service`,
+so its identity is the run's own unit,
 and one run under `systemd-run --user --scope` carries a line that ends
 `.scope` and holds only that command and its children.
-So a forced removal from this harness's own Bash tool refuses under decision 6,
-and the person runs it under a scope.
+The gate read of 2026-11-28 read one more shape on the same machine,
+and its probe line is kept
+(`keep/probe-this-bash-cgroup-line-and-the-default-stop-timeout.txt`):
+a Claude Code Bash command carried `0::/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash`,
+which names no unit at all.
+So a forced removal from that harness's Bash tool refuses under decision 6,
+a Pi run's command takes the run's own unit as its set,
+and either way the person who wants a smaller set runs it under a scope.
 
 What the refusal's reason still protects after the change:
 the removal never ends the manager,
@@ -1036,7 +1042,7 @@ which is why it ranks last.
   The guest this round could make ran kernel `7.0.0-28-generic`,
   OpenZFS 2.4.4 (the recipe's build) and systemd 259,
   as root,
-  `ubuntu` and `holder2`.
+  `ubuntu` and a second account.
   So one of the four matches,
   and each reading carries all four.
 - **systemd 262**:
@@ -1344,12 +1350,17 @@ so the arm says
 nothing about a write to a terminal that has died.
 
 **`cgroups`**,
-this machine's own control-group lines (`keep/arm-cgroups.log`):
+this machine's own control-group lines:
 `0::/user.slice/user-1000.slice/user@1000.service/app.slice/<this run's unit>.service` for a
 command this Pi run starts,
-`0::/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash` for a Claude Code
-Bash command,
-and `.../agent.slice/agent-work.slice/run-<token>.scope` under a scope.
+and `.../agent.slice/agent-work.slice/run-<token>.scope` under a scope
+(`keep/arm-cgroups.log`).
+The Claude Code shape,
+`.../app.slice/claude-code-bash`,
+is the gate read's own probe line,
+kept as `keep/probe-this-bash-cgroup-line-and-the-default-stop-timeout.txt`,
+and this round did not read it
+itself.
 
 ### The four proposed values
 
@@ -1422,7 +1433,7 @@ with its working directory or an open file inside
 it.
 Your account cannot signal that process:
 this round measured that a pin from `ubuntu` to a
-`holder2` task answers `EPERM` (`keep/arm-other-account.log`).
+task of a second account answers `EPERM` (`keep/arm-other-account.log`).
 The clone stays busy and the removal stops.
 
 **Option A,
@@ -1816,10 +1827,12 @@ that unit's tasks are the never-end set;
 a line whose last component names no unit refuses.
 Read on this machine (`keep/arm-cgroups.log`):
 a Pi run's own command carries
-`0::/user.slice/user-1000.slice/user@1000.service/app.slice/<the run's unit>.service`;
-a Claude Code Bash command carries `.../app.slice/claude-code-bash`,
-which names no unit;
+`0::/user.slice/user-1000.slice/user@1000.service/app.slice/<the run's unit>.service`,
 and a command under `systemd-run --user --scope` carries `.../run-<token>.scope`.
+The gate read's own probe,
+kept beside this round's logs,
+read `.../app.slice/claude-code-bash` for a Claude Code Bash command,
+which names no unit.
 What you see:
 the removal runs where it refused before;
 the report names the unit it was started from.
