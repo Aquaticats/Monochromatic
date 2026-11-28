@@ -25,6 +25,50 @@ They are listed in the order this page takes them,
 and each needs only answers that come before it,
 except that decision 4 and decision 5 are one answer in two parts and are asked together.
 
+- Decision 1,
+  the hold:
+  still governs,
+  governs today's findings only,
+  or lifted.
+- Decision 2a:
+  may a break whose next line opens a code span,
+  an emphasis span,
+  a link or an image go unreported.
+  `25,355` breaks of the class are of this kind.
+- Decision 2b:
+  may a break whose next line opens a parenthesis go unreported.
+  `37,033` breaks of the class are of this kind.
+- Decision 2c:
+  may a break whose next line opens one of 31 listed conjunctions or subordinators go unreported.
+  `19,749` breaks of the class are of this kind.
+- Decision 2d:
+  may a break whose line before it ends in a dash go unreported.
+  `20` breaks of the class are of this kind.
+- Decision 2e:
+  may a break whose line ends in a closing bracket or quote go unreported.
+  `9,603` breaks of the class are of this kind,
+  and their split among the five predicates is not counted.
+- Decision 3,
+  the bound a join uses:
+  the host line's,
+  the line the rule sees,
+  or none.
+- Decision 4,
+  which of five predicates reports the class.
+- Decision 5,
+  what mechanism repairs the breaks already in the tree.
+- Decision 6,
+  which release first reports the class.
+- Decision 7,
+  whether a repair fix would run under the repository's format task.
+- Decision 8,
+  which files the first repair round covers,
+  if it would not.
+- Decision 9,
+  whether the class has a rule id of its own or shares the existing one.
+- Decision 10,
+  at which severity the class first reports.
+
 Which to answer first:
 decision 1,
 then 2a to 2e,
@@ -82,50 +126,6 @@ which decision 8 sets.
 
 A kind is a group of these breaks by what the next line opens with,
 and decisions 2a to 2e ask about one kind each.
-
-- Decision 1,
-  the hold:
-  still governs,
-  governs today's findings only,
-  or lifted.
-- Decision 2a:
-  may a break whose next line opens a code span,
-  an emphasis span,
-  a link or an image go unreported.
-  `25,355` breaks of the class are of this kind.
-- Decision 2b:
-  may a break whose next line opens a parenthesis go unreported.
-  `37,033` breaks of the class are of this kind.
-- Decision 2c:
-  may a break whose next line opens one of 31 listed conjunctions or subordinators go unreported.
-  `19,749` breaks of the class are of this kind.
-- Decision 2d:
-  may a break whose line before it ends in a dash go unreported.
-  `20` breaks of the class are of this kind.
-- Decision 2e:
-  may a break whose line ends in a closing bracket or quote go unreported.
-  `9,603` breaks of the class are of this kind,
-  and their split among the five predicates is not counted.
-- Decision 3,
-  the bound a join uses:
-  the host line's,
-  the line the rule sees,
-  or none.
-- Decision 4,
-  which of five predicates reports the class.
-- Decision 5,
-  what mechanism repairs the breaks already in the tree.
-- Decision 6,
-  which release first reports the class.
-- Decision 7,
-  whether a repair fix would run under the repository's format task.
-- Decision 8,
-  which files the first repair round covers,
-  if it would not.
-- Decision 9,
-  whether the class has a rule id of its own or shares the existing one.
-- Decision 10,
-  at which severity the class first reports.
 
 The three marks,
 each part of a label naming one,
