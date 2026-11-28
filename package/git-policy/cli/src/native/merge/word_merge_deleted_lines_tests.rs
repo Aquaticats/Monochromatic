@@ -2,14 +2,17 @@
 //! the union of the two deletions,
 //! a generated search for a correct merge of lines that repeat
 //! that the rule keeping a line one side deleted out of a merge refuses,
-//! and a generated search for an answer past what both sides hold,
-//! with the cases the alpha.49 release review found it in.
+//! a generated search for an answer past what both sides hold,
+//! with the cases the alpha.49 release review found it in,
+//! and the margin of the copies bound,
+//! where exactly one side wrote more copies of a line than the base held.
 
 use super::{
     keeps_a_deleted_line,
     line_body,
     line_counts,
     lines,
+    writes_past_the_copies_the_sides_leave,
 };
 use crate::merge::word_merge::{
     WordMerge,
@@ -858,5 +861,79 @@ fn the_answer_of_regions_a_side_left_as_it_was_keeps_both_sides() {
     assert!(
         text.contains("<<<<<<< ours\n") && text.contains(">>>>>>> theirs\n"),
         "the file a carried layer keeps shows both sides: {text}"
+    );
+}
+
+/// The line the margin's region writes once in the base and twice on one side,
+///  keyed as the bound counts a line by its text without its line end.
+const THE_LINE_ONE_SIDE_WRITES_TWICE: &str = "dup";
+
+/// What:
+///  An answer that holds as many copies of a line as the side that wrote more copies holds
+///  is not refused, where the other side left that line as it was held.
+/// Why:
+///   Exactly one side wrote more copies of the line than the base held,
+///  so the bound is that side's count and never the count of the side that holds fewer
+///  (`writes_past_the_copies_the_sides_leave`,
+///  `ours_held.max(theirs_held)`).
+///  Both sides changed a line of this region,
+///  so this is a region Git's own line merge leaves and the pass reads:
+///  the base writes the line once,
+///  this side wrote a second copy, and the other side changed another line of the same region.
+///  The second pass of the alpha.51 release found no control that reaches that end of the bound,
+///  and its own 33 built cases all ended in a conflict,
+///  so an edit that read the bound as the smaller of the two counts stayed green.
+#[test]
+fn an_answer_holding_the_copies_the_side_that_wrote_more_holds_is_not_refused() {
+    let base: &[u8] = b"top\ndup\nbottom\n";
+    let ours: &[u8] = b"top\ndup\ndup\nbottom\n";
+    let theirs: &[u8] = b"top line\ndup\nbottom\n";
+    let WordMerge::Resolved {
+        merged,
+        ..
+    } = merge_by_word(base, ours, theirs)
+    else {
+        panic!("both sides changed a different line, so this region resolves")
+    };
+    assert_eq!(
+        String::from_utf8_lossy(merged.as_slice()),
+        "top line\ndup\ndup\nbottom\n",
+        "the answer holds this side's second copy and the other side's own line"
+    );
+    let copies = |text: &[u8]| {
+        return count_bodies(text)
+            .get(THE_LINE_ONE_SIDE_WRITES_TWICE.as_bytes())
+            .copied()
+            .unwrap_or(0);
+    };
+    let in_base: usize = copies(base);
+    let ours_held: usize = copies(ours);
+    let theirs_held: usize = copies(theirs);
+    let held: usize = copies(merged.as_slice());
+    assert!(
+        ours_held > in_base && theirs_held <= in_base,
+        "exactly this side wrote more copies of the line than the base held: \
+         {in_base} in the base, {ours_held} here, {theirs_held} there"
+    );
+    assert_eq!(
+        held, ours_held,
+        "the answer holds the copies the side that wrote more holds"
+    );
+    assert!(
+        held > theirs_held,
+        "and more copies than the side that holds fewer of them holds"
+    );
+    assert!(
+        !writes_past_the_copies_the_sides_leave(base, ours, theirs, merged.as_slice()),
+        "the bound is that side's count, so this answer is inside it"
+    );
+    // The bound can refuse at all: one copy past that side's count is past it.
+    let mut one_more: Vec<u8> = merged.clone();
+    one_more.extend_from_slice(
+        format!("{THE_LINE_ONE_SIDE_WRITES_TWICE}\n").as_bytes(),
+    );
+    assert!(
+        writes_past_the_copies_the_sides_leave(base, ours, theirs, one_more.as_slice()),
+        "one copy more than the side that wrote more holds is past the bound"
     );
 }
