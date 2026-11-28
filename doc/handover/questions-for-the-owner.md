@@ -18,116 +18,7 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Open: what a ZFS removal does at a person's lock, at a plan it cannot read and at a staged clone, with one pick beside them (recorded 2026-11-28T05:17:09-05:00)
-
-The round that answered the lock question merged on 2026-11-28 as `2d5f167ae9`.
-Its control showed that on `main` a `git worktree remove` of a ZFS slot under a lock a person wrote
-sent the clone's snapshot request,
-the head destroy and the origin snapshot's request,
-and only then met the lock.
-The removal now reads the lock before its first write.
-What it built and measured is in `package/git-policy/cli/SPEC.md`,
-"Removal of a ZFS worktree clone".
-
-### Two forces at a person's lock
-
-A person ran `git worktree lock --reason 'keep this' <slot>` on a ZFS worktree,
-and someone then runs `git worktree remove --force --force <slot>`.
-In Git alone two forces drop a locked registration and leave the files.
-Here the removal destroys the clone and its own snapshots.
-
-- 1:
-  every spelling refuses,
-  two forces among them,
-  and the sentence names `git worktree unlock <slot>` as the way on.
-  The wrapper reads the lock file before it claims the slot,
-  compares its words with the sentence this add wrote,
-  and stops when they differ;
-  nothing is unmounted,
-  destroyed or written.
-  A person who means it types `git worktree unlock <slot>` and then the removal:
-  two commands.
-  This is what is built.
-- 2:
-  two forces pass.
-  The wrapper deletes the person's lock file itself and then destroys the clone.
-  One command,
-  with Git's own meaning of two forces;
-  the lock's one confirmation is gone,
-  and the function that never removes a lock it cannot attribute to this add would have to.
-- 3:
-  a spelling of the wrapper's own,
-  `--no-enforce-…`,
-  that says "and the lock too".
-  The wrapper would read that option,
-  delete the lock and destroy the clone.
-  One command;
-  it adds an option to a Git command whose grammar is Git's,
-  where `git worktree unlock` already says the same.
-
-Ranking:
-1 > 3 > 2.
-1 over 3:
-both keep a person's lock from being passed by habit,
-and 1 does it with a command Git already has.
-3 over 2:
-3 asks for a spelling nobody types by reflex,
-and 2 gives the destruction to the spelling Git's own refusal suggests.
-
-### A slot whose destruction plan does not read
-
-A removal was killed part way and its plan file is damaged.
-Today such a slot is left to Git:
-`git worktree remove` drops the registration and the slot folder,
-and the clone and the damaged plan stay.
-The owner's answer of 2026-11-26 named three refusals "and no more",
-and this is not one of them.
-
-- 1:
-  leave it to Git,
-  as now.
-  The wrapper classes the slot as a reading it cannot prove and answers nothing.
-  A clone stays on the pool with no registration,
-  which `doctor` reports.
-- 2:
-  refuse the removal there too,
-  naming the plan file and `git monochromatic-git-policy-cli settle-worktree-clone-record`.
-  The wrapper would add this reading to the ones that refuse.
-  Nothing is dropped until a person has settled the plan;
-  it is a fourth refusal beside the three the owner named.
-
-Ranking:
-2 > 1.
-Both destroy nothing;
-2 keeps the registration that says where the clone belongs,
-and 1 leaves a clone nothing points at.
-
-### A clone mounted at the staging folder, with no plan
-
-- 1:
-  leave it to Git,
-  as now:
-  the registration and the slot folder go,
-  and the clone stays mounted at the staging folder.
-- 2:
-  refuse the removal,
-  naming `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
-  which is the command the cancellation design gives for putting the mount back.
-- 3:
-  take the slot and let the removal's own unmount request run.
-  No record says what that request does to a clone already at the staging folder,
-  so this one needs a guest measurement before it could be built.
-
-Ranking:
-2 > 1 > 3.
-2 over 1:
-2 names the command that repairs the state,
-and 1 leaves it for `doctor` to find.
-1 over 3:
-3 could destroy snapshots while the mount still stands,
-and nothing has measured it.
-
-### The pick the session made, with the veto open
+## A pick on the check before a command, veto open (recorded 2026-11-28T05:17:09-05:00)
 
 The check before a command is wired with the nudge's switch off
 (`fcaea34f36`),
@@ -357,11 +248,23 @@ Taken on 2026-11-28 by the coordinating session's pick,
 with the owner's veto open:
 the third way,
 because it alone changes no signature and keeps the notice said when it is said today.
-A round builds it
-(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
-started at 2026-11-28T03:13:06-05:00),
-and it stops and reports if the third way turns out to change a signature,
-a behaviour or the moment the notice is said.
+It is built and on `main` since 2026-11-28T05:54:10-05:00
+(merge `74f34f6af9`).
+No signature changed,
+and the notice is said from the same place,
+on the same thread,
+once:
+the queue's own wait says it through a function its policy names,
+which is how the queue's file names no diagnostic file.
+A control written before the change holds the notice's words,
+its moment and that it is said once,
+and was shown red by a plant.
+The folder's three file-loop lines left the allow list,
+and `lines_written_by_a_thread.rs` is split in three.
+On 2026-11-28 the owner chose "Keep it as built (Recommended)",
+so the veto is closed
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The foundation folder's last file loop").
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
@@ -394,7 +297,6 @@ Ranking:
 3 > 1 > 2.
 3 beats 1 because it alone keeps the notice said when it is said today without changing a signature.
 1 beats 2 because a returned answer is more local than a flag another file has to take.
-`foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
 ### What a landing writes for a path it has not read (issue 6566)
 

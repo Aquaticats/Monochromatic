@@ -34,6 +34,8 @@
 //! - `registration_home.rs`:
 //!   the folder,
 //!   the four name forms and the plan folder.
+//! - `registration_gitdir.rs`:
+//!   the path one registration's `gitdir` file names.
 //! - `add_state_commands.rs`:
 //!   the command each state names.
 //! - `binding_bound.rs`:
@@ -104,6 +106,7 @@ pub mod plan_folder_read;
 pub mod record_publication;
 pub mod record_refusal;
 pub mod registration_finder;
+pub(crate) mod registration_gitdir;
 pub mod registration_home;
 pub mod registration_recipe;
 pub mod registration_removals;
