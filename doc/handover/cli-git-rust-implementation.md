@@ -2944,14 +2944,6 @@ and the two `truepeak` files wait on their branch.
   neither is released,
   because the standing answer on alphas does not name them
   (`doc/handover/questions-for-the-owner.md`).
-- A check scope's last counters keep every part they read (`07f9232af0`,
-  issue 6610).
-  The kernel takes a dying control group's files away one at a time before its directory,
-  so a reading can lose `pids.events` while `pids.peak` still answers;
-  one real dying scope read 144 times gave one such reading.
-  The runner kept that reading in place of a whole one,
-  which is why `native:ts-checks` could miss saying that a bound and not a test had failed.
-  The record is `doc/troubleshooting/a-cgroup-gives-its-files-up-one-at-a-time-before-its-directory-goes.md`.
 - Two verification-process unit tests wait for their child by the record it writes (`3dbb56c5a6`,
   issue 6608),
   and arm the bound they assert only then;
