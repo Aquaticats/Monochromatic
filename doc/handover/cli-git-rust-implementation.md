@@ -1046,7 +1046,10 @@ Unapproved and non-final.
   go past a plan that cannot be read and destroy a clone the wrapper cannot prove;
   one force passes the plan and a clone at the staging folder;
   without force those two states now refuse.
-  It also closes a defect the released `0.6.1-alpha.53` carries:
+  By that round's reading of the source,
+  held by a control on the value layer
+  and never run against the released binary or a real pool,
+  it also closes a defect the released `0.6.1-alpha.53` carries:
   nothing read the files at a bound slot,
   so a slot whose worktree held modified or untracked files had its clone destroyed with no force.
   Its picks are in `doc/handover/questions-for-the-owner.md`.

@@ -5116,7 +5116,10 @@ whose scratch expires a day after its last change:
   so a person has no way out of that state in this build;
 - a worktree with modified or untracked files refuses without force and passes one force,
   which is Git's own gradation.
-  Before this merge the clone was destroyed with no force at all;
+  Before this merge,
+  by the round's reading of the source and its control on the value layer,
+  the clone was destroyed with no force at all;
+  no run against the released binary or a real pool shows it yet;
 - the bookmark rule is waived whenever a force was given,
   and the report names each bookmark that went;
 - a spelling Git itself refuses counts as no force;
