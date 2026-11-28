@@ -40,6 +40,7 @@ import {
 import {
   guest,
 } from '../bin/mvm-guest-script.ts';
+import { buildDetached, } from './slot-state-guest-build.ts';
 import {
   guestDriverOptions,
   type GuestDriverOptions,
@@ -51,23 +52,11 @@ import {
 import {
   shellQuote,
 } from '../bin/mvm-guest-command-line.ts';
-import {
-  awaitDetachedGuestScript,
-  startDetachedGuestScript,
-} from '../bin/mvm-guest-detached-script.ts';
 
 /**
  Where the crate is unpacked and built inside the guest, which every account may traverse.
  */
 const CRATE_DIR = '/opt/git-policy-cli-slot-state';
-/**
- The log the guest's own build writes into the shared folder, which the host reads its status from.
- */
-const BUILD_LOG = 'slot-state-crate-build.log';
-/**
- Milliseconds the host waits past the build's own bound, so the guest can write the status line the host reads.
- */
-const BUILD_FINISH_MARGIN_MS = 180_000;
 /**
  Milliseconds the guest's build of the test target may take.
  */
@@ -277,17 +266,11 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
   // The build takes minutes (6m 07s on 2026-11-27), and a guest agent can lose a long command's result
   // (`doc/troubleshooting/mvm-guest-agent-forgets-a-long-commands-result.md`), so it runs detached and writes the line
   // that says how it ended into its own log, which the host waits for and pulls.
-  await startDetachedGuestScript({
+  await buildDetached({
     chosen,
     script: prepareBuild,
-    log: BUILD_LOG,
+    log: 'slot-state-crate-build.log',
     timeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS,
-    nameCheck: 'launcher',
-  },);
-  await awaitDetachedGuestScript({
-    chosen,
-    log: BUILD_LOG,
-    finishTimeoutMilliseconds: CRATE_BUILD_TIMEOUT_MS + BUILD_FINISH_MARGIN_MS,
   },);
   /**
    The guest's own script: run the arm, refuse a returned one, and copy its log to the shared folder.

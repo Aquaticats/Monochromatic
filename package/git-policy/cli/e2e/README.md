@@ -1236,9 +1236,10 @@ where a step's duration is its whole step:
   with a bound of 1,800 s.
   Its whole `run` took 697 s,
   of which the build is 691 s.
-- `e2e/slot-state-and-move-refusal-guest.ts:310` is the slot-state arm,
+- `e2e/slot-state-and-move-refusal-guest.ts:297` is the slot-state arm,
   with a bound of 1,800 s;
-  its build runs detached (`e2e/slot-state-and-move-refusal-guest.ts:276`),
+  its build runs detached (`e2e/slot-state-and-move-refusal-guest.ts:269`,
+  through `e2e/slot-state-guest-build.ts`),
   since it took 6m 07s on 2026-11-27.
   Its whole `run` took 371 s,
   of which the build is 367 s.
