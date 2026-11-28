@@ -50,6 +50,9 @@ impl Fixture {
             }
             std::fs::write(path.as_path(), text.as_bytes()).expect("one fixture file");
         }
+        if !self.something_changed() {
+            return;
+        }
         self.git(&["add", "--all"]);
         self.git(&[
             "-c",
@@ -64,6 +67,20 @@ impl Fixture {
         ]);
     }
 
+    /// What:
+    ///  Whether the checkout holds anything Git would commit.
+    /// Why:
+    ///  Two arms prepare the same state,
+    ///  and an arm that writes the bytes another arm already committed has
+    ///  nothing to commit,
+    ///  which Git refuses rather than accepting an empty commit.
+    fn something_changed(&self) -> bool {
+        let status: String =
+            String::from_utf8_lossy(self.git(&["status", "--porcelain"]).stdout.as_slice())
+                .to_string();
+        return !status.is_empty();
+    }
+
     /// Take a tracked path away and commit the removal.
     pub(super) fn forget(
         &self,
@@ -76,6 +93,9 @@ impl Fixture {
         for relative in paths {
             let path: PathBuf = self.root.join(relative);
             let _removed: std::io::Result<()> = std::fs::remove_file(path.as_path());
+        }
+        if !self.something_changed() {
+            return;
         }
         self.git(&["add", "--all"]);
         self.git(&[
