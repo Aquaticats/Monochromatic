@@ -195,7 +195,7 @@ pub(crate) fn continuation_indent(
     let indentation: usize = rest.len() - rest.trim_start_matches([' ', '\t']).len();
     let written: &str = &rest[..indentation];
     // A quote or list marker is written again by the paragraph's own depth, never copied from a later line.
-    if !base.chars().all(|character| character == ' ') {
+    if !base.chars().all(|character| return character == ' ') {
         return base;
     }
     let Some(own): Option<&str> = written.strip_prefix(base.as_str()) else {

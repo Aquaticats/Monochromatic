@@ -82,6 +82,15 @@ pub struct MarkdownSource {
     pub source: String,
     /// Whether MDX syntax was enabled for this input.
     pub mdx: bool,
+    /// What:
+    ///  The characters the host file writes before each line of this source,
+    ///  when this source is a projection of that host.
+    /// Why:
+    ///  A rule that bounds the length of a line it writes counts the line the reader meets,
+    ///  which is the host's: a Rust doc comment's marker and indent stand before the text,
+    ///  and a physical Markdown file writes nothing before it.
+    ///  The bound is the widest prefix of the projection, so no written line passes the limit at any depth.
+    pub host_prefix_chars: usize,
     /// Parsed tree;
     ///  string and type-data reads stay behind this module's methods.
     arena: Arena<Mdast>,
@@ -167,6 +176,7 @@ impl MarkdownSource {
             filename,
             source,
             mdx,
+            host_prefix_chars: 0,
             arena,
             bom,
             positions,
@@ -174,6 +184,24 @@ impl MarkdownSource {
             visible_nodes: traversal.visible,
             parents: traversal.parents,
         });
+    }
+
+    /// What:
+    ///  Record how many characters the host writes before a line of this projection.
+    /// Why:
+    ///  Only the caller that built the projection knows its host's prefix,
+    ///  and a rule bounding a written line must count that prefix.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// source.withHostPrefixChars(chars);
+    /// ```
+    pub fn with_host_prefix_chars(
+        mut self,
+        host_prefix_chars: usize,
+    ) -> MarkdownSource {
+        self.host_prefix_chars = host_prefix_chars;
+        return self;
     }
 
     /// Borrow the validated rule-visible traversal.

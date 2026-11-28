@@ -625,6 +625,12 @@ mod known_content;
 #[path = "binary_event_path_commit_tests.rs"]
 mod event_path_commit;
 
+/// The step each `final-newline` hint names,
+/// run through the built executable in a fixture,
+/// with the bytes that result read back.
+#[path = "binary_final_newline_hint_steps_tests.rs"]
+mod final_newline_hint_steps;
+
 /// `mono/catalog-specifiers` through real commits and direct checks,
 /// and the repository's own configuration.
 #[path = "binary_catalog_specifiers_tests.rs"]

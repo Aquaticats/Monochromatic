@@ -1,5 +1,6 @@
 //! What:
-//!  The settling command a state names and this release does not have yet:
+//!  The settling command a state names,
+//!  which this release's management grammar admits:
 //!  `git monochromatic-git-policy-cli settle-worktree-clone-record <slot>
 //!  --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal
 //!  digits of cloneGuid=>`.
@@ -15,11 +16,8 @@
 //!  its two modes and its refusal is
 //!  `doc/planning/cli-git-zfs-add-binding-record-design.md`,
 //!  "The settling command" and its veto entries V21 and V23.
-//!  This folder is built ahead of the plan's order and is wired by no command:
-//!  the round that switches removal on adds the command to the management
-//!  grammar and names it in every sentence that names it today
-//!  (`doc/decision/zfs-route-later-pieces-built-ahead-unwired-and-up-to-64-rounds-at-once.md`,
-//!  "Building later pieces ahead of the plan's order").
+//!  This release's management grammar admits the command,
+//!  and the sentences that name it send a person to it.
 //!
 //! Files in this folder,
 //! each using only files listed before it:

@@ -368,13 +368,129 @@ and the removal's own entries in the folder of unanswered requests.
   no call with the keys,
   and the five names unset in front of every check.
 
+#### Started and done between 02:51 and 03:16
+
+- The wrapper's two second-pass reads of `0.6.1-alpha.52` ended,
+  both by a same-vendor reader,
+  neither with a High finding.
+  The behaviour read found one Medium:
+  with `core.worktree` set in a plain main checkout,
+  a bare `!git` alias typed in a subdirectory with `-C <a clean worktree>` resets the main checkout,
+  and the wrapper judges the clean worktree and lets it run.
+  The release before does the same.
+  The read of the merges that claim no change of a release build found two Mediums in the guest drivers:
+  an interrupted driver leaves its recipe step running,
+  and a launcher that was refused is no longer refused at once.
+  Four rounds answer the two reads,
+  started at 02:55:24 and 03:13:06:
+  the reading of a `!` alias,
+  the `final-newline` hints,
+  the guest drivers' shared steps,
+  and the surface control with three source guards.
+  Two things stay the owner's:
+  whether an alias the wrapper cannot read is refused,
+  and the three refusals that issue 6641's closing comment records.
+- The round on GitHub's hosted runners ended at 03:06:55 and merged as `6b06c7149c`:
+  `doc/planning/github-hosted-runners-for-package-checks-and-a-guest.md`.
+  It measured that `advisory-core`'s window counts skipped runs,
+  so it admitted none of its last 200,
+  and that a standard public runner opens `/dev/kvm` after one `setfacl` and boots a small guest in 44 seconds.
+  A gate read by a same-vendor reader runs,
+  and the owner is asked the proposal's five questions after it.
+- The round that closes the last file loop in `foundation/` started at 03:13:06,
+  on the third way the questions file records,
+  which is the session's pick with the owner's veto open.
+- `mise run //package/toml-edit/core:test:unit` and `mise run //package/logger/core:test:unit` exit 1 on `main`,
+  each against a built copy older than its sources
+  (issue 6637,
+  with a comment that holds the measurement).
+  Built first,
+  the first passes,
+  and the second keeps one failing control on a loaded host
+  (issue 6652).
+
+#### Started and done between 03:16 and 03:30
+
+- The whole gate on `main` at `3d64028ef3`,
+  which holds the seven joined rounds,
+  passed at 03:20:06:
+  `12474 tests run: 12474 passed (7 slow), 51 skipped`
+  (`doc/troubleshooting/git-policy-cli-container-gate-on-a-zfs-host.md` lists it with the two gates of `0.6.1-alpha.52`).
+  A second gate started at 03:23 on `05cf4c8820`,
+  because the merge after the first one changes sentences the binary tests assert.
+- How the next alpha goes,
+  the session's pick with the owner's veto open:
+  wrapper branches keep merging,
+  because no gate holds a merge;
+  the alpha ships from the tip once a gate is green,
+  and its record names the gated commit and each wrapper merge after it with the checks that merge had.
+  One thing it waits for is the lock control described under the next point.
+- The round that makes every sentence beside a removal say what the running removal does merged as `b0c8bed3e8`.
+  It changed words only,
+  and it found behaviour that departs from the records:
+  - a slot whose removal stopped part way,
+    with its destruction plan standing,
+    gets no answer from the wrapper,
+    so `git worktree remove` there goes to Git,
+    where the accepted design has the removal's next run resume the plan
+    (issue 6653,
+    measured by a host probe);
+  - nobody has measured what a removal does at a whole clone whose registration holds a lock a person wrote:
+    no file of the removal's entry reads the lock,
+    and the only file of its order that names the lock is the Git settle,
+    after the destroy;
+  - two guest arms still assert the refusal the release gave before the removal was switched on
+    (`binary_zfs_slot_state_guest_tests.rs` and `binary_zfs_managed_lock_guest_tests.rs`).
+  Two rounds started at 03:27:53.
+  The first works on the host
+  (`fix/git-policy-cli-zfs-removal-entry-resumes-from-its-standing-plan-and-reads-a-persons-lock-before-it-destroys`):
+  its first commit is a control that answers the lock question,
+  and then the refusal before the first write if anything is destroyed,
+  the resume from a standing plan,
+  and the sentences.
+  The second restructures the slot-state guest arm in a guest.
+  If the lock control shows a destroy under a person's lock,
+  the owner is asked before the alpha ships,
+  or it ships once the refusal has merged.
+  Still owed after them,
+  in a guest:
+  the lock arm's removal assertions,
+  and the removal's kill matrix with a resumed removal.
+- The first of `mpm-shadow`'s two rounds on the alpha.19 read merged as `be3a61bcd4`:
+  a link another run took is no failure at any of the removal's three calls,
+  a temporary link the run cannot judge is kept and named,
+  and the program's own link is kept only for an install of this program.
+  Eight of its controls were red on the released code.
+  One choice of its own to weigh at the next second pass:
+  a name an earlier release left is now kept and named on every install,
+  where it used to be removed when its process number was free.
+- The crate split's round-4 proposal merged as `3e05dae625`:
+  `doc/planning/cli-git-crate-split-round-4-the-five-changed-signatures.md`,
+  with five questions for the owner.
+  Two of its first choices depart from the plan's own signature
+  (one answer per process for the system settings path,
+  and a value in place of a thread-local for the step record).
+  A gate read by a same-vendor reader runs,
+  and the owner is asked after it.
+- The measurement of the wrapper's development profile is briefed and waits behind a memory test
+  (free memory plus free swap at 80,000,000 kB on three readings a minute apart),
+  because it builds the crate about a dozen times.
+
 #### The line-break proposal
 
-Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00,
-and a second gate read by a same-vendor reader started after 02:31.
-Its review lands in
-`~/temp/agent/gate-review-of-the-line-break-proposal-second-read-2026-11-28/keep/review.md`.
-The owner is asked after it.
+Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
+The second gate read,
+by a same-vendor reader,
+found two High findings and says the proposal is not ready for the owner:
+two of the ranking's reasons count another population or unit than the option they judge,
+and the repair option rests on a route that reached 90 of 548 lines,
+on a tree `main` has since left.
+A round revises it,
+started at 03:06:29,
+and runs the survey again at its own commit
+(`docs/planning-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again`).
+A third gate read follows it,
+and the owner is asked after a read that finds it ready.
 
 #### The machine
 
@@ -393,8 +509,8 @@ The owner is asked after it.
 - The swap partition:
   a root unit,
   `old-nvme-btrfs-shrinks-by-128-gib-for-a-plain-swap-partition-2026-11-28`,
-  has been balancing the old NVMe's file system since 01:40:55,
-  before it shrinks device 1 by 128 GiB.
+  balanced the old NVMe's file system from 01:40:55 to 02:07:20,
+  and has been shrinking device 1 by 128 GiB since.
   Its log is `~/temp/agent/old-nvme-shrink-for-a-plain-swap-partition-2026-11-28/keep/shrink.log`.
   After it:
   the partition table,
