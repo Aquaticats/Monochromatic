@@ -733,6 +733,8 @@ What each line proves:
 - the caller's own unmount was refused `EBUSY` while the unit held its copy,
   which is the act's own order stated from the other side:
   the holder's copy has to go before the act's namespace can unmount.
+  The log also holds one earlier attempt of the same arm whose destroy refused `dataset is busy` for that reason,
+  before the arm left the act's own mount to the unit and unmounted it after the copy was gone.
 
 What the person's terminal shows:
 the shell that ran the command is gone, with every job it had,
@@ -985,12 +987,13 @@ and tells the person to run the removal as a child of the process that wants it
 (`package/git-policy/cli/SPEC.md`,
 "The forced arm, built and reachable from no command";
 `src/native/worktree_clone_forced_removal/started_by_the_service_manager.rs`).
-The reason is the design's own:
-"the manager
-... cannot be told apart from the process that asked for it"
-(`doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
-"A command whose parent is the service manager,
-or whose session was started by it").
+The refusal's own sentence says why:
+its parent,
+or its session leader's parent,
+is the manager,
+"which cannot be told apart from the process that asked for it"
+(`src/native/worktree_clone_forced_removal/started_by_the_service_manager.rs`,
+`the_refusal_text`).
 Two reads implement it:
 the wrapper's parent's `/proc/<pid>/cgroup` and `comm`,
 and the session leader's parent's,
