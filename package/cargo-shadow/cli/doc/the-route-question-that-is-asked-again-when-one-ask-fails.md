@@ -980,10 +980,15 @@ so `show` answers no control group at once and `start` answers
   1 ask,
   35.8 ms median,
   the weaker path 5 of 5;
-- `0.1.5-alpha.16` and its copy:
+- `0.1.5-alpha.16`:
   5 asks,
-  883.1 ms and 885.1 ms median,
+  895.1 ms median,
+  and 883.1 ms in the second run where its copy was not beside it,
   the weaker path 5 of 5;
+  its byte-identical copy,
+  in the first run:
+  5 asks,
+  885.1 ms median;
 - this branch's binary:
   **3 asks,
   56.5 ms median,
@@ -994,9 +999,14 @@ Measured through a stand-in that answers every ask of where the slice is with an
 and hands the start to that container's manager,
 which is what an answer that is not a path looks like:
 
-- `0.1.5-alpha.16` and its copy:
+- `0.1.5-alpha.16`:
   10 asks,
-  890.4 ms and 895.9 ms median;
+  895.2 ms median,
+  and 890.4 ms in the second run;
+  its byte-identical copy,
+  in the first run:
+  10 asks,
+  895.9 ms median;
 - this branch's binary:
   **3 asks,
   41.8 ms median**,
