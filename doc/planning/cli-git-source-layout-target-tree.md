@@ -4724,19 +4724,35 @@ that wording is kept.
   The words of a diagnostic line,
   with the two switches and the per-thread memory of the lines written,
   are `foundation/the_words_of_a_diagnostic_line_and_the_lines_this_thread_wrote.rs`;
-  `foundation/diagnostic_lines_off_the_calling_thread.rs` says the notice through its own
-  `write`,
-  once per process,
-  from the caller whose wait gave the reader up
-  (it owns that wait, so no other caller can say it late or never);
+  the notice a stopped reader is owed is the queue policy's own field,
+  `reader_stopped_notice`,
+  which `foundation/diagnostic_lines_off_the_calling_thread.rs` fills with a function that
+  says the line through its own `write`;
+  the queue calls it from the arm where a caller's wait gives the reader up,
+  after dropping the lock and before it answers,
+  so the notice's call site,
+  its thread,
+  its order and its once-per-process saying are the ones the queue's own `debug` call had
+  (`994fb747a8`,
+  which replaced a first shape that said it after the wait returned and was argued down:
+  that shape let a caller whose answer was already stopped win the saying,
+  lost a second notice for a reader a control replaced,
+  and read the queue's reader state in release code);
   `foundation/diagnostic_log.rs` keeps `debug` and `warn` and re-exports the three published
   names,
   so a consumer's path still resolves.
   No signature changed,
-  and the notice keeps its words, its moment and its once-per-process saying,
+  and the notice keeps its words,
+  its moment and its saying once for one reader that stopped,
   which the control
   `diagnostic_lines_off_the_calling_thread::tests::the_notice_about_a_reader_that_stopped_is_said_once_at_its_bound`
-  holds.
+  holds,
+  in five arms:
+  no notice while a reader keeps up,
+  one at the bound with the words,
+  no second one for a later line,
+  the words in the stream the queue's thread writes,
+  and a fresh notice for a reader that a control replaced and that stopped in its turn.
   The three `file-uses` lines left `layout-allow-list/file-rule.txt`,
   so `foundation/` has no file loop and the list lost its three lines.
   The choice of this way is the coordinating session's,
