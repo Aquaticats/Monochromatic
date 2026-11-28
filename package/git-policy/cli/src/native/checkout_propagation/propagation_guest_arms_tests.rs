@@ -168,7 +168,8 @@ fn make_the_pool_and_the_datasets(fixture: &Fixture) {
         "zpool",
         &[
             "create",
-            "--force",
+            // This OpenZFS takes short options only: `--force` answers `invalid option '-'` (measured in this round).
+            "-f",
             fixture.pool.as_str(),
             image.to_str().expect("a text path"),
         ],
