@@ -18,8 +18,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  CAP_DENOMINATOR,
+  CAP_NUMERATOR,
   MEMINFO_PATH,
   memoryMaxArgument,
+  MINIMUM_MEMORY_MAX_MIB,
   parseMemTotalKib,
   SessionDaemonMemoryError,
   sessionDaemonMemoryMax,
@@ -38,8 +41,10 @@ const KIB_PER_MIB = 1_024;
 
 /**
  Total memory this machine reports, so each expectation is derived from the input.
+
+ `/proc/meminfo` read `MemTotal: 64668036 kB` when this test was written.
  */
-const FAKE_TOTAL_KIB = 64_668_048;
+const MACHINE_TOTAL_KIB = 64_668_036;
 
 /**
  Text of a `meminfo` file that reports `memTotalKib` and nothing else mvm reads.
@@ -63,19 +68,24 @@ function meminfoText({ memTotalKib, }: { readonly memTotalKib: number; },): stri
 }
 
 /**
- Cap half of `memTotalKib` must give, in mebibytes with systemd's suffix.
+ Cap the decided fraction of `memTotalKib` must give, in mebibytes with systemd's
+ suffix.
 
- @param memTotalKib - Total memory to halve
+ @param memTotalKib - Total memory to take that fraction of
 
  @returns Expected `MemoryMax` value
 
  @example
  ```ts
- expectedCap({ memTotalKib: 4096 }); // => '2M'
+ expectedCap({ memTotalKib: 4_096 }); // => '3M'
  ```
  */
 function expectedCap({ memTotalKib, }: { readonly memTotalKib: number; },): string {
-  return `${String(Math.floor(memTotalKib / 2 / KIB_PER_MIB,),)}M`;
+  /**
+   The fraction of that total the cap covers, in kibibytes.
+   */
+  const capKib = (memTotalKib * CAP_NUMERATOR) / CAP_DENOMINATOR;
+  return `${String(Math.floor(capKib / KIB_PER_MIB,),)}M`;
 }
 
 /**
@@ -115,6 +125,24 @@ async function writeMeminfo({
 
 //endregion The fake machine
 
+//region The decided fraction
+
+/**
+ `MemoryMax` the decision record names for this machine, the one place these tests
+ pin the decided fraction.
+
+ The owner's answer recorded in
+ `doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+ "The unit's cap", set the running unit to `MemoryMax=47364M`, and three quarters
+ of this machine's `MemTotal` of 64,668,036 kB is 47,364.28 MiB, which rounds down
+ to the same number. Every other expectation here follows {@link CAP_NUMERATOR}
+ and {@link CAP_DENOMINATOR}, so a deliberate change to the fraction breaks
+ nothing else.
+ */
+const RECORDED_MEMORY_MAX = '47364M';
+
+//endregion The decided fraction
+
 await describe({
   name: 'the session daemon unit\'s memory cap',
   children: [
@@ -123,36 +151,52 @@ await describe({
       fn: async () => {
         expect(parseMemTotalKib({
           path: MEMINFO_PATH,
-          text: meminfoText({ memTotalKib: FAKE_TOTAL_KIB, },),
-        },),).toBe(FAKE_TOTAL_KIB,);
+          text: meminfoText({ memTotalKib: MACHINE_TOTAL_KIB, },),
+        },),).toBe(MACHINE_TOTAL_KIB,);
       },
     },),
 
     it({
-      name: 'caps at half of the total, in whole mebibytes',
+      name: 'caps at the decided fraction of the total, in whole mebibytes',
       fn: async () => {
-        expect(memoryMaxArgument({ memTotalKib: FAKE_TOTAL_KIB, },),)
-          .toBe(expectedCap({ memTotalKib: FAKE_TOTAL_KIB, },),);
+        expect(memoryMaxArgument({ memTotalKib: MACHINE_TOTAL_KIB, },),)
+          .toBe(expectedCap({ memTotalKib: MACHINE_TOTAL_KIB, },),);
       },
     },),
 
     it({
-      name: 'rounds an odd total down to whole mebibytes',
+      name: 'gives the cap the decision record names for this machine',
+      fn: async () => {
+        expect(memoryMaxArgument({ memTotalKib: MACHINE_TOTAL_KIB, },),)
+          .toBe(RECORDED_MEMORY_MAX,);
+      },
+    },),
+
+    it({
+      name: 'rounds a total whose cap is not a whole number of mebibytes down',
       fn: async () => {
         /**
-         Total that halves to a fraction of a mebibyte.
+         Total whose cap leaves a fraction of a mebibyte: one kibibyte over a whole number of mebibytes of total.
          */
-        const oddKib = (KIB_PER_MIB * 3) + 1;
+        const oddKib = (KIB_PER_MIB * CAP_DENOMINATOR) + 1;
+        /**
+         Cap in mebibytes before rounding, which has to be fractional for this test to mean anything.
+         */
+        const exactMib = ((oddKib * CAP_NUMERATOR) / CAP_DENOMINATOR) / KIB_PER_MIB;
+        expect(Number.isInteger(exactMib,),).toBe(false,);
         expect(memoryMaxArgument({ memTotalKib: oddKib, },),)
           .toBe(expectedCap({ memTotalKib: oddKib, },),);
-        expect(memoryMaxArgument({ memTotalKib: oddKib, },),).toBe('1M',);
+        // A cap rounded up instead of down would be one mebibyte more.
+        expect(memoryMaxArgument({ memTotalKib: oddKib, },),)
+          .not.toBe(`${String(Math.ceil(exactMib,),)}M`,);
       },
     },),
 
     it({
-      name: 'gives the smallest cap a machine under two mebibytes can have',
+      name: 'gives the smallest cap when the fraction rounds down to nothing',
       fn: async () => {
-        expect(memoryMaxArgument({ memTotalKib: 1, },),).toBe('1M',);
+        expect(memoryMaxArgument({ memTotalKib: 1, },),)
+          .toBe(`${String(MINIMUM_MEMORY_MAX_MIB,)}M`,);
       },
     },),
 

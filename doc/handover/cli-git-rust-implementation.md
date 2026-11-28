@@ -692,6 +692,88 @@ Unapproved and non-final.
   - `zfs-step-21-guest-arms-for-dependency-repair-and-watches`
   - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`
 
+#### Started and done between 05:52 and 06:14
+
+Unapproved and non-final.
+
+- On the removal the owner answered what force does:
+  "--force overrides anything and delete and destroy no matter what.",
+  and on its reach,
+  "Two force does everything.
+  One force - you pick."
+  A destruction plan that cannot be read and a clone at the staging folder refuse without force,
+  and the foundation folder's loop stays closed as built
+  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+  "What force does on a ZFS removal").
+  The session's pick for one force is recorded there with the veto open.
+  Two mechanisms are recorded as not yet decided:
+  how a command that ends its own ancestors still finishes,
+  and by what act two forces pass other processes that hold the clone.
+- Two rounds started for it at 06:08:
+  one builds the part that involves no holder on the host
+  (`zfs-removal-reads-force-two-forces-pass-every-refusal-and-two-states-refuse-without-it`,
+  steered at 06:12 to settle what one force does at modified or untracked files),
+  one designs and measures the two undecided mechanisms in a guest
+  (`zfs-two-forces-pass-holders-and-the-2026-11-23-limits-designed-and-measured`).
+  The wrapper's next alpha,
+  if it ships from the gate now running,
+  still refuses two forces at a person's lock,
+  with a sentence the owner has since overruled:
+  its record says so.
+- Merged:
+  the foundation folder's last file loop
+  (`74f34f6af9`),
+  and the gatherer of each managed clone's facts for `doctor`,
+  joined with `main` because both sides had added lines at one place in two list files
+  (`a2ff2180e9`;
+  on the joined tree Clippy twice and 553 tests of the touched modules and the whole source guard passed).
+- The limit raised on the guests' unit lives on the running unit alone.
+  Every built `mvm` on the machine still starts that unit at half,
+  so a later start agrees only once the round that changes `mvm`'s code has merged and the builds are fresh
+  (issue 6655).
+  A sampler writes the unit's limit each minute into
+  `~/temp/agent/wrapper-gate-on-main-after-the-lock-refusal-merge-2026-11-28/keep/guest-unit-each-minute.log`.
+- Issues filed:
+  6655 (the `mvm` command runs a built copy older than its source),
+  6656 (four gate controls at their bounds when the host has no available memory),
+  6657 (a merge left unpushed for more than 150 s,
+  and an owed push of 2026-11-12 that names a path that is gone).
+  Owed still:
+  an issue for `mise run //package/mvm/cli:test:unit` hanging in the libvirt test files on this host,
+  once the round on the unit's limit reports which file it hangs in.
+- The development-profile proposal's gate read answered not ready
+  (four High points:
+  the memory case rests on rebuilds where the recorded failure was first builds,
+  and the arms measured the everywhere option,
+  not the one ranked first);
+  its revision round is started.
+  Revision rounds for the line-break,
+  Dylint,
+  hosted-runners and crate split proposals start behind the morning's first launcher,
+  and the two `cargo-shadow` fix rounds and the second run of the grammar words' guest arms start when the gate's unit ends
+  (one waiting command starts both groups).
+- The lock procedure,
+  corrected:
+  `mise run toolchain:update -- <key>` in a lock worktree installs the new binary into the shared toolchain root at once,
+  so that step,
+  not `toolchain:install`,
+  is the one that changes the tools rounds are running.
+- Rounds running at 06:14,
+  from the unit list:
+  - `mvm-cli-the-mvm-command-never-runs-a-build-older-than-its-source`
+  - `mvm-guest-test-binaries-built-outside-the-guest-measured-on-the-zfs-recipes-guest`
+  - `mvm-sizes-proposal-revised-against-its-gate-read-with-prices-and-every-command`
+  - `zfs-doctor-gathers-the-machines-route-facts-from-the-live-system`
+  - `zfs-forced-arm-ends-a-holder-in-a-taskless-mount-namespace`
+  - `zfs-private-propagation-step-built-ahead-unwired`
+  - `zfs-removal-reads-force-two-forces-pass-every-refusal-and-two-states-refuse-without-it`
+  - `zfs-removal-switch-runs-green-in-a-guest-and-its-controls-can-fail`
+  - `zfs-shutdown-unmount-body-built-ahead-unwired`
+  - `zfs-slot-state-guest-arm-asserts-what-the-switched-removal-does`
+  - `zfs-step-21-guest-arms-for-dependency-repair-and-watches`
+  - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`
+  - `zfs-two-forces-pass-holders-and-the-2026-11-23-limits-designed-and-measured`
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.
