@@ -3,8 +3,7 @@
 //!  an `add`,
 //!  a direct check,
 //!  a commit whose selection is read-only,
-//!  a landed commit and a manual push,
-//!  and the two lifecycles that correct the bytes themselves.
+//!  a landed commit and a manual push.
 //! Why:
 //!  A hint must be true where it is printed.
 //!  An `add` of a file without its line feed told the person to edit the file by hand,
@@ -23,10 +22,19 @@
 //!  `decide_selection`,
 //!  which is the function the commit path asks,
 //!  so no control hands the stage a flag it made up.
+//!  No control here reads a finding that offers a patch:
+//!  a lifecycle that may correct the bytes applies its correction in the pass after the one that proposed it,
+//!  and a run reports only the last pass,
+//!  so a `final-newline` finding a run prints never offers one.
+//!  The two controls that drove a single stage with `can_apply_patches` set and with a direct fix's trigger
+//!  read a pass no command reports,
+//!  and they went with the hint they read;
+//!  what a run prints where the correction is applied is a `fix-summary` alone,
+//!  which `binary::final_newline_hint_steps` reads through the built executable.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(hintOf(theStageFor('add'))).toBe(THE_HINT_OF_A_COMMIT_THAT_CORRECTS);
+//! // expect(hintOf(theStageFor('add'))).toBe(THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK);
 //! ```
 #![cfg(unix)]
 
@@ -93,23 +101,16 @@ const THE_FILE: &str = "notes.txt";
 /// The bytes of `THE_FILE` when it ends with no line feed at all.
 const WITHOUT_A_LINE_FEED: &[u8] = b"one\ntwo";
 
-/// The hint of a direct check:
-///  a commit that takes the file corrects the ending,
-///  and the person may correct it now without committing.
-///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
-const THE_HINT_OF_A_DIRECT_CHECK: &str = "Hint: if you are committing this file, a commit that takes it \
-     corrects the ending for you while this repository's settings keep `final-newline` on; to correct it now without \
-     committing, run `git monochromatic-git-policy-cli fix -- <path>`.";
-
-/// The hint of an `add`:
+/// The hint of an `add` and of a direct check:
 ///  the correction now and the staging that follows it lead,
-///  and a plain commit's own correction follows with the selection that records the bytes instead.
+///  then the commit that names the file corrects the ending,
+///  unless its selection is read-only.
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
-const THE_HINT_OF_AN_ADD: &str = "Hint: to correct the ending now, run `git monochromatic-git-policy-cli fix -- \
-     <path>` and then stage the file again with `git add -- <path>`, because an index that already holds these bytes \
-     keeps them until the file is staged once more; a plain commit, one that takes the whole file, also corrects the \
-     ending while this repository's settings keep `final-newline` on, but a commit whose selection is read-only (`-p`, \
-     `-i` or `--include`) records the staged bytes exactly as they are.";
+const THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK: &str = "Hint: to correct the ending now, run `git \
+     monochromatic-git-policy-cli fix -- <path>` and then stage the file with `git add -- <path>`, because an index \
+     that already holds these bytes keeps them until the file is staged once more; a commit that names the file, as in \
+     `git commit -- <path>`, also corrects the ending while this repository's settings keep `final-newline` on, but a \
+     commit whose selection is read-only (`-p`, `-i` or `--include`) records the bytes it takes exactly as they are.";
 
 /// The hint of a lifecycle whose bytes nothing corrects and which the index still holds.
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
@@ -120,12 +121,6 @@ const THE_HINT_WHEN_THE_INDEX_HOLDS_THE_BYTES: &str = "Hint: if you are committi
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
 const THE_HINT_WHEN_A_COMMIT_HOLDS_THE_BYTES: &str = "Hint: this file's bytes are already in a commit, so \
      nothing here corrects them; edit the file so it ends with exactly one newline, then commit the correction.";
-
-/// The hint of a lifecycle that corrects the bytes itself.
-///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
-const THE_HINT_WHERE_THE_LIFECYCLE_CORRECTS: &str = "Hint: if you are committing or checking this file, a commit \
-     corrects the ending for you; to correct it now without committing, run `git monochromatic-git-policy-cli fix -- \
-     <path>`.";
 
 /// The `code` and `message` of a finding of this policy,
 ///  which no hint may change (`SPEC.md`,
@@ -381,7 +376,8 @@ fn the_config_with(severity: Severity) -> PolicyConfig {
 
 /// An `add` leads with the two steps that correct the file where it is refused,
 ///  says why staging follows the fix,
-///  and names a plain commit's own correction with the read-only selection that records the bytes instead.
+///  and names a commit that names the file,
+///  with the read-only selection that records the bytes instead.
 ///  The hint is the same at `warn`,
 ///  where the add runs,
 ///  and at `error`,
@@ -400,7 +396,7 @@ fn an_add_says_the_fix_then_staging_and_what_a_plain_commit_takes() {
         );
         assert_eq!(
             the_hint_in(rendered.as_str()),
-            THE_HINT_OF_AN_ADD,
+            THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK,
             "{severity:?}: {rendered}"
         );
         assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
@@ -413,11 +409,12 @@ fn an_add_says_the_fix_then_staging_and_what_a_plain_commit_takes() {
 }
 
 /// A direct check reads the worktree bytes a commit would take,
-///  so its hint says that commit
-///  corrects them,
-///  and offers the correction now.
+///  so its hint is the one an `add` gives:
+///  the correction now and the staging after it,
+///  then the commit that names the file,
+///  unless its selection is read-only.
 #[test]
-fn a_direct_check_says_the_commit_that_takes_the_file_corrects_it() {
+fn a_direct_check_says_what_corrects_the_bytes_it_read() {
     let scene: Scene = a_scene("final-newline-hint-check");
     let rendered: String = rendered_finding(
         &scene,
@@ -428,7 +425,7 @@ fn a_direct_check_says_the_commit_that_takes_the_file_corrects_it() {
     );
     assert_eq!(
         the_hint_in(rendered.as_str()),
-        THE_HINT_OF_A_DIRECT_CHECK,
+        THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK,
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
@@ -470,63 +467,6 @@ fn a_read_only_selection_of_the_commands_own_words_says_to_edit_and_stage() {
         );
         assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
     }
-    remove(scene.root.as_path());
-}
-
-/// A commit that may correct the bytes it stages corrects them itself,
-///  so its hint says so and offers no second correction,
-///  whatever severity the repository sets and without a fix being applied by the person.
-///  A commit that names no read-only selection is the positive case beside the three spellings above:
-///  the same decision answers `false` for it,
-///  and the stage then reports the correction as its own.
-#[test]
-fn a_commit_that_corrects_the_file_says_so_at_either_severity() {
-    let scene: Scene = a_scene("final-newline-hint-commit");
-    stage_the_file(&scene);
-    let writable: bool = !a_read_only_selection(&[]);
-    assert!(
-        writable,
-        "a commit with no selection leaves the policies writable"
-    );
-    for severity in [Severity::Warn, Severity::Error] {
-        let rendered: String = rendered_finding(
-            &scene,
-            Trigger::PreForward,
-            crate::commit_transaction::staged_at_base(
-                Some(the_commit_of_the_scene(&scene)),
-                &[THE_FILE.as_bytes().to_vec()],
-            ),
-            writable,
-            &the_config_with(severity),
-        );
-        assert_eq!(
-            the_hint_in(rendered.as_str()),
-            THE_HINT_WHERE_THE_LIFECYCLE_CORRECTS,
-            "{severity:?}: {rendered}"
-        );
-        assert_the_finding_keeps_its_fields(rendered.as_str(), "available");
-    }
-    remove(scene.root.as_path());
-}
-
-/// A direct fix corrects the selected worktree bytes itself,
-///  so its hint says so.
-#[test]
-fn a_direct_fix_says_the_correction_is_here() {
-    let scene: Scene = a_scene("final-newline-hint-fix");
-    let rendered: String = rendered_finding(
-        &scene,
-        Trigger::DirectFix,
-        CandidateRequest::Direct(vec![OsString::from(THE_FILE)]),
-        false,
-        &the_config_with(Severity::Warn),
-    );
-    assert_eq!(
-        the_hint_in(rendered.as_str()),
-        THE_HINT_WHERE_THE_LIFECYCLE_CORRECTS,
-        "{rendered}"
-    );
-    assert_the_finding_keeps_its_fields(rendered.as_str(), "available");
     remove(scene.root.as_path());
 }
 

@@ -1,7 +1,7 @@
 //! What:
 //!  The passage each piece of the ZFS route that was built ahead of the command
 //!  that would reach it has in `SPEC.md` and in `README.md`,
-//!  saying what is built and that no command reaches it in this release.
+//!  saying what is built and whether a command reaches it in this release.
 //! Why:
 //!  The release pass found steps 17 to 21 merged with no passage for any of
 //!  them,
@@ -39,12 +39,23 @@ struct ReachPassage {
     in_readme: &'static str,
 }
 
-/// The passages this release documents for the pieces no command reaches.
+/// The passages this release documents for the pieces built ahead of a command.
+/// The cancel command's entry named its heading as one that said no command
+/// reaches it;
+/// the round that added the two management words edited that entry and the
+/// settling command's beside it,
+/// because both are reached now and the release still owes a reader a passage
+/// for each.
 const REACH_PASSAGES: &[ReachPassage] = &[
     ReachPassage {
         topic: "the cancel command",
-        in_spec: "#### The cancel command, built and reachable from no command",
-        in_readme: "The cancel command is built and no management grammar admits it in this release:",
+        in_spec: "#### The cancel command\n",
+        in_readme: "and this release's management grammar admits it:",
+    },
+    ReachPassage {
+        topic: "the settling command",
+        in_spec: "#### The settling command\n",
+        in_readme: "and this release's management grammar admits the command that settles it:",
     },
     ReachPassage {
         topic: "the forced arm and its never-end set",
@@ -65,6 +76,9 @@ const REACH_PASSAGES: &[ReachPassage] = &[
         topic: "the private-propagation step",
         in_spec: "#### The private-propagation step, built and reached by no command",
         in_readme: "#### The private-propagation step, built and reached by no command",
+        topic: "the shutdown pass the gate's `ExecStopPost` will run",
+        in_spec: "##### The shutdown pass, built and reached by no command",
+        in_readme: "#### The shutdown pass, built and reached by no command",
     },
     ReachPassage {
         topic: "Sanoid coverage and the space guard's scope",
@@ -75,6 +89,11 @@ const REACH_PASSAGES: &[ReachPassage] = &[
         topic: "the clone route's repair and its watches",
         in_spec: "#### The clone route's repair and its watches, built and reached by no command",
         in_readme: "#### The clone route's repair and its watches, built and reached by no command",
+    },
+    ReachPassage {
+        topic: "the lost-event triggers' event filter and merge device",
+        in_spec: "#### The event filter and the merge device, built and reached by no command",
+        in_readme: "#### The event filter and the merge device, built and reached by no command",
     },
 ];
 

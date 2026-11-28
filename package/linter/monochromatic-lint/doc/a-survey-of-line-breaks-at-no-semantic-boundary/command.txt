@@ -1,0 +1,95 @@
+Survey command, the temporary changes, and the environment
+
+Run at the commit the SURVEY_COMMIT line of output.txt names.
+The list is files.txt at that commit.
+The harness reads each path with `git show <commit>:<path>`,
+so the counts are the commit's, not the worktree's later edits.
+The whole output is output.txt.
+
+The three temporary changes, all reverted after the run and never committed:
+
+1. Copy the kept harness into the crate source:
+   cp doc/a-survey-of-line-breaks-at-no-semantic-boundary/survey_line_breaks_at_no_semantic_boundary_tests.rs.keep \
+     src/markdown_fragment_joins_survey_tests.rs
+
+2. Append to src/markdown_fragment_joins.rs:
+   // Wire the survey test in for one run.
+   // Keep the survey test out of a release build.
+   #[cfg(test)]
+   #[path = "markdown_fragment_joins_survey_tests.rs"]
+   mod survey_tests;
+
+3. Change the fragment limit in src/markdown_fragment_joins.rs
+   from 2 to usize::MAX.
+   This is the one guard lifted for the removal count.
+
+The command, run from package/linter/monochromatic-lint:
+
+SURVEY_LIST="$PWD/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt" \
+  SURVEY_ROOT=/home/user/Monochromatic/.claude/worktrees/pi-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again \
+  SURVEY_M13_DIR=/home/user/temp/agent/line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again-scratch/survey-fix-copies \
+  SURVEY_LINT_BIN=/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint \
+  cargo nextest run --locked --lib --no-capture survey_
+
+The command was run under:
+
+systemd-run --user --scope --slice=agent-work.slice \
+  --property=MemoryMax=8G --property=CPUQuota=400% --property=TasksMax=256 \
+  --property=IOWeight=1 --property=RuntimeMaxSec=3600 -- ...
+
+SURVEY_M13_DIR holds the copies the shipped fix changes; it is outside the repository,
+and the harness writes its one-rule configuration into it.
+The installed binary is monochromatic-lint 0.5.2-alpha.24.
+
+Run at commit bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c.
+The join and the boundary test changed after it (fc679b9392, 2026-11-28T03:02:49-05:00):
+the join counts the host line, and the boundary test climbs the emphasis delimiters.
+The harness kept in this folder is the later form; a rerun at the recorded commit needs it as that commit holds it.
+The survey was not rerun.
+
+The three edits were reverted after the run:
+git status --short named none of them.
+
+The harness's after-the-fix control was corrected after this run.
+The run's harness wrote its control copy but never passed it to the fix,
+and its expected count was one an unfixed copy also held,
+so that control could not fail.
+The kept harness passes the control through the same invocation as the copies,
+and expects the text `Aaa bbb, the` / `ccc ddd eee.`,
+which holds one break at no boundary before the fix and none after it.
+The run's figure does not depend on that control:
+all 222 copies changed bytes,
+and the corrected control is measured in
+figures-the-survey-does-not-count/reported-paragraph-control.txt.
+
+Which harness the recorded run used.
+It used survey_line_breaks_at_no_semantic_boundary_tests.rs.keep as commit
+bc5b4ca2ba holds it, which is what
+
+  git show bc5b4ca2ba:package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/survey_line_breaks_at_no_semantic_boundary_tests.rs.keep
+
+prints (checked with git diff bc5b4ca2ba HEAD over that path: five hunks).
+The kept file is the later form, and it differs in those five hunks only:
+three for the after-the-fix control (the control text, the count it expects, and
+the control copy going through the same fix invocation as the copies) and two for
+the host prefix (the join asked with the host's own prefix, and a Rust doc comment
+carrying the prefix of its projection).
+A rerun at the recorded commit needs the harness as that commit holds it, and it
+compiles against that commit's source; the kept form needs this branch's source,
+which is where with_host_prefix_chars exists.
+So a reader who copies the kept harness into a worktree at bc5b4ca2ba gets a
+compile error, and a reader who runs the kept harness at this branch's tip gets
+other counts: the emphasis figures go to zero, and the removable counts of the
+break predicates fall where a Rust doc comment's host line is over the bound.
+
+The corrected control, run once on fixtures.
+The round that answered the third gate read ran it on 2026-11-28, with the
+installed monochromatic-lint 0.5.2-alpha.24, on two fixtures in a folder outside
+the repository, under a systemd user scope (MemoryMax 1G, CPUQuota 200%,
+TasksMax 64, IOWeight 1, RuntimeMaxSec 180).
+The control text `Aaa bbb, the` / `ccc ddd eee.` holds one break at no boundary
+before the fix; --fix changes it to `Aaa bbb,` / `the ccc ddd eee.`, which holds
+none; and a second run on the fixed copy reports no finding and exits 0.
+The old control text holds two breaks before a fix run and two after it, so its
+recorded expectation of two held either way.
+The whole run is in figures-the-survey-does-not-count/reported-paragraph-control.txt.

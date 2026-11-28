@@ -4,7 +4,7 @@
 //!  `--force` clears.
 //! Why:
 //!  A removal without `--force` proves the worktree clean,
-//! and only then empties it.
+//!  and only then empties it.
 //! The pass deletes the worktree's own entries first
 //!  and forgets the worktree in Git after it,
 //! so a command killed in between leaves tracked files deleted,
@@ -83,7 +83,7 @@ const TARGET_PREFIX: &str = "targetHex=";
 ///  the tree is the one that pass emptied:
 /// a person who removed the worktree and added another at the same path is
 ///  two other objects,
-/// and an earlier record removes nothing of theirs.
+///  and an earlier record removes nothing of theirs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

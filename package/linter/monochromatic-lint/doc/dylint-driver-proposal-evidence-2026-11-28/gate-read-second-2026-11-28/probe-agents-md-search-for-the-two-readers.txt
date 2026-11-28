@@ -1,0 +1,11 @@
+# AGENTS.md at 8638a53928: search for the two readers the proposal says the rules name (grep -n -i)
+450: Score capability for the target workload,
+454: Rank options by what each delivers for the target workload;
+516:Evaluate desired capabilities and target workload,
+1763: pull-request and comment text turns each newline into a line break:
+# proposal line 1582
+## Ranking
+
+The measure is what each option delivers to the two readers the repository's rules name:
+a person who edits Rust here,
+and a pull request.

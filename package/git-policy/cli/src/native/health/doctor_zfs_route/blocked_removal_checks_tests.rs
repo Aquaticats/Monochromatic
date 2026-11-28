@@ -156,7 +156,10 @@ fn an_intent_without_a_plan_is_a_finding() {
         detail.contains("no destruction plan was written"),
         "{detail}"
     );
-    assert!(detail.contains("no removal for a clone"), "{detail}");
+    assert!(
+        detail.contains(crate::worktree_clone_binding_record::THE_REMOVALS_WORDS),
+        "{detail}"
+    );
 }
 
 /// A plan no holder blocks passes,
@@ -217,7 +220,11 @@ fn a_holder_is_a_finding_naming_the_loss_and_the_holder() {
     assert!(detail.contains("tank/wt/fix-flaky-test@late"), "{detail}");
     assert!(detail.contains("cancels itself"), "{detail}");
     assert!(detail.contains("has no measurement yet"), "{detail}");
-    assert!(detail.contains("not part of this release"), "{detail}");
+    assert!(detail.contains("cancel-worktree-removal"), "{detail}");
+    assert!(
+        !detail.contains("not part of this release"),
+        "the command this release's grammar admits is not called absent: {detail}"
+    );
 }
 
 /// A scan that could not read every task leaves the blocked state unproved.

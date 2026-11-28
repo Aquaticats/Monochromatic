@@ -327,7 +327,7 @@ pub fn refuse_unless_the_decided_ones(facts: &DelegationFacts) -> Result<Vec<Str
 ///  The add goes on past those permissions,
 ///  and the rest of the delegation still has to be the decided one:
 ///  a wider grant,
-/// a grant to everyone or an unproved one refuses on its own.
+///  a grant to everyone or an unproved one refuses on its own.
 fn with_the_removals_granted(
     facts: &DelegationFacts,
     missing: &[RequiredGrant],

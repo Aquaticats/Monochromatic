@@ -10,7 +10,7 @@
 //!  and a connection made for a shortcut must not end a command that would otherwise have run to its end.
 //!  The socket is therefore made non-blocking,
 //!  connected,
-//! and waited for with `poll` until the deadline,
+//!  and waited for with `poll` until the deadline,
 //!  which is the same call `poll` in `service_index_watch.rs` waits with.
 //!  A connection that cannot be made in time is no connection,
 //!  and the caller takes the path it would have taken without one.
@@ -44,13 +44,13 @@ use std::time::{
 
 /// What:
 ///  A connected socket at `path`,
-/// made within `wait`.
+///  made within `wait`.
 /// Why:
 ///  A socket nobody listens on refuses the connection at once,
 ///  a socket whose listener is behind refuses nothing and connects nothing,
 ///  and only the deadline tells the second from a connection still on its way.
 ///  The answer is a blocking stream,
-/// which is what a caller that sets a read timeout expects.
+///  which is what a caller that sets a read timeout expects.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -153,7 +153,7 @@ const ASK_PAUSE: Duration = Duration::from_millis(5);
 /// Why:
 ///  A non-blocking connect answers at once in one of three ways:
 ///  connected,
-/// refused (an error),
+///  refused (an error),
 ///  or "under way",
 ///  and only the last two are waited for.
 ///  A socket whose listener is behind answers `EAGAIN` and queues nothing,
@@ -249,7 +249,7 @@ fn wait_until_writable(
 ///  The failure of a socket that took no connection inside the deadline.
 /// Why:
 ///   A caller reads this as "no answer",
-/// which is a service that is stopped or behind and never a faulty path,
+///  which is a service that is stopped or behind and never a faulty path,
 ///  so the words say what ended the wait.
 ///
 /// In TS you'd write (pseudocode):

@@ -13,7 +13,7 @@
 //!  plan step 18,
 //!  "What it builds").
 //!  Step 15 built that check,
-//! and its facts are the measured ones this line
+//!  and its facts are the measured ones this line
 //!  rests on:
 //!  the mark cannot be cleared (F8),
 //!  and a marked snapshot cannot be destroyed while any clone of it exists

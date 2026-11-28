@@ -9,7 +9,7 @@
 //!  and every clone's attach properties.
 //! Why:
 //!  The design's preflight reads these facts before a claim,
-//! slot or clone is
+//!  slot or clone is
 //!  written,
 //!  and `doctor` reports the same facts without acting on them
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,

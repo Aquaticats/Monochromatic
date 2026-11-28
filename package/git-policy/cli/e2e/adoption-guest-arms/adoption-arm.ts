@@ -14,6 +14,7 @@
  ```
  */
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   holdsLineStartingWith,
   requireMarkers,
@@ -35,6 +36,10 @@ import {
 } from './adoption-fixture.ts';
 import { pullGuestLog, } from '../../bin/mvm-guest-detached-script.ts';
 import { detachedStep, } from './detached-step.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  The log the adoption arm writes inside the guest's shared folder.
@@ -73,7 +78,7 @@ export async function runTheAdoption({
     'set -eu',
     `cd ${crateDirectory}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${adoptionGuestVariable}=${chosen.name}`,
+    `export ${adoptionGuestVariable}=${backend.hostnameOf(chosen.name)}`,
     'if cargo nextest run --release --locked --features test-only-switches --test native_binary --no-capture --status-level all '
       + `--filterset "test(zfs_adoption_guest)" > /root/${armLog} 2>&1; then status=0; else status=$?; fi`,
     'tail --lines=40 /root/adoption-arm.log',

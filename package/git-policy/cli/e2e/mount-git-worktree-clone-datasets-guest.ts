@@ -45,6 +45,9 @@ import {
 
 
 
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
 import { runTheAdoption, } from './adoption-guest-arms/adoption-arm.ts';
 import { buildInGuest, } from './adoption-guest-arms/crate-build.ts';
 import { delegation, } from './adoption-guest-arms/delegation-arm.ts';

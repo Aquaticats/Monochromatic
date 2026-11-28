@@ -47,7 +47,8 @@ fn declared(text: &str) -> Vec<Declaration> {
 
 /// A declaration reads with its `path` attribute and with every spelling of a test gate,
 /// and only a gate that holds
-/// solely when testing marks it test-only.
+/// solely when testing marks it test-only;
+/// an attribute written on the declaration's own line reads the same as one above it.
 #[test]
 fn declarations_read_path_attributes_and_test_gates() {
     let text: &str = "\
@@ -64,7 +65,9 @@ fn declarations_read_path_attributes_and_test_gates() {
         mod release_only;\n\
         #[cfg(test)]\n\
         #[path = \"other_name.rs\"]\n\
-        mod renamed;\n";
+        mod renamed;\n\
+        #[cfg(test)] pub mod gated_on_its_attribute_line;\n\
+        #[path = \"named_on_its_attribute_line.rs\"] mod renamed_on_its_attribute_line;\n";
     let found: Vec<Declaration> = declared(text);
     let summary: Vec<(String, Option<String>, bool)> = found
         .iter()
@@ -82,6 +85,12 @@ fn declarations_read_path_attributes_and_test_gates() {
                 String::from("renamed"),
                 Some(String::from("other_name.rs")),
                 true
+            ),
+            (String::from("gated_on_its_attribute_line"), None, true),
+            (
+                String::from("renamed_on_its_attribute_line"),
+                Some(String::from("named_on_its_attribute_line.rs")),
+                false
             ),
         ]
     );
@@ -107,6 +116,10 @@ fn declarations_refuse_what_they_cannot_place() {
     assert!(
         declarations("#[cfg_attr(unix, path = \"x.rs\")]\nmod x;\n").is_err(),
         "a path chosen by condition"
+    );
+    assert!(
+        declarations("#[cfg(test)] pub(in crate::a) mod x;\n").is_err(),
+        "a visibility this reading does not place, on an attribute's own line"
     );
     assert_eq!(module_name("pub(crate) mod a_b1;"), Some("a_b1"));
     assert_eq!(module_name("mod a { }"), None);

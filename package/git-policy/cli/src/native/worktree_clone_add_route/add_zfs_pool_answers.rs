@@ -1,18 +1,17 @@
 //! What:
 //!  What the pool answered,
-//! read back and refused:
-//! one dataset's identity,
-//! one
-//!  clone's identity with the properties its reply carried,
-//! the sentence for a
+//!  read back and refused:
+//!  one dataset's identity,
+//!  one clone's identity with the properties its reply carried,
+//!  the sentence for a
 //!  clone whose mountpoint moved,
-//! and the shapes a reply must not hold.
+//!  and the shapes a reply must not hold.
 //! Why:
 //!  A write's outcome is unknown the moment the kernel refuses it,
-//! so no request
+//!  so no request
 //!  is sent twice and each answer is read back before its identity is recorded
 //!  (`doc/planning/cli-git-zfs-add-binding-record-design.md`,
-//! A8 and A9).
+//!  A8 and A9).
 //!  `add_zfs.rs` sends the requests and would go over the file-size limit
 //!  carrying the reading of their answers,
 //!  and `add_zfs_inventories.rs` lists what an origin and a clone hold,

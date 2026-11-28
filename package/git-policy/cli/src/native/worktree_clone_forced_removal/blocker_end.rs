@@ -326,8 +326,8 @@ where
 ///  when the record's state says it is an ordinary task.
 /// Why:
 ///  A task in `Z`,
-/// `X`,
-/// `D` or with a number the kernel holds as a thread is not
+///  `X`,
+///  `D` or with a number the kernel holds as a thread is not
 ///  a task this stage can end:
 ///  a zombie holds nothing,
 ///  and an uninterruptible task is reported rather than waited on forever.

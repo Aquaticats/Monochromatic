@@ -31,7 +31,7 @@ use std::path::Path;
 /// and a control that a volume disappears in that moment cannot time a
 ///  race:
 /// it states the act here,
-/// and the removal calls it at the one place the state can be changed.
+///  and the removal calls it at the one place the state can be changed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,7 +45,7 @@ pub(crate) fn act_after_the_around_pass(act: impl FnMut(&Path) + 'static) {
 
 /// What:
 ///  Call the act this thread stated,
-/// with the path the removal went around.
+///  with the path the removal went around.
 /// Why:
 ///   The removal calls this and knows nothing of what the control does;
 /// a thread that stated no act pays one thread-local lookup per pass.
@@ -92,7 +92,7 @@ pub(crate) fn act_after_each_listing(act: impl FnMut(&Path) + 'static) {
 
 /// What:
 ///  Call the act this thread stated,
-/// with the directory a removal has just read.
+///  with the directory a removal has just read.
 /// Why:
 ///   The removal calls this and knows nothing of what the control does;
 /// a thread that stated no act pays one thread-local lookup per directory.
@@ -132,7 +132,7 @@ pub(crate) fn act_after_each_check(act: impl FnMut(&Path) + 'static) {
 
 /// What:
 ///  Call the act this thread stated,
-/// with the path whose kind the pass has just asked.
+///  with the path whose kind the pass has just asked.
 /// Why:
 ///   The pass calls this and knows nothing of what the control does;
 /// a thread that stated no act pays one thread-local lookup per directory.

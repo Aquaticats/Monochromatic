@@ -1,37 +1,35 @@
 //! What:
 //!  Which `git worktree add` the ZFS add route serves,
-//! and the facts the route
+//!  and the facts the route
 //!  then uses:
-//! the checkout's dataset and pool,
-//! the clone container,
-//! the slot
-//!  and its name.
+//!  the checkout's dataset and pool,
+//!  the clone container,
+//!  the slot and its name.
 //! Why:
 //!  The route is wired into the wrapper's one add path,
-//! and it must serve
+//!  and it must serve
 //!  nothing else:
-//! an add on another filesystem,
-//! or in a checkout that is not
+//!  an add on another filesystem,
+//!  or in a checkout that is not
 //!  the dataset the design pins,
-//! takes the route it took before,
-//! exactly as
-//!  today (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+//!  takes the route it took before,
+//!  exactly as today (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "Dataset and path layout").
 //!  The checkout's dataset is the gate the plan names without a word of its
 //!  own:
-//! the route needs `monochromatic-git-checkout` mounted at the source,
+//!  the route needs `monochromatic-git-checkout` mounted at the source,
 //!  which only plan step 19's one-time migration makes,
-//! so no person meets the
+//!  so no person meets the
 //!  route before that step
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
-//! step 19).
+//!  step 19).
 //!  A checkout on a ZFS mount of another leaf name,
-//! which is this machine
+//!  which is this machine
 //!  before the migration,
-//! keeps Git's own checkout.
+//!  keeps Git's own checkout.
 //!  The decision takes the two facts a host cannot fake (the filesystem kind
 //!  and the dataset lookup) as a value,
-//! so every branch is a control on any
+//!  so every branch is a control on any
 //!  machine.
 //!
 //! In TS you'd write (pseudocode):
@@ -68,7 +66,7 @@ pub const WRAPPER_FOLDER_BELOW_THE_CHECKOUT: &str = ".claude";
 ///  What a checkout's mount says about the design's dataset.
 /// Why:
 ///  The decision below is a function of this answer,
-/// so the mount read and the
+///  so the mount read and the
 ///  rule stay apart and every rule's branch is a host control.
 ///
 /// In TS you'd write (pseudocode):
@@ -94,8 +92,8 @@ pub enum CheckoutMount {
 /// Why:
 ///  A step that recomputed one of these could disagree with the step before
 ///  it,
-/// and the record names all of them,
-/// so one value carries the facts the
+///  and the record names all of them,
+///  so one value carries the facts the
 ///  gate proved.
 ///
 /// In TS you'd write (pseudocode):
@@ -158,13 +156,13 @@ impl RouteFacts {
 
 /// What:
 ///  Whether the destination is the shape the route serves:
-/// a direct child of
+///  a direct child of
 ///  `<source>/.claude/worktrees`.
 /// Why:
 ///  The design puts every managed clone at that path,
-/// and a record is keyed by
+///  and a record is keyed by
 ///  the slot's last name,
-/// so an add anywhere else is not this route's.
+///  so an add anywhere else is not this route's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -182,13 +180,13 @@ pub fn destination_is_the_routes_slot(
 
 /// What:
 ///  The route's facts from the facts the caller read,
-/// or nothing when the add
+///  or nothing when the add
 ///  is not the route's,
-/// or the refusal that stops the add.
+///  or the refusal that stops the add.
 /// Why:
 ///  The caller makes the two host reads (the filesystem kind and the mount
 ///  lookup) and this rule decides,
-/// so a control supplies both answers and no
+///  so a control supplies both answers and no
 ///  control needs a pool.
 ///
 /// # Errors
@@ -251,10 +249,10 @@ pub fn decide_the_routes_add(
 
 /// What:
 ///  The route's facts for one add,
-/// reading the two host facts first.
+///  reading the two host facts first.
 /// Why:
 ///  The wrapper's add path asks this once.
-/// `Ok(None)` keeps the ladder and
+///  `Ok(None)` keeps the ladder and
 ///  the copy exactly as they were.
 ///
 /// # Errors

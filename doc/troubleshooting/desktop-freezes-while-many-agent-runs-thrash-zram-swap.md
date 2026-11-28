@@ -1513,6 +1513,239 @@ Both rules are the eleventh batch's, in `doc/troubleshooting/cachyos-apparmor-en
 `btrfs check --readonly` of the old filesystem and growing devid 1 into its 2 GiB margin
 run from a waiting command, after this step, on the owner's word.
 
+## A swap partition on the old NVMe, set up 2026-11-28
+
+Recorded by the coordinating session.
+Unapproved and non-final.
+The owner chose the partition and its size,
+and afterwards approved how it is encrypted;
+both answers are in
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"Swap on the old NVMe".
+
+### Why
+
+On the night of 2026-11-27 to 2026-11-28 swap ran nearly full twice with many rounds and guests alive:
+`SwapFree` read 3,280,544 kB of 64,667,644 kB at 2026-11-28T02:44:23-05:00,
+with zram as the only swap.
+
+### What was changed, step by step
+
+1.  The Btrfs file system on the old NVMe was shrunk by 128 GiB on its device 1,
+    mounted in a private mount namespace.
+    It ended at 2026-11-28T03:36:53-05:00 with the device at 737,768,636,416 bytes.
+2.  The partition table of `/dev/nvme0n1` was rewritten at 03:40:00
+    with `sfdisk --no-reread --no-tell-kernel --force`,
+    and the kernel was told with `partx`.
+    Two things changed and nothing else:
+    partition 6 went from 1,713,616,896 sectors to 1,445,181,440,
+    at the same start,
+    2,152,962,048;
+    and a new partition 8 begins at sector 3,598,143,488 for 268,435,456 sectors
+    (128 GiB),
+    type Linux swap,
+    named `old-nvme-plain-swap`.
+    Partition 7,
+    the zram writeback device,
+    was in use throughout and was not touched.
+    Partition 6 was closed before the write and reopened read-only after it:
+    its mapping holds 739,916,120,064 bytes,
+    more than the file system's device.
+3.  Partition 8 is opened as plain dm-crypt,
+    `aes-xts-plain64` with a 512-bit key read from `/dev/urandom` each time it opens and a sector size of 4096,
+    which is the setup the writeback partition beside it already has.
+    Nothing on it survives a reboot,
+    and there is no key to keep.
+4.  `mkswap`,
+    then `swapon --priority 10`,
+    at 03:40:32,
+    behind zram's priority of 110.
+    No AppArmor denial was met.
+
+The two lines that make it come back at boot:
+
+```text
+# /etc/crypttab
+old-nvme-plain-swap /dev/disk/by-partuuid/<partition 8's PARTUUID> /dev/urandom swap,cipher=aes-xts-plain64,size=512,sector-size=4096,nofail
+
+# /etc/fstab
+/dev/mapper/old-nvme-plain-swap none swap pri=10,nofail 0 0
+```
+
+### The bridge that was used meanwhile
+
+While the shrink ran,
+a 64 GiB swap file on the 860 drive's Btrfs file system carried the overflow,
+from 02:45:46.
+Two AppArmor profiles had to be widened for it
+(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+nineteenth batch).
+It was switched off and deleted between 03:40:54 and 03:50:05,
+so `mount-860.service` can be stopped again.
+The `swapoff` took nine minutes,
+because the pages it held had to go somewhere else.
+
+### What it did and did not change
+
+At 03:50:06 swap read 198,885,368 kB in all with 136,179,540 kB free,
+so swap no longer runs out.
+The machine still stalled:
+at 03:51:23 `MemAvailable` read 0 kB and `/proc/pressure/memory` read
+`some avg10=63.81` and `full avg10=49.62`,
+with a load of 101,
+eight compilers,
+nine guests and twenty rounds alive,
+and `Shmem` at 30.5 GB.
+A whole container gate that ran through that minute ended with four tests failed at their bounds.
+So room to swap into is not what was short at that moment.
+What holds that much `Shmem` was read at the next stall:
+it is the guests' memory,
+as the section "The guests' unit at its own memory cap,
+2026-11-28" records.
+
+### How to undo it
+
+1.  `swapoff /dev/mapper/old-nvme-plain-swap`,
+    then `cryptsetup close old-nvme-plain-swap`.
+2.  Remove the two lines from `/etc/crypttab` and `/etc/fstab`.
+3.  Delete partition 8 and give partition 6 its sectors back:
+    partition 6 at start 2,152,962,048 with 1,713,616,896 sectors,
+    with partition 6's mapping closed while the table is written.
+4.  Grow the file system on device 1 again with `btrfs filesystem resize 1:max`.
+
+The owner has said every partition of the old NVMe that this system does not need is to be formatted after its data has moved,
+so the undo is here for the time before that.
+
+## The guests' unit at its own memory cap, 2026-11-28
+
+Recorded by the coordinating session.
+Unapproved and non-final.
+This is a second incident of the same morning and is kept apart from the one at 03:51:23,
+when `MemAvailable` read 0 kB for the whole machine.
+
+### What was read
+
+From 05:23:27 to 05:38:03 the machine's own pressure line,
+`full` in `/proc/pressure/memory`,
+read between 55 and 88 over sixty seconds,
+while `MemAvailable` read between 7.7 GB and 13.8 GB;
+no compiler was running at 05:23:27,
+the one moment that was read for it.
+One control group accounts for it.
+
+- Every guest `mvm` starts runs inside `mvm-libvirt-session.service`,
+  and `mvm` gives that unit a `MemoryMax` of half the machine's memory
+  (`package/mvm/cli/src/session-daemon-memory.ts`,
+  the project's choice of 2026-11-21 for issue 6338):
+  33,109,835,776 bytes here.
+- Each guest's domain asks for 8 GiB,
+  backed by a shared `memfd`
+  (`memory-backend-memfd`,
+  `share` on,
+  8,589,934,592 bytes),
+  so what a guest touches is charged to that unit as shared memory.
+- Eight guests were alive.
+  At 05:29:55 the unit held 30,301 MiB,
+  29,797 MiB of it shared memory,
+  with 26,933 MiB more in swap.
+  Its `memory.events` counted 1,322,141 meetings with its `max`,
+  and 1,367,471 by 05:38:03.
+  Its own `memory.pressure` read `full avg60=74.71`.
+- In the same reading `agent.slice`,
+  `session.slice` and `system.slice` each read `full avg60=0.00`,
+  the machine had 13,208,452 kB in `MemFree`,
+  and the machine-wide line read `full avg60=60.47`.
+- At 05:38:03:
+  eight guests,
+  31,575 MiB held and 27,983 MiB in swap,
+  59,558 MiB between them,
+  which is 7,445 MiB (7.3 GiB) a guest on average.
+- A guest's own share cannot be read from its QEMU process's `smaps_rollup`.
+  Read over all eight at 05:34:38,
+  `Rss` plus `Swap` summed to 29,535 MiB while the unit held 59,561 MiB:
+  the read counts the pages swapped out
+  (28,559 MiB,
+  against the unit's 27,986 MiB of swap)
+  and the pages mapped at that instant
+  (976 MiB),
+  and leaves out the shared memory that is in memory and unmapped,
+  about 30.6 GiB of the unit's.
+  `doc/planning/mvm-guest-memory-held-for-a-rounds-life.md` used that same read as a guest's charge.
+
+So eight guests that between them had touched 58.2 GiB sat in a unit allowed 30.8 GiB,
+and the unit swapped against its own limit while memory stood free outside it.
+The machine-wide pressure line reads that unit's stall as the machine's.
+
+### What followed from it
+
+- A test that reads the machine-wide pressure line says nothing about memory for a build or a gate on the host.
+  A whole container gate had waited behind such a test from 05:14 and was restarted at 05:37:50 behind a test on `MemAvailable`,
+  and a measurement round had waited 1,323 s behind the same test.
+- Under that swap the guests' own work is what slows:
+  rounds of that night report crate builds inside a guest of 30 to 39 minutes,
+  builds cut by their own bounds,
+  and a guest agent that stopped answering.
+- The session had told rounds to create a guest only when fewer than nine were alive.
+  That number was never set against the unit's limit.
+- `package/mvm/cli/README.md` gives the limit's basis as a measurement of 2026-11-21 in which a unit with one 8 GiB guest was charged 990 MB.
+  A guest that builds the wrapper's crate inside itself touches several times that.
+
+### After the limit was raised
+
+The owner chose three quarters of the machine's memory for the unit,
+applied to the running unit
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"The guests' memory").
+`systemctl --user set-property --runtime mvm-libvirt-session.service MemoryMax=47364M` ran at 05:45:26
+and moved the unit's `memory.max` from 33,109,835,776 to 49,664,753,664 bytes.
+The readings of a sampler that wrote one line a minute:
+
+- 05:45:10,
+  before:
+  the unit `full avg10=88.29`,
+  the machine `full avg10=82.37`,
+  the count of meetings with `max` at 1,409,996 and rising by thousands a minute.
+- 05:46:11:
+  the unit `full avg10=1.70`,
+  the machine `full avg10=1.71`,
+  the count at 1,411,196.
+- 05:47:12:
+  both `full avg10=0.00`,
+  the count still 1,411,196,
+  the unit holding 35,664 MiB with 24,491 MiB in swap.
+- 05:50:15,
+  with seven guests alive:
+  the unit at 33,930 MiB with 20,333 MiB in swap,
+  both `full avg60` under 1,
+  the count unchanged,
+  and `MemAvailable` at 6,276,260 kB.
+
+So the stall ended within two minutes of the limit moving,
+and the machine-wide line followed the unit's to zero.
+What the larger limit costs the rest of the machine is not read yet:
+`MemAvailable` moved between 4.0 GB and 9.8 GB in those minutes.
+
+### Six of the eight guests could not give memory back
+
+Free page reporting was decided and shipped on 2026-11-25
+(`doc/decision/mvm-guests-report-free-pages.md`,
+commit `269b812807`).
+The six guests made between 2026-11-27T21:25 and 2026-11-28T01:08 were defined with `<memballoon model='virtio'>` alone;
+the two made at 04:53 and 05:16 carry `freePageReporting='on'`.
+The built `mvm` that made the six did not hold the change:
+no file of two rounds' own `package/mvm/cli/dist` folders names `freePageReporting`,
+though their source does,
+and the main checkout's build names it since it was built again on 2026-11-28.
+What the six guests would have returned with it is not measured.
+
+### Not known
+
+- How many guests fit the limit without the unit swapping:
+  the average says four at 7.3 GiB each (29.1 GiB of the 30.8 GiB),
+  and four guests that have each touched all of their 8 GiB are 1.2 GiB over.
+- Whether the stall at 03:51:23 had the same unit at its centre:
+  nobody read the unit's own counters then.
+
 ## What is not known
 
 Each of these is a question with the measurement that answers it.

@@ -33,7 +33,7 @@ use crate::worktree_clone_mount_handler::sweep_dataset_reader::ReadFailure;
 use std::collections::BTreeMap;
 
 /// The healthy route produces no finding,
-/// and the only unknowns are the five checks later steps owe.
+/// and the only unknown is the backup coverage no arm reads yet.
 #[test]
 fn the_healthy_route_has_no_finding() {
     let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
@@ -49,17 +49,7 @@ fn the_healthy_route_has_no_finding() {
         .filter(|report| return report.unknown())
         .map(|report| return report.check.name())
         .collect();
-    assert_eq!(
-        unknown,
-        vec![
-            "cancel-command",
-            "boot-protection",
-            "service-unit",
-            "backup-coverage",
-            "sanoid"
-        ],
-        "{unknown:?}"
-    );
+    assert_eq!(unknown, vec!["backup-coverage"], "{unknown:?}");
 }
 
 /// Every check the step names appears exactly once.
@@ -364,4 +354,116 @@ fn the_report_is_built_from_facts_alone() {
         .find(|report| return report.check.name() == "checkout-dataset")
         .expect("the checkout check reports");
     assert!(checkout.unknown(), "{}", checkout.line());
+}
+
+/// The Sanoid line is the coverage comparison's own answer,
+/// so a drift the comparison found is the line a person reads rather than an
+/// unknown standing in its place.
+#[test]
+fn the_sanoid_line_is_the_coverage_answer() {
+    let mut facts: RouteFacts = healthy_route_facts();
+    let correction: String =
+        String::from("correction: set `recursive = yes` under [zpcachyos/home]");
+    facts.sanoid = crate::health::doctor_zfs_route::sanoid_report::SanoidReport::new(
+        crate::health::doctor_zfs_route::check_outcome::finding(
+            "recursion",
+            "1 finding(s): recursion",
+        ),
+        vec![correction.clone()],
+    );
+    let reports: Vec<CheckReport> = route_checks(&facts);
+    let sanoid: &CheckReport = reports
+        .iter()
+        .find(|report| return report.check.name() == "sanoid")
+        .expect("the sanoid check reports");
+    assert!(sanoid.found(), "{}", sanoid.line());
+    assert!(sanoid.line().contains("recursion"), "{}", sanoid.line());
+    assert_eq!(facts.sanoid.lines, vec![correction]);
+}
+
+/// A dataset under the checkout left `canmount`-mounted moves the boot
+/// setup's line and nothing else,
+/// so the property V4 decided is judged on its own.
+#[test]
+fn a_dataset_under_the_checkout_moves_one_answer() {
+    let mut facts: RouteFacts = healthy_route_facts();
+    facts.boot_setup.nested[0].canmount =
+        crate::worktree_clone_mount_handler::sweep_dataset_facts::PropertyValue::Number(
+            crate::health::doctor_zfs_route::zfs_checks_limits::CANMOUNT_ON,
+        );
+    let reports: Vec<CheckReport> = route_checks(&facts);
+    let findings: Vec<&CheckReport> = reports
+        .iter()
+        .filter(|report| return report.found())
+        .collect();
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].check.name(), "service-unit");
+}
+
+/// An unprotected covered entry moves the boot protection's line,
+/// and the line names the field a person repairs.
+#[test]
+fn an_unprotected_entry_moves_one_answer() {
+    let mut facts: RouteFacts = healthy_route_facts();
+    if let Ok(entry) = &mut facts.boot_protection.entry {
+        entry.immutable = false;
+    }
+    let reports: Vec<CheckReport> = route_checks(&facts);
+    let findings: Vec<&CheckReport> = reports
+        .iter()
+        .filter(|report| return report.found())
+        .collect();
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(findings[0].check.name(), "boot-protection");
+    assert!(
+        findings[0].line().contains(": immutable: "),
+        "{}",
+        findings[0].line()
+    );
+}
+
+/// The cancel command's line passes on every route,
+/// because the only fact it reads is the command this build carries.
+#[test]
+fn the_cancel_command_line_passes_on_every_route() {
+    let mut facts: RouteFacts = healthy_route_facts();
+    facts.boot_setup.nested.clear();
+    let reports: Vec<CheckReport> = route_checks(&facts);
+    let command: &CheckReport = reports
+        .iter()
+        .find(|report| return report.check.name() == "cancel-command")
+        .expect("the cancel command reports");
+    assert!(command.passed(), "{}", command.line());
+    assert!(
+        command.line().contains("cancel-worktree-removal <slot>"),
+        "{}",
+        command.line()
+    );
+}
+
+/// The four checks the report gained stand where the step lists them,
+/// after every clone's group and before nothing else,
+/// so a person reads one machine's checks in one order.
+#[test]
+fn the_step_nineteen_and_twenty_checks_follow_the_clone_groups() {
+    let reports: Vec<CheckReport> = route_checks(&healthy_route_facts());
+    let names: Vec<&'static str> = reports
+        .iter()
+        .map(|report| return report.check.name())
+        .collect();
+    let last_clone: usize = names
+        .iter()
+        .rposition(|name| return *name == "holders")
+        .expect("a clone's group is in the report");
+    assert_eq!(
+        &names[last_clone + 1..],
+        [
+            "cancel-command",
+            "boot-protection",
+            "service-unit",
+            "backup-coverage",
+            "sanoid"
+        ],
+        "{names:?}"
+    );
 }

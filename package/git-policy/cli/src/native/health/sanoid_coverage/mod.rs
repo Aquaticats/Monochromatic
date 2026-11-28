@@ -144,6 +144,7 @@ pub use coverage_checks::{
     COVERAGE_CHECK_NAME,
     CoverageFacts,
     check_coverage,
+    sanoid_report,
 };
 /// One drift and the check's answer.
 pub use coverage_finding::{

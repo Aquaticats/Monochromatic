@@ -1,0 +1,22 @@
+Which shipped rules bound a prose line's width, and does a 123-character prose line pass.
+Run 2026-11-28T03:20:27-05:00 with the installed monochromatic-lint 0.5.2-alpha.24 in a systemd user scope (MemoryMax 2G, CPUQuota 100%, TasksMax 64, IOWeight 1, RuntimeMaxSec 300).
+
+command:
+  /home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint --rules
+
+the 30 shipped rule ids:
+rust/max-lines rust/require-rustdoc rust/require-explicit-types rust/tests-in-sidecars rust/avoidable-closure rust/folder-uses-links rust/file-order-in-folder markdown/heading-increment markdown/commands-show-output markdown/no-duplicate-heading markdown/single-h1 markdown/no-trailing-punctuation markdown/no-bare-urls markdown/no-emphasis-as-heading markdown/fenced-code-language markdown/link-image-reference-definitions markdown/link-image-style markdown/no-pipe-tables markdown/semantic-line-breaks markdown/lfs-image-url shell/max-lines shell/no-pipe shell/no-and-chain shell/no-or-chain shell/no-pipe-stderr shell/no-semicolon shell/no-dollar-paren shell/no-backtick shell/no-ampersand 
+No markdown rule and no shell rule bounds a line's width. The two rules named max-lines bound a file's line count: rust/max-lines and shell/max-lines.
+
+command:
+  /home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint --config monochromatic-lint.config.jsonc <a copy in the scratch folder>
+
+the fixture (a copy, never a file of the repository):
+# A heading
+
+prose prose prose prose prose prose prose prose prose prose prose prose prose prose prose prose prose prose prose prose pr.
+its prose line is 123 characters and holds no break point inside it.
+
+output: no finding, exit status 0.
+
+So MD1's 120 bound is enforced by no rule: only markdown/semantic-line-breaks reads a prose line at all, and it reads where to insert a break, never a line's width.

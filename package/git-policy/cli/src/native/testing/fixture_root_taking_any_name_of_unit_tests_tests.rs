@@ -58,13 +58,13 @@ const NAMESPACE_ROOT_UID: libc::uid_t = 0;
 
 /// What:
 ///  A program started from the fixture root,
-/// where that root takes a name that is not UTF-8,
+///  where that root takes a name that is not UTF-8,
 ///  holds no capability.
 /// Why:
 ///   The root of a user namespace is given every capability of that namespace when it starts a program,
 ///  unless the process carries `SECURE_NOROOT`
 ///  (`security/commoncap.c`,
-/// `handle_privileged_root`);
+///  `handle_privileged_root`);
 ///  the fixture sets that bit once its tmpfs is mounted,
 ///  so a fixture's Git asks the kernel for no capability it would then hold,
 ///  and the answer it gets is the one an ordinary account's Git is given.
@@ -103,7 +103,7 @@ fn a_program_started_from_the_any_name_root_holds_no_capability() {
 
 /// What:
 ///  Every capability set the program printed,
-/// read from the status file of the program itself.
+///  read from the status file of the program itself.
 /// Why:
 ///   The sets are read from inside the program,
 ///  so nothing of this process's own state stands in for them,

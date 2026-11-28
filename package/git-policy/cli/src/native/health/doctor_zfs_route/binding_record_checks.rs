@@ -10,9 +10,9 @@
 //! Why:
 //!  The removal's own refusals send a person to the binding record when the
 //!  clone,
-//! the origin or the registration a removal is about cannot be proved
+//!  the origin or the registration a removal is about cannot be proved
 //!  (`RemovalStop::NoBinding`,
-//! `RemovalStop::BindingIncomplete`),
+//!  `RemovalStop::BindingIncomplete`),
 //!  and plan step 18 is where that record is printed
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  step 18,

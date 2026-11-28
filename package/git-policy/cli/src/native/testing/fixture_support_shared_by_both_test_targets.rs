@@ -7,7 +7,7 @@
 //!  and the copies drifted apart,
 //!  so a fix landed in one target and not the other
 //!  (`doc/debt-ledger-2026-11-25.md`,
-//! item 11).
+//!  item 11).
 //!  Both targets include this one file by `#[path]`,
 //!  as they already include `test_alive.rs`:
 //!  `testing/test_support.rs` for the library's unit tests,
@@ -29,11 +29,11 @@
 /// What:
 ///  `Path` is a borrowed file-system path (think TS's `string` when it names a file),
 ///  and `PathBuf` is the owned,
-/// growable form of one (think a `string` this code built and keeps).
+///  growable form of one (think a `string` this code built and keeps).
 /// Why:
 ///  A folder this file makes is handed back as the owned form the caller stores,
 ///  while the paths it is given are only looked at,
-/// so they stay borrowed.
+///  so they stay borrowed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,7 +223,7 @@ pub(crate) fn run_fixture_root() -> PathBuf {
 /// What:
 ///  The directory this process's fixtures are created in:
 ///  `process-<pid>` under the run's own fixture root (`run_fixture_root`),
-/// never `/tmp`.
+///  never `/tmp`.
 /// Why:
 ///   The build output is shared by every checkout that builds into the same target directory,
 ///  so a bare `test-fixtures` itself is shared by every checkout and every test process of this host.
@@ -569,7 +569,7 @@ pub(crate) fn missing_fixture_root_report(root: &Path) -> String {
 ///  or why it cannot be listed.
 /// Why:
 ///  The report above reads as one sentence per folder,
-/// so a person sees the first folder that went.
+///  so a person sees the first folder that went.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -841,8 +841,7 @@ pub(crate) fn restore_owner_access(_root: &Path) {}
 /// How many times a removal that finds the directory still gaining entries is tried.
 /// Why:
 ///  A child that a landed commit or a stopped service left finishing keeps adding entries for a moment;
-/// five seconds
-///  of tries is far longer than that moment and still ends a wait that will never succeed.
+/// five seconds of tries is far longer than that moment and still ends a wait that will never succeed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

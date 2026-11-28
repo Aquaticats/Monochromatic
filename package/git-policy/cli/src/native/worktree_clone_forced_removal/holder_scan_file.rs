@@ -23,7 +23,7 @@
 //!  and a missing file is a missing answer and never a clear one.
 //!  A receipt whose nonce matches and whose scan file is missing is therefore a
 //!  refusal of the removal at that step,
-//! which is what V2 adopts.
+//!  which is what V2 adopts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -367,7 +367,7 @@ impl ScanFile {
 /// Why:
 ///  Opening by a path resolved again after the proof reads whatever is at that path now,
 ///  and this boundary is the receipt's own:
-/// the descriptor is the authority.
+///  the descriptor is the authority.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

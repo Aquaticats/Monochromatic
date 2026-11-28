@@ -47,8 +47,8 @@ use std::path::{
 /// What:
 ///  The object a name held:
 ///  its device and inode,
-/// its size,
-/// and the moment it was written.
+///  its size,
+///  and the moment it was written.
 /// Why:
 ///   A launcher a concurrent install writes is a new object under the same name
 ///   (`mpm-shadow` places it with a rename),
@@ -78,7 +78,7 @@ pub(super) struct Identity {
 ///  or nothing when it is not there.
 /// Why:
 ///   A launcher is compared with the object the pass classified,
-/// and an absent one was removed by someone else.
+///  and an absent one was removed by someone else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -92,9 +92,9 @@ pub(super) fn identity_of(path: &Path) -> Option<Identity> {
 ///  The object `path` names once every link and relative segment on the way is resolved.
 /// Why:
 ///   A record's `lockFile` may name one file through any spelling,
-/// so what is compared is the object and not the text:
+///  so what is compared is the object and not the text:
 ///  a link to the worktree,
-/// a path through `..` and a bind mount of the same folder all resolve to one object.
+///  a path through `..` and a bind mount of the same folder all resolve to one object.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -108,7 +108,7 @@ fn identity_following_links_of(path: &Path) -> Option<Identity> {
 ///  The identity of one looked-up object.
 /// Why:
 ///   Both looks above hand the same four numbers on,
-/// so the comparison between them cannot differ.
+///  so the comparison between them cannot differ.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

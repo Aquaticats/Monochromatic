@@ -9,8 +9,8 @@
 //!  and the refusal both root modes answer a caller that is not root with.
 //! Why:
 //!  The owner answered "One program only,
-//! ever",
-//! so the release holds one
+//!  ever",
+//!  so the release holds one
 //!  executable and the root modes are modes of the wrapper
 //!  (`doc/decision/cli-git-zfs-one-program-only-the-root-modes-join-the-wrapper.md`).
 //!  A root-owned program the ZED event and the boot and shutdown units start

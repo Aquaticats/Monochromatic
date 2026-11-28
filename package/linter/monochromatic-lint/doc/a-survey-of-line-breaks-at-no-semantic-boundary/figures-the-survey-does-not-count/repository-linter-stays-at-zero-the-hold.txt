@@ -1,0 +1,10 @@
+
+From lines 49126 to 49133 of the old handover
+(`doc/handover/old-git-wrapper-handover-being-sorted-into-records-and-issues.md` at `c84e2f1dbf`),
+moved verbatim on 2026-11-23:
+
+The semantic line breaks:
+"Put the semantic line break findings on hold."
+then,
+"Put the semantic line break findings on hold.
+They aren't the most serious issues right now."

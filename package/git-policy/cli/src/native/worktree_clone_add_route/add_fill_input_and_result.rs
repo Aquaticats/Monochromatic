@@ -2,8 +2,8 @@
 //!  What one fill reads and what a filled clone hands back.
 //! Why:
 //!  The fill touches the clone,
-//! the registration and the records,
-//! and each of
+//!  the registration and the records,
+//!  and each of
 //!  them is named once by the caller that proved it,
 //!  so one value carries every input and a reader of any step sees what it may
 //!  read without opening the fill itself.
@@ -31,8 +31,8 @@ use std::path::Path;
 ///  Everything one fill reads.
 /// Why:
 ///  The fill touches the clone,
-/// the registration and the records,
-/// and each of
+///  the registration and the records,
+///  and each of
 ///  them is named once by the caller that proved it.
 ///
 /// In TS you'd write (pseudocode):
@@ -85,7 +85,7 @@ pub struct FillInput<'a> {
 /// Why:
 ///  The trash the leave-out made and the exchange extended is the disposal's
 ///  work,
-/// and the add hands it over after the fill.
+///  and the add hands it over after the fill.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

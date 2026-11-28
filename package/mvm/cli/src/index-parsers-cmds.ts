@@ -30,8 +30,15 @@ import {
   option,
 } from '@optique/core/primitives';
 // TODO: deprecate Optique
-import { string, } from '@optique/core/valueparser';
+import {
+  integer,
+  string,
+} from '@optique/core/valueparser';
 
+import {
+  MINIMUM_MEMORY_GIB,
+  MINIMUM_VCPUS,
+} from './backend/size-request.ts';
 import type { MvmArgs, } from './index-parsers.ts';
 
 /**
@@ -82,7 +89,7 @@ const imageOption = optional(
 
 /**
  TODO: deprecate Optique
- Option parser for `--server-type TYPE`, used by cloud backends (Hetzner).
+ Option parser for `--server-type TYPE`, used by the cloud backends.
  */
 const serverTypeOption = optional(
   option(
@@ -90,14 +97,14 @@ const serverTypeOption = optional(
     string({ metavar: 'TYPE', },),
     {
       description:
-        message`Hetzner server type (e.g. cx23); defaults to the cheapest non-deprecated type; ignored by the libvirt backend`,
+        message`Server type: the Hetzner server type (e.g. cx23) or the OVHcloud flavor name or id (e.g. b3-8); defaults to the cheapest Hetzner type or the smallest OVHcloud flavor in stock; ignored by the libvirt backend`,
     },
   ),
 );
 
 /**
  TODO: deprecate Optique
- Option parser for `--location LOCATION`, used by cloud backends (Hetzner).
+ Option parser for `--location LOCATION`, used by the cloud backends.
  Accepts a single location or a comma-separated fallback series.
  */
 const locationOption = optional(
@@ -106,7 +113,43 @@ const locationOption = optional(
     string({ metavar: 'LOCATION', },),
     {
       description:
-        message`Hetzner location or comma-separated fallback series (e.g. fsn1,nbg1); ignored by the libvirt backend`,
+        message`Location: a Hetzner location series (e.g. fsn1,nbg1) or OVHcloud regions (e.g. bhs5); defaults to the Hetzner EU locations or the project's Canadian regions; ignored by the libvirt backend`,
+    },
+  ),
+);
+
+/**
+ TODO: deprecate Optique
+ Option parser for `--vcpus COUNT`, the fewest virtual CPUs a machine may have.
+ */
+const vcpusOption = optional(
+  option(
+    '--vcpus',
+    integer({
+      metavar: 'COUNT',
+      min: MINIMUM_VCPUS,
+    },),
+    {
+      description:
+        message`Fewest virtual CPUs the machine may have; a libvirt guest gets exactly this many, and a cloud backend picks the smallest size with at least this many. Omit to keep the backend's own default`,
+    },
+  ),
+);
+
+/**
+ TODO: deprecate Optique
+ Option parser for `--memory GIB`, the least memory a machine may have.
+ */
+const memoryOption = optional(
+  option(
+    '--memory',
+    integer({
+      metavar: 'GIB',
+      min: MINIMUM_MEMORY_GIB,
+    },),
+    {
+      description:
+        message`Least memory the machine may have, in gibibytes; a libvirt guest gets exactly this much, and a cloud backend picks the smallest size with at least this much. Omit to keep the backend's own default`,
     },
   ),
 );
@@ -134,6 +177,8 @@ export const createCmd: SubcommandParser = command(
       image: imageOption,
       serverType: serverTypeOption,
       location: locationOption,
+      vcpus: vcpusOption,
+      memory: memoryOption,
     },),
     function toCreateArgs(v,): MvmArgs {
       return {
@@ -143,6 +188,8 @@ export const createCmd: SubcommandParser = command(
         ...(v.image !== undefined ? { image: v.image, } : {}),
         ...(v.serverType !== undefined ? { serverType: v.serverType, } : {}),
         ...(v.location !== undefined ? { location: v.location, } : {}),
+        ...(v.vcpus !== undefined ? { vcpus: v.vcpus, } : {}),
+        ...(v.memory !== undefined ? { memoryGiB: v.memory, } : {}),
       };
     },
   ),
@@ -290,6 +337,8 @@ export const runCmd: SubcommandParser = command(
   map(
     object({
       from: fromOption,
+      vcpus: vcpusOption,
+      memory: memoryOption,
       args: multiple(argument(commandToken,),),
     },),
     function toRunArgs(v,): MvmArgs {
@@ -298,6 +347,8 @@ export const runCmd: SubcommandParser = command(
         command: v.args
           .join(' ',),
         ...(v.from !== undefined ? { from: v.from, } : {}),
+        ...(v.vcpus !== undefined ? { vcpus: v.vcpus, } : {}),
+        ...(v.memory !== undefined ? { memoryGiB: v.memory, } : {}),
       };
     },
   ),

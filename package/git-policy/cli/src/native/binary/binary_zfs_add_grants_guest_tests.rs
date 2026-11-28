@@ -1014,16 +1014,16 @@ fn a_claim_stands_for(
 /// Why:
 ///  The add's clone request is the one request the design's delegation decides:
 ///  as the account,
-/// the kernel refuses a `mountpoint` property and accepts a
+///  the kernel refuses a `mountpoint` property and accepts a
 ///  propertyless clone
 ///  (`doc/decision/cli-git-zfs-clone-inherits-legacy-from-the-container.md`),
 ///  so only an add that runs as the account can prove the clone it makes.
 ///  The refusal's half proves the preflight reads the container the clone
 ///  inherits from,
-/// before a claim,
-/// a slot,
-/// a registration,
-/// a snapshot or a clone
+///  before a claim,
+///  a slot,
+///  a registration,
+///  a snapshot or a clone
 ///  is written.
 #[test]
 fn the_add_as_the_delegated_account_makes_a_clone_that_inherits_legacy() {

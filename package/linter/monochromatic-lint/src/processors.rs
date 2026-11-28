@@ -83,6 +83,25 @@ impl VirtualSource {
     }
 
     /// What:
+    ///  The most characters the host file writes before one line of this virtual source's text.
+    /// Why:
+    ///  A rule that bounds a line it writes needs the length the reader of the host sees,
+    ///  and the marker, decoration or indent the host repeats before each line is that difference;
+    ///  the widest prefix is a bound no written line can pass.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function hostPrefixChars(source: VirtualSource): number { return Math.max(0, ...lines.map(l => [...l.prefix].length)); }
+    /// ```
+    pub fn host_prefix_chars(&self) -> usize {
+        let mut widest: usize = 0;
+        for line in &self.mapping.lines {
+            widest = widest.max(line.prefix.chars().count());
+        }
+        return widest;
+    }
+
+    /// What:
     ///  Whether this source lies inside a fenced listing of its host,
     ///  at any depth.
     /// Why:

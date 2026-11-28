@@ -8,15 +8,19 @@
 //!  show is identified and refused rather than ended
 //!  (`doc/planning/cli-git-zfs-worktree-implementation-plan.md`,
 //!  "Step 17",
-//! and
-//!  `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
+//!  and `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`,
 //!  "Who ends each kind of holder").
 //!  Every answer here names its evidence in one constant beside it,
 //!  so a reader can see which sentence of which log the ending rests on,
 //!  and the two answers that are not endings say which arm is still owed.
 //!  The table is data rather than prose so that the wrap-level code has one
 //!  place to ask,
-//! and a round that measures a new kind changes one row.
+//!  and a round that measures a new kind changes one row.
+//!  A locked holder takes the one route the owner's answer gave it:
+//!  a service unit of the account's own user manager is stopped through that
+//!  manager and the removal goes on,
+//!  and every other locked holder is refused before any signal
+//!  (`a_locked_holders_own_unit.rs` is the read that tells the two apart).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -101,6 +105,15 @@ pub enum Ending {
     /// make the copy's parent a slave,
     /// move the copy onto a short-lived directory and unmount it there.
     MakeTheParentASlaveThenMoveAndUnmount,
+    /// Stop the service unit of this account's own user manager whose tasks hold
+    /// the copy,
+    /// wait for its control group and namespace to go,
+    /// and then take the copy out of the namespaces that are left.
+    StopTheAccountsOwnUnitThenGoOn,
+    /// Enter the namespace and take its copy out,
+    /// with no signal sent at all,
+    /// because this kind of holder has no task to signal.
+    EnterAndTakeTheCopyOut,
     /// Refuse,
     /// naming the reason,
     /// because no round shows an ending for this kind.
@@ -115,7 +128,7 @@ pub enum Ending {
 ///  and the arm still owed for it.
 /// Why:
 ///  A reader of a report asks "measured where",
-/// and a later round that runs the
+///  and a later round that runs the
 ///  owed arm replaces one row rather than rewriting the prose around it.
 ///
 /// In TS you'd write (pseudocode):
@@ -166,24 +179,35 @@ pub const IN_PLACE_SHOWN_BY: &str = "this round's guest arm, phase namespace-way
 /// with the host's copy standing and the destroy answering `gone`.
 pub const MOVE_SHOWN_BY: &str = "this round's guest arm, phases namespace-way7-repaired and namespace-way7-shared: the move and the unmount at the destination were accepted, the host's copy stayed and the head destroy answered gone; the probe rounds' T0-3 and T0-7 show the slave change and the move";
 
-/// Why the locked holder's ending is not built:
-/// the kernel answers `EINVAL` to both the unmount and the move inside such a
-/// namespace,
-/// which this round's arm and the probe rounds' T0-14 show,
-/// and the design's V10 answer,
-/// stopping a unit of the account's own user manager and finishing the removal,
-/// has no measured arm at all.
-pub const LOCKED_NOT_BUILT: &str = "the locked holder is refused: T0-14 answered EINVAL to both the unmount and the move inside such a namespace, this round's arm answered EINVAL to the unmount and read the namespace's owning user namespace, and the design's V10 answer, stopping the account's own user-manager unit and finishing the removal, is measured by no round";
+/// Why the locked holder's ending is the one the owner's answer chose:
+/// a locked holder that is a service unit of the account's own user manager is
+/// stopped through that manager and the removal goes on,
+/// and this round's guest arm watched that stop:
+/// the unit,
+///  its control group and its namespace went,
+/// the host's copy stayed,
+/// and the host's unmount and the head destroy followed.
+pub const LOCKED_UNIT_SHOWN_BY: &str = "this round's guest arm, phase locked-holder-stopped-through-its-unit: the holder's task was a service unit of the guest account's own user manager and its mount namespace was owned by a user namespace of its own, so way 8's and way 7's unmount both answered holder-locked; the manager's stop ended the unit, its control group and its namespace, the host's copy stayed, and the host's unmount and the head destroy answered gone; the arm's locked-holder-refused phase still shows a holder made by hand refused with holder-locked";
 
-/// Why the taskless namespace's ending is not built:
-/// nothing in this build lists a namespace whose tasks are gone,
-/// the `6.8` guest answers `ENOSYS` to `listns`,
+/// Why the taskless namespace's ending is built where the kernel lists namespaces,
+/// and refused where it does not:
+/// this round's guest arm on `7.3.5-1-cachyos` found a namespace no task held
+/// by `listns`,
+/// entered it through the descriptor its id became,
+/// and took the copy out of it,
+/// while the same arm on the Ubuntu `6.8` guest answered `ENOSYS` and refused
+/// `holder-unendable`.
+pub const TASKLESS_SHOWN_BY: &str = "this round's guest arm, phase taskless-namespace on 7.3.5-1-cachyos: listns listed the namespace no task held, its id became a descriptor, the copy went by way 8 and the head destroy answered gone; on the Ubuntu 6.8 guest the same phase answered ENOSYS to listns and refused holder-unendable";
+
+/// Why the taskless namespace's ending was not built before this round:
+/// nothing in this build listed a namespace whose tasks are gone,
+/// every guest the arms ran on answered `ENOSYS` to `listns`,
 /// and no arm unmounted a copy inside one.
-pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace is refused: this build lists no namespace whose tasks are gone, the guest's 6.8 kernel answers ENOSYS to listns, and no arm unmounted a copy inside one";
+pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace was refused until this round: this build listed no namespace whose tasks are gone, the guests' kernels answered ENOSYS to listns, and no arm unmounted a copy inside one";
 
 /// What:
 ///  The one table,
-/// in the design's order of kinds.
+///  in the design's order of kinds.
 /// Why:
 ///  One list is what a report prints and what the act reads,
 ///  so no kind can be handled by code without a row that says what it may do.
@@ -213,9 +237,9 @@ pub const THE_KINDS: &[KindEvidence] = &[
     },
     KindEvidence {
         kind: HolderKind::TasklessNamespace,
-        ending: Ending::Refuse(RefusalWord::HolderUnendable),
-        shown_by: TASKLESS_NOT_BUILT,
-        owed_arm: "T0-10's namespace on a 6.19 or newer guest, with a copy inside it unmounted",
+        ending: Ending::EnterAndTakeTheCopyOut,
+        shown_by: TASKLESS_SHOWN_BY,
+        owed_arm: "a taskless namespace that holds the copy on a kernel the shipped handler runs, with the id it was found by reused after the namespace died and the act refusing to act on the stale one",
     },
     KindEvidence {
         kind: HolderKind::PathHolder,
@@ -225,9 +249,9 @@ pub const THE_KINDS: &[KindEvidence] = &[
     },
     KindEvidence {
         kind: HolderKind::LockedHolder,
-        ending: Ending::Refuse(RefusalWord::HolderLocked),
-        shown_by: LOCKED_NOT_BUILT,
-        owed_arm: "the design's V10 stop: a unit of the account's own user manager stopped through its manager, its cgroup waited for, and the removal finished (M-test 22 on a v262 guest)",
+        ending: Ending::StopTheAccountsOwnUnitThenGoOn,
+        shown_by: LOCKED_UNIT_SHOWN_BY,
+        owed_arm: "a locked holder that is not a service unit of the account's own user manager stays refused, which the phase locked-holder-refused shows for a holder made by hand; no arm watches this removal meet a unit of another account or of the system manager, which it may never stop",
     },
 ];
 
@@ -285,12 +309,13 @@ impl std::fmt::Display for MissingKind {
 
 /// What:
 ///  Whether a kind's ending needs the block of `SIGTERM`,
-/// wait and `SIGKILL`.
+///  wait and `SIGKILL`.
 /// Why:
 ///  A refusal ends nothing,
 ///  and an act that asked a blocker for its end would be ending a job in a
 ///  namespace this build refuses:
-///  the locked holder's copy is refused before any signal.
+///  the locked holder's copy is refused before any signal,
+///  and a taskless namespace has no task to ask.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -301,6 +326,10 @@ pub fn ends_blockers(ending: Ending) -> bool {
         Ending::EndBlockersThenUnmount => true,
         // Way 7 and way 8 end the blockers that make the unmount refuse, which the matcher names.
         Ending::UnmountInPlaceByHandle | Ending::MakeTheParentASlaveThenMoveAndUnmount => true,
+        // The manager ends the unit's jobs its own way, so this arm sends no signal into that namespace.
+        Ending::StopTheAccountsOwnUnitThenGoOn => false,
+        // A namespace with no task in it is entered and its copy taken out, and no signal is sent to anything.
+        Ending::EnterAndTakeTheCopyOut => false,
         Ending::Refuse(_word) => false,
     };
 }

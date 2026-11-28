@@ -41,6 +41,8 @@ use crate::test_support::{
     remove,
     repository,
 };
+/// The child a control runs its body in when the control needs an environment of its own.
+use crate::testing::process_wide_state_child_test_support::run_the_body_with_an_environment_of_its_own;
 use std::ffi::OsString;
 use std::path::{
     Path,
@@ -777,5 +779,417 @@ fn a_shell_alias_is_judged_as_the_state_its_nested_git_acts_in() {
             );
         }
     }
+    remove(fixture_worktrees.root.as_path());
+}
+
+/// What:
+///  A main checkout that names its own work tree in its configuration,
+///  a clean linked worktree of it,
+///  and a subdirectory of the checkout,
+///  which is where these controls are typed.
+/// Why:
+///  With `core.worktree` set,
+///  Git takes the explicit path through discovery
+///  (`setup.c:1247` to `:1254` of Git 2.56.1) and exports the Git directory it found,
+///  even from a plain main checkout's subdirectory,
+///  so the nested Git keeps the checkout's index while its own `-C` moves the files.
+struct ACheckoutNamingItsOwnWorkTree {
+    /// The fixture folder,
+    /// which is where the controls are started.
+    root: PathBuf,
+    /// The main checkout,
+    /// which holds the uncommitted work and names its own work tree.
+    main: PathBuf,
+    /// A subdirectory of the main checkout,
+    /// which is where the caller stands.
+    below_the_top: PathBuf,
+    /// A linked worktree of the main checkout,
+    /// which holds nothing uncommitted.
+    clean: PathBuf,
+}
+
+/// What:
+///  A dirty main checkout whose configuration names its own work tree,
+///  a clean linked worktree of it,
+///  and a subdirectory below its top.
+/// Why:
+///  The two places have to differ for the alpha.52 read's M1:
+///  the checkout is the state the nested Git acts in and the linked worktree is only where the files are,
+///  and the alias's shell directory is a place inside the checkout,
+///  which is what makes Git
+///  export an absolute Git directory there.
+fn a_checkout_naming_its_own_work_tree(name: &str) -> ACheckoutNamingItsOwnWorkTree {
+    let root: PathBuf = fixture(name);
+    let main: PathBuf = repository(root.as_path(), "main");
+    std::fs::write(main.join("tracked.txt"), "one\n").expect("the tracked file");
+    git(main.as_path(), &["add", "tracked.txt"]);
+    git(main.as_path(), &["commit", "--quiet", "--message=content"]);
+    git(
+        main.as_path(),
+        &["config", "alias.printgitdir", "!printf %s \"$GIT_DIR\""],
+    );
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "clean", "../clean"],
+    );
+    let work_tree: &str = main.to_str().expect("the fixture's path is UTF-8");
+    git(main.as_path(), &["config", "core.worktree", work_tree]);
+    std::fs::write(main.join("tracked.txt"), "one\nEDITED\n").expect("the uncommitted edit");
+    let below_the_top: PathBuf = main.join("below");
+    std::fs::create_dir_all(below_the_top.as_path()).expect("the subdirectory below the top");
+    return ACheckoutNamingItsOwnWorkTree {
+        clean: root.join("clean"),
+        below_the_top,
+        main,
+        root,
+    };
+}
+
+/// What:
+///  A bare `!git` typed in a main checkout's subdirectory,
+///  where that checkout's configuration names its own work tree,
+///  is judged as the state the nested Git acts in:
+///  the checkout's index and `HEAD` over the clean linked worktree's files.
+/// Why:
+///  The alpha.52 read's M1:
+///  `git g -C <clean linked worktree> reset --hard` typed in `<main>/sub` reset the main checkout and lost its
+///  staged and unstaged work,
+///  in alpha.51 and alpha.52 alike,
+///  while the direct spelling of the same words ran and changed nothing.
+///  Git exports the absolute Git directory there once `core.worktree` is set,
+///  which the fixture measures with its own `printgitdir` alias,
+///  so this is neither the plain main checkout nor the linked-worktree shape the controls above hold.
+///  The reading compared `<top>/.git` with `--absolute-git-dir`,
+///  which with `core.worktree` set are the same directory,
+///  and answered that Git gave the shell nothing.
+#[test]
+fn a_checkout_naming_its_own_work_tree_is_the_state_the_shell_has() {
+    let fixture_worktrees: ACheckoutNamingItsOwnWorkTree =
+        a_checkout_naming_its_own_work_tree("guard-alias-core-worktree");
+    // The premise, measured with real Git: this place's shell is given a Git directory, in a main checkout.
+    let exported: String =
+        the_git_dir_git_gives_a_shell_in(fixture_worktrees.below_the_top.as_path());
+    assert!(
+        !exported.is_empty(),
+        "Git gives the alias's shell no GIT_DIR here, so this control would pass for another reason"
+    );
+    assert!(
+        has_uncommitted_state(fixture_worktrees.main.as_path()),
+        "the checkout holds the work the command would lose"
+    );
+    assert!(
+        !has_uncommitted_state(fixture_worktrees.clean.as_path()),
+        "the worktree the words name holds nothing, which is why the guard let the command run"
+    );
+    let resolution: crate::real_git::ResolutionInputs = inputs(fixture_worktrees.root.as_path());
+    let toward_clean: Vec<OsString> = spellings_of_the_target(
+        fixture_worktrees
+            .main
+            .join(".git")
+            .join("worktrees")
+            .join("clean")
+            .as_path(),
+        fixture_worktrees.clean.as_path(),
+    )
+    .remove(0);
+    // The direct spelling of the same words acts on the clean worktree alone, and runs.
+    let the_target_alone: Verdict = verdict(plan_invocation(
+        directly(toward_clean.as_slice(), &["reset", "--hard"]).as_slice(),
+        &[],
+        &resolution,
+    ));
+    assert!(
+        !is_stopped(&the_target_alone),
+        "a hard reset of the clean linked worktree alone is the answer this control was built on"
+    );
+    // The state the alias spelling acts in, spelled directly: the checkout's Git directory and the worktree's files.
+    let the_state: Vec<OsString> = vec![
+        OsString::from("--git-dir"),
+        fixture_worktrees.main.join(".git").into_os_string(),
+        OsString::from("--work-tree"),
+        fixture_worktrees.clean.as_os_str().to_os_string(),
+    ];
+    let the_state_is_refused: Verdict = verdict(plan_invocation(
+        directly(the_state.as_slice(), &["reset", "--hard"]).as_slice(),
+        &[],
+        &resolution,
+    ));
+    assert!(
+        is_stopped(&the_state_is_refused),
+        "a hard reset of the checkout's index over the linked worktree's files is refused"
+    );
+    // Every guarded form is judged as that state is, which a wrong reading of the shape would break.
+    for command in GUARDED_COMMANDS {
+        let behind: Verdict = verdict(plan_invocation(
+            behind_the_alias(
+                fixture_worktrees.below_the_top.as_path(),
+                toward_clean.as_slice(),
+                command,
+            )
+            .as_slice(),
+            &[],
+            &resolution,
+        ));
+        let direct: Verdict = verdict(plan_invocation(
+            directly(the_state.as_slice(), command).as_slice(),
+            &[],
+            &resolution,
+        ));
+        assert_eq!(
+            behind, direct,
+            "the alias spelling of {command:?} in a checkout that names its own work tree is judged as that state"
+        );
+    }
+    remove(fixture_worktrees.root.as_path());
+}
+
+/// What:
+///  A refusal of a state that is two worktrees names both of them:
+///  the worktree whose files the nested Git writes,
+///  and the Git directory whose index and `HEAD` it keeps.
+/// Why:
+///  The alpha.52 read's L2:
+///  `git g -C <clean worktree> reset --hard` typed in a dirty linked worktree was refused with
+///  "this worktree has uncommitted changes to tracked files",
+///  which names no worktree,
+///  though the dirty state is the caller's index read over the other worktree's files.
+///  A person reading that cannot tell which of the two to clean.
+#[test]
+fn a_refusal_of_a_state_that_is_two_worktrees_names_both_of_them() {
+    let fixture_worktrees: ThreeWorktrees =
+        a_dirty_linked_worktree_beside_a_clean_one("guard-alias-refusal-names-both-places");
+    assert!(
+        has_uncommitted_state(fixture_worktrees.dirty.as_path()),
+        "the caller holds the work the refusal is about"
+    );
+    let resolution: crate::real_git::ResolutionInputs = inputs(fixture_worktrees.root.as_path());
+    let toward_clean: Vec<OsString> = vec![
+        OsString::from("-C"),
+        fixture_worktrees.clean.as_os_str().to_os_string(),
+    ];
+    let behind: Verdict = verdict(plan_invocation(
+        behind_the_alias(
+            fixture_worktrees.dirty.as_path(),
+            toward_clean.as_slice(),
+            &["reset", "--hard"],
+        )
+        .as_slice(),
+        &[],
+        &resolution,
+    ));
+    let Verdict::Refused {
+        stderr,
+        ..
+    } = behind
+    else {
+        panic!("the state the caller's index makes over the clean worktree is refused");
+    };
+    let clean: &str = fixture_worktrees
+        .clean
+        .to_str()
+        .expect("the fixture's path is UTF-8");
+    let the_callers_git_directory: PathBuf = fixture_worktrees
+        .main
+        .join(".git")
+        .join("worktrees")
+        .join("dirty");
+    let callers: &str = the_callers_git_directory
+        .to_str()
+        .expect("the fixture's path is UTF-8");
+    assert!(
+        stderr.contains(clean),
+        "the refusal names no worktree whose files the command writes: {stderr}"
+    );
+    assert!(
+        stderr.contains(callers),
+        "the refusal names no Git directory whose index the command keeps: {stderr}"
+    );
+    remove(fixture_worktrees.root.as_path());
+}
+
+/// What:
+///  A fixture whose caller stands at the top of a plain main checkout and whose words name a linked worktree,
+///  so the caller's index over that worktree's files is uncommitted while the worktree alone is clean.
+/// Why:
+///  The environment half of `the_place_was_named` can only be seen where the two answers differ,
+///  and a linked worktree's alias shell is given a `GIT_DIR` whether the variable is exported or not.
+///  A plain main checkout is the shape the reading counts as one Git gives nothing to,
+///  so a `GIT_DIR` in its shell's environment is the only thing that makes it export:
+///  its own index,
+///  holding one staged entry,
+///  read over the clean worktree's files is then not clean,
+///  while that worktree alone is.
+struct ACallerHoldingAStagedEntry {
+    /// The fixture folder.
+    root: PathBuf,
+    /// The main checkout the caller stands at the top of,
+    ///  whose index holds the staged entry.
+    caller: PathBuf,
+    /// The linked worktree the caller's words name,
+    ///  which holds nothing uncommitted.
+    target: PathBuf,
+}
+
+/// What:
+///  That fixture and the Git directory Git gives its shell when `GIT_DIR` is exported to it.
+/// Why:
+///  The variable is the one Git exports to a `!` alias's shell,
+///  and its value is read from Git rather than assembled here.
+fn a_caller_holding_a_staged_entry(name: &str) -> ACallerHoldingAStagedEntry {
+    let root: PathBuf = fixture(name);
+    let caller: PathBuf = repository(root.as_path(), "main");
+    std::fs::write(caller.join("tracked.txt"), "one\n").expect("the tracked file");
+    git(caller.as_path(), &["add", "tracked.txt"]);
+    git(
+        caller.as_path(),
+        &["commit", "--quiet", "--message=content"],
+    );
+    git(
+        caller.as_path(),
+        &["config", "alias.printgitdir", "!printf %s \"$GIT_DIR\""],
+    );
+    git(
+        caller.as_path(),
+        &["worktree", "add", "--quiet", "-b", "target", "../target"],
+    );
+    std::fs::write(caller.join("staged.txt"), "staged\n").expect("the staged new file");
+    git(caller.as_path(), &["add", "staged.txt"]);
+    return ACallerHoldingAStagedEntry {
+        target: root.join("target"),
+        caller,
+        root,
+    };
+}
+
+/// What:
+///  A `GIT_DIR` in the caller's environment is the place the nested Git keeps,
+///  so the alias spelling is refused as the state that variable makes.
+/// Why:
+///  The alpha.52 read's sixth point:
+///  no control gave an alias row `GIT_DIR` or `GIT_WORK_TREE` in the caller's environment,
+///  so the loop that reads them in `the_place_was_named` could be deleted with every test green.
+///  This control is that loop's own:
+///  with the caller's Git directory in the environment the alias spelling is the caller's index over the
+///  target's files,
+///  which is refused,
+///  and without the variable the same words are the target's own state,
+///  which runs.
+///  The environment belongs to the whole process,
+///  so the body runs in a child of its own (`testing/process_wide_state_child_test_support.rs`),
+///  and the fixture it reads is the one this test built,
+///  named to the child as `FIXTURE_ROOT`.
+#[test]
+fn an_alias_row_is_judged_with_the_git_dir_its_callers_environment_names() {
+    let fixture_worktrees: ACallerHoldingAStagedEntry =
+        a_caller_holding_a_staged_entry("guard-alias-git-dir-in-the-environment");
+    // What: the caller's own Git directory, which is the value the variable names.
+    // Why: a plain main checkout's shell is given none unless `GIT_DIR` says so, so `printgitdir` there prints
+    //  nothing; the value a shell that exported the variable would name is the one Git resolves for that place.
+    let caller_git_directory: String = {
+        let output: std::process::Output = git(
+            fixture_worktrees.caller.as_path(),
+            &["rev-parse", "--path-format=absolute", "--git-dir"],
+        );
+        assert!(output.status.success(), "the caller's Git directory reads");
+        String::from_utf8_lossy(output.stdout.as_slice())
+            .trim_end_matches('\n')
+            .to_owned()
+    };
+    assert!(
+        !caller_git_directory.is_empty(),
+        "the caller's Git directory is the value this control hands over"
+    );
+    let root: PathBuf = fixture_worktrees.root.clone();
+    run_the_body_with_an_environment_of_its_own(
+        module_path!(),
+        "an_alias_row_is_judged_with_the_git_dir_its_callers_environment_names",
+        &[
+            ("GIT_DIR", caller_git_directory.as_str().as_ref()),
+            ("FIXTURE_ROOT", root.as_os_str()),
+        ],
+        &[],
+        || {
+            let fixture_root: PathBuf = PathBuf::from(
+                std::env::var_os("FIXTURE_ROOT").expect("the child is told its fixture"),
+            );
+            let caller: PathBuf = fixture_root.join("main");
+            let target: PathBuf = fixture_root.join("target");
+            let git_directory: OsString =
+                std::env::var_os("GIT_DIR").expect("the child is told the Git directory");
+            assert!(
+                has_uncommitted_state(caller.as_path()),
+                "the caller's index holds the staged entry"
+            );
+            assert!(
+                !has_uncommitted_state(target.as_path()),
+                "the worktree the words name holds nothing, so a guard that judged it alone would run the command"
+            );
+            let resolution: crate::real_git::ResolutionInputs = inputs(fixture_root.as_path());
+            // The state the caller's Git directory makes, spelled directly: that index over the target's files.
+            let the_state: Vec<OsString> = vec![
+                OsString::from("--git-dir"),
+                git_directory.clone(),
+                OsString::from("--work-tree"),
+                target.as_os_str().to_os_string(),
+            ];
+            let the_state_alone: Verdict = verdict(plan_invocation(
+                directly(the_state.as_slice(), &["reset", "--hard"]).as_slice(),
+                &[],
+                &resolution,
+            ));
+            assert!(
+                is_stopped(&the_state_alone),
+                "the state the caller's Git directory makes is refused when it is spelled directly: {the_state_alone:?}"
+            );
+            let environment: Vec<(OsString, OsString)> =
+                vec![(OsString::from("GIT_DIR"), git_directory.clone())];
+            let behind: Verdict = verdict(plan_invocation(
+                behind_the_alias(
+                    caller.as_path(),
+                    &[OsString::from("-C"), target.as_os_str().to_os_string()],
+                    &["reset", "--hard"],
+                )
+                .as_slice(),
+                environment.as_slice(),
+                &resolution,
+            ));
+            assert!(
+                is_stopped(&behind),
+                "the alias spelling was judged as the worktree alone, so nothing read the caller's GIT_DIR: {behind:?}"
+            );
+        },
+    );
+    remove(fixture_worktrees.root.as_path());
+}
+
+/// What:
+///  The other answer this control's rows are about,
+///  read where no `GIT_DIR` reaches the facts:
+///  `-C <target> reset --hard` on the worktree the caller's words name runs.
+/// Why:
+///  The two answers have to differ for the environment to be what decides them,
+///  and this reading cannot run in the child,
+///  whose environment names the variable.
+#[test]
+fn the_worktree_a_caller_names_runs_when_no_git_dir_reaches_the_facts() {
+    let fixture_worktrees: ACallerHoldingAStagedEntry =
+        a_caller_holding_a_staged_entry("guard-alias-git-dir-absent");
+    let resolution: crate::real_git::ResolutionInputs = inputs(fixture_worktrees.root.as_path());
+    let the_target_alone: Verdict = verdict(plan_invocation(
+        directly(
+            &[
+                OsString::from("-C"),
+                fixture_worktrees.target.as_os_str().to_os_string(),
+            ],
+            &["reset", "--hard"],
+        )
+        .as_slice(),
+        &[],
+        &resolution,
+    ));
+    assert!(
+        !is_stopped(&the_target_alone),
+        "the worktree the words name holds nothing, so its own state lets the command run: {the_target_alone:?}"
+    );
     remove(fixture_worktrees.root.as_path());
 }

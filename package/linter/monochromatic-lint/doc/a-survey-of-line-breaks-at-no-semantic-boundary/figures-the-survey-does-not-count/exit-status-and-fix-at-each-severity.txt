@@ -1,0 +1,25 @@
+The exit status at each severity, and whether --fix applies at each.
+Run 2026-11-28T03:21:50-05:00 with the installed monochromatic-lint 0.5.2-alpha.24, in systemd user scopes (MemoryMax 1G, CPUQuota 100%, TasksMax 64, IOWeight 1, RuntimeMaxSec 120).
+
+The fixture, on a copy in the scratch folder (never a file of the repository):
+  Aaa bbb, ccc ddd eee fff ggg hhh.
+
+The configuration names markdown/semantic-line-breaks alone, at one severity per run:
+[
+  { "name": "warn", "files": ["**/*.md"], "rules": { "markdown/semantic-line-breaks": { "severity": "warn" } } },
+]
+
+1. At warn, without --fix: exit status 0, one finding printed:
+"severity":"warn"
+2. At error, without --fix: exit status 1, one finding printed:
+"severity":"error"
+
+3. At warn, with --fix: exit status 0, and the copy is rewritten:
+Aaa bbb,
+ccc ddd eee fff ggg hhh.
+4. At error, with --fix: exit status 0 once the finding is cleared, and the copy is rewritten:
+Aaa bbb,
+ccc ddd eee fff ggg hhh.
+
+So a warn-severity release reports and exits 0, and --fix still applies at warn;
+the severity changes the exit status, never whether the fix runs.

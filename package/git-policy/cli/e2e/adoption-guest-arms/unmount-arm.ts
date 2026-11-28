@@ -16,6 +16,7 @@
 
 import { join, } from 'node:path';
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   requireMarkers,
 } from '../../bin/mvm-guest-arm-log.ts';
@@ -32,8 +33,6 @@ import {
   readLog,
 } from '../../bin/mvm-guest-step-command.ts';
 
-
-
 import {
   armTimeoutMilliseconds,
   crateDirectory,
@@ -44,6 +43,12 @@ import {
   unmountGuestVariable,
 } from './adoption-fixture.ts';
 import { detachedStep, } from './detached-step.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
+
 
 /**
  The log the unmount arm writes inside the guest's shared folder.
@@ -87,7 +92,7 @@ export async function unmountArms({
     'set -eu',
     `cd ${crateDirectory}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
-    `export ${unmountGuestVariable}=${chosen.name}`,
+    `export ${unmountGuestVariable}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_SWEEP_POOL=${storePool}`,
     'export CLI_GIT_ZFS_SWEEP_SBIN=/opt/openzfs-2.4.4/sbin',
     `export CLI_GIT_ZFS_SWEEP_CHECKOUT=${sweepCheckout}`,
@@ -119,11 +124,10 @@ export async function unmountArms({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'pull',
       chosen.name,
-      `/mnt/shared/${armLog}`,
+      `${backend.guestSharedFolder}/${ armLog }`,
       pulledPath,
     ],
     log: 'host-pull-unmount.log',

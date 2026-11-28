@@ -150,7 +150,27 @@ pub fn start_the_removal(
         crate::worktree_clone_binding_record::registration_home::plans_folder(entry.common_dir)
             .join(recorded.clone_guid.file_name());
     let head: HeadWord = plan.head;
-    return match the_clone_absence(probe, recorded.clone_dataset.as_str(), recorded.clone_guid)? {
+    let absence: CloneAbsence =
+        the_clone_absence(probe, recorded.clone_dataset.as_str(), recorded.clone_guid).map_err(
+            |stop| {
+                // The design asks this refusal to name the plan and the failed read, and the settling command
+                //  for every head word but `gone` (`doc/planning/cli-git-zfs-removal-destruction-plan-record-design.md`,
+                //  "Which resume path a removal takes").
+                return match stop {
+                    RemovalStop::DoesNotAnswer {
+                        reason,
+                        ..
+                    } => RemovalStop::TheClonesAbsenceCouldNotBeProved {
+                        slot: String::from(entry.slot),
+                        path: plan_path.clone(),
+                        head: String::from(head.word()),
+                        reason,
+                    },
+                    other => other,
+                };
+            },
+        )?;
+    return match absence {
         CloneAbsence::There {
             ..
         } => Ok(TheStart::Present {

@@ -21,10 +21,10 @@
 /// Import the one size every file this repair reads is bounded by.
 use crate::plain_file::SMALL_FILE_LIMIT;
 /// The bytes of a `toolchain.lock.json` this repair reads,
-/// past which the lock is no lock it can read.
+///  past which the lock is no lock it can read.
 ///  Measured on this repository on 2026-11-13:
-/// its lock is 63,625 bytes,
-/// so this bound is sixteen times it,
+///  its lock is 63,625 bytes,
+///  so this bound is sixteen times it,
 /// and a lock that large would declare some three thousand tools.
 ///  A longer lock is refused rather than read,
 /// and a refusal is the answer an unreadable lock already gets:

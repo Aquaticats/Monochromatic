@@ -240,3 +240,13 @@ pub fn verify(
 #[cfg(test)]
 #[path = "underlay_entry_verdict_tests.rs"]
 mod tests;
+
+/// The verdict read against a real immutable folder,
+/// a real mount at the path
+/// and the account's own attempts:
+/// the step 19 guest's arm.
+/// Never part of the release executable,
+/// and it prints `SKIPPED` anywhere but that guest.
+#[cfg(test)]
+#[path = "underlay_entry_immutable_guest_tests.rs"]
+mod guest_tests;

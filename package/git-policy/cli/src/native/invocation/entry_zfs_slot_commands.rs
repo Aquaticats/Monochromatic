@@ -486,8 +486,8 @@ pub fn before_a_prune(
         }
     }
     refusal.push_str(&format!(
-        "nothing was pruned: Git would drop the registration of a managed clone and the clone dataset would then be reachable by nobody. Restore the pointer from the record, then run the prune again; {}.\n",
-        crate::worktree_clone_binding_record::NO_REMOVAL_WORDS
+        "nothing was pruned: Git would drop the registration of a managed clone and the clone dataset would then be reachable by nobody. Restore the pointer from the record, then run the prune again. To be rid of the clone instead: {}.\n",
+        crate::worktree_clone_binding_record::THE_REMOVALS_WORDS
     ));
     // `stderr` holds what the policy stage printed and the lines the guard wrote, so the refusal is appended to them
     //  rather than built beside them (#6624).

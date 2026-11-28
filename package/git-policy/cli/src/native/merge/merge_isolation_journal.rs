@@ -395,7 +395,7 @@ pub fn settled_marker(record: &Path) -> PathBuf {
 /// and the refusal of a missing ref is the drop's own wish
 /// (`merge_isolation_carry_ref.rs`).
 /// Two commands finishing the same record both write it;
-/// the second finds it,
+///  the second finds it,
 /// which is not a failure.
 /// The marker is not synced,
 /// unlike the record beside it:
@@ -405,7 +405,7 @@ pub fn settled_marker(record: &Path) -> PathBuf {
 /// which a wrapped command runs only after it has settled the record
 /// (`merge_isolation_recovery.rs`).
 /// A sync here would be on the path a merge waits for,
-/// which is the path this project keeps free of them
+///  which is the path this project keeps free of them
 /// (`AGENTS.md`,
 /// `SLW`).
 ///

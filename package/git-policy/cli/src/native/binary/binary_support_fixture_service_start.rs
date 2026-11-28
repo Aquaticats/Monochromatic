@@ -7,7 +7,7 @@
 //!  A service is started for a worktree and restarted at the next connection in production;
 //!  a fixture has no manager,
 //!  so the words,
-//! the address form and the restart are the fixture's own to reproduce,
+//!  the address form and the restart are the fixture's own to reproduce,
 //!  and they describe how a service is started rather than the fixture's lifecycle,
 //!  which keeps the lifecycle file inside the repository's per-file line budget.
 //!

@@ -6,7 +6,7 @@
 //!  and what became of the programs below it.
 //! Why:
 //!   Two enforcers watch one ceiling,
-//! and each answers a stop of its own.
+//!  and each answers a stop of its own.
 //!  Taking one figure from one of them and one from the other is how a stop named the longer bound
 //!  and a wait that never happened,
 //!  for a step the other enforcer had ended at the usual ceiling

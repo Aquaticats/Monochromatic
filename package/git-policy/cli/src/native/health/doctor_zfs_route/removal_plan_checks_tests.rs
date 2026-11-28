@@ -120,7 +120,18 @@ fn a_standing_plan_names_every_field() {
             "{snapshot:?} is missing from {detail}"
         );
     }
-    assert!(detail.contains("no removal for a clone"), "{detail}");
+    assert!(
+        detail.contains("a `git worktree remove` of this slot runs it"),
+        "a slot whose plan stands names the removal that resumes it: {detail}"
+    );
+    assert!(
+        detail.contains("ends the plan with the removal's own records"),
+        "and says the plan's own records end it: {detail}"
+    );
+    assert!(
+        !detail.contains("is Git's own removal"),
+        "and leaves nothing to Git's own removal: {detail}"
+    );
 }
 
 /// A name settled by a later line prints the later outcome,

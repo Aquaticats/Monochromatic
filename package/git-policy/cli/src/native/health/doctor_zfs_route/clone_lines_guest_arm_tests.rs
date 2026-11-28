@@ -3,7 +3,7 @@
 //!  in a throwaway guest:
 //!  the healthy clone passes every line,
 //!  the managed Git lock's line in its verified,
-//! lost and person-written states,
+//!  lost and person-written states,
 //!  and each broken fact moves the line that judges it.
 //! Why:
 //!  The lines read `/dev/zfs`,
@@ -224,7 +224,7 @@ fn staging_folder(
 ///  that clone's GUID,
 ///  and the read is the add route's own through the device;
 ///  this arm's slot is unmounted,
-/// so the proof compares the slot folder's
+///  so the proof compares the slot folder's
 ///  identity and never asks.
 ///
 /// In TS you'd write (pseudocode):
