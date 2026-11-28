@@ -201,7 +201,9 @@ enum ALongForce {
 ///  (`parse-options.c:563` to `:566` at Git `v2.56.1`),
 ///  and `worktree remove` declares one long option,
 ///  `force`,
-///  so `--f`, `--fo`, `--for` and `--forc` are the same reading as `--force`.
+///  so `--f`,
+/// `--fo`,
+/// `--for` and `--forc` are the same reading as `--force`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -2456,6 +2456,43 @@ which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
 (`SPEC.md`,
 "Removal of a ZFS worktree clone").
+The force each spelling carries is counted the way Git counts it
+(`-f`,
+`--force`,
+a cluster such as `-ff`,
+`--force` repeated,
+any prefix of `force`,
+and `--no-force`,
+which sets the count back to zero),
+and it decides which refusals the run passes.
+The owner answered on 2026-11-28 that two forces pass every refusal this removal has
+and that one force passes the states the removal can answer for itself
+("Two force does everything.
+One force - you pick.",
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`):
+
+- two forces delete a person's lock file and then run the removal,
+  go past a destruction plan that cannot be read
+  (proving the clone by the record's GUID against the pool,
+  destroying the clone and its snapshots from the pool's own list,
+  and removing that plan file with the run's records),
+  take a clone off the staging folder and destroy it,
+  and destroy the dataset the slot's record names even when the pool's answer does not match the record,
+  printing the dataset destroyed and both GUIDs;
+- one force goes past a plan that cannot be read,
+  past a clone an earlier unmount left on the staging folder where the record's GUID proves it,
+  and past Git's own cleanliness refusal (a worktree holding modified or untracked files,
+  which Git itself refuses only while the count is zero,
+  `builtin/worktree.c`'s `if (!force) check_clean_worktree(wt, av[0])`),
+  and it refuses a person's lock and a clone the wrapper cannot prove,
+  each naming two forces,
+  the lock's sentence naming `git worktree unlock <slot>` as well;
+- no force refuses each of the four and the cleanliness refusal,
+  and the two states the owner's answers of 2026-11-28 added print the command each way forward uses.
+
+A holder is ended by no force count:
+the stop points below cancel the removal and put the clone back,
+which the round that would pass a holder has not built.
 The command prints the slot's state,
 its dataset and the one next safe action,
 then takes the slot's per-slot claim,
@@ -2506,9 +2543,20 @@ Each of the three names what could not be proved and the repair that ends it,
 and none of them reads a pool:
 Git's own removal would otherwise delete the registration and the underlay folder
 while a clone's files may stand behind the mount.
-A phase that disagrees with its mount and a destruction plan nobody could read are
-still left to Git when no plan naming the clone stands,
-because the answer names these three and no more,
+A destruction plan nobody could read and a clone mounted on a staging folder with
+no plan are refused too,
+which the owner answered on 2026-11-28
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`):
+the first names the plan's file and
+`git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
+and the second names
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
+which puts the clone back at its slot.
+Both sentences also name the forced removal that goes past them.
+A phase that disagrees with its mount,
+and a clone mounted somewhere that is no staging folder,
+are still left to Git when no plan naming the clone stands,
+because no answer names them,
 and a destruction plan that reads names the clone before the phase and the mount
 are compared,
 so the slot's report says which reading it met.

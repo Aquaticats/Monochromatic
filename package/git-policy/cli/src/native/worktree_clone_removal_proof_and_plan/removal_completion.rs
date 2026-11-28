@@ -39,16 +39,16 @@ use crate::worktree_clone_removal_proof_and_plan::removal_completion_head_gone::
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_head_present::the_head_present_path;
 use crate::worktree_clone_removal_proof_and_plan::removal_completion_inputs::RemovalCompletion;
 use crate::worktree_clone_removal_proof_and_plan::removal_report::TheRemovalDone;
-use crate::worktree_clone_removal_proof_and_plan::removal_resume::{
-    TheStart,
-    TheStartingRemoval,
-    start_the_removal_with_force,
-};
+use crate::worktree_clone_removal_proof_and_plan::removal_resume::start_the_removal_with_force;
 use crate::worktree_clone_removal_proof_and_plan::removal_self_cancelling_step::at_the_unmount;
 use crate::worktree_clone_removal_proof_and_plan::removal_slot_claim::{
     RemovalClaim,
     release_at_the_last_step,
     take_the_removals_claim,
+};
+use crate::worktree_clone_removal_proof_and_plan::removal_start_inputs::{
+    TheStart,
+    TheStartingRemoval,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 

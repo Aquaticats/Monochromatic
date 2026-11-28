@@ -79,7 +79,8 @@ pub struct CopyFacts {
     /// How many forces that `git worktree remove` carried,
     /// counted the way Git counts them,
     /// and `0` for every other command.
-    /// It is read for every spelling Git accepts, as `removal_target` is,
+    /// It is read for every spelling Git accepts,
+    /// as `removal_target` is,
     ///  because the force a person typed after the worktree's name counts as one
     ///  before it (`worktree_remove_plan::count_of_the_force`).
     pub removal_force: usize,

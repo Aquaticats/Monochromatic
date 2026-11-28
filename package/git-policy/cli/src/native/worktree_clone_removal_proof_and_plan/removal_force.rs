@@ -48,7 +48,7 @@ pub struct RemovalForce {
 impl RemovalForce {
     /// No force was given,
     /// which is every removal that names no `-f` and no `--force`.
-    pub const fn none() -> RemovalForce {
+    pub(crate) const fn none() -> RemovalForce {
         return RemovalForce {
             count: 0,
         };
@@ -59,7 +59,7 @@ impl RemovalForce {
     /// Why:
     ///  A `--no-force` reading sets Git's count back to zero,
     ///  so a count that is no longer monotonic in the words is still one number here.
-    pub const fn of_count(count: usize) -> RemovalForce {
+    pub(crate) const fn of_count(count: usize) -> RemovalForce {
         return RemovalForce {
             count,
         };
@@ -67,7 +67,7 @@ impl RemovalForce {
 
     /// The count itself,
     /// for the words a sentence prints.
-    pub const fn count(self) -> usize {
+    pub(crate) const fn count(self) -> usize {
         return self.count;
     }
 
@@ -78,7 +78,7 @@ impl RemovalForce {
     ///  a clone at the staging folder the record's GUID proves,
     ///  and Git's own cleanliness refusal,
     ///  so three decisions read this one question.
-    pub const fn is_given(self) -> bool {
+    pub(crate) const fn is_given(self) -> bool {
         return self.count >= 1;
     }
 
@@ -91,7 +91,7 @@ impl RemovalForce {
     ///  all refuse one force or none,
     ///  and Git's own words for the same gradation are `-f -f`
     ///  (`builtin/worktree.c:1450` at Git `v2.56.1`).
-    pub const fn is_twice(self) -> bool {
+    pub(crate) const fn is_twice(self) -> bool {
         return self.count >= 2;
     }
 }

@@ -54,8 +54,8 @@ use crate::worktree_clone_removal_proof_and_plan::removal_entry::{
     EnteredRemoval,
     RemovalEntry,
     enter_the_removal,
-    history_of,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_entry_facts::history_of;
 use crate::worktree_clone_removal_proof_and_plan::removal_reads::RemovalPoolReads;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 use crate::worktree_clone_removal_proof_and_plan::unmount_request::RemovalUnmount;

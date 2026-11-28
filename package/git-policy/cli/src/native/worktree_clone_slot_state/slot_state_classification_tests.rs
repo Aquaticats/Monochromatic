@@ -352,7 +352,8 @@ fn an_unreadable_plan_is_a_reading_a_removal_refuses_without_force() {
 ///  `cancel-worktree-removal <slot>` and that one force unmounts it there and
 ///  destroys it
 ///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
-///  "A clone mounted at the staging folder, with no plan").
+///  "A clone mounted at the staging folder,
+///  with no plan").
 ///  This control failed on `main`'s own line,
 ///  which read the mount as `Elsewhere` and left the slot to Git.
 #[test]

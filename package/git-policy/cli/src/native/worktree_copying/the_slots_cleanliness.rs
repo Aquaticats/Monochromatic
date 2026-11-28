@@ -13,9 +13,12 @@
 //!  The coordinator's pick of 2026-11-28,
 //!  with the owner's veto open,
 //!  is Git's own gradation:
-//!  no force refuses and names `--force`, one force passes, two pass everything.
+//!  no force refuses and names `--force`,
+//!  one force passes,
+//!  two pass everything.
 //!  The proof itself is the crate's own
-//!  (`worktree_clean::check_clean`), so this file adds a name and no second
+//!  (`worktree_clean::check_clean`),
+//!  so this file adds a name and no second
 //!  cleanliness rule.
 //!
 //! In TS you'd write (pseudocode):
@@ -82,8 +85,8 @@ pub trait TheSlotsCleanliness {
 ///  untracked files,
 ///  so it needs the real Git's path and the overlay a forwarded command carries,
 ///  and nothing else of the command.
-///  The content-settling form is the one Git's own removal meets: a worktree
-///  `git worktree add` has just written holds entries as new as the index,
+///  The content-settling form is the one Git's own removal meets:
+///  a worktree `git worktree add` has just written holds entries as new as the index,
 ///  and Git hashes those before it decides,
 ///  so a proof that refused them would refuse every fresh clone a person removes
 ///  at once.

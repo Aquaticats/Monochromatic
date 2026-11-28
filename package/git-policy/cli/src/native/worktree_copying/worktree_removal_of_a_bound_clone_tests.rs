@@ -1366,9 +1366,11 @@ fn restoring_or_deleting_an_unreadable_record_does_what_the_sentence_says() {
 ///  The owner answered on 2026-11-28 that such a slot refuses,
 ///  and that the refusal names those two
 ///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`'s
-///  own words: "the refusal names the plan file and
+///  own words:
+///  "the refusal names the plan file and
 ///  `git monochromatic-git-policy-cli settle-worktree-clone-record`").
-///  This control failed on `main`, which left such a slot to Git.
+///  This control failed on `main`,
+///  which left such a slot to Git.
 #[test]
 fn a_plan_that_cannot_be_read_refuses_the_removal_naming_its_file_and_the_command() {
     let fixture: RemovalFixture = RemovalFixture::healthy("removal-of-an-unreadable-plan");
@@ -1420,8 +1422,10 @@ fn a_plan_that_cannot_be_read_refuses_the_removal_naming_its_file_and_the_comman
 ///  The owner answered on 2026-11-28 that the refusal names the cancel command
 ///  and that one force unmounts the clone there and destroys it
 ///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
-///  "A clone mounted at the staging folder, with no plan").
-///  This control failed on `main`, which left such a slot to Git.
+///  "A clone mounted at the staging folder,
+///  with no plan").
+///  This control failed on `main`,
+///  which left such a slot to Git.
 #[test]
 fn a_clone_at_the_staging_folder_refuses_without_force_and_one_force_lets_the_removal_run() {
     let fixture: RemovalFixture = RemovalFixture::healthy("removal-of-a-staged-clone");
@@ -1495,7 +1499,8 @@ fn a_clone_at_the_staging_folder_refuses_without_force_and_one_force_lets_the_re
 ///  (`builtin/worktree.c:1464` at Git `v2.56.1`),
 ///  and this route answers before Git does,
 ///  so the coordinator's pick of 2026-11-28 is Git's own gradation:
-///  no force refuses and names `--force`, and one force passes.
+///  no force refuses and names `--force`,
+///  and one force passes.
 ///  Nothing on `main` read the files at a bound slot,
 ///  so this control failed there by passing straight to the pool.
 #[test]

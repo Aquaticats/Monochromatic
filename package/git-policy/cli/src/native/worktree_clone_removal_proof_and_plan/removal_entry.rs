@@ -64,7 +64,6 @@ use crate::worktree_clone_removal_proof_and_plan::bookmark_rule::{
 use crate::worktree_clone_removal_proof_and_plan::lineage_proof::{
     ProvenRemoval,
     prove_the_lineage,
-    prove_the_live_lineage,
 };
 use crate::worktree_clone_removal_proof_and_plan::loss_names::NamesToBeLost;
 use crate::worktree_clone_removal_proof_and_plan::plan_publication::PlanFolder;
@@ -74,11 +73,15 @@ use crate::worktree_clone_removal_proof_and_plan::plan_record::{
     PlanFacts,
 };
 use crate::worktree_clone_removal_proof_and_plan::removal_clock::RemovalClock;
-use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
-use crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::{
-    ForcedActs,
-    forced_past_a_proof,
+use crate::worktree_clone_removal_proof_and_plan::removal_entry_facts::{
+    TheProofsForce,
+    facts_of,
+    history_of,
+    refuse_a_plan_of_another_clone,
+    the_proof_with_force,
 };
+use crate::worktree_clone_removal_proof_and_plan::removal_force::RemovalForce;
+use crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs;
 use crate::worktree_clone_removal_proof_and_plan::removal_identities::{
     RecordedBinding,
     prove_the_adds_registration,
@@ -374,8 +377,10 @@ pub(super) struct ThePreparedInputs<'a> {
 ///  and both take the same reads in the same order,
 ///  so the refusal cannot name one check here and another there.
 ///  Force joins these steps in two places:
-///  a lock two forces delete, whose line the report prints,
-///  and a proof that cannot prove the clone, which two forces replace with the
+///  a lock two forces delete,
+///  whose line the report prints,
+///  and a proof that cannot prove the clone,
+///  which two forces replace with the
 ///  pool's own answer and one force or none refuses.
 ///
 /// # Throws
@@ -432,7 +437,16 @@ pub(super) fn prepare_the_removal_over_a_plan(
     let proven: ProvenRemoval =
         match prove_the_lineage(request.reads, &recorded, &origin_inventory, &history) {
             Ok(proven) => proven,
-            Err(stop) => the_proof_with_force(request, &recorded, stop, &mut forced)?,
+            Err(stop) => the_proof_with_force(
+                &TheProofsForce {
+                    slot: entry.slot,
+                    reads: request.reads,
+                    force: request.force,
+                    recorded: &recorded,
+                    stop,
+                },
+                &mut forced,
+            )?,
         };
     let explanations = explanations_of(&proven.inventory, standing.as_ref());
     let refused = refuse_the_unexplained_bookmarks(
@@ -476,128 +490,6 @@ pub(super) fn prepare_the_removal_over_a_plan(
 }
 
 /// What:
-///  The proof a removal goes on with when the pool did not prove the clone.
-/// Why:
-///  Two forces pass a clone the wrapper cannot prove,
-///  and the owner answered on 2026-11-28 that such a removal
-///  "destroys the dataset the slot's record names even when the pool's answer
-///  does not match the record"
-///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
-///  One force or none refuses,
-///  and the sentence names two forces as the way through.
-///  A refusal that is not an identity a force passes is unchanged:
-///  a pool that does not answer,
-///  a listing that could not be read,
-///  and the transferred history or the origin-side object a proof of a clone
-///  that stands does refuse.
-///
-/// # Throws
-/// The stop the proof made,
-/// or the stop that names the two forces a person would need.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const proven = theProofWithForce(request, recorded, stop);
-/// ```
-fn the_proof_with_force(
-    request: &ThePreparedInputs<'_>,
-    recorded: &RecordedBinding,
-    stop: RemovalStop,
-    forced: &mut ForcedActs,
-) -> Result<ProvenRemoval, RemovalStop> {
-    if !a_forced_removal_passes(&stop) {
-        return Err(stop);
-    }
-    if !request.force.is_twice() {
-        return Err(RemovalStop::TheCloneCannotBeProved {
-            slot: String::from(request.entry.slot),
-            cause: the_disagreement_in(&stop),
-            recorded_guid: recorded.clone_guid.file_name(),
-            answered_guid: the_pools_answer_in(&stop),
-        });
-    }
-    let proven: ProvenRemoval = prove_the_live_lineage(request.reads, recorded)?;
-    // Both GUIDs are kept, because the report is the only trace of a destroy nothing proved.
-    let acts: ForcedActs = forced_past_a_proof(
-        recorded.clone_dataset.as_str(),
-        recorded.clone_guid.file_name().as_str(),
-        proven.identities.clone.guid.file_name().as_str(),
-    );
-    forced.lines.extend(acts.lines);
-    forced.recorded_guid = acts.recorded_guid;
-    forced.answered_guid = acts.answered_guid;
-    return Ok(proven);
-}
-
-/// What:
-///  Whether a force passes the refusal a proof made.
-/// Why:
-///  Only a proof that found another object than the record names is what two
-///  forces go past,
-///  and the record's risk is exactly that case:
-///  a GUID that differs or a name that was reused.
-///  A pool that cannot answer is no such state,
-///  and nothing about this route's other refusals is decided here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const passes = (stop) => stop.kind === 'identity-differs' || stop.kind === 'origin-is-not-the-recorded-one';
-/// ```
-fn a_forced_removal_passes(stop: &RemovalStop) -> bool {
-    return matches!(
-        stop,
-        RemovalStop::IdentityDiffers { .. } | RemovalStop::OriginIsNotTheRecordedOne { .. }
-    );
-}
-
-/// What:
-///  The disagreement one proof made,
-///  as the clause the refusal that names two forces prints.
-/// Why:
-///  The refusal's own sentence is long and promises what nothing was done to,
-///  and a clause beside "the clone cannot be proved" has to say which two values
-///  disagreed rather than repeat that promise.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const cause = theDisagreementIn(stop);
-/// ```
-fn the_disagreement_in(stop: &RemovalStop) -> String {
-    return match stop {
-        RemovalStop::IdentityDiffers {
-            object,
-            field,
-            recorded,
-            live,
-        } => format!(
-            "the pool answers `{live}` for `{object}`'s `{field}`, where the add recorded `{recorded}`"
-        ),
-        RemovalStop::OriginIsNotTheRecordedOne {
-            clone,
-            recorded,
-            live,
-        } => format!(
-            "the clone `{clone}` has origin `{}`, where the add recorded `{recorded}`",
-            live.as_deref().unwrap_or("none")
-        ),
-        other => String::from(other.message()),
-    };
-}
-
-/// The GUID the pool answered in an identity refusal,
-/// when the refusal compared the clone's own GUID.
-fn the_pools_answer_in(stop: &RemovalStop) -> Option<String> {
-    return match stop {
-        RemovalStop::IdentityDiffers {
-            field: "cloneGuid",
-            live,
-            ..
-        } => Some(live.clone()),
-        _ => None,
-    };
-}
-
-/// What:
 ///  One removal's proof and loss,
 ///  with the identities that stage proved and the acts force made.
 /// Why:
@@ -621,128 +513,6 @@ pub(super) struct PreparedRemoval {
     pub(super) lost: NamesToBeLost,
     /// What this run did only because of a force.
     pub(super) forced: ForcedActs,
-}
-
-/// What:
-///  The loss a standing plan already records.
-/// Why:
-///  A refusal's sentence has to say what this clone has already lost,
-///  and only the plan knows.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const history = RemovalHistory.ofDestroyed(plan.destroyedNames());
-/// ```
-pub(super) fn history_of(plan: Option<&DestructionPlan>) -> RemovalHistory {
-    let Some(found) = plan else {
-        return RemovalHistory::NothingDestroyed;
-    };
-    let mut names: Vec<String> = Vec::new();
-    for line in &found.attempts {
-        if line.outcome
-            == crate::worktree_clone_removal_proof_and_plan::plan_words::SnapshotOutcome::Destroyed
-            && !names.contains(&line.snapshot.name)
-        {
-            names.push(line.snapshot.name.clone());
-        }
-    }
-    return RemovalHistory::of_destroyed(names);
-}
-
-/// Whether one standing plan is about this clone and origin.
-///
-/// # Throws
-/// The field in which the plan and the add's record disagree.
-pub(super) fn refuse_a_plan_of_another_clone(
-    plan: &DestructionPlan,
-    recorded: &RecordedBinding,
-) -> Result<(), RemovalStop> {
-    let pairs: [(&'static str, String, String); 6] = [
-        (
-            "cloneDataset",
-            plan.facts.clone_dataset.clone(),
-            recorded.clone_dataset.clone(),
-        ),
-        (
-            "cloneGuid",
-            plan.facts.clone_guid.file_name(),
-            recorded.clone_guid.file_name(),
-        ),
-        (
-            "originDataset",
-            plan.facts.origin_dataset.clone(),
-            recorded.origin_dataset.clone(),
-        ),
-        (
-            "originDatasetGuid",
-            plan.facts.origin_dataset_guid.file_name(),
-            recorded.origin_dataset_guid.file_name(),
-        ),
-        (
-            "originSnapshot",
-            plan.facts.origin_snapshot.clone(),
-            recorded.origin_snapshot.clone(),
-        ),
-        (
-            "originSnapshotGuid",
-            plan.facts.origin_snapshot_guid.file_name(),
-            recorded.origin_snapshot_guid.file_name(),
-        ),
-    ];
-    for (field, plan_value, recorded_value) in pairs {
-        if plan_value != recorded_value {
-            return Err(RemovalStop::IdentityDiffers {
-                object: String::from("the standing destruction plan"),
-                field,
-                recorded: recorded_value,
-                live: plan_value,
-            });
-        }
-    }
-    return Ok(());
-}
-
-/// What:
-///  The plan's own fields,
-///  from the identities the proof matched,
-///  the answer it verified and the add's record.
-/// Why:
-///  The plan copies the identities rather than referring to them,
-///  because it must stand alone for everything it destroys.
-///
-/// # Throws
-/// A clock fact this process cannot give,
-/// which is the only field that is not a record's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const facts = factsOf(recorded, proven, proof, registration, clock);
-/// ```
-pub(super) fn facts_of(
-    recorded: &RecordedBinding,
-    proven: &ProvenRemoval,
-    proof: &UnmountProof,
-    registration: ObjectId,
-    clock: &dyn RemovalClock,
-) -> Result<PlanFacts, RemovalStop> {
-    return Ok(PlanFacts {
-        run: clock.run()?,
-        owner: clock.owner()?,
-        started: clock.started(),
-        clone_dataset: recorded.clone_dataset.clone(),
-        clone_guid: proven.identities.clone.guid,
-        clone_createtxg: proven.identities.clone.createtxg,
-        origin_dataset: recorded.origin_dataset.clone(),
-        origin_dataset_guid: proven.identities.origin_dataset.guid,
-        origin_snapshot: recorded.origin_snapshot.clone(),
-        origin_snapshot_guid: proven.identities.origin_snapshot.guid,
-        origin_snapshot_createtxg: proven.identities.origin_snapshot.createtxg,
-        registration_id: recorded.registration_id.clone(),
-        admin: registration.encode(),
-        target: recorded.slot_path.clone(),
-        unmount_nonce: proof.nonce.clone(),
-        unmount_mount_id: proof.mount_id,
-    });
 }
 
 /// Controls stay out of the release executable.

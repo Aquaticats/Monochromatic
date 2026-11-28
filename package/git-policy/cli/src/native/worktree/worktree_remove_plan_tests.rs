@@ -357,9 +357,12 @@ fn a_registered_last_component_names_the_worktree_for_the_refusal() {
 ///  Every spelling Git accepts counts the way Git counts it.
 /// Why:
 ///  The measured gradation of Git 2.56.1 on this machine is:
-///  `-f`, `--force`, `--forc` and `--f` pass a dirty worktree and leave a
+///  `-f`,
+///  `--force`,
+///  `--forc` and `--f` pass a dirty worktree and leave a
 ///  locked one refused,
-///  while `-f -f`, `-ff` and `--force --force` pass both,
+///  while `-f -f`,
+///  `-ff` and `--force --force` pass both,
 ///  and `--no-force` sets the count back to zero
 ///  (`builtin/worktree.c:1450` and `:1464` at Git `v2.56.1`,
 ///  and the transcript in this round's report).

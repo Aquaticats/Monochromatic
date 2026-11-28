@@ -38,7 +38,7 @@ use std::path::{
 ///  (`doc/planning/cli-git-zfs-add-time-git-lock-design.md`,
 ///  "What proves ownership"),
 ///  and a lock this add did not write is that file and nothing else.
-pub const THE_LOCKS_FILE: &str = "locked";
+pub(crate) const THE_LOCKS_FILE: &str = "locked";
 
 /// What:
 ///  What this run did only because of a force,

@@ -5946,8 +5946,35 @@ and what a person still has to do.
 Nothing is left for a second command to delete.
 Every spelling of `git worktree remove` takes this path,
 `-f -f` included,
-and no spelling makes the wrapper end a holder,
-lock another session or force anything:
+and the force each spelling carries is counted the way Git counts it
+(`worktree_remove_plan::count_of_the_force`,
+`worktree_clone_removal_proof_and_plan::removal_force`).
+The owner answered on 2026-11-28 that two forces pass every refusal this removal has and that one force passes the states the removal can answer for itself
+("Two force does everything.
+One force - you pick.",
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`),
+so:
+
+- Two forces delete a person's lock file and then run the removal,
+  go past a destruction plan that cannot be read
+  (proving the clone by the record's GUID against the pool,
+  destroying the clone and its snapshots from the pool's own list,
+  and removing that plan file with the run's records),
+  take a clone off the staging folder and destroy it,
+  and destroy the dataset the slot's record names even when the pool's answer does not match the record,
+  reporting the dataset destroyed and both GUIDs,
+  because nothing can prove afterwards which clone it was.
+- One force goes past a destruction plan that cannot be read,
+  past a clone an earlier unmount left on the staging folder where the record's GUID proves it,
+  and past Git's own cleanliness refusal,
+  and it refuses a person's lock and a clone the wrapper cannot prove,
+  each naming two forces,
+  the lock's sentence naming `git worktree unlock <slot>` as well.
+- No force refuses each of those four and Git's cleanliness refusal,
+  and the two the owner's answers of 2026-11-28 name print the command each way forward uses.
+
+No spelling makes the wrapper end a holder,
+lock another session or force a mount:
 this release's removal meets a holder,
 cancels itself and puts the clone back,
 which the stop points below state.
@@ -6124,30 +6151,40 @@ and no other fact decides its path
   whose route is the finish pass once the pool answers.
 
 A lock on the registration whose words are not the add's own refuses the removal
-before its first write,
+before its first write with no force and with one,
 in the same words the add's own resume uses,
 because the Git settle is the order's only step that reads `locked` and it comes
 after every destroy:
 nothing is unmounted,
 nothing is destroyed,
 no intent is filed and no plan is written,
-and the sentence names `git worktree unlock <slot>`.
+and the sentence names `git worktree unlock <slot>` and the double force.
+Two forces delete the lock file and then run the removal,
+as the force section above states.
 
 What this release does not do:
 
-- It ends no holder and forces nothing.
-  `--force` is refused in every spelling,
-  `-f -f` among them,
-  and a removal that meets a holder cancels itself and puts the clone back.
+- It ends no holder and forces no mount.
+  A holder stops the removal at each of the three stop points,
+  the clone goes back with every loss reported,
+  and no force count ends a process,
+  unmounts what a namespace holds or locks a session.
 - It runs the origin cleanup look from no command but the removal itself.
   The look the five worktree commands make
   (`worktree_clone_origin_cleanup::origin_cleanup_look`)
   is reached from the removal's own step of that order,
   and the other four commands' look is not yet called.
-- It resumes no removal whose destruction plan it cannot read.
-  A slot whose plan does not read is left to Git with the other readings the
-  owner's answer of 2026-11-26 does not name,
-  and the slot's report says which reading it met.
+- It resumes no removal whose destruction plan it can read only partly.
+  A plan that does not read at all refuses the removal without force,
+  naming the plan's file and
+  `git monochromatic-git-policy-cli settle-worktree-clone-record`,
+  and one force goes past it as the force section above states;
+  a slot whose plan does read is the pending removal the resume path takes.
+- It adds no line to `doctor` for a clone a removal left on its staging folder.
+  The slot's report and the refusal name
+  `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` and
+  `git worktree remove --force <slot>`,
+  and `doctor`'s staging check reports the folder and the sharing of its bind.
 
 #### The cancel command
 
@@ -6283,9 +6320,10 @@ so the stop is built and measured ahead of the value that would let it run.
 A kind the evidence does not show is identified and refused,
 never ended,
 and the receipt's seven refusal words name what stopped the act.
-No sentence of this release offers `--force`,
-the removal a person's command runs ends no holder and offers no way to ask it to,
+No sentence of this release offers `--force` as a way to end a holder,
+the removal a person's command runs ends no holder whatever force count it carries,
 and the only callers of this folder are its own controls and its guest arms.
+What a force count does pass is the force section of this heading's own list.
 
 #### The settling command
 

@@ -17,6 +17,7 @@
 //! ```
 
 use crate::worktree_clone_binding_record::binding_inventory::EntryKind;
+use crate::worktree_clone_removal_proof_and_plan::removal_force_refusal_sentences::forced_refusal_sentence;
 use crate::worktree_clone_removal_proof_and_plan::removal_stop::RemovalStop;
 
 impl RemovalStop {
@@ -33,6 +34,10 @@ impl RemovalStop {
     /// stop.message();
     /// ```
     pub fn message(&self) -> String {
+        // The refusals a force count decides print from their own file, so this one holds the stops that no force changes.
+        if let Some(sentence) = forced_refusal_sentence(self) {
+            return sentence;
+        }
         return match self {
             RemovalStop::NoBinding {
                 slot,
@@ -164,38 +169,6 @@ impl RemovalStop {
                 "a removal's destruction plan for the slot `{slot}` stands at {}, and this entry writes a plan only when none stands. Nothing was destroyed, every snapshot and bookmark stands, and the registration stands. Ways forward: the removal that wrote this plan continues from it, and a resumed removal reads its lines so a snapshot it already recorded is proved rather than requested again.",
                 path.display()
             ),
-            RemovalStop::PlanUnreadable {
-                slot,
-                path,
-                refusal,
-            } => format!(
-                "{}\nWays forward: `git monochromatic-git-policy-cli settle-worktree-clone-record {slot} --confirm-removal-of {slot} --confirm-clone-guid <the last four decimal digits of the clone GUID the record holds>` is the command for a slot whose records must be settled, and it prints the plan it finds without acting on one it cannot read. One force goes past this plan: `git worktree remove --force {slot}` proves the clone by the record's GUID against the pool, destroys the clone and its snapshots from the pool's own list, and deletes the plan file.",
-                refusal.message(path.as_path())
-            ),
-            RemovalStop::TheCloneCannotBeProved {
-                slot,
-                cause,
-                recorded_guid,
-                answered_guid,
-            } => format!(
-                "the clone of the slot `{slot}` cannot be proved: {cause} Nothing was destroyed, and no plan was written. Two forces pass this refusal: `git worktree remove --force --force {slot}` destroys the dataset the slot's record names even when the pool's answer does not match the record, which is the record's GUID `{recorded_guid}` against the pool's `{}`. That destroys whatever now stands under that name, and nothing can prove afterwards which clone it was.",
-                answered_guid.as_deref().unwrap_or("no answer")
-            ),
-            RemovalStop::ThePlanIsUnreadableAndTheCloneIsGone {
-                slot,
-                path,
-                reason,
-            } => format!(
-                "a force was given, but the destruction plan at {} could not be read and the clone the slot's record names does not answer the pool ({reason}), so nothing proves what an earlier run destroyed and a forced removal deletes nothing. Nothing was unmounted, nothing was destroyed, and the plan stands. Ways forward: `git monochromatic-git-policy-cli settle-worktree-clone-record {slot} --confirm-removal-of {slot} --confirm-clone-guid <the last four decimal digits of the clone GUID the record holds>` is the command for a slot whose records must be settled, and it prints the plan it finds; run the removal again once the pool answers for that name.",
-                path.display()
-            ),
-            RemovalStop::TheLockCouldNotGo {
-                path,
-                said,
-            } => format!(
-                "this removal carried two forces, which delete a person's lock, and the lock at {} could not be deleted ({said}). Nothing was unmounted, nothing was destroyed, and the lock still stands. Ways forward: read what the message names, remove the lock with `git worktree unlock <slot>` or by hand, and run the removal again.",
-                path.display()
-            ),
             RemovalStop::NoRunNonce {
                 reason,
             } => format!(
@@ -280,12 +253,6 @@ impl RemovalStop {
             } => format!(
                 "the plan says `head={head}` and the clone `{clone}` still answers on the pool, so the record and the pool disagree about whether a destroy happened. Nothing was destroyed. Ways forward: read the plan's file in the wrapper's plan folder and compare it with the pool; a removal never rewrites a recorded outcome to match what it finds."
             ),
-            RemovalStop::TheLocksWordsAreNotThisAdds {
-                slot,
-                cause,
-            } => format!(
-                "the Git registration of the slot `{slot}` holds a lock this add cannot attribute to itself ({cause}), so a person's lock may stand there and this removal stops before its first write with no force or one. Nothing was unmounted, nothing was destroyed, no intent was filed and no plan was written. Ways forward: run `git worktree unlock {slot}` to remove the lock and run the removal again, or run `git worktree remove --force --force {slot}`: two forces delete the lock file and then run this removal as it stands, which is Git's own gradation, `-f -f` among them."
-            ),
             RemovalStop::TheSettleRefused {
                 step,
                 said,
@@ -329,6 +296,9 @@ impl RemovalStop {
             } => format!(
                 "{stop}, so the removal asked to put the clone back at its slot and could not: {said}. Nothing of the clone's own history was destroyed by a stop that came before a delete, and the plan keeps every line it had. Ways forward: read what refused, then run `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` to finish putting the clone back, or run the removal again once the request can be answered."
             ),
+            // The five stops a force count decides print from `removal_force_refusal_sentences.rs`, which `message` asks
+            //  first; this arm keeps the match whole rather than pretending no such stop exists.
+            other => other.message(),
         };
     }
 }
