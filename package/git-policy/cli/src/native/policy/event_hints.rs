@@ -45,25 +45,36 @@ pub const SELF_HINTED: &[(&str, &str)] = &[
 ];
 
 /// What:
-///  What a commit that takes the bytes a finding names does with them,
+///  What a commit does with the bytes a finding names,
 ///  for a hint that has to say it.
 /// Why:
 ///   The hint of `final-newline` is printed by lifecycles that correct nothing,
-///  and whether a commit still corrects those bytes decides what the person is told:
-///  an `add` stages worktree bytes a commit would take and correct,
-///  while a commit whose selection is read-only records the bytes it was given,
-///  as does a landed commit and a pushed tree.
+///  and what the next commit does with those bytes decides what the person is told.
+///  That answer is not one fact:
+///  a direct check reads worktree bytes a commit takes only by taking the file itself,
+///  an `add` puts bytes in the index where a plain commit corrects them and a commit whose selection is
+///  read-only (`-p`,
+///  `-i`,
+///  `--include`) records them as they are,
+///  and a landed commit or a pushed tree already holds the bytes it reports.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CommitCorrection = 'corrects' | 'records';
+/// type CommitCorrection = 'corrects' | 'corrects-unless-the-selection-is-read-only' | 'nothing-corrects-what-the-index-holds' | 'nothing-corrects-what-a-commit-holds';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CommitCorrection {
-    /// A commit that takes these bytes corrects them before it records them.
+    /// Every commit that takes these bytes corrects them before it records them.
     Corrects,
-    /// A commit records these bytes exactly as they are.
-    Records,
+    /// A plain commit corrects these bytes;
+    ///  a commit whose selection is read-only records them as they are.
+    CorrectsUnlessTheSelectionIsReadOnly,
+    /// No commit corrects these bytes,
+    ///  and the index holds them as they are.
+    NothingCorrectsWhatTheIndexHolds,
+    /// No commit corrects these bytes,
+    ///  and a commit already records them as they are.
+    NothingCorrectsWhatACommitHolds,
 }
 
 /// What:
@@ -109,14 +120,8 @@ pub fn finding_hint(
                  to correct it now without committing, run `git monochromatic-git-policy-cli fix -- <path>`.",
             );
         }
-        // What: A lifecycle that corrects nothing, whose bytes a commit still corrects.
-        // Why:  An `add` and a direct check stage nothing, so the person is told what the commit that takes the file
-        //       does with it, and how to correct it now without one.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // if (commitCorrection === 'corrects') return 'Hint: ... a commit that takes it corrects the ending ...';
-        // ```
+        // What: A direct check's bytes, which a commit takes only by taking the file itself.
+        // Why:  A read-only selection commits the index, and a check staged nothing.
         (
             "final-newline",
             "noncanonical-final-newline",
@@ -129,12 +134,49 @@ pub fn finding_hint(
                  `git monochromatic-git-policy-cli fix -- <path>`.",
             );
         }
-        // What: A lifecycle whose bytes nothing corrects, because a commit records them as they are.
-        // Why:  Only the person's own edit changes such bytes, so the hint says to edit and stage again.
-        ("final-newline", "noncanonical-final-newline", false, _) => {
+        // What: An `add`'s bytes, which a later commit may record as they are.
+        // Why:  Where the add is refused, the fix and the staging that follows it are the steps that work,
+        //       and a commit corrects the ending only when its own selection takes the whole file.
+        (
+            "final-newline",
+            "noncanonical-final-newline",
+            false,
+            Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
+        ) => {
             return Some(
-                "Hint: if you are committing or checking this file, edit it so it ends with exactly one newline, \
+                "Hint: to correct the ending now, run `git monochromatic-git-policy-cli fix -- <path>` and then stage \
+                 the file again with `git add -- <path>`, because an index that already holds these bytes keeps them \
+                 until the file is staged once more; a plain commit, one that takes the whole file, also corrects the \
+                 ending while this repository's settings keep `final-newline` on, but a commit whose selection is \
+                 read-only (`-p`, `-i` or `--include`) records the staged bytes exactly as they are.",
+            );
+        }
+        // What: Bytes the index holds as they are, and which nothing corrects.
+        // Why:  Only the person's own edit and the staging after it change such bytes;
+        //       a finding that names no commit at all gets the same step, as the safe one.
+        (
+            "final-newline",
+            "noncanonical-final-newline",
+            false,
+            Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds),
+        )
+        | ("final-newline", "noncanonical-final-newline", false, None) => {
+            return Some(
+                "Hint: if you are committing this file, edit it so it ends with exactly one newline, \
                  then stage it again.",
+            );
+        }
+        // What: Bytes a commit already holds, and which nothing corrects.
+        // Why:  Staging again changes nothing the finding is about; the edit and the commit after it do.
+        (
+            "final-newline",
+            "noncanonical-final-newline",
+            false,
+            Some(CommitCorrection::NothingCorrectsWhatACommitHolds),
+        ) => {
+            return Some(
+                "Hint: this file's bytes are already in a commit, so nothing here corrects them; edit the file so it \
+                 ends with exactly one newline, then commit the correction.",
             );
         }
         ("markdown/autofix", "markdown-autofix", _, _) => {

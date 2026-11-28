@@ -43,8 +43,17 @@ description = "Build the crates.io package tarball"
 run = "cargo package"
 
 [tasks.test]
-description = "cargo nextest run in release mode"
-run = "cargo nextest run --release"
+description = "cargo nextest run in release mode, then the host-side checks of the guest recipe's module steps"
+run = ["cargo nextest run --release", "mise run test:tooling"]
+
+# The guest recipe loads the kernel modules it builds, and a guest made from a custom template loads the module that
+# template installs; only a guest can show either. These checks run each step's own shell against stand-in trees and
+# stand-in kmod programs, once per state a guest can be in, so a change to a step's decisions is refused on the host
+# before any guest is made. See e2e/load-the-built-module-step.check.ts and
+# e2e/load-the-template-module-step.check.ts.
+[tasks."test:tooling"]
+description = "Check the guest recipe's module steps on this host, without a guest"
+run = ["node e2e/load-the-built-module-step.check.ts", "node e2e/load-the-template-module-step.check.ts"]
 
 [tasks."test:debug"]
 description = "cargo nextest run in debug mode for fast iteration"

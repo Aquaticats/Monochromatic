@@ -1,21 +1,28 @@
 //! What:
-//!  The hint a `final-newline` finding gives at each lifecycle that makes one:
-//!  an `add` and a direct check,
-//!  whose bytes a later commit corrects,
+//!  The hint a `final-newline` finding gives at each place it prints:
+//!  an `add`,
+//!  a direct check,
 //!  a commit whose selection is read-only,
 //!  a landed commit and a manual push,
-//!  whose bytes nothing corrects,
 //!  and the two lifecycles that correct the bytes themselves.
 //! Why:
 //!  A hint must be true where it is printed.
 //!  An `add` of a file without its line feed told the person to edit the file by hand,
 //!  and the commit that followed corrected the file itself,
-//!  which is how a round of issue 6622 came to report a warning that was true (issue 6627).
+//!  which is how a round of issue 6622 came to report a warning that was true (issue 6627);
+//!  the same place then named a commit's correction for a file the person could not stage at `error`
+//!  and for a commit whose selection is read-only.
+//!  A manual push's finding told the person to stage the file again
+//!  although the bytes were already in the pushed commit.
 //!  Each control runs the policy stage for one lifecycle and reads the `hint` field of the
 //!  finding line that stage rendered,
 //!  so every word asserted here is the program's own,
 //!  and the `code`,
 //!  `message` and `fix` fields beside it are held to what `SPEC.md` says they keep.
+//!  The two commit places take the read-only answer from the commit's own words through
+//!  `decide_selection`,
+//!  which is the function the commit path asks,
+//!  so no control hands the stage a flag it made up.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,6 +42,11 @@ use crate::candidate_prediction::{
 /// Import the settings a stage runs with,
 ///  the shipped checks that answer it,
 ///  and the candidates a lifecycle offers.
+use crate::command_commit::{
+    CommitRegion,
+    parse_commit_region,
+};
+use crate::commit_transaction::decide_selection;
 use crate::config_schema::PolicyConfig;
 use crate::policy_checks::shipped_checks;
 use crate::policy_content::LifecycleContent;
@@ -67,6 +79,7 @@ use crate::test_support::{
     remove,
     repository,
 };
+use crate::transaction_journal::Conclusion;
 /// Import the record of an invocation that used no wrapper control.
 use crate::wrapper_controls::no_controls;
 /// Owned operating-system text stands in for the pathspecs,
@@ -80,18 +93,33 @@ const THE_FILE: &str = "notes.txt";
 /// The bytes of `THE_FILE` when it ends with no line feed at all.
 const WITHOUT_A_LINE_FEED: &[u8] = b"one\ntwo";
 
-/// The hint of an `add` and of a direct check:
+/// The hint of a direct check:
 ///  a commit that takes the file corrects the ending,
 ///  and the person may correct it now without committing.
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
-const THE_HINT_OF_A_COMMIT_THAT_CORRECTS: &str = "Hint: if you are committing this file, a commit that takes it \
+const THE_HINT_OF_A_DIRECT_CHECK: &str = "Hint: if you are committing this file, a commit that takes it \
      corrects the ending for you while this repository's settings keep `final-newline` on; to correct it now without \
      committing, run `git monochromatic-git-policy-cli fix -- <path>`.";
 
-/// The hint of a lifecycle whose bytes nothing corrects.
+/// The hint of an `add`:
+///  the correction now and the staging that follows it lead,
+///  and a plain commit's own correction follows with the selection that records the bytes instead.
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
-const THE_HINT_WHEN_NOTHING_CORRECTS: &str = "Hint: if you are committing or checking this file, edit it so it \
-     ends with exactly one newline, then stage it again.";
+const THE_HINT_OF_AN_ADD: &str = "Hint: to correct the ending now, run `git monochromatic-git-policy-cli fix -- \
+     <path>` and then stage the file again with `git add -- <path>`, because an index that already holds these bytes \
+     keeps them until the file is staged once more; a plain commit, one that takes the whole file, also corrects the \
+     ending while this repository's settings keep `final-newline` on, but a commit whose selection is read-only (`-p`, \
+     `-i` or `--include`) records the staged bytes exactly as they are.";
+
+/// The hint of a lifecycle whose bytes nothing corrects and which the index still holds.
+///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
+const THE_HINT_WHEN_THE_INDEX_HOLDS_THE_BYTES: &str = "Hint: if you are committing this file, edit it so it ends \
+     with exactly one newline, then stage it again.";
+
+/// The hint of a lifecycle whose bytes a commit already holds.
+///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
+const THE_HINT_WHEN_A_COMMIT_HOLDS_THE_BYTES: &str = "Hint: this file's bytes are already in a commit, so \
+     nothing here corrects them; edit the file so it ends with exactly one newline, then commit the correction.";
 
 /// The hint of a lifecycle that corrects the bytes itself.
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
@@ -307,6 +335,30 @@ fn assert_the_finding_keeps_its_fields(
 }
 
 /// What:
+///  `a_read_only_selection(words)` answers whether a commit whose own words are `words` leaves the
+///  policies read-only,
+///  read from the release code the commit path asks.
+/// Why:
+///  `-p`,
+///  `-i` and `--include` are the forms that record the bytes the index holds,
+///  and the answer must come from parsing those words and deciding the selection,
+///  never from a flag a control wrote,
+///  or the control would agree with whatever the release code happened to do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aReadOnlySelection(words: string[]): boolean
+/// ```
+fn a_read_only_selection(words: &[&str]) -> bool {
+    let written: Vec<OsString> = words.iter().copied().map(OsString::from).collect();
+    let region: CommitRegion = match parse_commit_region(written.as_slice(), &[]) {
+        Ok(found) => found,
+        Err(error) => panic!("the commit's own words {words:?} are refused: {error:?}"),
+    };
+    return decide_selection(&region, Conclusion::None).read_only;
+}
+
+/// What:
 ///  `the_config_with(severity)` is the settings of this repository with `final-newline` set to
 ///  `severity`.
 /// Why:
@@ -327,30 +379,36 @@ fn the_config_with(severity: Severity) -> PolicyConfig {
     return config;
 }
 
-/// An `add` whose bytes the commit that follows corrects tells the person what that commit
-///  does with the file,
-///  and offers the correction now.
+/// An `add` leads with the two steps that correct the file where it is refused,
+///  says why staging follows the fix,
+///  and names a plain commit's own correction with the read-only selection that records the bytes instead.
+///  The hint is the same at `warn`,
+///  where the add runs,
+///  and at `error`,
+///  where it stages nothing.
 #[test]
-fn an_add_says_the_commit_corrects_the_file() {
+fn an_add_says_the_fix_then_staging_and_what_a_plain_commit_takes() {
     let scene: Scene = a_scene("final-newline-hint-add");
-    let rendered: String = rendered_finding(
-        &scene,
-        Trigger::PreForward,
-        // The same request `git add -- notes.txt` makes of the policies.
-        CandidateRequest::Add(vec![OsString::from("--"), OsString::from(THE_FILE)]),
-        false,
-        &the_config_with(Severity::Warn),
-    );
-    assert_eq!(
-        the_hint_in(rendered.as_str()),
-        THE_HINT_OF_A_COMMIT_THAT_CORRECTS,
-        "{rendered}"
-    );
-    assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
-    assert!(
-        rendered.contains("\"trigger\":\"pre-forward\""),
-        "{rendered}"
-    );
+    for severity in [Severity::Warn, Severity::Error] {
+        let rendered: String = rendered_finding(
+            &scene,
+            Trigger::PreForward,
+            // The same request `git add -- notes.txt` makes of the policies.
+            CandidateRequest::Add(vec![OsString::from("--"), OsString::from(THE_FILE)]),
+            false,
+            &the_config_with(severity),
+        );
+        assert_eq!(
+            the_hint_in(rendered.as_str()),
+            THE_HINT_OF_AN_ADD,
+            "{severity:?}: {rendered}"
+        );
+        assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
+        assert!(
+            rendered.contains("\"trigger\":\"pre-forward\""),
+            "{rendered}"
+        );
+    }
     remove(scene.root.as_path());
 }
 
@@ -359,7 +417,7 @@ fn an_add_says_the_commit_corrects_the_file() {
 ///  corrects them,
 ///  and offers the correction now.
 #[test]
-fn a_direct_check_says_the_commit_corrects_the_file() {
+fn a_direct_check_says_the_commit_that_takes_the_file_corrects_it() {
     let scene: Scene = a_scene("final-newline-hint-check");
     let rendered: String = rendered_finding(
         &scene,
@@ -370,7 +428,7 @@ fn a_direct_check_says_the_commit_corrects_the_file() {
     );
     assert_eq!(
         the_hint_in(rendered.as_str()),
-        THE_HINT_OF_A_COMMIT_THAT_CORRECTS,
+        THE_HINT_OF_A_DIRECT_CHECK,
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
@@ -382,39 +440,54 @@ fn a_direct_check_says_the_commit_corrects_the_file() {
 }
 
 /// A commit whose selection is read-only records the staged bytes as they are,
-///  so its hint tells the person to edit the file,
+///  so its hint tells the person to edit the file and stage it again,
 ///  and never that a commit will correct it.
+///  The selection is the commit's own:
+///  each spelling is parsed and decided by the release code,
+///  and the stage is handed the answer the commit path hands it.
 #[test]
-fn a_read_only_commit_selection_says_to_edit_the_file() {
+fn a_read_only_selection_of_the_commands_own_words_says_to_edit_and_stage() {
     let scene: Scene = a_scene("final-newline-hint-selection");
     // The staged copy is the state a patch or include selection commits, and it ends with no line feed.
     stage_the_file(&scene);
-    let rendered: String = rendered_finding(
-        &scene,
-        Trigger::PreForward,
-        crate::commit_transaction::staged_at_base(
-            Some(the_commit_of_the_scene(&scene)),
-            &[THE_FILE.as_bytes().to_vec()],
-        ),
-        false,
-        &the_config_with(Severity::Warn),
-    );
-    assert_eq!(
-        the_hint_in(rendered.as_str()),
-        THE_HINT_WHEN_NOTHING_CORRECTS,
-        "{rendered}"
-    );
-    assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
+    for words in [vec!["--patch"], vec!["--interactive"], vec!["--include"]] {
+        let read_only: bool = a_read_only_selection(words.as_slice());
+        assert!(read_only, "{words:?} leaves the policies writable");
+        let rendered: String = rendered_finding(
+            &scene,
+            Trigger::PreForward,
+            crate::commit_transaction::staged_at_base(
+                Some(the_commit_of_the_scene(&scene)),
+                &[THE_FILE.as_bytes().to_vec()],
+            ),
+            !read_only,
+            &the_config_with(Severity::Warn),
+        );
+        assert_eq!(
+            the_hint_in(rendered.as_str()),
+            THE_HINT_WHEN_THE_INDEX_HOLDS_THE_BYTES,
+            "{words:?}: {rendered}"
+        );
+        assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
+    }
     remove(scene.root.as_path());
 }
 
 /// A commit that may correct the bytes it stages corrects them itself,
 ///  so its hint says so and offers no second correction,
 ///  whatever severity the repository sets and without a fix being applied by the person.
+///  A commit that names no read-only selection is the positive case beside the three spellings above:
+///  the same decision answers `false` for it,
+///  and the stage then reports the correction as its own.
 #[test]
 fn a_commit_that_corrects_the_file_says_so_at_either_severity() {
     let scene: Scene = a_scene("final-newline-hint-commit");
     stage_the_file(&scene);
+    let writable: bool = !a_read_only_selection(&[]);
+    assert!(
+        writable,
+        "a commit with no selection leaves the policies writable"
+    );
     for severity in [Severity::Warn, Severity::Error] {
         let rendered: String = rendered_finding(
             &scene,
@@ -423,7 +496,7 @@ fn a_commit_that_corrects_the_file_says_so_at_either_severity() {
                 Some(the_commit_of_the_scene(&scene)),
                 &[THE_FILE.as_bytes().to_vec()],
             ),
-            true,
+            writable,
             &the_config_with(severity),
         );
         assert_eq!(
@@ -458,9 +531,9 @@ fn a_direct_fix_says_the_correction_is_here() {
 }
 
 /// A landed commit's bytes are already recorded,
-///  so nothing corrects them and its hint tells the person to edit the file.
+///  so nothing corrects them and its hint tells the person to edit the file and commit the correction.
 #[test]
-fn a_landed_commit_says_to_edit_the_file() {
+fn a_landed_commit_says_to_commit_the_correction() {
     let scene: Scene = a_scene("final-newline-hint-landed");
     let landed: ObjectId = commit_the_file(&scene);
     let rendered: String = rendered_finding(
@@ -472,7 +545,7 @@ fn a_landed_commit_says_to_edit_the_file() {
     );
     assert_eq!(
         the_hint_in(rendered.as_str()),
-        THE_HINT_WHEN_NOTHING_CORRECTS,
+        THE_HINT_WHEN_A_COMMIT_HOLDS_THE_BYTES,
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
@@ -484,9 +557,10 @@ fn a_landed_commit_says_to_edit_the_file() {
 }
 
 /// A pushed commit's bytes are already recorded,
-///  so nothing corrects them and its hint tells the person to edit the file.
+///  so nothing corrects them and its hint names the step a person can take after the commit is made:
+///  edit the file and commit the correction.
 #[test]
-fn a_manual_push_says_to_edit_the_file() {
+fn a_manual_push_says_to_commit_the_correction() {
     let scene: Scene = a_scene("final-newline-hint-push");
     let pushed: ObjectId = commit_the_file(&scene);
     let rendered: String = rendered_finding(
@@ -502,7 +576,7 @@ fn a_manual_push_says_to_edit_the_file() {
     );
     assert_eq!(
         the_hint_in(rendered.as_str()),
-        THE_HINT_WHEN_NOTHING_CORRECTS,
+        THE_HINT_WHEN_A_COMMIT_HOLDS_THE_BYTES,
         "{rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");

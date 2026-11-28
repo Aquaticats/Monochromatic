@@ -175,6 +175,11 @@ pub mod control_group;
 /// The records of a scope and the membership verdict (split out of the control group module).
 pub mod control_group_records;
 
+/// One ask of the user manager where a slice's control group is,
+/// and the rule that judges the bound it was given
+/// (split out of the route discovery module).
+pub(crate) mod control_group_route_one_ask;
+
 /// Discovery of the route to a delegated control group (split out of the control group module).
 pub mod control_group_route_discovery;
 

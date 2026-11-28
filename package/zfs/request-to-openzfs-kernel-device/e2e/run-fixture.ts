@@ -32,6 +32,9 @@ import { spawnSync, } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, writeFileSync, } from 'node:fs';
 import { join, } from 'node:path';
 
+import { loadTheBuiltModuleStep, } from './load-the-built-module-step.ts';
+import { loadTheTemplateModuleStep, } from './load-the-template-module-step.ts';
+
 //region Constants
 
 /** The guest user mvm's Ubuntu image creates; the delegated arms run as it. */
@@ -384,10 +387,18 @@ function create(options: Options): void {
  `strace` and Git as packages.
  So the recipe neither installs Debian packages
  nor builds the module;
- it checks each fact the arms below rely on
+ it loads that module through the template's own package route,
+ says which one the guest now runs,
+ and checks each other fact the arms below rely on
  and prints what it found,
  so a template that lost one is refused here
  rather than measured.
+
+ The load is the step in `load-the-template-module-step.ts`,
+ which keeps `modprobe`'s own words
+ and refuses in words when the module the template was built with
+ is not the one running
+ (issue 6644).
 
  @param options - the run's options, naming the expected kernel release
 
@@ -400,9 +411,7 @@ function prepareFromTemplate(options: Options): void {
     'uname --kernel-release',
     `test "$(uname --kernel-release)" = ${options.kernelRelease}`,
     'echo "== the module and userspace the design pins"',
-    'modprobe --quiet zfs 2>/dev/null || true',
-    'cat /sys/module/zfs/version',
-    `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
+    ...loadTheTemplateModuleStep({ label: 'prepare', release: OPENZFS_RELEASE, }),
     `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PATH} zfs version`,
     `test -f ${MODULE_BTF}`,
     'test -f /sys/kernel/btf/vmlinux',
@@ -471,10 +480,7 @@ function prepareUbuntu(options: Options): void {
     'make --jobs=4 install >> /root/zfs-build.log 2>&1',
     'depmod --all',
     'systemctl stop zfs-zed.service zfs-mount.service zfs-load-module.service 2>/dev/null || true',
-    'if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
-    'if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
-    `insmod /lib/modules/$(uname --kernel-release)/extra/spl.ko`,
-    `insmod /lib/modules/$(uname --kernel-release)/extra/zfs.ko`,
+    ...loadTheBuiltModuleStep({ label: 'prepare', }),
     `test -f ${MODULE_BTF}`,
     `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=${OPENZFS_PATH} zfs version >> /root/zfs-build.log 2>&1`,
     `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
@@ -667,16 +673,9 @@ function step3Environment(options: Options): string {
  Why every such step does this: a boot of the guest loads nothing, and the first `zpool` or `zfs` command loads the
  distribution's own module through modprobe, which answers 2.2.2 and which the wrapper's compatibility gate refuses,
  because only the module this recipe built carries the type information at `/sys/kernel/btf/zfs`.
+ The decision is the recipe's one step, so it is read, replaced and refused in the same words here as in `prepare`.
  */
-const STEP10_LOAD_THE_MODULE = [
-  `if test "$(cat /sys/module/zfs/version 2>/dev/null)" != ${OPENZFS_RELEASE}; then`,
-  '  if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
-  '  if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
-  '  insmod /lib/modules/$(uname --kernel-release)/extra/spl.ko',
-  '  insmod /lib/modules/$(uname --kernel-release)/extra/zfs.ko',
-  'fi',
-  `test "$(cat /sys/module/zfs/version)" = ${OPENZFS_RELEASE}`,
-].join('\n');
+const STEP10_LOAD_THE_MODULE = loadTheBuiltModuleStep({ label: 'step 10', });
 
 /** The OpenZFS userspace's library and program paths, as shell assignments. */
 const STEP3_OPENZFS = `LD_LIBRARY_PATH=${OPENZFS_PREFIX}/lib PATH=/root/.cargo/bin:${OPENZFS_PREFIX}/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
@@ -1364,10 +1363,7 @@ function gateVersionArm(options: Options): void {
     `export PATH=${OPENZFS_PATH}`,
     // The run step leaves the delegated account's pool in place for its suite, and a loaded pool holds the module.
     'for pool in $(zpool list -H -o name 2>/dev/null); do zpool destroy -f "$pool"; done',
-    'if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
-    'if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
-    'insmod "/lib/modules/$kernel/extra/spl.ko"',
-    'insmod "$module"',
+    ...loadTheBuiltModuleStep({ label: 'gate version arm', }),
     'test "$(cat /sys/module/zfs/version)" = 2.4.4-2',
   ].join('\n');
   guest({ options, script, log: 'gate-version-patch.log', timeout: SUITE_TIMEOUT_MS });
@@ -1404,12 +1400,7 @@ function gateChangeArm(options: Options): void {
   rebootGuest(options);
   const load = [
     'set -eu',
-    'kernel="$(uname --kernel-release)"',
-    'if test -d /sys/module/zfs; then modprobe --remove zfs || true; fi',
-    'if test -d /sys/module/spl; then modprobe --remove spl || true; fi',
-    'test ! -d /sys/module/zfs',
-    'insmod "/lib/modules/$kernel/extra/spl.ko"',
-    'insmod "/lib/modules/$kernel/extra/zfs.ko"',
+    ...loadTheBuiltModuleStep({ label: 'gate change arm', }),
     'test -f /sys/kernel/btf/zfs',
     'cat /sys/module/zfs/version',
   ].join('\n');
@@ -1531,7 +1522,7 @@ function step10Pool(options: Options): void {
     // A pool left by an earlier run is torn down first, by whichever module holds it, because a module in use cannot be
     // removed; only then is the recipe's own module the loaded one.
     `if zpool list -H -o name | grep --quiet "^${STEP10_POOL}$"; then zpool destroy -f ${STEP10_POOL}; fi`,
-    STEP10_LOAD_THE_MODULE,
+    ...STEP10_LOAD_THE_MODULE,
     `rm --force ${STEP10_FIXTURE_ROOT}/pool.img ${STEP10_FIXTURE_ROOT}/raw-key`,
     `truncate --size 1G ${STEP10_FIXTURE_ROOT}/pool.img`,
     `head --bytes 32 /dev/urandom > ${STEP10_FIXTURE_ROOT}/raw-key`,
@@ -1589,7 +1580,7 @@ function step10Arms(options: Options): void {
   const build = [
     'set -eu',
     `export ${STEP10_OPENZFS}`,
-    STEP10_LOAD_THE_MODULE,
+    ...STEP10_LOAD_THE_MODULE,
     'if test -f /mnt/shared/step10-wrapper.tar.gz; then cp /mnt/shared/step10-wrapper.tar.gz /root/step10-wrapper.tar.gz; fi',
     `mkdir --parents ${STEP10_WRAPPER_ROOT}`,
     `tar --extract --gzip --file /root/step10-wrapper.tar.gz --directory ${STEP10_WRAPPER_ROOT}`,

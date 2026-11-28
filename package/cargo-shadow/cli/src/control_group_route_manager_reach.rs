@@ -101,19 +101,38 @@ pub(crate) const RUNTIME_DIRECTORY_VARIABLE: &str = "XDG_RUNTIME_DIR";
 /// Why:
 /// It is the other half of the address `systemctl --user` builds,
 /// and what the manager's own words name where neither is set.
+/// Where it is set it is preferred over `$XDG_RUNTIME_DIR/bus` for the session bus
+/// (`bus_set_address_user` at `src/libsystemd/sd-bus/sd-bus.c:1373-1398` at v262).
 pub(crate) const SESSION_BUS_VARIABLE: &str = "DBUS_SESSION_BUS_ADDRESS";
 
-/// Where inside the runtime directory the manager keeps its own socket:
-/// the transport an ask takes where no bus is there.
+/// Where inside the runtime directory the manager keeps its own socket (`unix:path=$XDG_RUNTIME_DIR/systemd/private`),
+/// which is the transport `systemctl --user` takes first.
 /// Why:
-/// It is the answer to whether a manager is there where the runtime directory is set and no bus is.
+/// It is the answer to whether a manager is there where the runtime directory is set,
+/// and it is the only transport systemd 262 takes there at all.
+/// `bus_connect_transport_systemd` sends a user-scope ask to `bus_connect_user_systemd` (`src/shared/bus-util.c:519-524` at
+/// v262),
+/// which connects `unix:path=$XDG_RUNTIME_DIR/systemd/private` and returns its failure rather than falling back
+/// (`src/shared/bus-util.c:266-300`),
+/// and systemd 255's copy of the same function falls back to the session bus where that connect fails
+/// (`src/shared/bus-util.c:234-268`).
 pub(crate) const MANAGER_SOCKET: &str = "systemd/private";
 
-/// Where inside the runtime directory the socket of the user bus is:
-/// the transport an ask takes where the host has a bus.
+/// Where inside the runtime directory the socket of the user bus is (`unix:path=$XDG_RUNTIME_DIR/bus`,
+/// sd-bus's
+/// `DEFAULT_USER_BUS_ADDRESS_FMT`):
+/// the transport a systemd older than 262 falls back to where the manager's own socket cannot be connected and no bus address
+/// is set.
 /// Why:
 /// A host that has a bus has this,
-/// and its absence is part of what tells a host with no manager from one whose manager was not answering.
+/// and a systemd 255 that cannot connect the private socket answers over it (`src/shared/bus-util.c:234-268` at v255,
+/// `return sd_bus_default_user(ret_bus)` at `:244` and at `:260`),
+/// while a systemd 262 never takes it (`src/shared/bus-util.c:266-300` at v262).
+/// The read counts it because the package runs beside both.
+/// Where `$DBUS_SESSION_BUS_ADDRESS` is set,
+/// sd-bus takes the address rather than this name
+/// (`bus_set_address_user` at `src/libsystemd/sd-bus/sd-bus.c:1373-1398` at v262 and `:1336-1361` at v255),
+/// so this name is not a transport such a host can take.
 pub(crate) const SESSION_BUS_SOCKET: &str = "bus";
 
 /// What inside the runtime directory shows that a manager keeps its files there,
@@ -189,8 +208,38 @@ fn why_no_manager_can_be_reached(settings: &RouteSettings) -> Option<String> {
     if let Some(directory) = &runtime_directory {
         // The directory the variable names, as a path this process can look at.
         let root: PathBuf = PathBuf::from(directory);
+        // What:     `root.join(MANAGER_SOCKET)` is the manager's own socket, the transport `systemctl --user` takes first where
+        //           `$XDG_RUNTIME_DIR` is set.
+        // Why:      Where it connects, that is the transport the ask went over, on systemd 262 and 255 alike.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // sockets.push(path.join(root, 'systemd/private'))
+        // ```
         sockets.push(root.join(MANAGER_SOCKET));
-        sockets.push(root.join(SESSION_BUS_SOCKET));
+        // What:     `bus_address.is_none()` is the condition under which `root.join(SESSION_BUS_SOCKET)` is a transport an ask
+        //           can take: sd-bus prefers `$DBUS_SESSION_BUS_ADDRESS` to the user bus socket where the address is set.
+        // Why:      A read that counted the bus socket beside a bus address would keep the asking again on a host whose only
+        //           named transport is the address: with both variables set, systemd 262 takes `systemd/private` alone (measured
+        //           read-only on this host and in a container of systemd 262.2 on 2026-11-27) and systemd 255 falls back to the
+        //           address (read from `src/shared/bus-util.c:244` and `:260` at v255, where no manager of 255 was measured),
+        //           and neither takes the bus socket.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // if (busAddress === undefined) sockets.push(path.join(root, 'bus'))
+        // ```
+        if bus_address.is_none() {
+            // What:     `sockets.push(root.join(SESSION_BUS_SOCKET))` adds the user bus socket as a place an ask could be carried
+            //           over.
+            // Why:      A systemd 255 falls back to it where the private socket cannot be connected and no address is set.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // sockets.push(path.join(root, 'bus'))
+            // ```
+            sockets.push(root.join(SESSION_BUS_SOCKET));
+        }
         manager_files = Some(root.join(MANAGER_FILES_DIRECTORY));
     }
     if let Some(address) = &bus_address {

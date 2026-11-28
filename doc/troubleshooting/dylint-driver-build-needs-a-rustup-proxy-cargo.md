@@ -113,6 +113,16 @@ which is the second error string.
 This repository's session `cargo` is a shadow wrapper built by the repository,
 not a rustup proxy,
 and this host has no rustup proxy in `PATH` at all.
+(Corrected 2026-11-27:
+that clause is false.
+`type -a cargo`,
+read on this host between 22:38:12 and 22:43:10 -05:00,
+lists `/usr/bin/cargo` after the repository's two,
+and it is a link to `/usr/bin/rustup`:
+a rustup proxy `cargo` is on `PATH`,
+behind the shadow wrapper.
+The shadow still comes first,
+so what the child runs with is as this section says.)
 The child therefore runs with no `RUSTUP_TOOLCHAIN`,
 and when the variable is supplied from outside,
 Dylint removes it before the child starts.
@@ -204,6 +214,11 @@ The proxy reads the throwaway package's `rust-toolchain.toml` and restores `RUST
 Not run here:
 this host installs no rustup proxies at all,
 so the arm could not be exercised.
+(Corrected 2026-11-27:
+the host installs one,
+`/usr/bin/cargo`,
+so the arm can be exercised and was not.
+The round that revises the Dylint driver proposal is asked to run it in a container.)
 
 ## What does not work
 

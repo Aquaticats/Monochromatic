@@ -20,7 +20,8 @@
 /// Import the list and the entry shapes it holds,
 ///  the finding shape,
 ///  the spelling of the names in it,
-///  and the characters a reader cannot see.
+///  the characters a reader cannot see,
+///  and the reading that removes the `.` segments and the folders a `..` reads back over.
 use crate::{
     layout_allow_list::{
         AllowEntry,
@@ -36,6 +37,7 @@ use crate::{
         spelled_unreadable,
         unseen_character_phrase,
     },
+    markdown_lfs_target::lexical_normal,
 };
 /// Import ordered collections and native paths.
 use std::{
@@ -119,11 +121,21 @@ pub fn dead_entry_findings(
             // What: the line as the message quotes it, with every character a reader cannot see spelled.
             // Why: a byte order mark or a zero-width space prints as nothing, so the quoted line would look like a line that reads.
             let spelled_text: String = spelled_unreadable(entry.text.as_str());
-            // What: what the line would be with each unseen character taken out, or with each one written as a space.
+            // What: what the line would give with each unseen character taken out, or with each one written as a space.
             // Why: a character standing where a separator belongs makes a use line only once a space stands in its place, and one standing inside a word makes none either way.
             let reading: Option<String> = match &entry.kind {
-                AllowKind::Key(_) => what_the_line_would_read_as(entry.text.as_str(), false)
-                    .or_else(|| return what_the_line_would_read_as(entry.text.as_str(), true)),
+                AllowKind::Key(_) => {
+                    what_the_line_would_read_as(entry.text.as_str(), false, base, list, index)
+                        .or_else(|| {
+                            return what_the_line_would_read_as(
+                                entry.text.as_str(),
+                                true,
+                                base,
+                                list,
+                                index,
+                            );
+                        })
+                }
                 _ => None,
             };
             // What: the character the edit would be about, what the edit changes, and its place among the entry's characters.
@@ -143,29 +155,43 @@ pub fn dead_entry_findings(
                 // What: where that character stands in the line, counted in characters from the line's first one.
                 // Why: the entry the reader keeps starts past the indent, and the quote shows the character spelled.
                 let place: usize = entry.column + position - 1;
-                // What: the sentence about what the line would read as, which is empty when the edit is about a file name.
-                // Why: only a key line earns it, and only when its edited text really reads as a line of the list.
-                let sentence: &str = reading.as_deref().unwrap_or("");
+                // What: every character of the line a reader cannot see, which is what the reading of the edit takes out.
+                // Why: the reading edits each of them, and a sentence that named only the first promised a line only the edit of all of them gives.
+                let unseen: usize = characters_a_reader_cannot_see(entry.text.as_str());
+                // What: the characters this line holds beside the one the sentence names, when it holds more than one.
+                // Why: a reader told of one character where two stand looks for one and leaves the other, and the next run names it again.
+                let more: String = match unseen {
+                    1 => String::new(),
+                    2 => String::from(", and 1 more character a reader cannot see"),
+                    count => format!(", and {} more characters a reader cannot see", count - 1),
+                };
                 // What: what the line was read as before its edit, and the help that says how to make it.
                 // Why: a key line was read as a key, and a file-use line as its shape with the name the character made,
                 // and the two edits differ because one removes a separator's stand-in and the other a name's extra character.
-                let (read_as, help): (&str, String) = match what {
-                    DeadEdit::Key => (
-                        "the reader took it as part of the word beside it and the line was read as one finding's key. No finding of the rule prints that key, so the entry tolerates nothing any more.",
-                        String::from(
-                            "Take that character out of the line: it is not whitespace, so nothing on the line can set it off as a separator, and the reader makes it part of the word beside it.",
+                let (read_as, sentence, edit_sentence, help): (&str, String, String, String) =
+                    match what {
+                        DeadEdit::Key => (
+                            "the reader took it as part of the word beside it and the line was read as one finding's key; no finding of the rule prints that key, so the entry tolerates nothing any more.",
+                            reading.unwrap_or_default(),
+                            take_out_what_a_reader_cannot_see(unseen),
+                            take_out_what_a_reader_cannot_see(unseen),
                         ),
-                    ),
-                    DeadEdit::FileName => (
-                        "A file name is read exactly as the line writes it, and no module of this folder is called the name it holds, so the entry tolerates nothing any more.",
-                        String::from(
-                            "Take that character out of the line, then write the file name the rule prints: a character a reader cannot see makes a file name of its own.",
+                        DeadEdit::FileName => (
+                            "a file name is read exactly as the line writes it, and no module of this folder is called the name it holds, so the entry tolerates nothing any more.",
+                            String::new(),
+                            format!(
+                                "Take {} out of the line, then write the file name the rule prints; the entry is live again only if the use still exists.",
+                                the_characters_named(unseen)
+                            ),
+                            format!(
+                                "Take {} out of the line, then write the file name the rule prints: a character a reader cannot see makes a file name of its own.",
+                                the_characters_named(unseen)
+                            ),
                         ),
-                    ),
-                };
+                    };
                 (
                     format!(
-                        "The allow-list entry `{spelled_text}` in {} holds {name} at character {place} of the line, where a reader cannot see it: {read_as} {sentence} Take that character out of the line, and write a whitespace character where it stood if it stood where one belongs.",
+                        "The allow-list entry `{spelled_text}` in {} holds {name} at character {place} of the line, where a reader cannot see it{more}: {read_as}{sentence} {edit_sentence}",
                         shown(list.source(), base)
                     ),
                     help,
@@ -322,9 +348,10 @@ fn file_name_advice(
         if words.get(index) != Some(&name.as_str()) {
             continue;
         }
-        // What: the path this name would have in the folder, in the spelling the walk gives it.
-        // Why: a module the folder holds is a name the line already spells, and its dead line is deleted.
-        let path: PathBuf = base.join(folder).join(name);
+        // What: the path this name would have in the folder, in the spelling the walk gives the file it read.
+        // Why: a module the folder holds is a name the line already spells, and its dead line is deleted,
+        // and the tree writes a file outside the package as the walk from the package folder, so the line's own `..` must be read back before the two spellings meet.
+        let path: PathBuf = lexical_normal(&base.join(folder).join(name));
         if module_files.contains(&path) {
             continue;
         }
@@ -378,30 +405,39 @@ fn word_starts(text: &str) -> Vec<usize> {
 ///  What the line would be once each character a reader cannot see is taken out,
 ///  or replaced by a space,
 ///  as a sentence a dead line's reader can act on,
-///  or nothing when it would be no line of the list.
+///  or nothing when the reader that reads the list would not read it as a line of a use shape.
 /// Why:
-///  The sentence that takes such a character out has to say what the line becomes,
+///  The sentence that takes such characters out has to say what the line becomes,
 ///  and the word it names must be the line's own:
 ///  a `file-uses` line told that its first word is not `uses` is told about a word the line never held.
+///  The answer is the same reader the list is read with, asked about the edited text,
+///  so a sentence that says the line would read is never said about a line the next run refuses:
+///  an absolute folder, a backslash and a repeat are refused there, and only a reader that asks is not fooled by them.
 ///  Replacing the character by a space answers the case the removal cannot:
 ///  a mark written where the separator belongs leaves one word when it is taken out alone.
+///  The sentence names every character it edits, because it edits them all:
+///  one that named the first promised a line only the edit of every one gives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const whatItWouldReadAs = (text, asSpace) => {
+/// const whatItWouldReadAs = (text, asSpace, base, list, at) => {
+///   const count = unseenCharacters(text).length
+///   const edit = asSpace ? `With ${asSpaces(count)}, the line` : `With ${named(count)} out, the line`
 ///   const trimmed = [...text].map((one) => printsAsNothing(one) ? (asSpace ? ' ' : '') : one).join('').trim()
-///   if (trimmed === '') return 'the line carries nothing.'
-///   if (trimmed.startsWith('#')) return 'the line is a comment.'
-///   const first = trimmed.split(/\s/u)[0]
-///   const edit = asSpace ? 'With a whitespace character where that character stands' : 'With that character out'
-///   return first === 'uses' || first === 'file-uses'
-///     ? `${edit}, the line reads as a \`${first}\` line.`
-///     : undefined
+///   if (trimmed === '') return `${edit} carries nothing.`
+///   if (trimmed.startsWith('#')) return `${edit} is a comment.`
+///   const entry = entryOf(1, 1, trimmed, base)
+///   if (entry === undefined || entry.kind === 'key') return undefined
+///   if (list.entries.some((other, index) => index !== at && other.identity() === entry.identity())) return undefined
+///   return `${edit} reads as a \`${word(entry)}\` line.`
 /// }
 /// ```
 fn what_the_line_would_read_as(
     text: &str,
     as_a_space: bool,
+    base: &Path,
+    list: &AllowList,
+    entry_at: usize,
 ) -> Option<String> {
     // What: the line with each character a reader cannot see taken out or written as a space.
     // Why: the sentence is about the line the reader would then read, not about the one it read.
@@ -418,12 +454,15 @@ fn what_the_line_would_read_as(
     // What: the part of that line a reader would see, without the whitespace the list reader trims.
     // Why: a line holding only such a character and spaces would read as blank, which carries nothing.
     let trimmed: &str = without.trim();
+    // What: how many characters of the line the reading edits.
+    // Why: the sentence names what the edit does to each of them, and one of two is not one.
+    let count: usize = characters_a_reader_cannot_see(text);
     // What: which edit the sentence offers, which is the one this reading applied.
-    // Why: a reader told to take the character out of a separator's place would leave one word.
-    let edit: &str = if as_a_space {
-        "With a whitespace character where that character stands"
+    // Why: a reader told to take the character out of a separator's place would leave one word, and a line holding two such characters needs both edits.
+    let edit: String = if as_a_space {
+        format!("With {}", the_characters_as_spaces(count))
     } else {
-        "With that character out"
+        format!("With {} out", the_characters_named(count))
     };
     if trimmed.is_empty() {
         return Some(format!("{edit}, the line carries nothing."));
@@ -431,10 +470,107 @@ fn what_the_line_would_read_as(
     if trimmed.starts_with('#') {
         return Some(format!("{edit}, the line is a comment."));
     }
-    // What: the word the edited line begins with, when that line reads as one of the list's use shapes.
+    // What: the entry the reader makes of the edited text, or nothing when the reader refuses it.
     // Why: the reader that decides what a line is decides the sentence too, so the sentence says only what reads.
-    return crate::layout_allow_entries::shape_of_a_line(trimmed)
-        .map(|word| return format!("{edit}, the line reads as a `{word}` line."));
+    let read: AllowEntry = crate::layout_allow_entries::entry_of(1, 1, trimmed, base).ok()?;
+    // What: the word the edited line reads with, when it reads as one of the list's use shapes.
+    // Why: a key line is no use shape, and the sentence is about a use the edited line would stand for.
+    let word: &str = match &read.kind {
+        AllowKind::FolderUse {
+            ..
+        } => crate::layout_allow_entries::FOLDER_USE_WORD,
+        AllowKind::FileUse {
+            ..
+        } => crate::layout_allow_entries::FILE_USE_WORD,
+        AllowKind::Key(_) => return None,
+    };
+    // What: whether another line of the list already holds what this edit would make.
+    // Why: a line the list refuses as a repeat reads as a use line and is no line its reader can keep.
+    let repeats: bool = list
+        .entries()
+        .iter()
+        .enumerate()
+        .any(|(index, other)| return index != entry_at && other.identity() == read.identity());
+    if repeats {
+        return None;
+    }
+    return Some(format!("{edit}, the line reads as a `{word}` line."));
+}
+
+/// What:
+///  How many characters of a text a reader cannot see.
+/// Why:
+///  The sentence about the edit names every character it edits,
+///  and the count is what says whether it speaks of one, of two or of all of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unseenCount = (text) => [...text].filter((one) => printsAsNothing(one)).length
+/// ```
+fn characters_a_reader_cannot_see(text: &str) -> usize {
+    return text
+        .chars()
+        .filter(|letter| return prints_as_nothing(*letter))
+        .count();
+}
+
+/// What:
+///  The characters a sentence names as the ones its edit changes: one, both of two, or every one of more.
+/// Why:
+///  A sentence that said "that character" about two of them sent its reader after the first and left the other,
+///  and the next run named the other again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = (count) => (count === 1 ? 'that character' : count === 2 ? 'both such characters' : 'every such character')
+/// ```
+fn the_characters_named(count: usize) -> &'static str {
+    return match count {
+        1 => "that character",
+        2 => "both such characters",
+        _ => "every such character",
+    };
+}
+
+/// What:
+///  The phrase that writes a whitespace character where each character a reader cannot see stands.
+/// Why:
+///  A character where a separator belongs is replaced and never removed, and two of them need one replacement each.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const asSpaces = (count) => count === 1 ? 'a whitespace character where that character stands' : count === 2 ? 'a whitespace character where each of the two such characters stands' : 'a whitespace character where each such character stands'
+/// ```
+fn the_characters_as_spaces(count: usize) -> &'static str {
+    return match count {
+        1 => "a whitespace character where that character stands",
+        2 => "a whitespace character where each of the two such characters stands",
+        _ => "a whitespace character where each such character stands",
+    };
+}
+
+/// What:
+///  The edit a dead key line takes when the characters a reader cannot see stand in its words.
+/// Why:
+///  Such a character is not whitespace, so nothing on the line sets it off as a separator
+///  and the reader makes it part of the word beside it: taking it out is the one edit,
+///  and a whitespace character goes where it stood only if it stood where one belongs.
+///  A line holding two of them takes both edits, and a sentence naming one would leave the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const takeOut = (count) => `Take ${named(count)} out of the line, and write a whitespace character where ${count === 1 ? 'it' : 'each'} stood if ${count === 1 ? 'it' : 'it'} stood where one belongs.`
+/// ```
+fn take_out_what_a_reader_cannot_see(count: usize) -> String {
+    if count == 1 {
+        return String::from(
+            "Take that character out of the line, and write a whitespace character where it stood if it stood where one belongs.",
+        );
+    }
+    return format!(
+        "Take {} out of the line, and write a whitespace character where each of them stood if it stood where one belongs.",
+        the_characters_named(count)
+    );
 }
 
 /// What:

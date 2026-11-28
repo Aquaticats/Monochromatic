@@ -3352,14 +3352,22 @@ The rejections that already carry their own alternatives (`require-root`,
 `linked-worktree-only`,
  `branch-worktree-only` and the commit-only rules) keep them in the message.
 The `final-newline` finding says what corrects the file where the finding is made:
-an `add` and `git monochromatic-git-policy-cli check` name the commit's correction,
- which happens while the settings keep `final-newline` on,
- and `git monochromatic-git-policy-cli fix -- <path>` for correcting the file now;
+an `add` names `git monochromatic-git-policy-cli fix -- <path>` and the `git add -- <path>` staging after it,
+ which are the steps that work where the add is refused at `error` severity,
+ and which also correct an index that already holds the bytes,
+ and it names a commit's own correction only for a commit that takes the whole file,
+ because a commit whose selection is read-only records the staged bytes as they are;
+`git monochromatic-git-policy-cli check` names the commit that takes the file,
+ which corrects the ending while the settings keep `final-newline` on,
+ and the fix for correcting the file now;
+a commit that may correct the bytes,
+and `git monochromatic-git-policy-cli fix`,
+say the correction is that command's own;
 a commit whose selection is read-only (`-p`,
  `-i`,
- `--include`),
- a landed commit and a pushed commit say to edit the file,
- because nothing corrects bytes that are already recorded.
+ `--include`) says to edit the file and stage it again;
+and a landed commit and a pushed commit say to edit the file and commit the correction,
+because nothing corrects bytes that are already recorded.
 `src/native/policy/event_hints.rs` holds the texts,
 and its tests fail when a finding code or an engine failure code has no hint.
 
@@ -3515,6 +3523,21 @@ those words may begin with a global option,
 and a value whose own words name another `!` alias is followed through the
 shells it starts,
 up to four of them.
+The guard judges the state the nested `git` acts in:
+the directory Git runs the shell in,
+with the Git directory Git gives that shell,
+then your own options and then your words.
+Git gives the shell a `GIT_DIR` whenever you named a repository or a work tree
+(`--git-dir`,
+`--work-tree` or `GIT_DIR`),
+the repository is bare,
+the shell's directory is inside a Git directory,
+or the working tree's `.git` is a file that points elsewhere;
+from a plain main checkout it gives none.
+So from a linked worktree `git g -C <another worktree> reset --hard` writes that other worktree's files
+with your index and `HEAD`,
+and the guard refuses it as that state,
+while `git -C <another worktree> reset --hard` typed directly writes and resets that worktree alone.
 Every other shell alias runs as Git runs it,
 with no guard:
 `!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
@@ -4784,11 +4807,21 @@ a merge that writes only the copies that side still holds is right and resolves.
 An answer that holds more copies of a line than the two sides leave keeps both sides as well,
 at most as many as the side that holds fewer of them holds
 while neither side wrote more copies of that line than the base held,
+and at most as many as the side that wrote more of them holds
+while exactly one side did,
 which covers a region where one side also wrote a line:
 a copy that side wrote lifts the bound of that one line and no other.
-That bound is the answer's,
-so no resolved file writes back a copy a side removed,
-whether the region it sits in deleted lines only or wrote a line as well.
+That bound is read over the answer of one word merge,
+never over the file you resolve:
+each region Git's line merge left is merged on its own,
+and a region that holds more copies of a line than its own two sides leave
+can be right when another region of the same file holds fewer of them,
+so no region resolves to a copy its own two sides removed.
+The one answer that is a whole file rather than a region
+is a path both sides added,
+whose base is empty;
+no line of that answer is a line of the base,
+so the bound cannot fire there.
 A base line written twice is where the word level cannot tell which copy a side deleted,
 so a region both sides only deleted lines from keeps both sides as well
 when its answer would hold its lines in an order one side does not hold them in,
@@ -5405,9 +5438,14 @@ Listing one with a severity is the only way to turn it on,
   never from the worktree.
   Files below `dist/final/node/` or `bundle/node/` are also exempt,
   as generated output.
-  A commit that may correct the file corrects its ending itself;
-  an `add` and a direct check stage the bytes and warn,
-  so their hint names the commit's correction and the `fix` command.
+  A commit that may correct the file corrects its ending itself.
+  A direct check reads worktree bytes a commit takes,
+  so its hint names that commit's correction and the `fix` command.
+  An `add` names the `fix` command and the `git add` staging after it,
+  because an `add` at `error` severity stages nothing
+  and an index keeps the bytes it already holds.
+  A landed commit and a pushed tree name the edit and the commit after it,
+  because a commit already records those bytes.
 - `markdown/autofix`:
    default `warn`.
   Runs the linked `monochromatic-lint` fix engine over staged Markdown inside the commit,
@@ -7610,6 +7648,9 @@ mise run //package/git-policy/cli:native:gate:verdict -- <log path> <deadline se
   at the commit `main` points at now,
   then starts a gate there labelled `<worktree name minus gate->-on-<sha>`,
   so the log names the commit it tested.
+  The worktree has to exist already:
+  the task moves it and never makes one,
+  so a checkout without one fails before a gate starts.
   It prints `gate worktree at <sha>` and `launch status <n>`,
   and a worktree holding uncommitted work is not moved:
   the status is printed and the command exits 2,
