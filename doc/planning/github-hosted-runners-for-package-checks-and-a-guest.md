@@ -1076,7 +1076,8 @@ What a yes leaves undecided:
 nothing this option delivers,
 which is why it is ranked last.
 
-Ranking:
+Ranking,
+by how often the fast subset runs and how much of a day it covers against the hosted minutes spent:
 1 > 3 > 2 > 4.
 
 - 1 over 3:
@@ -1220,7 +1221,8 @@ What a yes leaves undecided:
 nothing,
 and it is the state the owner's rule already describes.
 
-Ranking:
+Ranking,
+by what each takes off this machine while keeping a batch's verdict trustworthy:
 2 > 1 > 3.
 
 - 2 over 1:
@@ -1345,7 +1347,8 @@ it answers the gate read's central finding with "no".
 Cost:
 none.
 
-Ranking:
+Ranking,
+by how much of a batch's verdict rests on measured behaviour:
 1 > 2 > 3.
 
 - 1 over 2:
@@ -1488,7 +1491,9 @@ Example:
 a push touching `package/logger/core/src/sink/` runs that package's unit task,
 which fails five files today and names them.
 
-Ranking:
+Ranking,
+by where a red is most surely seen by someone who was not watching,
+which is the criterion the placement record ranks by:
 1 > 2 > 3.
 
 - 1 over 2:
@@ -1603,7 +1608,8 @@ two hours and 14 GiB per arm,
 free at the point of use,
 with a workflow to keep in step.
 
-Ranking:
+Ranking,
+by what each takes off this machine for each hour of unproven path it adds:
 1 > 2 > 3.
 
 - 1 over 2:
@@ -1731,7 +1737,8 @@ the owner's setting and a check that runs almost never.
 Example:
 an outside contributor's pull request waits for a check that no merge here was ever going to wait for.
 
-Ranking:
+Ranking,
+by whether a red actually reaches a person without breaking how work lands here:
 1 > 2 > 3.
 
 - 1 over 2:
