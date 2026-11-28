@@ -4555,3 +4555,73 @@ and each can be undone.
   and into a new file only where the sorter's ledger shows none fits;
   and words the handover gives as the owner's stay unless the round has read them in the other record the ledger names.
   The coordinating session read none of the four ledgers whole.
+
+## Veto open: what four more results of the night of 2026-11-27 left (recorded 2026-11-27T22:15:09-05:00)
+
+Each is a round's own or the coordinating session's,
+done without asking,
+and each can be undone.
+
+- Issue 6641,
+  a command behind a `!git` alias.
+  The issue's text,
+  written by the coordinating session,
+  read `SPEC.md`'s "the worktree a command changes is the one measured and the one refused" as:
+  both places are measured,
+  and the command is refused when either would be.
+  The round did otherwise and said so:
+  it measures the one state the nested Git is in,
+  the files of the place its words reach with the index and `HEAD` of the Git directory its shell inherited,
+  and refuses when that state would be refused.
+  For:
+  the refusal describes what Git will do,
+  one facts query answers it,
+  and none of the dangerous rows runs.
+  Against:
+  three commands that change nothing in real Git are refused,
+  `g -C <another worktree> checkout -- <path>` and the `restore` and `checkout <tree> -- <path>` rows of that shape,
+  typed in a dirty linked worktree,
+  because the state is dirty and the bytes happen to be the same on both sides.
+  Not taken:
+  asking the facts twice and refusing if either refuses,
+  which refuses those three and more;
+  and judging only the files' place for the forms that write no index,
+  which needs a table of what each guarded form writes
+  (`clean --force` writes files only and still chose them from the inherited index).
+  Its refusal keeps the words "this worktree has uncommitted changes to tracked files",
+  true of that state,
+  without saying that the files and the index come from two places;
+  a sentence that names both is a new message and was left for a decision.
+- The records-only round on the ZFS route's status lines left four things as they are.
+  `SPEC.md` says the settle that finishes a failed add with Git's own checkout "is not built",
+  where the settling command's module now exists and no command reaches it:
+  name the module and its cut,
+  or leave the sentence.
+  The plan's section "What can start now" is the scheduling text of 2026-11-19,
+  passed by sixteen merged steps:
+  rewrite it,
+  or keep it as that day's record.
+  The lost-event design's Status says nothing of it has been built or run,
+  which the round did not verify either way,
+  and two rounds are building it now.
+  And the step 23 record left the form of the gate arm's assertion to the owner,
+  release-independent or a per-guest expectation;
+  `main` holds the release-independent form since `bd180d7de9`,
+  because a round built it,
+  and no record says the owner accepted it.
+- `mpm-shadow`'s join of the exposure removal with the Rust row's change:
+  no control drives a postinstall link or command on a `rustup-toolchain` row,
+  so the two call sites the join took over rest on the compiler.
+  The gap is older than both rounds,
+  and it goes to the round on the read of `0.2.7-alpha.19`.
+- The driver refused one start while memory was short,
+  because its guard waits 10 s for the wrapper's `--help`
+  (issue 6646).
+  The round was started again from a list of its own.
+  Nothing was changed in the driver.
+- The wrapper round that repairs its doc comments was briefed with these picks:
+  the repair is made by the fixed linter on each file as it stood before the sweep,
+  and replaces what `main` holds only for a doc paragraph whose words have not changed since;
+  nothing but doc-comment lines changes,
+  and no word of any;
+  and the doc fence in `policy/policy_forbidden_strings.rs` is closed where its block ended.

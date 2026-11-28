@@ -115,17 +115,17 @@ and each stays in force until the owner changes it.
   and a step waits only for an input it names or for a failure on record
   ("How work is run side by side").
 
-## The state at 2026-11-27T21:42:08-05:00
+## The state at 2026-11-27T22:15:09-05:00
 
-`main` was `efae1c2767`.
+`main` was `79c2c4abc7`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 315 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 319 more by this time.
 
 ### Rounds running
 
-At 2026-11-27T21:42:08-05:00 these 21 rounds are live,
+At 2026-11-27T22:15:09-05:00 these 21 rounds are live,
 counted from the process list.
 Each runs on Pi's virtual writer,
 with its brief at `~/temp/agent/pi-runs/<round>-prompt.md`,
@@ -143,22 +143,6 @@ Guest rounds:
   the one place issue 6638's round left,
   in guests made from plan step 23's template;
 
-For what the reads of the wrapper's `0.6.1-alpha.51` found
-("What the wrapper's alpha.51 reads found"):
-
-- `issue-6641-a-command-behind-a-git-alias-is-judged-for-every-place-git-acts-in`,
-  2026-11-27T20:32:58-05:00:
-  the two High points;
-
-For what the read of `mpm-shadow`'s `0.2.7-alpha.18` found
-("What `mpm-shadow`'s alpha.18 read found"):
-
-- `mpm-shadow-the-exposure-removal-joined-with-the-rust-rows-one-directory`,
-  2026-11-27T21:39:47-05:00:
-  joins the ended exposure-removal branch with `main`,
-  where the Rust row's merge moved `exposure.rs`,
-  and changes behaviour nowhere;
-
 For what the read of `cargo-shadow`'s `0.1.5-alpha.17` found
 ("What `cargo-shadow`'s alpha.16 round did,
 and its alpha.17";
@@ -170,6 +154,17 @@ issue 6645):
 - `cargo-shadow-alpha-17-release-pass-five-record-sentences-say-what-is-so-and-two-controls-can-fail`,
   2026-11-27T21:36:31-05:00:
   the Low points;
+
+For this file's own landed history,
+one round for each sorter's ledger,
+each on a part of its own:
+
+- `handover-landed-history-part-a-cut-to-open-work-by-its-ledger`,
+  2026-11-27T21:42:29-05:00;
+- `handover-landed-history-part-c-cut-to-open-work-by-its-ledger`,
+  2026-11-27T21:43:27-05:00;
+- `handover-landed-history-part-d-cut-to-open-work-by-its-ledger`,
+  2026-11-27T22:07:22-05:00;
 
 For the ZFS route
 ("The ZFS worktree route"),
@@ -221,11 +216,6 @@ briefed from a digest of what is left with every quoted record line checked agai
   2026-11-27T21:15:44-05:00;
 - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`,
   2026-11-27T21:16:02-05:00;
-- `zfs-records-say-what-main-holds-where-seven-status-lines-were-passed`,
-  2026-11-27T21:38:04-05:00:
-  records only:
-  the lines of other records that `main` has passed,
-  and the two list entries `SPEC.md` runs together on one line;
 
 The four rounds on this file's history work from the ledgers four read-only Claude Sonnet sorters wrote
 (same vendor,
@@ -249,18 +239,20 @@ A round's worktree is gone once its run ends,
 and the local branch it leaves stands at the round's tip,
 so a branch pushed again after such a check is merged from `origin`'s ref.
 
+Three Claude Sonnet agents of the coordinating session run beside the rounds,
+each a same-vendor pass and none independent:
+the second pass of the linter's `0.5.2-alpha.24`,
+and a gate review of each of the linter's two proposals before either is put to the owner.
+
 When a round ends:
 its report is read whole,
 its branch merged as "Next" says,
 its issue closed by hand,
 and what its merge frees is started.
-After the wrapper's last round of five:
-one whole gate on `main`,
-the install proof over alpha.51,
-`0.6.1-alpha.52`,
-and its two second passes.
-After `mpm-shadow`'s join:
-`0.2.7-alpha.19`.
+The wrapper's gate on `main` runs;
+after it come the install proof over alpha.51,
+`0.6.1-alpha.52` and its two second passes.
+`mpm-shadow`'s `0.2.7-alpha.19` is being released.
 After `cargo-shadow`'s two:
 `0.1.5-alpha.18`.
 The ZFS rounds all add lines to `src/native/lib.rs`,
@@ -2521,8 +2513,31 @@ both older than the merge that brought the two High points.
   A name behind a feature gate still counts as published,
   and the list's header names the three.
   What it chose waits in `doc/handover/questions-for-the-owner.md`.
-- Of the five rounds one is left,
-  issue 6641's ("Rounds running").
+- Issue 6641's round is merged (`229d5310eb`) and the issue is closed.
+  A bare `!git` alias is judged in the one state its nested Git acts in:
+  the directory Git runs the shell in,
+  the `GIT_DIR` Git gives that shell,
+  asked of Git itself,
+  the options the caller typed before the alias name without their `-C` chain,
+  and then the alias's words.
+  All twelve rows the issue names reproduced before any change and now stop;
+  of 111 rows seventeen moved against alpha.51,
+  none to a run that changes state,
+  and the build runs nothing that changes state which alpha.50 or alpha.51 refused.
+  Two controls drive the built executable with real Git behind it,
+  two go through `plan_invocation`,
+  one holds the reading of the exported `GIT_DIR` in seven shapes,
+  and one holds the slot refusals behind the same spellings;
+  each was red under one of two plants.
+  The round judged the one state,
+  where its brief had read `SPEC.md` as both places measured:
+  three commands that change nothing in real Git are refused for it,
+  and the refusal does not say that files and index come from two places.
+  Both wait in `doc/handover/questions-for-the-owner.md`.
+- All five rounds are merged.
+  One whole gate on `main` at `229d5310eb` was started at 2026-11-27T22:06:58-05:00;
+  after it come the install proof over alpha.51,
+  `0.6.1-alpha.52` and its two second passes.
 
 #### What the linter's alpha.23 read found
 
@@ -2627,6 +2642,18 @@ with a comparison first shown able to see a move.
   and says a code of its own for a skip is worth taking with whatever else is picked.
   The issue stays open,
   and the choice is the owner's (`doc/handover/questions-for-the-owner.md`).
+- `0.5.2-alpha.24` is release commit `40710212ed`
+  (dispatched 2026-11-27T21:42:43-05:00,
+  release run 46099406752 and publish run 46099490612;
+  the follower's log holds `PUBLISHED`),
+  locked (`071793f045`) and installed here,
+  where `.cache/toolchain-bin/monochromatic-lint --version` says `0.5.2-alpha.24`.
+  The install named no unresolved bin and no removed link,
+  the exposure folder held 174 names before and after,
+  and the session's `git` link was put back at 2026-11-27T22:03:21-05:00.
+  Its second pass runs,
+  and so do gate reviews of the two proposals ("Rounds running").
+  The wrapper's own doc comments are repaired by a round of the wrapper's ("Rounds running").
 
 #### What `mpm-shadow`'s alpha.18 read found
 
@@ -2707,9 +2734,14 @@ directories and hard links.
   red under the plant the read named.
   The package's task passed 938 of 938.
 - The round on the exposure folder's removal ended 2026-11-27T21:30:28-05:00 with its report read whole,
-  and its branch does not merge:
-  the Rust row's merge changed `exposure.rs` under it,
-  and a round joins the two ("Rounds running").
+  and its branch was joined with `main` by a round of its own,
+  merged as `79c2c4abc7`:
+  the Rust row's merge had changed `exposure.rs` under it,
+  and the one conflict was resolved with both intents kept.
+  The joined tree's package task passed 949 of 949.
+  No control drives a postinstall step on a `rustup-toolchain` row,
+  so the two call sites the join took over rest on the compiler;
+  that gap is older than both rounds and has no round yet.
   Both races of M-1,
   M-2 and the unnamed removal reproduced with the released binary.
   On the branch a temporary link's name carries the install that holds it,
@@ -3728,9 +3760,13 @@ and the two `truepeak` files wait on their branch.
   and on this repository's tree the whole-tree arm scans 139 links,
   clean,
   after a planted rule found 139.
-  The issue is closed by hand once a push run of the workflow on `main` that holds the merge has ended green and its two new steps' lines are read;
-  later pushes cancel a run in flight,
-  so that run is looked for when the merges pause.
+  The issue is closed,
+  on push run 46098402786 at `b16e1fdca2`:
+  every step passed,
+  the two new ones among them,
+  and its delta of 33 regular files held no link.
+  So that run shows the steps run and pass,
+  and the scanning of links rests on the module's cases and on the round's own whole-tree run.
 - `cargo-shadow`'s `src/lib.rs` holds 218 `mod` declarations and no function,
   and is the package's one `rust/max-lines` finding.
   Its round is merged (`60ecd08eef`),
@@ -3952,6 +3988,20 @@ the disk stall read `some avg10=76.24` and `MemAvailable` 10290 MiB:
 each add through the session wrapper copies about 39,000 ignored entries,
 the cost the owner's hold of 2026-11-18 on heavy worktree use names.
 
+On 2026-11-27,
+with 23 rounds started between 21:11 and 21:42 -05:00,
+the first builds of those rounds ran together.
+At 21:48:24 `MemAvailable` read 1549 MiB,
+swap held 50,404 of 66,219 MB,
+and the memory stall read `full avg10=46.85`,
+with `rustc` holding 28.8 GiB resident and seven guests each holding about 24 MiB of swap.
+At 21:49:53 `MemAvailable` read 5833 MiB and the stall `full avg10=3.13`.
+`systemd-oomd` killed nothing;
+its limits are 90% of swap used and a memory stall of 60% for 30 s.
+One start was lost in those minutes:
+the driver's guard that asks which `git` a session would run waited 10 s for the wrapper's `--help` and refused the round,
+which started from a list of its own afterwards (issue 6646).
+
 ## Initiatives
 
 ### The ZFS worktree route
@@ -4139,23 +4189,10 @@ the `.gitattributes` fence's own write;
 the check after a restore;
 finishing an add with Git's own checkout when its proof or its restore fails;
 and the warning above the measured count of changed paths.
-That list's last two entries are run together on one line of `SPEC.md`,
-``(rule `LQM`).- A record that says``,
-which the round on the records' status lines corrects.
 
-Lines of other records that `main` has passed,
-found by the digest and confirmed by reading each,
-which the round on the records' status lines corrects ("Rounds running"):
-`doc/decision/cli-git-zfs-worktree-design.md` says the forced arm's kernel calls are not built,
-and `3ebc78c3dc` built and proved them;
-`doc/planning/cli-git-zfs-step-22-guest-half-measurements.md` and
-`doc/runbook/zfs-sanoid-coverage-and-the-space-guard.md` call the storage half and the Sanoid page the owner's act,
-which the answers of 2026-11-26 made the agent's;
-`doc/planning/cli-git-zfs-step-23-host-kernel-qualification-run.md`,
-"What is left",
-lists the gate arm's pin,
-which the digest says `bd180d7de9` settled and the coordinator has not checked;
-and the plan's opening status is that of 2026-11-19.
+The lines of other records that `main` had passed are corrected,
+by a records-only round merged as `24de7bc3e6`;
+what it left for a decision waits in `doc/handover/questions-for-the-owner.md`.
 
 Rounds keep their files under `~/temp/agent/<round name>-<date>/`,
 which expires a day after its last change ("Scratch expires after a day");
@@ -4178,7 +4215,7 @@ a round's durable findings land in its branch's records.
   none of the parts given to steps 10 and 14 was built with those steps.
   Two rounds build the wrapper's side and the handler's side ("Rounds running").
   That design's own worktree is gone,
-  by `git worktree list` at 2026-11-27T21:25-05:00.
+  by `git worktree list` at 2026-11-27T21:46:38-05:00.
 - The forced removal's two kept refusals,
   of a locked holder and of a taskless namespace:
   `doc/planning/cli-git-zfs-forced-removal-holders-ended-and-caller-spared-design.md`.
