@@ -36,6 +36,15 @@ pub(super) const FIXTURE_RULE: &str = "ci-scope-fixture-sentinel";
 //           this test source itself.
 pub(super) const SENTINEL: &str = "zzq-scope-violation-sentinel";
 
+// What:     `const NAME_RULE` is the rule name of the fixture's pathname rule.
+// Why:      A pathname finding reports `rule=<name>`, so asserting on this name
+//           proves a name segment was inspected, not a builtin rule.
+pub(super) const NAME_RULE: &str = "ci-scope-fixture-name";
+
+// What:     `const NAME_SENTINEL` is the name segment the fixture deny-list
+//           forbids.
+pub(super) const NAME_SENTINEL: &str = "zzqnametoken";
+
 // What:     `const MARKER_FREE_WORKFLOW` is a pre-marker workflow revision.
 // Why:      Runs that executed a revision without the watermark marker
 //           scanned only their own push range, so their head commit is not a
@@ -50,9 +59,27 @@ pub(super) const MARKER_FREE_WORKFLOW: &str = "name: forbidden-strings\n\
 //           produced by the preceding workflow step in CI; the fixture writes
 //           the same path with a rule set whose only finding is the planted
 //           violation.
+// What:     `const FIXTURE_RULES` is one named tail-format rule forbidding
+//           `SENTINEL`,
+//           plus the pathname rules the left-out-entry cases need:
+//           one matching a whole name segment,
+//           and one each spanning a space and a comma,
+//           so a name split at that byte stops matching.
+// Why:      The scan step reads `$RUNNER_TEMP/forbidden-strings.rules.txt`,
+//           produced by the preceding workflow step in CI; the fixture writes
+//           the same path with a rule set whose only findings are the planted
+//           violations.
 pub(super) const FIXTURE_RULES: &str = "# Fixture deny-list for the CI scan-scope regression tests.\n\
                              ==> ci-scope-fixture-sentinel <==\n\
-                             zzq-scope-violation-sentinel\n";
+                             zzq-scope-violation-sentinel\n\
+                             ==> ci-scope-fixture-name <==\n\
+                             zzqnametoken\n\
+                             ==> ci-scope-fixture-space <==\n\
+                             zzq name\n\
+                             ==> ci-scope-fixture-comma <==\n\
+                             zzq,name\n\
+                             ==> ci-scope-fixture-line <==\n\
+                             zzqline\n";
 
 // What:     `const GH_RUN_LIST_STUB` is a fake `gh run list` built from
 //           shell, installed on the fixture PATH ahead of any real `gh`.

@@ -264,10 +264,12 @@ fn broken_link_still_ends_the_step_with_its_read_error() {
 
 // What:     `#[test] fn push_of_folder_links_only_ends_green_and_says_what_it_left_out()`
 //           pushes two new folder links and nothing else, and expects exit 0
-//           after the step says it left both out.
-// Why:      A delta made only of such links has nothing the scanner can read;
-//           the step must not call the scanner with zero paths and must not
-//           report a scan it did not do.
+//           after the file-scan step says what leaves its list and the
+//           left-out step says what it handed over instead.
+// Why:      A delta made only of such links has nothing the file scan can
+//           read; the step must not call the scanner with zero paths and must
+//           not claim nothing is inspected, because the left-out step scans
+//           both links by name and stored target text.
 #[test]
 fn push_of_folder_links_only_ends_green_and_says_what_it_left_out() {
     let mut fixture = Fixture::new("folder-links-only-push");
@@ -312,10 +314,26 @@ fn push_of_folder_links_only_ends_green_and_says_what_it_left_out() {
         result.stderr,
     );
     assert!(
-        !result.stdout.contains("Scanning")
-            && result.stdout.contains("nothing to scan")
-            && result.stderr.is_empty(),
-        "no scanner run may be announced when every entry was left out\nstdout: {}\nstderr: {}",
+        result.stdout.contains("Every changed entry in")
+            && result
+                .stdout
+                .contains("the next step scans their names and link target texts"),
+        "the file-scan step must announce no file scan and must say what runs next\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        !result.stdout.contains("changed file(s)")
+            && result
+                .stdout
+                .contains("Scanning 2 left-out entries: each one by its own name"),
+        "both links must reach the left-out step rather than the file scan\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        !result.stderr.contains("rule=") && !result.stderr.contains("read error"),
+        "two clean folder links must produce no finding and no read error\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
     );
