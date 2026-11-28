@@ -566,8 +566,8 @@ fn the_route_of(
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
 ) -> Result<TheRoute, AnAnswer> {
-    let (real_git, _notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
-    let Some(real_git) = real_git else {
+    let (found, _notice): (Option<PathBuf>, Option<String>) = optional_real_git(inputs);
+    let Some(real_git) = found else {
         return Err(AnAnswer::on_standard_error(
             ENGINE_FAILURE_EXIT_CODE,
             format!(

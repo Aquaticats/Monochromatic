@@ -58,11 +58,11 @@ pub fn a_settling_command_answered(
         Ok(request) => request,
         Err(stop) => return a_settling_stop(&stop),
     };
-    let route: TheRoute = match route {
-        Ok(route) => route,
+    let place: TheRoute = match route {
+        Ok(place) => place,
         Err(answer) => return answer.line_terminated(),
     };
-    let common_dir: PathBuf = route.common_dir.clone();
+    let common_dir: PathBuf = place.common_dir.clone();
     let pool: ThePoolACommandReadsWhenAsked = ThePoolACommandReadsWhenAsked::not_opened();
     let mounts: LiveMountedDatasets = LiveMountedDatasets;
     let reads: SettlingReads<'_> = SettlingReads {

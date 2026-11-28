@@ -74,16 +74,16 @@ pub fn a_cancel_command_answered(
         }
         CancelInvocation::Cancel(request) => request,
     };
-    let route: TheRoute = match route {
-        Ok(route) => route,
+    let place: TheRoute = match route {
+        Ok(place) => place,
         Err(answer) => return answer.line_terminated(),
     };
-    let home: &std::path::Path = match route.the_home(CANCEL_COMMAND_WORD) {
+    let home: &std::path::Path = match place.the_home(CANCEL_COMMAND_WORD) {
         Ok(home) => home,
         Err(answer) => return answer.line_terminated(),
     };
-    let checkout: PathBuf = route.checkout.clone();
-    let common_dir: PathBuf = route.common_dir.clone();
+    let checkout: PathBuf = place.checkout.clone();
+    let common_dir: PathBuf = place.common_dir.clone();
     let pool: ThePoolACommandReadsWhenAsked = ThePoolACommandReadsWhenAsked::not_opened();
     let claim: LiveTheRemovalClaim<'_> = LiveTheRemovalClaim {
         common_dir: common_dir.as_path(),

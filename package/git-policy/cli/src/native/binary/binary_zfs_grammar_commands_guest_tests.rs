@@ -519,7 +519,9 @@ fn the_settling_word_settles_a_slot_whose_clone_is_gone() {
         "nothing was removed while the clone stands"
     );
     println!("GRAMMAR settling-stands=refused status=1");
-    // A person destroys the clone outside the wrapper, which is the state the command exists for.
+    // A person takes the mount down and then destroys the clone outside the wrapper,
+    // which is the state the command exists for: the pool refuses to destroy a dataset a mount holds.
+    unmount_at(fixture.place.slot.as_path());
     zfs_ok(
         fixture.sbin.as_str(),
         &["destroy", "-r", fixture.clone.as_str()],
