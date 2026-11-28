@@ -446,8 +446,8 @@ fn a_refused_head_keeps_the_clone_and_the_word_refused() {
     })
     .expect_err("a clone that still answers blocks the settle");
     assert!(
-        matches!(stop, RemovalStop::TheSettleRefused { .. }),
-        "the settle refuses without a proved absence"
+        matches!(stop, RemovalStop::TheHeadDestroyWasRefused { .. }),
+        "a head destroy the pool still answers is a refusal of its own, before any settle is asked"
     );
     let plan: DestructionPlan =
         read_the_plan(fixture.common(), fixture.recorded().clone_guid).expect("the plan stands");

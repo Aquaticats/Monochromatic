@@ -219,8 +219,7 @@ pub const SETTLING_COMMAND_WORDS: &str =
 ///  and it keeps its name so that no reader's line moves
 ///  (`worktree_clone_slot_state`,
 /// `health/doctor_zfs_route` and this folder all read it)
-pub const NO_REMOVAL_WORDS: &str =
-    "`git worktree remove` of that slot runs the wrapper's own removal, which destroys the clone, its own snapshots and its records and prints what it destroyed";
+pub const NO_REMOVAL_WORDS: &str = "`git worktree remove` of that slot runs the wrapper's own removal, which destroys the clone, its own snapshots and its records and prints what it destroyed";
 
 /// The words that say a command the project designed for a state cannot be run
 /// in this release.

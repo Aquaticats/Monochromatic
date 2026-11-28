@@ -2442,11 +2442,10 @@ while it is unmounted Git's own move really moves the registration,
 and the wrapper's refusal is the only protection there.
 The message says the slot is fixed,
 that nothing was moved,
-that moving the work means removing the clone and settling its registration first,
-and that this release has no removal for a clone,
-so the clone and its record stay until it does.
+and that moving the work means removing the clone first,
+which `git worktree remove` of the slot does.
 
-`git worktree remove` is refused for a slot the binding record proves is a whole worktree,
+`git worktree remove` of a slot the binding record proves is a whole worktree removes that clone,
 whatever options the command carries (`-f -f` and every other spelling Git accepts,
 and the global options before `worktree` read by Git's own table:
 `-c`,
@@ -2457,15 +2456,21 @@ which holds the pointer the add kept for `git worktree prune`,
 and the clone dataset with the checked-out files would then be reachable by nobody
 (`SPEC.md`,
 "Removal of a ZFS worktree clone").
-The refusal prints the slot's state,
+The command prints the slot's state,
 its dataset and the one next safe action,
-says that this release has no removal for a clone,
-and prints what a removal would prove and lose:
-the clone and the origin snapshot the lineage proof matched,
-every snapshot of the clone's own history by name,
-and every bookmark the head destroy would take with it,
-with the sentence that nothing was unmounted,
-no removal intent was filed and no destruction plan was written.
+then takes the slot's per-slot claim,
+proves the lineage,
+files the `unmount` request and waits for its verified answer,
+writes the destruction plan,
+and sends the clone's own snapshots in requests split by one 64 KiB budget,
+with a fresh all-namespace holder scan and the marked-origin check before each,
+then destroys the head,
+attempts the origin cleanup,
+settles the Git registration and removes its own records.
+Its report says what was destroyed,
+what went with the head,
+what the origin cleanup did and what a person still has to do,
+in the same invocation.
 A promoted clone,
 or a clone whose recorded identities the pool no longer answers,
 is refused with the check that stopped it and the object it named,
@@ -2527,9 +2532,11 @@ The plan is read through one reader
 (`src/native/worktree_clone_removal_proof_and_plan/plan_reading.rs`),
 which plan steps 15 to 18 call rather than reading the folder again.
 
-What this release builds and does not yet run is the rest of that removal,
-on one writing path no command reaches
-(`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`):
+The removal's whole order is
+`worktree_clone_removal_proof_and_plan::removal_completion::complete_the_removal`,
+and `git worktree remove` runs it over the live seams
+(`worktree_clone_removal_proof_and_plan::removal_command_path::complete_the_bound_clones_removal`).
+What it does, step by step:
 
 - the slot's per-slot claim,
   taken before the first read and released after the plan is proved gone,
@@ -2560,35 +2567,41 @@ on one writing path no command reaches
   and the report that names what was destroyed,
   what went with the head and what a person still has to do;
 - the finish pass,
-  which reads the plan folder before a forwarded command once a later step calls it,
+  which reads the plan folder before a forwarded command,
   settles the registration a plan whose head is `gone` still names,
   removes the binding's files and then the plan,
   and releases the slot's claim,
-  so a tail no next removal of that slot can reach is finished without an add.
+  so a tail no next removal of that slot can reach is finished without an add;
+  a repository with no plan folder costs one `stat`,
+  and a command whose output a program reads finishes neither it nor an interrupted destroy.
 
-All of that waits for one thing a person needs:
+A removal that meets a holder cancels itself and puts the clone back at its slot,
+at each of the three stop points `SPEC.md` names:
+the handler's rollback of an unmount a holder kept busy,
+the fresh scan before a snapshot delete,
+and the head destroy refused `dataset is busy` after the clone's own snapshots were gone.
+Its report names the holder,
+what was destroyed and that no cancellation restores it,
+and the way back,
+and the plan it leaves is the loss record unless it witnessed nothing.
+
 `cancel-worktree-removal <slot>`,
-which the record's own sentences and the checks' refusals name.
-Plan step 17 built it.
+which the record's own sentences and the checks' refusals name,
+is still the manual way back for a removal whose wrapper was killed.
 The cancel command is built and no management grammar admits it in this release:
 `git monochromatic-git-policy-cli cancel-worktree-removal <slot>` prints the management usage and exits 2,
 so the sentence beside a standing plan says the command cannot be run yet and names the files you read instead.
-A release that printed a command it does not have would make a refused removal worse than today's,
-so the refusal stays,
-and it changes nothing:
-the plan folder is not created,
-no clone is unmounted,
-and every snapshot,
-bookmark and registration still stands.
+The removal itself asks the same reversal through
+`worktree_clone_removal_proof_and_plan::the_self_cancelling_seam`,
+so a stop point needs no grammar entry.
 An add that was interrupted keeps its own recovery,
-which still names `git worktree remove <slot>` when the clone must go,
-and the binding record that removal leaves is the settling command's,
-which no grammar admits either.
+which still names `git worktree remove <slot>` when the clone must go.
 
 The forced arm is built beside the cancel command and reached by no command.
 With `--force`,
 a removal may end the holders other than the caller and its session,
-once the owed measurement shows it works.
+once the owed measurement shows it works,
+and that is not this release: its waits ship with no value.
 What it never ends is the caller's session and every ancestor of the command up to the first process:
 a holder there refuses the removal in both arms,
 and with `--force` the word it answers is `caller-protected-holds`.

@@ -21,20 +21,25 @@ use super::{
 
 /// The two words the mount handler files beside an unmount a busy mount rolled
 /// back.
-const THE_HANDLERS_ROLLBACK_WORDS: [&str; 2] = ["bind-gone", "bind-present"];
+const THE_HANDLERS_ROLLBACK_WORDS: &[&str] = &["bind-gone", "bind-present"];
 
 #[test]
 fn the_rollback_steps_are_the_handlers_own_two_words() {
     assert_eq!(
-        THE_ROLLBACK_STEPS,
-        THE_HANDLERS_ROLLBACK_WORDS.as_slice(),
+        THE_ROLLBACK_STEPS, THE_HANDLERS_ROLLBACK_WORDS,
         "the seam's words must be the ones `worktree_clone_mount_handler/sweep_unmount_answers.rs` files"
     );
 }
 
 #[test]
 fn a_step_word_that_is_not_the_handlers_rollback_is_no_stop_point() {
-    for word in ["unmount", "receipt", "move-mount", "bind", "bind-gone-again"] {
+    for word in [
+        "unmount",
+        "receipt",
+        "move-mount",
+        "bind",
+        "bind-gone-again",
+    ] {
         assert!(
             !is_the_handlers_rollback(word),
             "`{word}` is not one of the handler's rollback words"

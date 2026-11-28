@@ -32,13 +32,14 @@ use std::cell::RefCell;
 use std::path::Path;
 
 /// The lines an answer that cancels a removal reports.
-const THE_ANSWERS_LINES: [&str; 2] = [
+const THE_ANSWERS_LINES: &[&str] = &[
     "removal of `one` cancelled itself: a holder kept the clone's unmount busy, so nothing was destroyed and every snapshot survives. The clone is mounted at its slot.",
     "The destruction plan at /tmp/one stands as the loss record.",
 ];
 
 /// The sentence an answer that cannot cancel reports.
-const THE_FAILURE_SENTENCE: &str = "the handler answered no receipt before this removal's own deadline.";
+const THE_FAILURE_SENTENCE: &str =
+    "the handler answered no receipt before this removal's own deadline.";
 
 /// What:
 ///  An answer a control scripts,
@@ -128,12 +129,8 @@ fn a_removal_with_no_answer_wired_keeps_the_stop_it_had() {
 fn an_answer_that_cancels_the_removal_prints_its_own_report() {
     let answer: ScriptedAnswer = ScriptedAnswer::cancelling();
     let holders: Vec<String> = vec![String::from("mnt:[4026532001] holds /srv/holder")];
-    let stopped: RemovalStop = cancelled_at(&the_stop(
-        Some(&answer),
-        None,
-        holders.as_slice(),
-    ))
-    .expect("an answer is wired, so the stop is the answer's");
+    let stopped: RemovalStop = cancelled_at(&the_stop(Some(&answer), None, holders.as_slice()))
+        .expect("an answer is wired, so the stop is the answer's");
     let RemovalStop::TheRemovalCancelledItself {
         said,
     } = &stopped
@@ -170,7 +167,8 @@ fn an_answer_that_cannot_cancel_names_the_stop_and_its_own_sentence() {
         panic!("the answer could not cancel, and the stop is {stopped:?}");
     };
     assert_eq!(
-        stop, &TheStopPoint::ByAScanBeforeADelete.clause(),
+        stop,
+        &TheStopPoint::ByAScanBeforeADelete.clause(),
         "the sentence names where the removal stopped"
     );
     assert_eq!(said, THE_FAILURE_SENTENCE);
@@ -187,7 +185,8 @@ fn an_answer_that_cannot_cancel_names_the_stop_and_its_own_sentence() {
 #[test]
 fn a_plan_that_witnessed_no_destroy_tells_its_answer_so() {
     let answer: ScriptedAnswer = ScriptedAnswer::cancelling();
-    let plan: DestructionPlan = crate::worktree_clone_removal_proof_and_plan::fixtures::sample_plan();
+    let plan: DestructionPlan =
+        crate::worktree_clone_removal_proof_and_plan::fixtures::sample_plan();
     let _ = cancelled_at(&the_stop(Some(&answer), Some(&plan), &[]));
     let asked = answer.asked.borrow();
     let (_, destroyed, _) = asked.first().expect("the answer was asked");

@@ -95,7 +95,7 @@ impl TheStopPoint {
     pub fn clause(self) -> &'static str {
         return match self {
             TheStopPoint::InStaging => {
-                "the clone's unmount was blocked by a holder, so the handler moved the clone back to its slot"
+                "the clone's unmount was blocked by a holder in another session"
             }
             TheStopPoint::ByAScanBeforeADelete => {
                 "the all-namespace scan before a snapshot delete saw a holder"

@@ -107,7 +107,6 @@ invocation::entry_zfs_slot_commands fn is_a_slot_command_behind_an_unread_global
 worktree::worktree_identity fn parse_identity_and_common_directory
 #   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes the forwarded run a copy performs with steps of its own
-worktree_copying::worktree_copy_forward field TheRunsOwnSteps::refuse_a_bound_slots_removal
 worktree_copying::worktree_copy_forward field TheRunsOwnSteps::stop_units
 worktree_copying::worktree_copy_forward fn run_forwarded_git_with_its_own_steps
 #   43ef699749 fix(git-policy-cli): doctor's group-drop report prints only where the ZFS route applies
@@ -124,7 +123,6 @@ invocation::entry_zfs_slot_commands fn the_slot_endings
 invocation::entry_zfs_slot_commands fn unread_global_refusal_of
 #   4b93e55708 fix(git-policy-cli): the slot refusals read every global option before the words
 #   publishes the refusal one bound slot removal earns
-worktree_copying::worktree_removal_of_a_bound_clone struct BoundSlotRemovalRefusal
 #   b3618338e1 fix(git-policy-cli): the add's preflight asks the device source its caller hands in
 #   publishes the device a live preflight opens
 worktree_clone_add_route::add_zfs struct TheLiveDevice
@@ -12318,10 +12316,6 @@ worktree_copying::worktree_copy_vanished_entry fn lstat_or_absent
 worktree_copying::worktree_copy_vanished_entry fn names_or_absent
 worktree_copying::worktree_copy_vanished_entry fn went_away
 worktree_copying::worktree_removal_of_a_bound_clone enum RemovalReads
-worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalRefusal::code
-worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalRefusal::stderr
-worktree_copying::worktree_removal_of_a_bound_clone fn refuse_the_removal_of_a_bound_clone
-worktree_copying::worktree_removal_of_a_bound_clone fn refuse_the_removal_with
 worktree_removal_deferred_origin_check::origin_mark const DEFER_DESTROY_PROPERTY
 worktree_removal_deferred_origin_check::origin_mark const MARK_OFF
 worktree_removal_deferred_origin_check::origin_mark const MARK_ON
@@ -12556,6 +12550,42 @@ policy::policy_engine field PolicyFinding::commit_correction
 #   fa29175b9e fix(git-policy-cli): the final-newline hint says what corrects the file where it is made
 #   publishes the same answer as the event carries it, for the renderer that chooses the hint
 policy::policy_events_kinds field FindingEvent::commit_correction
+<<<<<<< your changes
+worktree_clone_removal_proof_and_plan::removal_command_path const REMOVED_EXIT_CODE
+worktree_clone_removal_proof_and_plan::removal_command_path field TheRemovalAnswer::code
+worktree_clone_removal_proof_and_plan::removal_command_path field TheRemovalAnswer::lines
+worktree_clone_removal_proof_and_plan::removal_command_path fn complete_the_bound_clones_removal
+worktree_clone_removal_proof_and_plan::removal_command_path struct TheRemovalAnswer
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam const THE_ROLLBACK_STEPS
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam enum TheStopPoint
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheCancelledRemoval::code
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheCancelledRemoval::lines
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheCancellationFailed::sentence
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::common_dir
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::destroyed
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::holders
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::plan
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::slot
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam field TheStoppedRemoval::stop
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam fn is_the_handlers_rollback
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam struct TheCancellationFailed
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam struct TheCancelledRemoval
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam struct TheStoppedRemoval
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam trait TheRemovalCancelling
+worktree_clone_snapshot_batch::request_budget const THE_REMOVALS_REQUEST_BUDGET_BYTES
+worktree_clone_snapshot_batch::request_budget fn the_removals_request_budget
+worktree_copying::worktree_copy_forward field TheRunsOwnSteps::the_bound_slots_removal
+worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalAnswer::code
+worktree_copying::worktree_removal_of_a_bound_clone field BoundSlotRemovalAnswer::stderr
+worktree_copying::worktree_removal_of_a_bound_clone fn the_removal_of_a_bound_clone
+worktree_copying::worktree_removal_of_a_bound_clone fn the_removal_with
+worktree_copying::worktree_removal_of_a_bound_clone struct BoundSlotRemovalAnswer
+worktree_clone_add_route::the_removals_cancelling fn the_removals_cancelling
+worktree_clone_removal_cancel::the_self_cancelling_answer struct TheSelfCancellingAnswer
+worktree_clone_removal_finish_pass::the_live_pass fn finish_the_removal_plans_live
+worktree_clone_removal_proof_and_plan::removal_completion_inputs field RemovalCompletion::cancelling
+worktree_clone_removal_proof_and_plan::the_self_cancelling_seam fn TheStopPoint::clause
+=======
 
 # Members of a type a `pub use` publishes at a facade path: the type's own declaration sits in a module no
 # `pub mod` chain reaches, so the facade statement is the only public path to it, and these are the names a
@@ -12585,3 +12615,4 @@ worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::intent
 worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::plan
 worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::recorded
 worktree_clone_removal_cancel::the_proof field WhatTheRecordsProve::slot_path
+>>>>>>> the merge
