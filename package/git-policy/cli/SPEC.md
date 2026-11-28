@@ -8495,6 +8495,87 @@ step 22 sizes it from the acceptance workload and replaces the value.
 The wait polls once every 50 milliseconds,
 which is a bounded interval and not a measured latency.
 
+#### The folder of unanswered requests
+
+A wait files one entry for its clone before it writes the durable intent,
+so a wait killed before its deadline still leaves a trigger a later command
+reads
+(`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
+"The record:
+one file per clone";
+the record is
+`doc/decision/cli-git-zfs-lost-event-triggers-hook-nudge-and-cost-cap.md`,
+"The design is accepted",
+choice 6).
+The folder is `zfs-unanswered-requests` in the repository's Git common
+directory,
+made by the wrapper with mode `0700` on its first entry and removed with its
+last,
+so a repository whose request was answered pays one `stat` again.
+It holds one file per attempt of one clone,
+named `<guid>.<attempt>`,
+where the attempt is a canonical decimal number from one.
+The file is one line,
+`v1 <guid> <nonce> <operation> <written-at> <outcome> <dataset>`,
+holding the fields the intent carries and the attempt's outcome:
+`waiting`,
+`claimed`,
+`nudged`,
+`refused-gate`,
+`refused-device` or `clone-gone`.
+The folder is the account's own and never root's,
+and no entry carries a path.
+
+An entry is written whole under a staging name of a dot and 32 lowercase
+hexadecimal digits made with `O_EXCL`,
+synced and linked to its attempt's name,
+and the staging name is removed after the link;
+a writer's staging name is its own,
+so a killed writer's leftover blocks no later writer.
+An entry is read without following a link,
+only as a regular file of the account's own and private to it,
+bounded to one page,
+and refused as corrupt if a longer file stands there.
+A reader takes a clone's highest readable attempt and uses the highest readable
+lower one where an attempt above it is empty,
+and the next claim takes the number one past the highest attempt name present,
+empty or readable.
+
+An entry is removed when the receipt answers it,
+by the command that read it,
+and by the wait whose request was answered before it reports.
+No age removes an entry that still stands,
+and the `doctor` report of step 18 reads the folder and removes the known
+staging names.
+
+#### The check before a command, and the nudge behind its switch
+
+Every invocation the wrapper forwards to Git checks the folder once on its
+forwarded path,
+after configuration and before the child Git starts,
+at the same point the shadow sweep runs.
+With no folder standing,
+the check is one `stat`.
+A folder whose entry a receipt answers is read,
+the entry removed,
+and the command prints nothing.
+Every failure on that path is silent and changes no command's status.
+
+The nudge,
+the claim of a clone's next attempt and the gaps between attempts,
+is built behind the compiled switch `zfs-lost-event-nudge`,
+which is off.
+The first gap,
+the longest gap and a waiting command's own nudge delay are measurement M8's,
+and `the_gaps` answers nothing until step 22 states them,
+so a build with the switch on still nudges nothing.
+Until then the check has no call site in the shipped build:
+a use of the protocol folder by `invocation/` is a new use inside a loop the
+layout allow list tolerates,
+which no line of that list may record,
+so the forwarded path gains its one line once that loop is untangled
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`).
+
 ### Unmount, staging and reattach of a ZFS worktree clone
 
 This section states what plan step 9 builds for the unmount half of the ZFS worktree route

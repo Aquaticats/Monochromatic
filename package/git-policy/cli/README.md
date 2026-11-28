@@ -2670,6 +2670,48 @@ The migration,
 the property changes and the install are your own act,
 written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
 
+#### The folder of unanswered requests, and the nudge that is off
+
+An add files one entry in its repository's `zfs-unanswered-requests` folder
+before it asks for the clone's mount,
+and the entry is removed when the receipt answers it,
+so a wait killed before its deadline leaves a trigger behind
+(design:
+`doc/planning/cli-git-zfs-lost-last-event-triggers-design.md`,
+"The record:
+one file per clone";
+step 10 of the plan,
+which merged without it).
+The folder is the account's own,
+made with mode `0700` on its first entry,
+and it holds one file per attempt,
+named for the clone's GUID and the attempt's number,
+with the request's nonce,
+operation and dataset and the attempt's outcome on its one line.
+
+The check every forwarded command makes in that folder,
+one `stat` when no folder stands,
+is built in
+`src/native/worktree_clone_mount_protocol/unanswered_requests_before_a_command.rs`
+and has no call site yet:
+a use of that folder by `invocation/` is a new use inside a loop the layout
+allow list tolerates,
+and no line of that list may be added,
+so the forwarded path gains its one line once the loop is untangled.
+
+The nudge on Git commands is off.
+It stands behind the compiled switch `zfs-lost-event-nudge`,
+which no shipped build turns on,
+and its first gap,
+longest gap and waiting command's own nudge delay are owed to measurement M8
+and set in plan step 22,
+so `the_gaps` answers nothing even in a build that turns the switch on.
+Until then a lost mount event is recovered by the triggers that exist:
+a ZED delivery or start,
+a start of the checkout provider,
+the boot unit's reconcile,
+or a lever you fire.
+
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
 Plan step 20's checks are built in `src/native/health/sanoid_coverage/`:
