@@ -59,6 +59,8 @@
 //!   the sentence each way of stopping prints.
 //! - `fresh_holder_scan.rs`:
 //!   the fresh all-namespace scan each destroy is preceded by.
+//! - `holder_report.rs`:
+//!   one scan's answer as a report that names holders reads it.
 //! - `removal_identities.rs`:
 //!   the identities the add recorded,
 //!   the origin-side inventory it recorded,
@@ -155,6 +157,7 @@
 pub mod bookmark_rule;
 pub mod canonical_decimal;
 pub mod fresh_holder_scan;
+pub mod holder_report;
 pub mod lineage_proof;
 pub mod loss_names;
 pub mod plan_attempt_parse;

@@ -184,6 +184,26 @@
 //!   answered unknown and naming that step.
 //! - `route_checks.rs`:
 //!   one list of every check's answer for the report the wiring run prints.
+//! - `clone_facts_reads.rs`:
+//!   every read one managed clone's lines take,
+//!   as one seam a control scripts.
+//! - `clone_facts_gathering_holders.rs`:
+//!   the namespaces that hold one clone and its reader's own mounts.
+//! - `clone_facts_gathering_records.rs`:
+//!   the registration one record names and the origin with its mark.
+//! - `clone_facts_gathering_retention.rs`:
+//!   what one clone and its own snapshots retain.
+//! - `clone_facts_gathering.rs`:
+//!   one managed clone's fact set,
+//!   gathered from one request and one set of reads.
+//! - `clone_facts_live_pool.rs`:
+//!   the two shapes the gatherer's pool reads take of the one gated device.
+//! - `clone_facts_live_answers.rs`:
+//!   what stands at a path,
+//!   and which tasks the caller's own session keeps.
+//! - `clone_facts_live_reads.rs`:
+//!   the release answers to that seam,
+//!   from this machine's own readers.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -325,6 +345,33 @@ pub mod later_step_checks;
 /// Every check's answer in one list.
 pub mod route_checks;
 
+/// Every read one managed clone's lines take,
+/// as one seam a control scripts.
+pub mod clone_facts_reads;
+
+/// The namespaces that hold one clone.
+pub mod clone_facts_gathering_holders;
+
+/// The registration one record names,
+/// and the origin with its mark.
+pub mod clone_facts_gathering_records;
+
+/// What one clone and its own snapshots retain.
+pub mod clone_facts_gathering_retention;
+
+/// One managed clone's fact set,
+/// gathered from one request and one set of reads.
+pub mod clone_facts_gathering;
+
+/// The two answers this machine gives without a pool.
+pub mod clone_facts_live_answers;
+
+/// The two shapes the gatherer's pool reads take of one gated device.
+pub mod clone_facts_live_pool;
+
+/// The release answers to that seam.
+pub mod clone_facts_live_reads;
+
 /// The facts a control builds for every check in this folder,
 /// never part of the release executable:
 /// the names,
@@ -380,6 +427,18 @@ mod route_test_facts_clone;
 #[cfg(test)]
 #[path = "clone_lines_guest_arm_tests.rs"]
 mod clone_lines_guest_arm_tests;
+
+/// The gatherer's controls,
+/// and the guest arm that reads six clones of one repository.
+#[cfg(test)]
+#[path = "clone_facts_gathering_tests.rs"]
+mod clone_facts_gathering_tests;
+
+/// The gatherer's guest arm,
+/// compiled for tests only and run in the throwaway guest.
+#[cfg(test)]
+#[path = "clone_facts_guest_arm_tests.rs"]
+mod clone_facts_guest_arm_tests;
 
 /// The binding record one add wrote.
 pub use binding_record_checks::{

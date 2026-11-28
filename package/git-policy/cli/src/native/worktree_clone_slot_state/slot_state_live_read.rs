@@ -47,12 +47,16 @@ use crate::worktree_clone_slot_state::slot_state_readings::{
     read_binding_reading,
     read_plan,
 };
+use crate::zfs_compatibility_gate::LiveGate;
 use crate::zfs_compatibility_gate::gate_verdict::{
     BeforeRequests,
     Verdict,
 };
 use crate::zfs_compatibility_gate::verdict_line;
-use crate::zfs_mounted_dataset::mounted_dataset_instance::MountedDatasets;
+use crate::zfs_mounted_dataset::mounted_dataset_instance::{
+    LiveMountedDatasets,
+    MountedDatasets,
+};
 use monochromatic_zfs_request_to_openzfs_kernel_device::{
     DatasetIdentity,
     ZfsDevice,
@@ -253,6 +257,52 @@ pub fn read_slot(
         slot_mount,
         registration_stands: stands,
     };
+}
+
+/// What:
+///  Every reading one slot's state is decided from,
+///  read from this machine's own sources.
+/// Why:
+///  A report that prints one slot's state asks the live pair the add and the
+///  removal already hold,
+///  and a caller outside this folder cannot name the mounted-dataset folder
+///  the pair's mount half comes from,
+///  so the pair is made here with `LiveGate` and `LiveMountedDatasets` rather
+///  than at each reader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readings = readTheSlotOnThisMachine(commonDir, 'topic', slotPath);
+/// ```
+pub(crate) fn read_the_slot_on_this_machine(
+    common_dir: &Path,
+    slot: &str,
+    slot_path: &Path,
+) -> SlotReadings {
+    let mounts = the_mounts_on_this_machine();
+    let gate: LiveGate = LiveGate;
+    let intents: GatedCloneIntentReads<'_> = GatedCloneIntentReads::new(&gate);
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    return read_slot(common_dir, slot, slot_path, &sources);
+}
+
+/// What:
+///  This machine's mount table as the route reads it,
+///  for a reader outside this folder.
+/// Why:
+///  The mounted-dataset folder is one this folder already reads,
+///  and a reader that names it would add a folder use of its own,
+///  so the value is handed out here and the same reader answers both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mounts = theMountsOnThisMachine();
+/// ```
+pub(crate) fn the_mounts_on_this_machine() -> LiveMountedDatasets {
+    return LiveMountedDatasets;
 }
 
 /// What:
