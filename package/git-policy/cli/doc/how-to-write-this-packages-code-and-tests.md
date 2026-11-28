@@ -887,14 +887,22 @@ so `#[cfg(test)]` and `#[cfg(all(test, unix))]` keep one out
 and `#[cfg(all(not(test), unix))]` does not.
 A `mod` line the reader cannot place stops every scan of the tree with the line named,
 rather than being stepped over:
-the visibilities it reads are `mod`, `pub mod`, `pub(crate) mod` and `pub(super) mod`,
-so `pub(in crate::a) mod x;`, `pub(self) mod x;` and a `mod` line with text after its `;` are errors.
+the visibilities it reads are
+`mod`,
+`pub mod`,
+`pub(crate) mod` and
+`pub(super) mod`,
+so
+`pub(in crate::a) mod x;`,
+`pub(self) mod x;`
+and a `mod` line with text after its `;` are errors.
 
 Two facts of the reading are decisions a reader has to see in the list:
 a name behind a feature gate counts as published,
 because a gate keeps a name out only where it holds only when testing,
 so the list holds the three names such gates carry today
-(`foundation::test_only_switches fn value`, `fn value_in` and
+(`foundation::test_only_switches fn value`,
+`fn value_in` and
 `worktree::worktree_clone_conversion_fence_measurement_routes fn fence_of_the_measurement_route`);
 and a member is keyed by its type's bare name,
 so a `pub` type in a module nothing publishes has its `pub` members read as published whenever a published

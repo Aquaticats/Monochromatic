@@ -55,14 +55,17 @@
 //!    A re-export that spells the name differently publishes a new name and takes a line.
 //!  - A signature or a value that changes under a name that stays:
 //!    the entry names the name and nothing of its shape or its value.
-//!  - A name behind a feature gate, as `#[cfg(feature = "measurement-routes")] pub fn f`,
-//!    counts as published, because a gate keeps an item out only where it holds only when testing.
+//!  - A name behind a feature gate,
+//!    as `#[cfg(feature = "measurement-routes")] pub fn f`,
+//!    counts as published,
+//!    because a gate keeps an item out only where it holds only when testing.
 //!    The build that turns the feature on publishes the name,
 //!    and the list holds every such name the tree writes today.
 //!  - Members are matched by a type's bare name and by nothing else,
 //!    so a type declared `pub` in a module nothing publishes has its `pub` members read as published whenever a
 //!    published type elsewhere writes the same name.
-//!    Such a name takes a line a consumer does not need, and a control beside this file pins that it does.
+//!    Such a name takes a line a consumer does not need,
+//!    and a control beside this file pins that it does.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -876,11 +879,13 @@ fn the_module_a_facade_names(
 ///  a statement publishes,
 ///  each as its kind and the member's own name.
 /// Why:
-///  A consumer reaches the type's fields, methods and associated constants through the facade,
+///  A consumer reaches the type's fields,
+///  methods and associated constants through the facade,
 ///  so they publish names of the facade's path even though the type's declaration sits in a module nothing
 ///  else reaches.
 ///  Only a declaration of the name the statement publishes is read,
-///  so a function, a constant or another module's name of that spelling reads nothing here.
+///  so a function,
+///  a constant or another module's name of that spelling reads nothing here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

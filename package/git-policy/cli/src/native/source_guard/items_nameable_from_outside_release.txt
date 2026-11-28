@@ -33,6 +33,10 @@
 #       written over several lines or under a name of its own. Every name the widened reading found was already
 #       published by 0.6.1-alpha.50, so this round published nothing: it narrowed the names nothing outside their
 #       module reads, and wrote the one line another crate's own path needed.
+# What changed on 2026-11-27, in the round after 0.6.1-alpha.51: the reading now reads the members of a type a
+#       `pub use` publishes at a facade path, so the fifteen names under "Members of a type a `pub use` publishes"
+#       below take their lines. No release code changed with them, so nothing here was published that a build of
+#       0.6.1-alpha.51 did not already publish.
 #
 # Named by another crate of this package, which is what needs the reach: the fuzz sidecar
 # (`package/git-policy/cli.fuzz`), the executable target (`src/native/main.rs`) and the two integration test

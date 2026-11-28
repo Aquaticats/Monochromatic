@@ -111,7 +111,8 @@ const THE_SHARED_HANDLE_TYPES: &[&str] = &["Stderr"];
 
 /// What:
 ///  `THE_SHARED_HANDLE_BY_NUMBER` is the constant that names this process's standard error by its descriptor
-///  number, which writes to the same handle as `std::io::stderr()` and holds it the same way.
+///  number,
+///  which writes to the same handle as `std::io::stderr()` and holds it the same way.
 /// Why:
 ///  a note written with `libc::write(libc::STDERR_FILENO, ...)` asks for the shared handle without writing either
 ///  of its names.

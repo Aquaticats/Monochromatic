@@ -23,8 +23,8 @@
 //! What this reading does not see,
 //! and what a reader therefore checks by hand:
 //!  a start whose program is a value rather than a literal
-//!  (`Command::new(EXECUTABLE_SYSTEMCTL)`, whose path
-//!  `checkout_boot_units/boot_unit_names.rs` holds),
+//!  (`Command::new(EXECUTABLE_SYSTEMCTL)`,
+//!  whose path `checkout_boot_units/boot_unit_names.rs` holds),
 //!  a `member:` whose name is a constant or whose literal a line break separates from its key,
 //!  a unit text or an install line that a macro of another file expands to,
 //!  and a release file whose name this guard reads as test code
@@ -159,22 +159,26 @@ fn the_entry_of_a_wants_line(
     });
 }
 
-/// Whether this release code line starts the system manager's own program, however the literal is spelled:
-/// the bare name, a path that ends in it, or a raw literal.
+/// Whether this release code line starts the system manager's own program,
+/// however the literal is spelled:
+/// the bare name,
+/// a path that ends in it,
+/// or a raw literal.
 /// Why:
-///  the ban read one literal (`Command::new("systemctl`), so `Command::new("/usr/bin/systemctl").arg("enable")`
-///  passed it,
+///  the ban read one literal (`Command::new("systemctl`),
+///  so `Command::new("/usr/bin/systemctl").arg("enable")` passed it,
 ///  and `checkout_boot_units/boot_unit_names.rs` holds the path as `EXECUTABLE_SYSTEMCTL`.
-///  A start whose program is a value names no literal here, which this guard's top doc says.
+///  A start whose program is a value names no literal here,
+///  which this guard's top doc says.
 fn starts_the_manager_s_program(line: &str) -> bool {
     let Some(at) = line.find("Command::new") else {
         return false;
     };
     let named: &str = line[at + "Command::new".len()..].trim_start();
-    let Some(arguments) = named.strip_prefix('(') else {
+    let Some(inside_the_call) = named.strip_prefix('(') else {
         return false;
     };
-    let arguments: &str = arguments.trim_start();
+    let arguments: &str = inside_the_call.trim_start();
     let literal: &str = if let Some(after) = arguments.strip_prefix("r\"") {
         after
     } else if let Some(after) = arguments.strip_prefix('"') {
