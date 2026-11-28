@@ -5389,7 +5389,8 @@ What this release does not yet do:
 - The warning above the measured count of changed paths is not printed:
   the count is measurement M4's,
   which has not been run,
-  and a shipped bound cites a measurement (rule `LQM`).- A record that says an add is settling,
+  and a shipped bound cites a measurement (rule `LQM`).
+- A record that says an add is settling,
   the lost-lock installer,
   removal and the settling command are plan steps 11,
   13 and 16.
@@ -8440,8 +8441,14 @@ No command installs any of it:
 no release writes a unit file,
 and `zfs-root shutdown-unmount` answers with the refusal that names plan step 19.
 The migration,
-the property changes and the install are the owner's act,
-written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`.
+the property changes and the install are the agent's act,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
+written up in `doc/runbook/zfs-checkout-migration-and-boot-setup.md`;
+the owner chooses the moment of the migration and of any reboot.
 
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 
@@ -8458,7 +8465,12 @@ so the wording and the decision are tested on built facts and no control opens t
 No command reaches the folder in this release:
 `doctor` prints none of these lines,
 nothing writes `sanoid.conf` or sets the marker,
-and a property on an existing dataset is the owner's act,
+and a property on an existing dataset is the agent's act,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00),
 written up in `doc/runbook/zfs-sanoid-coverage-and-the-space-guard.md`.
 
 #### The wrapper's side and its deadline
