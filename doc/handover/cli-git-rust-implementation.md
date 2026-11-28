@@ -2920,12 +2920,9 @@ and the two `truepeak` files wait on their branch.
   where the TypeScript checks should run is a proposal for the owner (issue 6584).
 - Issue 6586's round makes it impossible for the whole test process to reach this account's own service manager,
   and writes a proposal on whether the release should refuse to provision from a program that is not an installed wrapper.
-- Issue 6580's fix found seven planted controls whose text no longer occurred in the file their table named
-  (four moved by splits,
-  three reflowed by the reformat);
-  the test that would have said so had been dying before it compared anything.
-  They are repaired (`64e3eb1a55`),
-  and that they still compile and that a campaign notices each is owed to the next `native:mutation:planted` run.
+- That the repaired planted controls still compile,
+  and that a campaign notices each of them,
+  is owed to the next `native:mutation:planted` run.
 - This host's AppArmor profile for Git confines a container's `/usr/bin/git` as well,
   since it attaches by path.
   The service-manager install proof runs Git as the container's root in a directory its user owns,
