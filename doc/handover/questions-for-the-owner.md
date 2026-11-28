@@ -5039,3 +5039,25 @@ because Node refuses TypeScript under `node_modules`,
 so it would need a built copy and a check of another kind.
 `mvm` is private today.
 Issue 6660 lists the twenty other commands and `mvm-mcp` that have the old shape.
+
+## Veto open: what the shutdown pass's round chose (recorded 2026-11-28T07:29:00-05:00)
+
+Merge `871e0be314` built the ZFS route's shutdown pass ahead of its wiring.
+Its round made these picks beyond its brief,
+each with the way not taken and its cost in the round's report,
+whose scratch expires a day after its last change:
+
+- the pass compares no live dataset GUID,
+  so a dataset destroyed and made again under the same name and mounted at the same slot is unmounted and not refused;
+  comparing one would make every check wait on `/dev/zfs` at shutdown;
+- a readiness record the route's reader refuses is removed all the same,
+  and a directory the route did not make is refused,
+  so a corrupt record is deleted and named in the pass's line and no mount is left standing over it;
+- the withdrawal removes the record and publishes no second one,
+  so nothing under `/run` says the boot is ending;
+- a busy mount's holder is named by mount namespace and never by process,
+  because naming the process would mean reading another account's descriptors;
+- the unmount is named by the descriptor opened without crossing the slot's mount,
+  after the clone's own descriptor is dropped,
+  which a guest run measured:
+  with the clone's descriptor held the kernel answered that the mount was busy.
