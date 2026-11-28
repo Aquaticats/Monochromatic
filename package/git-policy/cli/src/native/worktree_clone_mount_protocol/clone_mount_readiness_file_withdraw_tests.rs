@@ -161,8 +161,7 @@ fn a_directory_of_another_account_is_refused_and_its_record_stays() {
     file.publish(&record()).expect("the record is published");
     let other_owner: u32 = this_uid() + 1;
     let refusal = withdraw_the_record(file.directory(), other_owner)
-        .err()
-        .expect("a folder another account owns is not this route's");
+        .expect_err("a folder another account owns is not this route's");
     match refusal {
         WithdrawRefusal::Directory {
             refusal: inner,
@@ -188,8 +187,7 @@ fn a_directory_at_another_mode_is_refused_and_its_record_stays() {
     std::fs::set_permissions(file.directory(), std::fs::Permissions::from_mode(0o777))
         .expect("the fixture takes another mode");
     let refusal = withdraw_the_record(file.directory(), this_uid())
-        .err()
-        .expect("a folder at an open mode is not the route's");
+        .expect_err("a folder at an open mode is not the route's");
     assert!(
         matches!(
             refusal,
@@ -212,8 +210,7 @@ fn each_refusal_names_its_path_and_the_way_forward() {
     let file: ReadinessFile = live_file("readiness-withdraw-refusal-words");
     file.publish(&record()).expect("the record is published");
     let said: String = withdraw_the_record(file.directory(), this_uid() + 1)
-        .err()
-        .expect("the wrong owner refuses")
+        .expect_err("the wrong owner refuses")
         .message();
     assert!(
         said.contains("Ways forward:"),

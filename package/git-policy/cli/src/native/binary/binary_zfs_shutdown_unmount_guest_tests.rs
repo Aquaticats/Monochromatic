@@ -433,8 +433,6 @@ fn the_shutdown_unmount_guest_arm() {
 /// Unmount one folder this arm mounted,
 /// and nothing else.
 fn unmount_ignoring(folder: &Path) {
-    let _taken: std::io::Result<()> = Command::new("umount")
-        .arg(folder)
-        .status()
-        .map(|_status| return ());
+    let _taken: std::io::Result<std::process::ExitStatus> =
+        Command::new("umount").arg(folder).status();
 }

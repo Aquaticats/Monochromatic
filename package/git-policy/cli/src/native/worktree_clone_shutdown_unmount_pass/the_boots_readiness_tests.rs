@@ -150,11 +150,11 @@ fn a_boot_that_published_nothing_proves_nothing() {
 #[test]
 fn a_record_of_another_boot_proves_nothing() {
     let places: ShutdownUnmountPlaces = places("readiness-another-boot");
-    let mut other: ReadinessRecord = record();
-    other.boot = String::from("11111111-2222-4333-8444-555555555555");
+    let mut another_boots_record: ReadinessRecord = record();
+    another_boots_record.boot = String::from("11111111-2222-4333-8444-555555555555");
     places
         .readiness
-        .publish(&other)
+        .publish(&another_boots_record)
         .expect("the record is published");
     let readiness: BootsReadiness =
         withdraw_before_draining(&places).expect("another boot's record is withdrawn too");
@@ -168,7 +168,7 @@ fn a_record_of_another_boot_proves_nothing() {
             ),
             "the sentence names both boots, and this one says {said}"
         ),
-        other => panic!("another boot's record proves nothing, and this one {other:?}"),
+        proved => panic!("another boot's record proves nothing, and this one {proved:?}"),
     }
 }
 
