@@ -1661,32 +1661,12 @@ on the branch `refactor/flac-profiler-keeps-the-rust-one`.
 
 `main`'s tip is checked after a batch of merges and not by each merge:
 the merge routine runs `git merge-tree` and compiles nothing.
-At `7a830014b3` (2026-11-27T07:34:30-05:00),
-with the tip read before and after each run and found unchanged,
-`native:check` exited 0,
-the four Clippy tasks exited 0
-(`native:clippy`,
-`native:clippy:test-only-switches`,
-`native:clippy:measurement`
-and `native:clippy:start-probe-raised-deadline`),
-and the `source_guard` module passed 179 of 179.
-The gate that passed ran the two wrapper merges after it
-(issue 6562's and the split of `worktree/worktree_remove.rs`).
 That check never ran the package's TypeScript side,
 and it does from now on,
 until the owner chooses where those checks run (issue 6584):
 `mise run //package/git-policy/cli:native:ts-checks` runs them each in a capped scope,
 and `lint:oxlint` is run beside it.
-At `2218beae78` `test:unit` exited 0 with 138 suites passing and `lint:types` exited 0;
-`lint:oxlint` reported 594 errors and 1212 warnings,
-all in the guest scripts issue 6581's rounds hold;
-and `package/container-limit/core`'s `test:unit` failed its ledger test (issue 6588).
 A tip check that a merge lands under is void and is run again.
-A threaded `worktree::` run on this host fails 155 controls unless `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` is set,
-every one with the refusal of `subvolume/fs_btrfs_test_support.rs` on a home that is on ZFS;
-with it set,
-1015 pass and none fails,
-on `main` and on the last loop-break branch alike.
 
 The whole container gate on `main` at `d9ec2443bd` ended at 2026-11-27T02:37:12-05:00 and refused:
 its suite passed 12089 of 12089,
