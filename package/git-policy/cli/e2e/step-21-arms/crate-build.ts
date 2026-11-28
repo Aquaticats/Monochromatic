@@ -21,6 +21,9 @@ import {
 import { join, } from 'node:path';
 
 import {
+  guestBackend,
+} from '../../bin/mvm-guest-backend.ts';
+import {
   SWAP_GIBIBYTES,
 } from '../../bin/mvm-guest-bounds.ts';
 import {
@@ -93,16 +96,19 @@ async function stampTheArchive({
     `${digest}  subject.tar.gz\n`,
     { mode: 0o600, },
   );
+  /**
+   The backend this run drives, which is the one `mvm` reads from the environment when a driver says nothing.
+   */
+  const backend = guestBackend();
   await host({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       stamp,
-      `/mnt/shared/${stampName}`,
+      backend.pushDestinationOf(stampName,),
     ],
     log: 'guest-push-step-21-archive-stamp.log',
   },);
