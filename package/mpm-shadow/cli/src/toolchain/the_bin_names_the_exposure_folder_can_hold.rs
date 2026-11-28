@@ -130,29 +130,28 @@ pub(crate) fn the_bytes_a_temporary_name_adds() -> usize {
 /// ```ts
 /// function theLongestNameTheFolderHolds(folder: string): number | undefined {
 ///   for (let at = folder; ; at = dirname(at)) {
-///     try { const facts = statvfs(at); if (facts.f_namemax > 0) return facts.f_namemax; }
+///     try { const facts = statvfs(at); if (facts.f_namemax > 0) return aPlantedNameLimit() ?? facts.f_namemax; }
 ///     catch { /* ask the directory above it */ }
 ///     if (at === dirname(at)) return undefined;
 ///   }
 /// }
 /// ```
 fn the_longest_name_the_folder_holds(folder: &Path) -> Option<u64> {
-    // What: the limit a control planted, when this thread has one, before any file system is asked.
-    // Why: a control has to be able to make the answer differ from this machine's, and nothing else can.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const planted = aPlantedNameLimit(); if (planted !== undefined) return planted;
-    // ```
-    if let Some(planted) = a_planted_name_limit() {
-        return Some(planted);
-    }
     let mut asking: &Path = folder;
     loop {
         if let Ok(facts) = statvfs(asking)
             && facts.f_namemax > 0
         {
-            return Some(facts.f_namemax);
+            // What: the answer the file system gave, unless a control planted one in its place.
+            // Why: the plant stands in for a file system whose limit differs from this machine's, so it
+            //  replaces the file system's own answer rather than the question, and a number written in
+            //  place of that answer is what a control has to catch.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return aPlantedNameLimit() ?? facts.f_namemax;
+            // ```
+            return Some(a_planted_name_limit().unwrap_or(facts.f_namemax));
         }
         asking = asking.parent()?;
     }
