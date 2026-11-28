@@ -109,7 +109,7 @@ fn an_unfinished_adds_evidence_names_its_phase() {
 /// and says the settling command cannot be run in this release,
 /// so a person is not sent to one that answers with the usage text.
 #[test]
-fn the_settling_arm_says_the_settling_command_cannot_be_run_yet() {
+fn the_settling_arm_names_the_settling_command_and_what_it_removes() {
     let readings: SlotReadings = SlotReadings {
         intent: IntentFacts::Unasked,
         ..readings_at(Phase::Settling)
@@ -121,12 +121,12 @@ fn the_settling_arm_says_the_settling_command_cannot_be_run_yet() {
         "the command the state needs is named: {action}"
     );
     assert!(
-        action.contains("no management grammar admits it in this release"),
-        "and the sentence says it cannot be run: {action}"
+        !action.contains("no management grammar admits it"),
+        "the sentence no longer claims no grammar admits the command, because one does: {action}"
     );
     assert!(
-        action.contains("cannot be run yet"),
-        "with what a person does instead: {action}"
+        action.contains("once you have confirmed the slot"),
+        "with what the command asks a person to confirm: {action}"
     );
     assert!(
         action.contains(CLONE_DATASET),

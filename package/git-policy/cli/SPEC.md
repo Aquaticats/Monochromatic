@@ -5973,15 +5973,15 @@ and the step that finishes a removal
 A `source_guard` scan holds that cut over all three names
 (`src/native/source_guard/removal_command_path_writes_nothing_tests.rs`),
 and the round that switches the command path on names them in it and removes the scan with it.
-That switch waits on two things besides this build:
-`cancel-worktree-removal`,
-which the deferred-origin refusals,
-the resume and the record's own sentences name and which plan step 17 builds,
-and a release whose printed sentences name only commands,
+That switch waits on one more thing besides this build:
+a release whose printed sentences name only commands,
 records and states that it has.
 Until then the refusal prints what a removal would prove and lose and changes nothing,
 because an unmounted clone and a plan no command of this release could finish or cancel
 would be worse for a person than today's refusal.
+The manual way back from a removal that did not finish is
+`cancel-worktree-removal <slot>`,
+which this release's management grammar admits.
 
 The tail a kill leaves behind a head word of `gone` has a driver of its own,
 `worktree_clone_removal_finish_pass::finish_the_removal_plans`,
@@ -6084,7 +6084,7 @@ What this release does not do:
   a removal that finds one adopts it and continues,
   and no release command runs one.
 
-#### The cancel command, built and reachable from no command
+#### The cancel command
 
 Design:
 `doc/planning/cli-git-zfs-cancelled-or-interrupted-removal-and-cancel-command-design.md`,
@@ -6101,14 +6101,16 @@ one positional slot name from `.claude/worktrees` and no option,
 `--help` printing its usage and exiting `0`,
 a caller mistake exiting `2`,
 and a state that prevents the command exiting `1`.
-It is built ahead of the plan's order:
+The management grammar admits it in this release,
+and no other command reaches it:
+`doctor`,
+the mount handler and the boot units do not,
+and the round that switches the removal's command path on calls it from there as well.
 
-- No management grammar admits it,
-  no `git` command reaches it,
-  `doctor`,
-  the mount handler and the boot units do not either,
-  and the round that switches the removal's command path on adds it to the grammar.
-  This release's binary prints the management usage and exits `2` for the word.
+- A slot no removal has touched refuses with the command's own sentence and exit `2`,
+  because nothing about the slot is a removal to cancel.
+  That answer is the whole of what this release does with such a slot,
+  and it reads the slot's records and never the pool.
 - It takes the slot's removal claim through the repository's own generation claim,
   reads the binding record,
   the clone's own children and its recorded GUID,
@@ -6161,7 +6163,7 @@ No sentence of this release offers `--force`,
 the removal's command path stays behind the cut,
 and the only callers are the folder's own controls and its guest arms.
 
-#### The settling command, built and reachable from no command
+#### The settling command
 
 Design:
 `doc/planning/cli-git-zfs-add-binding-record-design.md`,
@@ -6175,13 +6177,16 @@ the next add,
 and the project chose a command that removes the record once a person confirms it.
 The command is
 `git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`,
-and it is built ahead of the plan's order:
+and the management grammar admits it in this release:
+its word runs it,
+and no other command reaches it:
+`doctor`,
+the mount handler and the boot units do not.
+It takes one operand and two flags and has no `--help` of its own,
+so `--help` is a usage refusal that prints the line a person copies,
+a caller's mistake in the words or the two values exits `2`,
+and a state that prevents the command exits `1`.
 
-- No management grammar admits it,
-  no `git` command reaches it,
-  `doctor`,
-  the mount handler and the boot units do not either,
-  and the round that switches removal on adds it to the grammar and to every sentence that names it.
 - Its confirmation is three values the record supplies and the person types:
   the slot twice,
   and the last four decimal digits of the record's own `cloneGuid=`.

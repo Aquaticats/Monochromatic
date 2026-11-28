@@ -8,11 +8,10 @@
 //!  a plan's recorded name answering another clone names no command,
 //!  and
 //!  the printed settling line carries placeholders rather than the digits,
-//!  and both lines say the command they leave cannot be run in this release.
+//!  and each line names the command its state answers.
 
 use crate::worktree_clone_binding_record::add_state_commands::{
     ClonePresence,
-    NOT_ADMITTED_YET,
     NextCommand,
     PlanHeadWord,
     SETTLING_COMMAND_WORDS,
@@ -342,8 +341,7 @@ fn the_reused_names_line_names_the_doctor_and_no_command() {
 }
 
 /// The printed settling line names the command and leaves both flags as placeholders,
-/// so the line a person copies carries no value they must have read,
-/// and it says the command cannot be run in this release.
+/// so the line a person copies carries no value they must have read.
 #[test]
 fn the_settling_line_leaves_its_confirmations_as_placeholders() {
     let line: String = NextCommand::TheSettlingCommand.printed_line("add-cache-layer");
@@ -354,12 +352,8 @@ fn the_settling_line_leaves_its_confirmations_as_placeholders() {
         "{line}"
     );
     assert!(
-        line.contains(NOT_ADMITTED_YET),
-        "the line says no grammar admits the command: {line}"
-    );
-    assert!(
-        line.contains("cannot be run yet"),
-        "and that nothing can be run for the state: {line}"
+        !line.contains("no management grammar admits it"),
+        "the line no longer claims no grammar admits the command, because one does: {line}"
     );
     assert!(
         !line.contains("3102"),

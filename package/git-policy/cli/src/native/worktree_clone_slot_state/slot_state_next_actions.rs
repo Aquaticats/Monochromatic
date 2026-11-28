@@ -29,7 +29,6 @@
 
 use crate::worktree_clone_binding_record::add_state_commands::{
     NO_REMOVAL_WORDS,
-    NOT_ADMITTED_YET,
     SETTLING_COMMAND_WORDS,
 };
 use crate::worktree_clone_binding_record::binding_record::BindingRecord;
@@ -146,7 +145,7 @@ fn unfinished_add(
         None => String::new(),
     };
     return format!(
-        "do not run Git in this folder and do not add here: the add that made this slot did not finish at `phase=settling`{stopping}. Read the record and take the command its state names: run the add again at `{slot}` while its clone is proved gone and the registration stands, run `git worktree remove {slot}` while the clone still stands, or, when the clone's absence cannot be proved or the registration is gone, the settling command (`{SETTLING_COMMAND_WORDS} {slot} --confirm-removal-of {slot} --confirm-clone-guid {GUIDE_DIGITS_PLACEHOLDER}`) is built while {NOT_ADMITTED_YET}, so it cannot be run yet and the record and the slot stay as they stand until a release that answers it ships. The clone dataset is `{clone_dataset}`."
+        "do not run Git in this folder and do not add here: the add that made this slot did not finish at `phase=settling`{stopping}. Read the record and take the command its state names: run the add again at `{slot}` while its clone is proved gone and the registration stands, run `git worktree remove {slot}` while the clone still stands, or, when the clone's absence cannot be proved or the registration is gone, the settling command (`{SETTLING_COMMAND_WORDS} {slot} --confirm-removal-of {slot} --confirm-clone-guid {GUIDE_DIGITS_PLACEHOLDER}`) removes the records once you have confirmed the slot and the record's own clone GUID. The clone dataset is `{clone_dataset}`."
     );
 }
 

@@ -1358,6 +1358,13 @@ mod zfs_slot_state_guest_fixture;
 #[path = "binary_zfs_slot_state_guest_tests.rs"]
 mod zfs_slot_state_guest;
 
+/// The management grammar's two ZFS route words in the throwaway guest:
+/// the cancel command's refusals and its reversal of a removal a kill left,
+/// and the settling command's refusal and its two settlements,
+/// each through the built wrapper.
+#[path = "binary_zfs_grammar_commands_guest_tests.rs"]
+mod zfs_grammar_commands_guest;
+
 /// Plan step 14's refusal arms through the built wrapper's `git worktree remove`:
 /// the healthy proof and its loss,
 /// a promotion's refusal with every protected object surviving,

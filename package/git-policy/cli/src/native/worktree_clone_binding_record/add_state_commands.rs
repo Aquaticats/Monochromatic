@@ -218,22 +218,6 @@ pub const SETTLING_COMMAND_WORDS: &str =
 pub const NO_REMOVAL_WORDS: &str =
     "this release has no removal for a clone, so the clone and its record stay until it does";
 
-/// The words that say a command the project designed for a state cannot be run
-/// in this release.
-/// Why:
-///  Two commands a state names are built ahead of the grammar that would reach
-///  them,
-///  so a sentence that tells a person to run one sends them to a command that
-///  answers with the usage text and exit 2
-///  (`SPEC.md`,
-///  "The settling command,
-/// built and reachable from no command",
-///  and "The cancel command,
-/// built and reachable from no command").
-///  The round that adds either to the grammar deletes this claim from one place,
-///  and every sentence that prints it follows.
-pub const NOT_ADMITTED_YET: &str = "no management grammar admits it in this release";
-
 /// What:
 ///  The command one state names.
 /// Why:
@@ -378,7 +362,7 @@ impl NextCommand {
         return match self {
             NextCommand::TheAddAgain => format!("run the add again at `{slot}`"),
             NextCommand::TheSettlingCommand => format!(
-                "the command that settles this state is `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places, and it is built while {NOT_ADMITTED_YET}, so it cannot be run yet: read the evidence above, and leave the record and its slot as they stand until a release that answers it ships"
+                "the command that settles this state is `{SETTLING_COMMAND_WORDS} <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>` with `{slot}` in both slot places: read the evidence above, and run it once the two values you type are the ones the record holds"
             ),
             NextCommand::GitWorktreeRemove => format!(
                 "run `git worktree remove {slot}`, and `--force` if Git refuses it because the worktree holds files it did not index"

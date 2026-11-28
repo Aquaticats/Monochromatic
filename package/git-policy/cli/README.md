@@ -2569,13 +2569,13 @@ on one writing path no command reaches
 All of that waits for one thing a person needs:
 `cancel-worktree-removal <slot>`,
 which the record's own sentences and the checks' refusals name.
-Plan step 17 built it.
-The cancel command is built and no management grammar admits it in this release:
-`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` prints the management usage and exits 2,
-so the sentence beside a standing plan says the command cannot be run yet and names the files you read instead.
-A release that printed a command it does not have would make a refused removal worse than today's,
-so the refusal stays,
-and it changes nothing:
+Plan step 17 built it,
+and this release's management grammar admits it:
+`git monochromatic-git-policy-cli cancel-worktree-removal <slot>` cancels one removal,
+prints its usage and exits 0 for `--help`,
+and answers the caller's own status for a mistake in the words.
+A slot no removal has touched refuses with the command's own sentence and exit 2.
+A cancel that refuses changes nothing:
 the plan folder is not created,
 no clone is unmounted,
 and every snapshot,
@@ -2583,7 +2583,7 @@ bookmark and registration still stands.
 An add that was interrupted keeps its own recovery,
 which still names `git worktree remove <slot>` when the clone must go,
 and the binding record that removal leaves is the settling command's,
-which no grammar admits either.
+which the management grammar admits as well.
 
 The forced arm is built beside the cancel command and reached by no command.
 With `--force`,
@@ -2660,7 +2660,7 @@ and whether a restore brings the checkout back with its origins still pinned,
 is not built.
 
 A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing the next add,
-and the command that settles it is built and reachable from nothing:
+and this release's management grammar admits the command that settles it:
 `git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`
 takes the slot's claim,
 reads the record,
@@ -2670,11 +2670,9 @@ an origin cleanup record and a destruction plan,
 and removes the registration and the three records once the two flags confirm the record,
 or only the records when a checkout has begun there
 (`SPEC.md`,
-"The settling command,
-built and reachable from no command").
-No management grammar admits it yet,
-so the sentences that name it today still send a person to a command this release does not have,
-and the round that switches removal on adds it to the grammar.
+"The settling command").
+It takes one operand and two flags and has no `--help` of its own,
+so the sentences that name it send a person to a command that answers.
 
 #### The boot and shutdown units, built and reached by no command
 

@@ -31,6 +31,11 @@
 //!  The round that switches the command path on is the change that names them,
 //!  and it removes this check in the same commit,
 //!  listing it in its round's report.
+//!  The cancel command and the settling command were named here too,
+//!  and the round that added the two management words that reach them took
+//!  those two names off this list:
+//!  each is reachable through its own word now,
+//!  and neither is a step that waits for the command path to be switched on.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -78,15 +83,16 @@ struct WritingName {
 /// whose every writer is a method on it,
 /// the unmount request,
 /// the snapshot batch's request,
-/// the finish pass that settles a removal whose head is gone,
-/// the cancel command,
-/// and the settle command.
+/// and the finish pass that settles a removal whose head is gone.
 /// The names whose own module re-exports them
-/// are the batch's request,
-/// the finish pass's entry
-/// and the settle command,
+/// are the batch's request
+/// and the finish pass's entry,
 /// and a re-export is no call,
 /// so those modules are named beside their declarations.
+/// The cancel command and the settling command were on this list too.
+/// The round that added their two management words took them off it,
+/// because a word of the grammar reaches each of them,
+/// so neither waits for a later step.
 const THE_WRITING_NAMES: &[WritingName] = &[
     WritingName {
         banned: "enter_the_removal",
@@ -136,20 +142,6 @@ const THE_WRITING_NAMES: &[WritingName] = &[
         declaration: "pub fn finish_the_removal_plans(",
         publishing_files: &["worktree_clone_removal_finish_pass/mod.rs"],
         what: "reads the plan folder and settles the plans of a removal whose head is gone",
-    },
-    WritingName {
-        banned: "cancel_the_removal",
-        declaring_file: "worktree_clone_removal_cancel/the_cancel_command.rs",
-        declaration: "pub fn cancel_the_removal(",
-        publishing_files: &[],
-        what: "reverses a removal under the slot's claim and rewrites its records",
-    },
-    WritingName {
-        banned: "settle_the_records_of_a_slot",
-        declaring_file: "worktree_clone_record_settling/settling_command.rs",
-        declaration: "pub fn settle_the_records_of_a_slot(",
-        publishing_files: &["worktree_clone_record_settling/mod.rs"],
-        what: "settles the records a person typed the flags of, under the slot's claim",
     },
 ];
 
