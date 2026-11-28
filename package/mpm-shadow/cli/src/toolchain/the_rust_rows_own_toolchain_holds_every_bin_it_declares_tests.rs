@@ -50,6 +50,24 @@ use std::path::{
 };
 
 // What:
+// `use serde_json::{Map, Value}` imports the two JSON types the fixture's plan document is built
+// from: a map of keys to values, and a value of any JSON shape.
+// Why:
+// A `list` control writes the plan file the command reads,
+// and building it from the same types the program's own writer uses keeps the shapes equal.
+// The siblings a reader might expect are a typed struct (`serde`'s derive), which cannot carry an
+// arbitrary field list, and a `String` written by hand, which could disagree with the decoder.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import type { Map, Value } from './json.ts';
+// ```
+use serde_json::{
+    Map,
+    Value,
+};
+
+// What:
 // `use super::fakes::{Rig, write_executable}` imports the test rig,
 // which holds a disposable scope and the two fakes,
 // and the writer of the stand-in program a fixture toolchain holds.
@@ -76,6 +94,35 @@ use super::fakes::{
 // import { parseLock } from './lock.ts';
 // ```
 use super::lock::parse_lock;
+// What:
+// `use super::lock::{Lock, render_lock}` imports the lock document and the writer of its text.
+// Why:
+// A `list` control reads the plan and the lock from the fixture's disk,
+// so the fixture has to write a lock holding exactly the row under test.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { type Lock, renderLock } from './lock.ts';
+// ```
+use super::lock::{
+    Lock,
+    render_lock,
+};
+// What:
+// `use super::model_encode::{lock_entry_value, render_pretty_json}` imports the encoder of one lock
+// row and the JSON printer the plan's text is built with.
+// Why:
+// The plan entry of the fixture's one row is the lock row without `version` and `artifacts`,
+// which is the shape the program's own encoder writes.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { lockEntryValue, renderPrettyJson } from './model-encode.ts';
+// ```
+use super::model_encode::{
+    lock_entry_value,
+    render_pretty_json,
+};
 // What:
 // `use super::model::LockedTool` imports the type of one lock row:
 // a declaration, a resolved version and the artifacts of that version.
@@ -109,6 +156,17 @@ use super::runner::RunRequest;
 // import { LOCK_FILE_NAME } from './scope.ts';
 // ```
 use super::scope::LOCK_FILE_NAME;
+// What:
+// `use super::status_cmd::run_status` imports the `list` command's own report.
+// Why:
+// The controls below read the lines a person reads,
+// not an intermediate record.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// import { runStatus } from './status-cmd.ts';
+// ```
+use super::status_cmd::run_status;
 // What:
 // `use super::sync::sync_tools` imports the install of every tool a lock holds.
 // Why:
@@ -177,6 +235,48 @@ const THE_FIXTURE_HOST_TRIPLE: &str = "x86_64-unknown-linux-gnu";
 // const theComponentThisIssueDeclares = 'rustfmt';
 // ```
 const THE_COMPONENT_THIS_ISSUE_DECLARES: &str = "rustfmt";
+
+// What:
+// `const A_TOOLCHAIN_OLDER_THAN_THE_PIN: &str = "nightly-2026-11-01"` is the channel of a second
+// toolchain installed beside the repository's pin,
+// fifteen days older than the pin's `nightly-2026-11-16`,
+// so rustup's own directory name for it sorts before the pin's.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// The controls below are about a machine holding two toolchains,
+// and the fault issue 6634 records shows itself only when the second one sorts first:
+// a search that takes the first directory by name finds the older toolchain before the pin.
+// Gotcha:
+// The name is a stand-in for rustup's own directory: no toolchain was installed for it.
+// Each control asserts the sort order it relies on instead of trusting this date.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aToolchainOlderThanThePin = 'nightly-2026-11-01';
+// ```
+const A_TOOLCHAIN_OLDER_THAN_THE_PIN: &str = "nightly-2026-11-01";
+
+// What:
+// `const A_TOOLCHAIN_NEWER_THAN_THE_PIN: &str = "nightly-2026-12-01"` is the channel of a second
+// toolchain installed beside the repository's pin,
+// later than the pin's `nightly-2026-11-16`,
+// so rustup's own directory name for it sorts after the pin's.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// A search that took the last directory by name would pass the older-toolchain control for the
+// wrong reason,
+// so this second control holds a toolchain that sorts on the other side of the pin.
+// Gotcha:
+// A stand-in for rustup's own directory, as the older one is;
+// each control asserts the sort order it relies on.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aToolchainNewerThanThePin = 'nightly-2026-12-01';
+// ```
+const A_TOOLCHAIN_NEWER_THAN_THE_PIN: &str = "nightly-2026-12-01";
 
 // What:
 // `struct Component` is one rustup component as the fixtures record it:
@@ -801,6 +901,99 @@ fn the_toolchain_bin(
 // ```ts
 // function theProgramNamesIn(directory: string): string[]
 // ```
+// What:
+// `fn a_second_toolchain(rig: &Rig, channel: &str, programs: &[String]) -> PathBuf` writes one more
+// installed toolchain into the fixture's own rustup home and hands back its directory.
+// Why:
+// The farm reads a `rustup-toolchain` row's programs under `<home>/.rustup/toolchains`,
+// so a second toolchain the controls can see has to sit there,
+// named `<channel>-<triple>` the way rustup names one.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function aSecondToolchain(rig: Rig, channel: string, programs: string[]): string
+// ```
+fn a_second_toolchain(
+    rig: &Rig,
+    channel: &str,
+    programs: &[String],
+) -> PathBuf {
+    // What:
+    // the chain joins the home, `.rustup`, `toolchains` and the directory name `format!` builds from
+    // the channel and the host triple.
+    // Why:
+    // That is the one place the search looks,
+    // and a name built any other way would be a directory no rustup ever makes.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const directory = pathJoin(rig.scope.home, '.rustup', 'toolchains', `${channel}-${theFixtureHostTriple}`);
+    // ```
+    let directory: PathBuf = rig
+        .scope
+        .home
+        .join(".rustup")
+        .join("toolchains")
+        .join(format!("{channel}-{THE_FIXTURE_HOST_TRIPLE}"));
+    // What:
+    // one stand-in program per name, each written into the toolchain's own `bin` directory.
+    // Why:
+    // A toolchain holds its programs there,
+    // and a program written anywhere else would not be the toolchain's.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const program of programs) { writeExecutable(pathJoin(directory, 'bin', program)); }
+    // ```
+    for program in programs {
+        write_executable(&directory.join("bin").join(program));
+    }
+    return directory;
+}
+
+// What:
+// `fn the_directory_name_of(toolchain: &Path) -> String` is the name rustup gave one installed
+// toolchain (`nightly-2026-11-16-x86_64-unknown-linux-gnu`).
+// Why:
+// The controls assert the sort order of two such names,
+// which is the state the fault needs,
+// and a comparison of whole paths would also compare the folders above them.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theDirectoryNameOf(toolchain: string): string
+// ```
+fn the_directory_name_of(toolchain: &Path) -> String {
+    // What:
+    // `.file_name()` is the path's last segment as an `Option`,
+    // `.expect(...)` unwraps it,
+    // and `.to_string_lossy()` renders it as text for a comparison.
+    // Why:
+    // Every directory these controls build has a name,
+    // and a name that is not valid UTF-8 still has to appear in a failure rather than be dropped.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return decodeURIComponent(entry.name);
+    // ```
+    return toolchain
+        .file_name()
+        .expect("a toolchain directory has a name")
+        .to_string_lossy()
+        .to_string();
+}
+
+// What:
+// `fn the_program_names_in(directory: &Path) -> Vec<String>` is the names of the files directly
+// inside one directory, sorted.
+// Why:
+// The control has to show what the fixture toolchain holds,
+// not only what the test meant to write into it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theProgramNamesIn(directory: string): string[]
+// ```
 fn the_program_names_in(directory: &Path) -> Vec<String> {
     // What:
     // `let mut names: Vec<String> = Vec::new()` is the list of names being collected.
@@ -1025,6 +1218,44 @@ fn answer_the_listings_of_the_installed_toolchain(
 ) {
     let row: LockedTool = the_repository_rust_row();
     // What:
+    // `let mut targets: Vec<String> = vec![...]` is the target listing a toolchain of this row
+    // holds: the host triple first, then each target the row declares.
+    // Why:
+    // `x86_64-unknown-linux-gnu`, `aarch64-linux-android` and `x86_64-linux-android` are the three
+    // lines `rustup target list --installed` prints on the toolchain this machine holds
+    // (captured on 2026-11-27T17:35:46-05:00, `keep/rustup-queries-2026-11-27.txt`),
+    // and a machine that follows the plan holds exactly them.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const targets = [theFixtureHostTriple, ...theTargetsTheRowDeclares(row)];
+    // ```
+    let mut targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
+    targets.extend(the_targets_the_row_declares(&row));
+    answer_the_listings_of_a_toolchain_holding(rig, held, &targets);
+}
+
+// What:
+// `fn answer_the_listings_of_a_toolchain_holding(rig: &Rig, held: &[String], targets: &[String])`
+// makes the fake runner answer what a real rustup answers about one toolchain:
+// the channel's compiler,
+// those targets as installed,
+// and those components as installed.
+// Why:
+// The two listings are what `install` reconciles and what `list` now reads,
+// so a control about a part the toolchain lacks needs to choose each listing on its own.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function answerTheListingsOfAToolchainHolding(rig: Rig, held: string[], targets: string[]): void
+// ```
+fn answer_the_listings_of_a_toolchain_holding(
+    rig: &Rig,
+    held: &[String],
+    targets: &[String],
+) {
+    let row: LockedTool = the_repository_rust_row();
+    // What:
     // the text `rustup component list --installed` prints for those components:
     // one line each from `the_component_listing_of`, joined with newlines and ended by one.
     // Why:
@@ -1070,24 +1301,24 @@ fn answer_the_listings_of_the_installed_toolchain(
         0,
     );
     // What:
-    // `x86_64-unknown-linux-gnu`, `aarch64-linux-android` and `x86_64-linux-android` are one line
-    // each of `rustup target list --installed` on the toolchain this machine holds
-    // (captured on 2026-11-27T17:35:46-05:00,
-    // `keep/rustup-queries-2026-11-27.txt`).
+    // the text `rustup target list --installed` prints: one target per line, ended by a newline.
     // Why:
-    // The host target's spelling is what lets a component listed as `clippy-<triple>` count as the
-    // declared `clippy`, and the two Android targets are the ones the row declares,
-    // so answering them installs nothing.
+    // Both `install`'s reconciler and `list` read it line by line,
+    // the host target's spelling is what lets a component listed as `clippy-<triple>` count as the
+    // declared `clippy`,
+    // and a real listing ends each line.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // rig.runner.answer('rustup target list --installed', 'x86_64-unknown-linux-gnu\naarch64-linux-android\nx86_64-linux-android\n', 0);
+    // rig.runner.answer('rustup target list --installed', targets.map((target) => `${target}\n`).join(''), 0);
     // ```
-    rig.runner.answer(
-        "rustup target list --installed",
-        "x86_64-unknown-linux-gnu\naarch64-linux-android\nx86_64-linux-android\n",
-        0,
-    );
+    let mut listed_targets: String = String::new();
+    for target in targets {
+        listed_targets.push_str(target);
+        listed_targets.push('\n');
+    }
+    rig.runner
+        .answer("rustup target list --installed", &listed_targets, 0);
 }
 
 // What:
@@ -1413,4 +1644,683 @@ fn an_install_whose_toolchain_already_holds_the_declared_components_asks_for_not
     // expect(report.missingBins).toEqual([]);
     // ```
     assert_eq!(report.missing_bins, Vec::<String>::new(), "{text}");
+}
+
+// What:
+// `#[test] fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_an_older_toolchain_sorts_first()`
+// runs an install against a machine holding the pin and a second toolchain older than it,
+// each with every program the row declares,
+// and reads where the farm's links point.
+// Why:
+// Issue 6634:
+// the farm linked the first toolchain in name order,
+// so on the day the pin moved to a later date the programs of the older toolchain took the farm's
+// `rustc`, `cargo` and `rustfmt` while `list` said the pin was in force.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('an install links the rows programs from the toolchain the row names though an older toolchain sorts first', () => { ... });
+// ```
+#[test]
+fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_an_older_toolchain_sorts_first()
+ {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    // What:
+    // the pin's own `bin` directory: where the row's programs belong.
+    // Why:
+    // The assertion compares every farm link with it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const pinBin = theToolchainBin(rig, row);
+    // ```
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    // What:
+    // the second toolchain, older than the pin, holding every program the row declares.
+    // Why:
+    // A toolchain missing a program would leave the link to the pin for that name and hide the fault
+    // this control is about.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const older = aSecondToolchain(rig, aToolchainOlderThanThePin, theProgramsOf(held));
+    // ```
+    let older: PathBuf = a_second_toolchain(
+        &rig,
+        A_TOOLCHAIN_OLDER_THAN_THE_PIN,
+        &the_programs_of(&held),
+    );
+    // What:
+    // the name rustup gives the pin's directory,
+    // and the assertion that the older toolchain's name sorts before it.
+    // Why:
+    // The fault shows itself only in that order,
+    // so a control whose names sorted the other way would pass for the wrong reason.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const pinName = `${row.rustupChannel()}-${theFixtureHostTriple}`;
+    // expect(theDirectoryNameOf(older) < pinName).toBe(true);
+    // ```
+    let pin_name: String = format!("{}-{}", row.rustup_channel(), THE_FIXTURE_HOST_TRIPLE);
+    assert!(
+        the_directory_name_of(&older) < pin_name,
+        "the second toolchain's directory sorts before the pin's, which is the state issue 6634 needs"
+    );
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    // What:
+    // one assertion per declared bin:
+    // the farm's link points into the pin's `bin` directory.
+    // Why:
+    // That is the whole of the issue:
+    // the name the row declares has to be the pin's program, whatever other toolchains hold.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const name of row.declaration.bins) { expect(readLink(pathJoin(rig.scope.exposureDir, name))).toBe(pathJoin(pinBin, name)); }
+    // ```
+    for name in &row.declaration.bins {
+        assert_eq!(
+            fs::read_link(rig.scope.exposure_dir.join(name)).expect("the farm holds a link"),
+            pin_bin.join(name),
+            "the farm's link for {name} names the pin's own program; {text}"
+        );
+    }
+    assert_eq!(report.missing_bins, Vec::<String>::new(), "{text}");
+}
+
+// What:
+// `#[test] fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_a_newer_toolchain_sorts_last()`
+// is the same control with the second toolchain sorting after the pin.
+// Why:
+// A search that took the last directory by name would pass the older-toolchain control,
+// so this one holds the state that a "take the last" rule gets wrong.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('an install links the rows programs from the toolchain the row names though a newer toolchain sorts last', () => { ... });
+// ```
+#[test]
+fn an_install_links_the_rows_programs_from_the_toolchain_the_row_names_though_a_newer_toolchain_sorts_last()
+ {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    let newer: PathBuf = a_second_toolchain(
+        &rig,
+        A_TOOLCHAIN_NEWER_THAN_THE_PIN,
+        &the_programs_of(&held),
+    );
+    let pin_name: String = format!("{}-{}", row.rustup_channel(), THE_FIXTURE_HOST_TRIPLE);
+    assert!(
+        the_directory_name_of(&newer) > pin_name,
+        "the second toolchain's directory sorts after the pin's, which is the state this control needs"
+    );
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    for name in &row.declaration.bins {
+        assert_eq!(
+            fs::read_link(rig.scope.exposure_dir.join(name)).expect("the farm holds a link"),
+            pin_bin.join(name),
+            "the farm's link for {name} names the pin's own program; {text}"
+        );
+    }
+    assert_eq!(report.missing_bins, Vec::<String>::new(), "{text}");
+}
+
+// What:
+// `#[test] fn a_program_the_rows_own_toolchain_lacks_is_unresolved_though_another_toolchain_holds_it()`
+// runs an install whose pin is short of one program the row declares while a second toolchain holds
+// that program,
+// and reads the unresolved-bins line.
+// Why:
+// The row's programs come from the toolchain the row names and from no other:
+// a program the pin lacks is unresolved,
+// and another toolchain's copy must not stand in for it under the pin's name.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('a program the rows own toolchain lacks is unresolved though another toolchain holds it', () => { ... });
+// ```
+#[test]
+fn a_program_the_rows_own_toolchain_lacks_is_unresolved_though_another_toolchain_holds_it() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    // What:
+    // the programs the declared formatter component installs,
+    // the first of which the fixture's own toolchain is cut short of.
+    // Why:
+    // The component still shows in `rustup component list --installed`,
+    // so the install asks for no add and the missing program is the whole difference:
+    // a stand-in for a toolchain whose `bin` lost one file.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const programs = componentNamed(theComponentThisIssueDeclares).programs;
+    // ```
+    let programs_of_the_formatter: &'static [&'static str] =
+        component_named(THE_COMPONENT_THIS_ISSUE_DECLARES).programs;
+    assert!(
+        !programs_of_the_formatter.is_empty(),
+        "the formatter component installs at least one program, or this control has no subject"
+    );
+    let cut_short: &'static str = programs_of_the_formatter[0];
+    // What:
+    // removes that one program from the pin's `bin` directory.
+    // Why:
+    // The listing keeps naming its component as installed,
+    // which is the state a cut-short program leaves.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // unlinkSync(pathJoin(pinBin, cutShort));
+    // ```
+    fs::remove_file(pin_bin.join(cut_short)).expect("remove one of the pin's own programs");
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    a_second_toolchain(
+        &rig,
+        A_TOOLCHAIN_OLDER_THAN_THE_PIN,
+        &the_programs_of(&held),
+    );
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    // What:
+    // the report's unresolved bins, which must be the one declared program the pin lacks.
+    // Why:
+    // On a machine whose older toolchain sorts first,
+    // the fault this control holds answered that name with the older toolchain's copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(report.missingBins).toEqual([cutShort]);
+    // ```
+    assert_eq!(
+        report.missing_bins,
+        vec![cut_short.to_string()],
+        "the pin lacks {cut_short}, so the farm names it unresolved; {text}"
+    );
+    // What:
+    // the assertion that the farm holds no link under that name.
+    // Why:
+    // A name with no program in the row's own toolchain is reported,
+    // never linked to another toolchain's copy.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(existsSync(pathJoin(rig.scope.exposureDir, cutShort))).toBe(false);
+    // ```
+    assert!(
+        !rig.scope.exposure_dir.join(cut_short).exists(),
+        "the farm links no {cut_short}, because the pin holds none; {text}"
+    );
+}
+
+// What:
+// `const A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM: &str = "rustup"` is the manager's own name,
+// which the repository's row declared before issue 6626 and declares no longer.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// A machine that installed with `0.2.7-alpha.16`'s row keeps a `rustup` link in the farm,
+// and issue 6634's Low point 3 is that installing the newer row leaves it there.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aLinkAnEarlierRowLeftInTheFarm = 'rustup';
+// ```
+const A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM: &str = "rustup";
+
+// What:
+// `const A_FILE_A_PERSON_PUT_IN_THE_FARM: &str = "a-note-from-me"` is a regular file in the exposure
+// directory whose name no row declares.
+// Its string sibling `String` is an owned buffer,
+// which a constant never needs.
+// Why:
+// The farm is a directory on a person's machine,
+// so an install's report has to name the links it removed and leave a file alone.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aFileAPersonPutInTheFarm = 'a-note-from-me';
+// ```
+const A_FILE_A_PERSON_PUT_IN_THE_FARM: &str = "a-note-from-me";
+
+// What:
+// `#[test] fn an_install_removes_the_farm_link_no_row_declares_and_names_it()`
+// runs an install on a machine whose farm already holds a link for `rustup` and a person's file,
+// and reads the farm and the printed report.
+// Why:
+// Issue 6634's Low point 3:
+// the manager's link stays after the row stops declaring it,
+// dangles when rustup's proxies go,
+// and nothing says so.
+// The farm holds what the lock declares,
+// and the report names what it removed.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('an install removes the farm link no row declares and names it', () => { ... });
+// ```
+#[test]
+fn an_install_removes_the_farm_link_no_row_declares_and_names_it() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    let pin_bin: PathBuf = the_toolchain_bin(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    // What:
+    // the assertion that the row declares no `rustup`, which is what makes the link an orphan.
+    // Why:
+    // A row that declared the name would make the link the plan's, and the control would pass for
+    // another reason.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(row.declaration.bins).not.toContain(aLinkAnEarlierRowLeftInTheFarm);
+    // ```
+    assert!(
+        !row.declaration
+            .bins
+            .iter()
+            .any(|bin| return bin == A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM),
+        "the row declares no {A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM}"
+    );
+    fs::create_dir_all(&rig.scope.exposure_dir).expect("make the farm");
+    // What:
+    // the orphan link, standing where an install of the older row left it: a link to a program of the
+    // fixture, under the manager's name.
+    // Why:
+    // The link is what an earlier row made and this row does not declare.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // symlinkSync(pathJoin(pinBin, 'rustc'), pathJoin(rig.scope.exposureDir, aLinkAnEarlierRowLeftInTheFarm));
+    // ```
+    let orphan: PathBuf = rig
+        .scope
+        .exposure_dir
+        .join(A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM);
+    std::os::unix::fs::symlink(pin_bin.join("rustc"), &orphan)
+        .expect("leave the link an earlier install made");
+    // What:
+    // a person's regular file beside it.
+    // Why:
+    // The removal is about links the tool made, and this file proves the rebuild tells them apart.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(pathJoin(rig.scope.exposureDir, aFileAPersonPutInTheFarm), "mine\n");
+    // ```
+    let the_file: PathBuf = rig.scope.exposure_dir.join(A_FILE_A_PERSON_PUT_IN_THE_FARM);
+    fs::write(&the_file, "mine\n").expect("write a person's file into the farm");
+    let report = sync_tools(&rig.context(), None);
+    let text: String = format_sync_report(&report);
+    // What:
+    // the orphan link's own entry, which must be gone: `symlink_metadata` reads the entry itself.
+    // Why:
+    // The name no row declares is not part of the farm an install leaves behind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(lstatSync(orphan, { throwIfNoEntry: false })).toBeUndefined();
+    // ```
+    assert!(
+        fs::symlink_metadata(&orphan).is_err(),
+        "the farm holds no link for a name no row declares; {text}"
+    );
+    // What:
+    // the report's own lines, one of which has to name the removed link.
+    // Why:
+    // An install that removes a name from a folder a person sees has to say which.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(text.split('\n').some((line) => line.startsWith('toolchain install: removed ') && line.includes(aLinkAnEarlierRowLeftInTheFarm))).toBe(true);
+    // ```
+    assert!(
+        text.lines().any(|line| {
+            return line.starts_with("toolchain install: removed ")
+                && line.contains(A_LINK_AN_EARLIER_ROW_LEFT_IN_THE_FARM);
+        }),
+        "the report names the link it removed; {text}"
+    );
+    // What:
+    // the person's file, still holding its text, and no report line naming it as removed.
+    // Why:
+    // A regular file of a name no row declares is a person's, so it stays and the report says nothing
+    // about removing it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(readFileSync(theFile, 'utf8')).toBe("mine\n");
+    // expect(text.split('\n').some((line) => line.startsWith('toolchain install: removed ') && line.includes(aFileAPersonPutInTheFarm))).toBe(false);
+    // ```
+    assert_eq!(
+        fs::read_to_string(&the_file).expect("a person's file stays where it is"),
+        "mine\n",
+        "the install leaves a regular file of a name no row declares"
+    );
+    assert!(
+        !text.lines().any(|line| {
+            return line.starts_with("toolchain install: removed ")
+                && line.contains(A_FILE_A_PERSON_PUT_IN_THE_FARM);
+        }),
+        "the report never says it removed a person's file; {text}"
+    );
+}
+
+// What:
+// `const A_COMPONENT_LISTING_OF_THREE_QUESTIONS: usize = 3` is how many `rustup` questions a `list`
+// on a machine that is in sync asks about this row.
+// The integer siblings a reader might expect are `u32` and `i32`;
+// `usize` is the width `Vec::len` answers, so the comparison needs no cast.
+// Why:
+// Issue 6634's Low point 5 prices the extra question:
+// `list` asked one (`rustup which`), and asking the two listings makes three.
+// The number is written here so a run that asks more or fewer fails loudly.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// const aComponentListingOfThreeQuestions = 3;
+// ```
+const THE_QUESTIONS_A_LIST_ASKS: usize = 3;
+
+// What:
+// `fn write_a_plan_and_lock_of_the_rows_rust_row(rig: &Rig, row: &LockedTool)` writes the fixture's
+// `toolchain.plan.jsonc` and `toolchain.lock.json` so both hold the repository's rust row alone.
+// Why:
+// `list` reads the two files from the scope,
+// while `install` takes the rig's in-memory lock,
+// so a control about `list` has to write what a person's tree holds.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function writeAPlanAndLockOfTheRowsRustRow(rig: Rig, row: LockedTool): void
+// ```
+fn write_a_plan_and_lock_of_the_rows_rust_row(
+    rig: &Rig,
+    row: &LockedTool,
+) {
+    // What:
+    // the row as the plan writes it: the lock's own entry without `version` and `artifacts`,
+    // which are not plan fields.
+    // Why:
+    // One encoder writes both files, so the plan the fixture writes is the shape the program's own
+    // writer produces.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const entry = lockEntryValue(row);
+    // delete entry.version; delete entry.artifacts;
+    // ```
+    let mut entry: Value = lock_entry_value(row);
+    if let Value::Object(members) = &mut entry {
+        members.remove("version");
+        members.remove("artifacts");
+    }
+    // What:
+    // the document's `tools` record, holding this one row under its id.
+    // Why:
+    // A plan is a record of rows by id, and the fixture holds one.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const tools = { [row.declaration.id]: entry };
+    // ```
+    let mut tools: Map<String, Value> = Map::new();
+    tools.insert(row.declaration.id.clone(), entry);
+    // What:
+    // the whole plan document, whose `schemaVersion` is the one field every plan carries.
+    // Why:
+    // The decoder refuses a plan without it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const document = { schemaVersion: 1, tools };
+    // ```
+    let mut document: Map<String, Value> = Map::new();
+    document.insert("schemaVersion".to_string(), Value::from(1));
+    document.insert("tools".to_string(), Value::Object(tools));
+    // What:
+    // the files themselves: the plan's text, then the lock's text for a lock holding this row.
+    // Why:
+    // `list` loads both from the scope and refuses when they disagree.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // writeFileSync(pathJoin(rig.scope.root, PLAN_FILE_NAME), renderPrettyJson(document) + '\n');
+    // writeFileSync(pathJoin(rig.scope.root, LOCK_FILE_NAME), renderLock({ tools: [row] }));
+    // ```
+    fs::write(
+        &rig.scope.plan_file,
+        format!("{}\n", render_pretty_json(&Value::Object(document))),
+    )
+    .expect("write the fixture's plan");
+    let lock: Lock = Lock {
+        tools: vec![row.clone()],
+    };
+    fs::write(&rig.scope.lock_file, render_lock(&lock)).expect("write the fixture's lock");
+}
+
+// What:
+// `fn the_questions_a_list_asks(rig: &Rig) -> Vec<String>` is every `rustup` request the run
+// recorded, in order.
+// Why:
+// Issue 6634's Low point 5 asks what the extra question costs,
+// and the record is where a run's own questions are counted.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function theQuestionsAListAsks(rig: Rig): string[]
+// ```
+fn the_questions_a_list_asks(rig: &Rig) -> Vec<String> {
+    // What:
+    // the recorded requests filtered to those whose program is `rustup`.
+    // Why:
+    // A `list` on this row starts nothing else,
+    // and naming the program keeps another tool's question from being counted here.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return rig.runner.lines().filter((line) => line.startsWith('rustup '));
+    // ```
+    let mut asked: Vec<String> = Vec::new();
+    for line in rig.runner.lines() {
+        if line.starts_with("rustup ") {
+            asked.push(line);
+        }
+    }
+    return asked;
+}
+
+// What:
+// `#[test] fn list_calls_a_toolchain_that_lacks_a_declared_component_drift_and_names_it()`
+// runs `list` against a toolchain holding every declared component but the formatter one,
+// and reads the lines a person reads.
+// Why:
+// Issue 6634's Low point 5:
+// `list` printed `ok      rust  nightly-2026-11-16` and `1 tools in sync` while the declared
+// `rustfmt` component was missing, and only the next `install` added it.
+// `list` says what `install` would do, so the missing part is drift and is named.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('list calls a toolchain that lacks a declared component drift and names it', () => { ... });
+// ```
+#[test]
+fn list_calls_a_toolchain_that_lacks_a_declared_component_drift_and_names_it() {
+    let row: LockedTool = the_repository_rust_row();
+    // What:
+    // the components such a toolchain holds: every one the row's toolchain has, less the formatter.
+    // Why:
+    // The missing component is the whole difference from the state the install leaves behind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const held = theComponentsAToolchainOfThisRowHolds(row).filter((name) => name !== theComponentThisIssueDeclares);
+    // ```
+    let mut held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    held.retain(|name| return name != THE_COMPONENT_THIS_ISSUE_DECLARES);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    write_a_plan_and_lock_of_the_rows_rust_row(&rig, &row);
+    let mut targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
+    targets.extend(the_targets_the_row_declares(&row));
+    answer_the_listings_of_a_toolchain_holding(&rig, &held, &targets);
+    let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
+    let text: String = report.text.clone();
+    assert!(report.drifted, "{text}");
+    // What:
+    // the `drift` line for this row, naming the component the toolchain lacks.
+    // Why:
+    // A person acting on the line has to find which part the next `install` would add.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(text.split('\n').some((line) => line.startsWith('drift   rust ') && line.includes(theComponentThisIssueDeclares))).toBe(true);
+    // ```
+    assert!(
+        text.lines().any(|line| {
+            return line.starts_with("drift   rust ")
+                && line.contains(THE_COMPONENT_THIS_ISSUE_DECLARES);
+        }),
+        "the drift line names the component the toolchain lacks; {text}"
+    );
+    assert!(
+        !text.contains("ok      rust"),
+        "a toolchain missing a declared component is not in sync; {text}"
+    );
+}
+
+// What:
+// `#[test] fn list_calls_a_toolchain_that_lacks_a_declared_target_drift_and_names_it()`
+// runs `list` against a toolchain holding every declared component and only the host's own target,
+// and reads the lines a person reads.
+// Why:
+// The row's `rustTargets` are parts an `install` adds the same way components are,
+// so a toolchain without one is drift and the line names which target.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('list calls a toolchain that lacks a declared target drift and names it', () => { ... });
+// ```
+#[test]
+fn list_calls_a_toolchain_that_lacks_a_declared_target_drift_and_names_it() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    write_a_plan_and_lock_of_the_rows_rust_row(&rig, &row);
+    let declared: Vec<String> = the_targets_the_row_declares(&row);
+    assert!(
+        !declared.is_empty(),
+        "the repository's row declares a target, or this control has no subject"
+    );
+    // What:
+    // the targets such a toolchain holds: the host's own, and none of the declared ones.
+    // Why:
+    // That is the state a machine reaches when it never ran `rustup target add` for the row.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const heldTargets = [theFixtureHostTriple];
+    // ```
+    let held_targets: Vec<String> = vec![THE_FIXTURE_HOST_TRIPLE.to_string()];
+    answer_the_listings_of_a_toolchain_holding(&rig, &held, &held_targets);
+    let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
+    let text: String = report.text.clone();
+    assert!(report.drifted, "{text}");
+    // What:
+    // the `drift` line for this row, naming each declared target the toolchain lacks.
+    // Why:
+    // The line has to say which target the next `install` would add.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // for (const target of declared) { expect(text).toContain(target); }
+    // ```
+    assert!(
+        text.lines().any(|line| {
+            return line.starts_with("drift   rust ")
+                && declared.iter().all(|target| return line.contains(target));
+        }),
+        "the drift line names every declared target the toolchain lacks; {text}"
+    );
+}
+
+// What:
+// `#[test] fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_questions()`
+// runs `list` against a toolchain holding everything the row declares and counts the `rustup`
+// requests the run made.
+// Why:
+// Issue 6634's Low point 5 asks what the extra question costs a machine that is in sync:
+// before the change `list` asked one question (`rustup which`), after it three,
+// and this control is the measurement.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// test('list on a toolchain that holds every declared part asks the manager three questions', () => { ... });
+// ```
+#[test]
+fn list_on_a_toolchain_that_holds_every_declared_part_asks_the_manager_three_questions() {
+    let row: LockedTool = the_repository_rust_row();
+    let held: Vec<String> = the_components_a_toolchain_of_this_row_holds(&row);
+    let rig: Rig = rig_holding_the_programs_of(&held);
+    write_a_plan_and_lock_of_the_rows_rust_row(&rig, &row);
+    answer_the_listings_of_the_installed_toolchain(&rig, &held);
+    let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("a report");
+    let text: String = report.text.clone();
+    assert!(
+        !report.drifted,
+        "a machine holding every declared part is in sync; {text}"
+    );
+    // What:
+    // every `rustup` request the run made, which is what the extra question costs.
+    // Why:
+    // The count is the whole of what Low point 5 asks this control to show,
+    // and the lines themselves say which questions they are.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const asked = theQuestionsAListAsks(rig);
+    // expect(asked.length).toBe(3);
+    // ```
+    let asked: Vec<String> = the_questions_a_list_asks(&rig);
+    assert_eq!(
+        asked.len(),
+        THE_QUESTIONS_A_LIST_ASKS,
+        "a `list` on a machine in sync asks three questions: which toolchain, its components and its targets; {asked:?}"
+    );
+    // What:
+    // the three questions by their own words: the channel's compiler, the components, the targets.
+    // Why:
+    // The count alone would pass for three questions about nothing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // expect(asked[0]).toBe(`rustup which --toolchain ${row.rustupChannel()} rustc`);
+    // expect(asked[1]).toBe(`rustup component list --installed --toolchain ${row.rustupChannel()}`);
+    // expect(asked[2]).toBe(`rustup target list --installed --toolchain ${row.rustupChannel()}`);
+    // ```
+    assert_eq!(
+        asked,
+        vec![
+            format!("rustup which --toolchain {} rustc", row.rustup_channel()),
+            format!(
+                "rustup target list --installed --toolchain {}",
+                row.rustup_channel()
+            ),
+            format!(
+                "rustup component list --installed --toolchain {}",
+                row.rustup_channel()
+            ),
+        ],
+        "{text}"
+    );
 }

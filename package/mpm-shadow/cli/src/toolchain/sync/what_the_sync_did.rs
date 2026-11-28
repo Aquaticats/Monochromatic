@@ -77,6 +77,9 @@ pub struct SyncReport {
     /// One sentence per postinstall link an earlier run made and this run removed
     /// because the lock no longer declares it.
     pub retired_links: Vec<String>,
+    /// One sentence per symbolic link this run removed from the exposure directory
+    /// because no row of the lock declares its name.
+    pub removed_exposure_links: Vec<String>,
     /// The environment variable names the generated mise fragment holds after this run
     /// (empty when the lock declares none,
     /// or for a partial sync that leaves the fragment alone).
