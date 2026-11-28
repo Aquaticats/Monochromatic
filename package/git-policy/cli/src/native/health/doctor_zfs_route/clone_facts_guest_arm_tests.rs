@@ -22,7 +22,8 @@
 //!  which the holders line names by namespace and representative task.
 //!  The stopped removal's plan is published by the removal's own writer
 //!  ([`super::super::worktree_clone_removal_proof_and_plan::plan_publication`]),
-//!  as the guide requires, and the intent beside it is the property the
+//!  as the guide requires,
+//!  and the intent beside it is the property the
 //!  removal writes,
 //!  so the arm reads a state the route makes and not one typed by hand.
 //!  The arm also proves the gatherer writes nothing:

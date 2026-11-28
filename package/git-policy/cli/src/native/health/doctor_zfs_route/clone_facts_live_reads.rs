@@ -44,7 +44,8 @@
 //!  and a report says "nobody proved it" where a closer reader could say "it is
 //!  gone".
 //!  The staging binds are read from a second sample of the mount table
-//!  (`fs_mount_options`), so a mount made between that sample and the slot's own
+//!  (`fs_mount_options`),
+//!  so a mount made between that sample and the slot's own
 //!  reading shows in one and not the other.
 //!
 //! In TS you'd write (pseudocode):
@@ -88,10 +89,13 @@ use super::zfs_checks::{
     reading_of,
 };
 /// This process's mount table,
-/// read by the repository's own reader.
-use crate::fs_mount_options::{
-    MountFacts,
-    parse_mount_table,
+/// read by the file that owns its grammar and its bound.
+use crate::fs_mount_options::the_mount_rows_on_this_machine;
+/// The path one registration's `gitdir` file names,
+/// read by the folder that owns the record.
+use crate::worktree_clone_binding_record::registration_gitdir::{
+    ARegistrationsGitdir,
+    the_gitdir_a_registration_names,
 };
 /// The path one clone's destruction plan is filed at.
 use crate::worktree_clone_binding_record::registration_home::plans_folder;
@@ -143,9 +147,6 @@ use std::path::{
     Path,
     PathBuf,
 };
-
-/// Where this machine's description of every task's mounts is.
-const PROC_MOUNT_INFO: &str = "/proc/self/mountinfo";
 
 /// What:
 ///  Why one pool read could not be made:
@@ -199,15 +200,11 @@ impl CloneFactsReads for LiveCloneFactsReads {
         );
     }
 
-    fn mount_rows(&self) -> Vec<MountFacts> {
-        let read: std::io::Result<Vec<u8>> = std::fs::read(PROC_MOUNT_INFO);
+    fn mount_rows(&self) -> Vec<crate::fs_mount_options::MountFacts> {
         // A table nobody read lists no mount, so no staging bind is named from
         // it; the state line's own reading of the same table answers unknown
         // where the table could not be read at all.
-        return match read {
-            Ok(bytes) => parse_mount_table(bytes.as_slice()),
-            Err(_why) => Vec::new(),
-        };
+        return the_mount_rows_on_this_machine();
     }
 
     fn path_state(
@@ -221,29 +218,20 @@ impl CloneFactsReads for LiveCloneFactsReads {
         &self,
         registration: &Path,
     ) -> Reading<PathBuf> {
-        let file: PathBuf = registration.join("gitdir");
-        let text: String = match std::fs::read_to_string(file.as_path()) {
-            Ok(found) => found,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Reading::Missing {
-                    why: format!("{} holds no file of that name ({error})", file.display()),
-                };
-            }
-            Err(error) => {
-                return Reading::Unreadable {
-                    why: format!("{} could not be read ({error})", file.display()),
-                };
-            }
+        return match the_gitdir_a_registration_names(registration) {
+            ARegistrationsGitdir::Named(named) => Reading::Read(named),
+            ARegistrationsGitdir::NoFile => Reading::Missing {
+                why: format!(
+                    "{} holds no file of that name",
+                    registration.join("gitdir").display()
+                ),
+            },
+            ARegistrationsGitdir::Unreadable {
+                why,
+            } => Reading::Unreadable {
+                why,
+            },
         };
-        let named: PathBuf = PathBuf::from(text.trim());
-        // Git writes an absolute back-link and a hand-written one may be
-        // relative to the registration, so the relative spelling is resolved
-        // here rather than read as damage by the check.
-        return Reading::Read(if named.is_absolute() {
-            named
-        } else {
-            registration.join(named)
-        });
     }
 
     fn lock_classification(
