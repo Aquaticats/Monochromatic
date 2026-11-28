@@ -4792,11 +4792,21 @@ a merge that writes only the copies that side still holds is right and resolves.
 An answer that holds more copies of a line than the two sides leave keeps both sides as well,
 at most as many as the side that holds fewer of them holds
 while neither side wrote more copies of that line than the base held,
+and at most as many as the side that wrote more of them holds
+while exactly one side did,
 which covers a region where one side also wrote a line:
 a copy that side wrote lifts the bound of that one line and no other.
-That bound is the answer's,
-so no resolved file writes back a copy a side removed,
-whether the region it sits in deleted lines only or wrote a line as well.
+That bound is read over the answer of one word merge,
+never over the file you resolve:
+each region Git's line merge left is merged on its own,
+and a region that holds more copies of a line than its own two sides leave
+can be right when another region of the same file holds fewer of them,
+so no region resolves to a copy its own two sides removed.
+The one answer that is a whole file rather than a region
+is a path both sides added,
+whose base is empty;
+no line of that answer is a line of the base,
+so the bound cannot fire there.
 A base line written twice is where the word level cannot tell which copy a side deleted,
 so a region both sides only deleted lines from keeps both sides as well
 when its answer would hold its lines in an order one side does not hold them in,

@@ -2284,7 +2284,7 @@ and what the messages say.
   so a gap of 64,000 whitespace characters costs one pass over the line
   and one question per name the package folder's own names allow,
   where `0.5.2-alpha.23` built one name per character of the gap and kept them all.
-  Measured on 2026-11-28 over three rounds of three arms on a line of 64,033 characters,
+  Measured on 2026-11-27 over three rounds of three arms on a line of 64,033 characters,
   this release's wall time was 1.10 times `0.5.2-alpha.22`'s (range 0.73 to 1.21)
   and its peak resident memory 0.97 times that release's (range 0.95 to 1.02),
   against 981 times (range 580 to 1,071) and 180 times (range 179 to 195) for `0.5.2-alpha.23`.
@@ -2508,6 +2508,26 @@ The grouped editor refuses a nonempty-to-empty file rewrite.
 
 Pipe-table conversion and semantic line breaks are implemented.
 Production Rust and Markdown commands have not been replaced.
+
+The semantic break fix also joins the fragment an old hard wrap cut off.
+When the rest of the author's line holds one or two words that do not end at a break-point
+character,
+is not the paragraph's last line,
+carries no hard break,
+and the following line carries no block marker,
+the fragment joins the line that continues its clause through one space,
+where the joined line stays under 120 characters.
+A fragment that ends at a break-point character stays alone,
+because the rule wants a line to end there and would break it again on the next pass,
+so `4,` and `held,` keep their lines.
+A line the fix writes takes the indent the paragraph's first continuation line carries,
+so the lines of one paragraph are written at one depth,
+which is what a Rust doc comment keeps when its old lines were written one space deeper.
+The fix never rewrites a line the author wrote.
+Removing the deepest indent of a rustdoc run re-projects every line of that run
+(`processors_docs.rs`,
+`run_margin`),
+so such an edit would be refused instead of applied.
 
 ## LFS image URLs
 
