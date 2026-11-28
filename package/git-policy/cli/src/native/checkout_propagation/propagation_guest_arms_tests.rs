@@ -353,9 +353,19 @@ fn a_checkout_delivered_into_a_slave_namespace(fixture: &Fixture) -> String {
             unsafe { libc::write(write_end, b"1".as_ptr().cast::<libc::c_void>(), 1) };
         // SAFETY: the write end is this process's own and it closes it once.
         unsafe { libc::close(write_end) };
-        let line: String = one_delivered_copy(fixture);
-        say(line.as_str());
-        std::process::exit(0);
+        // A panic here would otherwise end in this copy's own test harness, which exits well, so the child reports a
+        // failed phase with a status the parent refuses.
+        let ran: Result<String, Box<dyn std::any::Any + Send>> =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                return one_delivered_copy(fixture);
+            }));
+        match ran {
+            Ok(line) => {
+                say(line.as_str());
+                std::process::exit(0);
+            }
+            Err(_failed) => std::process::exit(1),
+        }
     }
     // SAFETY: the write end belongs to the child and this process closes its own copy.
     unsafe { libc::close(write_end) };
@@ -413,10 +423,13 @@ fn one_delivered_copy(fixture: &Fixture) -> String {
         );
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
+    // This kernel delivers the copy as a slave of the master; making it shared keeps that master, which is the set
+    // the design measured as `shared,slave` and the one the project decided to treat as shared.
+    change_the_propagation(checkout, libc::MS_SHARED);
     let before: String = propagation_of(fixture, checkout);
     assert_eq!(
         before, "shared+slave",
-        "the kernel's copy carries the master and a peer group of its own"
+        "the delivered copy carries the master and a peer group of its own"
     );
     let places: PropagationPlaces = a_place();
     let answer: Result<PropagationDone, PropagationRefusal> =
@@ -434,8 +447,11 @@ fn one_delivered_copy(fixture: &Fixture) -> String {
     );
     assert_eq!(after, "private", "the copy reads private after the step");
     return format!(
-        "state=shared+slave before={before} outcome={} after={after}",
-        record.outcome.word()
+        "state=shared+slave before={before} outcome={} after={after} master={}",
+        record.outcome.word(),
+        record
+            .master
+            .map_or(String::from("none"), |number| return number.to_string())
     );
 }
 
@@ -1028,9 +1044,17 @@ fn in_a_private_namespace(body: &dyn Fn() -> String) {
             say("refused=unshare");
             std::process::exit(1);
         }
-        let line: String = body();
-        say(line.as_str());
-        std::process::exit(0);
+        // A panic here would otherwise end in this copy's own test harness, which exits well, so the child reports a
+        // failed phase with a status the parent refuses.
+        let ran: Result<String, Box<dyn std::any::Any + Send>> =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        match ran {
+            Ok(line) => {
+                say(line.as_str());
+                std::process::exit(0);
+            }
+            Err(_failed) => std::process::exit(1),
+        }
     }
     let mut status: libc::c_int = 0;
     // SAFETY: the number is this phase's own child and the status word is this call's own.
