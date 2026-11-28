@@ -192,7 +192,7 @@ none of these edits is committed.
   2026-11-28:
   the shipped boundary test now climbs those three delimiters
   (the fix for the emphasis-ended fragment of the alpha.24 second pass,
-  `package/linter/monochromatic-lint/doc/second-pass-reads.md`),
+  `package/linter/monochromatic-lint/doc/second-pass-reads-of-released-versions.md`),
   so this harness counts an emphasis ending as a boundary on a rerun:
   the `emphasis` class and every count apart from it reach zero,
   and the emphasis ending the classes below describe is no longer a break at no boundary.

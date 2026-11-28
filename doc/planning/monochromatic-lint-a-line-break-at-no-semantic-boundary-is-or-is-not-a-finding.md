@@ -721,7 +721,7 @@ its comment marker and host indent included,
 so a joined Rust doc line stays under `120` in the host file.
 An earlier round refused that bound and the owner has not been asked since;
 this round's brief picked it with the veto open,
-and `package/linter/monochromatic-lint/doc/second-pass-reads.md` records the choice,
+and `package/linter/monochromatic-lint/doc/second-pass-reads-of-released-versions.md` records the choice,
 the way not taken and what each costs.
 No option of this proposal is decided by it.
 

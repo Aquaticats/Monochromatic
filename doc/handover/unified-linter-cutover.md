@@ -433,7 +433,7 @@ The new linter is `monochromatic-lint .` with the worktree configuration.
   `a_blockquote_break_keeps_the_marker_at_the_same_depth`).
   The package README's sentence that said otherwise is corrected,
   and the reason is in
-  `package/linter/monochromatic-lint/doc/second-pass-reads.md`.
+  `package/linter/monochromatic-lint/doc/second-pass-reads-of-released-versions.md`.
 - Every other per-file,
    per-rule Markdown count is identical between the two linters.
 
