@@ -110,6 +110,9 @@
 //!   and the list of all of them that a control walks.
 //! - `rule_linked_worktree_messages.rs`:
 //!   the rejection texts of the linked-worktree-only policy.
+//! - `rule_linked_worktree_dirty_refusal.rs`:
+//!   the state a dirty refusal names,
+//!   and that refusal's text.
 //! - `rule_linked_worktree.rs`:
 //!   pure decision of the linked-worktree-only policy.
 //! - `rule_abort_operation.rs`:
@@ -270,6 +273,10 @@ pub mod rule_linked_worktree;
 
 /// The rejection texts of the linked-worktree-only policy.
 pub mod rule_linked_worktree_messages;
+
+/// The state a dirty refusal names,
+/// and that refusal's text.
+pub mod rule_linked_worktree_dirty_refusal;
 
 /// The notice that names where a clean's nested repository went,
 /// and the rejection when it could not be moved there.
