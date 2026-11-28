@@ -13,6 +13,11 @@
 //!  and for a commit whose selection is read-only.
 //!  A manual push's finding told the person to stage the file again
 //!  although the bytes were already in the pushed commit.
+//!  The direct check gave the `add`'s reason for staging,
+//!  that an index already holds the bytes,
+//!  and a check stages nothing
+//!  (the alpha.53 behaviour read's L5),
+//!  so its words are its own and this file reads them here.
 //!  Each control runs the policy stage for one lifecycle and reads the `hint` field of the
 //!  finding line that stage rendered,
 //!  so every word asserted here is the program's own,
@@ -34,7 +39,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(hintOf(theStageFor('add'))).toBe(THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK);
+//! // expect(hintOf(theStageFor('add'))).toBe(THE_HINT_OF_AN_ADD); expect(hintOf(theStageFor('direct'))).toBe(THE_HINT_OF_A_DIRECT_CHECK);
 //! ```
 #![cfg(unix)]
 
@@ -101,16 +106,29 @@ const THE_FILE: &str = "notes.txt";
 /// The bytes of `THE_FILE` when it ends with no line feed at all.
 const WITHOUT_A_LINE_FEED: &[u8] = b"one\ntwo";
 
-/// The hint of an `add` and of a direct check:
+/// The hint of an `add`:
 ///  the correction now and the staging that follows it lead,
+///  with the index that holds the reported bytes as the reason staging follows,
 ///  then the commit that names the file corrects the ending,
 ///  unless its selection is read-only.
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
-const THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK: &str = "Hint: to correct the ending now, run `git \
+const THE_HINT_OF_AN_ADD: &str = "Hint: to correct the ending now, run `git \
      monochromatic-git-policy-cli fix -- <path>` and then stage the file with `git add -- <path>`, because an index \
      that already holds these bytes keeps them until the file is staged once more; a commit that names the file, as in \
      `git commit -- <path>`, also corrects the ending while this repository's settings keep `final-newline` on, but a \
      commit whose selection is read-only (`-p`, `-i` or `--include`) records the bytes it takes exactly as they are.";
+
+/// The hint of a direct check:
+///  the correction now, and then either way to record it,
+///  because a check read the worktree and staged nothing,
+///  and the commit that names the file corrects the ending
+///  unless its selection is read-only.
+///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
+const THE_HINT_OF_A_DIRECT_CHECK: &str = "Hint: this check staged nothing, so to correct the ending now, run `git \
+     monochromatic-git-policy-cli fix -- <path>`, and then either stage the file with `git add -- <path>` or commit \
+     it, as in `git commit -- <path>`; a commit that names the file corrects the ending while this repository's \
+     settings keep `final-newline` on, but a commit whose selection is read-only (`-p`, `-i` or `--include`) records \
+     the bytes it takes exactly as they are.";
 
 /// The hint of a lifecycle whose bytes nothing corrects and which the index still holds.
 ///  `src/native/policy/event_hints.rs`'s `finding_hint` holds this text.
@@ -396,7 +414,7 @@ fn an_add_says_the_fix_then_staging_and_what_a_plain_commit_takes() {
         );
         assert_eq!(
             the_hint_in(rendered.as_str()),
-            THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK,
+            THE_HINT_OF_AN_ADD,
             "{severity:?}: {rendered}"
         );
         assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
@@ -408,11 +426,13 @@ fn an_add_says_the_fix_then_staging_and_what_a_plain_commit_takes() {
     remove(scene.root.as_path());
 }
 
-/// A direct check reads the worktree bytes a commit would take,
-///  so its hint is the one an `add` gives:
-///  the correction now and the staging after it,
-///  then the commit that names the file,
-///  unless its selection is read-only.
+/// A direct check reads the worktree bytes a commit would take and stages nothing,
+///  so its hint gives the correction now and then either way to record it,
+///  and never the `add`'s reason that an index already holds the bytes,
+///  which is false where a check prints it.
+///  The whole sentence is asserted,
+///  so a step added or a reason left behind fails here
+///  (the alpha.53 behaviour read's L5).
 #[test]
 fn a_direct_check_says_what_corrects_the_bytes_it_read() {
     let scene: Scene = a_scene("final-newline-hint-check");
@@ -425,8 +445,12 @@ fn a_direct_check_says_what_corrects_the_bytes_it_read() {
     );
     assert_eq!(
         the_hint_in(rendered.as_str()),
-        THE_HINT_OF_AN_ADD_AND_A_DIRECT_CHECK,
+        THE_HINT_OF_A_DIRECT_CHECK,
         "{rendered}"
+    );
+    assert!(
+        !the_hint_in(rendered.as_str()).contains("because an index that already holds these bytes"),
+        "a check stages nothing, so the index is no reason here: {rendered}"
     );
     assert_the_finding_keeps_its_fields(rendered.as_str(), "none");
     assert!(

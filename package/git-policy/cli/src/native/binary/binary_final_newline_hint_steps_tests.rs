@@ -59,7 +59,8 @@ const WITHOUT_A_LINE_FEED: &[u8] = b"a-edited";
 const WITH_ONE_LINE_FEED: &[u8] = b"a-edited\n";
 
 /// The words of the hint an `add` and a direct check print,
-///  which name the two steps that correct the file now and the commit that names it.
+///  which name the two steps that correct the file now and the commit that names it,
+///  in each lifecycle's own sentence.
 const THE_CORRECTION_NOW: &str = "git monochromatic-git-policy-cli fix -- <path>";
 /// The staging the `add` and the direct check name after the fix.
 const THE_STAGING_AFTER_IT: &str = "git add -- <path>";
@@ -207,9 +208,11 @@ fn the_add_hint_s_two_steps_leave_one_line_feed_in_the_worktree_and_the_index() 
     remove_settled(&fixture);
 }
 
-/// A direct check reads the same worktree bytes an `add` stages,
-///  so it gives the same hint,
-///  and the commit it names lands bytes ending with one line feed.
+/// A direct check reads the worktree bytes and stages nothing,
+///  so its hint gives the correction now and then either way to record it,
+///  never the `add`'s reason that an index already holds them,
+///  and the commit it names lands bytes ending with one line feed
+///  (the alpha.53 behaviour read's L5).
 #[test]
 fn a_direct_check_gives_the_hint_whose_commit_corrects_the_bytes_it_read() {
     let fixture: Fixture = fixture("final-newline-hint-steps-check");

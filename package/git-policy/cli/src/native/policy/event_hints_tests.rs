@@ -66,11 +66,12 @@ fn every_finding_code_has_a_hint_or_its_own() {
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // for (const correction of [undefined, 'corrects-unless-the-selection-is-read-only', 'nothing-corrects-what-the-index-holds', 'nothing-corrects-what-a-commit-holds']) { /* ... */ }
+        // for (const correction of [undefined, 'corrects-what-the-index-holds-unless-the-selection-is-read-only', 'corrects-what-nothing-has-staged-unless-the-selection-is-read-only', 'nothing-corrects-what-the-index-holds', 'nothing-corrects-what-a-commit-holds']) { /* ... */ }
         // ```
         for commit_correction in [
             None,
-            Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
+            Some(CommitCorrection::CorrectsWhatTheIndexHoldsUnlessTheSelectionIsReadOnly),
+            Some(CommitCorrection::CorrectsWhatNothingHasStagedUnlessTheSelectionIsReadOnly),
             Some(CommitCorrection::NothingCorrectsWhatTheIndexHolds),
             Some(CommitCorrection::NothingCorrectsWhatACommitHolds),
         ] {
@@ -97,7 +98,13 @@ fn the_final_newline_hint_says_what_corrects_the_file() {
     let unless_the_selection_is_read_only: &str = finding_hint(
         "final-newline",
         FINAL_NEWLINE_CODE,
-        Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
+        Some(CommitCorrection::CorrectsWhatTheIndexHoldsUnlessTheSelectionIsReadOnly),
+    )
+    .expect("hint");
+    let what_a_check_read: &str = finding_hint(
+        "final-newline",
+        FINAL_NEWLINE_CODE,
+        Some(CommitCorrection::CorrectsWhatNothingHasStagedUnlessTheSelectionIsReadOnly),
     )
     .expect("hint");
     let when_the_index_holds_them: &str = finding_hint(
@@ -182,15 +189,33 @@ fn the_final_newline_hint_says_what_corrects_the_file() {
         !when_a_commit_holds_them.contains("stage it again"),
         "{when_a_commit_holds_them}"
     );
-    // What: the three answers are three different sentences, so nothing printed reads as another place's promise.
-    // Why:  one text reused would tell a person the wrong thing at one of the lifecycles.
+    // What: the three answers that tell the person a step are different sentences, so nothing printed reads as
+    //       another place's promise.
+    // Why:  one text reused would tell a person the wrong thing at one of the lifecycles, and the direct check's
+    //       text said an index already held bytes it had staged nowhere (the alpha.53 behaviour read's L5).
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // expect(new Set([unlessReadOnly, index, commit])).toHaveLength(3);
+    // expect(new Set([unlessReadOnly, whatACheckRead, index, commit])).toHaveLength(4);
     // ```
-    let distinct: [&str; 3] = [
+    // What: the direct check's steps are the same two and its reason is not the index's.
+    // Why:  a check stages nothing, so an index that holds the bytes is no reason to say there.
+    assert!(
+        what_a_check_read.contains("this check staged nothing"),
+        "{what_a_check_read}"
+    );
+    assert!(
+        what_a_check_read.contains("`git add -- <path>`")
+            && what_a_check_read.contains("`git commit -- <path>`"),
+        "{what_a_check_read}"
+    );
+    assert!(
+        !what_a_check_read.contains("an index that already holds these bytes"),
+        "{what_a_check_read}"
+    );
+    let distinct: [&str; 4] = [
         unless_the_selection_is_read_only,
+        what_a_check_read,
         when_the_index_holds_them,
         when_a_commit_holds_them,
     ];

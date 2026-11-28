@@ -864,7 +864,9 @@ fn add_findings_come_from_what_the_add_would_stage() {
         fix_available: false,
         // What: an `add` puts bytes in the index that a plain commit corrects and a read-only selection records.
         // Why:  the hint of this finding says both, so the event carries that answer.
-        commit_correction: Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
+        commit_correction: Some(
+            CommitCorrection::CorrectsWhatTheIndexHoldsUnlessTheSelectionIsReadOnly,
+        ),
     });
     assert_eq!(
         run(&["add", "a.txt"], facts.clone(), &[]),

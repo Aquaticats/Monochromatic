@@ -51,7 +51,8 @@ pub const SELF_HINTED: &[(&str, &str)] = &[
 ///   The hint of `final-newline` is printed by lifecycles that correct nothing,
 ///  and what the next commit does with those bytes decides what the person is told.
 ///  That answer is not one fact:
-///  bytes an `add` staged and bytes a direct check read are both corrected by a commit that takes them,
+///  bytes an `add` staged are corrected by a commit that takes them,
+///  as are bytes a direct check read and staged nowhere,
 ///  unless that commit's selection is read-only (`-p`,
 ///  `-i` or `--include`),
 ///  which records the bytes it takes as they are;
@@ -59,13 +60,18 @@ pub const SELF_HINTED: &[(&str, &str)] = &[
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CommitCorrection = 'corrects-unless-the-selection-is-read-only' | 'nothing-corrects-what-the-index-holds' | 'nothing-corrects-what-a-commit-holds';
+/// type CommitCorrection = 'corrects-what-the-index-holds-unless-the-selection-is-read-only' | 'corrects-what-nothing-has-staged-unless-the-selection-is-read-only' | 'nothing-corrects-what-the-index-holds' | 'nothing-corrects-what-a-commit-holds';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CommitCorrection {
     /// A commit that takes these bytes corrects them before it records them,
-    ///  unless its selection is read-only and records them as they are.
-    CorrectsUnlessTheSelectionIsReadOnly,
+    ///  unless its selection is read-only and records them as they are,
+    ///  and the index already holds them,
+    ///  so they stay as they are until the file is staged once more.
+    CorrectsWhatTheIndexHoldsUnlessTheSelectionIsReadOnly,
+    /// The same correction for bytes no staging put in the index:
+    ///  a direct check reads the worktree and stages nothing.
+    CorrectsWhatNothingHasStagedUnlessTheSelectionIsReadOnly,
     /// No commit corrects these bytes,
     ///  and the index holds them as they are.
     NothingCorrectsWhatTheIndexHolds,
@@ -107,14 +113,14 @@ pub fn finding_hint(
                  paths the same way.",
             );
         }
-        // What: Bytes a commit that takes them corrects, whether an `add` staged them or a check read them.
+        // What: Bytes a commit that takes them corrects, which an `add` has just staged.
         // Why:  An `add` may be refused at `error` severity and stage nothing, so the fix and the staging after it
         //       lead; a commit corrects the ending only when its own selection takes the bytes rather than
         //       recording them as they are.
         (
             "final-newline",
             "noncanonical-final-newline",
-            Some(CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly),
+            Some(CommitCorrection::CorrectsWhatTheIndexHoldsUnlessTheSelectionIsReadOnly),
         ) => {
             return Some(
                 "Hint: to correct the ending now, run `git monochromatic-git-policy-cli fix -- <path>` and then stage \
@@ -122,6 +128,23 @@ pub fn finding_hint(
                  the file is staged once more; a commit that names the file, as in `git commit -- <path>`, also \
                  corrects the ending while this repository's settings keep `final-newline` on, but a commit whose \
                  selection is read-only (`-p`, `-i` or `--include`) records the bytes it takes exactly as they are.",
+            );
+        }
+        // What: The same correction for bytes a direct check read, which staged nothing.
+        // Why:  The hint of an `add` says an index already holds these bytes, and a check puts nothing there,
+        //       so that reason is false where a check prints it; the two steps that record the correction are
+        //       the true ones (the alpha.53 behaviour read's L5).
+        (
+            "final-newline",
+            "noncanonical-final-newline",
+            Some(CommitCorrection::CorrectsWhatNothingHasStagedUnlessTheSelectionIsReadOnly),
+        ) => {
+            return Some(
+                "Hint: this check staged nothing, so to correct the ending now, run `git \
+                 monochromatic-git-policy-cli fix -- <path>`, and then either stage the file with `git add -- \
+                 <path>` or commit it, as in `git commit -- <path>`; a commit that names the file corrects the \
+                 ending while this repository's settings keep `final-newline` on, but a commit whose selection is \
+                 read-only (`-p`, `-i` or `--include`) records the bytes it takes exactly as they are.",
             );
         }
         // What: Bytes the index holds as they are, and which nothing corrects.

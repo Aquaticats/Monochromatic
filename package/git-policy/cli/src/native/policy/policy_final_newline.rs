@@ -208,7 +208,10 @@ fn is_checked(candidate: &Candidate) -> bool {
 ///       lifecycle proposed the correction,
 ///  and says what a commit that takes the file does,
 ///  which is what the
-///       hint at an `add` and at a direct check tells the person.
+///       hint at an `add` and at a direct check tells the person,
+///  each in its own words:
+///  an `add` staged the bytes,
+///  and a check staged nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -232,19 +235,21 @@ fn finding(
 /// What:
 ///  What a commit does with the bytes `lifecycle` offered.
 /// Why:
-///   An `add` stages worktree bytes and a direct check reads them,
-///  and a commit that takes those bytes corrects them while a commit whose selection is
+///   An `add` stages worktree bytes in the index and a direct check reads them and stages nothing,
+///  so a commit that takes them corrects them in either place while a commit whose selection is
 ///  read-only (`-p`,
 ///  `-i`,
 ///  `--include`) records them as they are;
-///  a commit's own index is bytes nothing corrects yet;
+///  the two differ in what the hint says the index holds,
+///  which is why they are two answers and not one.
+///  A commit's own index is bytes nothing corrects yet;
 ///  and a landed commit and a pushed tree hold bytes a commit already recorded.
 ///  A lifecycle that offers no candidates makes no finding,
 ///  so its answer is never printed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const commitCorrection = lifecycle.kind === 'add' || lifecycle.kind === 'direct' ? 'corrects-unless-the-selection-is-read-only' : lifecycle.kind === 'pushed' || lifecycle.kind === 'landed' ? 'nothing-corrects-what-a-commit-holds' : 'nothing-corrects-what-the-index-holds';
+/// const commitCorrection = lifecycle.kind === 'add' ? 'corrects-what-the-index-holds-unless-the-selection-is-read-only' : lifecycle.kind === 'direct' ? 'corrects-what-nothing-has-staged-unless-the-selection-is-read-only' : lifecycle.kind === 'pushed' || lifecycle.kind === 'landed' ? 'nothing-corrects-what-a-commit-holds' : 'nothing-corrects-what-the-index-holds';
 /// ```
 fn commit_correction(lifecycle: &LifecycleContent) -> CommitCorrection {
     // `let ... else` runs the fallback for a lifecycle that offers no candidates.
@@ -252,11 +257,16 @@ fn commit_correction(lifecycle: &LifecycleContent) -> CommitCorrection {
         return CommitCorrection::NothingCorrectsWhatTheIndexHolds;
     };
     return match request {
-        // What: an `add` and a direct check both report bytes a commit corrects only by taking them.
-        // Why:  neither lifecycle records them itself, and a commit whose selection is read-only
-        //       records what it takes as it is.
-        CandidateRequest::Add(_) | CandidateRequest::Direct(_) => {
-            CommitCorrection::CorrectsUnlessTheSelectionIsReadOnly
+        // What: an `add` stages the bytes it reports, and a commit corrects them only by taking them.
+        // Why:  an index that holds the reported bytes keeps them until the file is staged once more.
+        CandidateRequest::Add(_) => {
+            CommitCorrection::CorrectsWhatTheIndexHoldsUnlessTheSelectionIsReadOnly
+        }
+        // What: a direct check reads the worktree bytes and stages nothing.
+        // Why:  the same correction, without an index holding anything: the hint names both steps that record
+        //       it and never the reason that is false for a check (the alpha.53 behaviour read's L5).
+        CandidateRequest::Direct(_) => {
+            CommitCorrection::CorrectsWhatNothingHasStagedUnlessTheSelectionIsReadOnly
         }
         CandidateRequest::Staged(_)
         | CandidateRequest::StagedAtBase {
