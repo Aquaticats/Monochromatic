@@ -325,9 +325,56 @@ fn a_fragment_ending_inside_closing_emphasis_stays_and_the_fix_settles() {
             "One two, *a b,*\nfour five.\n",
             "One two,\n*a b,*\nfour five.\n",
         ),
+        (
+            "One two, ***held,***\nfour five.\n",
+            "One two,\n***held,***\nfour five.\n",
+        ),
+        (
+            "One two, **_held,_**\nfour five.\n",
+            "One two,\n**_held,_**\nfour five.\n",
+        ),
+        (
+            "One two, *held;*\nfour five.\n",
+            "One two,\n*held;*\nfour five.\n",
+        ),
+        (
+            "One two, *held.*\nfour five.\n",
+            "One two,\n*held.*\nfour five.\n",
+        ),
+        (
+            "One two, ~held,~\nfour five.\n",
+            "One two,\n~held,~\nfour five.\n",
+        ),
     ] {
         // `fixed` applies exactly one pass and then requires no finding to be left.
         assert_eq!(fixed(source), expected, "{source:?}");
+    }
+}
+
+/// A star, an underscore or a bracket that closes nothing is not a delimiter the rule breaks past,
+///  so the fragment joins the line that continues its clause and the run settles in one pass;
+///  only the parsed tree tells that star from one that closes an emphasis.
+#[test]
+fn a_delimiter_that_closes_nothing_joins_in_one_pass() {
+    for written in [
+        "(*held,*)",
+        "\"*held,*\"",
+        "held,*",
+        "held,__",
+        "snake_case,_",
+        "x*,*",
+        "**held**,**",
+    ] {
+        let source: String = format!("One two, {written}\nfour five.\n");
+        assert_eq!(
+            fixed(source.as_str()),
+            format!("One two,\n{written} four five.\n"),
+            "{written}"
+        );
+        let result: FixedSource = fix_loop(source.as_str());
+        assert_eq!(result.changed_passes, 1, "{written}");
+        assert_eq!(result.stop, FixStop::Unchanged, "{written}");
+        assert!(result.diagnostics.is_empty(), "{written}");
     }
 }
 

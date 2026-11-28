@@ -5146,3 +5146,48 @@ Merge `ce0d52a686` built the step ahead of its wiring:
   and a burst of eight held to three starts.
   On that reading the provisional systemd trigger stays;
   the decision is the owner's.
+
+## Veto open: what the linter's three rounds of 2026-11-28 were told to build (recorded 2026-11-28T08:38:31-05:00)
+
+Unapproved and non-final.
+The read of `monochromatic-lint` `0.5.2-alpha.25` found eight Low points and named the owner as the one to settle two of them.
+The coordinating session picked for each,
+so that the rounds could start,
+and each pick stands until the owner says otherwise.
+
+- The count in a file-name sentence (the read's Low 6):
+  the count and the edit cover the characters the advice changes and no others,
+  so a real module's own name is left out as a folder's is.
+  The other reading counts every unseen character of the line.
+- Dead key lines whose edits give one line (Low 8):
+  no such line is told it reads,
+  as the package's record decided,
+  and each one's sentence now says which other lines share its edit
+  and that one of them may be kept by making the edit there and deleting the rest.
+- A break the fix writes inside a deep quote or list (Low 4):
+  the README says the line limit bounds joins and what a break may write.
+  The round reports whether writing such a tail as a lazy line would keep the rendered text the same.
+- Issue 6667,
+  a run that checked nothing and exits `0`:
+  a package the rule could not check,
+  for a reason that is not a missing prerequisite,
+  is a `core/processing-failure` at the package's `Cargo.toml` with status `2`.
+  The Dylint proposal's fifth question offers the same shape as its recommendation;
+  the round first finds why the run ended clean,
+  and says so if the cause asks for another shape.
+
+## Veto open: two proposals read narrowly before their questions (recorded 2026-11-28T08:38:31-05:00)
+
+Unapproved and non-final.
+Every gate read of the morning of 2026-11-28 came back "not ready",
+the line-break proposal's fourth and the Dylint proposal's third among them.
+For those two the coordinating session started a read narrowed to the High findings of the read before,
+the first screen,
+and which questions must be answered before any work can start,
+instead of another whole read.
+What it gives up:
+a narrow read does not look for new Medium and Low findings in the rest of the file.
+The other four proposals (the development profile,
+the hosted runners,
+the sizes,
+the crate split) each have a whole read running.

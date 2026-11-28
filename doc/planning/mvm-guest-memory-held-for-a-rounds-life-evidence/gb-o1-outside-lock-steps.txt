@@ -1,0 +1,21 @@
+# The guest gb-o1's steps, on the ovh backend, one run
+#
+# `milliseconds` is this host's clock around each step, as the round recorded it before and after the step.
+# `prepare` builds OpenZFS 2.4.4 and installs the Rust toolchain inside the machine; the push and the arm follow.
+#
+# step                       start                        end                          milliseconds  note
+slot                       2026-11-28T13:02:12.672Z     2026-11-28T13:02:18.785Z             6113  
+create                     2026-11-28T13:02:18.785Z     2026-11-28T13:03:41.813Z            83028  
+count-after-create         2026-11-28T13:03:41.813Z     2026-11-28T13:03:46.127Z             4314  
+the-release-it-booted      2026-11-28T13:03:46.127Z     2026-11-28T13:03:52.896Z             6769  
+sampler-start              2026-11-28T13:03:52.896Z     2026-11-28T13:04:01.214Z             8318  
+prepare                    2026-11-28T13:04:01.214Z     2026-11-28T13:25:45.996Z          1304782  
+push                       2026-11-28T13:25:45.996Z     2026-11-28T13:25:59.182Z            13186  
+place                      2026-11-28T13:25:59.182Z     2026-11-28T13:26:05.834Z             6652  
+pool                       2026-11-28T13:26:05.834Z     2026-11-28T13:26:12.170Z             6336  
+arm-direct                 2026-11-28T13:26:12.170Z     2026-11-28T13:26:18.737Z             6567  
+pull-arm                   2026-11-28T13:26:18.737Z     2026-11-28T13:26:23.256Z             4519  
+pull-sampler               2026-11-28T13:26:23.256Z     2026-11-28T13:26:31.797Z             8541  
+destroy                    2026-11-28T13:26:31.797Z     2026-11-28T13:27:36.636Z            64839  
+
+# the round's own failure line: none
