@@ -50,8 +50,12 @@ four vCPUs,
 8 GiB of memory and a six-gibibyte swap file,
 with the pool `zfsstep22` on the same two-gibibyte file.
 The guest `zfs-r14-pinned-output-and-512-clones` was destroyed through `mvm` when the work ended.
-Its arm's own line reads `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1369 filtered out; finished in
-603.42s`.
+The round's arm ran twice on 2026-11-28.
+The first run took 462.69 seconds and the driver refused its pulled log on a marker list this round then mended,
+so its figures are quoted for the sweep's slope and beside the second run's pinned case.
+The second run took 603.42 seconds and the driver's own markers accept its log,
+so its figures are quoted everywhere else.
+The two logs were pulled at 2026-11-28T01:03-05:00 and 2026-11-28T06:16-05:00.
 
 The pool is `zfsstep22` on a two-gibibyte file.
 Every number here is the guest's semantics on a file-backed pool,
@@ -285,7 +289,7 @@ The run-to-run spread on unchanged input came first (rule `QNB`):
 the same 64 clones,
 unmounted again before each sweep,
 five times.
-On 2026-11-27,
+The first run's spread,
 in milliseconds:
 1,979,
 1,128,
@@ -294,9 +298,8 @@ in milliseconds:
 The first is the cold one,
 and the four after it span 922 to 1,128,
 a spread of 1.22 times.
-The same probe on 2026-11-28,
-while this host ran at a load average above 80 with MemAvailable at 0 kB for part of the
-night,
+The second run's spread,
+while this host ran at a load average above 80 with MemAvailable at 0 kB for part of the night,
 answered 5,260,
 8,263,
 4,837,
@@ -304,7 +307,7 @@ answered 5,260,
 a spread of 3.42 times,
 which is what that run's own noise was.
 
-The rounds of 2026-11-27,
+The first run's rounds,
 in milliseconds:
 
 - round 0,
@@ -348,13 +351,13 @@ which is 16.8,
 15.8,
 19.1 and 19.5 milliseconds per clone from 64 up.
 The first 512-clone sweep of a run is the exception in both runs:
-31,627 milliseconds on 2026-11-27 and 43,492 on 2026-11-28,
+31,627 milliseconds in the first run and 43,492 in the second,
 against 8,167 and 9,967 in the next round of the first run and 8,608 and 12,374 in the second.
 That is the arm's first pass over 512 clones it has just made,
 and no other round repeats it,
 so the warm rounds are what the curve is read from.
 
-The rounds of 2026-11-28,
+The second run's rounds,
 in milliseconds:
 
 - round 0,
@@ -385,7 +388,7 @@ and they are quoted as the repeat and not as the curve.
 What both runs agree on is the shape:
 a warm 512-clone sweep costs 8.2 to 12.4 seconds,
 a warm 256-clone sweep 3.8 to 5.9 seconds in the quiet run,
-and the first 512-clone sweep of a run costs about four times a warm one.
+and the first 512-clone sweep of a run costs three to five times a warm one.
 
 ## What expiration, removal and the guard free
 
@@ -428,7 +431,7 @@ after `zpool sync` closed a transaction group and two readings taken after their
 Every stage settled within one transaction group but one,
 the control's removal,
 which took two.
-On 2026-11-28,
+In the second run's figures,
 in bytes:
 
 - before the write,
@@ -487,9 +490,7 @@ The probe therefore reports 67,185,664 bytes pinned where the bytes do not compr
 a difference of about 120 times,
 so a reading of zero from this probe would be a reading about the bytes and not about the probe.
 
-The first run of the same case,
-on 2026-11-27,
-agrees with the second at every stage within 30 kilobytes:
+The first run of the same case agrees with the second at every stage within 30 kilobytes:
 67,184,640 pinned against 67,185,664,
 67,219,456 of clone against 67,219,456,
 67,228,672 freed by the expiry against 67,229,696,
