@@ -2832,10 +2832,6 @@ Before a release note is written,
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
-- The retire's gate reads a missing scope directory as empty without the proof the stop itself requires,
-  so it could stop a unit the same run refused as possibly still writing.
-  Read from the source,
-  not reproduced.
 - No control reaches the decision for two of the leftovers a stop can report,
   so an edit that accepted such a run would stay green;
   the listing's bound is looked at only between reads and has no control.
