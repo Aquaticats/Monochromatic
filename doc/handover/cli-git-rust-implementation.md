@@ -2828,20 +2828,7 @@ After every `mise run toolchain:install` in the main checkout the session's `git
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
 
-- The linter,
-  `0.5.2-alpha.19`:
-  release commit `88a63ef565`,
-  locked (`f8f678c26d`) and installed.
-  It holds the two fix rounds for the alpha.18 release pass,
-  whose seven points they took:
-  refusals,
-  the `..` alias and messages (`c68716cb33`),
-  and costs (`cf92cc3473`).
-  The package's README says how a list written before alpha.19 maps,
-  since four exit statuses change against alpha.18.
-  The cost round did not measure the walk's peak memory,
-  nor the file-rule list with tens of thousands of keys after its key index.
-  The crate has no file over the line budget (`bec5214c7d`).
+
 - `mpm-shadow`,
   `0.2.7-alpha.12` (`fea1c1768d`),
   which intended no change of behaviour over alpha.11,
