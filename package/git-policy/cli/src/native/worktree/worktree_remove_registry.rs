@@ -358,7 +358,8 @@ pub(crate) fn the_worktree_path_git_would_remove(
 
 /// What:
 ///  The worktree path Git picks for `operand` by the last components of the registered paths,
-///  or nothing when it picks none or more than one, or when no folder stands there.
+///  or nothing when it picks none or more than one,
+///  or when no folder stands there.
 /// Why:
 ///   Git matches the typed name against the end of every registered worktree path at a directory boundary before it
 ///  resolves a real path (`find_worktree_by_suffix` in `worktree.c`),

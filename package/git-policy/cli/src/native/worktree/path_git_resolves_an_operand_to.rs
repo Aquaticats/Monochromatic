@@ -41,7 +41,8 @@ use std::path::{
 
 /// How many symbolic links Git follows before it refuses a path.
 /// Why:
-///  Git's own reader counts the link that overflows against `MAXSYMLINKS`, which is 32 in its `abspath.c`,
+///  Git's own reader counts the link that overflows against `MAXSYMLINKS`,
+///  which is 32 in its `abspath.c`,
 ///  so it follows 33 links and refuses the 34th;
 ///  the same count here refuses the same path Git refuses,
 ///  and no chain shorter than that is answered differently.
