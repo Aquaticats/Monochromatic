@@ -549,10 +549,8 @@ fn the_settling_word_settles_a_slot_whose_clone_is_gone() {
         required(SBIN_VARIABLE),
     );
     let guid: DatasetGuid = fixture.guid();
-    let digits: String = {
-        let whole: String = guid.file_name();
-        String::from(&whole[whole.len() - 4..])
-    };
+    let digits: String =
+        git_policy_cli::worktree_clone_record_settling::settling_words::the_last_four_digits(guid);
     let the_words: [&str; 6] = [
         "monochromatic-git-policy-cli",
         "settle-worktree-clone-record",
