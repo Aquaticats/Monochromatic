@@ -123,6 +123,7 @@ pub(crate) mod counted_work {
 ///   entries: AllowEntry[];
 ///   uses: Set<[Path, Path]>;
 ///   keys: Map<string, number>;
+///   identities: Map<string, number>;
 /// };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -136,6 +137,10 @@ pub struct AllowList {
     /// Each key the entries record and the line that holds it,
     ///  so one lookup is not a pass over every entry.
     keys: BTreeMap<String, usize>,
+    /// What each line holds, in the one spelling `AllowEntry::identity` writes,
+    ///  and the line that holds it,
+    ///  so a question about the text an edit would leave is not a pass over every entry.
+    identities: BTreeMap<String, usize>,
 }
 
 /// What:
@@ -145,11 +150,13 @@ pub struct AllowList {
 ///  and the list they make is the one a rule asks about.
 ///  The package folder is passed with the text,
 ///  because one listed path has two spellings and the keys write only one of them.
-///  The uses, the keys and the line each key sits on are also collected once here,
-///  because a rule asks about one use or one key per finding it makes,
+///  The uses, the keys, the line each key sits on and what each line holds are also collected once here,
+///  because a rule asks about one use, one key or one edited line per finding it makes,
 ///  and a list of a dense loop holds a line for every use inside that loop:
 ///  a pass over every entry per question cost minutes on a list of 60,300 lines
-///  (measured 2026-11-26 on the alpha.15 release pass's densest loop).
+///  (measured 2026-11-26 on the alpha.15 release pass's densest loop),
+///  and a scan of every line for each dead key line's edit cost the square of the list's length
+///  (measured on 2026-11-27: 3,500 such lines took 41 times the previous release's time).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -163,6 +170,7 @@ pub fn parse_allow_list(
     let entries: Vec<AllowEntry> = parse_entries(text, base)?;
     let mut uses: BTreeSet<(PathBuf, PathBuf)> = BTreeSet::<(PathBuf, PathBuf)>::new();
     let mut keys: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
+    let mut identities: BTreeMap<String, usize> = BTreeMap::<String, usize>::new();
     for (index, entry) in entries.iter().enumerate() {
         match &entry.kind {
             AllowKind::FolderUse {
@@ -184,11 +192,19 @@ pub fn parse_allow_list(
             } => {}
         }
     }
+    // What: what each line holds, in the one spelling two lines of a list are compared in.
+    // Why: a question about the text one dead line's edit would leave is asked of the list,
+    // and a scan of the entries for it cost the square of the number of such lines.
+    // What: a repeated identity cannot collide, because the reader refuses two lines that hold one thing.
+    for (index, entry) in entries.iter().enumerate() {
+        identities.insert(entry.identity(), index);
+    }
     return Ok(AllowList {
         source: source.to_path_buf(),
         entries,
         uses,
         keys,
+        identities,
     });
 }
 
@@ -284,6 +300,30 @@ impl AllowList {
         key: &str,
     ) -> bool {
         return self.keys.contains_key(key);
+    }
+
+    /// Whether one line other than the one at a position holds what an edited line would hold.
+    /// Why:
+    ///  A dead line's sentence says what the line would read as only while the list would read it,
+    ///  and a text the list already holds is refused as a repeat the moment it is written.
+    ///  The index answers with one question where a scan of the entries answered with one per entry,
+    ///  which cost the square of the number of dead lines that carry such an edit.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// identityIsHeldByAnother(identity: string, entryAt: number): boolean
+    /// ```
+    pub fn identity_is_held_by_another(
+        &self,
+        identity: &str,
+        entry_at: usize,
+    ) -> bool {
+        // What: the one line that holds this text, or nothing when no line does.
+        // Why: the reader refuses a list that holds one line twice, so no index of it holds two.
+        return match self.identities.get(identity) {
+            Some(index) => *index != entry_at,
+            None => false,
+        };
     }
 
     /// The line of the entry that holds one finding's key,

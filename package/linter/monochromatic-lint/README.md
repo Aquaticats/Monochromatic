@@ -2271,6 +2271,65 @@ the test suite as run,
 Windows and macOS,
 or how `package/git-policy/cli` uses this library.
 
+#### How a list written before 0.5.2-alpha.24 maps
+
+No key any rule prints changes shape,
+and no line a run printed reads back differently,
+so a list written for `0.5.2-alpha.24` needs no new line from this release.
+What changes is what the sentences say,
+and what one list of dead lines costs.
+
+- Every sentence that names a character a reader cannot see says how many the line holds:
+  the take-out sentence,
+  which said it already,
+  the note that tells its reader to delete the line,
+  the help of a line whose folder the package does not hold,
+  and the note a refusal adds.
+  A person told of one character no longer learns of the second from the next run.
+- The count a file name's edit speaks of is the file names':
+  a character of the folder's own name belongs to a folder the package holds,
+  and taking it out would name a folder that is not there.
+  A line whose two file names hold one character each says so,
+  and speaks of the file names the rule prints.
+- A character this crate has no plain name for is called `a character` and its code point,
+  where the phrase said `a character a reader cannot see` and the sentence then said
+  `where a reader cannot see it` in the same sentence.
+- A sentence about what an edited line reads as is set off from the one before it,
+  where the two ran together as `any more.With`.
+- Two dead key lines whose own edits give one line are each told to delete the line,
+  because the list refuses the second of the two edits as a repeat.
+  A line whose edit gives a text the list already holds is told the same,
+  as it was.
+- The note that leaves taking a character out of the line out of its advice,
+  because that character stands in the folder's own name,
+  asks where the words that name the folder stand in the line:
+  it answers a gap spelled with a tab,
+  a no-break space or a doubled space as it answered one spelled with a space.
+- A dead key line's edited text is read once,
+  and the list answers whether that text is one it already holds from an index of what it holds,
+  where a scan of every entry for each such line cost the square of the list's length.
+  Over three interleaved rounds on 2026-11-28,
+  on the run's own CPU time and each figure a ratio to `0.5.2-alpha.22`'s in the same round,
+  a list of 1,000 such lines cost `0.5.2-alpha.24` 7.8 times that release's time (range 3.8 to 11.0),
+  2,000 lines cost it 20.9 times (18.4 to 23.2) and 3,500 lines 44.4 times (42.8 to 45.7),
+  where this release costs 1.01 (0.49 to 1.34),
+  0.99 (0.91 to 1.16) and 1.33 (1.32 to 1.41) times it,
+  and the byte-identical copy of `0.5.2-alpha.24` that is the spread of those rounds
+  gives 8.6 (3.8 to 10.7),
+  19.2 (18.6 to 20.3) and 46.4 (46.2 to 46.9) for the same three lists.
+- The longest name the package folder holds is read once for a list,
+  and a written folder text is offered the names from the first one the folder could hold,
+  so every name the reading builds is one it asks about,
+  where a six-word edited text listed the package folder once for each of a line's two readings.
+  A list of 1,000 dead key lines whose edited text is such a line,
+  over a package folder of 5,000 entries,
+  cost `0.5.2-alpha.24` 201 times `0.5.2-alpha.22`'s CPU time (range 163 to 206),
+  where this release costs 2.95 times it (2.84 to 3.05),
+  500 such lines cost it 124 times (86 to 143) against 2.22 (1.69 to 2.55),
+  and the copy of that release gives 122 (88 to 131) and 191 (177 to 218).
+  The cost that remains is one refusal sentence per line,
+  which is linear in the list.
+
 ### Known limits
 
 - An `asm!` call written where an item may sit is a macro call,
@@ -2319,6 +2378,9 @@ or how `package/git-policy/cli` uses this library.
   A character a reader cannot see that stands in that folder's own name is named with its place,
   and the note leaves the taking out of the line out of its advice there,
   because renaming the folder is the edit that takes the character out.
+  The note asks the words the line itself holds,
+  so it answers a gap spelled with a tab,
+  a no-break space or a doubled space as it answers one spelled with a space.
   A folder name holding a tab,
   a no-break space or a doubled space is refused the same way,
   and the refusal spells that character and says what renaming must give.
@@ -2356,6 +2418,12 @@ or how `package/git-policy/cli` uses this library.
   so a gap of 64,000 whitespace characters costs one pass over the line
   and one question per name the package folder's own names allow,
   where `0.5.2-alpha.23` built one name per character of the gap and kept them all.
+  The longest name is one answer about the package folder and not a question about the line:
+  a list reads it once,
+  and a list whose lines never ask reads it not at all.
+  The reading starts at the first name that folder could hold,
+  so every name it builds is one it asks about,
+  and a dead key line whose edited text is such a line costs its own length and no more.
   Measured on 2026-11-27 over three rounds of three arms on a line of 64,033 characters,
   this release's wall time was 1.10 times `0.5.2-alpha.22`'s (range 0.73 to 1.21)
   and its peak resident memory 0.97 times that release's (range 0.95 to 1.02),
@@ -2429,8 +2497,12 @@ or how `package/git-policy/cli` uses this library.
   and no message says which column an editor shows.
   A character with no plain name is named by its code point in the same sentence,
   where the quote spells it.
-  A line holding more than one of them says how many stand beside the first,
-  and its sentence names the edit as the one that takes both or all of them out,
+  Every sentence that names such a character says how many the line holds beside the first:
+  the one that takes them out,
+  the note that tells its reader to delete the line,
+  the help of a line whose folder the package does not hold,
+  and the note a refusal adds.
+  The sentence names the edit as the one that changes each of them,
   because that is the edit the sentence describes.
   A line whose only fault is that character is told to take it out:
   a dead line the reader took for one finding's key,
@@ -2438,6 +2510,9 @@ or how `package/git-policy/cli` uses this library.
   and a dead `file-uses` line whose file name holds one that no module of its folder holds.
   A file name takes that character out and no whitespace character with it,
   and its line says the entry is live again only if the use still exists.
+  The count such a sentence speaks of is the file names':
+  a character of the folder's own name belongs to a folder the package holds,
+  and taking it out would name a folder that is not there.
   A line that spells a real module file's own name,
   and one whose character stands in the folder's name rather than a file's,
   is told to be deleted,
@@ -2448,6 +2523,7 @@ or how `package/git-policy/cli` uses this library.
   the reader that reads the list is asked about that text,
   and a text it refuses,
   or one that would repeat a line already on the list,
+  or one that would repeat what another dead line's own edit would leave,
   is answered by telling the reader to delete the line instead.
   A blank cell of the Braille block is left as written,
   because it is a character with a glyph of its own:
