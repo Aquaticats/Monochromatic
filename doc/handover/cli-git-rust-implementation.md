@@ -616,6 +616,82 @@ and no gate has read `main` since `05cf4c8820`.
   - `zfs-step-21-guest-arms-for-dependency-repair-and-watches`
   - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`
 
+#### Started and done between 05:16 and 05:52
+
+Unapproved and non-final.
+
+- The machine's memory stall after 05:20 was one unit:
+  every guest `mvm` starts runs in `mvm-libvirt-session.service`,
+  which `mvm` limited to half the machine's memory,
+  and eight guests that had touched 58.2 GiB swapped against that limit while the machine had memory free.
+  The reading is in `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`,
+  "The guests' unit at its own memory cap,
+  2026-11-28".
+  The session's bound of nine guests alive had never been set against that limit.
+- The owner answered four questions on it
+  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+  "The guests' memory"):
+  three quarters of memory for the unit with six guests alive;
+  applied to the running unit at once
+  (`MemoryMax=47364M` at 05:45:26,
+  a runtime setting that a reboot undoes);
+  the shelved guest-memory proposal's question on building the test binaries outside the guest reopened;
+  and guests on OVHcloud pursued,
+  with no memory bought.
+  Within two minutes of the change the unit's and the machine's pressure read 0.
+- A guest round creates its guest only when fewer than six are alive,
+  and waits for a slot inside one command,
+  never as an idle agent.
+  No round is given a test on the machine-wide pressure line as a gate for its builds:
+  that line read the guests' unit,
+  and a measurement round waited 1,323 s behind it.
+- Six of the eight guests had been made without free page reporting,
+  because the built `mvm` the rounds ran was older than its source
+  (issue 6655).
+- Four rounds started at 05:50:33 for those answers:
+  the unit's limit in `mvm`'s code,
+  issue 6655,
+  the measurement of test binaries built outside the guest,
+  and the revision of the `mvm` sizes proposal against its gate read
+  (not ready,
+  five High points).
+  The third billed OVHcloud run stays unapproved.
+- A whole gate has run on `main` at `d4faaf0807` since 05:39:53
+  (`gpc-gate-wrapper-next-alpha-on-d4faaf0807-20261128T053953-0500`),
+  started behind a test on `MemAvailable`;
+  the guests' unit swapped beside it until 05:45:26.
+  The wrapper's next alpha follows its verdict.
+- Merged:
+  the development-profile measurements
+  (`888d3646df`;
+  incremental compilation lowers the largest compiler's memory by a third on a rebuild and does not raise it on a first build;
+  its proposal is under a gate read),
+  and the forced arm's stop of a locked holder's own user unit
+  (`d4faaf0807`;
+  built and measured in a guest,
+  unreachable while the stop's wait has no value).
+- Second passes started for `monochromatic-lint` `0.5.2-alpha.25` and `mpm-shadow` `0.2.7-alpha.20`.
+  `toolchain:update` in a lock worktree had already put both new binaries into the shared toolchain root while rounds ran:
+  the update is the step that changes the shared binaries,
+  not `toolchain:install`.
+- Gate reads came back not ready for the Dylint proposal's revision (four High points)
+  and the line-break proposal's second revision (three High points);
+  their next revisions,
+  and those of the hosted-runners and crate split proposals,
+  are owed,
+  as is the fix round for the two Medium and six Low points of the `cargo-shadow` `0.1.5-alpha.18` read.
+- Three choices the removal's lock and plan round left are in `doc/handover/questions-for-the-owner.md`.
+- Rounds running at 05:52,
+  from the unit list:
+  - `zfs-doctor-gathers-the-machines-route-facts-from-the-live-system`
+  - `zfs-forced-arm-ends-a-holder-in-a-taskless-mount-namespace`
+  - `zfs-private-propagation-step-built-ahead-unwired`
+  - `zfs-removal-switch-runs-green-in-a-guest-and-its-controls-can-fail`
+  - `zfs-shutdown-unmount-body-built-ahead-unwired`
+  - `zfs-slot-state-guest-arm-asserts-what-the-switched-removal-does`
+  - `zfs-step-21-guest-arms-for-dependency-repair-and-watches`
+  - `zfs-step-22-guest-half-gaps-pinned-output-and-a-parent-above-64-clones`
+
 #### The line-break proposal
 
 Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00.

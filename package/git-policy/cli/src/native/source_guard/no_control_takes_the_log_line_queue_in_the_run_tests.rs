@@ -54,6 +54,22 @@ use super::process_wide_fact_readers_tests::{
 const IN_A_CHILD_OF_ITS_OWN: &str = "run_the_body_in_a_child_of_its_own(";
 
 /// What:
+///  `IN_A_CHILD_OF_ITS_OWN_WITH_AN_ENVIRONMENT` is the call that starts one control's body in a child process of the
+///  test binary with an environment the control states.
+/// Why:
+///  The environment belongs to a process as well,
+///  so a control whose body needs a variable of its own,
+///  such as the verbose switch a notice is said under,
+///  starts the same child of its own by this call and asks the queue's question there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const IN_A_CHILD_OF_ITS_OWN_WITH_AN_ENVIRONMENT = 'run_the_body_with_an_environment_of_its_own(';
+/// ```
+const IN_A_CHILD_OF_ITS_OWN_WITH_AN_ENVIRONMENT: &str =
+    "run_the_body_with_an_environment_of_its_own(";
+
+/// What:
 ///  `WHAT_A_CONTROL_MUST_DO` is the answer this ban gives a control:
 ///  the same call,
 ///  for the reason a queue of the whole process is one queue.
@@ -96,12 +112,15 @@ const THE_LOG_LINE_QUEUE: Requirement = Requirement {
             "reads whether a caller of the whole process gave up waiting for its line",
         ),
     ],
-    excused_by: &[IN_A_CHILD_OF_ITS_OWN],
+    excused_by: &[
+        IN_A_CHILD_OF_ITS_OWN,
+        IN_A_CHILD_OF_ITS_OWN_WITH_AN_ENVIRONMENT,
+    ],
     required: WHAT_A_CONTROL_MUST_DO,
     files: &[
         (
             "foundation/diagnostic_lines_off_the_calling_thread_tests.rs",
-            "seven controls ask how the one queue of the process takes, drops and waits for lines",
+            "the controls that ask how the one queue of the process takes, drops and waits for lines",
         ),
         (
             "service/service_log_lines_off_the_calling_thread_tests.rs",

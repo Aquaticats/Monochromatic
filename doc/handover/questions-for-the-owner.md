@@ -357,11 +357,21 @@ Taken on 2026-11-28 by the coordinating session's pick,
 with the owner's veto open:
 the third way,
 because it alone changes no signature and keeps the notice said when it is said today.
-A round builds it
-(`refactor/git-policy-cli-foundation-the-words-of-the-stopped-reader-move-below-the-queue-and-the-last-file-loop-closes`,
-started at 2026-11-28T03:13:06-05:00),
-and it stops and reports if the third way turns out to change a signature,
-a behaviour or the moment the notice is said.
+It is built and on `main` since 2026-11-28T05:54:10-05:00
+(merge `74f34f6af9`).
+No signature changed,
+and the notice is said from the same place,
+on the same thread,
+once:
+the queue's own wait says it through a function its policy names,
+which is how the queue's file names no diagnostic file.
+A control written before the change holds the notice's words,
+its moment and that it is said once,
+and was shown red by a plant.
+The folder's three file-loop lines left the allow list,
+and `lines_written_by_a_thread.rs` is split in three.
+A veto would be against that shape;
+ways 1 and 2 would each still need the words in a file of their own and the split.
 
 `diagnostic_lines_off_the_calling_thread.rs`,
 `diagnostic_log.rs` and `lines_written_by_a_thread.rs` use each other in a loop the allow list tolerates in three lines.
@@ -394,7 +404,6 @@ Ranking:
 3 > 1 > 2.
 3 beats 1 because it alone keeps the notice said when it is said today without changing a signature.
 1 beats 2 because a returned answer is more local than a flag another file has to take.
-`foundation/lines_written_by_a_thread.rs` (391 code lines) waits for this before its split.
 
 ### What a landing writes for a path it has not read (issue 6566)
 

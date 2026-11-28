@@ -203,6 +203,139 @@ come first.
 The session had recommended a paid provider before it had checked them,
 and withdrew that.
 
+## What force does on a ZFS removal, two refusals without it, and the foundation pick
+
+Asked through the question tool after 2026-11-28T05:59:09-05:00 and answered before 06:01:58;
+the question on force's reach was asked after that and answered before 06:05:27.
+The round that led to the questions merged as `2d5f167ae9`:
+it showed that a removal of a ZFS slot under a person's own lock destroyed three things before it met the lock,
+and made the removal read the lock before its first write.
+
+### Two forces at a person's lock
+
+Three options were offered:
+every spelling refuses (built,
+and recommended),
+a spelling of the wrapper's own,
+and two forces pass.
+The owner chose none and wrote:
+
+> --force overrides anything and delete and destroy no matter what.
+
+### How far force reaches
+
+The session then asked how far that reaches,
+saying where the code stands:
+a ZFS removal refuses `--force` in every spelling today,
+because the part that ends other processes holding a clone is built and not switched on,
+and the forced design accepted on 2026-11-23
+(`doc/decision/cli-git-zfs-forced-removal-authority-and-reach.md`)
+never ends the caller's own session or the command's ancestors and refuses under the service manager.
+Four scopes were offered,
+each containing the one before:
+a person's lock only;
+the lock and the two refusals of this section;
+also a clone the wrapper cannot prove;
+and everything with one force,
+the 2026-11-23 limits lifted.
+The owner chose none and wrote:
+
+> Two force does everything.
+> One force - you pick.
+
+What the options' texts said each part does,
+which is what "everything" was offered as:
+
+- a person's lock:
+  the wrapper deletes the person's lock file and then runs the removal;
+- a destruction plan it cannot read:
+  "it proves the clone by the record's GUID against the pool,
+  destroys the clone and its snapshots from the pool's own list,
+  deletes the unreadable plan file";
+- a clone at the staging folder:
+  "it unmounts it there,
+  then destroys";
+- a clone it cannot prove:
+  "the removal destroys the dataset the slot's record names even when the pool's answer does not match the record
+  (a GUID that differs,
+  a name that was reused)",
+  with the risk named:
+  "a dataset that is not this slot's can be destroyed,
+  and nothing can prove afterwards which it was";
+- the limits of 2026-11-23:
+  "force also ends processes of your own session and the command's own ancestors when they hold the clone,
+  and is accepted under the service manager.
+  The command can then end the shell it runs in before it has finished,
+  leaving a destruction plan for the next run."
+
+So `git worktree remove --force --force <slot>` passes every refusal the removal has.
+This amends three accepted records for two forces:
+the lock design's sentence that a removal must not release a lock it cannot attribute to this add;
+the answer of 2026-11-26 that named three refusals "and no more";
+and the forced design's set of processes a forced removal never ends.
+
+Two things the texts named and did not say how they work,
+so they are not yet decided and come back to the owner as a design:
+how a command that ends its own ancestors still finishes its removal,
+and by what act two forces get past other processes that hold the clone
+while the forced arm's waits have no measured value.
+
+### One force
+
+The owner left one force to the session.
+The session's pick,
+with the veto open:
+one `--force` goes through a destruction plan it cannot read and through a clone at the staging folder,
+where the clone is proven by the record's GUID against the pool;
+once the forced arm is switched on it ends other holders within the limits of 2026-11-23;
+and it refuses at a person's lock,
+naming two forces and `git worktree unlock <slot>` as Git itself does,
+at a clone it cannot prove,
+at a holder in the caller's own session or among the command's ancestors,
+and under the service manager.
+The reason:
+it is Git's own gradation,
+where one force passes what the command itself can answer for and two pass what another person put there,
+and it keeps the one case that can destroy somebody else's dataset behind the second force.
+
+### A destruction plan that cannot be read
+
+Without force.
+Such a slot was left to Git,
+which drops the registration and the slot folder and leaves the clone and the damaged plan.
+The owner chose "Refuse it too (Recommended)":
+
+> How:
+> the slot's state reader gains this reading among the ones that refuse a removal;
+> the refusal names the plan file and `git monochromatic-git-policy-cli settle-worktree-clone-record`.
+> Nothing is dropped until a person has settled the plan.
+> Gives up:
+> it is a fourth refusal beside the three you named,
+> so a person meets one more stop.
+
+### A clone mounted at the staging folder, with no plan
+
+Without force.
+The owner chose "Refuse,
+name the repair (Recommended)":
+
+> How:
+> the slot's state reader makes a clone mounted elsewhere a reading that refuses a removal,
+> and the refusal names `git monochromatic-git-policy-cli cancel-worktree-removal <slot>`,
+> the command the cancellation design gives for putting the mount back.
+> Gives up:
+> one more refusal outside the three you named on 2026-11-26.
+
+### The foundation folder's last file loop
+
+The session had closed it by its own pick,
+with the veto open,
+merged as `74f34f6af9`:
+the words of a diagnostic line in a file of their own below the queue,
+no signature changed.
+The owner chose "Keep it as built (Recommended)".
+The veto is closed.
+
 ## The crate split's fourth round
 
 > Oh and right the crate split.

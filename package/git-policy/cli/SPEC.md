@@ -17637,7 +17637,8 @@ so no caller waits for a reader,
 and a line longer than the room the stream has at that moment reaches the reader up to what fitted,
 while the rest of it is dropped and counted as a line the queue could not say
 (issue 6476;
-`src/native/foundation/lines_written_by_a_thread.rs`).
+`src/native/foundation/the_line_a_refused_thread_writes_where_it_is_said.rs`,
+which the queue in `src/native/foundation/the_queue_and_its_thread.rs` hands a line to once its thread is refused).
 It is written to the standard error descriptor itself and not through the standard library's shared handle,
 whose lock every synchronous write to standard error takes,
 so a worker left at the ceiling holds no lock the commit's own writes would wait for.
@@ -18415,8 +18416,9 @@ each with its reason in the code and here:
   no file and no other lock,
   so a commit's question is answered from memory and never waits for a volume.
 - The mutex and the condition of a queue of lines written by a thread of their own
-  (`foundation/lines_written_by_a_thread.rs`,
-  which the service's own log lines and the command's diagnostic lines are both made of):
+  (`foundation/the_queue_and_its_thread.rs`,
+  which the service's own log lines and the command's diagnostic lines are both made of,
+  through the caller's side in `foundation/lines_written_by_a_thread.rs`):
   a caller hands a line and goes on,
   and one thread takes lines and may wait on the stream as long as the reader takes,
   so the hand and the take are the two ends of one queue;
