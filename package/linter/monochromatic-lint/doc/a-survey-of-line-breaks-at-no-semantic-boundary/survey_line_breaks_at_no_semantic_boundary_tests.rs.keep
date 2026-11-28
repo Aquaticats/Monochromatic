@@ -109,12 +109,13 @@ const M13_CONFIGURATION: &str = "\
 
 /// A paragraph the rule reports, as the shipped fix is asked about it.
 ///  The positive control shows that a fix run can be seen at all:
-///  its fixed copy holds this many breaks at no boundary.
-const M13_CONTROL: &str = "Aaa bbb, ccc ddd eee\nthe\nfff ggg hhh.\n";
+///  its fixed copy holds this many breaks at no boundary,
+///  and the unfixed copy holds more, so an unfixed control cannot pass.
+const M13_CONTROL: &str = "Aaa bbb, the\nccc ddd eee.\n";
 
 /// The breaks the control's fixed copy holds at no boundary.
-///  Measured once with the installed `0.5.2-alpha.24` on a copy of this fixture.
-const M13_CONTROL_BREAKS: usize = 2;
+///  The unfixed copy holds one, which the fix joins away.
+const M13_CONTROL_BREAKS: usize = 0;
 
 /// Whether the line's last visible character closes a bracket or a quote,
 ///  which the survey reports apart because it reads as a boundary of its own.
@@ -1107,7 +1108,8 @@ fn measure_reported_paragraphs_after_the_fix(
     std::fs::create_dir_all(copies.as_path()).expect("the copies folder is made");
     std::fs::write(configuration.as_path(), M13_CONFIGURATION).expect("the one-rule configuration is written");
     std::fs::write(copies.join("control.md"), M13_CONTROL).expect("the control copy is written");
-    let mut written: Vec<PathBuf> = Vec::<PathBuf>::new();
+    // The control goes through the same invocation as the copies, so a control that misses the fix fails here.
+    let mut written: Vec<PathBuf> = vec![copies.join("control.md")];
     for host in &hosts {
         let Some(text): Option<String> = read_at_commit(root, commit, host.as_str()) else {
             tally.m13_unreadable += 1;
@@ -1139,6 +1141,10 @@ fn measure_reported_paragraphs_after_the_fix(
         }
     }
     let control: String = std::fs::read_to_string(copies.join("control.md")).expect("the fixed control is readable");
+    assert_ne!(
+        control, M13_CONTROL,
+        "the measurement must see the fix write the control copy",
+    );
     let control_breaks: usize = count_no_boundary_in_host("control.md", control).expect("the fixed control parses");
     assert_eq!(
         control_breaks, M13_CONTROL_BREAKS,

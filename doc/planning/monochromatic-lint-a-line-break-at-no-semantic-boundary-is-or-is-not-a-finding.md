@@ -1,16 +1,34 @@
 # A line break at no semantic boundary: a finding, or not
 
 Status:
-first written 2026-11-27 by the round that fixed issue 6642
-(`fix/monochromatic-lint-issue-6642-the-line-break-fix-joins-what-the-old-wrap-cut-and-leaves-no-lone-word`)
-and revised in the same session by the round that reran its survey
-(`docs/planning-line-break-proposal-revised-against-its-gate-review-with-its-survey-kept`)
-after a same-vendor gate read.
+written 2026-11-27 by the round that fixed issue 6642
+(`fix/monochromatic-lint-issue-6642-the-line-break-fix-joins-what-the-old-wrap-cut-and-leaves-no-lone-word`),
+revised the same day by the round that reran its survey,
+and revised again on 2026-11-28 by the round that reran the survey
+against the second gate read of this proposal.
 **Unapproved and non-final:**
 nothing here is built,
 the rule reports exactly what it reported before,
 and the owner declares completion.
-The owner's decision this proposal asks for is a yes or a no to a new finding class,
+
+It has had two same-vendor gate reads,
+neither of them an independent review:
+the first read the version at `cdf69930fd` and found 16 findings
+(5 High,
+8 Medium,
+3 Low),
+and the second read the version at `5bb8813b28` and found 22 findings
+(2 High,
+13 Medium,
+7 Low).
+Each finding of the second read,
+and the three the first read called answered in part,
+is answered in the section "Answers to the second gate read".
+Every count in this proposal comes from one run of the survey
+at the commit its "The measurement" section names.
+
+The owner's decision this proposal asks for is a yes or a no
+to a new finding class,
 and a yes adds findings to text that passes today.
 
 ## Why this question is open
@@ -40,12 +58,23 @@ or the closing delimiter renders literally."
 MD1 names no set of characters.
 It names "semantic boundaries" and a bound.
 MD8 permits a hard wrap between whole inline spans,
-so a break before a code span or an emphasized phrase is a wrap the repository already allows.
+so a break before a code span or an emphasized phrase
+is a wrap the repository already allows.
 The six characters the rule breaks after are the rule's own set,
 not a definition MD1 gives.
-The survey below classifies every break by the first token of the next line,
+The survey below classifies every break by the first token of the next line's prose,
 so the owner can say which kinds MD1 permits;
 this proposal does not answer that question.
+
+No rule of the 30 this linter ships bounds a prose line's width.
+A 123-character prose line with no break point inside it passes the repository's
+own configuration with exit 0,
+and only `markdown/semantic-line-breaks`,
+which reads where to insert a break,
+reads a prose line at all.
+The rules named `max-lines` in the Rust and shell sets bound a file's line count.
+So MD1's 120 is a rule nobody enforces,
+and this proposal does not propose to enforce it.
 
 ## What "at no boundary" means in this measurement
 
@@ -70,11 +99,11 @@ so a paragraph and a doc comment are the ones the rule sees.
 It resolves each path's configuration through `config_lookup` and `config_match`,
 so a path the configuration ignores is not in the count.
 
-Four classes are counted apart because they are not one defect:
+Four kinds of line are counted apart because they are not one defect:
 
 - A line ending in two or more spaces or a backslash is a Markdown hard break.
-  The survey counts it and every option below leaves it alone.
-  The survey found none.
+  The survey counts it and every predicate below leaves it alone.
+  The run found none.
 - A line whose last visible character is a bracket or a quote
   reads as a boundary of its own.
 - A line that ends a sentence inside emphasis or strong emphasis,
@@ -85,66 +114,99 @@ Four classes are counted apart because they are not one defect:
   through `delimiter_tail`,
   so the rule wants the break after the delimiter,
   while `ends_at_break_point` strips only bracket and quote closers.
+  A run of the installed fix on
+  `- **Naming every status.** The status filter is the next thing.`
+  writes the break after `.**` and settles there.
+  A predicate that reported this ending would ask for a join the rule breaks again.
 - A line ending `e.g.`,
   `etc.` or `...` is treated as a boundary here,
   although `break_offsets` never breaks after an abbreviation or an ellipsis.
   The survey undercounts breaks at no boundary by that small class.
 
+A continuation line of a quotation keeps the `>` its container writes.
+The survey strips the marker before it classes the line,
+counts its words or measures its clause width,
+so a quoted line is filed by its prose and not by the marker a reader does not see.
+The run classes 5,602 breaks whose next line opens a quote marker this way,
+and 65 breaks remain in the `block-marker` class,
+where a following line still opens what the shipped join refuses,
+such as `#tag`.
+
 ## The measurement, and what it counts
 
-The survey ran at commit `c8545f91b8c79a8064490bcffa667d6ea79b83df`
-(2026-11-27T22:56:16-05:00)
-over the `10,472` tracked `.md`,
-`.mdx` and `.rs` paths in
+The survey ran at commit `bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c`
+(2026-11-28T03:19:11-05:00)
+over the `10,552` tracked `.md`,
+`.mdx` and `.rs` paths of that commit in
 `package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt`.
 The harness reads each path's bytes with `git show <commit>:<path>`,
 so the counts are that commit's and not a later worktree's.
 The configuration ignores `66` of them,
 and turns the rule off for `1`;
-`10,272` host files yielded a parsed source.
+`10,352` host files yielded a parsed source,
+and none failed to parse.
 The corpus includes the earlier version of this proposal,
 because the list was taken before this revision;
 the records added after it are not counted.
 The whole output is
 `package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/output.txt`,
-and the command and temporary edits are in `command.txt` beside it.
+and the command and temporary changes are in `command.txt` beside it.
 
 The command,
-with the two temporary source edits
+with the three temporary changes
 that the folder's `README.md` names and that this round reverted:
 
 ```sh
 # from package/linter/monochromatic-lint
 SURVEY_LIST="$PWD/doc/a-survey-of-line-breaks-at-no-semantic-boundary/files.txt" \
-  SURVEY_ROOT="$(git rev-parse --show-toplevel)" \
+  SURVEY_ROOT="<the worktree the list came from>" \
+  SURVEY_M13_DIR="<a folder outside the repository>" \
+  SURVEY_LINT_BIN=/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint \
   cargo nextest run --locked --lib --no-capture survey_
 ```
 
-The positive control ran in the same command:
-`survey_probe_sees_every_class_on_its_fixture` failed until the classifier saw
-each class on a fixture of its own,
-and its `PROBE` line is in `output.txt`.
+The run took `1,297.955` seconds for its five tests.
 
 The counts add up:
 
 ```text
-breaks inside paragraphs:                                         1,541,282
-  whose line ends at a break point:                               1,320,034
-  at no boundary:                                                   221,248
-    in paragraphs the rule reports nothing for:                     209,657
-      ending in a closing bracket or quote:                           9,587
-      ending otherwise:                                             200,070
-    in paragraphs the rule already reports:                          11,591
-      ending in a closing bracket or quote:                             260
-      ending otherwise:                                              11,331
+paths in the kept list:                                         10,552
+paths the configuration ignores:                                    66
+paths the configuration turns the rule off for:                      1
+paths surveyed:                                                 10,352
+paths that failed to parse:                                          0
+
+breaks inside paragraphs:                                    1,545,884
+  whose line ends at a break point:                          1,324,125
+  at no boundary:                                              221,759
+    in paragraphs the rule reports nothing for:                210,207
+      ending in a closing bracket or quote:                      9,603
+      ending otherwise:                                        200,604
+      ending in a hard break:                                        0
+    in paragraphs the rule already reports:                     11,552
+      ending in a closing bracket or quote:                        254
+      ending otherwise:                                         11,298
+      ending in a hard break:                                        0
 ```
 
-`209,657` is the population every option below starts from.
-It includes `9,847` closer-ended breaks and `3,383` emphasis endings.
-It excludes the `11,591` in paragraphs the existing rule already reports,
-because the existing fix rewrites those paragraphs.
+`210,207` is the population every predicate below starts from.
+It includes `9,603` closer-ended breaks and `3,383` emphasis endings.
+It excludes the `11,552` in paragraphs the existing rule already reports,
+and that exclusion is a measured count,
+not a lower bound:
+after the shipped fix ran over copies of the `222` files that hold those paragraphs,
+`10,028` of the `11,552` breaks are still there
+and the fix joined `1,524` of them.
+A run of the fixed tool over the whole tree would therefore leave
+`210,207 + 10,028 = 220,235` breaks for every predicate to start from,
+as an upper bound:
+`221` of the `222` files carry no finding after the fix,
+and one still holds `64`,
+whose breaks may sit in paragraphs the rule still reports.
+The measurement and the findings left on the copies are in `output.txt`
+and in the file `findings-left-on-the-fixed-copies.jsonl` beside it.
 
-Each break is classified by the first token of the next line,
+Each break is classified by the first token of the next line's prose,
 in this order:
 `block-marker`,
 `parenthesis`,
@@ -154,19 +216,19 @@ in this order:
 `—` or `–`),
 and `ordinary` for the rest.
 The counts,
-all in the `209,657`:
+all in the `210,207`,
+with the breaks whose clause reaches the limit and the breaks a removal can join:
 
 ```text
-block-marker    1,275
-conjunction    19,647
-dash               20
-inline-span    24,994
-ordinary      127,298
-parenthesis    36,423
+block-marker      65       forced      6       removable     38
+conjunction   19,749       forced  8,849       removable 12,392
+dash              20       forced      5       removable     17
+inline-span   25,355       forced 10,091       removable 17,512
+ordinary     127,985       forced 26,558       removable 106,692
+parenthesis   37,033       forced 13,450       removable 26,056
 ```
 
-The `ordinary` class is `60.7` percent of the population;
-the rest sit at one of the kinds MD1 may or may not permit.
+The `ordinary` class is `60.9` percent of the population.
 
 Each break also carries the width of its **clause**:
 the run of lines from the previous line ending at a break point or a hard break
@@ -174,147 +236,186 @@ to the next one,
 joined with single spaces,
 after each line's own indentation,
 plus the paragraph's continuation indent.
-`58,788` of the `209,657` sit in a clause at or over `120` characters,
-in `47,103` clauses.
+`58,959` of the `210,207` sit in a clause at or over `120` characters,
+in `47,811` clauses.
 No single line may hold such a clause under MD1's bound,
 and it holds no punctuation to break at,
 so its break is **forced**:
 a reader cannot rewrap it into a line under `120` without adding words.
-That is the conflict between MD1's two halves in the text this repository holds.
+`26,558` of the forced breaks are ordinary-class,
+`13,450` parenthesis-class,
+`10,091` inline-span-class,
+`8,849` conjunction-class,
+`6` block-marker-class and `5` dash-class.
+The conflict between MD1's two halves therefore exists
+under the reading that permits none of those kinds;
+an owner who permits a kind removes that kind's forced breaks with it.
 
 The class issue 6642 names is
 **a line of one or two words that itself ends at no boundary**:
-`39,501` breaks in `4,745` files,
-of which `36,599` are removals the shipped join's guards allow.
+`39,485` breaks in `4,728` files.
+`36,540` of them are removals the shipped join's guards allow,
+`1,163` are emphasis endings,
+which leaves `38,322` durable findings in `4,700` files,
+and `5,613` sit in a clause that reaches `120`.
 The reverse shape,
 a break that leaves a one-or-two-word line after it,
-is `72,913` in `6,998` files,
-of which `62,283` are removable.
+is `73,414` in `7,072` files,
+of which `62,521` are removable.
 They are not the same class.
 
-## Examples, by the rule that drew them
+The shape of three of the issue's own four examples is not the class the issue names.
+`393,916` quiet one-or-two-word lines end at a break point,
+which the rule wants,
+and `39,485` end at none.
+`/// 4,` and `/// held,` end at a comma,
+so they keep their lines and no predicate below reports them.
 
-Each example is the first break of its class in sorted path order,
-quoted whole from the line it names.
-One break can be the first of two classes.
-
-Conjunction,
-`.agents/skills/choosing-technology/SKILL.md:152`:
-
-```text
-(not necessarily Haiku)
-or run it themselves.
-```
-
-Parenthesis,
-`.agents/skills/choosing-technology/SKILL.md:151`:
+Where the findings sit,
+for the population:
 
 ```text
-because the user may delegate the enumeration to a cheaper model of their choosing
-(not necessarily Haiku)
+doc/planning        45,636      doc/handover        29,755
+doc/troubleshooting 32,347      doc/audit           17,400
+doc/decision        10,168      doc/research         2,464
+doc/runbook          1,103      doc (every family) 140,090
+package, Markdown   29,259      package, Rust doc comments 40,316
+the rest               542
 ```
 
-Inline span and forced clause,
-`.agents/skills/android-emulator/SKILL.md:22`:
+So `66.6` percent of the population is under `doc/`,
+`13.9` percent is Markdown under `package/`,
+`19.2` percent is Rust doc comments under `package/`,
+and `0.3` percent is elsewhere.
 
-```text
- Briefs for agents that use an emulator repeat the headful rule and name the launch form in
- `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
-```
+## What each predicate would report
 
-Dash,
-`.agents/skills/project-code-review/PHILOSOPHY.md:24`:
+Six predicates are counted,
+in each one's own population,
+in clauses where it reports clauses and in breaks where it reports breaks.
+`output.txt` labels them `A`,
+`B`,
+`D`,
+`D2`,
+`F1` and `F2`.
+Each takes the owner's answer to "which kinds MD1 permits" as a filter:
+a kind the owner permits is removed from every predicate.
 
-```text
-The alternative -- referencing `AGENTS.md` sections by name ("apply the rules from the TypeScript Standards section") --
-assumes the agent will cross-reference accurately across documents under context pressure.
-```
+### Report every break at no boundary
 
-Ordinary,
-`.agents/skills/choosing-technology/SKILL.md:688`:
+`210,207` findings in `8,721` files.
+
+Reports,
+from `.agents/skills/choosing-technology/SKILL.md:688`:
 
 ```text
 Clone every serious alternative and finalist under a private `~/temp/agent/` root using the repository
 cloning convention.
 ```
 
-Block marker,
-`doc/audit/2026-05-14-repo-assessment.md:3`:
+Leaves a break in a paragraph the rule already reports,
+as this fixture shows:
 
 ```text
-> Moved 2026-10-29 by the generic package category elimination
-> (`doc/planning/generic-category-elimination.md`);
+Aaa bbb, ccc ddd eee
+the
+fff ggg hhh.
 ```
 
-Emphasis ending,
-`doc/audit/deepseek-harness-node-domexception.md:182`:
+At `error` a scoped run exits `1` on any of its findings;
+at `warn` it exits `0` and `--fix` still runs.
 
-```text
-- **Install and audit surface:**
-   present for every published CLI install.
-```
+### Report only a break a removal can join
 
-The issue's own class,
-`.agents/skills/css/SKILL.md:170`:
+`162,707` findings in `8,185` files.
+`2,997` of them are emphasis endings the existing rule breaks again,
+so the durable count is `159,710` in `8,164` files.
+
+Reports,
+from `.agents/skills/css/SKILL.md:170`:
 
 ```text
  user-configurable properties
 where the fallback represents the default user choice.
 ```
 
-The wrapper's own file,
-`package/git-policy/cli/src/native/worktree_clone_add_route/mod.rs:6`,
-holds the shape the issue names,
-and is quoted in the section on shipped defects below.
+Leaves the break at `.agents/skills/android-emulator/SKILL.md:22`
+because the joined line would reach the `120` bound.
 
-## What the records say, and what still stands
+### Report an unforced break at clause level
 
-`doc/planning/repository-linter-stays-at-zero.md` records:
+One finding per clause under `120` characters
+with at least one break at no boundary,
+no hard break,
+and no emphasis ending,
+in a paragraph the rule reports nothing for.
+`144,863` findings in `8,085` files,
+covering `148,203` breaks.
+The `47,811` forced clauses are not reported.
 
-- A repository-wide run at `136a40fe69` reported `174,916` findings,
-  of which this rule made up `171,262` (line 16).
-- The owner's words,
-  moved verbatim on 2026-11-23:
-  "Put the semantic line break findings on hold."
-  and "Put the semantic line break findings on hold.
-  They aren't the most serious issues right now."
-  (lines 40 to 43).
-- The fixer "changed rendered text in `58` of the `498` files it changed
-  in the documentation families" (line 186).
-- `doc/handover/cli-git-rust-implementation.md` records a sweep of
-  `4,062` findings in `480` files that had to wait
-  because "the branches that were changing them could not take the diff" (lines 2797 to 2806).
+Reports the clause of `.agents/skills/css/SKILL.md:170` quoted above.
 
-What still stands:
-the hold is the last recorded owner instruction about this rule,
-and no later record lifts it or renews it.
-The rule is still at `error` severity in `monochromatic-lint.config.jsonc`,
-and the fixer's earlier rewrite of rendered text remains the reason
-a blind sweep of quoted records is not safe.
-Whether the hold still governs this question is the owner's to say,
-not this proposal's.
+Leaves the forced clause of `.agents/skills/android-emulator/SKILL.md:22`:
 
-The repository is not green today,
-and no enforced gate stands behind the "commit path" this proposal used to name:
+```text
+ Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+ `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+```
 
-- `monochromatic-git-policy-cli.config.jsonc` line 10 runs
-  `"markdown/autofix": ["warn", { "rules": ["lfs-image-url"], ... }]`:
-  `git commit` through the wrapper runs no semantic-break check.
-- `mise.toml` lines 1210 to 1215 make `format:monochromatic-lint` run
-  `monochromatic-lint --fix` over `.` when no paths are given.
-- `mise.toml` lines 1024 to 1025 say the linter
-  "Exits 1 on error findings and 2 when the run could not be completed;
-  warnings alone exit 0."
-- The installed `0.5.2-alpha.24` on `package/git-policy/cli` at the survey commit
-  reports `14` findings in `14` files and exits `1`:
-  `13` `rust/max-lines` errors and one `rust/avoidable-closure` warning.
-  The command is
-  `/home/user/Monochromatic/.cache/toolchain-bin/monochromatic-lint package/git-policy/cli`.
+### Report an unforced break at clause level, without the permitted edges
 
-So "returns to green" has no green baseline,
-and a warn-severity release exits `0` while still applying `--fix`.
+The clause predicate,
+but a clause is not reported when any of its breaks opens a parenthesis or an inline span,
+or when the line before any of its breaks ends in a dash.
+The test reads every break of the clause,
+not only its first.
+`106,460` findings in `7,375` files,
+covering `108,197` breaks.
 
-## What a removal would be, and what is not measured
+Reports the clause of `.agents/skills/css/SKILL.md:170` quoted above.
+
+Leaves this fixture's clause,
+whose first break is ordinary and whose second opens a parenthesis:
+
+```text
+alpha beta gamma delta
+continuation words begin here
+(parenthesis opens this line
+and this is the last line.
+```
+
+### Report a break that leaves a one-or-two-word next line
+
+`73,414` findings in `7,072` files,
+of which `62,521` are removable,
+and `14,694` sit in a clause that reaches `120`.
+
+Reports the break at `.agents/skills/android-emulator/SKILL.md:22`:
+
+```text
+ Briefs for agents that use an emulator repeat the headful rule and name the launch form in
+ `doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`;
+```
+
+Leaves the break at `.agents/skills/css/SKILL.md:170`,
+whose next line holds eight words.
+
+### Report a one-or-two-word line that ends at no boundary
+
+The class issue 6642 names.
+`39,485` findings in `4,728` files,
+of which `36,540` are removable.
+`1,163` are emphasis endings and are excluded first,
+which leaves `38,322` durable findings in `4,700` files,
+and `5,613` sit in a clause that reaches `120`.
+
+Reports the break at `.agents/skills/css/SKILL.md:170` quoted above.
+
+Leaves the break at `.agents/skills/android-emulator/SKILL.md:22`,
+whose line holds many words,
+and leaves the comma-ended `/// 4,` and `/// held,` of the issue itself.
+
+## The removal count, and what "removable" means
 
 No removal fix exists in the tree.
 The removal count in this survey asks the shipped join,
@@ -338,486 +439,586 @@ the ten-pass fix loop (`fix_loop.rs`,
 the Rust doc-comment projection (`processors_docs.rs`,
 `run_margin`),
 or the cycle an emphasis ending creates.
-The counts below therefore say what a removal would reach under the shipped guards,
-not that a `--fix` run clears them.
-
-## Options
-
-Each option's first-run count is in the `209,657` population,
-in files.
-"Removable" means the shipped join's guards allow the removal.
-"Commit" names what the Git wrapper's `git commit` sees,
-which is nothing for every option,
-and what an agent's `mise run format:monochromatic-lint` and
-`mise run lint:monochromatic-lint` do.
-
-### A: report every break at no boundary
-
-`209,657` findings in `8,643` files,
-including `9,847` closer-ended breaks and `3,383` emphasis endings.
-If only the emphasis endings are excluded,
-the count is `206,274`.
-If the closer-ended breaks are excluded too,
-because they read as boundaries of their own,
-the count is `196,427`.
-
-Pros:
-
-- It answers the widest reading of MD1,
-  not only the break-point half.
-- One definition,
-  and the `58,788` forced breaks are visible rather than hidden.
-
-Cons:
-
-- `58,788` findings sit in a clause that reaches `120`,
-  where no join under MD1's bound exists.
-  A reader cannot rewrap those into compliance without adding words.
-- `3,383` emphasis endings contradict the existing rule:
-  A asks for a join the rule breaks again.
-- The diff reaches `8,643` files.
-- At `error`,
-  a scoped run exits `1` on lines the author did not write,
-  and the removal fix would leave the forced and emphasis findings red.
-
-At `warn`,
-the finding exits `0` and the fix still rewrites every joined line
-unless the fix is withheld.
-`git commit` through the wrapper sees nothing.
-
-### B: report only a break a removal can join
-
-`162,285` findings in `8,109` files.
-`2,997` of them are emphasis endings the existing rule breaks again,
-so the durable count is `159,288` in `8,088` files.
-
-Pros:
-
-- Every durable finding has one join the shipped guards allow.
-- It is A minus `47,372` findings the shipped guards refuse,
-  so it asks for fewer joins no command can clear,
-  though it still holds some forced breaks and the emphasis class.
-
-Cons:
-
-- The diff is the same order as A:
-  `8,109` files,
-  and a removal fix rewrites every one.
-- It includes `2,997` emphasis endings unless that class is excluded first,
-  and each cycles against the existing rule.
-- It ties the report to what a fix can do,
-  and no removal fix exists yet.
-- It still reports the deliberate style MD1 may permit:
-  `19,647` conjunction,
-  `24,994` inline-span and `36,423` parenthesis breaks are in the population.
-- The rule already declines block-start and ambiguous breaks
-  (`markdown_semantic_breaks.rs` skips `starts_block_construct`;
-  `markdown_break_points.rs` declines abbreviations and ellipses),
-  so B is not "backwards from every other rule" as an earlier draft said.
-
-At `error`,
-the durable findings clear with one removal run if that fix ships;
-the emphasis class does not.
-At `warn`,
-it exits `0` and the fix still rewrites the tree unless withheld.
-
-### C: report nothing, as today
-
-No new finding.
-
-Pros:
-
-- No churn and no new operation.
-- The fragment join the earlier round shipped still repairs the fragment an inserted break cuts.
-
-Cons:
-
-- The `39,501` breaks of the issue's own class stay,
-  and nothing tells an author about one.
-- The wrapper's own lone `the` stays after the fixed linter ships:
-  the join only asks about a fragment an inserted break cut,
-  not about an author's line elsewhere in the paragraph.
-  The reproduction is in the section on shipped defects.
-
-At `warn` and at `error` the rule reports nothing new,
-so the exit status is what it is today.
-
-### D: report an unforced break at clause level
-
-One finding per clause under `120` characters
-with at least one break at no boundary,
-no hard break,
-and no emphasis ending,
-in a paragraph the rule reports nothing for.
-The fix joins the whole clause.
-`144,483` findings in `8,015` files.
-The `47,103` forced clauses are not reported.
-
-Pros:
-
-- The predicate is MD1's own bound,
-  not what a fix can do.
-- One finding per clause,
-  so a run of consecutive breaks is one edit and no chain of joins.
-- Every finding has an author action:
-  the whole clause fits under `120`.
-
-Cons:
-
-- It still reports `36,423` parenthesis and `24,994` inline-span breaks,
-  which MD8 permits and the owner has not excluded.
-- It still reports `19,647` conjunction breaks,
-  whose status MD1 does not settle.
-- The clause fix is a new operation that joins more than two lines;
-  its guards,
-  its Rust projection and its width are unmeasured because no fix exists.
-- At `error` it exits `1` in `8,015` files;
-  at `warn` it exits `0` and the fix rewrites them unless withheld.
-
-### D2: D without the span, parenthesis and dash edges
-
-D,
-but a clause is not reported when its first break opens a parenthesis or an inline span,
-or when the line before that break ends in a dash.
-`107,302` findings in `7,329` files.
-
-Pros:
-
-- It removes the kinds MD8 permits and the dash the owner may permit,
-  so its findings are the plain mid-clause wraps.
-- It turns the kinds question from a surprise into a decision the owner can make.
-- It keeps D's clause-level fix and its one-edit-per-clause property.
-
-Cons:
-
-- It still reports `19,647` conjunction breaks,
-  which the owner has not decided.
-- It adds a second definition to maintain beside the rule's own break-point test.
-- At `error` it exits `1` in `7,329` files;
-  at `warn` it exits `0` and the fix rewrites them unless withheld.
-
-### E: a warn-first ramp
-
-E is not a separate predicate.
-It is a release order for any report above,
-instantiated here on F2:
-report the issue's class at `warn`,
-with the removal fix withheld,
-sweep or accept the findings,
-then ship the fix at `error`.
-`38,405` durable findings in `4,508` files at the first run,
-the same as F2 after its emphasis endings are excluded.
-
-Pros:
-
-- The first release changes no exit status and rewrites nothing,
-  because the fix is withheld.
-- It gives the owner the finding count in the first release
-  before any branch pays for a sweep.
-- The second release can be scoped to the files a sweep did not reach.
-
-Cons:
-
-- The defect stays in the text until the second release.
-- A warn finding that no fix clears still adds output to every run.
-- It needs two releases and a recorded decision between them.
-- If the fix ships at `warn` instead of being withheld,
-  `--fix` still rewrites the tree on the first day.
-
-### F1: report a break that leaves a one-or-two-word next line
-
-`72,913` findings in `6,998` files,
-of which `62,283` are removable.
-
-Pros:
-
-- It names a visible orphan:
-  a short line after the break.
-- The shipped join already counts words,
-  so the class is not a new language heuristic in the code.
-- It is smaller than D and D2.
-
-Cons:
-
-- It is not the class the issue names;
-  the issue's line is short before its break,
-  not after it.
-- `10,630` findings are not removable by the shipped guards,
-  so a fix cannot clear the class.
-- A short next line can be a line that itself ends at a rule-wanted boundary;
-  the fix moves that line's start,
-  not its ending,
-  so it leaves the boundary in place,
-  but the author still sees a join where the rule wanted a line end.
-- At `error` it exits `1` in `6,998` files;
-  at `warn` it exits `0` and the fix rewrites them unless withheld.
-
-### F2: report a one-or-two-word line that ends at no boundary
-
-This is the class issue 6642 names.
-`39,501` findings in `4,745` files,
-of which `36,599` are removable.
-`1,096` are emphasis endings and must be excluded first,
-which leaves `38,405` durable findings in `4,508` files,
-of which `35,503` are removable.
-
-Pros:
-
-- It is the smallest class that names the defect the issue reports,
-  and the one the shipped join already targets.
-- `92.4` percent of its durable findings have a join the shipped guards allow.
-- It is `38,405` durable findings in `4,508` files,
-  about one fifth of A and about one third of D2,
-  so a commit that runs `--fix` on changed files sees a bounded diff.
-- It rarely reports a forced clause:
-  a two-word line plus its next line is usually under `120`,
-  and `2,902` findings are not removable.
-
-Cons:
-
-- It is a word count,
-  and a word count is a heuristic in scripts that do not separate words with spaces.
-- It leaves a three-word fragment alone,
-  and it misses a short line that ends at a break point,
-  which the rule wants to keep.
-- `2,902` findings are not removable by the shipped guards,
-  so a fix cannot clear the whole class.
-- At `error` it exits `1` in `4,745` files;
-  at `warn` it exits `0` and the fix rewrites them unless withheld.
-
-### G: C plus a one-time repair of the wrapper's own class
-
-Report nothing new,
-and repair the `4,077` F2 breaks in `1,503` files under
-`package/git-policy/cli` in a round of its own,
-by a removal run limited to that package or by reverting the affected files and fixing again.
-
-Pros:
-
-- It fixes the file the issue was raised on without adding a finding class.
-- It gives C's empty commit path.
-- It is a bounded one-package rewrite.
-
-Cons:
-
-- It prevents nothing:
-  the next old-style wrap stays.
-- It rewrites `1,503` files in a package other branches change.
-- It needs the owner to accept a one-time scoped rewrite.
-
-At `warn` and at `error` it changes no finding.
-
-## Ranking
-
-1. F2.
-1. E on F2.
-1. D2.
-1. F1.
-1. D.
-1. G.
-1. C.
-1. B.
-1. A.
-
-F2 above E:
-F2 repairs the class in the release that reports it,
-while E withholds the fix and leaves the defect until a second release.
-E costs less day-one churn,
-but the writer gets no repair from it,
-and the commit path is the same for both because the wrapper runs no semantic-break check.
-
-E above D2:
-E's `38,405` findings are the issue's own class,
-and `35,503` of them have a join the shipped guards allow;
-D2's `107,302` are broader,
-and `19,647` of them are before a conjunction whose status the owner has not decided,
-so D2 asks a writer to change a style the owner may permit.
-
-D2 above F1:
-D2's predicate is MD1's own `120` bound with the permitted span,
-parenthesis and dash edges removed,
-so every finding is a clause that could fit on one line;
-F1's predicate is a short next line,
-which can be a line the rule wants to end at a boundary,
-and `10,630` of its findings no shipped guard can remove.
-
-F1 above D:
-F1 is `72,913` findings,
-D is `144,483`;
-D includes the `36,423` parenthesis and `24,994` inline-span breaks MD8 permits,
-so it asks for more joins of legal wraps than F1 does.
-
-D above G:
-D reports and can repair the unforced class in the text a writer is changing;
-G only repairs the wrapper's existing class and prevents nothing.
-
-G above C:
-G removes the `4,077` wrapper breaks the issue was raised on;
-C leaves them.
-
-C above B:
-B rewrites `8,109` files and still includes `2,997` emphasis endings that cycle,
-for a class C leaves alone;
-the status quo is cheaper than a repo-wide churn whose fix does not exist yet.
-
-B above A:
-B is A minus `47,372` findings,
-a mix of forced breaks,
-block-marker refusals and width refusals,
-so B asks for fewer joins no command can clear.
-It still holds some forced breaks and the `2,997` emphasis endings,
-where A holds more of both.
+
+The shipped join is narrower than that model in one way that matters here:
+it answers only about the fragment one of the rule's own inserted breaks cut
+(`markdown_semantic_breaks.rs` builds the `breaks` list and asks `fragment_joins` about it).
+A line that was already alone in the input is never joined,
+which is why `10,028` of the `11,552` breaks in paragraphs the rule reports
+survive a run of the installed fix on copies of their files.
+
+## What the records say, and what still stands
+
+`doc/planning/repository-linter-stays-at-zero.md` records,
+at lines 14 and 16 of the rerun commit:
+
+- A repository-wide run at `136a40fe69` reported `174,916` findings,
+  of which this rule made up `171,262`.
+
+The same record quotes the owner's words,
+moved verbatim on 2026-11-23,
+at lines 40 to 43:
+
+```text
+"Put the semantic line break findings on hold."
+then,
+"Put the semantic line break findings on hold.
+They aren't the most serious issues right now."
+```
+
+At line 186 the record says the fixer
+"changed rendered text in 58 of the 498 files it changed in the documentation families",
+which is why a blind sweep of quoted records is not safe.
+
+`doc/handover/cli-git-rust-implementation.md` counts a later sweep,
+at lines 2749 and 2750:
+
+```text
+Both are fixed (`beb61ec46b`):
+4,062 findings in 480 files,
+```
+
+Both figures are that record's own measurements,
+made at their own commits by the rounds that ran them;
+this round did not rerun them,
+and their passages are kept beside the survey in
+`figures-the-survey-does-not-count/`.
+
+What still stands:
+the hold is the last recorded owner instruction about this rule,
+and no later record lifts it or renews it.
+The rule is still at `error` severity in `monochromatic-lint.config.jsonc`
+(lines 258 to 260 of the rerun commit),
+and the fixer's earlier rewrite of rendered text remains the reason
+a blind sweep of quoted records is not safe.
+Whether the hold still governs this question is the owner's to say,
+not this proposal's.
+
+Two sweeps merged while the hold stood,
+and the owner needs them to answer that question:
+
+- `beb61ec46b`,
+  a merge dated 2026-11-27T18:38:01-05:00,
+  which ran the whitespace-only fix over `package/git-policy/cli`;
+  the handover passage above counts its result as `4,062` findings in `480` files.
+- `96c930201f`,
+  dated 2026-11-27T22:35:41-05:00,
+  which repaired `771` doc paragraphs in `367` files
+  by running the installed fix over the pre-sweep copies,
+  netting `90` fewer doc lines.
+
+No enforced gate stands behind the rule:
+
+- `monochromatic-git-policy-cli.config.jsonc` line 10 runs
+  `"markdown/autofix": ["warn", { "rules": ["lfs-image-url"], ... }]`:
+  `git commit` through the wrapper runs no semantic-break check.
+- `mise.toml` lines 1210 to 1215 make `format:monochromatic-lint` run
+  `monochromatic-lint --fix` over `.` when no paths are given.
+- `mise.toml` lines 1024 to 1025 say the linter
+  "Exits 1 on error findings and 2 when the run could not be completed;
+  warnings alone exit 0."
+- The installed `0.5.2-alpha.24` on `package/git-policy/cli` at the rerun commit
+  reports `26` findings in `20` files and exits `1`:
+  `14` `rust/max-lines` errors,
+  `11` `rust/folder-uses-links` errors,
+  and one `rust/avoidable-closure` warning.
+  It reports no finding of this rule there.
+  The command and its whole output are kept beside the survey.
+  This proposal claims no repository-wide figure;
+  that one package is what it measured.
+
+So "returns to green" has no green baseline,
+and a warn-severity release exits `0` while still applying `--fix`.
+At `error` a run without `--fix` exits `1`;
+at `warn` the same run exits `0`.
+Both severities apply `--fix` when it is passed.
+
+## The decisions, and why they are apart
+
+Four decisions are separate,
+and a reader can choose one answer to each.
+Nothing below bundles two of them into one option.
+
+1.
+   **Which kinds MD1 permits.**
+   A filter every predicate takes as a parameter.
+2.
+   **Which predicate reports.**
+   One of the six above,
+   or none.
+3.
+   **The timing.**
+   At which severity the finding first ships,
+   and whether that release carries a removal fix.
+4.
+   **The repair.**
+   What happens to the breaks already in the tree,
+   and in which round.
+
+The bound a join uses is a fifth question,
+because the shipped join measures the line the rule sees
+and the earlier round refused a host-aware bound.
+The hold is a sixth,
+because it is the owner's own instruction.
+
+"Both,
+in this order" is reachable at every one of them:
+the kinds can be permitted in stages,
+the severity can rise in a later release,
+and the repair can follow the report.
+Nothing in this list has to be answered before another.
+
+## The ranking of the predicates
+
+The criterion comes first.
+A predicate is ranked
+by the share of its own findings that a reader would call a defect under MD1 and MD8 as written,
+which the survey measures as the ordinary class,
+because each of the other classes names a kind MD1 or MD8 may permit;
+and then,
+among predicates that agree on that share,
+by how many ordinary-class breaks it puts in front of the author.
+What is built today,
+how many files a change would touch,
+and which fix a predicate needs are costs,
+stated in "What each predicate would cost" and never used to place a predicate lower.
+
+The ordinary share and the ordinary break count of each predicate,
+both measured:
+
+```text
+the unforced clause without the permitted edges   90.2% of 108,197    97,635
+the short line                                    72.8% of  39,485    28,731
+the unforced clause                               66.6% of 148,203    98,708
+every joinable break                              65.6% of 162,707   106,692
+every break                                       60.9% of 210,207   127,985
+the short next line                               53.8% of  73,414    39,464
+nothing                                           reports no break
+```
+
+The ranking:
+
+1.
+   The unforced clause without the permitted edges.
+1.
+   The short line.
+1.
+   The unforced clause.
+1.
+   Every joinable break.
+1.
+   Every break.
+1.
+   The short next line.
+1.
+   Nothing.
+
+The unforced clause without the permitted edges above the short line:
+it puts `97,635` ordinary-class breaks in front of the author against the short line's `28,731`,
+and none of its findings sits at an edge MD8 may permit,
+while `20.3` percent of the short line's findings do
+(`5,137` before an inline span,
+`2,896` before a parenthesis,
+`2` after a dash).
+The short line's advantage is its reach in files:
+`4,728` against `7,375`.
+
+The short line above the unforced clause:
+the two differ by agreement first,
+`72.8` percent against `66.6`,
+because the clause predicate keeps the `26.1` percent of its breaks
+that sit at the parenthesis,
+inline-span and dash edges,
+and it is the shape issue 6642 names.
+
+The unforced clause above every joinable break:
+the clause predicate excludes every clause holding an emphasis ending,
+so none of its `144,863` findings contradicts the rule,
+while `2,997` of the joinable-break predicate's `162,707` do,
+and the clause predicate's findings agree slightly more often (`66.6` against `65.6`).
+The joinable-break predicate puts `7,984` more ordinary breaks in front of the author.
+
+Every joinable break above every break:
+the joinable-break predicate reports every break the shipped guards allow and leaves out the
+`47,500` breaks the shipped guards refuse,
+so it reports no finding without a join the guards allow,
+and its ordinary share is higher (`65.6` against `60.9`).
+Every break carries `58,959` forced breaks and `3,383` emphasis endings,
+where a person has no action under MD1's bound.
+
+Every break above the short next line:
+`60.9` percent of `210,207` against `53.8` percent of `73,414`,
+and `127,985` ordinary breaks against `39,464`;
+`32,208` of the short next line's findings,
+`43.9` percent,
+sit at the edges MD8 may permit.
+
+The short next line above nothing:
+it puts `39,464` ordinary-class breaks in front of the author,
+and reporting nothing puts none.
+
+What this ranking does not settle:
+if the owner permits conjunction breaks,
+the short line loses `2,706` of its `39,485` findings and the edge-free clause
+loses `10,523` of its `108,197`,
+and the clause predicates rise above the short line on both counts.
+The owner's kind list decides whether the order above holds.
+
+## What each predicate would cost
+
+These are costs,
+not reasons to place a predicate lower.
+
+- No removal fix exists.
+  Every predicate except "nothing" reports findings no shipped command clears today.
+  A removal fix built from the shipped join's guards would clear the findings of
+  the short line,
+the short next line,
+every joinable break and every break
+  (the survey's model).
+  The clause predicates need a fix that joins more than two lines,
+  and that operation,
+its guards and its width are unmeasured because it does not exist.
+- Files a change would touch:
+  `8,721` for every break,
+  `8,185` for every joinable break,
+  `8,085` for the unforced clause,
+  `7,375` for the edge-free clause,
+  `7,072` for the short next line,
+  `4,728` for the short line,
+  and none for nothing.
+- Findings with no author action under MD1's bound:
+  `58,959` for every break,
+  `14,694` for the short next line,
+  `5,613` for the short line,
+  and none for either clause predicate.
+- Findings the rule breaks again:
+  `3,383` for every break,
+  `2,997` for every joinable break,
+  `1,163` for the short line,
+  and none for either clause predicate.
+- The exit status:
+  at `error` a scoped run exits `1` on any finding,
+  and at `warn` it exits `0` while `--fix` still rewrites the file.
 
 ## What the owner has to decide
 
-1.
-Which kinds of break does MD1 permit:
-before a conjunction,
-before a parenthesis,
-between inline spans,
-after a dash?
-The owner needs the counts above (`19,647` conjunction,
-`36,423` parenthesis,
-`24,994` inline span,
-`20` dash),
-the examples quoted whole,
-and MD8's sentence that a hard wrap may fall between whole inline spans.
-This proposal does not answer it.
+### 1. Which kinds of break MD1 permits
 
-2.
-Does the rule report the issue's class (F2),
-the broader unforced clause (D2 or D),
-every removable break (B),
-or nothing (C)?
-The owner needs the first-run counts in files,
-the `58,788` forced breaks that no join clears,
-the `3,383` emphasis endings in the population that contradict the existing rule,
-and the record that this rule once held `171,262` findings and a hold.
-
-3.
-At what severity and with what fix timing:
-`error` with the fix,
-`warn` first with the fix,
-or `warn` first with the fix withheld (E)?
-The owner needs the exit statuses:
-`error` exits `1` on any finding,
-`warn` exits `0` and still applies `--fix` unless the fix is withheld,
-and the tree already exits `1` on `14` fix-less findings in `package/git-policy/cli`.
-
-4.
-Which bound does a join use:
-the rule's own,
-which has none,
-or MD1's `120`?
-The owner needs the fact that the shipped join counts the virtual line the rule sees,
-so a joined Rust doc line can be up to four characters over `120` in the host file,
-and the alternative bounds the earlier round refused:
-no bound,
-and a host-aware bound.
-
-5.
-Does the owner's recorded hold,
-"Put the semantic line break findings on hold",
-still govern this rule?
-The owner needs the record's date and the fact that no later record lifts or renews it.
-
-6.
-If C is chosen,
-does the wrapper's existing `4,077` breaks get G's one-time repair,
-and in which round?
-
-## Shipped defects reproduced here
-
-These are defects of shipped code,
-not of this proposal,
-and this round changed no line of them.
-They bear on the options above.
-
-### The boundary test does not climb emphasis delimiters
-
-The installed `0.5.2-alpha.24` on a scratch copy of
-`- **Naming every status.** The status filter is the next thing.`
-writes:
+MD1 names "semantic boundaries" and a bound and no set of characters.
+MD8 permits a hard wrap between whole inline spans.
+The survey files every break by the first token of the next line's prose,
+and the population of each kind is:
 
 ```text
-- **Naming every status.**
-  The status filter is the next thing.
+block-marker      65
+conjunction   19,749
+dash              20
+inline-span   25,355
+ordinary     127,985
+parenthesis   37,033
 ```
 
-The rule wants the break after `.**`,
-because `delimiter_tail` climbs `Strong`.
-`ends_at_break_point` strips only bracket and quote closers,
-so the survey and the removal model call the line a break at no boundary.
-A removal join of that line is broken again on the next pass.
-On `Aaa bbb, **cc dd.**` followed by `eee fff.`,
-`--fix` inserts the break after `bbb,`,
-joins `**cc dd.**` to the next line,
-then breaks after `.**` again,
-and settles at the break.
-This is churn,
-and under a removal rule the pair is unsatisfiable
-until the boundary test climbs the same delimiters.
+The answers,
+and what each does:
 
-### The join does not ask about an author's line
+- Permit none of them:
+  every predicate reports the population above in full,
+  `210,207` breaks for the widest.
+- Permit the three MD8 names
+  (a break before a parenthesis,
+before an inline span,
+after a dash):
+  the report loses `62,408` breaks,
+and the ordinary and conjunction kinds stay.
+- Permit those three and a break before a conjunction:
+  it loses `19,749` more,
+`82,157` in all,
+  and only the `127,985` ordinary breaks stay reportable.
+- Permit an ordinary break too:
+  no break is left to report,
+  and this answer is the "nothing" predicate of question 2.
+- Permit some other subset:
+  the per-kind counts above say what each removal takes.
 
-The installed linter reports no finding in
-`package/git-policy/cli/src/native/worktree_clone_add_route/mod.rs`,
-and `--fix` on a copy changes no byte.
-Lines 6 to 9 hold:
+The conjunction kind is a fixed list,
+not a grammar,
+and it is these 31 words:
+`and`,
+`but`,
+`or`,
+`nor`,
+`yet`,
+`so`,
+`for`,
+`because`,
+`although`,
+`though`,
+`while`,
+`when`,
+`where`,
+`which`,
+`who`,
+`whom`,
+`whose`,
+`that`,
+`if`,
+`unless`,
+`until`,
+`since`,
+`as`,
+`before`,
+`after`,
+`whether`,
+`than`,
+`then`,
+`plus`,
+`versus`,
+`via`.
+`that`,
+`which`,
+`as`,
+`for`,
+`so`,
+`then`,
+`than` and `via` are in it,
+and a reader may not picture those as the boundaries MD1 means,
+which is why the list is here.
+
+The examples of each kind are quoted in "What each predicate would report",
+and the block-marker kind,
+from `doc/audit/tech-mold-linker-vet-2026-10-05.md:786`:
 
 ```text
-//!  The registration half beside this folder owns the record family,
-//! the
-//!  managed lock's words,
-//! the finder,
+  #1695 closed unmerged with follow-up issue
+  #1696 open (thread-pool tuning discussion);
 ```
 
-The lone `the` ends at no boundary and stays.
-On `Aaa bbb, ccc ddd eee` / `the` / `fff ggg hhh.`,
-`--fix` writes four lines:
+The alternative reading the owner may prefer,
+that a break at a word boundary an author judged semantic is permitted,
+would leave no finding and is not distinguishable by the survey,
+which counts a position and not an intention.
 
-```text
-Aaa bbb,
-ccc ddd eee
-the
-fff ggg hhh.
-```
+### 2. Which predicate reports
 
-The join only looks at the fragment an inserted break cut.
-This is why C leaves the issue's defect in place.
+The owner needs,
+for each:
+its count in files,
+its forced share,
+its emphasis share and its reach.
 
-### The README's "never rewrites a line the author wrote"
+- Report nothing (`C` in the output):
+  no finding,
+  no churn,
+  and the `39,485` short lines stay.
+- Report only a break a removal can join (`B`):
+  `162,707` findings in `8,185` files,
+  every one with a join the guards allow,
+  `2,997` of them emphasis endings.
+- Report every break at no boundary (`A`):
+  `210,207` findings in `8,721` files,
+  `58,959` of them forced,
+  `3,383` emphasis endings.
+- Report the unforced clause (`D`):
+  `144,863` findings in `8,085` files,
+  covering `148,203` breaks,
+  none forced and none an emphasis ending.
+- Report the edge-free clause (`D2`):
+  `106,460` findings in `7,375` files,
+  covering `108,197` breaks.
+- Report a break before a short line (`F1`):
+  `73,414` findings in `7,072` files,
+  `14,694` forced.
+- Report a short line that ends at no boundary (`F2`):
+  `39,485` findings in `4,728` files,
+  `5,613` forced,
+  `1,163` emphasis endings.
 
-`package/linter/monochromatic-lint/README.md` line 2623 says
-"The fix never rewrites a line the author wrote."
-On a copy of
-`Owns the record family, the` / `managed lock's words, the finder.`,
-the installed fix writes:
+A predicate reports at whichever severity question 3 answers with,
+and reports the kinds question 1 leaves.
 
-```text
-Owns the record family,
-the managed lock's words,
-the finder.
-```
+### 3. At which severity, and when a fix ships
 
-The author's second line gained the fragment `the` at its start.
-The sentence is already untrue of the shipped join,
-and would be false of every joined line under B.
+The rule takes one severity per run
+(`semantic_line_breaks(context, severity)`),
+and the configuration names one severity per rule id
+(`monochromatic-lint.config.jsonc` lines 258 to 260).
+So a new class under `markdown/semantic-line-breaks` would take that rule's severity.
+Two routes give it a severity of its own:
 
-Line 2624 says
-"Removing the deepest indent of a rustdoc run re-projects every line of that run".
-`run_margin` (`processors_docs.rs`,
-lines 116 to 131)
-takes the smallest indent among the run's non-empty lines,
-so the case that re-projects is removing or lowering the only line at the smallest indent.
-This round read the source and did not run a removal,
-because no removal fix exists.
+- **A new rule id.**
+  The class gets its own code and its own severity,
+  so it can be `warn` while today's findings stay `error`.
+  The block that switches this rule off for the notices file
+  (`monochromatic-lint.config.jsonc` lines 339 to 341) needs a second entry for the new code,
+  unless the owner wants that file covered by the new class.
+  A new code can also carry a path list that only shrinks,
+  which a shared severity cannot express.
+  It costs a second definition of "a break at no boundary" beside the rule's own break-point test,
+  and two codes to keep in step.
+- **The existing rule id.**
+  The class shares whatever severity `markdown/semantic-line-breaks` has.
+  Choosing `warn` demotes the findings that are errors today,
+  and the notices block switches the new class off with them,
+  since it names the rule and not the class.
+  It keeps one definition and one configuration entry.
+
+At `error` a scoped run exits `1` on any finding;
+at `warn` it exits `0`.
+Both severities apply `--fix` when a fix exists.
+Today none exists,
+so a first release reports and rewrites nothing either way,
+and the timing question is which severity first,
+and whether the release that
+reports it also ships the removal fix.
+
+### 4. Which bound a join uses
+
+The shipped join measures the line the rule sees:
+the paragraph's continuation indent,
+the fragment and the following line,
+against `120`.
+In a Rust doc comment the host line is longer by the item's indent and the comment marker.
+A joined virtual line of `119` characters is a host line of
+`123` characters at item indent 0,
+`127` at indent 4,
+and `131` at indent 8,
+measured with the installed fix on copies of one fixture.
+
+The answers:
+
+- The rule's own bound,
+which is none:
+  a join may write any width,
+and no rule enforces MD1's `120` today
+  (a 123-character prose line passes with exit 0).
+- MD1's `120` on the virtual line,
+which is what the shipped join does:
+  a host doc line may stand up to 11 characters over `120` at an indent of 8.
+- MD1's `120` on the host line:
+  a join would need the indent and marker in its width.
+  The earlier round refused a host-aware bound,
+  so the owner is being asked again with the measured widths above.
+
+### 5. Does the hold still govern this rule
+
+The owner's recorded words are "Put the semantic line break findings on hold.",
+moved verbatim on 2026-11-23 into
+`doc/planning/repository-linter-stays-at-zero.md` lines 40 to 43.
+No later record lifts it or renews it.
+While it stood,
+two sweeps of this rule's findings merged:
+`beb61ec46b` on 2026-11-27,
+counted in the handover as `4,062` findings in `480` files,
+and `96c930201f`,
+which repaired `771` doc paragraphs in `367` files,
+netting `90` fewer doc lines.
+Whether those sweeps fell within the hold,
+and whether the hold governs a new class,
+are the owner's to say.
+
+### 6. What repairs what is already in the tree
+
+The tree holds `210,207` quiet breaks at no boundary,
+and `4,010` of them are the short-line shape inside `package/git-policy/cli`
+in `1,481` files.
+What exists to repair them:
+
+- The revert-and-fix route of `96c930201f`:
+  it ran the installed fix over pre-sweep copies and repaired `771` paragraphs
+  in `367` files.
+  Its own measurement (`81650758c4`) records what it reached and what it did not:
+  of `548` one- and two-word doc lines that ended at no break point
+  in the `471` swept files,
+  it repaired exactly the `90` the sweep itself cut,
+  and the `458` that were already alone stayed.
+  The whole package still held `3,367` such lines after it.
+- A removal fix built on the shipped join's guards:
+  it would reach every line,
+including the ones that were already alone,
+  and it does not exist.
+- Nothing:
+  the breaks stay,
+and the next old-style wrap adds more.
+
+Which tool repairs the rest,
+whether the owner accepts a one-time rewrite of `1,481` files in one package,
+and in which round,
+are the owner's to say.
+
+## Shipped behaviour, and the commit each statement holds at
+
+- The boundary test strips the nine closers and does not climb `*`,
+`_` or `~`
+  (`markdown_break_points.rs`,
+`ends_at_break_point`),
+  while the rule climbs `Strong`,
+`Emphasis` and `Delete`
+  (`markdown_prose_context.rs`,
+`delimiter_tail`).
+  This holds at `bc5b4ca2ba` and in `0.5.2-alpha.24`,
+  where the emphasis fixture above is rewritten as shown.
+- The join answers only about the fragment an inserted break cut,
+  so a line that was already alone is never joined.
+  This holds at `bc5b4ca2ba` and in `0.5.2-alpha.24`,
+  where `Aaa bbb, ccc ddd eee` / `the` / `fff ggg hhh.`
+  keeps its lone `the` after `--fix`.
+  The wrapper's own file,
+  `package/git-policy/cli/src/native/worktree_clone_add_route/mod.rs`,
+  held such a line at `c8545f91b8`;
+  at `bc5b4ca2ba` it does not,
+  because the merge of `96c930201f` joined it.
+  The defect remains reachable and its exhibit is now a fixture.
+- The linter's `README.md` line 2629 says
+  "The fix never rewrites a line the author wrote."
+  That sentence holds at `bc5b4ca2ba`;
+  a run on a copy shows the author's second line gaining a fragment at its start.
+  The round `monochromatic-lint-alpha-24-read-the-line-break-fix-settles-in-one-pass-and-keeps-the-line-limit`
+  is changing that join and that README now,
+  so the sentence and the join may differ after it.
+- No rule reports a fence that is never closed,
+  and CommonMark runs an unterminated fence to the end of its container,
+  so every Markdown rule,
+and this survey,
+skips what follows.
+  That holds at `bc5b4ca2ba`
+  (`package/linter/monochromatic-lint/README.md` lines 2635 to 2639,
+  recorded by `7cfdc9199e`).
+- At `error` a run without `--fix` exits `1` and at `warn` it exits `0`,
+  and `--fix` applies at both severities.
+  That holds in `0.5.2-alpha.24`,
+  measured on one fixture.
+- No shipped rule bounds a prose line's width.
+  That holds at `bc5b4ca2ba` for all 30 rule ids,
+  and a 123-character prose line passes the repository configuration with exit 0.
+
+## How a line dodges each predicate
+
+These routes follow from the definition and the guards and were not measured in use,
+except the hard break,
+of which the run found none:
+
+- A line ending in two spaces or a backslash is a hard break.
+  Every predicate leaves it alone,
+  and one invisible edit silences a report while it changes the rendered text.
+- A trailing comma,
+period or colon moves a line to a break point,
+  which no predicate reports.
+  The issue's own `/// 4,` and `/// held,` are that shape.
+- A third word on a short line moves it out of the short-line and short-next-line predicates
+  and leaves the break where it was.
+- A non-breaking space or a full-width punctuation mark moves a line off the six-character test.
+
+Whether a hard break or a trailing comma should itself be reported is not asked here.
 
 ## What this round built, and what it did not
 
 Built:
-the survey and its positive control,
-the kept file list,
+the harness with each predicate in its own population,
+three fixtures asserting exact numbers,
+the positive control that sees every class,
+the after-the-fix measurement,
+the corpus list at the rerun commit,
 the whole output,
 and this revision.
 Changed nothing that ships:
@@ -827,21 +1028,19 @@ no sweep,
 no configuration,
 no workflow.
 
-The earlier round built the forward join,
-where a fragment the fix's own break cut joins the clause that continues it,
-and the indent a paragraph's first continuation line carries.
-It measured `package/git-policy/cli/src` as it stood before the merge,
-where the released fix left `834` doc lines of one or two words among the `4,613` it wrote,
-and this fix leaves `732` among the `4,577` it writes.
-
 Measured by this round:
-the counts above,
-the installed binary on `package/git-policy/cli` (`14` findings in `14` files,
+every count above,
+the installed binary on `package/git-policy/cli`
+(`26` findings in `20` files,
 exit `1`),
-the exit statuses on a one-rule fixture (`warn` exits `0`,
-`error` exits `1`,
-and `--fix` applies at both),
-and the reproductions in the section on shipped defects.
+the exit statuses on a one-rule fixture,
+the host width of a joined doc line at three indents,
+the absence of a width rule,
+the emphasis boundary test,
+and the control of the after-the-fix measurement,
+which the run recorded in `output.txt` used in a form that never reached the fix.
+That control is corrected in the kept harness and measured separately;
+the recorded figure rests on all `222` copies changing bytes.
 Inferred,
 not run:
 the removal counts,
@@ -849,5 +1048,135 @@ the clause-width joins,
 the Rust projection under a removal,
 and the ten-pass fix loop's behaviour on a clause fix.
 Unknown:
-how many of the `38,405` F2 lines a sweep would change in files other branches hold,
-and what the owner's kind list is.
+how many of the `38,322` durable short-line findings a sweep would change
+in files other branches hold,
+what the owner's kind list is,
+and whether the sweeps that merged while the hold stood were within it.
+
+## Answers to the second gate read
+
+Each item names the finding and what answered it.
+
+- H1 asked for reasons and cons that use counts from another population or unit.
+  Every reason now uses its predicate's own population,
+  the ordinary share is stated for each,
+  D and D2 are given in breaks beside clauses,
+  and the short line's overlap with the kinds question is measured:
+  `2,706` conjunction-class findings and `8,035` at the edges MD8 names.
+- H2 asked for the repair route and the exhibit to be restated at the current commit.
+  The status quo,
+  the repair and question 6 are restated at the rerun commit,
+  with what the revert-and-fix route reached,
+  and the lone `the` no longer stands in the wrapper's file.
+- M1 asked for the emphasis count beyond the removable branch.
+  Every short-line emphasis ending is counted,
+  and the durable files are counted over every durable finding.
+- M2 asked for a closer-ended figure that matches the output.
+  It is `9,603`,
+  and the count without it is `200,604`.
+- M3 asked for a reported and a left line for each predicate.
+  Each one has both,
+  and the edge-free clause's test reads every break of the clause.
+- M4 asked that the decisions be separable.
+  The kinds,
+  the predicate,
+  the timing and the repair are four decisions.
+- M5 asked for the ranking criterion.
+  It is stated first,
+  and build effort,
+  files touched and fix needs are a cost section.
+- M6 asked how a new class gets a severity of its own.
+  A new rule id and the shared severity are both stated,
+  with their effects on today's error findings,
+  the notices block and a shrinking allow list.
+- M7 asked for a measured width and questions that stand alone.
+  The width is measured (`123`,
+  `127`,
+  `131`),
+  the questions spell out their options,
+  and the conjunction list is given.
+- M8 asked for the sweeps that merged during the hold.
+  Question 5 names both sweeps with their commits and counts,
+  and the handover citation is lines 2749 and 2750.
+- M9 asked for "forced" relative to the kinds.
+  The forced count is given per class,
+  and stated as the reading that permits no kind.
+- M10 asked for the issue's own examples to be counted.
+  The one-or-two-word lines ending at a break point are counted (`393,916`)
+  beside those ending at none (`39,485`).
+- M11 asked for a split by file family.
+  Every predicate is split by family,
+  and the population's split is stated.
+- M12 asked for quoted lines classed by their prose and for the missing controls.
+  A quoted line is classed after its marker,
+  three fixtures assert three splits,
+  and the positive control sees the block-marker class.
+- M13 asked whether the reported paragraphs are a lower bound.
+  They are measured after the shipped fix ran on copies,
+  and `10,028` of the `11,552` remain.
+- L1 asked whether an unterminated fence is reported.
+  No rule reports it,
+  and the answer names its commit and the README passage.
+- L2 asked for the ways a line dodges a predicate.
+  They are named in "How a line dodges each predicate".
+- L3 asked for a pinned rerun and a snippet that compiles.
+  The README names the commit and the worktree,
+  the steps are the ones run,
+  the module text is the compiling `//` form,
+  and `command.txt` and the README agree on three temporary changes.
+- L4 asked for figures that trace.
+  Every figure the survey does not count has its command and output beside it,
+  and the two records of other rounds are named as theirs.
+- L5 asked that the tree's state rest on evidence.
+  The sentence now claims only that package,
+  with its run kept.
+- L6 asked for paired figures in one unit.
+  Paired figures are in one unit,
+  and the clauses holding the forced breaks are counted.
+- L7 asked where the README sentence holds.
+  It holds at the rerun commit,
+  and its change belongs to the round that is changing the fix.
+
+The first read's three findings it called answered in part:
+
+- H4 asked for a shrinking allow list and a rule id of its own.
+  Both are weighed in question 3.
+- Its M1 asked for the reported paragraphs to be measured.
+  They are,
+  as M13 above.
+- Its M7 asked whether any rule holds prose under `120`.
+  None does.
+  The width is `123`,
+  `127`,
+  `131`.
+
+## Figures and where each command and its output are kept
+
+Every figure above is a row of the survey folder's `output.txt`,
+`package/linter/monochromatic-lint/doc/a-survey-of-line-breaks-at-no-semantic-boundary/`,
+except these,
+whose command and output are in that folder's `figures-the-survey-does-not-count/`:
+
+- The `26` findings in `20` files on `package/git-policy/cli`
+  are in `repository-configuration-on-package-git-policy-cli.jsonl`
+  beside that folder.
+- The host widths `123`,
+`127` and `131` are in `host-width-of-a-joined-doc-line.txt`.
+- The absent width rule and the passing 123-character line are in
+  `no-rule-bounds-a-prose-line.txt`.
+- The exit statuses and the fix at each severity are in
+  `exit-status-and-fix-at-each-severity.txt`.
+- The emphasis boundary test is in `emphasis-boundary-reproduced.txt`.
+- The sweeps',
+the repair's and the fence's commit records are in
+  `96c930201f-the-revert-and-fix-repair.txt`,
+  `81650758c4-what-the-repair-reached.txt`,
+  `beb61ec46b-the-sweep-merge.txt`,
+  `a287f226a0-the-merge-that-brought-the-repair.txt` and
+  `7cfdc9199e-no-rule-reports-an-unterminated-fence.txt`.
+- The quoted passages of
+  `doc/handover/cli-git-rust-implementation.md` and
+  `doc/planning/repository-linter-stays-at-zero.md` are in
+  `cli-git-rust-implementation-the-4-062-passage.txt`,
+  `repository-linter-stays-at-zero-the-repository-wide-run-and-the-58-of-498.txt` and
+  `repository-linter-stays-at-zero-the-hold.txt`.

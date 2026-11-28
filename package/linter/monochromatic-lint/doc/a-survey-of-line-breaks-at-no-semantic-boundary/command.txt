@@ -43,3 +43,15 @@ The installed binary is monochromatic-lint 0.5.2-alpha.24.
 
 The three edits were reverted after the run:
 git status --short named none of them.
+
+The harness's after-the-fix control was corrected after this run.
+The run's harness wrote its control copy but never passed it to the fix,
+and its expected count was one an unfixed copy also held,
+so that control could not fail.
+The kept harness passes the control through the same invocation as the copies,
+and expects the text `Aaa bbb, the` / `ccc ddd eee.`,
+which holds one break at no boundary before the fix and none after it.
+The run's figure does not depend on that control:
+all 222 copies changed bytes,
+and the corrected control is measured in
+figures-the-survey-does-not-count/reported-paragraph-control.txt.

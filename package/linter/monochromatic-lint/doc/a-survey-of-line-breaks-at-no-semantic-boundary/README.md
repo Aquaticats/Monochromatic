@@ -55,7 +55,8 @@ The survey strips the marker before it classes the line,
 counts its words or measures its clause width,
 so a quoted line is filed by its prose and not by the marker a reader does not see.
 The `block-marker` class stays for a following line the shipped join refuses,
-such as `#tag`, which is not a heading and does continue the paragraph.
+such as `#tag`,
+which is not a heading and does continue the paragraph.
 
 ## The classes
 
@@ -106,7 +107,8 @@ each in its own population:
 - `D2`,
   `D` without a clause that holds a parenthesis or an inline-span edge,
   or a break whose previous line ends in a dash.
-  The test reads every break of the clause, not only its first.
+  The test reads every break of the clause,
+not only its first.
 - `F1`,
   a break whose following line holds one or two words.
 - `F2`,
@@ -147,13 +149,28 @@ never in the repository.
 The fix is the installed binary named by `SURVEY_LINT_BIN`,
 run as `--config <the harness's own one-rule configuration> --fix --no-ignore`,
 once per batch of copies.
-The harness writes that configuration itself, into the same folder,
+The harness writes that configuration itself,
+into the same folder,
 and it is kept beside this file as `reported-paragraphs-after-the-fix-config.jsonc`.
-A control copy,
-`Aaa bbb, ccc ddd eee` / `the` / `fff ggg hhh.`,
-proves the measurement can see a fix run:
-its fixed copy must hold exactly two breaks at no boundary,
-which was measured once with the installed `0.5.2-alpha.24` and is asserted in the harness.
+A control copy goes through the same invocation as the copies,
+so the measurement can be seen to see a fix run:
+its text is
+`Aaa bbb, the` / `ccc ddd eee.`,
+the unfixed copy holds one break at no boundary and the fixed copy holds none,
+and the harness asserts both that the copy changed and that it now holds zero.
+
+One file of the run recorded in `output.txt` kept findings after the fix,
+which the survey measured separately:
+`65` findings remained across all the copies,
+`64` of them in one file,
+and one in the old control copy,
+which that run's harness wrote but never passed to the fix.
+The kept harness corrects that,
+so its control can fail on an unfixed copy;
+the recorded figure rests on all `222` copies changing bytes,
+and on the control measurement kept beside this survey.
+Part of the `10,028` remaining breaks may therefore sit in paragraphs the fix leaves reported,
+and the population after a full fix run is at most `220,235`.
 
 The reported breaks that remain are the post-fix count of each file
 less the breaks that were already quiet in it.
@@ -183,8 +200,13 @@ so a fix never creates a break at no boundary.
 - `reported-paragraphs-after-the-fix-config.jsonc`:
   the one-rule configuration the after-the-fix measurement used,
   copied from the harness's own constant.
-- `earlier-figures/`:
-  the command and output of every figure this proposal quotes that the survey does not count itself.
+- `repository-configuration-on-package-git-policy-cli.jsonl`:
+  what the repository's own configuration reports on `package/git-policy/cli`
+  at the recorded commit,
+which is the figure the proposal quotes for the tree not being green.
+- `figures-the-survey-does-not-count/`:
+  the command and output of every figure this proposal quotes that the survey does not count itself,
+  and a `README.md` naming each one.
 - `README.md`:
   this file.
 
@@ -195,20 +217,32 @@ A later rerun at a later commit will differ by the files that changed.
 
 ## How to run it again
 
+The run recorded in `output.txt` was made at commit
+`bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c` (2026-11-28T03:19:11-05:00),
+in the worktree the round was started in,
+`.claude/worktrees/pi-line-break-proposal-revised-against-its-second-gate-read-with-its-survey-run-again`
+of the repository,
+and its `SURVEY_COMMIT` line names the same commit.
+Its list is `files.txt` at that commit.
+A rerun must read a worktree at that commit,
+because a listed path that the commit does not hold is tallied as a parse failure,
+and the harness refuses to report on an empty commit or an empty survey.
+
 The harness must sit inside the crate to call the shipped join.
 Copy it in and wire it temporarily;
 none of these three changes is committed.
-
-The run must read a worktree at the commit it names,
-because a listed path that the commit does not hold is tallied as a parse failure.
-Make one:
+The run below was made in the worktree this round was started in,
+at the commit above;
+a rerun needs a worktree at the same commit,
+and this line makes one:
 
 ```sh
 # from the repository root
-git worktree add /home/user/temp/agent/line-break-survey-rerun <commit>
+git worktree add /home/user/temp/agent/line-break-survey-rerun bc5b4ca2bae7fc5bb80475448c31d4d57f51f83c
 ```
 
-1. Copy the kept harness to the crate source:
+1.
+   Copy the kept harness to the crate source:
 
    ```sh
    # from package/linter/monochromatic-lint
@@ -216,11 +250,13 @@ git worktree add /home/user/temp/agent/line-break-survey-rerun <commit>
      src/markdown_fragment_joins_survey_tests.rs
    ```
 
-1. Append this module declaration to `src/markdown_fragment_joins.rs`.
-   The comments are `//` and not `//!`:
-   an inner doc comment after the file's items does not compile.
+1.
+   Append this module declaration to `src/markdown_fragment_joins.rs`.
+   The comments are `//` and not `//!`,
+   because an inner doc comment after the file's items does not compile;
+   the run below compiled this text as appended.
 
-   ```rust
+   ```text
    // Wire the survey test in for one run.
    // Keep the survey test out of a release build.
    #[cfg(test)]
@@ -228,7 +264,8 @@ git worktree add /home/user/temp/agent/line-break-survey-rerun <commit>
    mod survey_tests;
    ```
 
-1. Change this constant in `src/markdown_fragment_joins.rs`
+1.
+   Change this constant in `src/markdown_fragment_joins.rs`
    from `2` to `usize::MAX`.
    This is the only lifted guard,
    and this edit is the reason the removal count is a model:
@@ -239,7 +276,8 @@ git worktree add /home/user/temp/agent/line-break-survey-rerun <commit>
    const FRAGMENT_WORDS: usize = 2;
    ```
 
-1. Run the survey from the package folder,
+1.
+   Run the survey from the package folder,
    with the list,
    the worktree root,
    the copies folder and the installed binary named:
@@ -262,8 +300,10 @@ git worktree add /home/user/temp/agent/line-break-survey-rerun <commit>
    `survey_counts_a_reported_paragraph_apart` are the three controls for the splits the predicates lean on;
    each asserts exact numbers on its fixture.
 
-1. Undo the two edits and delete `src/markdown_fragment_joins_survey_tests.rs`.
+1.
+   Undo the two edits and delete `src/markdown_fragment_joins_survey_tests.rs`.
    `git status --short` must name none of them before a commit.
+   The run recorded here took 1,297.955 seconds for its five tests.
 
 ## Limits
 
