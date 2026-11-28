@@ -25,7 +25,6 @@ import {
 } from '../../bin/mvm-guest-bounds.ts';
 import {
   awaitDetachedGuestScript,
-  startDetachedGuestScript,
 } from '../../bin/mvm-guest-detached-script.ts';
 import type {
   GuestFacts,
@@ -34,6 +33,7 @@ import {
   host,
   pushWorktreeSnapshot,
 } from '../../bin/mvm-guest-host-command.ts';
+import { startTheScript, } from './start-the-script.ts';
 import {
   buildLog,
   crateBuildTimeoutMilliseconds,
@@ -168,12 +168,11 @@ export async function buildInGuest({
     'CARGO_BUILD_JOBS=1 cargo build --release --tests --locked > /root/step21-build.log 2>&1',
     'tail --lines=3 /root/step21-build.log',
   ].join('\n',);
-  await startDetachedGuestScript({
+  await startTheScript({
     chosen,
     script,
     log: buildLog,
     timeoutMilliseconds: crateBuildTimeoutMilliseconds,
-    nameCheck: 'step',
   },);
   await awaitDetachedGuestScript({
     chosen,

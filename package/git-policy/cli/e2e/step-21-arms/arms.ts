@@ -21,11 +21,11 @@ import {
 import {
   awaitDetachedGuestScript,
   pullGuestLog,
-  startDetachedGuestScript,
 } from '../../bin/mvm-guest-detached-script.ts';
 import type {
   GuestFacts,
 } from '../../bin/mvm-guest-guest-facts.ts';
+import { startTheScript, } from './start-the-script.ts';
 import {
   armLog,
   armTimeoutMilliseconds,
@@ -82,12 +82,11 @@ export async function layThePool({
     `if ! zpool list -H -o name ${pool} > /dev/null 2>&1; then truncate --size 4G ${fixtureRoot}/pool.img; zpool create -f -O mountpoint=none ${pool} ${fixtureRoot}/pool.img; fi`,
     `zpool list -H -o name,size ${pool}`,
   ].join('\n',);
-  await startDetachedGuestScript({
+  await startTheScript({
     chosen,
     script,
     log: poolLog,
     timeoutMilliseconds: poolTimeoutMilliseconds,
-    nameCheck: 'step',
   },);
   await awaitDetachedGuestScript({
     chosen,
@@ -255,12 +254,11 @@ export async function runTheArms({
     `tail --lines=200 /root/${armLog}`,
     'test "$status" = 0',
   ].join('\n',);
-  await startDetachedGuestScript({
+  await startTheScript({
     chosen,
     script,
     log: armStepLog,
     timeoutMilliseconds: armTimeoutMilliseconds,
-    nameCheck: 'step',
   },);
   /**
    What the step's own script answered, and why it refused when it did: the arm log is pulled either way, because a failed
