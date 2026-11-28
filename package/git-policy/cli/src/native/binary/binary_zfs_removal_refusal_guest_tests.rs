@@ -691,6 +691,11 @@ fn zfs_removal_refusal_guest() {
         "{refused}"
     );
     println!("REMOVAL-ARMS bookmark-stale=refused name={clone}#from-gone");
+    // The refused bookmark is this arm's own debris: it goes, so the arm below starts from a clone the rule passes.
+    zfs_ok(
+        sbin.as_str(),
+        &["destroy", format!("{clone}#from-gone").as_str()],
+    );
 
     // Arm 6: the whole removal through the built wrapper, with the mount handler answering the unmount it asks for.
     // The clone is attached first, so the unmount is a real unmount at a real slot rather than a state the arm assumed.
