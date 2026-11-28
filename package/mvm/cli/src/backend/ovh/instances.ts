@@ -74,11 +74,12 @@ const SNAPSHOT_TIMEOUT_MS = 120_000;
  project's listing.
 
  Measured on 2026-11-28 against the one project: a delete OVHcloud accepted at
- 11:40:42.648Z was listed as `DELETED` at 11:40:54.346Z, 11.7s later, and a
- delete accepted at 11:52:45.307Z was still `DELETING` at 11:53:01.246Z, 15.9s
- later. Five minutes is more than an order of magnitude past both readings,
- equals the wait a create already gives for a machine to start, and costs one
- read of the project's listing every {@link POLL_INTERVAL_MS}.
+ 11:40:42.648Z was listed as `DELETED` at 11:40:54.346Z, 11.7s later; one
+ accepted at 11:52:45.307Z was still `DELETING` at 11:53:01.246Z, 15.9s later;
+ and a probe of this round read the listing as absent 19.8s after its own
+ accepted delete. Five minutes is more than an order of magnitude past every
+ reading, equals the wait a create already gives for a machine to start, and
+ costs one read of the project's listing every {@link POLL_INTERVAL_MS}.
  */
 const DELETE_TIMEOUT_MS = 300_000;
 
