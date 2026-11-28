@@ -2175,6 +2175,17 @@ and a lock it finds missing it writes again by the decision of 2026-11-22.
   No `--force` reaches it,
   and a single force keeps its existing meaning,
   waiving cleanliness.
+  Note of 2026-11-28:
+  the owner answered that two forces delete the person's lock file and then run
+  the removal,
+  and that one force still refuses there naming two forces and
+  `git worktree unlock <slot>`
+  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+  "Two forces at a person's lock" and "One force"),
+  which amends the sentence above and the rule beside it that a removal must not
+  release a lock it cannot attribute to this add.
+  One force also passes a worktree holding modified or untracked files, which is
+  Git's own gradation (`builtin/worktree.c:1464` at Git `v2.56.1`).
 - S4 no lock:
   the removal writes the lock again from the nonce,
   prints the one line,
