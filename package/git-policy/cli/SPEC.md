@@ -24616,9 +24616,16 @@ so no process is started for it.
 A shell alias (`!...`) and an undefined name are forwarded as they are:
 a shell command cannot be judged by reading it,
 and Git runs it with its own `git-core` directory first on `PATH`,
-so a `git` inside it is real Git and not this wrapper,
+so a `git` inside it is whichever `git` that directory holds:
+here a link to the real Git,
 which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
 not the wrapper first on `PATH`).
+On a system whose `git-core` holds no `git` the rest of `PATH` answers,
+and an installed wrapper is then that shell's `git`:
+it judges the nested command as the direct command it is,
+from the directory Git ran the shell in and with the `GIT_DIR` Git gave that shell,
+so the same words are refused there where the direct spelling is.
+Which of the two answers rests on Git's exec path and `PATH` and never on this wrapper.
 One plain form of it is read,
 only so the guard can decide:
 a value whose bytes are letters,
@@ -24648,14 +24655,22 @@ which the nested Git reads too
 (`git.c:215` to `:250`,
 `config.c:469` to `config.c:504`).
 Git stores the Git directory it found in that environment as well,
-and gives it to the shell whenever the caller named a repository or a work tree,
+and gives it to the shell whenever the caller named a repository or a work tree
+(`--git-dir`,
+`--work-tree`,
+`GIT_DIR` or `GIT_WORK_TREE`),
+the repository's own configuration sets `core.worktree`
+(`config.worktree` included, when `extensions.worktreeConfig` is on),
 the repository is bare,
 the shell's directory stands inside a Git directory,
 or the working tree's `.git` is a file that points elsewhere
-(`setup.c:1126` to `:1129`,
-`setup.c:1657` to `:1662`);
-a plain main checkout gives it nothing,
+(`setup.c:1247` to `:1254`,
+`setup.c:2063` to `:2071` of Git 2.56.1);
+a plain main checkout that does none of these gives it nothing,
 where the nested Git finds that repository by itself.
+The configuration matters because a main checkout that sets `core.worktree` takes Git's explicit path
+and exports an absolute Git directory from a subdirectory,
+which a nested `-C` does not move.
 So every repository fact the decision reads is asked in the state the nested Git acts in:
 from the directory Git runs the shell in,
 with the Git directory Git gives that shell,
