@@ -74,6 +74,9 @@ AP5:
   or this one's.
   A build that dies before its write phase leaves the output directory untouched and its
   staging directory behind for the next build of the same package to clear.
+  Rolldown's own watch message names where it wrote,
+  so it reads `√ Rebuilt dist/final/.node.building in 408.00 ms.`,
+  while by the time it prints the files are reachable under `dist/final/node`.
   Files this build did not emit are removed once the new ones are in place,
   which is the end state `output.cleanDir` produced;
   a consumer that sets `cleanDir: false` keeps that removal off,
