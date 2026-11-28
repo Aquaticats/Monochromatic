@@ -301,12 +301,12 @@ pub(crate) fn declarations(text: &str) -> Result<Vec<Declaration>, String> {
         // What: the attributes this line starts with, and the declaration written after them on it.
         // Why: `#[cfg(test)] mod support;` declares a module, and a reader that took the line for an
         //      attribute alone left that module out of every scan of the tree in silence.
-        let (written, declaration): (Vec<&str>, &str) = if trimmed.starts_with("#[") {
+        let (written_attributes, declaration): (Vec<&str>, &str) = if trimmed.starts_with("#[") {
             leading_attributes(trimmed)
         } else {
             (Vec::new(), trimmed)
         };
-        attributes.extend(written);
+        attributes.extend(written_attributes);
         if declaration.trim().is_empty() {
             continue;
         }

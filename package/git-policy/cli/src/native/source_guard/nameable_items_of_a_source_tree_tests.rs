@@ -299,11 +299,11 @@ fn declaration_after_pub(rest: &str) -> Option<(String, String)> {
 /// const isAMacroExport = (attribute: string): boolean => /^#\[macro_export(?:\s*\(.*\))?\]$/.test(attribute)
 /// ```
 fn is_a_macro_export(attribute: &str) -> bool {
-    let Some(rest) = attribute.strip_prefix("#[macro_export") else {
+    let Some(after_the_name) = attribute.strip_prefix("#[macro_export") else {
         return false;
     };
-    let rest: &str = rest.trim_end();
-    return rest == "]" || (rest.starts_with('(') && rest.ends_with(")]"));
+    let inside: &str = after_the_name.trim_end();
+    return inside == "]" || (inside.starts_with('(') && inside.ends_with(")]"));
 }
 
 /// What:
@@ -576,7 +576,7 @@ fn members_of(
         // first column, because a type's or an `impl`'s generics and `where` clause are written there.
         // Why: Only the line holding the body's `{` opens it, and a header that ends in `;` has no body.
         if let Some((owner, methods)) = opening.take() {
-            let owner: Option<String> = match owner {
+            let resolved: Option<String> = match owner {
                 Some(name) => Some(name),
                 None => {
                     // What: an `impl` whose generics ran over several lines names its type after them.
@@ -591,7 +591,7 @@ fn members_of(
             if line.contains('{') {
                 // What: the body opens here, and only for a type the chain publishes.
                 // Why: a `pub` member of a type no consumer can name publishes nothing.
-                match owner {
+                match resolved {
                     Some(name) if published_types.contains(name.as_str()) => {
                         body = Some((name, methods));
                         if remaining <= 0 {
@@ -601,7 +601,7 @@ fn members_of(
                     _ => {}
                 }
             } else if !(line.contains(';') || remaining < 0) {
-                opening = Some((owner, methods));
+                opening = Some((resolved, methods));
             }
             continue;
         }
