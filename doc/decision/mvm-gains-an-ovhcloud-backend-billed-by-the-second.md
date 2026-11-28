@@ -246,6 +246,40 @@ the chooser takes the smallest flavor in stock,
 which can be a GPU flavor only when nothing smaller is in stock,
 and an explicit guard for that is open.
 
+### The fourth question, left without a choice
+
+The image choice was built as the reads allow
+(commits `89776d85bf` and `695d72040d`,
+merged as `8200df4622`):
+a shorthand never stands for an image tagged `application`,
+nor for one whose name extends another match's name,
+an image named whole is taken as asked,
+and an image the flavor cannot boot by its `minDisk`,
+`minRam` or `flavorType` is left out.
+Run with the built code on the records read from the project,
+`ubuntu` on `d2-2` gives "Ubuntu 26.04".
+
+Asked how the third run may go
+(with the machine type pinned to `d2-2` for that one process,
+as fixed with the type chosen,
+or not now),
+the owner chose no option and wrote:
+
+> My impression is mvm should natively support passing how many vcpu and how many GBs of RAM
+> and auto pick the most relevant size if the provider doesn't support all mix and match..
+
+So no third run was made.
+What "the most relevant size" is,
+and how sizes that are special hardware stay out,
+are put as separate decisions in
+`doc/planning/mvm-create-takes-vcpus-and-memory-and-picks-a-size.md`,
+and the run waits for the owner's answers to them.
+
+What the two runs left:
+one public key in the project under a name beginning `mvm-`,
+the keypair under `~/.local/share/mvm/ovh/` on this machine,
+and no instance.
+
 ## What is not known
 
 - Whether the key the owner made is limited to one project,
