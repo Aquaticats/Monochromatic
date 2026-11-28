@@ -1,0 +1,45 @@
+# What the containers baked in, and what each binary needs, 2026-11-28
+#
+# Built from source-snapshot.tar.gz (14,807,265 bytes) of commit f855df5467befc239ea442a87ba1e933d6bfbdbc,
+# the tree this round made with the drivers own copyWrapperSnapshot.
+
+== the lock driver two artifacts, built at /opt/git-policy-cli-lock
+path: package/git-policy/cli/target/release/build/monochromatic-git-policy-cli/37165df7cd376a35/out/native_binary-37165df7cd376a35
+bytes: 17682608
+glibc floor: GLIBC_2.39
+occurrences of the driver CRATE_DIR /opt/git-policy-cli-lock: 27
+occurrences of the host checkout /home/user/Monochromatic: 1
+the paths it carries under the driver CRATE_DIR:
+/opt/git-policy-cli-lock/package/git-policy/clisrcbulk/anchor.binmeasured
+/opt/git-policy-cli-lock/package/git-policy/clitargetmd2add--all60commit--quietMESSAGEpartial.mdrecords.txt--not
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-clijournala
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-climissing-root-reportgrandgrandparentmarker-filexmarkersilent-listenersocketa
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-cli--release0.5.34-before-one-executableUTF-8x
+/opt/git-policy-cli-lock/package/git-policy/cli/target/release/monochromatic-git-policy-cliremove
+
+path: package/git-policy/cli/target/release/monochromatic-git-policy-cli
+bytes: 32547448
+glibc floor: GLIBC_2.39
+occurrences of the driver CRATE_DIR /opt/git-policy-cli-lock: 97
+occurrences of the host checkout /home/user/Monochromatic: 0
+the paths it carries under the driver CRATE_DIR:
+
+== the forced act one artifact, built at /opt/forced-act
+path: package/git-policy/cli/target/release/build/monochromatic-git-policy-cli/ea8d745c26bfa0a9/out/git_policy_cli-ea8d745c26bfa0a9
+bytes: 89659368
+glibc floor: GLIBC_2.39
+occurrences of its CRATE_DIR /opt/forced-act: 111
+occurrences of the lock driver CRATE_DIR: 0
+the paths it carries under /opt/forced-act:
+/opt/forced-act/package/forbidden-strings/cli/src/frx_load.rs:294forbidden_strings::frx_loadmessage/opt/forced-act/package/forbidden-strings/cli/src/frx_load.rsevent
+/opt/forced-act/package/forbidden-strings/cli/src/frx_load.rs:296
+/opt/forced-act/package/forbidden-strings/cli/src/frx_scan.rs
+/opt/forced-act/package/forbidden-strings/cli/src/path_scan.rs
+/opt/forced-act/package/forbidden-strings/cli/src/rule/frx/escape.rs
+/opt/forced-act/package/forbidden-strings/cli/src/rule/frx/format.rs
+
+== the one host path a lock artifact carries, and what it is
+It is a test fixture string in the crate own tests, not a baked build path:
+86:        "/home/user/Monochromatic",
+91:        "/home/user/Monochromatic/.claude/worktrees/topic",
+104:        "/home/user/Monochromatic",

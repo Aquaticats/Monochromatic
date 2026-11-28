@@ -1,0 +1,6 @@
+PRETTY_NAME="Ubuntu 24.04.4 LTS"
+NAME="Ubuntu"
+6.8.0-136-generic
+2
+MemTotal:        3911564 kB
+SwapTotal:             0 kB
