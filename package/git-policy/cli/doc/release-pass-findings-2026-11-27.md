@@ -235,9 +235,8 @@ written on its attribute's line.
 
 ### What the read found on the three guards
 
-The read planted each spelling by running the guards' own reading functions over the release
-sources,
-and found the guards green for six spellings:
+The read showed six spellings the three guards answer nothing for,
+by running the guards' own reading functions over planted text:
 
 - the link guard,
   `hook_self_invocation_tests.rs`,
@@ -307,17 +306,19 @@ service/service_instance.rs:120: a start of the manager's own program: let _ = s
 ```
 
 The last two are quoted with their runs of spaces closed up,
-since the finding
-prints the line as the file writes it,
+since the finding prints the line as the file writes it,
 indentation included,
-and the start's is the call's line joined with the literal's line.
+and the start's finding is the call's line joined with the literal's line.
 The `Command as` finding's banned text ends with the space between the two words.
 
-`test result: FAILED. 7 passed; 1 failed`,
-`5 passed; 1 failed` and `11 passed; 1 failed`.
-With the plants reverted the three modules answer
+One cell failed in each module,
+`7 passed; 1 failed`,
+`5 passed; 1 failed` and
+`11 passed; 1 failed` in that order.
+With the plants reverted the same three modules answer
 `ok. 8 passed`,
-`ok. 6 passed` and `ok. 12 passed`.
+`ok. 6 passed` and
+`ok. 12 passed`.
 
 ### Which other rule refuses a spelling
 
@@ -329,7 +330,7 @@ so a note file that spells it fails there too.
 
 Nothing else refuses any of the six.
 `clippy.toml` bans `std::env::temp_dir`,
-three `tempfile` constructors and `Result::unwrap`;
+four `tempfile` constructors and `Result::unwrap`;
 the crate's `[lints.clippy]` turns on `disallowed_methods`,
 `implicit_return`,
 `shadow_reuse`,
