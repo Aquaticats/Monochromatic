@@ -40,7 +40,8 @@ and `nightly-2026-11-16` with the components the lock records,
 and `cargo-dylint` and `dylint-link` 6.4.0.
 The image tag was `localhost/dylint-probe-base:2026-11-28`.
 
-Each measurement ran one container, started detached and kept alive for the copied inputs:
+Each measurement ran one container,
+started detached and kept alive for the copied inputs:
 
 ```sh
 podman run --detach --name <name> --cpus=4 --memory=8g --pids-limit=1024 --blkio-weight=10 \
@@ -56,7 +57,8 @@ systemd-run --user --scope --slice=agent-work.slice \
 ```
 
 Nothing of this account's home was mounted:
-the inputs were copied in with `podman cp` (the library, `package/wg/cli-quicker-exempt`,
+the inputs were copied in with `podman cp` (the library,
+`package/wg/cli-quicker-exempt`,
 the released `monochromatic-lint` 0.5.2-alpha.24,
 the host's registry cache and index for M3,
 and for M3 the `git archive` of the worktree's `HEAD`).
@@ -75,41 +77,59 @@ none of this round is left.
   `log/execve-counts.txt` counts the programs the run executed.
 - `m2a-proxy-alone-fails-at-rustc-dev/`:
   a proxy `cargo` first and the floating nightly still minimal.
-  `run.txt` holds the whole run, and `linter-skip.jsonl` the skip.
+  `run.txt` holds the whole run,
+  and `linter-skip.jsonl` the skip.
 - `m2-f2-proxy-cargo/`:
-  a proxy `cargo` first and the components added to the floating nightly (F2, F5's dated arm).
+  a proxy `cargo` first and the components added to the floating nightly (F2,
+  F5's dated arm).
   `log/lib-proxy.err.e0603.txt` is the library failure against the 2026-11-27 nightly;
   `log/lib-nonproxy.err.dylint-link.txt` is the same build without the proxy;
   `log/dated-driver.err.last-4.txt` and `log/dated-driver-execve.git-lines.txt` are the dated
   driver build and its clone;
   `log/nonproxy-driver.err.last-8.txt` is the driver build without the proxy.
 - `m5-option-k-end-to-end/`:
-  the library naming the dated toolchain (option K), the skip's statuses, and the `nightly` arm of F5.
-  `log/skip-default.jsonl`, `log/skip-max-warnings.jsonl` and `log/skip-quiet.jsonl` are the three
+  the library naming the dated toolchain (option K),
+  the skip's statuses,
+  and the `nightly` arm of F5.
+  `log/skip-default.jsonl`,
+  `log/skip-max-warnings.jsonl` and `log/skip-quiet.jsonl` are the three
   probes;
   `log/nightly-driver.err.tail.txt` and `log/execve-counts.txt` are the `nightly` arm;
   `log/k-warm.err.building-driver.txt` and `log/k-warm.err.finished.txt` name the toolchain Dylint
   chose and the build times;
-  `log/k-driver-tree.txt`, `log/k-driver-version.txt` and `log/k-driver-readelf.txt` are the driver's
-  place, version and dynamic section;
+  `log/k-driver-tree.txt`,
+  `log/k-driver-version.txt` and `log/k-driver-readelf.txt` are the driver's
+  place,
+  version and dynamic section;
   `log/k-linter.jsonl` is the six findings;
   `log/no-file-linter.jsonl` is the skip with the original library;
   `library-rust-toolchain.toml` is the file option K adds.
 - `m6-clean-driver-and-probe/`:
-  a driver built without Dylint's rpath flag, and the probe once its offline resolution succeeds.
-  `log/clean.err.tail.txt`, `log/clean-driver-readelf.txt` and `run.txt` are the first;
-  `log/probe-fetch.err`, `log/probe-metadata.err` and `log/probe-vs-run.jsonl` are the second.
+  a driver built without Dylint's rpath flag,
+  and the probe once its offline resolution succeeds.
+  `log/clean.err.tail.txt`,
+  `log/clean-driver-readelf.txt` and `run.txt` are the first;
+  `log/probe-fetch.err`,
+  `log/probe-metadata.err` and `log/probe-vs-run.jsonl` are the second.
 - `m4-f10-rpath-and-other-home/`:
   the driver's RUNPATH and its load where the builder's path is gone (F10).
-  `log/driver-rpath-and-needed.txt`, `log/control-rpath-present.txt`,
+  `log/driver-rpath-and-needed.txt`,
+  `log/control-rpath-present.txt`,
   `log/other-path-run.txt` and `log/other-path-with-ld-library-path.txt` are the four steps;
   `log/install-opt-rustup.txt` is the second toolchain's install.
 - `m3-f3-skips-with-a-driver-1/` and `m3-f3-skips-with-a-driver-2/`:
-  the thirty selectable lock directories, fifteen per container, with a current driver, one linter
-  invocation each (F3).
-  `log/results.tsv` has one row per directory: path, status, seconds, offline-metadata result, skip
-  records.
-  `log/skips.txt` collects every skip message.
+  the thirty selectable lock directories,
+  fifteen per container,
+  with a current driver,
+  one linter invocation each (F3).
+  `log/results.tsv` has one row per directory:
+  path,
+  status,
+  seconds,
+  offline-metadata result,
+  skip records.
+  `log/closure-skips.txt` collects every skip message,
+  and `log/closure-failures.txt` every closure processing failure.
 
 ## The quotations
 
@@ -124,5 +144,6 @@ whose excerpts are in `upstream/dylint-v6.4.0-excerpts.txt` with the tarball's s
 
 `scripts/` holds the in-container script of each measurement.
 Each was copied into its container and run there;
-the host wrapper that started the container is described above and is not kept, because its paths
+the host wrapper that started the container is described above and is not kept,
+because its paths
 name the run's scratch folder.
