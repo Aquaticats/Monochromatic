@@ -1,3 +1,5 @@
+import { resolve, } from 'node:path';
+
 import {
   defineConfig,
   type OutputOptions,
@@ -7,6 +9,10 @@ import {
 } from 'rolldown';
 import { dts, } from 'rolldown-plugin-dts';
 
+import {
+  atomicOutputDirectoryPlugin,
+  stagingDirectoryFor,
+} from './atomic-output-dir.ts';
 import { binShebangPlugin, } from './bin-shebang.ts';
 import { browserslistTargets, } from './browserslist-targets.ts';
 import { checkoutBundlerPlugin, } from './checkout-bundler.ts';
@@ -168,6 +174,14 @@ function isInputList(
  Bin-targeted entry chunks get `#!/usr/bin/env node` injected at byte 0
  through {@link binShebangPlugin}, so built CLIs cannot fall through to `/bin/sh`.
  
+ The build writes into a staging directory beside its output directory and renames each
+ file into place ({@link atomicOutputDirectoryPlugin}), so no path under the output
+ directory is absent or half written at any instant of a build, and the files a build
+ no longer emits are removed once the new ones are in place. The consumer's
+ `output.cleanDir` decides that last step and nothing else: leaving it on (the default)
+ keeps the end state a cleaned output directory had, and turning it off leaves a sibling
+ build's files alone.
+ 
  @param input - Source input paths; defaults to the package index.
  
  @param outputDir - Output directory; committed Claude Code plugin bundles
@@ -206,6 +220,24 @@ export function nodeConfig(
     readonly extraPlugins?: readonly Plugin[];
   } = {},
 ): RolldownOptions {
+  /**
+   Output options this config carries: the shared ones, then the consumer's overrides.
+   */
+  const output: OutputOptions = {
+    ...baseOutput,
+    dir: outputDir,
+    cleanDir: true,
+    ...outputOverrides,
+  };
+  /**
+   Directory the build's files must be reachable at when it settles, which an override moves.
+
+   Absolute, because the staging directory is judged against it and a rename reaches only
+   paths of one filesystem.
+   */
+  const finalDirectory = resolve(
+    output.dir === undefined ? outputDir : output.dir,
+  );
   return defineConfig({
     ...baseOptions,
     ...external === undefined ? {} : { external: [...external,], },
@@ -213,13 +245,20 @@ export function nodeConfig(
     plugins: [
       ...basePlugins,
       binShebangPlugin({ outputDir, },),
+      // Its rename into the output directory is the build's final act of writing, ordered
+      // after every other plugin's `writeBundle` hook.
+      atomicOutputDirectoryPlugin({
+        finalDirectory,
+        removeStaleFiles: output.cleanDir === true,
+      },),
       ...extraPlugins,
     ],
     output: {
-      ...baseOutput,
-      dir: outputDir,
-      cleanDir: true,
-      ...outputOverrides,
+      ...output,
+      dir: stagingDirectoryFor({ finalDirectory, },),
+      // The staging directory is this build's alone and `buildStart` clears it, so the
+      // bundler never has to delete a file of the output directory.
+      cleanDir: false,
     },
   },);
 }

@@ -350,6 +350,51 @@ await describe({
       },
     },),
     it({
+      name: 'renames the files into place only after every other plugin finished writing them',
+      fn: async function movesAfterOtherWriters(): Promise<void> {
+        using fixture = createNodeBuildFixture();
+        writeEntry({
+          fixture,
+          marker: 'first build',
+        },);
+        await buildNodeConfig({ fixture, },);
+        /**
+         Path the `mvm` command's shim names: the entry chunk of this build.
+         */
+        const outputPath = join(fixture.outputDirectory, ENTRY_FILE_NAME,);
+        /**
+         What the first build left there.
+         */
+        const before = observeOutput({ path: outputPath, },);
+        writeEntry({
+          fixture,
+          marker: 'second build',
+        },);
+        /**
+         Observations taken inside one plain `writeBundle` hook of the second build.
+         */
+        const duringWriteBundle: OutputObservation[] = [];
+        await buildNodeConfig({
+          fixture,
+          plugins: [{
+            name: 'monochromatic-test:observes-the-output-path-in-a-plain-write-bundle-hook',
+            writeBundle(): void {
+              duringWriteBundle.push(observeOutput({ path: outputPath, },),);
+            },
+          },],
+        },);
+
+        // `writeBundle` hooks are one parallel batch, and the shared executable-bit plugin
+        // chmods a staged file in its own: a rename that raced it would leave a command without
+        // its executable bit, or stop the build on a path that is gone. The rename therefore
+        // runs in the ordered `post` group, which a plain hook observes as the previous build's
+        // file still in place when it looks.
+        expect(duringWriteBundle.map(function inodeDuringWriteBundle(observation: OutputObservation,): number | undefined {
+          return observation.inode;
+        },),).toEqual([before.inode,],);
+      },
+    },),
+    it({
       name: 'removes a file an earlier build emitted and this one does not',
       fn: async function removesStaleOutput(): Promise<void> {
         using fixture = createNodeBuildFixture();
