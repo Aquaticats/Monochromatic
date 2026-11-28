@@ -2832,9 +2832,6 @@ Before a release note is written,
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
-- "Never what is decided" holds by reading:
-  both releases refuse exactly when the direct child was not reaped or the report is not empty,
-  and nothing in release code reads the report's words.
 - The retire of a run's unit makes the release slower.
   A trivial shadow call took 1.52 times alpha.11's time at the median
   (range 0.89 to 2.17 over 18 interleaved rounds,
