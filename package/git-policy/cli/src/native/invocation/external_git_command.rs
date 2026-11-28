@@ -336,7 +336,7 @@ pub fn alias_run_directory(
 /// ```ts
 /// const isRecordBreak = (byte: number) => byte === 0x0a;
 /// ```
-fn is_record_break(byte: &u8) -> bool {
+pub(super) fn is_record_break(byte: &u8) -> bool {
     return *byte == b'\n';
 }
 
@@ -352,7 +352,7 @@ fn is_record_break(byte: &u8) -> bool {
 /// ```ts
 /// Buffer.from(printed).toString('latin1') // exact bytes, no decoding
 /// ```
-fn printed_path(printed: &[u8]) -> PathBuf {
+pub(super) fn printed_path(printed: &[u8]) -> PathBuf {
     #[cfg(unix)]
     {
         /// The Unix byte-to-native-string conversion for a printed path.
@@ -486,7 +486,7 @@ fn printed_exec_path(
 /// ```ts
 /// text.replace(/\r?\n$/, '')
 /// ```
-fn without_record_terminator(printed: &[u8]) -> OsString {
+pub(super) fn without_record_terminator(printed: &[u8]) -> OsString {
     let mut end: usize = printed.len();
     if printed.get(end.wrapping_sub(1)) == Some(&b'\n') {
         end -= 1;
