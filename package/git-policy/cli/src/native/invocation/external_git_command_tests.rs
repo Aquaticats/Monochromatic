@@ -885,7 +885,8 @@ fn the_git_dir_the_shell_was_given(place: &Path) -> String {
 ///  which Git 2.56.1 takes the explicit path for (`setup.c` `repo_discover_implicit_gitdir`).
 /// Why:
 ///  The alpha.52 read's finding M1:
-///  with `core.worktree` set, Git stores the Git directory it found and exports it to a `!` alias's shell
+///  with `core.worktree` set,
+///  Git stores the Git directory it found and exports it to a `!` alias's shell
 ///  in a plain main checkout too,
 ///  from a subdirectory as an absolute path that a nested `-C` cannot move,
 ///  so the nested Git writes this checkout's index and `HEAD` over another directory's files.

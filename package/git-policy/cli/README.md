@@ -3628,7 +3628,8 @@ A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is whichever `git` that directory holds:
-on this machine `/usr/lib/git-core/git`, a link to the real Git,
+on this machine `/usr/lib/git-core/git`,
+a link to the real Git,
 which runs the command with no guard.
 A system whose `git-core` holds no `git` leaves the rest of `PATH` to answer,
 and an installed wrapper is then that shell's Git:

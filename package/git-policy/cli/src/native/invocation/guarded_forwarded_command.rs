@@ -306,10 +306,11 @@ pub(crate) fn globals_that_place_the_command(
 
 /// What:
 ///  Whether the caller's own words before the alias name named the repository the Git inside a `!` alias's shell
-///  reads: a Git directory, or a work tree.
+///  reads a Git directory or a work tree.
 /// Why:
 ///  Git gives such a shell a `GIT_DIR` whenever either was named
-///  (`setup.c:1247` to `:1254` of Git 2.56.1, through the explicit path that stores the Git directory it found),
+///  (`setup.c:1247` to `:1254` of Git 2.56.1,
+///  through the explicit path that stores the Git directory it found),
 ///  and the value is read from Git rather than rebuilt from these words,
 ///  so a relative spelling stays relative as Git stored it.
 ///  A `-C` is not one of these:
@@ -317,13 +318,17 @@ pub(crate) fn globals_that_place_the_command(
 ///  which is the discovery that exports nothing in a plain main checkout.
 ///  A `GIT_DIR` or `GIT_WORK_TREE` in the caller's environment is not read here,
 ///  because the facts' own Git inherits that environment:
-///  measured on 2026-11-28, an absolute `GIT_DIR` names the same state whether the reading pins it with
-///  `--git-dir` or the facts inherit it, a relative one is rebased by the command's own `-C` either way,
-///  and a `GIT_WORK_TREE` makes `--show-toplevel` differ from the Git directory, which the comparison already reads.
+///  measured on 2026-11-28,
+///  an absolute `GIT_DIR` names the same state whether the reading pins it with
+///  `--git-dir` or the facts inherit it,
+///  a relative one is rebased by the command's own `-C` either way,
+///  and a `GIT_WORK_TREE` makes `--show-toplevel` differ from the Git directory,
+///  which the comparison already reads.
 ///  Gotcha:
 ///  this rests on every fact request inheriting the caller's environment;
 ///  a request that unset `GIT_DIR` or `GIT_WORK_TREE` would make the reading name no state where Git's nested
-///  command has one, so such a request belongs beside this sentence.
+///  command has one,
+///  so such a request belongs beside this sentence.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

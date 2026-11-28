@@ -24660,7 +24660,7 @@ and gives it to the shell whenever the caller named a repository or a work tree
 `--work-tree`,
 `GIT_DIR` or `GIT_WORK_TREE`),
 the repository's own configuration sets `core.worktree`
-(`config.worktree` included, when `extensions.worktreeConfig` is on),
+(`config.worktree` included when `extensions.worktreeConfig` is on),
 the repository is bare,
 the shell's directory stands inside a Git directory,
 or the working tree's `.git` is a file that points elsewhere
