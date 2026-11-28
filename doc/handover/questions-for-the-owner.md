@@ -4964,7 +4964,7 @@ and each can be undone.
   and measures the pause from a stand-in's own start and end lines,
   which showed the planted edit in one gap of four on the loaded host.
 
-## For the owner, and veto open: what the morning of 2026-11-28 left between 06:14 and 07:30 (recorded 2026-11-28T07:17:43-05:00)
+## For the owner, and veto open: what the morning of 2026-11-28 left between 06:14 and 07:17 (recorded 2026-11-28T07:17:43-05:00)
 
 The owner's stated priority this morning is guests on OVHcloud,
 so every question here waits until that work is moving,

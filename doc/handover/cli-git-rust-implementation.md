@@ -884,7 +884,7 @@ Unapproved and non-final.
   and 6660 (twenty commands and `mvm-mcp` that can run a build older than their source).
   Issue 6655 is closed.
 
-#### Started and done between 07:15 and 07:30
+#### Started and done between 07:15 and 07:18
 
 Unapproved and non-final.
 
@@ -915,11 +915,9 @@ Unapproved and non-final.
   and the account companion answered past its 100 ms deadline under load in one guest run,
   so that an add fell back to the ordinary Git route.
 
-#### Started and done between 07:30 and 07:55
+#### Started and done between 07:18 and 07:23
 
 Unapproved and non-final.
-The clock times in this section's heading and in the one before it are the session's estimates;
-each merge's own time is in `git log --format=%cI`.
 
 - `mpm-shadow` `0.2.7-alpha.21` is published,
   locked (`c2f93a25dc`) and installed in the main checkout,
