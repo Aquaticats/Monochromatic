@@ -451,7 +451,8 @@ and the README named the wait for `list` alone
 although `install` waits the same way and the release added one more question
 per Rust row.
 
-Every program a command starts is now waited on through one function,
+Every program a toolchain command runs through the runner is now waited on
+through one function,
 and when a wait passes 2 s it prints one line on standard error,
 once,
 however long the wait lasts:
@@ -521,6 +522,9 @@ so the temporary name carries about seventy bytes more than the bin.
 `cannot link <the temporary name> to <the target>: File name too long (os error 36)`,
 naming a name no plan holds and no person wrote.
 The pass measured the edge at 185 bytes linked and 186 bytes failed.
+That is the failure this check replaces;
+the length at which the check refuses is a different number,
+written below with the commands it reaches.
 
 The name is now judged where the plan is read,
 before any download or link write,
@@ -536,6 +540,11 @@ a `u64` namespace and the boot
 identifier's 36 bytes),
 95 bytes,
 so on a 255-byte file system a bin name is at most 160 bytes.
+The edge is 160 and 161:
+measured on 2026-11-28T06:46:53-05:00 with the released `0.2.7-alpha.20`
+on a fixture whose plan and lock declare one `rust` row,
+a bin of 160 bytes installs and every command run exits 0,
+and a bin of 161 bytes is refused.
 The refusal names the plan file,
 the row,
 the bin,
@@ -551,9 +560,19 @@ mpm-shadow: the toolchain plan <plan file> declares the bin "<bin>" of rust, 186
 The command exits 2,
 the code for a plan that cannot be used.
 The name is refused wherever the plan is read,
-so `list`,
+which was measured on 2026-11-28T06:46:53-05:00 with the released
+`0.2.7-alpha.20` against a plan declaring a 161-byte bin:
+`install`,
+`install --lockfile-only`,
+`list`,
 `update`,
-`install --lockfile-only` and `bin` refuse such a plan too,
+`outdated` and
+`verify-archive` exit 2 with the refusal and nothing on standard output,
+and `bin` (plain and `--json`), `prune`, `prune --toolchain`, `--version` and `--help`
+run as before.
+`bin` and `prune --toolchain` never read the plan,
+so a person whose plan holds such a bin can still print the exposure folder and the IDE file;
+the commands that cannot run are the ones that read the plan,
 which is the cost of putting the check there;
 the way not taken is a shorter temporary name,
 which gives up the identity the name carries:
