@@ -26,16 +26,23 @@
 
 use crate::worktree_clone_binding_record::registration_home::{
     binding_name,
+    claim_prefix,
+    home_folder,
     origin_inventory_name,
     plans_folder,
 };
+use crate::worktree_clone_origin_cleanup::origin_cleanup_fixtures::an_owed_record;
+use crate::worktree_clone_origin_cleanup::origin_cleanup_publication::CleanupFolder;
 use crate::worktree_clone_origin_cleanup::origin_cleanup_reading::{
     an_existing_cleanup_record,
     origin_cleanups_folder,
 };
 use crate::worktree_clone_removal_proof_and_plan::plan_names_and_states::the_names_not_destroyed;
 use crate::worktree_clone_removal_proof_and_plan::plan_reading::read_the_plan;
-use crate::worktree_clone_removal_proof_and_plan::plan_record::DestructionPlan;
+use crate::worktree_clone_removal_proof_and_plan::plan_record::{
+    DestructionPlan,
+    PlanAttempt,
+};
 use crate::worktree_clone_removal_proof_and_plan::plan_words::{
     HeadWord,
     SnapshotOutcome,
@@ -83,7 +90,10 @@ use std::cell::{
     Cell,
     RefCell,
 };
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::rc::Rc;
 
 //endregion
@@ -862,6 +872,8 @@ fn a_persons_lock_refuses_the_removal_before_any_request() {
     let message: String = stop.message();
     for said in [
         "a person's lock may stand there",
+        "before it unmounts or destroys anything",
+        "claim",
         "Nothing was unmounted, nothing was destroyed",
         "`git worktree unlock fix-flaky-test`",
         "`-f -f` among them",
@@ -871,10 +883,202 @@ fn a_persons_lock_refuses_the_removal_before_any_request() {
             "the sentence says {said}: {message}"
         );
     }
+    // The order's first write is the slot's claim, so a sentence that promised the removal wrote nothing before
+    //  this point would promise something no run keeps: the claim stands in the record folder, written back as
+    //  released by the drop the refusal takes.
+    assert!(
+        !message.contains("before its first write"),
+        "the sentence does not promise a removal that wrote nothing, because the claim was written: {message}"
+    );
+    let claims: Vec<PathBuf> = claim_files_of(fixture.common(), "fix-flaky-test");
+    assert_eq!(
+        claims.len(),
+        1,
+        "the slot's claim file is the only record this run wrote: {claims:?}"
+    );
+    let claim: String = std::fs::read_to_string(claims[0].as_path()).expect("the claim file reads");
+    assert_eq!(
+        crate::single_owner_claim::decode(claim.as_str()),
+        Some(crate::single_owner_claim::ClaimRecord::Released),
+        "stopping gave the slot back, so the claim file records a released claim"
+    );
     assert!(
         locked.is_file(),
         "the person's lock stands where it was, and the removal never rewrote it"
     );
+}
+
+/// What:
+///  The claim files one repository's record folder holds.
+/// Why:
+///  The claim is the removal's first write,
+///  so a control that says what a refusal left reads the folder rather than assuming it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claims = claimFilesOf(commonDir); // every `<slot>.claim.<generation>`
+/// ```
+fn claim_files_of(
+    common_dir: &Path,
+    slot: &str,
+) -> Vec<PathBuf> {
+    let home: PathBuf = home_folder(common_dir);
+    let prefix: String = format!("{}.", claim_prefix(slot).to_string_lossy());
+    let entries = match std::fs::read_dir(home.as_path()) {
+        Ok(entries) => entries,
+        Err(_) => return Vec::new(),
+    };
+    let mut claims: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(prefix.as_str())
+        {
+            claims.push(entry.path());
+        }
+    }
+    return claims;
+}
+
+/// What:
+///  A removal resumed from a plan whose clone is already gone reads a person's lock
+///  before it writes the plan and before it destroys the origin snapshot,
+///  for every head word whose path the clone's absence takes.
+/// Why:
+///  The alpha.53 read's M1:
+///  `start_the_removal` answered `TheStart::Gone` for those head words without reading the lock,
+///  and the head-gone path then published the plan and sent the origin destroy,
+///  so a person's lock was met at the settle and after the two writes.
+///  That contradicts what the records promise a person's lock
+///  (`SPEC.md`,
+///  "Removal of a ZFS worktree clone"),
+///  and the release's own sentence about it.
+///  The control plants the plan a killed removal leaves,
+///  a cleanup record an earlier run left
+///  so a removal that ran would destroy the origin snapshot,
+///  a clone the pool proves gone,
+///  and a person's lock on the registration,
+///  then reads what the run left.
+#[test]
+fn a_persons_lock_refuses_a_resumed_removal_whose_clone_is_gone_before_any_write() {
+    for head in [HeadWord::Requested, HeadWord::Unknown, HeadWord::Gone] {
+        let fixture: RemovalFixture =
+            a_fixture(format!("completion-resumed-lock-{}", head.word()).as_str());
+        // The plan a killed removal leaves: the head's request recorded and every name still `planned`. The writer
+        //  files the lines in the order of their names and reads the record back, so a control files them that way.
+        let mut lines: Vec<PlanAttempt> = vec![
+            fixture.a_line_of_the_plan(
+                OWN_SNAPSHOT,
+                OWN_GUID,
+                OWN_CREATETXG,
+                0,
+                SnapshotOutcome::Planned,
+            ),
+            fixture.a_line_of_the_plan(
+                SANOID_SNAPSHOT,
+                SANOID_GUID,
+                SANOID_CREATETXG,
+                0,
+                SnapshotOutcome::Planned,
+            ),
+        ];
+        lines.sort_by(|left, right| return left.snapshot.name.cmp(&right.snapshot.name));
+        let plan_path: PathBuf = fixture.plant_a_plan(head, lines);
+        let planted: Vec<u8> = std::fs::read(plan_path.as_path()).expect("the planted plan reads");
+        let cleanups: CleanupFolder =
+            CleanupFolder::open_or_create(fixture.common()).expect("the cleanup folder opens");
+        let record: PathBuf = cleanups
+            .publish(&an_owed_record())
+            .expect("the origin cleanup record an earlier run left stands");
+        let pool: LivePool = LivePool::healthy(ORIGIN_OWN_NAME);
+        let check: Pool = the_checks_pool();
+        // The clone is already gone, which is what makes the resume take the head-gone path.
+        let hidden: Rc<Cell<bool>> = Rc::new(Cell::new(true));
+        let probe: EpochProbe = EpochProbe {
+            pool: check,
+            hidden: Rc::clone(&hidden),
+        };
+        let device: ClearingDevice = ClearingDevice::over(&pool);
+        let head_device: ScriptedHead = ScriptedHead::succeeding(
+            fixture.plan_folder(),
+            fixture.recorded().clone_guid,
+            Rc::clone(&hidden),
+        );
+        let holders: ScriptedHolders = ScriptedHolders::always(a_clear_scan());
+        let locked: PathBuf = fixture.registration.join("locked");
+        std::fs::write(locked.as_path(), PERSON_LOCK_WORDS).expect("the person's lock");
+        let settle: ScriptedSettle = ScriptedSettle::succeeding();
+        let stopped = complete(&TheCompletion {
+            fixture: &fixture,
+            pool: &pool,
+            check: &probe,
+            probe: &probe,
+            device: &device,
+            head: &head_device,
+            holders: &holders,
+            settle: &settle,
+            cancelling: None,
+            budget: the_budget(),
+        });
+        let stop: RemovalStop = match stopped {
+            Ok(done) => panic!(
+                "a person's lock refuses the resumed removal of a {} plan, so nothing finishes: {}",
+                head.word(),
+                done.text()
+            ),
+            Err(stop) => stop,
+        };
+        match &stop {
+            RemovalStop::TheLocksWordsAreNotThisAdds {
+                slot,
+                cause,
+            } => {
+                assert_eq!(slot, "fix-flaky-test");
+                assert!(
+                    cause.contains("ZFS test underlay"),
+                    "the refusal names the lock's own words: {cause}"
+                );
+            }
+            other => panic!(
+                "the lock's own refusal for a {} plan, not {other:?}",
+                head.word()
+            ),
+        }
+        assert!(
+            device.sent.borrow().is_empty(),
+            "no origin snapshot was destroyed for a {} plan: {:?}",
+            head.word(),
+            device.sent.borrow()
+        );
+        assert_eq!(
+            std::fs::read(plan_path.as_path()).expect("the plan still reads"),
+            planted,
+            "the plan a {} plan's resume would publish is exactly the one that stood",
+            head.word()
+        );
+        assert!(
+            record.is_file(),
+            "the origin cleanup record an earlier run left stands, for a {} plan",
+            head.word()
+        );
+        assert!(
+            locked.is_file(),
+            "the person's lock stands where it was, for a {} plan",
+            head.word()
+        );
+        assert!(
+            settle.calls.get() == 0,
+            "the settle that reads `locked` never ran, for a {} plan",
+            head.word()
+        );
+        assert!(
+            stop.message()
+                .contains("`git worktree unlock fix-flaky-test`"),
+            "the sentence names the way out: {}",
+            stop.message()
+        );
+    }
 }
 
 /// What:
