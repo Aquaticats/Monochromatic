@@ -51,9 +51,13 @@ use super::super::context::Context;
 use super::super::error::ToolchainError;
 /// Imports the question what a temporary link's name says about the install that holds it.
 use super::super::install_support::liveness_of_the_installer;
-/// Imports the instant a control can plant at one removal,
+/// Imports the three instants of one removal a control can plant at,
 /// which a shipped build never holds.
-use super::a_control_plants_a_removal::at_the_instant_before_a_removal;
+use super::a_control_plants_a_removal::{
+    at_the_instant_before_a_removal,
+    at_the_instant_before_the_link_is_read,
+    at_the_instant_before_the_target_is_read,
+};
 /// Imports `declares_bin` from the module that links the farm.
 use super::declares_bin;
 /// Imports the question whether a link is the farm's own link to an installed program.
@@ -199,6 +203,17 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
             continue;
         }
         // What:
+        // the step a control plants where the kernel's own `lstat` answers,
+        // or nothing in a shipped build.
+        // Why:
+        // Another install may take the name between this run's listing of the folder and this read.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // atTheInstantBeforeTheLinkIsRead(name, entry.path);
+        // ```
+        at_the_instant_before_the_link_is_read(&name, &entry.path());
+        // What:
         // the entry's own metadata, read without following the link.
         // Why:
         // Only a symbolic link is this tool's to remove;
@@ -236,6 +251,17 @@ pub(super) fn remove_the_links_no_row_declares(ctx: &Context) -> Removals {
         if matches!(installer, Some(Liveness::Running | Liveness::Unknown)) {
             continue;
         }
+        // What:
+        // the step a control plants where the kernel's own `readlink` answers,
+        // or nothing in a shipped build.
+        // Why:
+        // The metadata read and this one are two calls, so another install can take the name in between.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // atTheInstantBeforeTheTargetIsRead(name, entry.path);
+        // ```
+        at_the_instant_before_the_target_is_read(&name, &entry.path());
         // What:
         // where the link points,
         // read before it is removed so the sentence can say.
