@@ -213,10 +213,10 @@ fn a_plan_tells_its_answer_how_many_names_it_destroyed() {
     });
     let answered: ScriptedAnswer = ScriptedAnswer::cancelling();
     let _ = cancelled_at(&the_stop(Some(&answered), Some(&destroyed_plan), &[]));
-    let asked = answered.asked.borrow();
-    let (_, destroyed, _) = asked.first().expect("the answer was asked");
+    let asked_again = answered.asked.borrow();
+    let (_, destroyed_again, _) = asked_again.first().expect("the answer was asked");
     assert_eq!(
-        *destroyed, 1,
+        *destroyed_again, 1,
         "the one name the plan's history destroyed is the one its answer is told"
     );
 }

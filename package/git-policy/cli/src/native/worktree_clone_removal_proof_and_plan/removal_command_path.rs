@@ -125,7 +125,8 @@ pub fn complete_the_bound_clones_removal(
         };
     // The handler binds a folder under the account's `.cache`, and the wrapper is what makes it: the design puts the
     //  creation after the pin check and before the request, and the handler refuses to make one itself.
-    let unmount = LiveUnmountWithTheStagingFolder::over(unmount, recorded.clone_guid);
+    let prepared_unmount =
+        LiveUnmountWithTheStagingFolder::over(unmount, recorded.clone_guid);
     let reads = match LiveRemovalReads::open() {
         Ok(reads) => reads,
         Err(reason) => {
@@ -155,7 +156,7 @@ pub fn complete_the_bound_clones_removal(
     let input: RemovalCompletion<'_> = RemovalCompletion {
         entry: &entry,
         reads: &reads,
-        unmount: &unmount,
+        unmount: &prepared_unmount,
         clock: &TheLiveClock,
         check: &check,
         probe: &check,
