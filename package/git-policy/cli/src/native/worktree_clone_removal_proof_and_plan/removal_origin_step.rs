@@ -130,7 +130,8 @@ pub(crate) fn publish_the_origin_record(
 /// What:
 ///  One record refusal in the words a person reads.
 /// Why:
-///  A refusal names the rule, the key and the value,
+///  A refusal names the rule,
+///  the key and the value,
 ///  and the key is no path:
 ///  printing it as one put `startedAt` where a file's name belongs,
 ///  which is what the guest arm of 2026-11-28 read.
