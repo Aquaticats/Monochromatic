@@ -354,7 +354,7 @@ with the wrapper first on the fixture's `PATH` under the name `git`:
   `command -v git` printed the wrapper's link,
   and running it from the alias's shell failed with exit 126 and
   `<fixture>/bin/git: Permission denied`
-  at 2026-11-28T03:07-05:00.
+  in the run whose log ends at 2026-11-28T03:07:24-05:00.
   This machine's AppArmor profile `git` allows executing `@{bin}/git`,
   `@{lib}/git*` and a few named programs,
   and nothing else,
