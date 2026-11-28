@@ -2832,9 +2832,6 @@ Before a release note is written,
 In `mpm-shadow`,
 the pick not to repeat a start refused as busy is before the owner again
 (`doc/handover/questions-for-the-owner.md`).
-- A program that outlives its run is treated alike by both releases:
-  killed on the scope path,
-  left alive on the process-group fallback.
 - Right as claimed:
   41 commands compared between the two binaries,
   identical but for the version line.
