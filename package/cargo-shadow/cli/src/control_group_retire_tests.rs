@@ -1339,6 +1339,67 @@ fn a_group_the_kernel_is_removing_is_read_as_collected() {
     );
 }
 
+/// The control of the `ENODEV` row and an absence that cannot be verified together:
+/// the `populated` read answers the error a group the kernel is removing answers,
+/// and this process cannot verify the absence that follows,
+/// so the unit is kept and the run says what the read saw.
+/// Why this control exists:
+/// `a_group_the_kernel_is_removing_is_read_as_collected` builds a group whose absence verifies,
+/// so an edit that answered `Collected` for `ENODEV` without going through `collected_or_unproven` would leave it green,
+/// and the other two controls that arm an unverifiable absence walk the `ENOENT` and peak arms.
+/// This is the only row where the two meet.
+/// The absence is planted (a failpoint) because no run can make this process see another cgroup view.
+#[test]
+fn an_absence_that_cannot_be_verified_keeps_the_unit_where_the_kernel_is_removing_the_group() {
+    let route: Route = delegated_route();
+    let directory = crate::test_scratch::scratch();
+    let (systemctl, log) = answering_systemctl(directory.path());
+    let group: ControlGroup = fixture_group(
+        &route,
+        &directory.path().join("being-removed-unverified"),
+        "cargo-shadow-test-being-removed-unverified",
+        "populated 0\nfrozen 0\n",
+        Some("0"),
+    );
+    arm_populated_read_sees_the_gone_group();
+    arm(Point::AbsenceUnverifiable);
+
+    let word: Option<String> = retire(&group, &systemctl, RETIRE_BOUND);
+
+    assert!(
+        !fires_populated_read_sees_the_gone_group(),
+        "the `populated` read never answered the armed failure, so this control shows nothing"
+    );
+    assert!(
+        !crate::failpoints::fires(Point::AbsenceUnverifiable),
+        "the check of the scope's absence was never reached, so a read that says the kernel is removing the group was taken for a collection without it"
+    );
+    let said: String = word.expect("a unit kept because its absence was not shown is reported");
+    assert!(said.contains(&group.unit()), "{said}");
+    assert!(said.contains("may be left loaded"), "{said}");
+    // What:     `the directory may still be there` is the half of the sentence the read measured: 20 of the 24 removals that
+    //           answered `ENODEV` still had the directory when it was checked right after.
+    // Why:      A sentence saying the directory is gone would describe a state the read did not see.
+    assert!(
+        said.contains("the kernel has taken the group's own files away")
+            && said.contains("may still be there"),
+        "the warning does not say what the read saw: {said}"
+    );
+    assert!(
+        !said.contains("is gone"),
+        "the warning says the directory is gone, where the read that answered `ENODEV` found it there in 20 of 24 removals: {said}"
+    );
+    assert!(
+        said.contains("so it is not shown that no member is left"),
+        "the warning does not say that nothing was read about the members: {said}"
+    );
+    assert_eq!(
+        calls(&log),
+        "",
+        "the step asked the manager to stop a unit whose emptiness it had not shown"
+    );
+}
+
 /// The control of the two errors that say a group is gone:
 /// a removed group's directory answers `ENOENT` and its files answer `ENODEV`,
 /// and both are the group being gone rather than a group that may still have a member.

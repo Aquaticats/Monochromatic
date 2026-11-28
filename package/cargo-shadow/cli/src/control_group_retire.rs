@@ -293,16 +293,16 @@ fn emptiness_now(group: &ControlGroup) -> Emptiness {
         // if (theAbsenceIsTheScopeGoingAway(group, error)) return collectedOrUnproven(group, false)
         // ```
         Err(error) if the_absence_is_the_scope_going_away(group, &error) => {
-            // What:     `collected_or_unproven(group, false)` says whether the absence can be read as emptiness, and that no
+            // What:     `collected_or_unproven(group, false, &error)` says whether the absence can be read as emptiness, and that no
             //           emptiness was read before it.
             // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too: an
             //           absence it cannot verify keeps the unit and says so.
             //
             // In TS you'd write (pseudocode):
             // ```ts
-            // return collectedOrUnproven(group)
+            // return collectedOrUnproven(group, false, error)
             // ```
-            return collected_or_unproven(group, false);
+            return collected_or_unproven(group, false, &error);
         }
         Err(error) => {
             return Emptiness::Unproven {
@@ -481,36 +481,40 @@ fn group_gone_at_the_peak(
     if !the_absence_is_the_scope_going_away(group, error) {
         return None;
     }
-    // What:     `Some(collected_or_unproven(group, true))` is the answer the absent `populated` read gets, and it says that
+    // What:     `Some(collected_or_unproven(group, true, error))` is the answer the absent `populated` read gets, and it says that
     //           an empty `populated` line was read before the peak read.
     // Why:      The two reads are of the same group, so an absence seen at the second is the absence the first would have seen,
     //           and the sentence built from it may say what the first read showed.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return collectedOrUnproven(group, true)
+    // return collectedOrUnproven(group, true, error)
     // ```
-    return Some(collected_or_unproven(group, true));
+    return Some(collected_or_unproven(group, true, error));
 }
 
 /// What:
-/// `fn collected_or_unproven(group: &ControlGroup, an_empty_line_was_read: bool) -> Emptiness` says what a group whose
-/// directory is gone means for its unit:
+/// `fn collected_or_unproven(group: &ControlGroup, an_empty_line_was_read: bool, absence: &io::Error) -> Emptiness` says what a group
+/// whose directory is gone means for its unit:
 /// `Collected` when this process still sees the directory the scope was planned in,
 /// and `Unproven` with the reason when it does not,
 /// carrying whether an emptiness had been read before the absence.
 /// Why:
 /// Both reads of the group can find it gone,
 /// and an absence the stop accepts as emptiness is the only absence the retirement may read as a free unit;
-/// the warning that follows must not deny an emptiness the same look read.
+/// the warning that follows must not deny an emptiness the same look read,
+/// and it must say what the read saw rather than what the reader expected:
+/// measured on this host on 2026-11-27,
+/// 24 of the removals that answered `ENODEV` still had the group's directory there when it was checked right after.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function collectedOrUnproven(group: ControlGroup, anEmptyLineWasRead: boolean): Emptiness
+/// function collectedOrUnproven(group: ControlGroup, anEmptyLineWasRead: boolean, absence: Error): Emptiness
 /// ```
 fn collected_or_unproven(
     group: &ControlGroup,
     an_empty_line_was_read: bool,
+    absence: &io::Error,
 ) -> Emptiness {
     // What:     `group.absence_is_verified()` asks whether this process still sees the directory the scope was planned in.
     // Why:      The stop accepts an absence as emptiness only under that check, so the retirement does too.
@@ -521,13 +525,43 @@ fn collected_or_unproven(
     // ```
     return match group.absence_is_verified() {
         Ok(()) => Emptiness::Collected,
-        Err(reason) => Emptiness::Unproven {
-            reason: format!(
-                "the scope's directory {} is gone, and its absence could not be read as emptiness ({reason})",
-                group.directory().display()
-            ),
-            an_empty_line_was_read,
-        },
+        Err(reason) => {
+            // What:     `what_was_read` names the failure the look met: the kernel taking the group's own files away
+            //           (`ENODEV`), or the group's directory not being there (`ENOENT`).
+            // Why:      `ENODEV` is the kernel's statement about the group's files, and the directory is measurably still
+            //           there while it is made, so a sentence saying the directory is gone would describe a state the read did
+            //           not see.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // const whatWasRead = theKernelIsRemovingTheGroup(absence)
+            //   ? `the kernel has taken the group's own files away, so the scope's directory ${group.directory()} may still be there`
+            //   : `the scope's directory ${group.directory()} is not there`
+            // ```
+            let what_was_read: String = match the_kernel_is_removing_the_group(absence) {
+                true => format!(
+                    "the kernel has taken the group's own files away, so the scope's directory {} may still be there",
+                    group.directory().display()
+                ),
+                false => format!(
+                    "the scope's directory {} is not there",
+                    group.directory().display()
+                ),
+            };
+            // What:     `Emptiness::Unproven { .. }` is the answer that keeps the unit, with the sentence the run prints.
+            // Why:      A unit whose emptiness was not shown is kept, and the warning says what was read and what could not be.
+            //
+            // In TS you'd write (pseudocode):
+            // ```ts
+            // return { unproven: `${whatWasRead}, and its absence could not be read as emptiness (${reason})`, anEmptyLineWasRead }
+            // ```
+            Emptiness::Unproven {
+                reason: format!(
+                    "{what_was_read}, and its absence could not be read as emptiness ({reason})"
+                ),
+                an_empty_line_was_read,
+            }
+        }
     };
 }
 

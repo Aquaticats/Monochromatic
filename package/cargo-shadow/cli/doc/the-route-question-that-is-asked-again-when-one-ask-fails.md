@@ -7,11 +7,16 @@ and then how long an ask fails while a user manager reexecutes,
 the span the asking again is now sized from,
 and what that costs where no manager answers (issue 6623),
 and then what the discovery reads to tell a host with no manager from a manager that is not answering for a moment,
-so that a call there asks once again (issue 6629).
+so that a call there asks once again (issue 6629),
+and then which transports that read counts,
+from systemd's own source at the two versions it runs beside,
+and what a call that begins inside a reexec meets there,
+and the asks of a manager that answered (the alpha.16 read's Low 1 to Low 4,
+2026-11-27).
 
 Status:
 **unapproved and non-final**.
-Written by three Pi runs:
+Written by four Pi runs:
 one on branch
 `fix/cargo-shadow-cli-issue-6619-ten-scope-tests-failed-together-once-and-passed-in-the-next-two-runs`,
 one on branch
@@ -23,7 +28,14 @@ and one on branch
 which added the read of the transports an ask could be carried over,
 its two controls,
 the sampling of what that read sees across a real reexec,
-and the cost measured again.
+and the cost measured again,
+and one on branch
+`fix/cargo-shadow-cli-cargo-shadow-alpha-16-release-pass-the-asking-again-is-spent-where-the-records-say-and-its-controls-can-fail`,
+which changed the transports the read counts to the ones systemd's source shows,
+added the controls of each of them,
+made the discovery ask where the slice is before it starts the slice so an answer of the manager's ends the asking,
+added the controls of that refusal and of an answer that is not a path,
+and made the warning a kept unit carries say what the read saw.
 Every claim about behaviour here names what it rests on:
 a command a round ran,
 a line of this package,
@@ -156,11 +168,26 @@ An ask whose program spent its own deadline is not put again:
 a manager that answered nothing inside its bound is what a host without one looks like,
 and a second ask would only spend a second bound.
 Each program an ask runs is timed on its own (`spent_its_bound`),
-because the discovery starts two of them and a slow success followed by a fast failure must still be put again.
+because an ask can be more than one program start and a slow success followed by a fast failure must still be put again.
 The words of the last failure are still the refusal,
 so a run that goes on in the weaker path,
 and a control that reports `not run`,
 name which ask failed and what it said.
+Since 2026-11-27 the first ask of an attempt is the ask of where the slice is (`ask_where_the_slice_is_once`),
+because that ask answers whatever the slice's state and is carried over a transport the same way:
+a manager that is there answers it,
+so a start that fails after it is the manager's own answer about the slice.
+The slice is started only where that answer is no control group at all,
+and the path is asked for again after the start.
+A start the manager refused is followed by one more ask:
+if the manager answers it,
+the asking ends with the start's own words,
+because a refusal does not change with a wait (measured below);
+if it fails too,
+the failure was a transport and the question is put again.
+An answer that is not a control group path ends the asking the same way,
+after the ask that followed the start,
+because the manager answered twice.
 The five attempts span 0.800 s,
 which is the figure the measurement below gives them;
 they were three attempts fifty milliseconds apart (0.100 s) until 2026-11-27.
@@ -454,12 +481,118 @@ It reads:
 - `$XDG_RUNTIME_DIR` and `$DBUS_SESSION_BUS_ADDRESS` as the program an ask starts would see them,
   which is this process's own values changed by the settings a control plants;
 - `$XDG_RUNTIME_DIR/systemd/private`,
-  the manager's own socket;
+  the manager's own socket,
+  which is the transport `systemctl --user` takes first;
+- every `unix:path=` entry of `$DBUS_SESSION_BUS_ADDRESS`,
+  which is the session bus the address names;
 - `$XDG_RUNTIME_DIR/bus`,
-  the socket of the user bus;
+  the socket of the user bus,
+  counted only where no bus address is set;
 - `$XDG_RUNTIME_DIR/systemd`,
-  the directory the manager keeps its own files in;
-- every `unix:path=` entry of `$DBUS_SESSION_BUS_ADDRESS`.
+  the directory the manager keeps its own files in.
+
+Which of them an ask can take is not recalled from what a bus usually does:
+it is in the systemd the package runs beside.
+That is the change of 2026-11-27,
+and it is why the read no longer counts the bus socket beside a bus address.
+
+### The transports the ask can take, from systemd's own source
+
+`systemctl --user` reaches its manager through `bus_connect_transport_systemd`
+(`src/shared/bus-util.c:504-545` at v262),
+whose user-scope branch is `bus_connect_user_systemd` (`:519-524`).
+Read at both versions the package was met beside on 2026-11-27:
+262.2 on this host and in the read's container,
+and 255 in the guest of issue 6623.
+
+systemd 262,
+`bus_connect_user_systemd` (`src/shared/bus-util.c:266-289` at v262):
+
+```c
+        e = secure_getenv("XDG_RUNTIME_DIR");
+        if (!e)
+                return -ENOMEDIUM;
+
+        ee = bus_address_escape(e);
+        ...
+        bus->address = strjoin("unix:path=", ee, "/systemd/private");
+        ...
+        r = sd_bus_start(bus);
+        if (r < 0)
+                return r;
+```
+
+and its caller falls back to the session bus only where that answer is `-ENOMEDIUM` and an address is set
+(`:525-532`,
+`if (r == -ENOMEDIUM && secure_getenv("DBUS_SESSION_BUS_ADDRESS")) ... sd_bus_default_user(ret)`).
+So with `$XDG_RUNTIME_DIR` set,
+systemd 262 takes `$XDG_RUNTIME_DIR/systemd/private` alone,
+and the bus socket and every address entry are transports the ask never takes.
+
+systemd 255's copy of the same function (`src/shared/bus-util.c:234-262` at v255) differs in one line:
+
+```c
+        e = secure_getenv("XDG_RUNTIME_DIR");
+        if (!e)
+                return sd_bus_default_user(ret_bus);
+        ...
+        r = sd_bus_start(bus);
+        if (r < 0)
+                return sd_bus_default_user(ret_bus);
+```
+
+So systemd 255 takes the private socket,
+and falls back to the session bus where it cannot be connected.
+
+Both versions' session bus is `bus_set_address_user`
+(`src/libsystemd/sd-bus/sd-bus.c:1373-1398` at v262,
+`:1336-1361` at v255):
+
+```c
+        a = secure_getenv("DBUS_SESSION_BUS_ADDRESS");
+        if (!a) {
+                ...
+                e = secure_getenv("XDG_RUNTIME_DIR");
+                if (!e)
+                        return log_debug_errno(SYNTHETIC_ERRNO(ENOMEDIUM), ...);
+
+                ee = bus_address_escape(e);
+                ...
+                if (asprintf(&_a, DEFAULT_USER_BUS_ADDRESS_FMT, ee) < 0)
+                        return -ENOMEM;
+                a = _a;
+        }
+```
+
+So the address is preferred to `$XDG_RUNTIME_DIR/bus`,
+and `$XDG_RUNTIME_DIR/bus` is taken only where the address is not set.
+
+Measured 2026-11-27 on this host with systemd 262.2,
+read-only `systemctl --user show app.slice --property=ControlGroup --value` with `SYSTEMD_LOG_LEVEL=debug`:
+
+- `$XDG_RUNTIME_DIR` and an address that names a socket that is not there:
+  `sd-bus: starting bus by connecting to /run/user/1000/systemd/private...`,
+  exit status 0 and the slice's path printed,
+  so the address was never used;
+- the runtime directory unset (`env -u XDG_RUNTIME_DIR`) and this account's address set:
+  `sd-bus: starting bus by connecting to /run/user/1000/bus...`,
+  exit status 0 and the path printed,
+  so the address's socket carried it;
+- the runtime directory set and empty (`XDG_RUNTIME_DIR=`),
+  with the address set:
+  `sd-bus: starting bus by connecting to /systemd/private...`,
+  exit status 1,
+  because an empty variable is a set one for systemd and there is no fallback from that failure.
+
+So the read counts the transports of both versions the package runs beside:
+the private socket where `$XDG_RUNTIME_DIR` is set,
+the address where one is set,
+and the bus socket only where no address is set,
+where 255 could reach it and 262 cannot.
+That is the union,
+which is the safe direction:
+refusing a call across a reexec is the worse mistake,
+and a state the read keeps asking in costs the span and not a wrong refusal.
 
 No words are matched,
 so no message catalogue and no locale can change the answer.
@@ -486,14 +619,122 @@ What the read answers:
   `systemctl --user` answers `Failed to connect to user scope bus via local transport: No such file or directory`
   for a runtime directory that holds nothing and for one that does not exist,
   and for a bus address whose socket is not there.
-- One of the paths is there,
+- The manager's own directory is there and its socket is not:
+  a manager may be there and the asking again is kept (below).
+- One of the sockets is there,
   or the address names something this process cannot look for
   (an abstract socket,
+  an escaped byte,
   another transport):
   a manager may be there and the asking again is kept.
   That is the safe direction for the cost:
   a socket file left behind with nothing listening answers `Connection refused`,
-  and a call there spends the span rather than being refused early.
+  and a call there spends the span rather than being refused early (the states are in the README's
+  `Development`).
+  An empty `$XDG_RUNTIME_DIR` with a live address is that case too:
+  the read names the address and keeps the asking,
+  where systemd 262 refuses at once because it takes `/systemd/private`,
+  which spends the span on a host that could answer sooner.
+
+### The states the span is spent in, measured
+
+Two runs of five rounds of every state,
+in a rootless container whose own systemd was PID 1 and which had no user manager:
+`0.1.5-alpha.16` beside a byte-identical copy of it before the change of 2026-11-27,
+and the same released binary beside this branch's after it.
+Every call is `cargo-shadow install --dry-run` in a catalog repository whose lockfile is stale,
+with the package's own stand-in cargo behind it,
+so the figure is the shadow's own work.
+The four figures are the median of five rounds in this order:
+`0.1.5-alpha.16`,
+its copy,
+`0.1.5-alpha.16` again,
+this branch's binary.
+
+Five asks a call,
+and the median a call took:
+
+- `$XDG_RUNTIME_DIR/systemd/private` a socket with nothing listening on it:
+  853.7 ms,
+  852.8 ms,
+  855.2 ms,
+  856.0 ms.
+- `$XDG_RUNTIME_DIR/bus` a socket with nothing listening on it:
+  853.0 ms,
+  853.8 ms,
+  855.6 ms,
+  855.4 ms.
+- a `unix:path=` entry of the address naming a socket with nothing listening on it:
+  855.3 ms,
+  854.3 ms,
+  856.1 ms,
+  856.1 ms.
+- `$XDG_RUNTIME_DIR/systemd` a directory and no socket at this instant:
+  856.0 ms,
+  856.1 ms,
+  856.0 ms,
+  855.6 ms.
+- the same through a symlink to the runtime directory:
+  855.0 ms,
+  854.8 ms,
+  856.5 ms,
+  856.6 ms.
+- plain files at `systemd/private` and at `bus`:
+  854.9 ms,
+  854.3 ms,
+  856.8 ms,
+  857.0 ms.
+- an address naming an abstract socket:
+  856.7 ms,
+  859.8 ms,
+  856.9 ms,
+  858.0 ms.
+- an address with an escaped byte (`%74`):
+  855.4 ms,
+  855.4 ms,
+  859.1 ms,
+  856.7 ms.
+- an address of another transport (`unix:tmpdir=/tmp`):
+  863.3 ms,
+  863.1 ms,
+  857.3 ms,
+  857.4 ms.
+- a live session bus with no systemd on it,
+  reached by the runtime directory:
+  865.5 ms,
+  860.7 ms,
+  856.9 ms,
+  858.0 ms.
+- the same bus reached by the address:
+  876.4 ms,
+  876.0 ms,
+  861.6 ms,
+  862.7 ms.
+
+One ask a call:
+
+- neither variable set:
+  29.5 ms,
+  29.6 ms,
+  32.6 ms,
+  31.9 ms.
+- `$XDG_RUNTIME_DIR` a directory holding nothing:
+  29.8 ms,
+  29.8 ms,
+  32.5 ms,
+  32.7 ms.
+- `$XDG_RUNTIME_DIR` naming a directory that does not exist:
+  30.6 ms,
+  31.5 ms,
+  32.4 ms,
+  32.4 ms.
+
+So 11 states spend the span and 3 spend one ask a call,
+which is what the README's `Development` now names,
+where it said before 2026-11-27 that the span was spent "there and nowhere else".
+The two runs are five rounds each on one host under other agents' work,
+so an absolute figure is context and the counts are the finding;
+the arm beside the other binary in its own run is what shows the binaries are not the difference.
 
 ### A manager that reexecutes must not read as no manager
 
@@ -608,39 +849,204 @@ and it fails in the shape of the ten controls of 2026-11-27.
 Its host run is green either way:
 outside a container it prints what it did not do and ends.
 
-### The two controls of the read
+### The controls of the read
 
 `control_group_route_manager_reach::manager_reach_tests`:
 
 - `a_host_with_no_runtime_directory_and_no_bus_address_is_asked_once`;
-- `a_host_whose_runtime_directory_holds_no_manager_socket_is_asked_once`.
+- `a_host_whose_runtime_directory_holds_no_manager_socket_is_asked_once`;
+- `a_manager_socket_at_the_runtime_directory_keeps_the_asking_again`;
+- `a_bus_socket_at_the_runtime_directory_keeps_the_asking_again_where_no_bus_address_is_set`;
+- `a_bus_address_naming_a_socket_keeps_the_asking_again_where_no_runtime_directory_is_set`;
+- `a_bus_socket_beside_a_bus_address_is_not_a_transport_the_ask_takes`;
+- `an_address_this_process_cannot_judge_keeps_the_asking_again`;
+- `the_manager_s_own_directory_keeps_the_asking_again`.
 
-They cover the two ways a host has no manager that a container,
-a CI job or a session without a manager gives.
-Three more were probed in the container and have no control:
-a runtime directory that does not exist,
-a bus address naming a socket that is not there,
-and a socket file with nothing listening.
-The first two refuse like the two controls do and the read ends the asking at one ask there;
-the third is the case the Open list names,
+The first two cover the two ways a host has no manager that a container,
+a CI job or a session without a manager gives,
+and each requires one ask and less than two waits.
+The next four are one per transport,
+written on 2026-11-27 with the source above:
+three the read counts (the manager's own socket,
+the user bus socket where no address is set,
+and a socket an address names) and one it does not (the user bus socket beside a bus address),
+and each requires the count the read answers with:
+one ask where nothing a transport can be carried over is there,
+and the full five where one is.
+`an_address_this_process_cannot_judge_keeps_the_asking_again` covers the three unjudged addresses
+(an abstract socket,
+an escaped byte,
+another transport),
+and `the_manager_s_own_directory_keeps_the_asking_again` the reexec tolerance the directory is for.
+
+The other probes of earlier rounds keep their answers:
+a runtime directory that does not exist and an address naming a socket that is not there end the asking at one ask,
+as the two "asked once" controls do.
+A socket file with nothing listening is the case the Open list names,
 where the read keeps the asking again.
 
-Each plants a host with no manager through the settings an ask is made with,
+Each plants a host through the settings an ask is made with,
 so the host under the fixture keeps its own manager,
 and asks through a stand-in that writes down the ask and hands it to the real `systemctl`,
 so the refusal in the message is the system's own words about the host the control built.
-Each requires one ask and less than two waits,
-and that the refusal names what the read found.
+The socket a control plants is a socket file made with `mknodat` and not a bound listener:
+the read judges the file's kind,
+and a fixture path under this package is longer than a socket address holds (`SUN_LEN` is 108 bytes).
 
 Measured 2026-11-27 on this host:
 
 - with the change,
-  both passed in 0.023 s and 0.027 s,
-  each with one ask;
-- with the read's refusal taken out of `ask_where_the_slice_is`,
-  which is the code before this change,
-  both failed in 0.846 s and 0.849 s with
-  `the question was put again where no manager can be reached: "--user start app.slice"` five times.
+  the two "asked once" controls passed in 0.026 s each with one ask,
+  and the six that keep the asking passed in 0.84 s to 2.5 s with the count they require
+  (`an_address_this_process_cannot_judge_keeps_the_asking_again` walks three addresses,
+  15 asks);
+- with the bus socket counted beside a bus address again (the read before 2026-11-27's change),
+  `a_bus_socket_beside_a_bus_address_is_not_a_transport_the_ask_takes` failed in 0.838 s with five asks where it requires one;
+- with the manager's directory check deleted,
+  `the_manager_s_own_directory_keeps_the_asking_again` failed with one ask where it requires five;
+- with `paths_in_a_bus_address` answering no path for an address it cannot judge,
+  `an_address_this_process_cannot_judge_keeps_the_asking_again` failed with one ask where it requires five.
+
+## What a call that begins inside a reexec meets, and which asks end the asking
+
+Measured 2026-11-27,
+in a container whose user manager and bus were the container's own
+(the recipe is in "The two controls of the span" above,
+with 600 units loaded so a reexec takes a while),
+never against this account's manager:
+
+- 24 reexecs of that manager,
+  one call per reexec,
+  the arms alternating:
+  12 calls of `0.1.5-alpha.16` and 12 of `a16ctl`,
+  a byte-identical copy of it.
+  Each call was begun 60 ms after the reexec was fired,
+  so it began while the manager was down,
+  and a poller asked the manager every 5 ms through the same window.
+  The windows the poller saw were 265.4 ms to 365.2 ms long.
+- Every one of the 24 calls took the delegated route:
+  no weaker-path notice,
+  and its scopes were made.
+- 41 asks of those calls failed,
+  and every one of them inside a window:
+  38 answered `Failed to connect to user scope bus via local transport: Connection refused`,
+  and 3 answered a start failure that names the unit and the verb:
+
+  ```text
+  Failed to start app.slice: Transport endpoint is not connected See user logs and 'systemctl --user status app.slice' for details.
+  ```
+- The third shape names the unit and the verb,
+  as a refusal of the manager's does,
+  and it is not one:
+  the connection was accepted and the manager went away under the request.
+  So a failure's shape cannot tell a refusal from a transport that died,
+  and the one thing that can is the manager answering a later ask.
+  That is what the discovery now does,
+  and it is why the start's failure is followed by one more ask.
+
+So no ask of a call that began inside a reexec was an answer of the manager's,
+and the change the alpha.16 read called Low 3's pick stands:
+an ask the manager answered with a refusal of its own ends the asking,
+and a failure to reach the manager is put again.
+
+The same 24 reexecs were run again with this branch's binary,
+after the change that asks where the slice is first,
+12 calls of it and 12 of `0.1.5-alpha.16` alternated:
+
+- every one of the 24 calls took the delegated route,
+  and 21 of them began inside a window;
+- 33 asks failed,
+  every one of them inside a window:
+  30 `Failed to connect to user scope bus via local transport: Connection refused`,
+  2 of the start-failure shape above,
+  and 1 `Failed to get properties: Transport endpoint is not connected`,
+  which is the same connection going away under the ask that now comes first;
+- no failure was an answer of the manager's,
+  so the asking again rode through every window,
+  and the shape the asks meet in a reexec is unchanged by the new order.
+
+With the two runs together:
+48 calls begun inside 48 reexecs,
+42 of them inside a window the poller saw,
+74 failed asks and not one of them an answer of the manager's,
+and the delegated route in all 48.
+
+Measured against a manager that answers with a refusal of its own,
+`app.slice` masked in that container's manager and stopped,
+so `show` answers no control group at once and `start` answers
+`Failed to start app.slice: Unit app.slice is masked.`:
+
+- `0.1.5-alpha.15`:
+  1 ask,
+  35.8 ms median,
+  the weaker path 5 of 5;
+- `0.1.5-alpha.16`:
+  5 asks,
+  895.1 ms median,
+  and 883.1 ms in the second run where its copy was not beside it,
+  the weaker path 5 of 5;
+  its byte-identical copy,
+  in the first run:
+  5 asks,
+  885.1 ms median;
+- this branch's binary:
+  **3 asks,
+  56.5 ms median,
+  the weaker path 5 of 5**,
+  with the manager's own words unchanged.
+
+Measured through a stand-in that answers every ask of where the slice is with an empty value
+and hands the start to that container's manager,
+which is what an answer that is not a path looks like:
+
+- `0.1.5-alpha.16`:
+  10 asks,
+  895.2 ms median,
+  and 890.4 ms in the second run;
+  its byte-identical copy,
+  in the first run:
+  10 asks,
+  895.9 ms median;
+- this branch's binary:
+  **3 asks,
+  41.8 ms median**,
+  and the refusal is `the user manager reports no control group for app.slice`.
+
+Both are held by two controls in `control_group_route_discovery::asking_again_tests`:
+
+- `a_refusal_the_manager_answers_ends_the_asking`,
+  whose stand-in answers the ask of where the slice is with nothing and refuses the start with the masked slice's
+  words,
+  and which requires 3 asks and the manager's words in the refusal.
+  Its words are that capture,
+  copied here and into the control,
+  and the state itself is measured against a container's own manager above.
+- `an_answer_that_is_not_a_path_ends_the_asking`,
+  whose stand-in answers the ask of where the slice is with nothing and hands the start to the real manager,
+  and which requires 3 asks and the "reports no control group" refusal.
+
+Measured 2026-11-27 on this host:
+both passed in 0.037 s and 0.036 s with 3 asks each.
+Each was shown red once,
+by the edit that puts the answer again and never committed:
+with the ask that follows a refused start not ending the asking,
+`a_refusal_the_manager_answers_ends_the_asking` failed in 0.892 s with 15 asks where it requires 3,
+and with an answer that is not a path put again,
+`an_answer_that_is_not_a_path_ends_the_asking` failed in 0.940 s with 15 asks.
+
+What this does not cover:
+a reexec window that opens between the start's failure and the ask that follows it.
+The ask after it would answer,
+and a transport failure would then be read as the manager's answer,
+which would refuse the call.
+The gap is one program start,
+a few tens of milliseconds,
+and the window is 0.17 ms to 0.38 s long,
+so the two can meet;
+no run here reaches it,
+and what it would print is a refusal of the shape of the three above,
+which names the unit and the verb and is a transport that died.
+It is in the Open list.
 
 ## A failing run leaves its messages
 
@@ -692,13 +1098,32 @@ and the figure above is the run as it was measured then.
 - A manager that died and left its files behind.
   The read keeps the asking again where a socket is there or `$XDG_RUNTIME_DIR/systemd` is,
   so a host whose manager is gone and whose socket file or runtime directory was not removed is still asked
-  five times.
+  five times,
+  which is 5 asks and about 0.86 s a call (measured 2026-11-27 for every state the README's `Development` lists).
   That is the safe direction:
   at the instant an ask fails,
   a socket file with nothing behind it and a socket file inside a reexec look the same,
   and refusing a reexec is the worse of the two mistakes.
   No measurement here covers how often a runtime directory outlives its manager,
   and this is the one way of having no manager that issue 6629's first request does not cover.
+- A reexec window that opens between a refused start and the ask that follows it.
+  The ask after the start is what tells the manager's answer from a transport that died,
+  and a window inside that one program start would make a transport failure read as the manager's answer,
+  which would refuse the call.
+  The three asks of the start-failure shape measured above are what it would look like.
+  No run here reached it:
+  the container's window is 0.17 ms to 0.38 s and the gap is a few tens of milliseconds.
+  A host whose `app.slice` is inactive and whose manager reexecutes at that instant is the state,
+  and nothing here stages it.
+- Whether an empty `$XDG_RUNTIME_DIR` beside a live address should end the asking.
+  systemd 262 treats an empty variable as a set one and refuses at once (`/systemd/private`),
+  while the read names the address and keeps the asking,
+  which spends the span on a host that could answer sooner.
+  The direction is the safe one and the state is not measured here.
+- The long help layout of `install --help` and `update --help`.
+  clap prints it because `--dry-run`'s help has a second paragraph,
+  and the README says so beside the `--dry-run` option;
+  no record names whether the layout is wanted.
 - The words of the ten refusals of 2026-11-27 stay unknown (issue 6628),
   so nothing here shows whether any of them was the no-manager case the read now stops at.
 - Which of the discovery's answers refused in the ten:
@@ -711,10 +1136,19 @@ and the figure above is the run as it was measured then.
 - A control for the other answer that can change:
   a caller's limits that cannot be read.
   No control of this package plants a read of `/sys/fs/cgroup` that fails for a moment.
-- The repository linter's `rust/max-lines` finding on `src/lib.rs` (305 code lines,
-  limit 300) is on this branch's base already (304 there),
-  and the one line this round put in it is the declaration of the read's module;
-  the read itself is not this round's to move out of `lib.rs`.
+- The repository linter's `rust/max-lines` finding on `src/lib.rs` that this document named
+  (305 code lines,
+  limit 300) is gone:
+  `src/lib.rs` holds 201 code lines on this branch's base,
+  because a refactor before this round moved the round suites' declarations beside their modules.
+  This round put one declaration in it,
+  `control_group_route_one_ask`,
+  which is the module the one ask moved to when this round's prose took `control_group_route_discovery.rs` past the limit.
+- `control_group_route_discovery.rs` grew past the code-line limit with this round's comments,
+  so the one ask,
+  its failure and its bound rule moved to `control_group_route_one_ask.rs`,
+  re-exported by the discovery;
+  the controls' module paths did not change.
 - A kept run is written when the run ends,
   not as it streams,
   so a task that is killed before its suite ends keeps nothing (above).

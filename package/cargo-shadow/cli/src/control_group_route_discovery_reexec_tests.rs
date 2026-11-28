@@ -111,6 +111,22 @@ use crate::control_group::{
     detect_route,
 };
 /// What:
+/// `use crate::control_group_route_discovery::{ASKING_AGAIN_ATTEMPTS, ASKING_AGAIN_PAUSE};` imports the two constants the span is
+/// made of.
+/// Why:
+/// The control below holds them against the figures the records give,
+/// which is the only place a lowered constant is caught:
+/// a stand-in that refuses for the measured moment passes four attempts of a shorter wait.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ASKING_AGAIN_ATTEMPTS, ASKING_AGAIN_PAUSE } from 'crate/control_group_route_discovery';
+/// ```
+use crate::control_group_route_discovery::{
+    ASKING_AGAIN_ATTEMPTS,
+    ASKING_AGAIN_PAUSE,
+};
+/// What:
 /// `use crate::test_scratch::scratch;` imports the disposable directory of one control.
 /// Why:
 /// The stand-in and its log live in a fixture of the control's own.
@@ -420,5 +436,57 @@ fn the_question_answers_across_a_real_reexec_of_a_containers_manager() {
         CONTROL_SECONDS,
         overlapping.len(),
         windows.len()
+    );
+}
+
+/// The number of attempts the records name.
+/// Why:
+/// `README.md`,
+/// "Development",
+/// says the question is put "five times,
+/// two hundred milliseconds apart",
+/// and `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md` gives the same figures beside the measurement
+/// they were sized from.
+/// A change here is a change to both records and to the measurement behind them.
+const RECORDED_ATTEMPTS: u32 = 5;
+
+/// The pause between two attempts the records name,
+/// in milliseconds.
+/// Why:
+/// It is the second half of the same sentence,
+/// and it is what makes the span of the asking again the figure the records give.
+const RECORDED_PAUSE_MILLISECONDS: u64 = 200;
+
+/// The control of the span's size:
+/// the two constants are the figures the records name,
+/// and the waits they make outlast the longest reexec measured across which asks fail.
+/// Why it is a control and not a comment:
+/// a constant lowered by one attempt or by a shorter pause leaves the stand-in control green
+/// (a moment of 0.600 s is still asked through by four attempts 0.150 s apart,
+/// in the asks' own run time),
+/// so nothing else in this file would show the change,
+/// and the README's "the span is spent" sentence and its cost would be about a span the code no longer spends.
+#[test]
+fn the_span_the_records_name_is_the_span_the_discovery_spends() {
+    assert_eq!(
+        ASKING_AGAIN_ATTEMPTS, RECORDED_ATTEMPTS,
+        "the number of attempts is not the five the records name, so a measurement has to be made and both records changed"
+    );
+    assert_eq!(
+        ASKING_AGAIN_PAUSE,
+        Duration::from_millis(RECORDED_PAUSE_MILLISECONDS),
+        "the pause between two attempts is not the two hundred milliseconds the records name"
+    );
+    // What:     `waits` is the time the discovery spends waiting between its attempts: one wait fewer than there are attempts.
+    // Why:      The span the records give is the waits; the asks' own run time comes on top of it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const waits = ASKING_AGAIN_PAUSE * (ASKING_AGAIN_ATTEMPTS - 1)
+    // ```
+    let waits: Duration = ASKING_AGAIN_PAUSE * (ASKING_AGAIN_ATTEMPTS - 1);
+    assert!(
+        waits > MEASURED_LONGEST_REEXEC,
+        "the waits of the asking again are {waits:?}, which does not outlast the {MEASURED_LONGEST_REEXEC:?} a manager was measured to refuse asks across on 2026-11-27"
     );
 }

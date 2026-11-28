@@ -92,6 +92,17 @@ use crate::control_group::{
     detect_route,
 };
 /// What:
+/// `use crate::control_group_route_discovery::ASKING_AGAIN_ATTEMPTS;` imports how many times the question is put before a
+/// failure is taken for this host's answer.
+/// Why:
+/// The refusal control requires the question to be put exactly that many times.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ASKING_AGAIN_ATTEMPTS } from 'crate/control_group_route_discovery';
+/// ```
+use crate::control_group_route_discovery::ASKING_AGAIN_ATTEMPTS;
+/// What:
 /// `use crate::test_scratch::scratch;` imports the disposable directory of one control.
 /// Why:
 /// The stand-in and its log live in a fixture of the control's own.
@@ -309,15 +320,129 @@ fn a_question_that_keeps_failing_is_still_a_missing_capability_and_names_its_las
     assert!(
         refused
             .to_string()
-            .contains("the user manager cannot start app.slice (")
+            .contains("the user manager cannot be asked where app.slice is (")
             && refused
                 .to_string()
                 .contains("the stand-in never answers a slice"),
         "the refusal does not name the manager's own words: {refused}"
     );
     let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    // What:     `usize::try_from(ASKING_AGAIN_ATTEMPTS)` is the attempt count the records name, as a count of lines.
+    // Why:      A discovery that stopped short of the attempts would pass a "more than one" check while the README's span
+    //           and its cost were no longer the span and the cost.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const wanted = ASKING_AGAIN_ATTEMPTS
+    // ```
+    let wanted: usize = usize::try_from(ASKING_AGAIN_ATTEMPTS)
+        .expect("an attempt count that fits a count of lines");
+    assert_eq!(
+        calls.lines().count(),
+        wanted,
+        "the question was not put once per attempt: {calls:?}"
+    );
+}
+
+/// The control of a refusal the manager answers with itself:
+/// a stand-in answers every ask of where the slice is with no value and refuses the start with the manager's own words
+/// for a masked slice,
+/// so the discovery must end the asking and name the refusal.
+/// The words are the ones the container captured at `doc/the-route-question-that-is-asked-again-when-one-ask-fails.md`.
+/// The stand-in is a stand-in:
+/// it is built from that capture,
+/// and no claim about a real manager rests on it here
+/// (the same state was measured against a container's own manager:
+/// see the package document).
+#[test]
+fn a_refusal_the_manager_answers_ends_the_asking() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    // What:     `program` is the stand-in: it writes down every ask, answers an ask of where the slice is with nothing, and
+    //           refuses the start with the manager's words for a masked slice.
+    // Why:      The manager answered the first ask, so the start's failure is its own answer and the asking must end there.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const program = aProgram(dir, 'systemctl-with-a-masked-slice', `...`)
+    // ```
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-with-a-masked-slice",
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\ncase \" $* \" in\n  *\" show \"*) exit 0 ;;\nesac\necho 'Failed to start app.slice: Unit app.slice is masked.' >&2\nexit 1\n",
+            log = log.display()
+        ),
+    );
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+
+    let refused =
+        detect_route(&settings).expect_err("a slice the manager refuses to start is no route");
+
     assert!(
-        calls.lines().count() > 1,
-        "the question was asked once only, so nothing was put again: {calls:?}"
+        refused
+            .to_string()
+            .contains("the user manager cannot start app.slice (")
+            && refused.to_string().contains("Unit app.slice is masked."),
+        "the refusal does not name the manager's own words: {refused}"
+    );
+    let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    // The three asks of one answer: where the slice is, the start, and the ask that says the manager is still there.
+    assert_eq!(
+        calls.lines().count(),
+        3,
+        "a refusal the manager answered was put again, so the asking spent its span on one answer: {calls:?}"
+    );
+}
+
+/// The control of an answer that is not a path:
+/// a stand-in answers every ask of where the slice is with no value while the start is the real manager's,
+/// so the manager answered twice that the slice has no control group and the asking must end there.
+#[test]
+fn an_answer_that_is_not_a_path_ends_the_asking() {
+    this_test_needs_a_delegated_scope();
+    let directory = scratch();
+    let log: PathBuf = directory.path().join("calls");
+    // What:     `program` is the stand-in: an ask of where the slice is answers nothing, and the start is handed to the real
+    //           `systemctl`, so the slice is started by the manager this host has.
+    // Why:      A manager that reports no control group for a slice it started is answering, and no wait changes that.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const program = aProgram(dir, 'systemctl-with-no-control-group', `...`)
+    // ```
+    let program: PathBuf = a_program(
+        directory.path(),
+        "systemctl-with-no-control-group",
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\ncase \" $* \" in\n  *\" show \"*) exit 0 ;;\nesac\nexec '{real}' \"$@\"\n",
+            log = log.display(),
+            real = real_systemctl()
+        ),
+    );
+    let settings: RouteSettings = RouteSettings {
+        systemctl: program.display().to_string(),
+        ..RouteSettings::default()
+    };
+
+    let refused = detect_route(&settings)
+        .expect_err("a slice the manager reports no control group for is no route");
+
+    assert!(
+        refused
+            .to_string()
+            .contains("the user manager reports no control group for app.slice"),
+        "the refusal does not say what the manager answered: {refused}"
+    );
+    let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
+    // The three asks of one answer: where the slice is, the start, and where it is again after that.
+    assert_eq!(
+        calls.lines().count(),
+        3,
+        "an answer that is not a path was put again, so the asking spent its span on one answer: {calls:?}"
     );
 }
