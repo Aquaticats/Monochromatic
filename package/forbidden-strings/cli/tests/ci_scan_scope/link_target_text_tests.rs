@@ -1,15 +1,21 @@
 //! What:
-//!  What the scan steps hand the scanner for each changed entry the file scan
-//!  leaves out:
+//!  What the scan steps hand the scanner for every link and gitlink:
 //!  the entry's own name,
 //!  and,
-//!  for a tracked link,
+//!  for a link,
 //!  the target text Git stores for it,
 //!  taken from the link's own Git object and never from the path it points at.
+//!  A link to a file keeps its read-through in the file scan and gains this
+//!  target-text scan beside it;
+//!  a folder link and a gitlink are left out of the file scan and reach the
+//!  scanner only here.
 //! Why:
 //!  Issue #6633:
 //!  the step that keeps `Is a directory (os error 21)` out of the scan left
 //!  those entries inspected by nothing.
+//!  Issue #6640:
+//!  a link to a file had no stored target text scanned,
+//!  and a whole-tree run inspected no link and no gitlink at all.
 //!  Measured on `forbidden-strings` 0.6.2,
 //!  `--name-path <link path> <materialized target text>` name-scans the link's
 //!  own path and content-scans the stored target text in one invocation,
@@ -17,7 +23,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // left-out-entry.test.ts: what the step hands over for a folder link and a gitlink
+//! // link-target-text.test.ts: what the steps hand over for each link and gitlink
 //! ```
 
 use std::fs;
@@ -29,7 +35,8 @@ use crate::fixture_inputs::{
     SENTINEL,
 };
 use crate::scan_step_command::{
-    LEFT_OUT_STEP_NAME,
+    LINK_LIST_STEP_NAME,
+    LINK_SCAN_STEP_NAME,
     declared_step_body,
 };
 use crate::{
@@ -40,16 +47,15 @@ use crate::{
 // What:     `const WHICH_ENTRIES_SCAN_NEXT` is the sentence the file-scan step
 //           prints to say what inspects the entries it left out.
 // Why:      A gate that drops entries must say where they went; without this
-//           sentence a reader cannot tell the left-out step from a silent loss.
+//           sentence a reader cannot tell the link scan from a silent loss.
 const WHICH_ENTRIES_SCAN_NEXT: &str =
     "The next step scans their own names and, for each link, its stored target text.";
 
-// What:     `const LEFT_OUT_SCAN_LINE` is the opening of the left-out step's
+// What:     `const LINK_SCAN_LINE` is the opening of the link-scan step's
 //           narration, up to the count it prints.
-// Why:      The cases pin that the step ran and how many entries it handed
-//           over, without depending on the count word or the pair indexes the
-//           fixture's own diff order decides.
-const LEFT_OUT_SCAN_LINE: &str = "left-out entries: each one by its own name";
+// Why:      The cases pin that the step ran and what it handed over, without
+//           depending on the pair indexes the fixture's own entry order decides.
+const LINK_SCAN_LINE: &str = "link and gitlink entries: each one by its own name";
 
 // What:     `#[test] fn push_of_a_folder_link_whose_own_name_is_forbidden_ends_the_step_1()`
 //           pushes one folder link whose own name holds the string a pathname
@@ -106,8 +112,194 @@ fn push_of_a_folder_link_whose_own_name_is_forbidden_ends_the_step_1() {
         result.stderr,
     );
     assert!(
-        result.stdout.contains(LEFT_OUT_SCAN_LINE),
-        "the left-out step must say it handed the entry over by name\nstdout: {}\nstderr: {}",
+        result.stdout.contains(LINK_SCAN_LINE),
+        "the link-scan step must say it handed the entry over by name\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    let _ = fs::remove_dir_all(&fixture.root);
+}
+
+// What:     `#[test] fn push_of_a_link_to_a_file_whose_stored_target_text_is_forbidden_ends_the_step_1()`
+//           pushes one new link to a regular file whose stored target text holds
+//           the string a content rule forbids, and expects exit 1 with that
+//           finding under the link's own name.
+// Why:      Issue #6640's first half: a link to a file stays in the file scan,
+//           which reads the content behind it, and nothing scanned the bytes
+//           Git stores for the link itself, so a forbidden string there was
+//           invisible and the step stayed green.
+#[test]
+fn push_of_a_link_to_a_file_whose_stored_target_text_is_forbidden_ends_the_step_1() {
+    let mut fixture = Fixture::new("link-to-file-target-text");
+    fixture.write_workflow_revision(true);
+    // The target folder carries the forbidden string in its own name, so the
+    // link's stored text holds it while the content behind the link, the
+    // link's own name and every other changed entry stay clean of it.
+    fixture.put(
+        &format!("base/{}/lib.txt", SENTINEL),
+        "clean behind the link\n",
+    );
+    fixture.put("consumer/main.txt", "clean before the push\n");
+    fixture.commit("A");
+    fixture.put("consumer/main.txt", "clean\nchanged by the push\n");
+    fixture.link(
+        "consumer/uses/lib",
+        &format!("../../base/{}/lib.txt", SENTINEL),
+    );
+    fixture.commit("B");
+    fixture.write_runs(&[RunRow {
+        conclusion: "success",
+        event: "push",
+        head_branch: "main",
+        workflow: "forbidden-strings.yml",
+        head_label: "A",
+    }]);
+
+    let result = fixture.run_scan("push", "B", "main", "A");
+
+    assert!(
+        result.status == 1,
+        "a forbidden string in a kept link's stored target text must fail the step; got status {}\nstdout: {}\nstderr: {}",
+        result.status,
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stderr.contains(&format!(
+            "consumer/uses/lib:1 rule={} input=0",
+            FIXTURE_RULE,
+        )),
+        "the finding must name the link, line one of its stored target text, and its input index\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stdout.contains("Scanning 2 changed file(s)"),
+        "the link to a file must stay in the file scan's own list\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    let _ = fs::remove_dir_all(&fixture.root);
+}
+
+// What:     `#[test] fn push_of_a_link_whose_content_and_stored_target_text_both_match_prints_both()`
+//           pushes one new link whose target file's content holds the forbidden
+//           string and whose stored target text holds it too, and expects both
+//           findings in one run, each labelled.
+// Why:      Issue #6640 asks what a person sees when both match: two findings
+//           name the same link, one from the read-through without an input
+//           index, one from the stored target text with `input=0`. The two
+//           later steps carry `!cancelled()`, so the file scan's finding does
+//           not hide the stored target text's.
+#[test]
+fn push_of_a_link_whose_content_and_stored_target_text_both_match_prints_both() {
+    let mut fixture = Fixture::new("link-to-file-both-match");
+    fixture.write_workflow_revision(true);
+    fixture.put(
+        &format!("base/{}/lib.txt", SENTINEL),
+        &format!("clean line\n{}\n", SENTINEL),
+    );
+    fixture.put("consumer/main.txt", "clean before the push\n");
+    fixture.commit("A");
+    fixture.put("consumer/main.txt", "clean\nchanged by the push\n");
+    fixture.link(
+        "consumer/uses/lib",
+        &format!("../../base/{}/lib.txt", SENTINEL),
+    );
+    fixture.commit("B");
+    fixture.write_runs(&[RunRow {
+        conclusion: "success",
+        event: "push",
+        head_branch: "main",
+        workflow: "forbidden-strings.yml",
+        head_label: "A",
+    }]);
+
+    let result = fixture.run_scan("push", "B", "main", "A");
+
+    assert!(
+        result.status == 1,
+        "both matches must fail the step; got status {}\nstdout: {}\nstderr: {}",
+        result.status,
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result
+            .stderr
+            .contains(&format!("consumer/uses/lib:2 rule={}", FIXTURE_RULE)),
+        "the read-through must report the content behind the link at its line\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stderr.contains(&format!(
+            "consumer/uses/lib:1 rule={} input=0",
+            FIXTURE_RULE,
+        )),
+        "the stored target text must report its own line under the same link name\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stdout.contains(LINK_SCAN_LINE),
+        "the link-scan step must run even though the file scan failed\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    let _ = fs::remove_dir_all(&fixture.root);
+}
+
+// What:     `#[test] fn push_of_a_clean_link_to_a_file_stays_green_and_is_still_read_through()`
+//           pushes one new link to a clean file whose stored target text is
+//           clean too, and expects exit 0 with the link still in the file
+//           scan's list and the link-scan step still run.
+// Why:      The control for both halves of issue #6640: the new hand-over must
+//           add no finding to a clean link, and it must not pull the link out of
+//           the list whose read-through inspects the content behind it.
+#[test]
+fn push_of_a_clean_link_to_a_file_stays_green_and_is_still_read_through() {
+    let mut fixture = Fixture::new("clean-link-to-file");
+    fixture.write_workflow_revision(true);
+    fixture.put("base/lib.txt", "clean line\n");
+    fixture.put("consumer/main.txt", "clean before the push\n");
+    fixture.commit("A");
+    fixture.put("consumer/main.txt", "clean\nchanged by the push\n");
+    fixture.link("consumer/uses/lib", "../../base/lib.txt");
+    fixture.commit("B");
+    fixture.write_runs(&[RunRow {
+        conclusion: "success",
+        event: "push",
+        head_branch: "main",
+        workflow: "forbidden-strings.yml",
+        head_label: "A",
+    }]);
+
+    let result = fixture.run_scan("push", "B", "main", "A");
+
+    assert!(
+        result.status == 0,
+        "a clean link to a file must pass; got status {}\nstdout: {}\nstderr: {}",
+        result.status,
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        !result.stderr.contains("rule=") && !result.stderr.contains("read error"),
+        "a clean link may report nothing\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stdout.contains("Scanning 2 changed file(s)")
+            && result.stdout.contains("consumer/uses/lib"),
+        "the link to a file must still reach the file scan positionally\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stdout.contains(LINK_SCAN_LINE),
+        "the link's stored target text must still be handed over\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
     );
@@ -340,7 +532,7 @@ fn push_of_a_folder_link_whose_target_folder_holds_a_forbidden_string_stays_gree
         result.stderr,
     );
     assert!(
-        result.stdout.contains(LEFT_OUT_SCAN_LINE),
+        result.stdout.contains(LINK_SCAN_LINE),
         "the clean link must still be handed over by name and target text\nstdout: {}\nstderr: {}",
         result.stdout,
         result.stderr,
@@ -406,6 +598,64 @@ fn pull_request_scan_reports_a_folder_link_whose_target_text_is_forbidden() {
     let _ = fs::remove_dir_all(&fixture.root);
 }
 
+// What:     `#[test] fn pull_request_scan_reports_a_link_to_a_file_whose_target_text_is_forbidden()`
+//           runs the pull-request arm with the forbidden string in a kept link
+//           to a file's stored target text, and expects exit 1 with that
+//           finding.
+// Why:      Both arms build one changed-entry list and hand it to the same
+//           steps, so the merge-base arm must inspect a link's stored target
+//           text exactly as the push arm does.
+#[test]
+fn pull_request_scan_reports_a_link_to_a_file_whose_target_text_is_forbidden() {
+    let mut fixture = Fixture::new("pull-request-link-to-file-target-text");
+    fixture.write_workflow_revision(true);
+    fixture.put(
+        &format!("base/{}/lib.txt", SENTINEL),
+        "clean behind the link\n",
+    );
+    fixture.put("consumer/main.txt", "clean\n");
+    fixture.commit("A");
+    fixture.git(&["switch", "--create", "feature", &fixture.sha("A")]);
+    fixture.put("consumer/main.txt", "clean\nchanged by the pull request\n");
+    fixture.link(
+        "consumer/uses/lib",
+        &format!("../../base/{}/lib.txt", SENTINEL),
+    );
+    fixture.commit("P");
+    fixture.git(&["switch", "main"]);
+    fixture.put("other.txt", "clean\nchanged on main after the fork\n");
+    fixture.commit("M");
+    fixture.git(&["update-ref", "refs/remotes/origin/main", &fixture.sha("M")]);
+    fixture.git(&["switch", "feature"]);
+    fixture.write_runs(&[]);
+
+    let result = fixture.run_scan("pull_request", "P", "feature", "");
+
+    assert!(
+        result.status == 1,
+        "the pull-request arm must report a forbidden string in a kept link's stored target text; got status {}\nstdout: {}\nstderr: {}",
+        result.status,
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stderr.contains(&format!(
+            "consumer/uses/lib:1 rule={} input=0",
+            FIXTURE_RULE,
+        )),
+        "the finding must name the link, line one of its stored target text, and its input index\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    assert!(
+        result.stdout.contains("origin/main...HEAD"),
+        "the pull-request arm must keep its merge-base scope\nstdout: {}\nstderr: {}",
+        result.stdout,
+        result.stderr,
+    );
+    let _ = fs::remove_dir_all(&fixture.root);
+}
+
 // What:     `#[test] fn push_of_a_file_named_like_an_option_is_still_scanned()`
 //           pushes a regular file whose name starts with a dash and holds the
 //           forbidden string, and expects the finding.
@@ -449,30 +699,60 @@ fn push_of_a_file_named_like_an_option_is_still_scanned() {
     let _ = fs::remove_dir_all(&fixture.root);
 }
 
-// What:     `#[test] fn the_workflow_declares_a_step_that_scans_the_entries_it_leaves_out()`
-//           reads the workflow and expects one step whose body takes each
-//           left-out entry's name and each link's stored target text.
+// What:     `#[test] fn the_workflow_declares_a_step_that_writes_each_links_stored_target_text()`
+//           reads the workflow and expects one step that lists the links and
+//           gitlinks of a whole-tree run from the index and of a delta from the
+//           changed-entry list.
+// Why:      Every behaviour case would pass if the file scan listed both kinds
+//           and a later step only re-read one of them; this case pins the two
+//           sources the two arms need, so neither arm can lose its list without
+//           a named failure.
+#[test]
+fn the_workflow_declares_a_step_that_writes_each_links_stored_target_text() {
+    let body: String = declared_step_body(LINK_LIST_STEP_NAME).unwrap_or_else(|| {
+        panic!(
+            "the workflow must declare its `{}` step",
+            LINK_LIST_STEP_NAME.trim(),
+        )
+    });
+
+    assert!(
+        body.contains("git ls-files --stage"),
+        "the whole-tree arm must list the index's links and gitlinks\nbody: {}",
+        body,
+    );
+    assert!(
+        body.contains("changed-raw"),
+        "the delta arm must list the changed entries' links and gitlinks\nbody: {}",
+        body,
+    );
+}
+
+// What:     `#[test] fn the_workflow_declares_a_step_that_scans_links_and_gitlinks()`
+//           reads the workflow and expects one step whose body hands each entry
+//           to the scanner under its own name, with each link's stored target
+//           text read out of its own Git object.
 // Why:      Every other case here asserts behaviour, so a workflow that dropped
 //           the step would make them report what the remaining steps hand over;
 //           this case makes the missing step itself the finding, and pins the
 //           two mechanisms the requirement names: the entry's own name, and the
 //           link's target text read out of its Git object.
 #[test]
-fn the_workflow_declares_a_step_that_scans_the_entries_it_leaves_out() {
-    // What:     `body` is the extracted shell of the left-out step, or `None`
+fn the_workflow_declares_a_step_that_scans_links_and_gitlinks() {
+    // What:     `body` is the extracted shell of the link-scan step, or `None`
     //           when the workflow declares no such step.
-    // Why:      The three assertions below are about one step's text, and a
-    //           missing step must fail here rather than take the binary down.
-    let body: String = declared_step_body(LEFT_OUT_STEP_NAME).unwrap_or_else(|| {
+    // Why:      The assertions below are about one step's text, and a missing
+    //           step must fail here rather than take the binary down.
+    let body: String = declared_step_body(LINK_SCAN_STEP_NAME).unwrap_or_else(|| {
         panic!(
             "the workflow must declare its `{}` step",
-            LEFT_OUT_STEP_NAME.trim(),
+            LINK_SCAN_STEP_NAME.trim(),
         )
     });
 
     assert!(
         body.contains("--name-path"),
-        "the step must hand each left-out entry over under its own name\nbody: {}",
+        "the step must hand each entry over under its own name\nbody: {}",
         body,
     );
     assert!(

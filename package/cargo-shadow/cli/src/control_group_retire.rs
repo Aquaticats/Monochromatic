@@ -505,7 +505,7 @@ fn group_gone_at_the_peak(
 /// the warning that follows must not deny an emptiness the same look read,
 /// and it must say what the read saw rather than what the reader expected:
 /// measured on this host on 2026-11-27,
-/// 24 of the removals that answered `ENODEV` still had the group's directory there when it was checked right after.
+/// 20 of the 24 removals that answered `ENODEV` still had the group's directory there when it was checked right after.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

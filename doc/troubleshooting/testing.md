@@ -751,6 +751,9 @@ measured where its 900 ms went:
 
 The case needs 600 ms of waiting and 125 ms of its own steps,
 and leaves 177 ms of a 902 ms deadline for a host that is slower than this one.
+The run's own heartbeat showed its longest gap at 94 ms,
+during which the suite's sibling cases held this process,
+so the leftover is what has to hold a blocking that long.
 Two runs show the failure without waiting for the load that made it:
 
 - the stand-in that answers the message (`connectionWhosePiStartedItsOwnTurn` in `watch-pi-run.unit.test.ts`)
@@ -780,6 +783,9 @@ or a prompt Pi refused.
 A watch that never reaches its event is still reported,
 by the case's own bound,
 rather than hung.
+That bound is what a watch broken outright costs:
+the six-look case's own is 181.8 s,
+so such a watch is reported after about three minutes where the bound it replaced ended it after about a second.
 
 The looks each control needs were counted in one run of the file,
 with a stand-in record counting its `turnCount` calls,

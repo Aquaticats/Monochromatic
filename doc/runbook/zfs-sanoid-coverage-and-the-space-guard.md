@@ -16,7 +16,16 @@ and reports what the space guard can actually prune.
 Status:
 TODO | DONE
 
-This page is the owner's act.
+This page is the agent's act on the owner's authorisation,
+logged,
+by the owner's answers of 2026-11-26
+(`doc/decision/cli-git-zfs-host-setup-measurement-and-image-build-are-the-agents-act.md`,
+merged as `0a58781554`,
+2026-11-26T01:37:29-05:00):
+the agent runs each command below with sudo once plan step 20 is wired and
+proven in a guest,
+and records the command,
+its output and how to undo it.
 No step of the route writes `sanoid.conf`,
 sets `com.sun:auto-snapshot`,
 or changes a property on an existing dataset here.

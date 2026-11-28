@@ -250,6 +250,8 @@ pub mod markdown_dispatch;
 pub mod markdown_duplicate_headings;
 /// Shared Markdown diagnostic construction.
 mod markdown_finding;
+/// Fragment joins that put a word the old hard wrap cut back with its clause.
+mod markdown_fragment_joins;
 /// Internal report-only heading checks.
 #[doc(hidden)]
 pub mod markdown_headings;
