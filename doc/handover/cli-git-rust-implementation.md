@@ -2827,9 +2827,6 @@ and `main` may move while it runs
 After every `mise run toolchain:install` in the main checkout the session's `git` link points at the toolchain launcher,
 and it is put back on the build of 2026-11-22
 (last at 2026-11-27T20:35:23-05:00).
-What the wrapper's alpha.48 behaviour pass found,
-with no High finding:
-
 - Medium:
   a shell alias still takes a slot removal or a prune past the refusals,
   in alpha.47 and alpha.48 alike
