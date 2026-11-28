@@ -1617,31 +1617,11 @@ The raw characters in the linter's other messages wait for the owner,
 because a command a person copies must hold the name raw
 (`doc/handover/questions-for-the-owner.md`).
 
-Beyond their findings,
-the two reads name changes that no merge's description carried.
-`cd62517318` made the refusal of a removal behind an unknown global option need a slot record in the record folder,
-where alpha.48 refused on the folder alone:
-with an empty folder alpha.48 exits 1,
-and alpha.49 passes the command to Git,
-which exits 129.
-That is the decision's own wording
-(`doc/decision/cli-git-alpha-47-release-pass-two-removal-answers.md`):
-
-```text
-In a repository with no slot records the command is forwarded as before.
-```
-
-The control `the_home_says_whether_it_holds_a_record` holds it for an empty folder,
+The control `the_home_says_whether_it_holds_a_record` holds the rule for an empty folder,
 an unrelated file,
 a record and a record being written;
-the read says a folder that holds only an add's claim also counts as holding no record,
+the two reads of `0.6.1-alpha.49` say a folder that holds only an add's claim also counts as holding no record,
 and no control shows that case.
-`7d6bd90c92` changes a real run in three edge cases:
-a runtime directory whose name is not UTF-8 is used where it was ignored,
-an empty bus address is passed on and treated as before,
-and an empty `XDG_RUNTIME_DIR` on the ZFS add route is refused as not set.
-The release binary's code grew by about 112 KiB between the two releases,
-and neither read says which merge grew it.
 
 The coordinator corrected four of the six briefs by a note to each round at 2026-11-27T13:11:19-05:00,
 because each stated the coordinator's own design as the requirement:
