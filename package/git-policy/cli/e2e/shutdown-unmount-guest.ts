@@ -63,10 +63,10 @@ import {
 import {
   ARM_LOG,
   BUILD_LOG,
-  CHECKOUT,
   EXPECTED_MARKERS,
   OPENZFS_PREFIX,
   POOL,
+  POOL_IMAGE_FOLDER,
   SKIP_WORD,
   armScript,
   buildScript,
@@ -131,10 +131,10 @@ const DEFAULT_LOG_DIRECTORY_NAME = 'shutdown-unmount-guest-logs';
 function poolScript(): string {
   return [
     'set -eu',
-    `mkdir --parents ${CHECKOUT}`,
+    `mkdir --parents ${POOL_IMAGE_FOLDER}`,
     `if ! ${OPENZFS_PREFIX}/sbin/zpool list -H -o name ${POOL} > /dev/null 2>&1; then`,
-    `  truncate --size 1G ${CHECKOUT}/pool.img`,
-    `  ${OPENZFS_PREFIX}/sbin/zpool create -f -O mountpoint=none ${POOL} ${CHECKOUT}/pool.img`,
+    `  truncate --size 1G ${POOL_IMAGE_FOLDER}/pool.img`,
+    `  ${OPENZFS_PREFIX}/sbin/zpool create -f -O mountpoint=none ${POOL} ${POOL_IMAGE_FOLDER}/pool.img`,
     'fi',
   ].join('\n',);
 }

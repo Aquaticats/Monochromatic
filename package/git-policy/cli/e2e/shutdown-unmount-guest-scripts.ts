@@ -61,9 +61,16 @@ export const POOL = 'zfsshutdownunmount';
 export const OPENZFS_PREFIX = '/opt/openzfs-2.4.4';
 
 /**
- The checkout the arm mounts its dataset at.
+ The checkout the arm mounts its dataset at,
+ which is a folder of its own: the pool's image lies beside it and must never be
+ under a path a dataset is mounted at.
  */
 export const CHECKOUT = '/home/shutdown-unmount/checkout';
+
+/**
+ The folder the pool's image lies in, beside the checkout and never below it.
+ */
+export const POOL_IMAGE_FOLDER = '/home/shutdown-unmount';
 
 /**
  The `PATH` the guest's OpenZFS userspace needs.
@@ -129,10 +136,10 @@ export function buildScript(): string {
     `rm --recursive --force ${CRATE_DIR}`,
     `mkdir --parents ${CRATE_DIR}`,
     `tar --extract --gzip --file /root/subject.tar.gz --directory ${CRATE_DIR}`,
-    `mkdir --parents ${CHECKOUT}`,
+    `mkdir --parents ${POOL_IMAGE_FOLDER}`,
     `if ! ${OPENZFS_PREFIX}/sbin/zpool list -H -o name ${POOL} > /dev/null 2>&1; then`,
-    `  truncate --size 1G ${CHECKOUT}/pool.img`,
-    `  ${OPENZFS_PREFIX}/sbin/zpool create -f -O mountpoint=none ${POOL} ${CHECKOUT}/pool.img`,
+    `  truncate --size 1G ${POOL_IMAGE_FOLDER}/pool.img`,
+    `  ${OPENZFS_PREFIX}/sbin/zpool create -f -O mountpoint=none ${POOL} ${POOL_IMAGE_FOLDER}/pool.img`,
     'fi',
     `cd ${CRATE_DIR}/package/git-policy/cli`,
     'export PATH=/root/.cargo/bin:$PATH',
