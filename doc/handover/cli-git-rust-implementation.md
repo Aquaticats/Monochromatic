@@ -2949,21 +2949,6 @@ and the two `truepeak` files wait on their branch.
 - A wait loop is started with `run_in_background: true`,
   and a step that depends on a merge or a commit is issued after that command's notification,
   never beside it.
-- `mpm-shadow`'s launcher names the interpreter that is missing (`4e858efdee`,
-  issue 6616):
-  for a start the system answers with "No such file or directory",
-  it names the program after `#!` for a script and the dynamic linker for a compiled program,
-  and names both kinds,
-  claiming neither,
-  when the program's own bytes are gone.
-  Each refusal in its fixture is the kernel's own.
-  `being_written_cause_and_remedy` takes a program where it took an option.
-  `being_written_cause_and_remedy_for` lived only in commits between the two releases and never shipped,
-  by the alpha.15 read's `git log -S`;
-  against `0.2.7-alpha.14` that read lists the changed signatures as `publish_staged`,
-  `write_complete_marker`,
-  `being_written_cause_and_remedy`,
-  `describe_nesting_refusal` and a new field `StartFailure.lookup`.
 - The wrapper package's unit tests no longer reach the account's service manager (`bc24b2e688`,
   issue 6620).
   Every fixture's `git` is the standing Git on a search path of the fixture's own,
