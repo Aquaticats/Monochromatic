@@ -929,9 +929,7 @@ fn an_answer_holding_the_copies_the_side_that_wrote_more_holds_is_not_refused() 
     );
     // The bound can refuse at all: one copy past that side's count is past it.
     let mut one_more: Vec<u8> = merged.clone();
-    one_more.extend_from_slice(
-        format!("{THE_LINE_ONE_SIDE_WRITES_TWICE}\n").as_bytes(),
-    );
+    one_more.extend_from_slice(format!("{THE_LINE_ONE_SIDE_WRITES_TWICE}\n").as_bytes());
     assert!(
         writes_past_the_copies_the_sides_leave(base, ours, theirs, one_more.as_slice()),
         "one copy more than the side that wrote more holds is past the bound"

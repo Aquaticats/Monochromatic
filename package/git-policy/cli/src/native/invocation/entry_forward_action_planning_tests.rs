@@ -33,11 +33,11 @@ use crate::config_file::CONFIG_FILE_NAME;
 /// The settings a stage runs with,
 ///  and the one constructor of the shipped checks.
 use crate::config_schema::PolicyConfig;
-use crate::policy_checks::shipped_checks;
 use crate::invocation_config::{
     config_invalid_event,
     load_identity_config,
 };
+use crate::policy_checks::shipped_checks;
 use crate::policy_content::LifecycleContent;
 use crate::policy_engine::{
     StageRequest,
@@ -257,7 +257,10 @@ fn the_report_of(action: Action) -> String {
             stderr,
         } => {
             assert_eq!(code, ENGINE_FAILURE_EXIT_CODE, "{stderr}");
-            assert!(stdout.is_empty(), "a failure writes nothing to standard output");
+            assert!(
+                stdout.is_empty(),
+                "a failure writes nothing to standard output"
+            );
             return stderr;
         }
         other => panic!("this file's two failures end the command: {other:?}"),
