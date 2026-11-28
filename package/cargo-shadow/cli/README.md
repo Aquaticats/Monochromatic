@@ -2077,6 +2077,13 @@ measured 2026-11-27 in a container),
 so the discovery starts the slice,
 which returned 0 after 3.68 s to 3.78 s behind a planted four-second stop and left
 nothing queued on the slice.
+The slice is active afterwards:
+the start's job replaces the person's stop (`replace` is the job mode `systemctl start` uses),
+so a person who stopped the slice for a configuration change finds it running again.
+Measured 2026-11-28 by a same-vendor second read of this release,
+nine seconds after two such calls an arm:
+the slice was active where `0.1.5-alpha.17` left it inactive.
+Whether a call should do that is in the package document's Open list.
 Measured 2026-11-27 in that container's own manager with a service that ignores SIGTERM holding the stop open,
 three rounds of each arm,
 one call each:

@@ -692,23 +692,25 @@ fn the_gap_between_two_asks_is_the_pause_the_call_site_sleeps() {
 /// and a sleep at the call site that grew to twice the pause would double it while every lower bound stayed satisfied.
 /// What it rests on:
 /// measured 2026-11-28 on this host,
-/// four gaps of the asking again with the pause the call site sleeps,
-/// the shortest 2026-11-28T00:00:00-05:00's own figure is in
-/// `doc/second-pass-reads-of-the-alpha-releases-what-each-confirmed.md`,
-/// and the same four gaps under `std::thread::sleep(ASKING_AGAIN_PAUSE)` are 209.0 ms to 209.9 ms in the run the package document
-/// records.
-/// The allowance is a bound on the shortest of four gaps, not on anyone of them:
-/// a loaded host stretches one gap and leaves the others,
-/// so the figure is the smallest overhead the four met,
-/// where a whole span would add all four.
-/// Measured 2026-11-28 in the round that added this control:
-/// the shortest gap was 218.3 ms with the pause in place,
-/// and 475.4 ms with the call site sleeping twice the pause,
-/// so the allowance of a hundred milliseconds separates the two with room on both sides.
+/// in one run of `the_pauses_of_the_asking_again_are_no_longer_than_the_pause_the_call_site_sleeps` and of the control beside it:
+/// with the pause the call site sleeps, the four gaps were 208.0 ms, 207.0 ms, 206.2 ms and 207.9 ms,
+/// so the work around the sleep was at most 8.0 ms;
+/// with `std::thread::sleep(ASKING_AGAIN_PAUSE * 2)` there, the four gaps of one run were 407.1 ms, 407.3 ms, 406.5 ms and
+/// 407.5 ms and those of the other 405.2 ms, 404.4 ms, 405.1 ms and 404.1 ms,
+/// and the lower bound of the control beside this one stayed satisfied in both.
+/// The package document records an earlier run of the same instrument with the pause in place:
+/// gaps of 209.0 ms to 209.9 ms,
+/// and under three quarters of the pause, 174.6 ms, 229.7 ms, 358.7 ms and 460.3 ms,
+/// which is why the allowance is generous: under load one gap of four can carry hundreds of milliseconds of work.
+/// The allowance is a bound on the shortest of four gaps, not on any one of them,
+/// so a loaded host that stretches one gap and leaves the others does not fail this control,
+/// where a bound on the whole span would add all four.
+/// What it does not catch:
+/// a pause that grew by less than this allowance.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE = 100 // milliseconds
+/// const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE = 150 // milliseconds
 /// ```
 const THE_MOST_A_GAP_OUTLASTS_THE_PAUSE: Duration = Duration::from_millis(150);
 

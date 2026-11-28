@@ -731,16 +731,16 @@ fn a_start_that_spent_its_bound_is_not_put_again() {
     // ```
     let refused = detect_route(&settings)
         .expect_err("a start that answered nothing inside its bound is a missing capability");
-    assert!(
-        refused.to_string().contains("did not answer within"),
-        "the refusal does not name the bound the start spent: {refused}"
-    );
     let calls: String = fs::read_to_string(&log).expect("the stand-in's log");
     // The three asks of one attempt: where the slice is, the start that spent the bound, and the ask after it.
     assert_eq!(
         calls.lines().count(),
         3,
         "a start that spent its bound was put again, so the asking spent four more bounds on one program: {calls:?}"
+    );
+    assert!(
+        refused.to_string().contains("did not answer within"),
+        "the refusal does not name the bound the start spent: {refused}"
     );
 }
 
