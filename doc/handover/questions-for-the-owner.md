@@ -4284,3 +4284,14 @@ Left as it is.
 Not taken:
 refuse every slot command whose directory Git cannot resolve,
 which would also refuse `git worktree prune` typed where there is no repository at all.
+
+## Veto open: where the shared guest steps live (recorded 2026-11-27T20:02:01-05:00)
+
+Issue 6612's round kept the one set of guest-step helpers in the wrapper package's `bin/`,
+not beside the drivers in `e2e/`,
+because the package's lint refuses a unit test under `e2e/` that imports sibling source,
+and a helper under `e2e/` may carry a unit test only when its name ends `-fixture`.
+Not taken:
+move the steps to `e2e/` and change the lint or the names around that rule.
+The round also left one case to a unit test alone:
+a run that keeps its guest (`--keep-guest`) was run in no guest.
