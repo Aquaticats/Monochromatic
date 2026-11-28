@@ -2284,7 +2284,7 @@ and what the messages say.
   so a gap of 64,000 whitespace characters costs one pass over the line
   and one question per name the package folder's own names allow,
   where `0.5.2-alpha.23` built one name per character of the gap and kept them all.
-  Measured on 2026-11-28 over three rounds of three arms on a line of 64,033 characters,
+  Measured on 2026-11-27 over three rounds of three arms on a line of 64,033 characters,
   this release's wall time was 1.10 times `0.5.2-alpha.22`'s (range 0.73 to 1.21)
   and its peak resident memory 0.97 times that release's (range 0.95 to 1.02),
   against 981 times (range 580 to 1,071) and 180 times (range 179 to 195) for `0.5.2-alpha.23`.
