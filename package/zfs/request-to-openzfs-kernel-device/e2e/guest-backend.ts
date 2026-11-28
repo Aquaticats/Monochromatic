@@ -70,6 +70,12 @@ export type GuestBackend = {
    The command a guest runs to make {@link pushedFolder}, or nothing when the backend mounts it there already.
    */
   readonly makesThePushedFolder: readonly string[] | undefined;
+  /**
+   The image a run that names none is made from, or nothing when `mvm`'s own default is the recipe's Ubuntu 24.04.
+   A cloud backend's catalogue names its images, so the recipe names the release it prepares against instead of taking
+   whatever the provider published last.
+   */
+  readonly defaultGuestImage: string | undefined;
 };
 
 /**
@@ -112,6 +118,8 @@ export const GUEST_BACKENDS: Record<GuestBackendKind, GuestBackend> = {
     pushedFolder: LIBVIRT_SHARED_FOLDER,
     // `mvm create` mounts the virtiofs share at that folder, so nothing has to make it.
     makesThePushedFolder: undefined,
+    // `mvm`'s own default image is the Ubuntu 24.04 the recipe prepares.
+    defaultGuestImage: undefined,
     powerCycles: true,
     imageIsBaked: true,
   },
@@ -139,6 +147,8 @@ export const GUEST_BACKENDS: Record<GuestBackendKind, GuestBackend> = {
       '0755',
       LIBVIRT_SHARED_FOLDER,
     ],
+    // The catalogue's own name of the release the recipe's packages and kernel pin are written for.
+    defaultGuestImage: 'Ubuntu 24.04',
     // `mvm` never stops, pauses, shelves or resumes an OVHcloud instance (`package/mvm/cli/README.md`,
     // "OVHcloud Public Cloud backend"), so nothing can power-cycle one.
     powerCycles: false,
