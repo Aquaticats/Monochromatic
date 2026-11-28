@@ -511,10 +511,15 @@ export async function ovhRequest<T>({
    */
   const target = `${credentials.endpointRoot}${path}`;
   /**
+   Seconds this machine's clock is behind the host's, read before the stamp so a
+   second ticking while the clock is read cannot make the stamp earlier than the
+   host's own time, which a signature window may refuse.
+   */
+  const offset = await serverClockOffset({ endpointRoot: credentials.endpointRoot, },);
+  /**
    Corrected Unix timestamp this request claims.
    */
-  const timestamp = Math.floor(Date.now() / MILLISECONDS_PER_SECOND,)
-    + await serverClockOffset({ endpointRoot: credentials.endpointRoot, },);
+  const timestamp = Math.floor(Date.now() / MILLISECONDS_PER_SECOND,) + offset;
   rl.debug(`${method} ${maskedPath}`,);
 
   /**
