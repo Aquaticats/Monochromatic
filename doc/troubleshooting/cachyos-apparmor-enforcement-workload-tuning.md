@@ -779,16 +779,19 @@ a defect fixed after that build;
 the fixed build's `service stop-units-of-removed-worktrees` clears them after each batch.
 A toolchain install outside the main checkout repoints only that worktree's own link.
 
-Run the sweep with the fixed build by its absolute path, never as a bare `git`.
+Run the sweep with the fixed build by its absolute path,
+never as a bare `git`.
 On 2026-11-26T08:50-05:00 the sweep was run as
 `systemd-run --user --scope --setenv=PATH=<a folder linking alpha.47 as git first> git monochromatic-git-policy-cli service stop-units-of-removed-worktrees`:
 the scope passed that `PATH` to the command (a probe printed it),
 but `systemd-run` resolved the bare `git` on its own inherited `PATH`,
 so the session link's old build ran,
 printed its own wording ("remove it yourself if nothing in it is wanted")
-and kept 147 journals for `rules-repository`, "a file this release does not know".
+and kept 147 journals for `rules-repository`,
+"a file this release does not know".
 The same command naming `0.6.1-alpha.47`'s link by its absolute path
-(`.cache/wrapper-release-0.6.1-alpha.47/`, the release archive whose sha256 matches the release's digest)
+(`.cache/wrapper-release-0.6.1-alpha.47/`,
+the release archive whose sha256 matches the release's digest)
 removed 201 journals and left 22 entries in `~/.local/state/monochromatic-git-policy-cli/service/`
 (logs in `~/temp/agent/wrapper-alpha-47-release-2026-11-26/keep/`).
 (scratch,
@@ -2066,6 +2069,43 @@ as the ninth batch decided.
 the eleventh batch allows it,
 by the owner's "Always widen apparmor.")
 
+## Eighteenth batch: cryptsetup reads the 860 drive's key file, 2026-11-28T01:50:04-05:00
+
+Recorded by the coordinating session,
+which applied it under the owner's rule "Always widen apparmor."
+Unapproved and non-final.
+
+The owner asked for the old system's unit that unlocks and mounts the 860 drive at login
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`).
+The unit runs `cryptsetup luksOpen` with a key file under `/etc/cryptkeys/`.
+Its first start,
+at 2026-11-28T01:48:56-05:00,
+printed `Failed to open key file.` three times and failed.
+A test open of the key slot,
+which changes nothing
+(`cryptsetup open --test-passphrase --key-file /etc/cryptkeys/sda.key <the drive>`),
+failed the same way,
+and the audit log named the cause:
+
+```text
+apparmor="DENIED" operation="open" class="file" profile="cryptsetup" name="/etc/cryptkeys/sda.key" comm="cryptsetup" requested_mask="r" denied_mask="r"
+```
+
+The profile `/etc/apparmor.d/cryptsetup` allows a key only under the run directory's `cryptsetup` folder.
+The rules added to its local file:
+
+```text
+# /etc/apparmor.d/local/cryptsetup, eighteenth batch
+/etc/cryptkeys/ r,
+/etc/cryptkeys/* r,
+```
+
+The profile was reloaded with `apparmor_parser --replace /etc/apparmor.d/cryptsetup` at 01:50:04.
+The same test open then ended 0,
+and the unit finished at 01:50:27 with the drive mounted.
+The denial was not in the kernel log the session first searched;
+it was in `/var/log/audit/audit.log`.
+
 ## Seventeenth batch: the commit service's marks file in a container's root home, 2026-11-27T09:14:59-05:00
 
 Met when the service-manager install proof,
@@ -2229,23 +2269,41 @@ and the audit log gained no further record for that folder.
 
 Met while checking the alpha.47 host-key round before its merge:
 the wrapper's four `ssh_terminal` binary tests (`package/git-policy/cli/src/native/binary/binary_ssh_terminal_tests.rs`)
-failed four of four on the host, on `main` too, while the container gate passed them.
+failed four of four on the host,
+on `main` too,
+while the container gate passed them.
 Each starts a throwaway `sshd` from a fixture under the cargo build folder
 (`~/.cargo/build/<toolchain>/<hash>/debug/build/monochromatic-git-policy-cli/test-fixtures/process-<pid>/...`),
 and the earlier batches had granted that fixture only under the gate's `/work`.
-Under the owner's rule recorded under "Eleventh batch" the profiles were widened, each step measured from `/var/log/audit/audit.log`
+Under the owner's rule recorded under "Eleventh batch" the profiles were widened,
+each step measured from `/var/log/audit/audit.log`
 (the kernel journal held none of these records):
 
-1.  `sshd` was denied reading the fixture's `sshd_config` (one record per test), exited, and each test waited ten seconds for a port:
-    `/etc/apparmor.d/local/sshd` gained `owner @{HOME}/.cargo/build/** rwlk,`, and `local/sshd-session` `owner @{HOME}/.cargo/build/** r,`
-    (`ssh-keygen` already held that tree for the signing tests). Two of four then passed.
-2.  `ssh` was denied 7 reads and 1 create in the fixture (keys, `known_hosts`), and `git//ssh` 13 reads, 1 create and one exec of `/usr/bin/bash`
-    (the shell ssh starts a `ProxyCommand` through): `local/ssh` and `local/git_ssh` gained `owner @{HOME}/.cargo/build/** rwk,`, and `local/git_ssh` `@{bin}/bash rix,`.
-    Four of four then passed: `test result: ok. 4 passed; 0 failed`.
-3.  One denial was left: `git//ssh` running the fixture's `relay`, the program the test's `ProxyCommand` names; the test passed without it,
-    so it was not exercising what it names: `local/git_ssh` gained `owner @{HOME}/.cargo/build/**/test-fixtures/**/relay rix,`.
+1.  `sshd` was denied reading the fixture's `sshd_config` (one record per test),
+    exited,
+    and each test waited ten seconds for a port:
+    `/etc/apparmor.d/local/sshd` gained `owner @{HOME}/.cargo/build/** rwlk,`,
+    and `local/sshd-session` `owner @{HOME}/.cargo/build/** r,`
+    (`ssh-keygen` already held that tree for the signing tests).
+    Two of four then passed.
+2.  `ssh` was denied 7 reads and 1 create in the fixture (keys,
+    `known_hosts`),
+    and `git//ssh` 13 reads,
+    1 create and one exec of `/usr/bin/bash`
+    (the shell ssh starts a `ProxyCommand` through):
+    `local/ssh` and `local/git_ssh` gained `owner @{HOME}/.cargo/build/** rwk,`,
+    and `local/git_ssh` `@{bin}/bash rix,`.
+    Four of four then passed:
+    `test result: ok. 4 passed; 0 failed`.
+3.  One denial was left:
+    `git//ssh` running the fixture's `relay`,
+    the program the test's `ProxyCommand` names;
+    the test passed without it,
+    so it was not exercising what it names:
+    `local/git_ssh` gained `owner @{HOME}/.cargo/build/**/test-fixtures/**/relay rix,`.
 
-In the same window, issue 6518's round preloaded a measurement shim it built in its scratch folder into Git,
+In the same window,
+issue 6518's round preloaded a measurement shim it built in its scratch folder into Git,
 and the `git` profile denied 378 `file_mmap` of `scratch/shim/eraser_shim.so`:
 `local/git` gained `owner @{HOME}/temp/agent/**/scratch/**.so m,`.
 Logs:
@@ -2261,7 +2319,8 @@ Met while installing the AUR packages `ivpn` and `ivpn-ui` `3.15.15` through She
 Under the owner's rule recorded under "Eleventh batch",
 and the owner's request on 2026-11-26 to make sure both packages "have suitable apparmor rules".
 Probes ran in throwaway network namespaces (`sudo unshare --net`),
-so no firewall rule, route or tunnel reached the host;
+so no firewall rule,
+route or tunnel reached the host;
 the AVC windows were read from `/var/log/audit/audit.log`.
 Probe logs:
 `~/temp/agent/ivpn-apparmor-netns-probes-2026-11-26/keep/`
@@ -2272,7 +2331,8 @@ what this record uses from it is stated here).
 ### OpenVPN connections were denied their configuration
 
 The IVPN daemon runs `/usr/sbin/openvpn --config /etc/opt/ivpn/mutable/openvpn.cfg`
-(IVPN `daemon/service/service_connect.go:427-433`, `daemon/vpn/openvpn/openvpn.go:435`).
+(IVPN `daemon/service/service_connect.go:427-433`,
+`daemon/vpn/openvpn/openvpn.go:435`).
 The enforcing `openvpn` profile reads only `/etc/openvpn/**`,
 so with a probe configuration at that exact path the measured result was:
 
@@ -2317,66 +2377,97 @@ The child profile ran both scripts with `-use-resolvconf /usr/bin/resolvectl`
 (the branch used when `systemd-resolved` answers),
 and `resolvectl` ran under its own profile;
 an interface name that does not exist kept host DNS untouched.
-Run from `/`, the service's working directory, there was no denial;
+Run from `/`,
+the service's working directory,
+there was no denial;
 run from a folder inside the owner's home,
 `dac_read_search` and `dac_override` were denied for traversing it,
 which is a property of the probe and was not granted.
-The `resolv.conf` rewrite branch, used only without `systemd-resolved`,
+The `resolv.conf` rewrite branch,
+used only without `systemd-resolved`,
 and a real tunnel's `up` call were not exercised.
 
 ### WireGuard already worked through the existing profiles
 
 IVPN's bundled `/opt/ivpn/wireguard-tools/wg-quick` with IVPN's configuration shape
-(`AllowedIPs = 0.0.0.0/0, ::/0`, `SaveConfig = true`)
-runs `ip`, `nft -f /dev/fd/63`, `sysctl` and `sync` under their enforcing profiles.
-`up` and `down` both exited `0` and removed the interface, rules and nft tables,
+(`AllowedIPs = 0.0.0.0/0, ::/0`,
+`SaveConfig = true`)
+runs `ip`,
+`nft -f /dev/fd/63`,
+`sysctl` and `sync` under their enforcing profiles.
+`up` and `down` both exited `0` and removed the interface,
+rules and nft tables,
 with no AVC.
 With the configuration under `~/temp/agent`,
 `down` failed instead:
 the `sync` profile has no `dac_override`,
 root needed it to reach a file below the owner's `0700` folders,
-and `wg-quick`'s `set -e` then left the interface, rules and nft tables in place.
+and `wg-quick`'s `set -e` then left the interface,
+rules and nft tables in place.
 IVPN keeps the file in `/etc/opt/ivpn/mutable`,
 which root reaches without that capability,
 so nothing was granted for it.
 
 ### New profiles for IVPN's own programs
 
-- `/etc/apparmor.d/ivpn`, enforcing:
+- `/etc/apparmor.d/ivpn`,
+  enforcing:
   the CLI reads `/etc/opt/ivpn/mutable/port.txt`,
   talks TCP to the daemon,
   and `ivpn exclude` replaces itself with the requested command (`/** pux`).
-  `ivpn status`, `ivpn splittun -status` and `ivpn servers` ran with no denial.
-  With split tunneling on, `ivpn exclude /usr/bin/env` and the UI's form
+  `ivpn status`,
+  `ivpn splittun -status` and `ivpn servers` ran with no denial.
+  With split tunneling on,
+  `ivpn exclude /usr/bin/env` and the UI's form
   `sh -c '/usr/bin/ivpn exclude  /usr/bin/env'` ran with no denial.
   The first draft used `PUx`:
   the kernel then marked the exec secure and glibc dropped `TMPDIR` from the launched program,
   which a direct start keeps
   (see `doc/troubleshooting/pdeathsig-is-cleared-by-a-confined-exec.md` for the secure-exec rule);
   with `pux` the variable arrived.
-- `/etc/apparmor.d/ivpn-ui`, `flags=(unconfined)` with `userns`,
+- `/etc/apparmor.d/ivpn-ui`,
+  `flags=(unconfined)` with `userns`,
   the form apparmor.d uses for its Electron applications here
-  (`obsidian`, `Discord`, `signal-desktop`, `1password`, `balena-etcher`).
+  (`obsidian`,
+  `Discord`,
+  `signal-desktop`,
+  `1password`,
+  `balena-etcher`).
   A launch in a nested headless `kwin_wayland --virtual` with a private D-Bus showed every process labelled
   `ivpn-ui (unconfined)` and an established connection to the daemon's port.
-- `/etc/apparmor.d/ivpn-service`, in complain mode,
+- `/etc/apparmor.d/ivpn-service`,
+  in complain mode,
   a documented exception like the package complain profiles.
   It lists `Px` for each child that has its own profile
-  (`openvpn`, `ip`, `nft`, `sysctl`, `sync`, `resolvectl`, `ps`, `uname`, `mount`, `umount`, `runuser`),
+  (`openvpn`,
+  `ip`,
+  `nft`,
+  `sysctl`,
+  `sync`,
+  `resolvectl`,
+  `ps`,
+  `uname`,
+  `mount`,
+  `umount`,
+  `runuser`),
   so those keep the confinement they get from an unconfined daemon,
   and lets IVPN's scripts and bundled helpers inherit it.
   After `systemctl restart ivpn-service` the daemon ran as `ivpn-service (complain)`.
   Its first start logged `netlink dgram` and its own `mountinfo`;
   both are in the profile now,
   and the next start logged nothing.
-  `firewall.sh -enable`, `-status` and `-disable`
+  `firewall.sh -enable`,
+  `-status` and `-disable`
   and `wg-quick up` and `down` under `aa-exec --profile ivpn-service` in a namespace logged nothing either,
   while a control read of `/etc/shadow` under the same profile was logged.
   When the owner then opened the UI and turned on inverse split tunneling,
   complain mode logged `splittun.sh` running `/usr/bin/rmdir` on `/sys/fs/cgroup/net_cls/ivpn-exclude/`
-  (as `ivpn-service//null-/usr/bin/rmdir`, with `dac_override`)
+  (as `ivpn-service//null-/usr/bin/rmdir`,
+  with `dac_override`)
   and the daemon reading desktop-entry icons such as `/usr/share/hplip/data/images/128x128/hp_logo.png`;
-  `rmdir` and `png`, `svg`, `svgz` and `xpm` files under `/usr/{,local/}share` and `/opt` were added.
+  `rmdir` and `png`,
+  `svg`,
+  `svgz` and `xpm` files under `/usr/{,local/}share` and `/opt` were added.
   The owner then connected and disconnected with WireGuard (with V2Ray) and with OpenVPN,
   with inverse split tunneling on and Firefox ESR started through it;
   complain mode logged nothing further for `ivpn-service`,
@@ -2385,24 +2476,31 @@ so nothing was granted for it.
   since the owner does not use it;
   it ran under the profile only in the namespace probes.
   On 2026-11-26 at 06:55 UTC the profile was switched to enforce
-  (`flags=(complain)` removed, `apparmor_parser --replace`),
+  (`flags=(complain)` removed,
+  `apparmor_parser --replace`),
   while the owner's tunnel stayed up:
   the daemon and its `v2ray` helper then ran as `ivpn-service (enforce)`,
-  the namespace probes (firewall enable, status, disable; `wg-quick` up and down) all exited `0` under it,
+  the namespace probes (firewall enable,
+  status,
+  disable;
+  `wg-quick` up and down) all exited `0` under it,
   and the next minute of live use held no `ivpn-service` denial.
 
 ### The daemon's netlink socket leaks into `ip` and `ps`
 
 Once the owner turned on split tunneling,
 the stock `ip` profile logged 1128 denials between 06:40 and 06:48 UTC,
-90 to 188 a minute, all of one shape:
+90 to 188 a minute,
+all of one shape:
 
 ```text
 apparmor="DENIED" operation="file_inherit" class="net" info="failed type match" profile="ip" comm="ip" family="netlink" sock_type="dgram"
 ```
 
 `ivpn-service` holds a netlink datagram socket without close-on-exec
-(fd 7, `flags=02`, its inode listed in `/proc/<pid>/net/netlink`),
+(fd 7,
+`flags=02`,
+its inode listed in `/proc/<pid>/net/netlink`),
 and polls `ip route` (IVPN `daemon/netinfo/netinfo_linux.go:74`);
 its `ps -aux` children met the same denial.
 `ip` and `ps` still worked with the descriptor revoked,
@@ -2422,7 +2520,8 @@ network netlink dgram,
 @{sys}/fs/cgroup/user.slice/user-@{uid}.slice/user@@{uid}.service/app.slice/*/cpu.max r,
 ```
 
-The next 20 seconds held no `ip`, `ps` or `aa-install` denial.
+The next 20 seconds held no `ip`,
+`ps` or `aa-install` denial.
 The `aa-install` line answers five denials of
 `.../user@1000.service/app.slice/claude-code-bash/cpu.max`
 from this session's Shelly transactions,
@@ -2434,10 +2533,12 @@ so the existing `owner` rule could not match it.
 ### Firefox ESR started through the split tunnel
 
 The owner then started Firefox ESR (`/opt/firefox-esr`) from the IVPN UI:
-its process carried `IVPN_STARTED_BY_PARENT=IVPN_UI`, its parent was `ivpn-ui`,
+its process carried `IVPN_STARTED_BY_PARENT=IVPN_UI`,
+its parent was `ivpn-ui`,
 and it ran as `firefox (enforce)`.
 `firefox` was denied the root-owned `/etc/os-release` (four reads),
-and `firefox-crashreporter`, whose `@{lib_dirs}` names `/opt/firefox` only,
+and `firefox-crashreporter`,
+whose `@{lib_dirs}` names `/opt/firefox` only,
 was denied `/opt/firefox-esr/defaults/pref/` and `/opt/firefox-esr/libxul.so`.
 `aa-exec --profile firefox -- head --lines=1 /etc/os-release`
 and the same read of `libxul.so` under `firefox-crashreporter` reproduced both denials first.
@@ -2459,10 +2560,12 @@ Afterwards both profiles were still enforcing and both reads succeeded with no d
 
 ### Tor Browser's pluggable transport and shader cache
 
-Seen in the same window, from Tor Browser started on its own (not through the split tunnel).
+Seen in the same window,
+from Tor Browser started on its own (not through the split tunnel).
 Between 06:55 and 07:02 UTC `torbrowser-tor` denied `lyrebird`,
 the pluggable transport `tor` runs inside that profile,
-362 `inet` and 144 `inet6` datagram sockets, two `inet6` stream sockets and its own `/proc/<pid>/cgroup`;
+362 `inet` and 144 `inet6` datagram sockets,
+two `inet6` stream sockets and its own `/proc/<pid>/cgroup`;
 the stock profile allows only `network inet stream`,
 so datagram transports could not run.
 `torbrowser` denied 59 locks on `.cache/mesa_shader_cache/<xx>/<hash>.tmp`,
@@ -2482,7 +2585,8 @@ owner @{lib_dirs}/.cache/{,**} k,
 
 A first check reported 289 Tor Browser denials in the 90 seconds before loading and none after.
 Re-read from `/var/log/audit/audit.log` alone (it had not rotated since 01:11 local) with the whole output,
-that zero held: the socket denials stopped at the load.
+that zero held:
+the socket denials stopped at the load.
 The check was incomplete rather than wrong:
 it counted logged denials only,
 and the owner then reported Tor Browser still not connecting because of an unlogged `deny`.
@@ -2491,9 +2595,12 @@ it took `stdout` from one `rg` over five audit files,
 which the agent harness cuts to its start when it is long,
 and two later queries returned no `lyrebird` line where the file held 1194.
 
-The stock profile's `deny /etc/resolv.conf r`, `deny /etc/hosts r` and `deny /etc/nsswitch.conf r`
-apply to `lyrebird` too, because it runs there through `PluggableTransports/** mix`;
-`deny` rules are not logged, and a local allow cannot lift them.
+The stock profile's `deny /etc/resolv.conf r`,
+`deny /etc/hosts r` and `deny /etc/nsswitch.conf r`
+apply to `lyrebird` too,
+because it runs there through `PluggableTransports/** mix`;
+`deny` rules are not logged,
+and a local allow cannot lift them.
 Snowflake has to resolve its front (`app.datapacket.com`) and its STUN servers.
 Without `/etc/resolv.conf` a resolver falls back to `127.0.0.1:53`,
 and nothing listens there on this host (systemd-resolved is on `127.0.0.53`).
@@ -2502,8 +2609,10 @@ while the same lookup outside the profile returned an address.
 
 An exact-path `cx` rule for `lyrebird` failed to compile
 ("profile has merged rule with conflicting x modifiers") against the stock glob.
-AppArmor 4.1's `priority=` qualifier, which "will completely override permissions of lower priority rules
-where they overlap" (`apparmor.d(5)`), compiled:
+AppArmor 4.1's `priority=` qualifier,
+which "will completely override permissions of lower priority rules
+where they overlap" (`apparmor.d(5)`),
+compiled:
 
 ```text
 # /etc/apparmor.d/local/torbrowser-tor (added)
@@ -2539,28 +2648,41 @@ The signal rule answers the browser's `term` and `kill` being denied at 07:06:18
 and the `pulse` lines its `mkdir` of `.config/pulse` at 07:05:45.
 The child ran in complain mode while the owner restarted Tor Browser and connected,
 which succeeded at 07:14 UTC with `lyrebird` labelled `torbrowser-tor//lyrebird (complain)`;
-it logged only the `cpu.max` read, which was added before switching it to enforce.
+it logged only the `cpu.max` read,
+which was added before switching it to enforce.
 Under enforce,
 `curl --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip` returned
 `{"IsTor":true,"IP":"<exit address>"}`,
 and the next 45 seconds held no `torbrowser-tor` denial.
 
-Upstream, on 2026-11-26:
+Upstream,
+on 2026-11-26:
 `roddhjav/apparmor.d` `main` at `4c4fec70fcd19307a871b3ecc7f117a9ad989c9f`
 (`apparmor.d/groups/browsers/torbrowser-tor`) still has `network inet stream` only,
-`PluggableTransports/** mix`, and `deny /etc/resolv.conf r` and `deny /etc/nsswitch.conf r`,
+`PluggableTransports/** mix`,
+and `deny /etc/resolv.conf r` and `deny /etc/nsswitch.conf r`,
 so the failure is live there for any datagram or name-resolving transport.
-`gh search issues` and `gh search prs` in that repository for `lyrebird`, `snowflake`,
+`gh search issues` and `gh search prs` in that repository for `lyrebird`,
+`snowflake`,
 `torbrowser-tor resolv` and `pluggable transport` returned nothing,
-while a broad `torbrowser` search returned closed issues (#1117, #539, #491, #490, #465, #251),
+while a broad `torbrowser` search returned closed issues (#1117,
+#539,
+#491,
+#490,
+#465,
+#251),
 so the search itself works.
-The diagnosis, an upstream patch and the issue draft the owner asked for are in
+The diagnosis,
+an upstream patch and the issue draft the owner asked for are in
 `doc/troubleshooting/apparmor-d-torbrowser-tor-denies-name-lookups-to-pluggable-transports.md`.
 
 The same reader fault touches this batch's other "no denial" checks;
 re-read the same way,
-`ivpn-service` (since enforce), `ip` and `ps` (after 06:50:21 UTC)
-and `nft`, `resolvectl`, `sysctl` and `sync` (after 06:58:40 UTC) still held none.
+`ivpn-service` (since enforce),
+`ip` and `ps` (after 06:50:21 UTC)
+and `nft`,
+`resolvectl`,
+`sysctl` and `sync` (after 06:58:40 UTC) still held none.
 The `firefox` denials after 06:58:40 were another session's negative control
 (`~/Documents/Restore Firefox/Unrelated_apparmor-negative-control`).
 These are apparmor.d's `torbrowser` and `torbrowser-tor`,
@@ -2593,17 +2715,22 @@ read from `/var/log/audit/audit.log` between 2026-11-25T21:00-05:00 and the batc
 - `git` reading `~/Plain/Text/Reference/Legal/.git/HEAD` (5) and `~/Plain/Text/Reference/Health/.git` (4),
   so Git in those repositories printed "not a git repository" or "error opening ... Permission denied";
   the stock profile grants only `@{user_projects_dirs}`.
-  Health's Git directory was restored to `~/.local/share/health-records-git` the same night, so it is granted too.
+  Health's Git directory was restored to `~/.local/share/health-records-git` the same night,
+  so it is granted too.
 - `git` reading the Claude Code harness's per-command diff folders under `/tmp/claude-1000/bash-edit-diff/` (about 200).
-- `systemd-analyze --user verify` reading `~/.config/systemd/user/`, `/run/user/1000/systemd/user{,.control}/`,
-  the folders of the unit files it was given (scratch and worktree folders), `~/.config/environment.d/`,
+- `systemd-analyze --user verify` reading `~/.config/systemd/user/`,
+  `/run/user/1000/systemd/user{,.control}/`,
+  the folders of the unit files it was given (scratch and worktree folders),
+  `~/.config/environment.d/`,
   and running the two user environment generators.
   A writer and two reviewers worked around this by reading units by hand instead.
 - `pdftotext` opening `~/Plain/.../carleton-counter-2026-08-26--518a77e7.pdf.conflict1`,
-  a PDF whose name does not end in `.pdf`; the session fed it through standard input instead.
+  a PDF whose name does not end in `.pdf`;
+  the session fed it through standard input instead.
 
 Those two workarounds broke the owner's rule recorded under "Eleventh batch",
-because the session had not read this file; the owner then said "Add the rules".
+because the session had not read this file;
+the owner then said "Add the rules".
 Applied with `append-a-batch-of-local-rules-and-load.ts` (labels `twelfth-batch-2026-11-26` and `twelfth-batch-environment-d-2026-11-26`):
 
 ```text
@@ -2628,15 +2755,22 @@ owner @{HOME}/.config/environment.d/** r,
 owner @{HOME}/Plain/** r,
 ```
 
-`apparmor_parser --replace` loaded `git`, `systemd-analyze` and `pdftotext`.
+`apparmor_parser --replace` loaded `git`,
+`systemd-analyze` and `pdftotext`.
 Afterwards `git log` and `git status` worked in both repositories,
 `systemd-analyze --user verify` of the installed `rclone-bisync-garage*` units exited 0 with no message,
-and `pdftotext` read a PDF under `~/Plain`; the audit log held no new denial for these profiles.
-No exec grant was added under `~/Plain`, so repository hooks there still cannot run.
+and `pdftotext` read a PDF under `~/Plain`;
+the audit log held no new denial for these profiles.
+No exec grant was added under `~/Plain`,
+so repository hooks there still cannot run.
 
-Seen in the same window and not granted, since this work did not need them:
-`gh` running `~/Monochromatic/.cache/toolchain-launchers/monochromatic-git-policy-cli` (3; its `gh api` reads succeeded),
-`helium`, `systemd-coredump`, `wl-copy` and `systemd-oomd`.
+Seen in the same window and not granted,
+since this work did not need them:
+`gh` running `~/Monochromatic/.cache/toolchain-launchers/monochromatic-git-policy-cli` (3;
+its `gh api` reads succeeded),
+`helium`,
+`systemd-coredump`,
+`wl-copy` and `systemd-oomd`.
 
 ## Eleventh batch: carving swap from the old NVMe, and the owner's rule to always widen, 2026-11-25
 

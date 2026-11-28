@@ -123,6 +123,222 @@ and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
 and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 325 more by this time.
 
+### What changed between 2026-11-27T23:27-05:00 and 2026-11-28T02:33-05:00
+
+Written at 2026-11-28T02:33-05:00 by the coordinating session,
+unapproved and non-final.
+The sections of this file that follow it still describe 2026-11-27T23:23:34-05:00,
+and this section is folded into them at the next cut of the file.
+
+#### The owner's answers
+
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md` holds them verbatim.
+In short:
+the rounds of that night ride;
+a later batch is bounded by guests alive;
+GitHub's hosted runners come before any paid provider;
+the crate split's round 4 waits for its signatures to be read;
+a 128 GiB swap partition is cut from the old NVMe;
+the 860 drive's unit is carried over and the old NVMe's data moves to it;
+a use that wires a built ZFS piece into its command merges with its layout finding unrecorded
+(`doc/decision/cli-git-layout-rules-on-with-a-shrinking-allow-list.md`);
+the removal's round merges and alphas go out as usual;
+and `mvm` gains an OVHcloud backend whose billed tests are authorised
+(`doc/decision/mvm-gains-an-ovhcloud-backend-billed-by-the-second.md`).
+
+#### Releases
+
+- The wrapper's `0.6.1-alpha.52`:
+  the container gate on `229d5310eb` ran no test,
+  because the machine killed its compiler;
+  the gate on `af9c816379` ended 0
+  (2026-11-28T00:57:04-05:00 to 01:22:28);
+  the install proof over alpha.51 passed
+  (01:34:38 to 01:42:54);
+  dispatched 01:44:05,
+  published by 01:52:15,
+  release commit `bf46e60f6d`.
+  Its lock row stays at `0.6.1-alpha.44` and the session's link is untouched.
+  Two same-vendor second passes started after 02:01:51:
+  one on the merges that change what a person meets,
+  one on the merges that claim no change.
+  Their reviews land in
+  `~/temp/agent/git-policy-cli-alpha-52-release-review-behaviour-2026-11-28/keep/review.md` and
+  `~/temp/agent/git-policy-cli-alpha-52-release-review-no-change-merges-2026-11-28/keep/review.md`.
+- `cargo-shadow` `0.1.5-alpha.18`:
+  the two rounds on the alpha.17 read were joined in one tree,
+  whose package task failed once on `control_group_stop::report_tests::a_member_in_a_group_below_the_scope_is_named_where_it_stands_and_as_one_that_may_still_write`
+  at 20.177 s and passed whole on the second run;
+  merged as `9f088e122a` at 01:57:38,
+  dispatched 02:07:22,
+  published by 02:11:00,
+  release commit `baa801f43a`.
+  Its lock branch,
+  its install and its second pass are owed.
+
+#### Seven rounds joined and merged
+
+`main` took seven ended rounds as one branch,
+`feat/git-policy-cli-seven-ended-rounds-joined-in-one-tree`
+(merge `17cb8febaf`,
+2026-11-28T02:29:05-05:00),
+each as its own merge inside it:
+issue 6615's guest driver cure,
+issue 6642's wrapper half,
+`doctor`'s checks for plan steps 19 and 20,
+the lost-event triggers' handler side and wrapper side,
+the management grammar that admits `cancel-worktree-removal` and `settle-worktree-clone-record`,
+and last the round that switches the removal's command path on.
+
+The joined tree failed six controls,
+all from the removal round's own change:
+it had changed the words of `NO_REMOVAL_WORDS` and run neither the modules that spell them,
+nor the whole `source_guard` module after its guest arm was added.
+The fixes are one commit,
+merged as `6697c0c204` at 02:29:58:
+four controls read the constant;
+the marked origin's ways forward no longer name the cancel command in the form where nothing is pending;
+the removal arm's sweeper child has its line in the ledger of test children;
+the sentence a self-cancelled removal prints no longer offers `--force` or a command "once it is added";
+and three passages of `SPEC.md` and `README.md` say what is so with both rounds in.
+
+**`main` held the six failing controls for 53 seconds**,
+from `17cb8febaf` to `6697c0c204`:
+the session's first commit of the fixes named no path,
+the wrapper refused it,
+and the script went on to push and merge the join without it.
+A round that merged `main` in that minute meets those failures;
+they are not its own.
+
+Checked on the fixed tree:
+`cargo fmt --check`,
+the three Clippy tasks,
+the binary's management tests,
+the package's type check,
+and the modules the seven rounds changed.
+No whole gate has run on it.
+
+What the rounds left,
+by their own reports:
+
+- The removal's guest arm is written and not green:
+  its third run stopped at the mount handler's `user-cache` step,
+  because the arm's fixture writes no user-cache pin.
+- Almost none of the removal round's new controls was shown able to fail,
+  and its plant of the live pass's no-folder guard opened `/dev/zfs` on this host once
+  (2026-11-28T01:10-05:00;
+  opened only,
+  no request sent).
+  The owner was told.
+- Two guest arms of the slot state still expect the old refusal.
+- The grammar round's three guest arms never printed a result:
+  the machine ended its three attempts.
+- The check before a forwarded command has no call site,
+  and its cost is not measured.
+- Issue 6615's cure removes the leftover mount,
+  and the arm did not end 0 in any of eight runs after it,
+  for the arm's own thirty-second wait under load and for what a run that dies inside the arm leaves.
+  The issue stays open.
+- A test of the wrapper wrote a 17-byte file named `add_route` into the package folder once.
+
+#### The layout findings `main` prints, which no line records
+
+The repository linter on `package/git-policy/cli` prints these eleven `rust/folder-uses-links` findings,
+all from the grammar round's wiring,
+and fourteen `rust/max-lines` findings.
+A `rust/folder-uses-links` finding outside this list is a new tangle.
+
+- `src/native/invocation/management.rs` line ?:
+  `invocation` uses `worktree_clone_cancel_and_settle_commands`;
+- `src/native/invocation/management.rs` line ?:
+  `invocation` uses `worktree_clone_removal_cancel`;
+- `src/native/invocation/management_arguments.rs` line ?:
+  `invocation` uses `worktree_clone_record_settling`;
+- `src/native/worktree_clone_cancel_and_settle_commands/a_cancel_command_answered.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `worktree_clone_removal_cancel`;
+- `src/native/worktree_clone_cancel_and_settle_commands/a_settling_command_answered.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `worktree_clone_record_settling`;
+- `src/native/worktree_clone_cancel_and_settle_commands/a_settling_command_answered.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `zfs_mounted_dataset`;
+- `src/native/worktree_clone_cancel_and_settle_commands/the_mount_request_a_cancellation_files.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `worktree_clone_mount_protocol`;
+- `src/native/worktree_clone_cancel_and_settle_commands/the_mount_request_a_cancellation_files.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `worktree_clone_removal_proof_and_plan`;
+- `src/native/worktree_clone_cancel_and_settle_commands/the_place_the_two_commands_run_in.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `repo_read`;
+- `src/native/worktree_clone_cancel_and_settle_commands/the_place_the_two_commands_run_in.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `worktree`;
+- `src/native/worktree_clone_cancel_and_settle_commands/the_pool_a_command_reads.rs` line ?:
+  `worktree_clone_cancel_and_settle_commands` uses `worktree_clone_mount_handler`.
+
+#### Rounds started at 2026-11-28T02:31:42-05:00
+
+One batch of five,
+on the virtual writer:
+
+- `mvm-cli-ovhcloud-backend-beside-the-hetzner-one`:
+  builds the backend and its unit tests,
+  and makes no call with the keys;
+  the session runs its billed test from the main checkout.
+- `zfs-removal-switch-runs-green-in-a-guest-and-its-controls-can-fail`.
+- `zfs-removal-switch-sentences-say-what-the-running-removal-does`.
+- `zfs-grammar-commands-guest-arms-run-green`.
+- `zfs-lost-event-check-before-a-command-wired-with-its-cost-measured`.
+
+Nine rounds of 2026-11-27 were still running at 01:55:
+the two that gather `doctor`'s facts,
+the private propagation step,
+the shutdown unmount body,
+the two on the forced arm,
+and the guest arms of plan steps 19,
+21 and 22.
+The Dylint driver proposal's revision round is one more.
+
+Owed after them:
+the removal's five-point kill matrix,
+its delegated batch,
+its rollback arm and its split-batch arm in a guest,
+and the removal's own entries in the folder of unanswered requests.
+
+#### The line-break proposal
+
+Its revision merged as `5bb8813b28` at 2026-11-28T02:05:36-05:00,
+and a second gate read by a same-vendor reader started after 02:31.
+Its review lands in
+`~/temp/agent/gate-review-of-the-line-break-proposal-second-read-2026-11-28/keep/review.md`.
+The owner is asked after it.
+
+#### The machine
+
+- The 860 drive:
+  `mount-860.service`,
+  its key file and its polkit rule are installed,
+  with the drive named by its LUKS UUID.
+  Its first start failed because AppArmor's `cryptsetup` profile could not read the key folder
+  (`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+  the eighteenth batch).
+  It has run since 01:50:27,
+  and a stop and a start as the account,
+  without `sudo`,
+  worked at 01:57:08 and 01:57:22.
+  The drive's file system holds about 1.84 TB and has between 1.77 and 1.94 TB free.
+- The swap partition:
+  a root unit,
+  `old-nvme-btrfs-shrinks-by-128-gib-for-a-plain-swap-partition-2026-11-28`,
+  has been balancing the old NVMe's file system since 01:40:55,
+  before it shrinks device 1 by 128 GiB.
+  Its log is `~/temp/agent/old-nvme-shrink-for-a-plain-swap-partition-2026-11-28/keep/shrink.log`.
+  After it:
+  the partition table,
+  the mappings,
+  the crypttab and fstab lines,
+  and the record beside the writeback partition's in
+  `doc/troubleshooting/desktop-freezes-while-many-agent-runs-thrash-zram-swap.md`.
+- The old NVMe's data,
+  about 1.33 TB,
+  moves to the 860 drive after that,
+  and no partition is formatted before the owner is asked.
+
 ### Rounds running
 
 At 2026-11-27T23:23:34-05:00 these 18 rounds are live,
