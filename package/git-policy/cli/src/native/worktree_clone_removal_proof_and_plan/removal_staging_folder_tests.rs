@@ -376,7 +376,8 @@ fn the_removal_over<'a>(
 /// What:
 ///  A removal resumed over a plan that already stands makes the folder its
 ///  unmount binds,
-///  at mode `0700`, before it asks for the unmount.
+///  at mode `0700`,
+///  before it asks for the unmount.
 /// Why:
 ///  A second attempt is the case a retry takes,
 ///  and the whole removal makes the folder on both ways in:
@@ -445,8 +446,9 @@ fn a_resumed_removal_makes_the_folder_its_unmount_binds() {
 /// What:
 ///  A removal whose lineage proof refuses makes no folder at all.
 /// Why:
-///  The folder is written, and a removal that cannot prove the clone must not
-///  write anything before its refusal,
+///  The folder is written,
+///  and a removal that cannot prove the clone must not write anything before its
+///  refusal,
 ///  so the creation belongs after the proof and not before it.
 #[test]
 fn a_refused_proof_makes_no_folder() {
