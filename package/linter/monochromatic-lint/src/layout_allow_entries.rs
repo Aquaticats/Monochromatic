@@ -28,18 +28,23 @@
 ///  and the reading that removes the `.` segments and the folders a `..` reads back over.
 use crate::{
     layout_finding::{
+        characters_beside_the_first,
         first_unseen_character,
         key_path,
         spelled_unreadable,
+        unseen_character_count,
         unseen_character_phrase,
     },
     markdown_lfs_target::lexical_normal,
 };
-/// Import the set that keeps one line from repeating another,
+/// Import the one cell that holds the answer about the package folder's names,
+///  the set that keeps one line from repeating another,
 ///  the one spelling of a listed path,
 ///  and native paths.
 use std::{
+    cell::OnceCell,
     collections::BTreeSet,
+    ops::Range,
     path::{
         Path,
         PathBuf,
@@ -62,6 +67,65 @@ pub(crate) const ARROW: &str = "->";
 ///  and this spelling is the one every key and every message quotes,
 ///  so it is what a shape of a name is named by.
 pub(crate) const SET_OFF_ARROW: &str = " -> ";
+
+/// What:
+///  The package folder a list is read against,
+///  with the one answer about the longest name it holds,
+///  read at most once however many lines ask for it.
+/// Why:
+///  A six-word `file-uses` line asks how long the longest name in the package folder is,
+///  and a dead key line whose edited text is such a line asks the same question:
+///  listing the folder once per line cost a list of 1,000 such lines 175 times the previous release's time
+///  where the folder holds 5,000 entries (measured on 2026-11-27),
+///  so the answer belongs to the folder and not to the line.
+///  A list whose lines never ask reads the folder not at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PackageFolder {
+///   #longest?: number;
+///   constructor(readonly path: Path) {}
+///   get longestName() { return (this.#longest ??= longestNameIn(this.path)); }
+/// }
+/// ```
+pub(crate) struct PackageFolder<'base> {
+    /// The folder every listed path is read back against.
+    path: &'base Path,
+    /// The length of the longest name the folder holds, once a line asks for it.
+    longest_name: OnceCell<Option<usize>>,
+}
+
+/// What:
+///  The package folder, and the answers it gives about its own names.
+/// Why:
+///  A caller makes one of these for one list and passes it to every line it reads,
+///  so the folder is listed once and never once per line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const packageFolder = (base: Path) => new PackageFolder(base);
+/// ```
+impl<'base> PackageFolder<'base> {
+    /// Build the reader of one package folder, which lists it only when a line asks.
+    pub(crate) fn at(path: &'base Path) -> PackageFolder<'base> {
+        return PackageFolder {
+            path,
+            longest_name: OnceCell::new(),
+        };
+    }
+
+    /// The folder every listed path is read back against.
+    pub(crate) fn path(&self) -> &'base Path {
+        return self.path;
+    }
+
+    /// The length in bytes of the longest name the folder holds, or nothing when it cannot be read.
+    fn longest_name(&self) -> Option<usize> {
+        return *self
+            .longest_name
+            .get_or_init(|| return longest_name_in(self.path));
+    }
+}
 
 /// What:
 ///  What one entry of a list tolerates.
@@ -253,7 +317,31 @@ fn listed_path(text: &str) -> PathBuf {
 }
 
 /// What:
+///  The folder a six-word `file-uses` line names,
+///  and where the words that name it stand in the line.
+/// Why:
+///  The refusal names that folder,
+///  and a character a reader cannot see that stands inside those words is part of the folder's own name
+///  and no character to take out of the line.
+///  The words are the line's own,
+///  so the place answers where the gap is a tab,
+///  a no-break space or a doubled space,
+///  which a search for the folder's text answers nowhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SpacedFolder = { name: string; span: [number, number] };
+/// ```
+struct SpacedFolder {
+    /// The folder a directory of the package is called, as the reader reads it.
+    name: String,
+    /// The bytes of the line that hold the words naming that folder.
+    span: Range<usize>,
+}
+
+/// What:
 ///  The folder a `file-uses` line names,
+///  and the words that name it,
 ///  when its words are more than the shape has and the ones in the folder's place hold whitespace.
 /// Why:
 ///  The shape is five words set off with one whitespace character each,
@@ -278,14 +366,14 @@ fn listed_path(text: &str) -> PathBuf {
 ///  Those words are the folder's own only while they name one:
 ///  a third file name and a doubled arrow make six words whose middle ones are no folder,
 ///  and telling that reader to rename a folder that is fine sends them to the wrong place.
-///  Only a folder of the tree can hold the whitespace, so the caller gives the package folder the words are read from.
+///  Only a folder of the tree can hold the whitespace, so the package folder the words are read from is the caller's.
 ///  The line's own arrow is the last one whitespace sets off:
 ///  a file name is one word and can hold no whitespace, so no arrow of a file name follows it,
 ///  while the folder before it may hold an arrow word of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const spacedFolder = (text: string, words: string[], base: Path) => {
+/// const spacedFolder = (text: string, words: string[], package: PackageFolder): SpacedFolder | undefined => {
 ///   if (words.length < 6 || words[words.length - 2] !== '->') return undefined
 ///   const afterWord = text.slice('file-uses'.length).replace(/^\s/, '')
 ///   const arrow = lastArrowBetweenWhitespace(afterWord)
@@ -293,15 +381,18 @@ fn listed_path(text: &str) -> PathBuf {
 ///   const beforeArrow = afterWord.slice(0, arrow).replace(/\s+$/, '')
 ///   const file = words[words.length - 3]
 ///   const written = beforeArrow.endsWith(file) ? beforeArrow.slice(0, -file.length).replace(/\s$/, '') : undefined
-///   const candidates = [...readingsOfAWrittenFolder(written), words.slice(1, -3).join(' ')]
-///   return candidates.find((one) => /\s/.test(one) && isDirectory(base.join(one)))
+///   const found = firstReading(written, package.longestName, (one) => /\s/.test(one) && isDirectory(package.path + one))
+///   if (found) return { name: found.name, span: [namesBegin + found.offset, namesBegin + found.offset + found.name.length] }
+///   const joined = words.slice(1, -3).join(' ')
+///   if (/\s/.test(joined) && isDirectory(package.path + joined)) return { name: joined, span: spanOfWords(words, text, 1, words.length - 3) }
+///   return undefined
 /// }
 /// ```
 fn spaced_file_use_folder(
     text: &str,
     words: &[&str],
-    base: &Path,
-) -> Option<String> {
+    package: &PackageFolder<'_>,
+) -> Option<SpacedFolder> {
     // What: whether the arrow stands where the shape puts it, with one file name after it.
     // Why: a line whose arrow stands anywhere else is a misspelling of the shape and not a spaced folder.
     if words.len() < 6 || words[words.len() - 2] != ARROW {
@@ -315,6 +406,9 @@ fn spaced_file_use_folder(
     let after_the_word: &str = text
         .strip_prefix(FILE_USE_WORD)?
         .strip_prefix(char::is_whitespace)?;
+    // What: where the words that name the folder begin in the line.
+    // Why: a span the message compares a character's place with is counted in the line, and these words begin one character after the line's own word.
+    let names_begin: usize = text.len() - after_the_word.len();
     // What: where the line's own arrow begins, which is the last one whitespace sets off on both sides.
     // Why: a folder name before it may hold an arrow word of its own, while a file name is one word and holds none.
     let arrow: usize = last_arrow_between_whitespace(after_the_word)?;
@@ -323,36 +417,87 @@ fn spaced_file_use_folder(
     let before_arrow: &str = after_the_word[..arrow].trim_end_matches(char::is_whitespace);
     // What: the longest name the package folder holds, which is the longest first folder a name beside the gap can have.
     // Why: a first folder longer than every name there is no folder of the package, so a name that would need one is no name to ask about.
-    let longest_name: Option<usize> = longest_name_in(base);
+    let longest_name: Option<usize> = package.longest_name();
     // What: the first name the written text spells that a folder of the package is called, offered one at a time and never kept.
     // Why: the text the line writes is the folder its reader meant whenever the tree holds it, and each name the gap left beside it answers one reading of that text.
     if let Some(before_file) = before_arrow.strip_suffix(file)
         && let Some(written) = before_file.strip_suffix(char::is_whitespace)
-        && let Some(found) = first_reading_a_folder_holds(written, longest_name, &mut |name| {
-            // What: one name this read asks the file system about, which a control counts.
-            // Why: a read that asked about one name per character of the gap cost the square of the gap, and the count is what holds that.
-            #[cfg(test)]
-            counted_work::note_candidate_name();
-            // What: whether this name is one a folder of the package is called.
-            // Why: a name with no whitespace in it leaves the line readable as the shape has it, and a name no tree holds is no folder the message can send its reader to.
-            return name.chars().any(char::is_whitespace) && base.join(name).is_dir();
-        })
+        && let Some((offset, found)) =
+            first_reading_a_folder_holds(written, longest_name, &mut |name| {
+                // What: one name this read asks the file system about, which a control counts.
+                // Why: a read that asked about one name per character of the gap cost the square of the gap, and the count is what holds that.
+                #[cfg(test)]
+                counted_work::note_candidate_name();
+                // What: whether this name is one a folder of the package is called.
+                // Why: a name with no whitespace in it leaves the line readable as the shape has it, and a name no tree holds is no folder the message can send its reader to.
+                return name.chars().any(char::is_whitespace) && package.path().join(name).is_dir();
+            })
     {
-        return Some(String::from(found));
+        return Some(SpacedFolder {
+            name: String::from(found),
+            span: names_begin + offset..names_begin + offset + found.len(),
+        });
     }
     // What: the words between the word and that file, joined with one space.
     // Why: a folder whose name holds a tab or a no-break space is no text any folder holds, and its line names the folder those characters stand for.
     let joined: String = words[1..words.len() - 3].join(" ");
     #[cfg(test)]
+    counted_work::note_offered_name();
+    #[cfg(test)]
     counted_work::note_candidate_name();
-    {
-        // What: whether those words name a folder of the package that holds whitespace, which is the one reason the shape's five words become six.
-        // Why: a name with no whitespace in it leaves the line readable as the shape has it, and a name no tree holds is no folder the message can send its reader to.
-        if joined.chars().any(char::is_whitespace) && base.join(joined.as_str()).is_dir() {
-            return Some(joined);
-        }
+    // What: whether those words name a folder of the package that holds whitespace, which is the one reason the shape's five words become six.
+    // Why: a name with no whitespace in it leaves the line readable as the shape has it, and a name no tree holds is no folder the message can send its reader to.
+    if joined.chars().any(char::is_whitespace) && package.path().join(joined.as_str()).is_dir() {
+        // What: where those words stand in the line.
+        // Why: the joined name is no text the line holds, so the place a character's own is compared with is the words it was joined from.
+        let starts: Vec<usize> = word_offsets(text);
+        let first_word: usize = *starts.get(1)?;
+        let last_word: &str = words.get(words.len() - 4)?;
+        let last_end: usize = *starts.get(words.len() - 4)? + last_word.len();
+        return Some(SpacedFolder {
+            name: joined,
+            span: first_word..last_end,
+        });
     }
     return None;
+}
+
+/// What:
+///  Where each whitespace-separated word of a text begins, in bytes.
+/// Why:
+///  The words a line names its folder with are the line's own,
+///  and their span is what says whether a character a message names stands inside the folder's own name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const wordOffsets = (text) => {
+///   const starts: number[] = []
+///   let afterASeparator = true
+///   for (const [at, letter] of [...text].entries()) {
+///     if (/\s/u.test(letter)) { afterASeparator = true; continue }
+///     if (afterASeparator) { starts.push(at); afterASeparator = false }
+///   }
+///   return starts
+/// }
+/// ```
+fn word_offsets(text: &str) -> Vec<usize> {
+    // What: where each word begins so far.
+    // Why: the caller asks for one word's place by its index.
+    let mut starts: Vec<usize> = Vec::<usize>::new();
+    // What: whether the character before this one was a separator, so this one begins a word.
+    // Why: a word begins at the text's first character and after any whitespace run.
+    let mut after_a_separator: bool = true;
+    for (offset, letter) in text.char_indices() {
+        if letter.is_whitespace() {
+            after_a_separator = true;
+            continue;
+        }
+        if after_a_separator {
+            starts.push(offset);
+            after_a_separator = false;
+        }
+    }
+    return starts;
 }
 
 /// What:
@@ -383,14 +528,14 @@ fn spaced_file_use_folder(
 /// ```ts
 /// const firstReading = (written, longestName, accepts) => {
 ///   const withoutTrailing = written.replace(/\s+$/u, '')
-///   if (written !== withoutTrailing && accepts(written)) return written
+///   if (written !== withoutTrailing && accepts(written)) return { offset: 0, name: written }
 ///   const leading = [...withoutTrailing].findIndex((one) => !/\s/u.test(one))
 ///   const slash = withoutTrailing.indexOf('/')
 ///   for (let removed = 0; removed <= leading; removed++) {
 ///     const name = [...withoutTrailing].slice(removed).join('')
 ///     const first = (slash === -1 ? name.length : slash - [...withoutTrailing].slice(0, removed).join('').length)
 ///     if (removed < leading && longestName !== undefined && first > longestName) continue
-///     if (accepts(name)) return name
+///     if (accepts(name)) return { offset: [...withoutTrailing].slice(0, removed).join('').length, name }
 ///   }
 ///   return undefined
 /// }
@@ -399,14 +544,14 @@ fn first_reading_a_folder_holds<'text>(
     written: &'text str,
     longest_name: Option<usize>,
     accepts: &mut impl FnMut(&str) -> bool,
-) -> Option<&'text str> {
+) -> Option<(usize, &'text str)> {
     // What: the text with the whitespace run at its end taken off.
     // Why: no folder name a tree the rules accept holds ends in whitespace, so everything at that end came from the gap before the file.
     let without_trailing: &str = written.trim_end_matches(char::is_whitespace);
     // What: the text as the line writes it, offered first when the end it writes holds whitespace of its own.
     // Why: the name the line writes is the one its reader meant whenever the tree holds it.
     if written != without_trailing && accepts(written) {
-        return Some(written);
+        return Some((0, written));
     }
     // What: where the text's leading whitespace run ends, which is where the name's own first character stands.
     // Why: the loop below takes the run off one character at a time, so each name a tree could hold is offered once.
@@ -419,9 +564,26 @@ fn first_reading_a_folder_holds<'text>(
     let first_folder_end: Option<usize> = without_trailing.find('/');
     // What: how many bytes of the leading run have been taken off.
     // Why: each step removes one character, so the next name begins where this one's first character ends.
+    // What: the first offset whose name the package folder could hold.
+    // Why: every offset before it names a first folder longer than the longest name the folder holds,
+    // so offering each of them would build the gap's worth of names and ask about none of them.
+    // Gotcha: the offset must stand on a character boundary, because the name offered is a slice of the text.
     let mut offset: usize = 0;
+    if let (Some(end), Some(longest)) = (first_folder_end, longest_name)
+        && end > longest
+    {
+        offset = end - longest;
+        while offset > 0 && !without_trailing.is_char_boundary(offset) {
+            offset -= 1;
+        }
+        offset = offset.min(leading_end);
+    }
     while offset <= leading_end {
         let name: &str = &without_trailing[offset..];
+        // What: one name this reading built, which a control counts.
+        // Why: a reading that built a name for every character of the gap copied the square of the gap, and the count is what holds that.
+        #[cfg(test)]
+        counted_work::note_offered_name();
         // What: whether this name still begins with the gap's whitespace, so its first folder is that run followed by one.
         // Why: only then does the length of a name the package folder holds say anything about it.
         let keeps_whitespace: bool = offset < leading_end;
@@ -436,7 +598,7 @@ fn first_reading_a_folder_holds<'text>(
         let a_folder_could_be_called_this: bool =
             !keeps_whitespace || longest_name.is_none_or(|longest| return first_folder <= longest);
         if a_folder_could_be_called_this && accepts(name) {
-            return Some(name);
+            return Some((offset, name));
         }
         if offset >= leading_end {
             return None;
@@ -468,6 +630,10 @@ fn first_reading_a_folder_holds<'text>(
 /// }
 /// ```
 fn longest_name_in(folder: &Path) -> Option<usize> {
+    // What: one listing of a folder, which a control counts.
+    // Why: the answer is one per list, so a control that counts listings holds a reader that asks the folder again for every line.
+    #[cfg(test)]
+    counted_work::note_folder_listing();
     // What: the names the folder holds, or nothing when it cannot be read.
     // Why: a folder that cannot be listed gives no bound, and every name must then be offered.
     let entries: std::fs::ReadDir = std::fs::read_dir(folder).ok()?;
@@ -574,6 +740,8 @@ fn whitespace_character_description(name: &str) -> String {
 ///  and a character that prints as nothing is the hardest fault to find: the line looks right.
 ///  The place counts characters from the line's first one rather than the entry's,
 ///  because the reader trims the indent away and a person counting what the file holds starts at its first character.
+///  The sentence says how many characters the line holds,
+///  because a person told of the first and left to find the second on the next run learns nothing from it.
 ///  The edit offered is both the one that works when the character stands in a word and the one that works when it stands where a separator belongs:
 ///  the reader does not treat it as whitespace either way, and which of the two it is depends on where it stands.
 ///
@@ -598,34 +766,39 @@ fn unseen_character_note(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const unseenNoteInFolder = (text, column, folder) => noteOf(text, column, folder)
+/// const unseenNoteInFolder = (text, column, span) => noteOf(text, column, span)
 /// ```
 fn unseen_character_note_in_a_folder_name(
     text: &str,
     column: usize,
-    folder: &str,
+    folder: Range<usize>,
 ) -> String {
     return note_of_an_unseen_character(text, column, Some(folder));
 }
 
 /// What:
 ///  The sentence a refusal adds about the first character of the line a reader cannot see,
-///  naming the edit its reader can make.
+///  how many the line holds beside it,
+///  and the edit its reader can make.
 /// Why:
 ///  One character is enough for the sentence, and its place is what the reader has to find;
-///  the edit depends on where it stands, because a character the line wrote as part of a folder's name is no character to take out.
+///  the count is what says the line holds more, which the next run would otherwise name;
+///  and the edit depends on where it stands, because a character the line wrote as part of a folder's name is no character to take out.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const noteOf = (text, column, folder) => {
 ///   const first = firstUnseen(text)
 ///   const place = column + first[1] - 1
+///   const more = besideTheFirst(unseenCount(text))
+///   const inTheFolder = folder !== undefined && placeStandsIn(place, column, text, folder)
+///   ...
 /// }
 /// ```
 fn note_of_an_unseen_character(
     text: &str,
     column: usize,
-    folder: Option<&str>,
+    folder: Option<Range<usize>>,
 ) -> String {
     // What: the first character of the line a reader cannot see, with its place among the entry's characters.
     // Why: one character is enough for the sentence, and its place is what the reader has to find.
@@ -636,46 +809,60 @@ fn note_of_an_unseen_character(
     // Why: a reader who is told only that a character cannot be seen has nothing to look for.
     let name: String = unseen_character_phrase(letter);
     let place: usize = column + position - 1;
-    // What: whether that character stands inside the name of the folder the message names.
+    // What: how many characters of the line a reader cannot see, and the clause that says how many stand beside the first.
+    // Why: an edit that takes one out leaves the other, and the next run names it again.
+    let count: usize = unseen_character_count(text);
+    let more: String = characters_beside_the_first(count);
+    // What: whether that character stands inside the words the refusal names the folder with.
     // Why: the edit there is the rename the message already asks for, and taking the character out of a folder's name would name another folder.
-    let in_the_folder: bool = folder.is_some_and(|one| return place_stands_in(position, text, one));
+    let in_the_folder: bool =
+        folder.is_some_and(|span| return place_stands_in(place, column, text, span));
     if in_the_folder {
         return format!(
-            " The line also holds {name} at character {place} of the line, where a reader cannot see it, and that character stands in the name of the folder above: renaming that folder is the edit that takes it out."
+            " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}, and that character stands in the name of the folder above: renaming that folder is the edit that takes it out."
         );
     }
+    // What: the edit, in the words that agree with how many characters it changes.
+    // Why: "take it out" about two characters is the sentence that left one behind.
+    let edit: &str = if count == 1 {
+        "the reader does not treat it as whitespace, so take it out, or write a whitespace character where it stands if it stood where one belongs"
+    } else {
+        "the reader does not treat them as whitespace, so take each of them out, and write a whitespace character where one stood if it stood where one belongs"
+    };
     return format!(
-        " The line also holds {name} at character {place} of the line, where a reader cannot see it: the reader does not treat it as whitespace, so take it out, or write a whitespace character where it stands if it stands where one belongs."
+        " The line also holds {name} at character {place} of the line, where a reader cannot see it{more}: {edit}."
     );
 }
 
 /// What:
-///  Whether the character at a place among a text's characters stands inside the given part of that text.
+///  Whether the character at a place among a line's characters stands inside the words a span of the entry covers.
 /// Why:
-///  A message names a character by its place in the whole line and a folder by its own text,
+///  A message names a character by its place in the whole line and a folder's words are a span of the entry,
 ///  and the two have to be compared in one count: the line's characters.
+///  The span is the words the line itself holds,
+///  so a folder whose gap is a tab, a no-break space or a doubled space answers here,
+///  where a search for the folder's own text answered nowhere.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const placeStandsIn = (place, text, part) => {
-///   const start = text.indexOf(part)
-///   return start !== -1 && place >= [...text.slice(0, start)].length + 1 && place < [...text.slice(0, start)].length + 1 + [...part].length
+/// const placeStandsIn = (place, column, text, span) => {
+///   const first = column + [...text.slice(0, span[0])].length
+///   const last = first + [...text.slice(span[0], span[1])].length - 1
+///   return place >= first && place <= last
 /// }
 /// ```
 fn place_stands_in(
     place: usize,
+    column: usize,
     text: &str,
-    part: &str,
+    span: Range<usize>,
 ) -> bool {
-    // What: where that part begins in the text, or nothing when the text does not hold it.
-    // Why: a folder the line does not spell is no part of it, and then the character stands somewhere else.
-    let Some(start) = text.find(part) else {
-        return false;
-    };
-    // What: the place of the part's first character in the line, counted as the message counts it.
+    // What: the place of the span's first character in the line, counted as the message counts it.
     // Why: the places the message gives and the places this count gives must be one count, or the two sentences disagree.
-    let first: usize = text[..start].chars().count() + 1;
-    let last: usize = first + part.chars().count() - 1;
+    let first: usize = column + text[..span.start].chars().count();
+    // What: the place of the span's last character in the line.
+    // Why: a place between the two is inside the name, and one outside them is not.
+    let last: usize = first + text[span.clone()].chars().count().saturating_sub(1);
     return (first..=last).contains(&place);
 }
 
@@ -729,16 +916,22 @@ fn quote_of(
 ///  Every sentence quotes the line with the characters a reader cannot see spelled,
 ///  because a line a copied page led with a mark looks like a line that reads.
 ///
+/// The package folder is passed as one reader of it,
+///  so a list whose lines ask how long the longest name it holds is asks a folder that is listed once.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function entryOf(line: number, column: number, text: string, base: Path): AllowEntry;
+/// function entryOf(line: number, column: number, text: string, package: PackageFolder): AllowEntry;
 /// ```
 pub(crate) fn entry_of(
     line: usize,
     column: usize,
     text: &str,
-    base: &Path,
+    package: &PackageFolder<'_>,
 ) -> Result<AllowEntry, String> {
+    // What: the folder every listed path is read back against.
+    // Why: a path in an entry is relative to the package folder, and a key writes that walk.
+    let base: &Path = package.path();
     let words: Vec<&str> = text.split_whitespace().collect::<Vec<&str>>();
     let kind: AllowKind = if words.first() == Some(&FOLDER_USE_WORD) {
         let (from, to): (&str, &str) = use_ends(line, column, text)?;
@@ -766,13 +959,14 @@ pub(crate) fn entry_of(
                 "Line {line} reads `{spelled}`. It names a folder that {reason}. A path is relative to the package folder, as findings show it.{note}"
             ));
         }
-        if let Some(folder) = spaced_file_use_folder(text, words.as_slice(), base) {
+        if let Some(folder) = spaced_file_use_folder(text, words.as_slice(), package) {
             // What: the folder's name with every character a reader cannot see spelled, so the message names the folder that is there.
             // Why: a tab or a no-break space prints as nothing, and a reader shown `src/cd` would look for a folder the package may well hold.
-            let spelled_folder: String = spelled_unreadable(folder.as_str());
+            let spelled_folder: String = spelled_unreadable(folder.name.as_str());
             // What: whether every whitespace character in the name is a space.
             // Why: a space is the one whitespace character a reader can see, so only another one needs its name and code point.
             let holds_only_spaces: bool = folder
+                .name
                 .chars()
                 .all(|letter| return !letter.is_whitespace() || letter == ' ');
             // What: what the name holds, and what renaming must give.
@@ -783,7 +977,7 @@ pub(crate) fn entry_of(
                 (
                     format!(
                         "which holds {}",
-                        whitespace_character_description(folder.as_str())
+                        whitespace_character_description(folder.name.as_str())
                     ),
                     "whitespace character",
                 )
@@ -791,7 +985,8 @@ pub(crate) fn entry_of(
             let (spelled, _note): (String, String) = quote_of(text, column);
             // What: whether the folder holds a module file, which is what a loop of files inside it is made of.
             // Why: a folder that holds none has no loop to untangle, and sending its reader to untangle one sends them to something that is not there.
-            let holds_a_module: bool = holds_a_module_file(base.join(folder.as_str()).as_path());
+            let holds_a_module: bool =
+                holds_a_module_file(base.join(folder.name.as_str()).as_path());
             // What: the edit open to the line's reader, which is the rename either way and the untangling only while the folder holds files to untangle.
             // Why: the two edits are the only two ways a loop through such a folder stops needing a line.
             let remedy: String = if holds_a_module {
@@ -805,8 +1000,7 @@ pub(crate) fn entry_of(
             };
             // What: the sentence about a character the line holds that a reader cannot see.
             // Why: a character in the folder's own name is no character its reader can take out, and the rename above is the edit.
-            let note: String =
-                unseen_character_note_in_a_folder_name(text, column, folder.as_str());
+            let note: String = unseen_character_note_in_a_folder_name(text, column, folder.span);
             return Err(format!(
                 "Line {line} reads `{spelled}`. It names the folder `{spelled_folder}`, {holds}: a `file-uses` line sets its five words off with one whitespace character each, so it cannot carry a name that holds one. {remedy}{note}"
             ));
@@ -1128,6 +1322,9 @@ pub fn parse_entries(
 ) -> Result<Vec<AllowEntry>, String> {
     let mut entries: Vec<AllowEntry> = Vec::<AllowEntry>::new();
     let mut seen: BTreeSet<String> = BTreeSet::<String>::new();
+    // What: the package folder every line is read against, listed at most once however many lines ask.
+    // Why: a line's folder is read back against the package folder, and a six-word line asks how long its longest name is.
+    let package: PackageFolder<'_> = PackageFolder::at(base);
     for (index, raw) in text.lines().enumerate() {
         let line: usize = index + 1;
         let trimmed: &str = raw.trim();
@@ -1137,7 +1334,7 @@ pub fn parse_entries(
         // What: the column the entry starts at, counted in characters from the line's first one.
         // Why: the reader trims the whitespace around a line, and counting from the trimmed text would be off by the indent.
         let column: usize = raw.chars().count() - raw.trim_start().chars().count() + 1;
-        let entry: AllowEntry = entry_of(line, column, trimmed, base)?;
+        let entry: AllowEntry = entry_of(line, column, trimmed, &package)?;
         if !seen.insert(entry.identity()) {
             // What: the repeated line as the sentence quotes it, with every character a reader cannot see spelled.
             // Why: a line copied from another file can hold a mark that prints as nothing, and the quote would look like the line above it.
@@ -1153,27 +1350,33 @@ pub fn parse_entries(
 }
 
 /// What:
-///  How much work one read of a six-word `file-uses` line did on the names its gap could have left beside the folder,
-///  for the control that pins the cost.
+///  How much work one read did on the names a gap could have left beside a folder and on the names the package folder holds,
+///  for the controls that pin the cost.
 /// Why:
 ///  The gap is bounded only by the list file's four mebibytes, so the read must stay linear in the line,
 ///  and a control that timed it would read this machine's load rather than the code,
-///  so a control counts the names the file system was asked about and fails when that count grows with the gap.
+///  so a control counts the names the file system was asked about and the listings of the package folder,
+///  and fails when either grows with the gap or with the number of lines.
 ///  Test builds only, so a release artifact carries no counter and no branch on one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// let candidateNames = 0;
+/// let folderListings = 0;
 /// ```
 #[cfg(test)]
 pub(crate) mod counted_work {
-    /// Import the cell the counter lives in.
+    /// Import the cell the counters live in.
     use std::cell::Cell;
     // What: one counter per thread, because the test runner runs several tests at once in one process.
-    // Why: a counter shared between tests would add two tests' names together and make both controls meaningless.
+    // Why: a counter shared between tests would add two tests' work together and make both controls meaningless.
     thread_local! {
         /// The names of a written folder that one read asked the file system about.
         static CANDIDATE_NAMES: Cell<usize> = const { Cell::new(0) };
+        /// The times a read listed a folder to learn the longest name it holds.
+        static FOLDER_LISTINGS: Cell<usize> = const { Cell::new(0) };
+        /// The names a reading built out of a written folder text.
+        static OFFERED_NAMES: Cell<usize> = const { Cell::new(0) };
     }
 
     /// Count one name a read asked the file system about.
@@ -1186,8 +1389,30 @@ pub(crate) mod counted_work {
         return CANDIDATE_NAMES.with(|count| return count.get());
     }
 
+    /// Count one name a reading built out of a written folder text.
+    pub(crate) fn note_offered_name() {
+        OFFERED_NAMES.with(|count| return count.set(count.get() + 1));
+    }
+
+    /// How many names the readings of this thread built out of a written folder text.
+    pub(crate) fn offered_names() -> usize {
+        return OFFERED_NAMES.with(|count| return count.get());
+    }
+
+    /// Count one listing of a folder for the longest name it holds.
+    pub(crate) fn note_folder_listing() {
+        FOLDER_LISTINGS.with(|count| return count.set(count.get() + 1));
+    }
+
+    /// How many times the reads of this thread listed a folder for the longest name it holds.
+    pub(crate) fn folder_listings() -> usize {
+        return FOLDER_LISTINGS.with(|count| return count.get());
+    }
+
     /// Start one control from nothing counted.
     pub(crate) fn reset() {
         CANDIDATE_NAMES.with(|count| return count.set(0));
+        FOLDER_LISTINGS.with(|count| return count.set(0));
+        OFFERED_NAMES.with(|count| return count.set(0));
     }
 }
