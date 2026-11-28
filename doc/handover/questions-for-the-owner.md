@@ -4196,3 +4196,34 @@ which costs each such host about 0.9 s on every call that asks.
   the warning claims nothing about a copy.
 - The `prune` line for a second copy keeps its clause on what deleting the directory loses.
 - Two README sentences outside the round's section made the same promise and were corrected with it.
+
+## Veto open: what the round on `mpm-shadow`'s Rust row chose (recorded 2026-11-27T19:34:10-05:00)
+
+The round is merged and goes out in `0.2.7-alpha.18`.
+Its picks were the coordinating session's,
+in the entry recorded 2026-11-27T19:13:58-05:00;
+these are what it chose beyond them.
+
+- The row's toolchain is found by its directory's name,
+  the channel or the channel followed by one host triple.
+  Not taken:
+  ask `rustup which` for each declared program,
+  which is exact for every case and costs a process per program on each rebuild.
+  What the name rule gives up:
+  a channel installed for more than one host triple,
+  where the first name in order answers.
+- A toolchain whose name carries a date never answers for a bare channel,
+  so `nightly` does not take a dated toolchain's programs.
+- The rebuild removes a link a person made by hand too,
+  when its name is one no row declares,
+  and names it in the report;
+  a regular file stays.
+  This machine's folder holds no such name today.
+- The name the running `mpm-shadow` is linked under stays even where no row declares it.
+- `list` asks `rustup` three questions for a Rust row where it asked one,
+  to say that a declared component or target is missing.
+  Open:
+  whether that answer is worth the two extra processes on every `list`.
+- Open:
+  whether the README should say that a plan may declare `rustup` on purpose,
+  for a machine whose cargo bin directory holds rustup's own programs.

@@ -103,13 +103,13 @@ and each stays in force until the owner changes it.
   "Do whatever you need to do,
   but don't abandon any work."
 
-## The state at 2026-11-27T19:25:26-05:00
+## The state at 2026-11-27T19:34:10-05:00
 
-`main` was `caa4ac9dd6`.
+`main` was `39e60f48cc`.
 What landed before this time is in its own records and closed issues,
 and the merges are in `git log --merges`.
 Sixteen rounds merged on the evening of 2026-11-26,
-and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 294 more by this time.
+and `git log --first-parent --merges --since='2026-11-27 00:00'` counts 295 more by this time.
 
 ### Rounds running
 
@@ -450,15 +450,24 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   the crate's and the fuzz crate's `Cargo.toml` and `Cargo.lock`,
   and nothing else,
   and `main` is fast-forwarded to it.
-  Its publish run (46087105171) builds the two targets;
-  the follower's log is `~/temp/agent/release-followers-of-2026-11-27/keep/git-policy-cli-0.6.1-alpha.51-release-wait.log`.
-  After it publishes come the install proof over alpha.50 and two Claude Sonnet second passes,
-  whose briefs stand in `~/temp/agent/briefs-for-release-reads-written-2026-11-27/`.
+  It is published for both targets
+  (publish run 46087105171;
+  the follower's log holds `PUBLISHED monochromatic-git-policy-cli-v0.6.1-alpha.51`),
+  and unpacked at `.cache/wrapper-release-0.6.1-alpha.51/`,
+  where the binary's version line says `0.6.1-alpha.51`.
+  Its install proof over alpha.50 passed in a disposable container at 2026-11-27T19:27:02-05:00
+  (`THE PROOF PASSED: the instance the older release loaded started as this release, and the pair of commits each landed once`;
+  log `~/temp/agent/wrapper-alpha-51-install-proof-over-alpha-50-2026-11-27/keep/install-proof.log`).
+  Two Claude Sonnet second passes of it run as background agents of the coordinating session,
+  same-vendor reads and not independent reviews,
+  one on the merges that change what a person meets and one on those that claim to change nothing;
+  their briefs stand in `~/temp/agent/briefs-for-release-reads-written-2026-11-27/`,
+  and their reviews go to `~/temp/agent/git-policy-cli-alpha-51-release-review-behaviour-2026-11-27/keep/review.md`
+  and `~/temp/agent/git-policy-cli-alpha-51-release-review-no-change-merges-2026-11-27/keep/review.md`.
   The round of issue 6625,
   started 2026-11-27T18:38:26-05:00,
   merges when it ends:
   the bump commit it waited for has landed.
-  Remove `.claude/worktrees/tip-checks-on-main-before-wrapper-alpha-51` once the release is out.
   Nine planted spellings passed their guard on `main`:
   a renamed import,
   a function taken as a value,
@@ -1077,13 +1086,42 @@ and the whole report at `~/temp/agent/<round>-scratch/keep/report.md`:
   The package's task ran 918 and passed 918.
   What it chose beyond its brief waits in `doc/handover/questions-for-the-owner.md`.
   `mpm-shadow-alpha-17-release-pass-the-exposure-folder-links-the-pinned-toolchain-and-only-what-the-plan-declares`
-  (its first feed line written 2026-11-27T18:48:59-05:00;
-  issue 6634)
-  runs.
-  `0.2.7-alpha.18` follows its merge.
-  Before that release is installed here,
-  read the first round's list of the names in this machine's exposure folder that no row declares:
-  its rebuild removes a link for such a name.
+  is merged (`d557ebbe20`) and issue 6634 is closed.
+  The two branches met in three files,
+  so the second was merged with `main` in a worktree of its own and checked there first:
+  format,
+  check,
+  Clippy and the package's task,
+  which ran 927 and passed 927.
+  A `rustup-toolchain` row now searches the `bin` of the toolchain its channel names and of no other,
+  by the directory's name;
+  the way not taken,
+  asking `rustup which` for each program,
+  costs a process per program and is priced in the package's README and the round's commits.
+  A real `rustup` in a container,
+  holding the pin and an older toolchain that sorts first,
+  put every link of the row into the pin.
+  The rebuild removes a symbolic link for a name no row declares and names it in the report,
+  and `list` reports a declared component or target the toolchain lacks as drift,
+  at the cost of three `rustup` calls where it made one.
+  This machine's exposure folder holds exactly the names the plan declares
+  (174 entries,
+  read 2026-11-27T18:57:36-05:00 with no run against the folder),
+  so the rebuild removes nothing here;
+  an install of the new release that names a removed link is a surprise to read before going on.
+  The second round's choices wait in `doc/handover/questions-for-the-owner.md` too.
+  The release run of `0.2.7-alpha.18` was started at 2026-11-27T19:31:24-05:00
+  (<https://github.com/Aquaticats/Monochromatic/actions/runs/46088339190>);
+  its release commit is `39e60f48cc`,
+  which changes the crate's own `Cargo.toml` and `Cargo.lock` and nothing else,
+  and `main` is fast-forwarded to it.
+  Its publish waits behind the linter's;
+  the follower's log is `~/temp/agent/release-followers-of-2026-11-27/keep/mpm-shadow-0.2.7-alpha.18-release-wait.log`.
+  After it publishes:
+  lock `mpm-shadow`,
+  install,
+  put the session's `git` link back,
+  and start its Claude Sonnet second pass.
   That round made a removed hidden directory that held a finished copy say which of two things happened:
   a second copy went and nothing was lost,
   or the one copy the version had here went,
@@ -1297,7 +1335,8 @@ A run of a built wrapper executable on the host still does
 a binary-target test):
 `env --unset=DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<a fixture folder>`.
 
-No read runs as a background agent of the coordinating session.
+The reads of the wrapper's `0.6.1-alpha.51` run as background agents of the coordinating session,
+at the paths its release's passage gives.
 The reads of the linter's `0.5.2-alpha.22`,
 of `mpm-shadow`'s `0.2.7-alpha.17` and of `cargo-shadow`'s `0.1.5-alpha.16` returned and were read whole
 ("What the linter's alpha.22 read found",
