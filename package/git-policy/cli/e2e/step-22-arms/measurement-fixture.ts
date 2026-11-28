@@ -93,10 +93,18 @@ export const expectedMarkers: readonly string[] = [
   'STEP22 add-total control-ms=',
   'STEP22 sweep clones=1',
   'STEP22 sweep clones=64',
+  'STEP22 parent-sweep spread run=0 clones=64',
+  'STEP22 parent-sweep round=0 clones=512',
+  'STEP22 parent-sweep times clones=512',
+  'STEP22 parent-sweep done',
   'STEP22 unmount holder=none',
   'STEP22 forced-arm t-wait-ms=',
   'STEP22 forced-arm t-stop-ms=',
   'STEP22 retention after-removal=',
+  'STEP22 pinned case=incompressible stage=after-expiry',
+  'STEP22 pinned case=incompressible freed-by-expiry-dataset=',
+  'STEP22 pinned case=repeated-byte stage=after-expiry',
+  'STEP22 pinned case=repeated-byte freed-by-expiry-dataset=',
   'STEP22 request-budget names=2048',
   'STEP22 done',
 ];
@@ -107,7 +115,8 @@ export const expectedMarkers: readonly string[] = [
 export const crateBuildTimeoutMilliseconds = 5_400_000;
 
 /**
- Milliseconds the guest arm may take.
+ Milliseconds the guest arm may take, which one run of every arm it performs
+ fits in: the clones the past-64 arm makes and takes away are the longest part.
  */
 export const armTimeoutMilliseconds = 3_600_000;
 
