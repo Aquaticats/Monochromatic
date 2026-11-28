@@ -1429,7 +1429,7 @@ marked open to veto.
   `--vcpus 4` alone asks for nothing about memory and keeps every 4-vCPU flavour.
   Gives up:
   the guest can be larger than the ask and the bill with it,
-  which on this ask is 2 extra vCPUs and 1,000 extra MiB;
+  which on this ask is 2 extra vCPUs and 2,000 extra MiB;
   and a person who wants one exact size must name it with `--server-type`.
 - **Exactly.**
   Mechanism:
@@ -1669,9 +1669,8 @@ including the MCP one;
 the list command adds the alternatives at the cost of a second command,
 and spends nothing while it does it;
 the preview flag prints the create's own line and adds a stop before the spend,
-which the list command also gives,
-at no extra printing path;
-keeping the two printings in step is what the preview costs,
+which the list command already gives by touching nothing;
+keeping its printing in step with the create's is what the preview costs,
 and no option ranks lower for the code it needs.
 
 A yes to the create's line leaves undecided:
@@ -1747,7 +1746,7 @@ when the typed 4 is read as the catalogue's 4,
 and on `d2-8` at CA$0.06392 under Decision 6's strict floor.
 Gives up:
 one provider read per create and a source that is not the page a person reads,
-a guest larger than the ask (2 extra vCPUs and 1,000 extra MiB on the owner's ask,
+a guest larger than the ask (2 extra vCPUs and 2,000 extra MiB on the owner's ask,
 the whole reason Decision 5 exists),
 and,
 until issue 6666 lands,
@@ -1775,7 +1774,7 @@ which the measured grid shows changes no pick over 2048 asks but does not prove 
   `c3-4` against `d2-4`,
   and `b2-15` against `c2-15`.
   Which one of each pair wins is decided by the identifier,
-  whose order this file cannot read,
+  whose order this file cannot read for `BHS5`,
   so the percentages are what a tie costs and not a guaranteed result.
   Gives up:
   the bill is whatever the catalogue's numbers imply,
@@ -1823,8 +1822,8 @@ whether Discovery sizes are candidates (Decision 5),
 whether the printed figure is the whole hour (issue 6666),
 which order Hetzner takes among the types that fit,
 which is the smallest numbers and which no decision asks,
-and whether the identifier or the name is the last tie-break,
-which is decided in the built code and unread for a real flavour list.
+and the order a real flavour list's identifiers give,
+which the built code uses as the last tie-break and which this file cannot read for `BHS5`.
 
 A yes to fewest numbers leaves undecided:
 the same last tie-break,
@@ -2023,7 +2022,7 @@ its 16,000 MiB machine holds the default-parallelism build with about 7,772 MiB 
 The label rule buys 8,000 MiB for the typed 8,
 which holds the recipe's two-job arms by 200 to 518 MiB
 and is about 103 MiB short of the build that ran at default parallelism,
-and it costs 1.25 to 2.99 times less than the strict floor on the asks where the two differ,
+and the strict floor costs 1.25 to 2.99 times the label rule's price on the asks where the two differ,
 so the pair is margin against money and the owner's answer decides it.
 
 The other tools,
@@ -2515,9 +2514,11 @@ and gives the plan code and the currency the answer carried.
 That is the producer's own record of a read that succeeded,
 and it is in the source rather than in a log.
 
-Each quotation in this document was copied from the fetched text or the file it names and checked against it by a script before the commit that carries it,
+Each quotation in this document was copied from the fetched text or the file it names and checked against it by a script
+before the commit that carries it,
 with whitespace collapsed on both sides.
-The three quotations from OVHcloud's blog are percentages and one sentence about storage capacity,
+OVHcloud's blog is quoted only for sentences about the model change and storage capacity,
+and for the euro figures its flex table prints,
 because the blog's own rates are in euros;
 the Canadian figures come from the price page alone.
 
