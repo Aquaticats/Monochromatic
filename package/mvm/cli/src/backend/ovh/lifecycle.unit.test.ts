@@ -440,6 +440,124 @@ await describe({
       },
     },),
 
+    it({
+      name: 'a create with the prices in hand sends the cheapest size that fits, not the smallest numbers',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'b2-7.consumption',
+              id: 'b2-7',
+              ram: 7,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'd2-8.consumption',
+              id: 'd2-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+          ],),],
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [jsonAnswer({
+            addons: [
+              {
+                planCode: 'b2-7.consumption',
+                pricings: [{
+                  interval: 1,
+                  intervalUnit: 'hour',
+                  price: 11_350_000,
+                  type: 'consumption',
+                },],
+              },
+              {
+                planCode: 'd2-8.consumption',
+                pricings: [{
+                  interval: 1,
+                  intervalUnit: 'hour',
+                  price: 5_960_000,
+                  type: 'consumption',
+                },],
+              },
+            ],
+            locale: { currencyCode: 'CAD', },
+          },),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 6,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        /**
+         Body the create sent, as the schema names its fields.
+         */
+        const body = created.body as { readonly flavorId: string; };
+        expect(body.flavorId,).toBe('d2-8',);
+        expect(
+          matching({
+            calls: standIn.calls,
+            method: 'GET',
+            path: '/v1/order/catalog/public/cloud?ovhSubsidiary=CA',
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a create whose price read is refused falls back to the smallest numbers and says so',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(routed({
+          ...createRoutes(),
+          [`GET ${cloudPath('/flavor',)}?region=bhs5`]: [jsonAnswer([
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'b2-7.consumption',
+              id: 'b2-7',
+              ram: 7,
+              vcpus: 2,
+            },),
+            flavorAnswer({
+              disk: 50,
+              hourlyPlanCode: 'd2-8.consumption',
+              id: 'd2-8',
+              ram: 8,
+              vcpus: 4,
+            },),
+          ],),],
+          'GET /v1/order/catalog/public/cloud?ovhSubsidiary=CA': [failureAnswer({
+            errorCode: 'REFUSED',
+            message: 'the price catalogue is not readable with these rights',
+            status: 403,
+          },),],
+        },),);
+        await ovhCreate({
+          memoryGiB: 6,
+          name: 'dev',
+          vcpus: 2,
+        },);
+        const [created,] = matching({
+          calls: standIn.calls,
+          method: 'POST',
+          path: cloudPath('/instance',),
+        },);
+        if (created === undefined) {
+          throw new Error('expected one create call',);
+        }
+        expect((created.body as { readonly flavorId: string; }).flavorId,).toBe('b2-7',);
+      },
+    },),
+
     //endregion The size a create asks for
 
     //endregion Create

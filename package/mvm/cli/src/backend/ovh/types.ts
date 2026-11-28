@@ -336,6 +336,14 @@ export type OvhFlavor = {
    How many more instances of this flavor the project's quota allows.
    */
   readonly quota: number;
+  /**
+   Order plan codes of this flavor, from the schema's flavor plan codes; the
+   `hourly` one is the code the public catalogue prices the machine by. Absent
+   in a body that carries none, which is why it is optional.
+   */
+  readonly planCodes?: {
+    readonly hourly: string;
+  };
 };
 
 //endregion Flavor

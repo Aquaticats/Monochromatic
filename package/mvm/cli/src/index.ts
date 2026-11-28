@@ -134,6 +134,22 @@ export {
   validateOvhName,
 } from './backend/ovh/config.ts';
 /**
+ The hourly price read from OVHcloud's public catalogue, exposed for
+ built-artifact verification.
+
+ @internal
+ */
+export {
+  currencyOf,
+  hourlyPriceOf,
+  NO_PRICE,
+  PRICE_CATALOG_PATH,
+  PRICE_UNITS_PER_CURRENCY_UNIT,
+  priceIndexOf,
+  readPriceIndex,
+  subsidiaryOf,
+} from './backend/ovh/catalog-prices.ts';
+/**
  OVHcloud flavor selection, exposed for built-artifact verification.
 
  @internal
@@ -141,6 +157,7 @@ export {
 export {
   describeFlavor,
   flavorsThatFit,
+  hourlyPriceFor,
   largestFlavor,
   NO_FLAVOR,
   NoFlavorInStockError,
@@ -148,6 +165,7 @@ export {
   resolveFlavor,
   resolveFlavorsThatFit,
   selectFlavor,
+  type PriceChoice,
 } from './backend/ovh/flavors.ts';
 /**
  The families mvm may pick a machine size from, exposed for built-artifact

@@ -90,17 +90,6 @@ const ASKED_VCPUS = 2;
  */
 const ASKED_MEMORY_GIB = 4;
 
-/**
- Fewest virtual CPUs this run asks for, which is what a guest building this
- repository's Rust code needs.
- */
-const ASKED_VCPUS = 2;
-
-/**
- Least memory this run asks for, in gibibytes.
- */
-const ASKED_MEMORY_GIB = 4;
-
 //endregion Names
 
 await describe({
@@ -156,7 +145,6 @@ await describe({
             return vm.name === name;
           },);
         // Exact terminal output this run reports; no logger is configured here.
-        // oxlint-disable-next-line no-console -- the report needs the numbers on stdout
         console.log(
           `live: asked at least ${String(ASKED_VCPUS,)} vCPUs and ${String(ASKED_MEMORY_GIB,)} GiB; the backend lists ${String(sized?.vcpus,)} vCPUs and ${String(sized?.memoryGiB,)} GiB`,
         );

@@ -206,19 +206,41 @@ Among the flavors the region has in stock,
 the backend keeps only families OVHcloud sells as general-purpose Linux
 machines,
 keeps those whose vCPUs and memory are both at least what was asked,
-and takes the smallest:
+reads their hourly prices,
+and takes the cheapest.
+The price comes from OVHcloud's public order catalogue,
+`GET /v1/order/catalog/public/cloud`,
+whose answer prices each flavor's hourly plan code
+(`c3-4.consumption`) in the currency its own `locale` names.
+A flavor record carries no price, so this is one extra read, made once per
+create.
+
+A size the catalogue publishes no hourly price for is never picked,
+so a flavor that has no price is not a candidate even when it would fit.
+The same applies to every `-flex` twin: no flex name has a published hourly
+price.
+
+When the price read cannot be had, the order falls back to the numbers alone:
 vCPUs, then memory, then disk, then the plain size before its `-flex` twin,
 then the name.
+The command says which order it used:
+
+```text
+size at least 2 vCPUs fits d2-4 (2 vCPUs, 4 GiB of memory, 50 GB of disk), 0.033 CAD per hour
+```
+
+That line is printed before anything is created.
 
 ```sh
 # package/mvm/cli/README.md -- at least two vCPUs and 4 GiB of memory in BHS5
 mvm --backend ovh create --vcpus 2 --memory 4 build-box
 ```
 
-Before it creates anything the command prints the size it picked with its
-numbers, for example
-`flavor c3-4 with 2 vCPUs, 4 GiB of memory and 50 GB of disk`.
-That is the answer a live `BHS5` catalogue gives for those floors.
+Before it creates anything the command prints the size it picked, its numbers
+and its hourly price, for example
+`flavor d2-4 with 2 vCPUs, 4 GiB of memory and 50 GB of disk, 0.033 CAD per hour`.
+That is what a live `BHS5` catalogue gives for those floors: `d2-4` and `c3-4`
+both have 2 vCPUs and 4 GiB, and `d2-4` costs less.
 
 Families kept,
 by the catalogue's own names:
@@ -251,8 +273,8 @@ Families left out:
 The rule is a keep list and not a drop list on purpose:
 a name nobody has seen yet cannot be picked by accident.
 
-A size equal to its `-flex` twin in vCPUs, memory and disk is ordered with the
-plain one first.
+In the fallback order, a size equal to its `-flex` twin in vCPUs, memory and
+disk is ordered with the plain one first.
 OVHcloud documents flex instances as the ones whose local disk stays at 50 GB so
 the size can be resized up and down
 ([resize an instance][ovh-flex]).

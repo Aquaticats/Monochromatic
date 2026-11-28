@@ -28,6 +28,7 @@ import {
   refuseSizeAndOverride,
   type SizeRequest,
 } from '../size-request.ts';
+import { NO_PRICE, } from './catalog-prices.ts';
 import { listFlavors, } from './api-resources.ts';
 import { flavorOverride, } from './config.ts';
 import {
@@ -291,12 +292,44 @@ export async function resolveFlavor({
 //region Sizes a request may use
 
 /**
+ Whether the hourly prices could be read, which decides the order among sizes
+ that fit: by price when they could, by the numbers alone when they could not.
+ 
+ @example
+ ```ts
+ const priced: PriceChoice = { kind: 'priced', currency: 'CAD', prices: new Map() };
+ const fallback: PriceChoice = { kind: 'unpriced' };
+ ```
+ */
+export type PriceChoice =
+  | {
+    /**
+     The prices were read, so the cheapest size that fits wins.
+     */
+    readonly kind: 'priced';
+    /**
+     Currency the prices are stated in.
+     */
+    readonly currency: string;
+    /**
+     Hourly price per plan code.
+     */
+    readonly prices: ReadonlyMap<string, number>;
+  }
+    | {
+    /**
+     The prices could not be read, so the smallest numbers win.
+     */
+      readonly kind: 'unpriced';
+    };
+
+/**
  The flavors a request may use, in the order a create tries them, with the count
  of in-stock sizes the family rule left out.
  
  @example
  ```ts
- const fit: FlavorFit = { flavors: [c3_4], leftOut: 3 };
+ const fit: FlavorFit = { flavors: [c3_4], chosenBy: 'price', leftOut: 3 };
  ```
  */
 export type FlavorFit = {
@@ -313,29 +346,43 @@ export type FlavorFit = {
    declined to use, or {@link NO_FLAVOR} when it left none out.
    */
   readonly largestLeftOut: OvhFlavor | typeof NO_FLAVOR;
+  /**
+   Which order put the sizes in their place: the cheapest hourly price first, or
+   the smallest numbers first because no price could be read.
+   */
+  readonly order: 'price' | 'size-numbers';
 };
 
 /**
  Keeps the sizes a request may use: in stock, from a family OVHcloud sells as a
  general-purpose Linux machine, and at least the asked virtual CPUs and memory.
  
+ With the prices in hand the survivors are ordered by hourly price, cheapest
+ first, so the machine costs the least that meets the ask rather than being the
+ smallest that meets it; the project chose that order on 2026-11-28. A size the
+ catalogue publishes no hourly price for is never a candidate then. Without the
+ prices the survivors are ordered by the numbers alone, and the fit says so.
+ 
  @param flavors - flavors the region offers
  
  @param request - the floors the caller set
+ 
+ @param priceChoice - the hourly prices, or the record that they could not be read
  
  @returns the surviving sizes in the order a create tries them, and the count left out
  
  @example
  ```ts
- flavorsThatFit({ flavors, request: { vcpus: 2, memoryGiB: 4 } });
- // { flavors: [c3-4, c3-4-flex, ...], leftOut: 3 }
+ flavorsThatFit({ flavors, priceChoice: { kind: 'unpriced' }, request: { vcpus: 2, memoryGiB: 4 } });
  ```
  */
 export function flavorsThatFit({
   flavors,
+  priceChoice,
   request,
 }: {
   readonly flavors: readonly OvhFlavor[];
+  readonly priceChoice: PriceChoice;
   readonly request: SizeRequest;
 },): FlavorFit {
   /**
@@ -356,16 +403,116 @@ export function flavorsThatFit({
   const leftOutSizes = inStock.filter(function specialFamily(flavor,) {
     return !isKeptFlavor({ flavor, },);
   },);
+  /**
+   Sizes from a kept family that meet both floors.
+   */
+  const fitting = kept.filter(function fitsFloors(flavor,) {
+    return ((request.vcpus === undefined) || (flavor.vcpus >= request.vcpus))
+      && ((request.memoryGiB === undefined) || (flavor.ram >= request.memoryGiB));
+  },);
   return {
-    flavors: orderFlavors({
-      flavors: kept.filter(function fitsFloors(flavor,) {
-        return ((request.vcpus === undefined) || (flavor.vcpus >= request.vcpus))
-          && ((request.memoryGiB === undefined) || (flavor.ram >= request.memoryGiB));
-      },),
-    },),
+    flavors: (priceChoice.kind === 'priced')
+      ? orderFlavorsByPrice({
+        flavors: fitting.filter(function priced(flavor,) {
+          return hourlyPriceFor({
+            flavor,
+            priceChoice,
+          },) !== NO_PRICE;
+        },),
+        priceChoice,
+      },)
+      : orderFlavors({ flavors: fitting, },),
     largestLeftOut: largestFlavor({ flavors: leftOutSizes, },),
     leftOut: inStock.length - kept.length,
+    order: (priceChoice.kind === 'priced') ? 'price' : 'size-numbers',
   };
+}
+
+/**
+ Orders sizes by their hourly price, cheapest first, breaking a tie on price with
+ the size order so the answer is fixed rather than whatever order the catalogue
+ answered in.
+ 
+ @param flavors - sizes to order, each with a published hourly price
+ 
+ @param priceChoice - the hourly prices each size's own plan code is priced by
+ 
+ @returns a new array, cheapest first
+ 
+ @example
+ ```ts
+ orderFlavorsByPrice({ flavors, priceChoice }); // [d2-8, b2-7]
+ ```
+ */
+function orderFlavorsByPrice({
+  flavors,
+  priceChoice,
+}: {
+  readonly flavors: readonly OvhFlavor[];
+  readonly priceChoice: PriceChoice;
+},): readonly OvhFlavor[] {
+  return orderFlavors({ flavors, },)
+    .toSorted(function byPrice(
+      left,
+      right,
+    ) {
+      /**
+       Hourly price of the left size; both sides are priced, which is what
+       selected them before this order ran.
+       */
+      const leftPrice = hourlyPriceFor({
+        flavor: left,
+        priceChoice,
+      },);
+      /**
+       Hourly price of the right size.
+       */
+      const rightPrice = hourlyPriceFor({
+        flavor: right,
+        priceChoice,
+      },);
+      if ((leftPrice === NO_PRICE) || (rightPrice === NO_PRICE)) {
+        return 0;
+      }
+      return leftPrice - rightPrice;
+    },);
+}
+
+/**
+ Hourly price of one size, for a caller that prints the pick.
+ 
+ @param flavor - size to price
+ 
+ @param priceChoice - the hourly prices, or the record that they could not be read
+ 
+ @returns the price per hour in the catalogue's currency, or {@link NO_PRICE}
+ 
+ @example
+ ```ts
+ hourlyPriceFor({ flavor, priceChoice }); // 0.0596
+ ```
+ */
+export function hourlyPriceFor({
+  flavor,
+  priceChoice,
+}: {
+  readonly flavor: OvhFlavor;
+  readonly priceChoice: PriceChoice;
+},): number | typeof NO_PRICE {
+  if (priceChoice.kind !== 'priced') {
+    return NO_PRICE;
+  }
+  /**
+   Plan code the catalogue prices this flavor by, when the body carries one.
+   */
+  const planCode = flavor.planCodes
+    ?.hourly;
+  if (planCode === undefined) {
+    return NO_PRICE;
+  }
+  return priceChoice.prices
+    .get(planCode,)
+    ?? NO_PRICE;
 }
 
 /**
@@ -440,27 +587,33 @@ function noSizeFits({
  
  @param override - per-invocation flavor name or identifier from `--server-type`, or `undefined`
  
+ @param priceChoice - the hourly prices, or the record that they could not be read
+ 
  @param region - region to create in
  
  @param request - the floors the caller set
  
- @returns the surviving sizes, smallest first, and the count the family rule left out
+ @returns the surviving sizes in the order a create tries them, and the count the family rule left out
  
  @throws Error when a size is named outright beside a floor
+ 
+ @throws Error when the prices were read and no size that fits has a published one
  
  @throws {@link NoSizeFitsError} when no size the region has in stock satisfies the request
  
  @example
  ```ts
- const fit = await resolveFlavorsThatFit({ region: 'bhs5', request: { vcpus: 2 } });
+ const fit = await resolveFlavorsThatFit({ priceChoice, region: 'bhs5', request: { vcpus: 2 } });
  ```
  */
 export async function resolveFlavorsThatFit({
   override,
+  priceChoice,
   region,
   request,
 }: {
   readonly override?: string;
+  readonly priceChoice: PriceChoice;
   readonly region: string;
   readonly request: SizeRequest;
 },): Promise<FlavorFit> {
@@ -478,18 +631,43 @@ export async function resolveFlavorsThatFit({
    */
   const fit = flavorsThatFit({
     flavors,
+    priceChoice,
     request,
   },);
   if (fit.flavors
     .length
     === 0) {
+    /**
+     Sizes that meet the floors and the family rule, before the price rule.
+     */
+    const floorsOnly = flavorsThatFit({
+      flavors,
+      priceChoice: { kind: 'unpriced', },
+      request,
+    },)
+      .flavors;
+    /**
+     Every kept size in stock, before the floors, which is what a refusal offers
+     as the largest the region had.
+     */
+    const keptBeforeFloors = flavorsThatFit({
+      flavors,
+      priceChoice: { kind: 'unpriced', },
+      request: {},
+    },)
+      .flavors;
+    if ((floorsOnly.length > 0) && (priceChoice.kind === 'priced')) {
+      throw new Error(
+        `no size in region ${region} is in stock with both a published hourly price and ${
+          describeSizeRequest({ request, },)
+        }: ${floorsOnly.length} size${(floorsOnly.length === 1) ? '' : 's'} would fit but ${
+          (floorsOnly.length === 1) ? 'has' : 'have'
+        } no price in the ${priceChoice.currency} catalogue; name a size outright with ${OVH_OVERRIDE_OPTIONS}`,
+      );
+    }
     throw noSizeFits({
       fit,
-      kept: flavorsThatFit({
-        flavors,
-        request: {},
-      },)
-        .flavors,
+      kept: keptBeforeFloors,
       region,
       request,
     },);

@@ -18,7 +18,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  flavorsThatFit,
+  hourlyPriceFor,
   NoFlavorInStockError,
+  NO_PRICE,
   NoSizeFitsError,
   orderFlavors,
   resolveFlavor,
@@ -106,6 +109,79 @@ const REAL_SHAPED = [
 ] as const satisfies readonly OvhFlavor[];
 
 //endregion Size fixtures
+
+//region Price fixtures
+
+/**
+ The live hourly prices of 2026-11-28, in Canadian dollars per hour, as the
+ catalogue stated them: the two that make the order matter are `b2-7` at 0.1135
+ and `d2-8` at 0.0596, which has more vCPUs and more memory for less money.
+ */
+const PRICES = new Map([
+  ['b2-7.consumption', 0.1135,],
+  ['c3-4.consumption', 0.0732,],
+  ['d2-2.consumption', 0.0167,],
+  ['d2-4.consumption', 0.033,],
+  ['d2-8.consumption', 0.0596,],
+],);
+
+/**
+ Sizes priced by the live catalogue, named the way the region names them.
+ */
+const PRICED = [
+  flavorAnswer({
+    disk: 25,
+    hourlyPlanCode: 'd2-2.consumption',
+    id: 'd2-2',
+    ram: 2,
+    vcpus: 1,
+  },),
+  flavorAnswer({
+    disk: 50,
+    hourlyPlanCode: 'd2-4.consumption',
+    id: 'd2-4',
+    ram: 4,
+    vcpus: 2,
+  },),
+  flavorAnswer({
+    disk: 50,
+    hourlyPlanCode: 'c3-4.consumption',
+    id: 'c3-4',
+    ram: 4,
+    vcpus: 2,
+  },),
+  flavorAnswer({
+    disk: 50,
+    hourlyPlanCode: 'b2-7.consumption',
+    id: 'b2-7',
+    ram: 7,
+    vcpus: 2,
+  },),
+  flavorAnswer({
+    disk: 50,
+    hourlyPlanCode: 'd2-8.consumption',
+    id: 'd2-8',
+    ram: 8,
+    vcpus: 4,
+  },),
+  flavorAnswer({
+    disk: 50,
+    id: 'c3-4-flex',
+    ram: 4,
+    vcpus: 2,
+  },),
+] as const satisfies readonly OvhFlavor[];
+
+/**
+ The live prices, as a create hands them to the walk.
+ */
+const PRICED_CHOICE = {
+  currency: 'CAD',
+  kind: 'priced',
+  prices: PRICES,
+} as const;
+
+//endregion Price fixtures
 
 await describe({
   name: 'ovh flavors',
@@ -299,6 +375,7 @@ await describe({
         await using _env = await installEnv();
         using standIn = installStandIn(() => jsonAnswer(REAL_SHAPED));
         const fit = await resolveFlavorsThatFit({
+          priceChoice: { kind: 'unpriced', },
           region: 'bhs5',
           request: { memoryGiB: ASKED_MEMORY_GIB, vcpus: ASKED_VCPUS },
         });
@@ -323,6 +400,7 @@ await describe({
         await using _env = await installEnv();
         using standIn = installStandIn(() => jsonAnswer(REAL_SHAPED));
         const fit = await resolveFlavorsThatFit({
+          priceChoice: { kind: 'unpriced', },
           region: 'bhs5',
           request: { vcpus: ASKED_VCPUS },
         });
@@ -339,7 +417,11 @@ await describe({
         );
         const error = await errorFrom({
           run: async function choose() {
-            await resolveFlavorsThatFit({ region: 'bhs5', request: { vcpus: 1 } });
+            await resolveFlavorsThatFit({
+              priceChoice: { kind: 'unpriced', },
+              region: 'bhs5',
+              request: { vcpus: 1 },
+            });
           },
         });
         expect(error).toBeInstanceOf(NoSizeFitsError);
@@ -358,6 +440,7 @@ await describe({
         const error = await errorFrom({
           run: async function choose() {
             await resolveFlavorsThatFit({
+              priceChoice: { kind: 'unpriced', },
               region: 'bhs5',
               request: { memoryGiB: 512, vcpus: 128 },
             });
@@ -380,6 +463,7 @@ await describe({
           run: async function choose() {
             await resolveFlavorsThatFit({
               override: 'b3-8',
+              priceChoice: { kind: 'unpriced', },
               region: 'bhs5',
               request: { vcpus: ASKED_VCPUS },
             });
@@ -392,5 +476,102 @@ await describe({
     }),
 
     //endregion Sizes a request may use
+
+    //region The order among the sizes that fit
+
+    it({
+      name: 'takes the cheapest size that fits, not the smallest numbers, when the prices were read',
+      fn: async () => {
+        const fit = flavorsThatFit({
+          flavors: PRICED,
+          priceChoice: PRICED_CHOICE,
+          request: { memoryGiB: 6, vcpus: 2 },
+        });
+        // b2-7 (2 vCPUs, 7 GiB) fits and costs 0.1135; d2-8 (4 vCPUs, 8 GiB)
+        // fits and costs 0.0596, so the larger machine is the one taken.
+        expect(fit.flavors[0]?.id).toBe('d2-8');
+        expect(fit.order).toBe('price');
+        /**
+         The winner itself, whose price the report below is about.
+         */
+        const [winner,] = fit.flavors;
+        if (winner === undefined) {
+          throw new Error('expected one size that fits',);
+        }
+        expect(hourlyPriceFor({ flavor: winner, priceChoice: PRICED_CHOICE }))
+          .toBeCloseTo(0.0596);
+      },
+    }),
+    it({
+      name: 'never takes a size the catalogue publishes no hourly price for',
+      fn: async () => {
+        const fit = flavorsThatFit({
+          flavors: PRICED,
+          priceChoice: PRICED_CHOICE,
+          request: { vcpus: 2 },
+        });
+        expect(
+          fit.flavors.map(function flavorId(flavor) {
+            return flavor.id;
+          }),
+        ).not.toContain('c3-4-flex');
+      },
+    }),
+    it({
+      name: 'orders by the numbers alone and says so when no price could be read',
+      fn: async () => {
+        const fit = flavorsThatFit({
+          flavors: PRICED,
+          priceChoice: { kind: 'unpriced' },
+          request: { memoryGiB: 6, vcpus: 2 },
+        });
+        expect(fit.order).toBe('size-numbers');
+        expect(fit.flavors[0]?.id).toBe('b2-7');
+        /**
+         The fallback's own winner, which carries no price to report.
+         */
+        const [winner,] = fit.flavors;
+        if (winner === undefined) {
+          throw new Error('expected one size that fits',);
+        }
+        expect(hourlyPriceFor({ flavor: winner, priceChoice: { kind: 'unpriced' } }))
+          .toBe(NO_PRICE);
+      },
+    }),
+    it({
+      name: 'answers NO_PRICE for a size whose body carries no plan code',
+      fn: async () => {
+        expect(
+          hourlyPriceFor({
+            flavor: flavorAnswer({ id: 'unpriced-size' }),
+            priceChoice: PRICED_CHOICE,
+          }),
+        ).toBe(NO_PRICE);
+      },
+    }),
+    it({
+      name: 'refuses with the price named when only unpriced sizes meet the floors',
+      fn: async () => {
+        await using _env = await installEnv();
+        using standIn = installStandIn(
+          () => jsonAnswer([flavorAnswer({ disk: 50, id: 'b3-8', ram: 8, vcpus: 2 })]),
+        );
+        const error = await errorFrom({
+          run: async function choose() {
+            await resolveFlavorsThatFit({
+              priceChoice: PRICED_CHOICE,
+              region: 'bhs5',
+              request: { vcpus: 2 },
+            });
+          },
+        });
+        expect((error as Error).message).toContain('no size in region bhs5');
+        expect((error as Error).message).toContain('no price in the CAD catalogue');
+        expect((error as Error).message).toContain('--server-type');
+        expect(standIn.calls.length).toBeGreaterThan(0);
+      },
+    }),
+
+    //endregion The order among the sizes that fit
   ],
 },);

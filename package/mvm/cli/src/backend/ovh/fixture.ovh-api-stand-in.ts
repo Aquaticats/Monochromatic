@@ -843,6 +843,8 @@ export function imageAnswer({
  
  @param available - whether the flavor is in stock
  
+ @param hourlyPlanCode - the plan code the public catalogue prices this flavor by, or omitted when the body carries none
+ 
  @param id - flavor identifier
  
  @param osType - operating system family
@@ -863,6 +865,7 @@ export function imageAnswer({
 export function flavorAnswer({
   available = true,
   disk = 20,
+  hourlyPlanCode,
   id = 'flavor-small',
   name = id,
   osType = 'linux',
@@ -872,6 +875,7 @@ export function flavorAnswer({
 }: {
   readonly available?: boolean;
   readonly disk?: number;
+  readonly hourlyPlanCode?: string;
   readonly id?: string;
   readonly name?: string;
   readonly osType?: string;
@@ -889,6 +893,7 @@ export function flavorAnswer({
     osType,
     type: 'general',
     available,
+    ...((hourlyPlanCode === undefined) ? {} : { planCodes: { hourly: hourlyPlanCode, }, }),
     quota: 10,
   };
 }

@@ -24,16 +24,23 @@ import {
   type SizeRequest,
   NoSizeFitsError
 } from '../size-request.ts';
+import { NO_PRICE, } from './catalog-prices.ts';
+import { readPriceChoice, } from './read-price-choice.ts';
 import {
   createInstance,
   listImages,
 } from './api-resources.ts';
-import { DEFAULT_IMAGE, } from './config.ts';
+import {
+  DEFAULT_IMAGE,
+  requireCredentials,
+} from './config.ts';
 import { failedProvisionError, } from './discarding.ts';
 import {
+  hourlyPriceFor,
   NoFlavorInStockError,
   resolveFlavor,
   resolveFlavorsThatFit,
+  type PriceChoice,
 } from './flavors.ts';
 import {
   resolveImage,
@@ -107,6 +114,7 @@ export type SshTarget = {
 async function provisionInRegion({
   image,
   name,
+  priceChoice,
   region,
   request,
   rl,
@@ -115,6 +123,7 @@ async function provisionInRegion({
 }: {
   readonly image?: string;
   readonly name: string;
+  readonly priceChoice: PriceChoice;
   readonly region: string;
   readonly request: SizeRequest;
   readonly rl: Logger;
@@ -125,6 +134,7 @@ async function provisionInRegion({
    Size and image this region gives the instance.
    */
   const chosen = await chooseFlavorAndImage({
+    priceChoice,
     region,
     request,
     rl,
@@ -184,18 +194,21 @@ async function provisionInRegion({
 async function chooseFlavorAndImage({
   image,
   override,
+  priceChoice,
   region,
   request,
   rl,
 }: {
   readonly image?: string;
   readonly override?: string;
+  readonly priceChoice: PriceChoice;
   readonly region: string;
   readonly request: SizeRequest;
   readonly rl: Logger;
 }): Promise<{
   readonly flavor: OvhFlavor;
   readonly image: OvhImage;
+  readonly priceChoice: PriceChoice;
 }> {
   /**
    Image shorthand this create asked for.
@@ -216,6 +229,7 @@ async function chooseFlavorAndImage({
         region,
         shorthand,
       },),
+      priceChoice,
     };
   }
   /**
@@ -226,6 +240,7 @@ async function chooseFlavorAndImage({
    Sizes that meet the request, smallest first.
    */
   const fit = await resolveFlavorsThatFit({
+    priceChoice,
     region,
     request,
     ...((override === undefined) ? {} : { override, }),
@@ -246,12 +261,22 @@ async function chooseFlavorAndImage({
         region,
         shorthand,
       },);
+      /**
+       Hourly price of this candidate, or {@link NO_PRICE} when none could be read.
+       */
+      const price = hourlyPriceFor({
+        flavor,
+        priceChoice,
+      },);
       rl.info(
-        `size ${describeSizeRequest({ request, },)} fits ${flavor.name} (${String(flavor.vcpus,)} vCPUs, ${String(flavor.ram,)} GiB of memory, ${String(flavor.disk,)} GB of disk)`,
+        `size ${describeSizeRequest({ request, },)} fits ${flavor.name} (${String(flavor.vcpus,)} vCPUs, ${String(flavor.ram,)} GiB of memory, ${String(flavor.disk,)} GB of disk)${
+          (price === NO_PRICE) ? ', no published hourly price could be read so the smallest numbers win' : `, ${String(price,)} ${(priceChoice.kind === 'priced') ? priceChoice.currency : ''} per hour${(fit.order === 'price') ? '' : ', read by size because no price was available'}`
+        }`,
       );
       return {
         flavor,
         image: imageForCandidate,
+        priceChoice,
       };
     }
     catch (error: unknown) {
@@ -321,6 +346,10 @@ export async function provisionInstance({
    */
   const regions = await resolveRegions(location,);
   /**
+   Hourly prices of this create, read once, or the record that they could not be.
+   */
+  const priceChoice = await readPriceChoice({ rl, },);
+  /**
    One refusal per region that had nothing usable, reported together when no
    region can give the machine.
    */
@@ -330,6 +359,7 @@ export async function provisionInstance({
       // oxlint-disable-next-line no-await-in-loop -- sequential so a region with nothing in stock falls through to the next
       return await provisionInRegion({
         name: fullName,
+        priceChoice,
         region,
         request,
         rl,
@@ -366,6 +396,8 @@ export async function provisionInstance({
 }
 
 //endregion Provisioning
+
+
 
 //region Reaching
 
