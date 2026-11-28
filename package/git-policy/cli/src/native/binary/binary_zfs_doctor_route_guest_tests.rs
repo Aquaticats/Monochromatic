@@ -1115,7 +1115,8 @@ fn staging_facts() -> StagingFolderFacts {
 
 /// The three groups pass on the design's layout,
 /// the removal-side lines pass on a clone no record names,
-/// the five later steps are unknown,
+/// the cancel command passes and every check whose fact this arm does not
+/// read is unknown,
 /// and each broken fact answers the finding that names it.
 #[test]
 fn zfs_doctor_route_guest_three_groups_and_each_finding() {
@@ -1182,7 +1183,17 @@ fn zfs_doctor_route_guest_three_groups_and_each_finding() {
     ] {
         assert_pass(&reports, name);
     }
-    println!("DOCTOR-GUEST later-steps-are-unknown");
+    println!("DOCTOR-GUEST unread-step-facts-are-unknown");
+    let cancel: &CheckReport = report_of(&reports, "cancel-command");
+    assert!(cancel.passed(), "{}", cancel.line());
+    for name in [
+        "boot-protection",
+        "service-unit",
+        "backup-coverage",
+        "sanoid",
+    ] {
+        assert_unknown(&reports, name);
+    }
     break_each_fact();
 }
 
@@ -1211,7 +1222,109 @@ fn route_facts(boot: &str) -> git_policy_cli::doctor_zfs_route::RouteFacts {
         live_boot: String::from(boot),
         requests: request_facts(),
         staging: staging_facts(),
+        boot_protection: unread_boot_protection(),
+        boot_setup: unread_boot_setup(),
+        cancel_command: cancel_command_facts(),
+        sanoid: unread_sanoid(),
     };
+}
+
+/// What:
+///  The covered entry this arm does not read,
+///  stated as the refusal a read would have to report.
+/// Why:
+///  the entry's protection is plan step 19's own arm,
+///  and an arm that filled a shape by hand would claim a reading of the guest's
+///  own underlay that it never made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entry = { kind: 'refused', what: 'the `statx` read', path: FIXTURE, reason: 'this arm reads no underlay entry' };
+/// ```
+fn unread_boot_protection() -> git_policy_cli::doctor_zfs_route::BootProtectionFacts {
+    return git_policy_cli::doctor_zfs_route::BootProtectionFacts {
+        entry: Err(
+            git_policy_cli::checkout_underlay_entry::underlay_entry_read::EntryReadRefusal::Call {
+                what: "the `statx` read",
+                path: PathBuf::from(FIXTURE),
+                reason: String::from("this arm reads no underlay entry"),
+            },
+        ),
+        wanted_owner: ACCOUNT,
+    };
+}
+
+/// What:
+///  The boot setup this arm does not read:
+///  a gate whose file nobody looked at,
+///  and no dataset measured under the checkout.
+/// Why:
+///  the files and the property are plan step 19's own arm,
+///  and a reading nobody gathered has to answer unknown rather than pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const setup = { gate: { path: '/etc/systemd/system/…', plannedText: '', atThePath: { kind: 'unreadable', why: 'this arm reads no boot setup' } }, others: [], keyUnit: undefined, nested: [] };
+/// ```
+fn unread_boot_setup() -> git_policy_cli::doctor_zfs_route::BootSetupFacts {
+    return git_policy_cli::doctor_zfs_route::BootSetupFacts {
+        gate: git_policy_cli::doctor_zfs_route::PlannedFileReading {
+            path: PathBuf::from(
+                git_policy_cli::checkout_boot_units::boot_unit_names::BOOT_GATE_UNIT_PATH,
+            ),
+            planned_text: String::new(),
+            at_the_path: git_policy_cli::doctor_zfs_route::FileAtInstallPath::Unreadable {
+                why: String::from("this arm reads no boot setup"),
+            },
+        },
+        others: Vec::new(),
+        key_unit: None,
+        nested: Vec::new(),
+    };
+}
+
+/// What:
+///  The cancel command's facts,
+///  read from the command's own grammar.
+/// Why:
+///  the line's only fact is the built command,
+///  and this arm is another crate,
+///  so it reads the grammar where the wiring run does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const cancel = { word: CANCEL_COMMAND_WORD, usageLine: usage().split('\n')[0] };
+/// ```
+fn cancel_command_facts() -> git_policy_cli::doctor_zfs_route::CancelCommandFacts {
+    let text: String = git_policy_cli::worktree_clone_removal_cancel::cancel_arguments::usage();
+    let first_line: String = String::from(text.lines().next().expect("the usage has a line"));
+    return git_policy_cli::doctor_zfs_route::CancelCommandFacts {
+        word: String::from(
+            git_policy_cli::worktree_clone_removal_cancel::cancel_arguments::CANCEL_COMMAND_WORD,
+        ),
+        usage_line: first_line,
+    };
+}
+
+/// What:
+///  The Sanoid comparison this arm does not make,
+///  answered unknown in the shape the report takes.
+/// Why:
+///  the coverage comparison reads a configuration and a dataset tree this
+///  arm's fixture does not build,
+///  so the line says so instead of standing in for a comparison nobody ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sanoid = { outcome: { kind: 'unknown', reason: 'this arm reads no sanoid.conf' }, lines: [] };
+/// ```
+fn unread_sanoid() -> git_policy_cli::doctor_zfs_route::SanoidReport {
+    return git_policy_cli::doctor_zfs_route::SanoidReport::new(
+        CheckOutcome::Unknown {
+            reason: String::from("this arm reads no `sanoid.conf` and measures no dataset tree"),
+        },
+        Vec::new(),
+    );
 }
 
 /// What:

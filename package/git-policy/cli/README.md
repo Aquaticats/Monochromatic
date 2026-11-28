@@ -2640,6 +2640,25 @@ so a receipt,
 readiness record or clone record is not printed by `doctor` yet,
 and the sentences that name one say so.
 
+Four of those lines answer from facts this release already carries,
+and one still cannot.
+The boot setup plan step 19 installs is judged against the files the plan writes and against every dataset
+measured under the checkout:
+the provider the gate orders itself on,
+the key-loading unit when the machine has one,
+the two bounds,
+the installed files' identity,
+and each dataset that is not `canmount=noauto`,
+with the `zfs set` that settles it.
+The checkout's covered entry answers the underlay entry's own verdict,
+the cancel command's line answers from the command's own usage,
+and Sanoid's coverage answers from the comparison in `src/native/health/sanoid_coverage/`
+with the correction for each confirmed drift.
+The backup coverage is the line that answers unknown,
+because the arm that reads which paths a configured backup job can see,
+and whether a restore brings the checkout back with its origins still pinned,
+is not built.
+
 A binding whose recorded clone is gone and whose absence the pool cannot prove keeps its slot refusing the next add,
 and the command that settles it is built and reachable from nothing:
 `git monochromatic-git-policy-cli settle-worktree-clone-record <slot> --confirm-removal-of <slot> --confirm-clone-guid <the last four decimal digits of cloneGuid=>`

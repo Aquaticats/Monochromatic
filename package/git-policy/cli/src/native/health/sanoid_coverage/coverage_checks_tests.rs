@@ -609,3 +609,59 @@ fn the_healthy_text_is_the_decisions_own() {
         "only {WORKTREES} stands under the ancestor"
     );
 }
+
+/// The report shape this folder hands `doctor` carries the comparison's own
+/// answer and the correction beside it,
+/// because the wiring run prints the corrections under the check's line and
+/// never builds a second sentence of its own.
+#[test]
+fn the_report_shape_carries_the_answer_and_its_correction() {
+    let drifted: CoverageFacts = facts_of(
+        healthy_tree(),
+        text_of(&[
+            (ROOT, "  use_template = home\n  recursive = no\n"),
+            (NPM, OFF_BODY),
+            (PROBE, OFF_BODY),
+            (STORE, OFF_BODY),
+            (WORKTREES, OFF_BODY),
+        ])
+        .as_str(),
+    );
+    let report: crate::doctor_zfs_route::SanoidReport =
+        crate::health::sanoid_coverage::sanoid_report(&drifted);
+    assert!(
+        !matches!(report.outcome, CheckOutcome::Pass { .. }),
+        "{:?}",
+        report.outcome
+    );
+    // What:     the correction a person applies, built by the producer that
+    //           writes every recursion correction rather than typed here.
+    // Why:      a typed sentence would pass while the text a person is told to
+    //           write drifted from the one the comparison prints.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const correction = `correction: ${changeRecursionCorrection(CONFIG_PATH, ROOT, 'no')}`;
+    // ```
+    let correction: String = format!(
+        "correction: {}",
+        crate::health::sanoid_coverage::coverage_words::change_recursion_correction(
+            CONFIG_PATH,
+            ROOT,
+            "no"
+        )
+    );
+    assert!(
+        report.lines.iter().any(|line| return *line == correction),
+        "{correction} is in {:?}",
+        report.lines
+    );
+    let healthy: crate::doctor_zfs_route::SanoidReport =
+        crate::health::sanoid_coverage::sanoid_report(&healthy_facts());
+    assert!(
+        matches!(healthy.outcome, CheckOutcome::Pass { .. }),
+        "{:?}",
+        healthy.outcome
+    );
+    assert!(healthy.lines.is_empty(), "{:?}", healthy.lines);
+}

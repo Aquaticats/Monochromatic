@@ -15,7 +15,10 @@
 //!  the latest readiness and unresolved requests,
 //!  the staging folder and its bind's propagation,
 //!  the holders of a clone,
-//!  and the checks later steps still owe.
+//!  the boot setup plan step 19 installs and the checkout's covered entry,
+//!  the cancel command step 17 built,
+//!  the backup coverage plan step 19 owes,
+//!  and Sanoid's coverage plan step 20 decides.
 //! Why:
 //!  The step's checks are read-only apart from the two staging forms it
 //!  removes,
@@ -179,9 +182,31 @@
 //!   the snapshots already destroyed,
 //!   the holders,
 //!   and what may end them.
-//! - `later_step_checks.rs`:
-//!   every check a later step builds,
-//!   answered unknown and naming that step.
+//! - `boot_setup_facts.rs`:
+//!   the values the boot setup's unit texts are read from,
+//!   each dataset under the checkout with its `canmount` value,
+//!   and one reading of every file the plan writes.
+//! - `boot_setup_checks.rs`:
+//!   the boot and shutdown units against the files this build's plan writes
+//!   and against `canmount` on every dataset under the checkout.
+//! - `boot_protection_checks.rs`:
+//!   the immutable covered entry's three answers.
+//! - `cancel_command_checks.rs`:
+//!   the cancel command this build carries,
+//!   answered from the words its own grammar states.
+//! - `backup_coverage_checks.rs`:
+//!   the backup coverage plan step 19 owes,
+//!   answered unknown because the arm
+//!   that reads it is not built.
+//! - `sanoid_report.rs`:
+//!   Sanoid's coverage comparison as this report takes it:
+//!   one answer and the corrections below it.
+//! - `later_checks_report_lines.rs`:
+//!   the report lines of the cancel command,
+//!   the boot setup,
+//!   the covered entry,
+//!   the backup coverage and Sanoid's coverage,
+//!   in the order the report prints them.
 //! - `route_checks.rs`:
 //!   one list of every check's answer for the report the wiring run prints.
 //!
@@ -319,8 +344,28 @@ pub mod clone_retention_checks;
 /// The blocked-removal state of one clone.
 pub mod blocked_removal_checks;
 
-/// The checks later steps still owe.
-pub mod later_step_checks;
+/// The values the boot setup's texts are read from and what stands on the
+/// machine.
+pub mod boot_setup_facts;
+
+/// The boot and shutdown units against the installed files and the datasets.
+pub mod boot_setup_checks;
+
+/// The immutable covered entry's three answers.
+pub mod boot_protection_checks;
+
+/// The cancel command this build carries.
+pub mod cancel_command_checks;
+
+/// The backup coverage the arm that reads it is not built for.
+pub mod backup_coverage_checks;
+
+/// Sanoid's coverage comparison as this report takes it.
+pub mod sanoid_report;
+
+/// The report lines of the checks plan steps 17,
+/// 19 and 20 add.
+pub mod later_checks_report_lines;
 
 /// Every check's answer in one list.
 pub mod route_checks;
@@ -375,12 +420,19 @@ mod route_test_facts_handler;
 #[cfg(test)]
 mod route_test_facts_clone;
 
+/// The covered entry,
+/// the boot setup and the Sanoid comparison of a healthy machine.
+#[cfg(test)]
+mod route_test_facts_boot_and_sanoid;
+
 /// The removal-side lines' guest arm,
 /// compiled for tests only and run in the throwaway guest.
 #[cfg(test)]
 #[path = "clone_lines_guest_arm_tests.rs"]
 mod clone_lines_guest_arm_tests;
 
+/// The backup coverage no arm reads yet.
+pub use backup_coverage_checks::check_backup_coverage;
 /// The binding record one add wrote.
 pub use binding_record_checks::{
     NOT_RECORDED,
@@ -390,6 +442,26 @@ pub use binding_record_checks::{
 pub use blocked_removal_checks::{
     BlockedRemovalFacts,
     check_blocked_removal,
+};
+/// The immutable covered entry's three answers.
+pub use boot_protection_checks::{
+    BootProtectionFacts,
+    check_boot_protection,
+};
+/// The boot and shutdown units against the installed files.
+pub use boot_setup_checks::check_service_unit;
+/// The boot setup's facts,
+/// the files the plan writes and the datasets under the checkout.
+pub use boot_setup_facts::{
+    BootSetupFacts,
+    FileAtInstallPath,
+    NestedDatasetSetting,
+    PlannedFileReading,
+};
+/// The cancel command this build carries.
+pub use cancel_command_checks::{
+    CancelCommandFacts,
+    check_cancel_command,
 };
 /// What one check answered.
 pub use check_outcome::{
@@ -483,11 +555,6 @@ pub use identity_checks::{
     check_slot_identity,
     walk_refusal_is_unproved,
 };
-/// The checks later steps still owe.
-pub use later_step_checks::{
-    LaterStep,
-    check_later_step,
-};
 /// The sentence one slot's managed Git lock prints.
 pub use managed_lock_checks::{
     ManagedLockFacts,
@@ -522,6 +589,8 @@ pub use route_checks::{
     RouteFacts,
     route_checks,
 };
+/// Sanoid's coverage comparison as this report takes it.
+pub use sanoid_report::SanoidReport;
 /// The `snapdir` of the checkout dataset and of the clone container.
 pub use snapshot_directory_checks::{
     SNAPDIR_DISABLED,

@@ -21,7 +21,10 @@
 //!  its origin,
 //!  its retention,
 //!  its blocked-removal state and the namespaces that hold it,
-//!  and the checks later steps owe
+//!  the boot setup and the covered entry plan step 19 installs,
+//!  the cancel command this build carries,
+//!  the backup coverage step 19 still owes,
+//!  and Sanoid's coverage step 20 decides
 //!  (`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
 //!  "What doctor checks and prints";
 //!  plan step 18,
@@ -49,6 +52,9 @@ use super::blocked_removal_checks::{
     BlockedRemovalFacts,
     check_blocked_removal,
 };
+use super::boot_protection_checks::BootProtectionFacts;
+use super::boot_setup_facts::BootSetupFacts;
+use super::cancel_command_checks::CancelCommandFacts;
 use super::check_outcome::{
     Check,
     CheckOutcome,
@@ -97,9 +103,9 @@ use super::identity_checks::{
     check_parent_identity,
     check_slot_identity,
 };
-use super::later_step_checks::{
-    LaterStep,
-    check_later_step,
+use super::later_checks_report_lines::{
+    LaterCheckFacts,
+    later_checks_reports,
 };
 use super::managed_lock_checks::{
     ManagedLockFacts,
@@ -119,6 +125,7 @@ use super::removal_plan_checks::{
     RemovalPlanFacts,
     check_removal_plan,
 };
+use super::sanoid_report::SanoidReport;
 use super::snapshot_directory_checks::snapdir_report;
 use super::staging_folder_checks::{
     StagingBind,
@@ -239,6 +246,19 @@ pub struct RouteFacts {
     pub staging_binds: Vec<StagingBind>,
     /// One group per managed clone the store lists.
     pub clones: Vec<CloneFacts>,
+    /// The checkout's covered entry and the account that must own it,
+    /// which plan step 19's protection is read from.
+    pub boot_protection: BootProtectionFacts,
+    /// The boot setup's plan,
+    /// the files installed from it and the datasets measured under the
+    /// checkout.
+    pub boot_setup: BootSetupFacts,
+    /// The cancel command this build carries,
+    /// as its own grammar states it.
+    pub cancel_command: CancelCommandFacts,
+    /// Sanoid's coverage comparison as the coverage folder answered it,
+    /// with the corrections below its line.
+    pub sanoid: SanoidReport,
 }
 
 /// What:
@@ -350,9 +370,12 @@ pub fn route_checks(facts: &RouteFacts) -> Vec<CheckReport> {
         check_staging_bind_propagation(&facts.staging_binds),
     ));
     reports.extend(clone_reports(facts));
-    for &step in LaterStep::ALL {
-        reports.push(CheckReport::new(step.check(), check_later_step(step)));
-    }
+    reports.extend(later_checks_reports(&LaterCheckFacts {
+        boot_protection: &facts.boot_protection,
+        boot_setup: &facts.boot_setup,
+        cancel_command: &facts.cancel_command,
+        sanoid: &facts.sanoid,
+    }));
     return reports;
 }
 
