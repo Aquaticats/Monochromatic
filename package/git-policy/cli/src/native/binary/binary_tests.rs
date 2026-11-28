@@ -1401,3 +1401,29 @@ mod zfs_grammar_commands_guest;
 /// and a same-name replacement clone refused on its GUID.
 #[path = "binary_zfs_removal_refusal_guest_tests.rs"]
 mod zfs_removal_refusal_guest;
+
+/// The forced removal's guest arms' own fixture:
+/// one pool, one real registration and one real clone,
+/// the records an add writes,
+/// and the two children an arm drives.
+#[path = "binary_zfs_removal_force_guest_fixture.rs"]
+mod zfs_removal_force_guest_fixture;
+
+/// The forced removal's arms on a real pool and a real mount:
+/// a clone an interrupted removal left on the staging folder,
+/// the forced run's live proof and its snapshot batch,
+/// and a clone the wrapper cannot prove.
+#[path = "binary_zfs_removal_force_guest_arms_tests.rs"]
+mod zfs_removal_force_guest_arms;
+
+/// The forced removal's arms whose subject is a destruction plan that cannot be
+/// read:
+/// the settling command beside the removal with no force, one force and two.
+#[path = "binary_zfs_removal_force_guest_plan_tests.rs"]
+mod zfs_removal_force_guest_plan;
+
+/// The forced removal's arms whose subject is what a person left on the slot:
+/// a lock Git wrote,
+/// and a worktree holding a change.
+#[path = "binary_zfs_removal_force_guest_lock_and_changes_tests.rs"]
+mod zfs_removal_force_guest_lock_and_changes;

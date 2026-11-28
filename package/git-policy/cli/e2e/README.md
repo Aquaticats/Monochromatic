@@ -1640,6 +1640,75 @@ node e2e/forced-act-guest.ts all --name <guest> --log-dir <dir>
 node e2e/forced-act-guest.ts arm --name <guest> --log-dir <dir>
 ```
 
+## The forced removal's guest arms
+
+`removal-force-guest.ts` runs the force gradation the owner answered on 2026-11-28
+(`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"What force does on a ZFS removal, two refusals without it, and the foundation pick")
+against a real pool in a guest of the same recipe,
+where every one of these steps is a mount,
+a destroy or a `/dev/zfs` request
+(arms in `src/native/binary/binary_zfs_removal_force_guest_*`,
+fixture in `binary_zfs_removal_force_guest_fixture.rs`).
+Each arm makes its own pool from a file,
+its own checkout with one real registration,
+one real clone that wants its mount,
+and the binding and origin-side records an add writes,
+so a refusal is visible in the pool's own lists and in the records that stand beside it.
+The arms:
+
+- `1`,
+a clone an interrupted removal left mounted on its staging folder:
+the pool refuses to destroy it there,
+one force unmounts it there and then destroys it,
+and the handler's own receipt is the answer the forced run verified;
+- `2`,
+the forced run's live proof and its snapshot batch:
+the names the pool lists are the names the report records as destroyed,
+in the pool's order,
+and the head goes after them;
+- `3`,
+a clone the wrapper cannot prove,
+because the name the add's record holds answers another GUID:
+no force and one force refuse it,
+two forces destroy it,
+and the report names the record's GUID and the pool's;
+- `4a`, `4b`, `4c`,
+a destruction plan whose file cannot be read:
+the settling command beside the removal with no force, with one force and with two,
+each read against the plan's bytes and the pool's lists;
+- `4d`,
+the state the building round chose to refuse,
+where the plan cannot be read and the clone is gone:
+one force and two alike refuse,
+and the settling command refuses the same plan,
+so a person has no route through this release;
+- `5`,
+a person's lock,
+which the arm lets Git write so the file, the words and the mode `0644` are Git's own:
+no force and one force refuse it naming `git worktree unlock` and two forces,
+and two forces delete the lock and remove the worktree;
+- `6a`, `6b`, `6c`,
+a worktree at the bound slot holding a modified file, an untracked file and a staged
+change,
+which is the building round's own reading of Git's cleanliness rule with the owner's veto
+open:
+refused without force as Git's own removal refuses it and removed with one.
+
+```sh
+# package/git-policy/cli: one guest for every arm, or one arm against a guest whose build stands
+node e2e/removal-force-guest.ts all --name <guest> --log-dir <dir>
+node e2e/removal-force-guest.ts arm --name <guest> --log-dir <dir> --arms 4a
+```
+
+`--fresh` throws the guest's built tree away before building,
+which a first build needs and a rebuild of a planted change does not,
+so a run that plants one file costs a rebuild of the crate and not of every dependency.
+`--arms` selects arms by the names above,
+and the driver fails a run whose pulled `removal-force-arm.log` lacks the line a selected
+arm promises or holds a `SKIPPED` line,
+so an arm that returned without running fails the run instead of reporting a green suite.
+
 ## Guest work that runs longer than the agent's safe length
 
 A guest command of a driver's step runs in a process group of its own,
