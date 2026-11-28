@@ -36,10 +36,9 @@
 //!  one,
 //!  and the import that renames the type (`use std::process::Command as Cmd;`) is a finding of its own,
 //!  so a start whose type another name spells is refused where that name is brought in.
-//!  A literal further than the next code line from the call's `(`,
-//!  and one a comment line separates from
-//!  it,
-//!  are not read.
+//!  A literal further than the next code line from the call's `(` is not read.
+//!  A comment line between the call's `(` and its literal hides nothing:
+//!  the reading joins the next code line, and a comment line is not one.
 //!  A comment is a line whose first characters are `//`,
 //!  so a banned text written after code on a line is a finding.
 //! Why:
@@ -217,11 +216,16 @@ fn starts_the_manager_s_program(line: &str) -> bool {
 ///  and that literal is the only thing that says which program it starts
 ///  (the alpha.52 read's L2).
 ///  Only the next code line is joined,
-///  which is the line a literal there stands on;
-///  a literal further down,
-///  or one a comment line separates from the call,
-///  is no reading here,
+///  which is the line a literal there stands on,
+///  and a comment line between the two is no code line,
+///  so a literal behind one is read.
+///  A literal further down is no reading here,
 ///  and this guard's top doc says so.
+///  A line is joined only where the call's `(` ends it,
+///  which is the shape the literal on the next line completes,
+///  and a start the next line spells on its own is left to that line's own turn,
+///  so one start is one finding
+///  (the alpha.53 no-change read's L6).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,9 +239,20 @@ fn lines_starting_the_manager_s_program(text: &str) -> Vec<(usize, String)> {
             found.push((*number, String::from(*line)));
             continue;
         }
+        // What: only a line whose call's `(` ends it can be finished by the next line's literal,
+        //       and only a next line that is no start of its own is that literal.
+        // Why:  every line was joined with the next one, so a one-line start matched at its own line, again
+        //       through the join of the line before it with it, which is two findings for one start
+        //       (the alpha.53 no-change read's L6).
+        if !line.trim_end().ends_with('(') {
+            continue;
+        }
         let Some((_, after)) = lines.get(at + 1) else {
             continue;
         };
+        if starts_the_manager_s_program(after) {
+            continue;
+        }
         let joined: String = format!("{line} {after}");
         if starts_the_manager_s_program(joined.as_str()) {
             found.push((*number, joined));
@@ -513,6 +528,37 @@ fn the_manager_s_program_is_read_when_its_literal_is_on_the_next_line() {
             "{fine}"
         );
     }
+    // What: a comment line between the call's `(` and its literal hides neither the start nor its line.
+    // Why:  this guard's top doc said such a literal is not read, and the reading joins the next code line,
+    //       which skips the comment and does read it (the alpha.53 no-change read's L3).
+    let behind_a_comment: &str = "fn start() {\n    let _ = Command::new(\n        // the manager's own program\n        \"systemctl\",\n    );\n}\n";
+    assert_eq!(
+        lines_starting_the_manager_s_program(behind_a_comment).len(),
+        1,
+        "a literal a comment line separates from the call is read, at the call's line: {behind_a_comment}"
+    );
+}
+
+/// One start of the manager's program is one finding,
+/// at the line the start is written on.
+/// Why:
+///  the guard answered a one-line start three times:
+///  the whole-tree reading checked the line itself,
+///  the next-line reading found it again,
+///  and the line before it, joined with it, matched too,
+///  so a maintainer saw three findings for one start,
+///  one of them numbered a line early and showing two lines of code
+///  (the alpha.53 no-change read's L6).
+#[test]
+fn a_one_line_start_of_the_manager_s_program_is_one_finding() {
+    let planted: &str =
+        "fn start() {\n    let _ = std::process::Command::new(\"systemctl\").arg(\"enable\");\n}\n";
+    let found: Vec<(usize, String)> = lines_starting_the_manager_s_program(planted);
+    assert_eq!(found.len(), 1, "one start is one finding: {found:?}");
+    assert_eq!(
+        found[0].0, 2,
+        "the finding is numbered by the line the start is written on"
+    );
 }
 
 /// A start under another name of the type is a finding where the name is brought in,
@@ -621,11 +667,6 @@ fn no_release_code_makes_a_unit_start_at_startup_or_login() {
                 if line.contains(forbidden) && !boot_start {
                     found.push(format!("{relative}:{number}: {forbidden}"));
                 }
-            }
-            if starts_the_manager_s_program(line) {
-                found.push(format!(
-                    "{relative}:{number}: a start of the manager's own program"
-                ));
             }
             let wants: bool = line.contains(".wants") || line.contains(".requires");
             if !wants {
