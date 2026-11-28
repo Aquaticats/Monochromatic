@@ -1961,9 +1961,8 @@ no argument at all is the clone-mount sweep ZED's own start runs,
 boot's readiness,
 `start-probe` is the root probe's arms and its record,
 `shutdown-unmount` is the shutdown unit's verified unmount,
-which is not built yet and,
-when it is run,
-names the unit that runs it,
+whose pass is built and whose mode refuses,
+naming the unit that runs it,
 and `holder-scan` is the all-namespace holder scan of one dataset under a nonce
 of its own,
 which reads and changes nothing.
@@ -2889,6 +2888,55 @@ a ZED delivery or start,
 a start of the checkout provider,
 the boot unit's reconcile,
 or a lever you fire.
+
+#### The shutdown pass, built and reached by no command
+
+The pass the gate's `ExecStopPost` runs is built in `src/native/worktree_clone_shutdown_unmount_pass/`,
+and no command reaches it in this build:
+`zfs-root shutdown-unmount` still refuses,
+naming the step whose boot unit runs it,
+and the round that wires the mode calls the pass from there.
+What it does,
+in the order the design gives
+(`doc/planning/cli-git-zfs-worktree-design-proposal.md`,
+"Boot and shutdown unit"):
+
+- it withdraws this boot's readiness record,
+  the one `boot-reconcile` publishes,
+  so no attach is admitted after it;
+- it reads the same root-owned configuration the gate's own `ExecStart` read,
+  so the mounts it looks at are the ones that pass made;
+- it takes,
+  from this process's mount table,
+  every standing mount of an immediate child of the configured clone container
+  that stands at a slot of the configured checkout;
+- it proves each one before any kernel call:
+  the folder the slot hangs in is the `.claude/worktrees` folder the route
+  recorded,
+  a fresh walk reaches the same mount the descriptor is on,
+  the device and inode are the walk's own,
+  the path the kernel reports is the slot's,
+  and the row's source,
+  filesystem,
+  root,
+  mount point and parent are the clone's own mount at that slot;
+- it takes the slot's per-slot claim before it acts,
+  and leaves a slot another handler holds to that handler;
+- it unmounts from the held descriptor,
+  without force and without lazy detach;
+- a mount the kernel answers `EBUSY` for stays exactly as it was,
+  and the all-namespace holder scan names what holds it;
+- it files no receipt and changes no clone's durable intent,
+  because it answered no request.
+
+The proof is one guest arm
+(`src/native/binary/binary_zfs_shutdown_unmount_guest_tests.rs`,
+driven by `e2e/shutdown-unmount-guest.ts`):
+an idle clone's mount is unmounted,
+a busy one's is kept and named,
+this boot's readiness is withdrawn before either,
+no attach is admitted afterwards,
+and both clones' durable intent is exactly what it was.
 
 #### Sanoid coverage and the space guard's scope, built and reached by no command
 

@@ -18,7 +18,9 @@
  - way 7 in both shapes, with the directory made, the copy unmoved, and the directory removed;
  - a locked holder, refused before any signal;
  - a locked holder that is a service unit of the guest account's own user manager: the same two refusals before the
-   stop, the manager's stop of that unit, and the host's unmount and the head destroy after it.
+   stop, the manager's stop of that unit, and the host's unmount and the head destroy after it;
+ - a mount namespace no task holds, found by `listns` and ended by the act's own stages, or refused
+   `holder-unendable` on a kernel that answers the listing `ENOSYS`.
  The caller's session's other job stays alive through every phase.
 
  The `user-manager` step is the measurement this round owed: it gives the guest's account a user manager of its own
@@ -28,7 +30,14 @@
  and the arm makes it a third time.
 
  Usage: node e2e/forced-act-guest.ts <create|prepare|user-manager|run|arm|destroy|all> [--name <guest>] [--log-dir <dir>]
+        [--image <mvm template>] [--kernel-release <release>]
+ `--image` names a custom `mvm` template, such as step 23's CachyOS one, and the recipe then checks what the template
+ already carries instead of installing OpenZFS into an Ubuntu guest; `--kernel-release` names the release that template
+ must boot. A run that names neither gets the Ubuntu 24.04 guest this driver always made.
  `create` refuses a name `mvm list` already reports, and `all` destroys only a guest its own `create` returned.
+ `--image` names a custom `mvm` template, such as step 23's CachyOS one, and the recipe then checks what the template
+ already carries instead of installing OpenZFS into an Ubuntu guest; `--kernel-release` names the release that template
+ must boot. A run that names neither gets the Ubuntu 24.04 guest this driver always made.
 
  The evidence of one run is `forced-act-arm.log`, pulled back into the log directory, and a run passes only when it
  carries every `FORCEDACT` line below and no `SKIPPED` line, so an arm that returned without running fails the run
@@ -44,6 +53,10 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  guestBackend,
+} from '../bin/mvm-guest-backend.ts';
+import { ensureTheGuestSharedFolder, } from '../bin/mvm-guest-shared-folder.ts';
 import { copyWrapperSnapshot, } from '../bin/native-wrapper-snapshot.ts';
 import {
   host,
@@ -53,8 +66,11 @@ import {
   guest,
 } from '../bin/mvm-guest-script.ts';
 import {
-  guestDriverOptions,
   type GuestDriverOptions,
+  type RunArguments,
+  flagWord,
+  guestDriverOptions,
+  runArguments,
 } from '../bin/mvm-guest-options.ts';
 import {
   FOLDER_MODE,
@@ -75,6 +91,11 @@ import {
 import {
   measureTheStop,
 } from './forced-act-guest-measurement.ts';
+
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  Milliseconds the guest's build of the library and its tests may take.
@@ -108,6 +129,9 @@ const EXPECTED_MARKERS = [
   'FORCEDACT phase=namespace-way7-shared',
   'FORCEDACT phase=locked-holder-refused',
   'FORCEDACT phase=locked-holder-stopped-through-its-unit',
+  // The taskless namespace's one marker covers both kernels: a kernel without `listns` writes
+  // `phase=taskless-namespace-unlistable`, which holds this text and states the refusal word.
+  'FORCEDACT phase=taskless-namespace',
   'FORCEDACT phase=arm-finished',
 ] as const;
 
@@ -120,6 +144,7 @@ async function create(chosen: GuestDriverOptions,): Promise<void> {
   await recipe({
     chosen,
     step: 'create',
+    extraArgumentWords: recipeExtraArguments(),
   },);
 }
 
@@ -132,7 +157,62 @@ async function prepare(chosen: GuestDriverOptions,): Promise<void> {
   await recipe({
     chosen,
     step: 'prepare',
+    extraArgumentWords: recipeExtraArguments(),
   },);
+}
+
+/**
+ The words the recipe's steps take beyond the guest's name and log folder.
+
+ A run that names a custom template hands the recipe the template and the kernel release it must boot; a run that names
+ neither leaves the recipe on its own Ubuntu 24.04 image, which it installs OpenZFS into.
+
+ @returns the recipe's extra words, empty for a run that names no template
+
+ @example
+ ```ts
+ recipeExtraArguments(); // ['--image', 'cachyos-7.3.5-1-zfs-2.4.4', '--kernel-release', '7.3.5-1-cachyos']
+ ```
+ */
+function recipeExtraArguments(): readonly string[] {
+  /**
+   The words this run's own command line carries.
+   */
+  const read: RunArguments = runArguments({
+    argv: process.argv
+      .slice(2,),
+  },);
+  /**
+   The `mvm` template the run names, empty when it names none.
+   */
+  const image = flagWord({
+    read,
+    flag: '--image',
+    fallback: '',
+  },);
+  /**
+   The kernel release that template boots, empty when the run names none.
+   */
+  const kernelRelease = flagWord({
+    read,
+    flag: '--kernel-release',
+    fallback: '',
+  },);
+  /**
+   The extra words, in the order the recipe reads them.
+   */
+  const words: string[] = [];
+  if (image !== '')
+    words.push(
+      '--image',
+      image,
+    );
+  if (kernelRelease !== '')
+    words.push(
+      '--kernel-release',
+      kernelRelease,
+    );
+  return words;
 }
 
 /**
@@ -187,16 +267,17 @@ async function run(chosen: GuestDriverOptions,): Promise<void> {
     ],
     log: 'host-package.log',
   },);
+  // A backend that mounts no share has no folder for the archive to land in until this makes one.
+  await ensureTheGuestSharedFolder({ chosen, },);
   await host({
     chosen,
     command: 'mvm',
     args: [
-      '--backend',
-      'libvirt',
+      ...backend.mvmArgumentWords,
       'push',
       chosen.name,
       tarball,
-      '/root/subject.tar.gz',
+      backend.pushDestinationOf('subject.tar.gz'),
     ],
     log: 'guest-push.log',
   },);
@@ -309,6 +390,7 @@ async function destroy(chosen: GuestDriverOptions,): Promise<void> {
   await recipe({
     chosen,
     step: 'destroy',
+    extraArgumentWords: recipeExtraArguments(),
   },);
 }
 

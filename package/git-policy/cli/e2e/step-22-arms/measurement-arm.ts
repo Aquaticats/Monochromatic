@@ -15,6 +15,7 @@
  ```
  */
 
+import { guestBackend, } from '../../bin/mvm-guest-backend.ts';
 import {
   holdsLineStartingWith,
   requireMarkers,
@@ -43,6 +44,10 @@ import {
   poolTimeoutMilliseconds,
   scanPool,
 } from './measurement-fixture.ts';
+/**
+ The backend this run drives, read from the one place every guest step reads it from.
+ */
+const backend = guestBackend();
 
 /**
  The log the pool script writes inside the guest's shared folder.
@@ -124,7 +129,7 @@ export async function measureStep22({
   const script = [
     'set -eu',
     `export PATH=${openZfsPathWithCargo}`,
-    `export ${guestVariable}=${chosen.name}`,
+    `export ${guestVariable}=${backend.hostnameOf(chosen.name)}`,
     `export CLI_GIT_ZFS_STEP22_POOL=${pool}`,
     `export CLI_GIT_ZFS_STEP22_SBIN=${openZfsSbin}`,
     `export CLI_GIT_ZFS_STEP22_ROOT=${checkout}`,

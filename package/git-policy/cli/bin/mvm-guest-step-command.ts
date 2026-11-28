@@ -86,7 +86,7 @@ type StepCommandEnd =
 
  @example
  ```ts
- stepTextOf({ program: 'mvm', argumentWords: ['--backend', 'libvirt', 'list'] }); // 'mvm --backend libvirt list'
+ stepTextOf({ program: 'mvm', argumentWords: ['list'] }); // 'mvm list'
  ```
  */
 function stepTextOf({
@@ -276,7 +276,7 @@ async function awaitStepCommand({
  const status = await runStepCommand({
    logDirectory: '/logs',
    program: 'mvm',
-   argumentWords: ['--backend', 'libvirt', 'list'],
+   argumentWords: ['list'],
    log: 'mvm-list.log',
    timeoutMilliseconds: 120_000,
  });
@@ -351,7 +351,7 @@ export async function runStepCommand({
  await runRequiredStepCommand({
    logDirectory: '/logs',
    program: 'mvm',
-   argumentWords: ['--backend', 'libvirt', 'push', 'guest-a', '/logs/subject.tar.gz', '/root/subject.tar.gz'],
+   argumentWords: ['push', 'guest-a', '/logs/subject.tar.gz', '/root/subject.tar.gz'],
    log: 'guest-push.log',
    timeoutMilliseconds: 120_000,
  });
@@ -409,7 +409,7 @@ export async function runRequiredStepCommand({
  ```ts
  const status = await runQuietStepCommand({
    program: 'mvm',
-   argumentWords: ['--backend', 'libvirt', 'exec', 'guest-a', '--', 'sh', '/mnt/shared/build.log.launch.sh'],
+   argumentWords: ['exec', 'guest-a', '--', 'sh', '/mnt/shared/build.log.launch.sh'],
    timeoutMilliseconds: 120_000,
  });
  ```
@@ -537,7 +537,7 @@ export async function readLog({ path, }: { readonly path: string; },): Promise<s
 
  @example
  ```ts
- await statusOf({ command: 'mvm', args: ['--backend', 'libvirt', 'exec', 'guest-one', '--', 'true'], timeoutMilliseconds: 10_000 });
+ await statusOf({ command: 'mvm', args: ['exec', 'guest-one', '--', 'true'], timeoutMilliseconds: 10_000 });
  ```
  */
 export async function statusOf({

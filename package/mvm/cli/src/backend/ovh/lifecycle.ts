@@ -20,10 +20,18 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { VM_PREFIX, } from '../../config.ts';
 import type { VmInfo, } from '../../list.ts';
 import {
+  memoryGiBArgument,
+  refuseSizeAndOverride,
+  sizeRequest,
+  vcpusArgument,
+  type SizeRequest,
+} from '../size-request.ts';
+import {
   createInstance,
   createSnapshot,
   deleteInstance,
   deleteSnapshot,
+  listFlavors,
   listSnapshots,
 } from './api-resources.ts';
 import {
@@ -33,9 +41,11 @@ import {
 import { safeDeleteSnapshot, } from './discarding.ts';
 import { resolveFlavor, } from './flavors.ts';
 import {
+  assertNameIsNotDeleting,
   findMvmInstance,
   listMvmInstances,
   waitForSnapshotReady,
+  waitUntilDeleted,
 } from './instances.ts';
 import {
   provisionInstance,
@@ -63,28 +73,37 @@ const l = tagged({ tag: 'mvm', },);
  
  @param location - per-invocation region or comma-separated fallback series
  
+ @param memoryGiB - least memory the machine may have, in gibibytes, or omitted
+ 
  @param name - VM name without the mvm- prefix
  
  @param serverType - per-invocation flavor name or identifier
  
- @throws Error on an invalid name, on no region with stock, or when the instance never answers
+ @param vcpus - fewest virtual CPUs the machine may have, or omitted
+ 
+ @throws Error on an invalid name, on no region with stock or with a size that fits, on a size named beside a floor, or when the instance never answers
  
  @example
  ```ts
  await ovhCreate({ name: 'dev-01' });
  await ovhCreate({ name: 'big', serverType: 'b3-16', location: 'bhs5' });
+ await ovhCreate({ memoryGiB: 4, name: 'build', vcpus: 2 });
  ```
  */
 export async function ovhCreate({
   image,
   location,
+  memoryGiB,
   name,
   serverType,
+  vcpus,
 }: {
   readonly name: string;
   readonly image?: string;
+  readonly memoryGiB?: number;
   readonly serverType?: string;
   readonly location?: string;
+  readonly vcpus?: number;
 },): Promise<void> {
   validateOvhName(name,);
   /**
@@ -95,10 +114,24 @@ export async function ovhCreate({
     l,
   },);
   /**
+   The floors this create set; empty when it set none, which keeps the smallest
+   size in stock the walk it has always been.
+   */
+  const request: SizeRequest = sizeRequest({
+    memoryGiB: memoryGiBArgument(memoryGiB,),
+    vcpus: vcpusArgument(vcpus,),
+  },);
+  refuseSizeAndOverride({
+    override: flavorOverride(serverType,),
+    overrideOptions: '--server-type or MVM_OVH_FLAVOR',
+    request,
+  },);
+  /**
    Instance OVHcloud created; from here on a failure has to delete it.
    */
   const created = await provisionInstance({
     name,
+    request,
     rl,
     ...((image === undefined) ? {} : { image, }),
     ...((location === undefined) ? {} : { location, }),
@@ -152,6 +185,7 @@ export async function ovhClone({
     tag: ovhClone.name,
     l,
   },);
+  await assertNameIsNotDeleting({ name: destination, },);
   /**
    Source instance, resolved prefix-scoped and exact so a foreign instance is never snapshotted.
    */
@@ -213,11 +247,13 @@ export async function ovhClone({
 
 /**
  Destroys one mvm-owned instance by name. A stopped instance still bills, so this
- is the only operation that ends a machine's cost.
+ is the only operation that ends a machine's cost, and it returns only once the
+ project's listing has let the machine go.
  
  @param name - VM name without the mvm- prefix
  
- @throws Error when no single owned instance has that name
+ @throws Error when no single owned instance has that name, or when the project
+ still lists it after {@link DELETE_TIMEOUT_MS}
  
  @example
  ```ts
@@ -243,15 +279,31 @@ export async function ovhDestroy({
   const instance = await findMvmInstance({ name, },);
   rl.info(`destroying ${name} (id ${instance.id})`,);
   await deleteInstance({ instanceId: instance.id, },);
-  rl.info(`VM ${name} destroyed`,);
+  rl.info(
+    `OVHcloud accepted the delete of ${name}; waiting for the project's listing to let it go`,
+  );
+  await waitUntilDeleted({
+    instances: [
+      {
+        id: instance.id,
+        name,
+      },
+    ],
+  },);
+  rl.info(`VM ${name} destroyed and gone from the project's listing`,);
 }
 
 /**
  Destroys every mvm-owned instance, then every snapshot whose name carries the
  tool's prefix, so an interrupted clone cannot leave one billing per GB per month.
  Both passes are scoped by the name prefix, never by region.
+
+ Every delete is sent before any of them is waited on, so the machines delete
+ in parallel and the wait reads the project's listing once per interval rather
+ than once per machine.
  
- @throws Error when a delete fails
+ @throws Error when a delete fails, or when the project still lists a deleted
+ machine after {@link DELETE_TIMEOUT_MS}
  
  @example
  ```ts
@@ -279,6 +331,18 @@ export async function ovhDestroyAll(): Promise<void> {
       // oxlint-disable-next-line no-await-in-loop -- sequential to avoid hammering the API
       await deleteInstance({ instanceId: instance.id, },);
     }
+    rl.info(
+      `OVHcloud accepted every delete; waiting for the project's listing to let them go`,
+    );
+    await waitUntilDeleted({
+      instances: instances.map(function awaitingDeletion(instance,) {
+        return {
+          id: instance.id,
+          name: instance.name
+            .slice(VM_PREFIX.length,),
+        };
+      },),
+    },);
   }
   /**
    Snapshots carrying the tool's prefix; swept so an interrupted clone cannot leak one.
@@ -295,9 +359,14 @@ export async function ovhDestroyAll(): Promise<void> {
 }
 
 /**
- Lists the instances mvm owns with their state.
+ Lists the instances mvm owns with their state and the size they run.
  
- @returns VM entries with the unprefixed name and the lower-cased OVHcloud status
+ The size is read from the flavor each instance names, in that instance's own
+ region, because a flavor identifier means nothing in another region. One flavor
+ list is read per region in play, never one per instance.
+ 
+ @returns VM entries with the unprefixed name, the lower-cased OVHcloud status,
+ and the flavor's virtual CPUs and memory where the region still lists it
  
  @example
  ```ts
@@ -309,12 +378,38 @@ export async function ovhList(): Promise<readonly VmInfo[]> {
    Instances mvm owns, of those the project holds.
    */
   const owned = await listMvmInstances();
+  /**
+   Regions the listed instances run in, each read once.
+   */
+  const regions = [...new Set(owned.map(function regionOf(instance,) {
+    return instance.region;
+  },),),];
+  /**
+   Each region's flavors, by region name, so an instance's flavor id resolves.
+   */
+  const flavorsByRegion = new Map(
+    await Promise.all(regions.map(async function readRegion(region,) {
+      return [
+        region,
+        await listFlavors({ region, },),
+      ] as const;
+    },),),
+  );
   return owned.map(function toVmInfo(instance,) {
+    /**
+     Flavor the instance names, when its region still lists it.
+     */
+    const flavor = flavorsByRegion.get(instance.region,)
+      ?.find(function sameId(candidate,) {
+        return candidate.id === instance.flavorId;
+      },);
     return {
       name: instance.name
         .slice(VM_PREFIX.length,),
       state: instance.status
         .toLowerCase(),
+      ...((flavor === undefined) ? {} : { memoryGiB: flavor.ram, }),
+      ...((flavor === undefined) ? {} : { vcpus: flavor.vcpus, }),
     };
   },);
 }

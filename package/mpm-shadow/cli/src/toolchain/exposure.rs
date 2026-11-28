@@ -366,11 +366,17 @@ const THE_PROGRAMS_CRATE: &str = env!("CARGO_PKG_NAME");
 /// A link whose target no longer resolves is not kept:
 /// with nothing installed there the name reaches nothing,
 /// and a scope that has the program installed nowhere removes it as a link no row declares.
-/// Neither is a link that resolves into another tool's install directory,
-/// or into a superseded version,
-/// or into a dead installer's staging directory:
+/// Neither is a link that resolves into another tool's install directory:
 /// that is not an install of this program,
 /// and the name is meant for the one that is.
+/// The question asked below is which install directory the resolved file sits in,
+/// never which version of the program it is,
+/// so a link that resolves onto an older version of this program,
+/// or onto a copy under a hidden staging or replaced name inside that install directory,
+/// is kept while it resolves:
+/// the name reaches this program either way,
+/// the newest-only rule removes the older version when a newer one is installed,
+/// and the link then resolves nowhere and the next rebuild removes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

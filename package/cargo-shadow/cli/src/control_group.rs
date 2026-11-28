@@ -117,7 +117,6 @@ pub(crate) use crate::control_group_route_discovery::{
     is_cgroup2,
     is_executable_file,
     namespace_id,
-    unavailable,
     view_of,
 };
 

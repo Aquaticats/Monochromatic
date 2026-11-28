@@ -110,6 +110,10 @@ pub enum Ending {
     /// wait for its control group and namespace to go,
     /// and then take the copy out of the namespaces that are left.
     StopTheAccountsOwnUnitThenGoOn,
+    /// Enter the namespace and take its copy out,
+    /// with no signal sent at all,
+    /// because this kind of holder has no task to signal.
+    EnterAndTakeTheCopyOut,
     /// Refuse,
     /// naming the reason,
     /// because no round shows an ending for this kind.
@@ -185,11 +189,21 @@ pub const MOVE_SHOWN_BY: &str = "this round's guest arm, phases namespace-way7-r
 /// and the host's unmount and the head destroy followed.
 pub const LOCKED_UNIT_SHOWN_BY: &str = "this round's guest arm, phase locked-holder-stopped-through-its-unit: the holder's task was a service unit of the guest account's own user manager and its mount namespace was owned by a user namespace of its own, so way 8's and way 7's unmount both answered holder-locked; the manager's stop ended the unit, its control group and its namespace, the host's copy stayed, and the host's unmount and the head destroy answered gone; the arm's locked-holder-refused phase still shows a holder made by hand refused with holder-locked";
 
-/// Why the taskless namespace's ending is not built:
-/// nothing in this build lists a namespace whose tasks are gone,
-/// the `6.8` guest answers `ENOSYS` to `listns`,
+/// Why the taskless namespace's ending is built where the kernel lists namespaces,
+/// and refused where it does not:
+/// this round's guest arm on `7.3.5-1-cachyos` found a namespace no task held
+/// by `listns`,
+/// entered it through the descriptor its id became,
+/// and took the copy out of it,
+/// while the same arm on the Ubuntu `6.8` guest answered `ENOSYS` and refused
+/// `holder-unendable`.
+pub const TASKLESS_SHOWN_BY: &str = "this round's guest arm, phase taskless-namespace on 7.3.5-1-cachyos: listns listed the namespace no task held, its id became a descriptor, the copy went by way 8 and the head destroy answered gone; on the Ubuntu 6.8 guest the same phase answered ENOSYS to listns and refused holder-unendable";
+
+/// Why the taskless namespace's ending was not built before this round:
+/// nothing in this build listed a namespace whose tasks are gone,
+/// every guest the arms ran on answered `ENOSYS` to `listns`,
 /// and no arm unmounted a copy inside one.
-pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace is refused: this build lists no namespace whose tasks are gone, the guest's 6.8 kernel answers ENOSYS to listns, and no arm unmounted a copy inside one";
+pub const TASKLESS_NOT_BUILT: &str = "a taskless namespace was refused until this round: this build listed no namespace whose tasks are gone, the guests' kernels answered ENOSYS to listns, and no arm unmounted a copy inside one";
 
 /// What:
 ///  The one table,
@@ -223,9 +237,9 @@ pub const THE_KINDS: &[KindEvidence] = &[
     },
     KindEvidence {
         kind: HolderKind::TasklessNamespace,
-        ending: Ending::Refuse(RefusalWord::HolderUnendable),
-        shown_by: TASKLESS_NOT_BUILT,
-        owed_arm: "T0-10's namespace on a 6.19 or newer guest, with a copy inside it unmounted",
+        ending: Ending::EnterAndTakeTheCopyOut,
+        shown_by: TASKLESS_SHOWN_BY,
+        owed_arm: "a taskless namespace that holds the copy on a kernel the shipped handler runs, with the id it was found by reused after the namespace died and the act refusing to act on the stale one",
     },
     KindEvidence {
         kind: HolderKind::PathHolder,
@@ -300,7 +314,8 @@ impl std::fmt::Display for MissingKind {
 ///  A refusal ends nothing,
 ///  and an act that asked a blocker for its end would be ending a job in a
 ///  namespace this build refuses:
-///  the locked holder's copy is refused before any signal.
+///  the locked holder's copy is refused before any signal,
+///  and a taskless namespace has no task to ask.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -313,6 +328,8 @@ pub fn ends_blockers(ending: Ending) -> bool {
         Ending::UnmountInPlaceByHandle | Ending::MakeTheParentASlaveThenMoveAndUnmount => true,
         // The manager ends the unit's jobs its own way, so this arm sends no signal into that namespace.
         Ending::StopTheAccountsOwnUnitThenGoOn => false,
+        // A namespace with no task in it is entered and its copy taken out, and no signal is sent to anything.
+        Ending::EnterAndTakeTheCopyOut => false,
         Ending::Refuse(_word) => false,
     };
 }

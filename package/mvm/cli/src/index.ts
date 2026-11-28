@@ -60,7 +60,12 @@ export { createWithFallback, } from './backend/hetzner/lifecycle.ts';
 
  @internal
  */
-export { resolveCheapestServerType, } from './backend/hetzner/server-types.ts';
+export {
+  describeServerType,
+  orderServerTypes,
+  resolveCheapestServerType,
+  resolveServerType,
+} from './backend/hetzner/server-types.ts';
 /**
  Hetzner SSH and scp argument builders, exposed for built-artifact verification.
 
@@ -129,16 +134,50 @@ export {
   validateOvhName,
 } from './backend/ovh/config.ts';
 /**
+ The hourly price read from OVHcloud's public catalogue, exposed for
+ built-artifact verification.
+
+ @internal
+ */
+export {
+  currencyOf,
+  hourlyPriceOf,
+  NO_PRICE,
+  PRICE_CATALOG_PATH,
+  PRICE_UNITS_PER_CURRENCY_UNIT,
+  priceIndexOf,
+  readPriceIndex,
+  subsidiaryOf,
+} from './backend/ovh/catalog-prices.ts';
+/**
  OVHcloud flavor selection, exposed for built-artifact verification.
 
  @internal
  */
 export {
+  describeFlavor,
+  flavorsThatFit,
+  hourlyPriceFor,
+  largestFlavor,
+  NO_FLAVOR,
   NoFlavorInStockError,
   orderFlavors,
   resolveFlavor,
+  resolveFlavorsThatFit,
   selectFlavor,
+  type PriceChoice,
 } from './backend/ovh/flavors.ts';
+/**
+ The families mvm may pick a machine size from, exposed for built-artifact
+ verification.
+
+ @internal
+ */
+export {
+  flavorFamilyOf,
+  isKeptFlavor,
+  KEPT_FLAVOR_FAMILIES,
+} from './backend/ovh/flavor-families.ts';
 /**
  OVHcloud image selection, exposed for built-artifact verification.
 
@@ -155,6 +194,9 @@ export {
  @internal
  */
 export {
+  assertNameIsNotDeleting,
+  assertNotDeleting,
+  destructionTimeoutMessage,
   findMvmInstance,
   instanceImageUser,
   instanceLoginUser,
@@ -163,7 +205,10 @@ export {
   publicIpv4,
   runningTimeoutMessage,
   waitForSnapshotReady,
+  waitUntilDeleted,
   waitUntilRunning,
+  type DeletedInstance,
+  type StillDeleting,
 } from './backend/ovh/instances.ts';
 /**
  OVHcloud lifecycle operations, exposed for built-artifact verification.
@@ -177,6 +222,12 @@ export {
   ovhDestroyAll,
   ovhList,
 } from './backend/ovh/lifecycle.ts';
+/**
+ OVHcloud exec and file transfer, exposed for built-artifact verification.
+
+ @internal
+ */
+export { ovhExec, } from './backend/ovh/exec.ts';
 /**
  OVHcloud region selection, exposed for built-artifact verification.
 
@@ -193,6 +244,7 @@ export {
 
  @internal
  */
+export { INSTANCE_DELETING_STATUS, } from './backend/ovh/types.ts';
 export type {
   OvhFailureBody,
   OvhFlavor,
@@ -222,6 +274,7 @@ export {
   ovhSshExecArgs,
 } from './backend/ovh/ssh.ts';
 export * from './backend/registry.ts';
+export * from './backend/size-request.ts';
 export type {
   Backend,
   BackendKind,
@@ -255,6 +308,9 @@ export {
  @internal
  */
 export {
+  DEFAULT_MEMORY_MIB,
+  DEFAULT_VCPUS,
+  MEBIBYTES_PER_GIBIBYTE,
   SESSION_DAEMON_IDLE_TIMEOUT_SECONDS,
   SESSION_DAEMON_UNIT,
 } from './config.ts';
@@ -311,6 +367,7 @@ export * from './update.ts';
 
  @internal
  */
+export * from './vm-sizes.ts';
 export * from './virsh-wait.ts';
 /**
  The virsh wrapper, exposed for built-artifact verification.
