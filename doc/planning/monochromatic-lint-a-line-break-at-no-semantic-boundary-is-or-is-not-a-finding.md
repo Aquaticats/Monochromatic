@@ -305,7 +305,7 @@ and no enforced gate stands behind the "commit path" this proposal used to name:
 - `mise.toml` lines 1024 to 1025 say the linter
   "Exits 1 on error findings and 2 when the run could not be completed;
   warnings alone exit 0."
-- The installed `0.5.2-alpha.24` on `package/git-policy/cli` at this commit
+- The installed `0.5.2-alpha.24` on `package/git-policy/cli` at the survey commit
   reports `14` findings in `14` files and exits `1`:
   `13` `rust/max-lines` errors and one `rust/avoidable-closure` warning.
   The command is
@@ -788,7 +788,7 @@ This is why C leaves the issue's defect in place.
 
 ### The README's "never rewrites a line the author wrote"
 
-`package/linter/monochromatic-lint/README.md` line 2604 says
+`package/linter/monochromatic-lint/README.md` line 2623 says
 "The fix never rewrites a line the author wrote."
 On a copy of
 `Owns the record family, the` / `managed lock's words, the finder.`,
@@ -804,7 +804,7 @@ The author's second line gained the fragment `the` at its start.
 The sentence is already untrue of the shipped join,
 and would be false of every joined line under B.
 
-Line 2605 says
+Line 2624 says
 "Removing the deepest indent of a rustdoc run re-projects every line of that run".
 `run_margin` (`processors_docs.rs`,
 lines 116 to 131)
