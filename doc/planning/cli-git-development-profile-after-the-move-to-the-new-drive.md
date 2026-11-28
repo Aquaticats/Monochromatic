@@ -1,7 +1,7 @@
 # The Git wrapper's development profile after the move to the new drive
 
 Proposal,
-revised 2026-11-28T09:38:07-05:00.
+revised 2026-11-28T09:23:21-05:00.
 Status:
 unapproved and not final.
 Nothing here is decided,
