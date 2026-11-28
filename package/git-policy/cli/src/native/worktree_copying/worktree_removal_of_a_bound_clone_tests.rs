@@ -98,6 +98,7 @@ fn facts_of(bound: &RegisteredSlot) -> CopyFacts {
             force: true,
         }),
         removal_target: Some(bound.slot.clone()),
+        removal_force: 1,
         quiet: false,
     };
 }
@@ -120,6 +121,7 @@ fn facts_of_the_fixture(fixture: &RemovalFixture) -> CopyFacts {
             force: true,
         }),
         removal_target: Some(fixture.slot_path.clone()),
+        removal_force: 1,
         quiet: false,
     };
 }
@@ -225,6 +227,23 @@ impl MountedDatasets for ATableNoControlReads {
     }
 }
 
+/// A cleanliness reading for a control that never reaches a worktree holding changes.
+/// Why:
+///  The cleanliness proof is Git's own and reads a person's files,
+///  and a control about another state answers here that nothing changed,
+///  so a test that expected the slot state to refuse cannot pass on a dirty
+///  reading it never named.
+struct AWorktreeNothingChanged;
+
+impl TheSlotsCleanliness for AWorktreeNothingChanged {
+    fn the_slot_is_clean(
+        &self,
+        _places: &crate::worktree_copying::the_slots_cleanliness::TheSlotToCheck<'_>,
+    ) -> Result<(), String> {
+        return Ok(());
+    }
+}
+
 /// The refusal's answer for one slot with nothing mounted and no intent set,
 /// which the states that stay Git's ask for.
 fn refusal_of_or_none(facts: &CopyFacts) -> Option<BoundSlotRemovalAnswer> {
@@ -245,10 +264,16 @@ fn refusal_of_or_none_with(
 ) -> Option<BoundSlotRemovalAnswer> {
     let (target, common): (PathBuf, PathBuf) = the_slot_and_its_common(facts)?;
     return the_removal_with(
-        target.as_path(),
-        common.as_path(),
-        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
-        sources,
+        &TheSlotRemoval {
+            target: target.as_path(),
+            common_dir: common.as_path(),
+            force: RemovalForce::none(),
+            cleanliness: &AWorktreeNothingChanged,
+        },
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources,
+        },
     );
 }
 
@@ -280,6 +305,32 @@ fn no_intent_asked() -> ScriptedIntent {
     };
 }
 
+/// What:
+///  The request a control hands the removal:
+///  the two places,
+///  no force,
+///  and a worktree nothing changed.
+/// Why:
+///  Every control of a state expects the slot's own reading to refuse,
+///  so a dirty reading it never named would make the test pass for the wrong
+///  reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = a_request(target, common);
+/// ```
+fn a_request<'a>(
+    target: &'a Path,
+    common: &'a Path,
+) -> TheSlotRemoval<'a> {
+    return TheSlotRemoval {
+        target,
+        common_dir: common,
+        force: RemovalForce::none(),
+        cleanliness: &AWorktreeNothingChanged,
+    };
+}
+
 /// The refusal's printed lines over the reads and the slot sources a control answers.
 fn refusal_of_with(
     facts: &CopyFacts,
@@ -288,7 +339,18 @@ fn refusal_of_with(
 ) -> String {
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(facts).expect("the facts name one removal");
-    return match the_removal_with(target.as_path(), common.as_path(), reads, sources) {
+    return match the_removal_with(
+        &TheSlotRemoval {
+            target: target.as_path(),
+            common_dir: common.as_path(),
+            force: RemovalForce::none(),
+            cleanliness: &AWorktreeNothingChanged,
+        },
+        &TheRemovalsReadings {
+            reads,
+            sources,
+        },
+    ) {
         Some(BoundSlotRemovalAnswer {
             stderr,
             code,
@@ -408,10 +470,16 @@ fn a_slot_a_destruction_plan_names_is_the_removals_own() {
         intents: &intents,
     };
     let left_to_git: Option<BoundSlotRemovalAnswer> = the_removal_with(
-        fixture.slot_path.as_path(),
-        fixture.common_dir.as_path(),
-        RemovalReads::Scripted(&pool),
-        &sources,
+        &TheSlotRemoval {
+            target: fixture.slot_path.as_path(),
+            common_dir: fixture.common_dir.as_path(),
+            force: RemovalForce::none(),
+            cleanliness: &AWorktreeNothingChanged,
+        },
+        &TheRemovalsReadings {
+            reads: RemovalReads::Scripted(&pool),
+            sources: &sources,
+        },
     );
     let answer: BoundSlotRemovalAnswer = left_to_git.expect(
         "a slot a destruction plan names is the removal's own, and Git's own removal would drop the registration while the clone stands",
@@ -510,10 +578,11 @@ fn a_record_that_cannot_be_read_refuses_the_removal() {
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
     let refusal: BoundSlotRemovalAnswer = the_removal_with(
-        target.as_path(),
-        common.as_path(),
-        RemovalReads::Unreadable("this control reads no pool"),
-        &sources,
+        &a_request(target.as_path(), common.as_path()),
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable("this control reads no pool"),
+            sources: &sources,
+        },
     )
     .expect("a record that cannot be read refuses the removal");
     assert_eq!(refusal.code, REFUSED_EXIT_CODE);
@@ -581,10 +650,11 @@ fn a_slot_with_no_record_and_a_mount_at_it_refuses_the_removal() {
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
     let refusal: BoundSlotRemovalAnswer = the_removal_with(
-        target.as_path(),
-        common.as_path(),
-        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
-        &sources,
+        &a_request(target.as_path(), common.as_path()),
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
     )
     .expect("a mount no record names refuses the removal");
     assert_eq!(refusal.code, REFUSED_EXIT_CODE);
@@ -639,10 +709,11 @@ fn a_record_naming_another_path_refuses_the_removal() {
         intents: &NoIntentMayBeAsked,
     };
     let refusal: BoundSlotRemovalAnswer = the_removal_with(
-        plain.as_path(),
-        bound.common.as_path(),
-        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
-        &sources,
+        &a_request(plain.as_path(), bound.common.as_path()),
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
     )
     .expect("a record of another path refuses the removal");
     assert_eq!(refusal.code, REFUSED_EXIT_CODE);
@@ -697,10 +768,11 @@ fn an_unreadable_mount_table_refuses_the_removal() {
     let (target, common): (PathBuf, PathBuf) =
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
     let refusal: BoundSlotRemovalAnswer = the_removal_with(
-        target.as_path(),
-        common.as_path(),
-        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
-        &sources,
+        &a_request(target.as_path(), common.as_path()),
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
     )
     .expect("an unreadable mount table refuses the removal");
     assert_eq!(refusal.code, REFUSED_EXIT_CODE);
@@ -783,10 +855,11 @@ fn a_repository_without_records_reads_no_mount_table() {
         the_slot_and_its_common(&facts_of(&bound)).expect("the facts name one removal");
     assert!(
         the_removal_with(
-            target.as_path(),
-            common.as_path(),
-            RemovalReads::Unreadable("this control reads no pool"),
-            &sources
+            &a_request(target.as_path(), common.as_path()),
+            &TheRemovalsReadings {
+                reads: RemovalReads::Unreadable("this control reads no pool"),
+                sources: &sources,
+            }
         )
         .is_none()
     );
@@ -947,12 +1020,8 @@ fn a_promoted_clone_is_refused_by_the_proof_and_nothing_is_written() {
     );
     assert!(
         stderr.contains(&format!(
-            "the clone `{CLONE}` answers with origin `{ORIGIN_DATASET}`"
+            "the clone `{CLONE}` has origin `{ORIGIN_DATASET}`, where the add recorded `{ORIGIN_SNAPSHOT}`"
         )),
-        "{stderr}"
-    );
-    assert!(
-        stderr.contains(&format!("the add recorded `{ORIGIN_SNAPSHOT}`")),
         "{stderr}"
     );
     assert!(
@@ -1090,13 +1159,16 @@ fn the_scripted_pool_reaches_every_identity_the_proof_compares() {
         RemovalReads::Scripted(&another_pool),
     );
     assert!(
-        stderr.contains(&format!("`{POOL}` answers with poolGuid")),
+        stderr.contains(&format!("for `{POOL}`'s `poolGuid`")),
         "{stderr}"
     );
-    assert!(stderr.contains("not the one the add made"), "{stderr}");
     assert!(
-        stderr.contains(&format!("the add recorded `{POOL_GUID}`")),
+        stderr.contains(&format!("where the add recorded `{POOL_GUID}`")),
         "{stderr}"
+    );
+    assert!(
+        stderr.contains("cannot be proved"),
+        "the sentence names two forces as the way through: {stderr}"
     );
     assert_eq!(fixture.the_plan_folder_holds(), 0);
 }
@@ -1165,10 +1237,11 @@ fn a_plain_worktree_that_shares_a_slots_last_name_opens_no_device() {
         intents: &NoIntentMayBeAsked,
     };
     let refusal: BoundSlotRemovalAnswer = the_removal_with(
-        plain.as_path(),
-        bound.common.as_path(),
-        RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
-        &sources,
+        &a_request(plain.as_path(), bound.common.as_path()),
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
     )
     .expect("a record that names another path refuses the removal without asking the pool");
     assert!(
@@ -1284,4 +1357,221 @@ fn restoring_or_deleting_an_unreadable_record_does_what_the_sentence_says() {
     assert!(!bound.slot.exists(), "Git removed the slot folder");
     assert!(!bound.registration.exists(), "and its registration");
     remove(bound.root.as_path());
+}
+
+/// What:
+///  A destruction plan that cannot be read refuses the removal with no force,
+///  and the sentence names the plan's file and the settling command.
+/// Why:
+///  The owner answered on 2026-11-28 that such a slot refuses,
+///  and that the refusal names those two
+///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`'s
+///  own words: "the refusal names the plan file and
+///  `git monochromatic-git-policy-cli settle-worktree-clone-record`").
+///  This control failed on `main`, which left such a slot to Git.
+#[test]
+fn a_plan_that_cannot_be_read_refuses_the_removal_naming_its_file_and_the_command() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("removal-of-an-unreadable-plan");
+    let plan: PathBuf = fixture.plan_folder().join(CLONE_GUID.to_string().as_str());
+    std::fs::create_dir_all(fixture.plan_folder().as_path()).expect("the plan folder");
+    std::fs::write(plan.as_path(), b"not a plan\n").expect("the unreadable plan writes");
+    let before: Vec<(String, Option<Vec<u8>>)> = the_tree(fixture.common());
+    let mounts: ScriptedMountTable = nothing_is_mounted();
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
+        &a_request(fixture.slot_path.as_path(), fixture.common_dir.as_path()),
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
+    )
+    .expect("a plan that cannot be read refuses the removal");
+    assert_eq!(refusal.code, REFUSED_EXIT_CODE);
+    assert!(
+        refusal.stderr.contains(plan.display().to_string().as_str()),
+        "the sentence names the plan's file: {}",
+        refusal.stderr
+    );
+    assert!(
+        refusal
+            .stderr
+            .contains("git monochromatic-git-policy-cli settle-worktree-clone-record"),
+        "the sentence names the settling command: {}",
+        refusal.stderr
+    );
+    assert_eq!(
+        the_tree(fixture.common()),
+        before,
+        "the refusal wrote nothing and left the plan where it stood"
+    );
+    remove(fixture.common_dir.parent().expect("the fixture root"));
+}
+
+/// What:
+///  A clone mounted on a staging folder with no plan refuses the removal with no
+///  force,
+///  and the sentence names `cancel-worktree-removal`;
+///  with one force the removal runs.
+/// Why:
+///  The owner answered on 2026-11-28 that the refusal names the cancel command
+///  and that one force unmounts the clone there and destroys it
+///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+///  "A clone mounted at the staging folder, with no plan").
+///  This control failed on `main`, which left such a slot to Git.
+#[test]
+fn a_clone_at_the_staging_folder_refuses_without_force_and_one_force_lets_the_removal_run() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("removal-of-a-staged-clone");
+    let staging: PathBuf =
+        PathBuf::from("/home/u/.cache/monochromatic-git-policy-cli-staging-7828944690444299989");
+    let mounts: ScriptedMountTable = ScriptedMountTable::holding(&[
+        row(1, 0, "/", "/", "zfs", "tank/ROOT"),
+        row(
+            40,
+            1,
+            "/",
+            staging.to_str().expect("a text path"),
+            "zfs",
+            CLONE,
+        ),
+    ]);
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
+        &a_request(fixture.slot_path.as_path(), fixture.common_dir.as_path()),
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
+    )
+    .expect("a clone at the staging folder refuses the removal without force");
+    assert_eq!(refusal.code, REFUSED_EXIT_CODE);
+    assert!(
+        refusal
+            .stderr
+            .contains("git monochromatic-git-policy-cli cancel-worktree-removal"),
+        "the sentence names the cancel command: {}",
+        refusal.stderr
+    );
+    let forced: Option<BoundSlotRemovalAnswer> = the_removal_with(
+        &TheSlotRemoval {
+            target: fixture.slot_path.as_path(),
+            common_dir: fixture.common_dir.as_path(),
+            force: RemovalForce::of_count(1),
+            cleanliness: &AWorktreeNothingChanged,
+        },
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
+    );
+    let answer: BoundSlotRemovalAnswer =
+        forced.expect("one force goes through a clone on the staging folder");
+    assert!(
+        answer
+            .stderr
+            .contains("a whole managed clone is bound to this slot"),
+        "one force runs the removal rather than refusing it: {}",
+        answer.stderr
+    );
+    assert_eq!(
+        answer.code, REFUSED_EXIT_CODE,
+        "a control's own pool answer reports what a removal would prove and lose"
+    );
+    remove(fixture.common_dir.parent().expect("the fixture root"));
+}
+
+/// What:
+///  A worktree Git would refuse to delete for its changes refuses the removal
+///  without force and passes with one.
+/// Why:
+///  Git runs its cleanliness proof only while the count is zero
+///  (`builtin/worktree.c:1464` at Git `v2.56.1`),
+///  and this route answers before Git does,
+///  so the coordinator's pick of 2026-11-28 is Git's own gradation:
+///  no force refuses and names `--force`, and one force passes.
+///  Nothing on `main` read the files at a bound slot,
+///  so this control failed there by passing straight to the pool.
+#[test]
+fn a_worktree_holding_changes_refuses_without_force_and_one_force_passes() {
+    let fixture: RemovalFixture = RemovalFixture::healthy("removal-of-a-dirty-clone");
+    let mounts: ScriptedMountTable = ScriptedMountTable::holding(&[
+        row(1, 0, "/", "/", "zfs", "tank/ROOT"),
+        row(
+            40,
+            1,
+            "/",
+            fixture.slot_path.to_str().expect("a text path"),
+            "zfs",
+            CLONE,
+        ),
+    ]);
+    let intents: ScriptedIntent = no_intent_asked();
+    let sources: SlotReadingSources<'_> = SlotReadingSources {
+        mounts: &mounts,
+        intents: &intents,
+    };
+    let refusal: BoundSlotRemovalAnswer = the_removal_with(
+        &TheSlotRemoval {
+            target: fixture.slot_path.as_path(),
+            common_dir: fixture.common_dir.as_path(),
+            force: RemovalForce::none(),
+            cleanliness: &AWorktreeWithChanges,
+        },
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
+    )
+    .expect("a worktree holding changes refuses the removal without force");
+    assert_eq!(refusal.code, REFUSED_EXIT_CODE);
+    assert!(
+        refusal.stderr.contains("modified or untracked files"),
+        "{}",
+        refusal.stderr
+    );
+    assert!(
+        refusal.stderr.contains("git worktree remove --force"),
+        "the sentence names the way through: {}",
+        refusal.stderr
+    );
+    let forced: Option<BoundSlotRemovalAnswer> = the_removal_with(
+        &TheSlotRemoval {
+            target: fixture.slot_path.as_path(),
+            common_dir: fixture.common_dir.as_path(),
+            force: RemovalForce::of_count(1),
+            cleanliness: &AWorktreeWithChanges,
+        },
+        &TheRemovalsReadings {
+            reads: RemovalReads::Unreadable(NO_POOL_WAS_ASKED),
+            sources: &sources,
+        },
+    );
+    let answer: BoundSlotRemovalAnswer = forced.expect("one force passes the cleanliness refusal");
+    assert!(
+        answer
+            .stderr
+            .contains("a whole managed clone is bound to this slot"),
+        "{}",
+        answer.stderr
+    );
+    remove(fixture.common_dir.parent().expect("the fixture root"));
+}
+
+/// A cleanliness reading of a worktree holding one change.
+struct AWorktreeWithChanges;
+
+impl TheSlotsCleanliness for AWorktreeWithChanges {
+    fn the_slot_is_clean(
+        &self,
+        _places: &crate::worktree_copying::the_slots_cleanliness::TheSlotToCheck<'_>,
+    ) -> Result<(), String> {
+        return Err(String::from("`a.txt`: modified"));
+    }
 }

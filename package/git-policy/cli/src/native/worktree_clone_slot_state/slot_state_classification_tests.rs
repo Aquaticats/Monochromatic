@@ -303,9 +303,19 @@ fn a_record_naming_another_path_cannot_be_proved() {
     }
 }
 
-/// A plan no reader could read proves no state either.
+/// What:
+///  A plan no reader could read is the reading a removal refuses without force
+///  and passes with one.
+/// Why:
+///  The owner answered on 2026-11-28 that such a slot refuses a removal,
+///  naming the plan file and the settling command,
+///  and that one force goes through it
+///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+///  "A destruction plan that cannot be read").
+///  This control failed on `main`'s own line,
+///  which read the state as `AnotherReading` and left the slot to Git.
 #[test]
-fn an_unreadable_plan_cannot_be_proved() {
+fn an_unreadable_plan_is_a_reading_a_removal_refuses_without_force() {
     let readings: SlotReadings = SlotReadings {
         plan: PlanReading::Unreadable {
             plan: PathBuf::from("/repo/.git/plans/1"),
@@ -319,10 +329,93 @@ fn an_unreadable_plan_cannot_be_proved() {
             stopped_by,
         } => {
             assert!(reason.contains("not a plan"), "{reason}");
-            assert_eq!(
-                stopped_by,
-                ProofStoppedBy::AnotherReading,
-                "a plan nobody could read stays Git's until the owner says otherwise"
+            assert_eq!(stopped_by, ProofStoppedBy::ADestructionPlanThatCannotBeRead);
+            assert!(
+                stopped_by.refuses_a_removal(false),
+                "a removal without force refuses a plan it cannot read"
+            );
+            assert!(
+                !stopped_by.refuses_a_removal(true),
+                "one force goes through a plan it cannot read"
+            );
+        }
+        found => panic!("expected a state nothing proves, got {found:?}"),
+    }
+}
+
+/// What:
+///  A clone mounted on a staging folder with no plan is the second reading a
+///  removal refuses without force and passes with one.
+/// Why:
+///  It is where an unmount a killed removal asked for left the clone,
+///  and the owner answered on 2026-11-28 that the refusal names
+///  `cancel-worktree-removal <slot>` and that one force unmounts it there and
+///  destroys it
+///  (`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+///  "A clone mounted at the staging folder, with no plan").
+///  This control failed on `main`'s own line,
+///  which read the mount as `Elsewhere` and left the slot to Git.
+#[test]
+fn a_clone_at_the_staging_folder_is_a_reading_a_removal_refuses_without_force() {
+    let staging: PathBuf =
+        PathBuf::from("/home/u/.cache/monochromatic-git-policy-cli-staging-7828944690444299989");
+    let readings: SlotReadings = SlotReadings {
+        mounts: MountRows::Rows(vec![MountedDatasetInstance {
+            dataset: String::from(CLONE_DATASET),
+            mount_point: staging.clone(),
+            root: PathBuf::from("/"),
+        }]),
+        ..readings_at(Phase::Filled)
+    };
+    match classify_slot(&readings) {
+        SlotRouteState::CannotProve {
+            reason,
+            stopped_by,
+        } => {
+            assert!(reason.contains("staging folder"), "{reason}");
+            assert_eq!(stopped_by, ProofStoppedBy::ACloneAtTheStagingFolder);
+            assert!(
+                stopped_by.refuses_a_removal(false),
+                "a removal without force refuses a clone on the staging folder"
+            );
+            assert!(
+                !stopped_by.refuses_a_removal(true),
+                "one force goes through a clone on the staging folder"
+            );
+        }
+        found => panic!("expected a state nothing proves, got {found:?}"),
+    }
+}
+
+/// What:
+///  A clone mounted somewhere that is no staging folder stays Git's.
+/// Why:
+///  The owner's answer of 2026-11-28 names the staging folder and no other
+///  mount,
+///  and a mount a person made elsewhere is not this route's to refuse.
+#[test]
+fn a_clone_mounted_elsewhere_is_still_no_removals_state() {
+    let readings: SlotReadings = SlotReadings {
+        mounts: MountRows::Rows(vec![MountedDatasetInstance {
+            dataset: String::from(CLONE_DATASET),
+            mount_point: PathBuf::from("/mnt/backup/topic"),
+            root: PathBuf::from("/"),
+        }]),
+        ..readings_at(Phase::Filled)
+    };
+    match classify_slot(&readings) {
+        SlotRouteState::CannotProve {
+            stopped_by,
+            ..
+        } => {
+            assert_eq!(stopped_by, ProofStoppedBy::AnotherReading);
+            assert!(
+                !stopped_by.refuses_a_removal(false),
+                "a person's mount stays Git's"
+            );
+            assert!(
+                !stopped_by.refuses_a_removal(true),
+                "and no force makes it this route's"
             );
         }
         found => panic!("expected a state nothing proves, got {found:?}"),
@@ -345,6 +438,11 @@ fn an_unreadable_mount_table_cannot_be_proved() {
         } => {
             assert!(reason.contains("the table is too large"), "{reason}");
             assert_eq!(stopped_by, ProofStoppedBy::AMountThatCannotBeRead);
+            assert!(stopped_by.refuses_a_removal(false));
+            assert!(
+                stopped_by.refuses_a_removal(true),
+                "no force passes a mount table nobody could read"
+            );
         }
         found => panic!("expected a state nothing proves, got {found:?}"),
     }

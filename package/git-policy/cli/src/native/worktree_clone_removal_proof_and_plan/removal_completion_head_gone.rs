@@ -98,7 +98,7 @@ pub(super) fn the_head_gone_path(
     let origin: OriginCleanupDone = attempt_the_origin_cleanup(input, &plan)?;
     let settle: SettleAnswer = settle_the_registration(input, &plan)?;
     let records: RecordsGone =
-        remove_the_removal_records(input.entry.common_dir, input.entry.slot, &plan)?;
+        remove_the_removal_records(input.entry.common_dir, input.entry.slot, &plan, None)?;
     return Ok(TheRemovalDone {
         slot: String::from(input.entry.slot),
         dataset: plan.facts.clone_dataset.clone(),
@@ -111,6 +111,9 @@ pub(super) fn the_head_gone_path(
         settle,
         records,
         claim: ClaimEnd::Held,
+        // A head-gone removal is a resume of a plan that read, so no act of force is behind it.
+        forced:
+            crate::worktree_clone_removal_proof_and_plan::removal_forced_acts::ForcedActs::nothing(),
         plan_path,
         requests: Vec::new(),
     });

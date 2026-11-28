@@ -126,6 +126,9 @@ pub fn word(state: &CloneMount) -> String {
         CloneMount::Elsewhere {
             described,
         } => format!("mounted elsewhere ({described})"),
+        CloneMount::AtTheStagingFolder {
+            described,
+        } => format!("on the staging folder an earlier removal's unmount left it on ({described})"),
         CloneMount::SomethingElseAtTheSlot {
             described,
         } => format!("with `{described}` at its slot"),

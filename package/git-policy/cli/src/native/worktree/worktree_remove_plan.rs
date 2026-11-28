@@ -252,10 +252,12 @@ fn long_force_of(word: &[u8]) -> ALongForce {
 ///  so a force after the path counts as one before it,
 ///  and every option of the command is read here and not only those before the
 ///  worktree's name.
-///  A short cluster holding another letter is a spelling Git answers with its
-///  usage and no removal at all,
-///  so it counts nothing:
-///  no command reaches this route with force it did not write.
+///  A word that is an option and not one of this command's force spellings is a
+///  spelling Git answers with its usage and no removal at all,
+///  and this wrapper answers that spelling before Git would,
+///  so the whole count is zero:
+///  no command gains force from a word Git refused,
+///  and a refused spelling never passes a refusal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -276,15 +278,16 @@ pub fn count_of_the_force(tokens: &[OsString]) -> usize {
         }
         let Some(long) = bytes.strip_prefix(b"--") else {
             let cluster: &[u8] = &bytes[1..];
-            if cluster.iter().all(|letter| return *letter == b'f') {
-                count = count.saturating_add(cluster.len());
+            if !cluster.iter().all(|letter| return *letter == b'f') {
+                return 0;
             }
+            count = count.saturating_add(cluster.len());
             continue;
         };
         match long_force_of(long) {
             ALongForce::One => count = count.saturating_add(1),
             ALongForce::Reset => count = 0,
-            ALongForce::NotThisOption => {}
+            ALongForce::NotThisOption => return 0,
         }
     }
     return count;

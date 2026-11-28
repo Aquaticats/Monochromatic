@@ -392,15 +392,21 @@ fn every_spelling_of_git_s_force_counts_the_way_git_counts_it() {
 }
 
 /// What:
-///  A short cluster that holds a letter other than `f` counts no force.
+///  A command carrying an option word Git does not accept for this command
+///  counts no force at all.
 /// Why:
 ///  Git answers such a word with its usage and no removal at all,
-///  and a command the wrapper refused for that spelling must not carry force it
-///  never had
+///  and this wrapper answers the spelling before Git would,
+///  so no word of a refused command may pass a refusal it would not have passed
 ///  (`parse-options.c:426` to `:440` at Git `v2.56.1`).
 #[test]
-fn a_cluster_holding_another_letter_counts_no_force() {
-    for words in [vec!["-fq", "one"], vec!["-qf", "one"], vec!["-f", "-q"], vec!["-x", "one"]] {
+fn a_command_carrying_an_option_git_refuses_counts_no_force() {
+    for words in [
+        vec!["-fq", "one"],
+        vec!["-qf", "one"],
+        vec!["-f", "-q"],
+        vec!["-x", "one"],
+    ] {
         assert_eq!(
             count_of_the_force(os_arguments(words.as_slice()).as_slice()),
             0,

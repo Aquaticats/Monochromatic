@@ -189,6 +189,7 @@ pub fn destroy_the_removal(
     let folder: PlanFolder =
         PlanFolder::open_or_create(input.entry.common_dir).map_err(|refusal| {
             return RemovalStop::PlanUnreadable {
+                slot: String::from(input.entry.slot),
                 path: crate::worktree_clone_binding_record::registration_home::plans_folder(
                     input.entry.common_dir,
                 ),

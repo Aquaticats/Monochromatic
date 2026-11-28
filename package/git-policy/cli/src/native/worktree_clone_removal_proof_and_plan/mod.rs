@@ -39,6 +39,9 @@
 //!   how many forces one command carried,
 //!   counted the way Git counts them,
 //!   and what each count passes.
+//! - `removal_forced_acts.rs`:
+//!   the acts a removal does only because of a force,
+//!   and the lines a person reads about them.
 //! - `plan_refusal.rs`:
 //!   why bytes are not a plan,
 //!   and the sentence a person reads.
@@ -190,6 +193,7 @@ pub mod removal_completion_inputs;
 pub mod removal_destruction;
 pub mod removal_entry;
 pub mod removal_force;
+pub mod removal_forced_acts;
 pub mod removal_head_destroy;
 pub mod removal_identities;
 pub mod removal_inventory;
@@ -313,6 +317,7 @@ pub use removal_entry::{
     enter_the_removal,
 };
 pub use removal_force::RemovalForce;
+pub use removal_forced_acts::ForcedActs;
 pub use removal_head_destroy::{
     CloneAbsence,
     DatasetDestroyDevice,
