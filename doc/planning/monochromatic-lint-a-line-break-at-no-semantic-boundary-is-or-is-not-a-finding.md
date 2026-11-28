@@ -2473,7 +2473,8 @@ the finding stops a run a person or a script starts,
 so it is acted on.
 What it gives up:
 every run over a file holding one fails until someone clears it,
-and with no fix in the tree nothing clears it automatically;
+and this page's plan builds no fix for the class's breaks,
+so nothing clears one automatically;
 the repository's own principle that lint issues are cleared asap
 meets a queue with no repair.
 A yes here leaves undecided what clears the findings (decision 5),
