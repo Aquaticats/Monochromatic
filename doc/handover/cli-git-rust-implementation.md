@@ -2944,25 +2944,6 @@ and the two `truepeak` files wait on their branch.
   neither is released,
   because the standing answer on alphas does not name them
   (`doc/handover/questions-for-the-owner.md`).
-- The wrapper package's `lint:oxlint` exits 0 on `main` (`0f33063f26`,
-  2026-11-27):
-  `Found 0 warnings and 0 errors.` on 341 files,
-  where issue 6581 had counted 850 errors and 1,856 warnings in fifteen TypeScript files with nothing running the check.
-  Every guest driver was shown to run in its guest against `main`'s version,
-  with the lines that say what an arm did compared and found the same.
-  The rewrite found that the start probe's shared header had been broken since `dcf5877982`:
-  an unquoted handler assignment ran the wrapper as a command,
-  so every arm after `green` stopped at its fourth line,
-  in `main`'s driver and the rewritten one alike;
-  it is quoted now,
-  and those arms run.
-  Three of that probe's arms
-  (`m3-kill`,
-  `timings`,
-  `timings-boot-first`)
-  were compared byte for byte and not run in a guest;
-  issue 6612's round ran each once,
-  and each passed.
 - `native:ts-checks` says what a passing check ran (`8dcc43ed1e`,
   issue 6613),
   and refuses a unit test run that reported no suite or fewer suites than the package holds unit test files.
