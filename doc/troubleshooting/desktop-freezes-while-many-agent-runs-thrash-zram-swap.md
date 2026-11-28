@@ -1513,6 +1513,106 @@ Both rules are the eleventh batch's, in `doc/troubleshooting/cachyos-apparmor-en
 `btrfs check --readonly` of the old filesystem and growing devid 1 into its 2 GiB margin
 run from a waiting command, after this step, on the owner's word.
 
+## A swap partition on the old NVMe, set up 2026-11-28
+
+Recorded by the coordinating session.
+Unapproved and non-final.
+The owner chose the partition and its size,
+and afterwards approved how it is encrypted;
+both answers are in
+`doc/decision/owner-answers-of-2026-11-28-guests-swap-drives-removal-and-releases.md`,
+"Swap on the old NVMe".
+
+### Why
+
+On the night of 2026-11-27 to 2026-11-28 swap ran nearly full twice with many rounds and guests alive:
+`SwapFree` read 3,280,544 kB of 64,667,644 kB at 2026-11-28T02:44:23-05:00,
+with zram as the only swap.
+
+### What was changed, step by step
+
+1.  The Btrfs file system on the old NVMe was shrunk by 128 GiB on its device 1,
+    mounted in a private mount namespace.
+    It ended at 2026-11-28T03:36:53-05:00 with the device at 737,768,636,416 bytes.
+2.  The partition table of `/dev/nvme0n1` was rewritten at 03:40:00
+    with `sfdisk --no-reread --no-tell-kernel --force`,
+    and the kernel was told with `partx`.
+    Two things changed and nothing else:
+    partition 6 went from 1,713,616,896 sectors to 1,445,181,440,
+    at the same start,
+    2,152,962,048;
+    and a new partition 8 begins at sector 3,598,143,488 for 268,435,456 sectors
+    (128 GiB),
+    type Linux swap,
+    named `old-nvme-plain-swap`.
+    Partition 7,
+    the zram writeback device,
+    was in use throughout and was not touched.
+    Partition 6 was closed before the write and reopened read-only after it:
+    its mapping holds 739,916,120,064 bytes,
+    more than the file system's device.
+3.  Partition 8 is opened as plain dm-crypt,
+    `aes-xts-plain64` with a 512-bit key read from `/dev/urandom` each time it opens and a sector size of 4096,
+    which is the setup the writeback partition beside it already has.
+    Nothing on it survives a reboot,
+    and there is no key to keep.
+4.  `mkswap`,
+    then `swapon --priority 10`,
+    at 03:40:32,
+    behind zram's priority of 110.
+    No AppArmor denial was met.
+
+The two lines that make it come back at boot:
+
+```text
+# /etc/crypttab
+old-nvme-plain-swap /dev/disk/by-partuuid/<partition 8's PARTUUID> /dev/urandom swap,cipher=aes-xts-plain64,size=512,sector-size=4096,nofail
+
+# /etc/fstab
+/dev/mapper/old-nvme-plain-swap none swap pri=10,nofail 0 0
+```
+
+### The bridge that was used meanwhile
+
+While the shrink ran,
+a 64 GiB swap file on the 860 drive's Btrfs file system carried the overflow,
+from 02:45:46.
+Two AppArmor profiles had to be widened for it
+(`doc/troubleshooting/cachyos-apparmor-enforcement-workload-tuning.md`,
+nineteenth batch).
+It was switched off and deleted between 03:40:54 and 03:50:05,
+so `mount-860.service` can be stopped again.
+The `swapoff` took nine minutes,
+because the pages it held had to go somewhere else.
+
+### What it did and did not change
+
+At 03:50:06 swap read 198,885,368 kB in all with 136,179,540 kB free,
+so swap no longer runs out.
+The machine still stalled:
+at 03:51:23 `MemAvailable` read 0 kB and `/proc/pressure/memory` read
+`some avg10=63.81` and `full avg10=49.62`,
+with a load of 101,
+eight compilers,
+nine guests and twenty rounds alive,
+and `Shmem` at 30.5 GB.
+A whole container gate that ran through that minute ended with four tests failed at their bounds.
+So room to swap into is not what was short at that moment;
+what held the 30 GB of `Shmem` was not measured.
+
+### How to undo it
+
+1.  `swapoff /dev/mapper/old-nvme-plain-swap`,
+    then `cryptsetup close old-nvme-plain-swap`.
+2.  Remove the two lines from `/etc/crypttab` and `/etc/fstab`.
+3.  Delete partition 8 and give partition 6 its sectors back:
+    partition 6 at start 2,152,962,048 with 1,713,616,896 sectors,
+    with partition 6's mapping closed while the table is written.
+4.  Grow the file system on device 1 again with `btrfs filesystem resize 1:max`.
+
+The owner has said every partition of the old NVMe that this system does not need is to be formatted after its data has moved,
+so the undo is here for the time before that.
+
 ## What is not known
 
 Each of these is a question with the measurement that answers it.
