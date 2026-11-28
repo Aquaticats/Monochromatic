@@ -167,22 +167,23 @@ size at least 2 vCPUs and at least 4 GiB of memory fits d2-4 (2 vCPUs, 4 GiB of 
 
 The command it ran printed `MemTotal:        3906272 kB` and `2`.
 3,906,272 kB is 4,000,022,528 bytes,
-which is 4.000 GB, or 3.725 GiB.
+which is 4.000 GB,
+or 3.725 GiB.
 
 So the two numbers say this:
-the size whose catalogue number is 4 gave a guest reporting 3.725 GiB of
-memory,
+the size whose catalogue number is 4 gave a guest reporting 3.725 GiB of memory,
 which is 281 MiB,
 or 7.4 percent,
 below the 4 GiB that was asked for and printed.
 The catalogue's number therefore does not count the guest's gibibytes:
-reading it as one, as the floor rule does today,
+reading it as one,
+as the floor rule does today,
 overstates every size by that share at this size.
 A `--memory 4` on OVHcloud ends on a guest with about 3.73 GiB,
 and a person budgeting memory for a command subtracts roughly seven percent
 from the catalogue's number to read what the guest will report.
-The reservation that makes the difference grows with the guest and is not
-something mvm reads:
+The reservation that makes the difference grows with the guest,
+and is not something mvm reads:
 OVHcloud's schema describes `ram` as gibibytes while its price page prints
 GB,
 and the guest's own total is the only number of the three that a command runs
@@ -699,7 +700,9 @@ mvm exec dev-01 -- 'sh -c "grep MemTotal /proc/meminfo; nproc"'
 
 `mvm run` builds the same line from its own words after `--`,
 so the two spellings behave the same way there.
-A command with no `;`, `|`, `&&` or quoting of its own reads the same either way,
+A command with no `;`,
+`|`,
+`&&` or quoting of its own reads the same either way,
 which is why `mvm exec dev-01 -- uname -a` needs no second thought.
 
 - Every command first prints a marker line that mvm removes from the output.
